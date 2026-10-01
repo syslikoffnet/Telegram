@@ -11278,4 +11278,25 @@
     <string name="PengramRegStyleDateAge">Date and account age</string>
     <string name="PengramRegDate">Registered</string>
     <string name="PengramRegInfo">The date is estimated from the account ID, so it is approximate.</string>
+    <string name="PengramFreedomHeader">No restrictions</string>
+    <string name="PengramAllowScreenshots">Allow screenshots everywhere</string>
+    <string name="PengramNoScreenshotNotify">Don\'t notify about screenshots</string>
+    <string name="PengramAllowForwards">Bypass forward and save restrictions</string>
+    <string name="PengramKeepOnce">Keep one-time media</string>
+    <string name="PengramFreedomInfo">Screenshots and recording work in secret chats, one-time media and payment screens. One-time photos, videos and voice messages are not marked as viewed, so they don\'t expire and can still be forwarded or saved.</string>
+    <string name="PengramAdsHeader">Ads</string>
+    <string name="PengramHideAds">Hide sponsored messages</string>
+    <string name="PengramAdsInfo">Sponsored posts are not requested from the server at all, so no ads appear anywhere.</string>
+    <string name="PengramPremiumHeader">Premium</string>
+    <string name="PengramLocalPremium">Local Premium</string>
+    <string name="PengramPremiumInfo">Unlocks Premium features that work on the client side (animated emoji and statuses, extended limits, premium-only interface options). Server-side features still require a real subscription.</string>
+    <string name="PengramAppearanceHeader">Appearance</string>
+    <string name="PengramFont">App font</string>
+    <string name="PengramFontDefault">Telegram (default)</string>
+    <string name="PengramFontSystem">System</string>
+    <string name="PengramFontSerif">Serif</string>
+    <string name="PengramFontMono">Monospace</string>
+    <string name="PengramChatMenu">Pengram island in chat menu</string>
+    <string name="PengramChatMenuTop">At the top of the menu</string>
+    <string name="PengramChatMenuBottom">At the bottom of the menu</string>
 </resources>

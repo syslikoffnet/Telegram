@@ -64,6 +64,10 @@ public class FlagSecureReason {
             return;
         }
 
+        if (PengramConfig.screenshotsAllowed()) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            return;
+        }
         if (isSecuredNow(window)) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
             AndroidUtilities.logFlagSecure();

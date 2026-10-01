@@ -306,4 +306,25 @@
     <string name="PengramRegStyleDateAge">Дата и возраст аккаунта</string>
     <string name="PengramRegDate">Регистрация</string>
     <string name="PengramRegInfo">Дата вычисляется по ID аккаунта, поэтому она приблизительная.</string>
+    <string name="PengramFreedomHeader">Без ограничений</string>
+    <string name="PengramAllowScreenshots">Разрешить скриншоты везде</string>
+    <string name="PengramNoScreenshotNotify">Не уведомлять о скриншотах</string>
+    <string name="PengramAllowForwards">Обходить запрет пересылки и сохранения</string>
+    <string name="PengramKeepOnce">Не «сжигать» одноразовые медиа</string>
+    <string name="PengramFreedomInfo">Скриншоты и запись экрана работают в секретных чатах, на одноразовых медиа и экранах оплаты. Одноразовые фото, видео и голосовые не отмечаются просмотренными, поэтому не исчезают и их можно переслать или сохранить.</string>
+    <string name="PengramAdsHeader">Реклама</string>
+    <string name="PengramHideAds">Скрывать рекламные посты</string>
+    <string name="PengramAdsInfo">Рекламные посты вообще не запрашиваются у сервера, поэтому рекламы нигде нет и это не влияет на скорость.</string>
+    <string name="PengramPremiumHeader">Premium</string>
+    <string name="PengramLocalPremium">Локальный Premium</string>
+    <string name="PengramPremiumInfo">Включает premium-функции, работающие на стороне клиента (анимированные эмодзи и статусы, расширенные лимиты, premium-опции интерфейса). То, что проверяет сервер, по-прежнему требует настоящей подписки.</string>
+    <string name="PengramAppearanceHeader">Внешний вид</string>
+    <string name="PengramFont">Шрифт приложения</string>
+    <string name="PengramFontDefault">Telegram (по умолчанию)</string>
+    <string name="PengramFontSystem">Системный</string>
+    <string name="PengramFontSerif">С засечками</string>
+    <string name="PengramFontMono">Моноширинный</string>
+    <string name="PengramChatMenu">Остров Pengram в меню чата</string>
+    <string name="PengramChatMenuTop">Сверху меню</string>
+    <string name="PengramChatMenuBottom">Снизу меню</string>
 </resources>

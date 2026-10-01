@@ -82,7 +82,7 @@ public class PasscodeViewDialog extends Dialog {
         params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
 //        params.flags |= WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
         if (!BuildVars.DEBUG_PRIVATE_VERSION) {
-            params.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+            if (!org.telegram.messenger.PengramConfig.screenshotsAllowed()) params.flags |= WindowManager.LayoutParams.FLAG_SECURE;
             AndroidUtilities.logFlagSecure();
         }
         params.flags |= WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |

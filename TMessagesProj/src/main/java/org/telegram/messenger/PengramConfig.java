@@ -40,6 +40,26 @@ public class PengramConfig {
     public static boolean saveOutgoing = false;      // сохранять и свои сообщения
     public static boolean historyRowInProfile = true;
 
+    // --- снятие ограничений ---
+    public static boolean allowScreenshots = true;      // разрешать скриншоты везде
+    public static boolean noScreenshotNotify = true;    // не уведомлять о скриншотах в секретных чатах
+    public static boolean allowForwards = true;         // обходить запрет пересылки/сохранения
+    public static boolean keepOnceMedia = true;         // одноразовые медиа не «сгорают»
+    public static boolean hideAds = true;               // убирать рекламу
+    public static boolean localPremium = false;         // локальный premium
+
+    // --- внешний вид ---
+    public static final int MENU_POS_TOP = 0;
+    public static final int MENU_POS_BOTTOM = 1;
+    public static int chatMenuPosition = MENU_POS_TOP;  // где остров Pengram в меню чата
+    public static boolean chatMenuEnabled = true;
+
+    public static final int FONT_DEFAULT = 0;
+    public static final int FONT_SYSTEM = 1;
+    public static final int FONT_SERIF = 2;
+    public static final int FONT_MONOSPACE = 3;
+    public static int appFont = FONT_DEFAULT;
+
     private static boolean loaded;
 
     public static void init() {
@@ -60,6 +80,15 @@ public class PengramConfig {
             saveEdited = p.getBoolean("saveEdited", true);
             saveOutgoing = p.getBoolean("saveOutgoing", false);
             historyRowInProfile = p.getBoolean("historyRowInProfile", true);
+            allowScreenshots = p.getBoolean("allowScreenshots", true);
+            noScreenshotNotify = p.getBoolean("noScreenshotNotify", true);
+            allowForwards = p.getBoolean("allowForwards", true);
+            keepOnceMedia = p.getBoolean("keepOnceMedia", true);
+            hideAds = p.getBoolean("hideAds", true);
+            localPremium = p.getBoolean("localPremium", false);
+            chatMenuPosition = p.getInt("chatMenuPosition", MENU_POS_TOP);
+            chatMenuEnabled = p.getBoolean("chatMenuEnabled", true);
+            appFont = p.getInt("appFont", FONT_DEFAULT);
             loaded = true;
         }
     }
@@ -168,6 +197,31 @@ public class PengramConfig {
     public static boolean isRegDateVisible() {
         return getRegDateStyle() != REG_STYLE_OFF;
     }
+
+    public static void toggleAllowScreenshots() { init(); allowScreenshots = !allowScreenshots; putBoolean("allowScreenshots", allowScreenshots); }
+    public static void toggleNoScreenshotNotify() { init(); noScreenshotNotify = !noScreenshotNotify; putBoolean("noScreenshotNotify", noScreenshotNotify); }
+    public static void toggleAllowForwards() { init(); allowForwards = !allowForwards; putBoolean("allowForwards", allowForwards); }
+    public static void toggleKeepOnceMedia() { init(); keepOnceMedia = !keepOnceMedia; putBoolean("keepOnceMedia", keepOnceMedia); }
+    public static void toggleHideAds() { init(); hideAds = !hideAds; putBoolean("hideAds", hideAds); }
+    public static void toggleLocalPremium() { init(); localPremium = !localPremium; putBoolean("localPremium", localPremium); }
+    public static void toggleChatMenu() { init(); chatMenuEnabled = !chatMenuEnabled; putBoolean("chatMenuEnabled", chatMenuEnabled); }
+    public static void setChatMenuPosition(int pos) { init(); chatMenuPosition = pos; putInt("chatMenuPosition", pos); }
+    public static void setAppFont(int font) { init(); appFont = font; putInt("appFont", font); }
+
+    /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
+    public static boolean screenshotsAllowed() {
+        init();
+        return allowScreenshots;
+    }
+
+    public static boolean isNoScreenshotNotify() { init(); return allowScreenshots && noScreenshotNotify; }
+    public static boolean isBypassingForwardRestrictions() { init(); return allowForwards; }
+    public static boolean isKeepingOnceMedia() { init(); return keepOnceMedia; }
+    public static boolean isHidingAds() { init(); return hideAds; }
+    public static boolean isLocalPremium() { init(); return localPremium; }
+    public static int getChatMenuPosition() { init(); return chatMenuPosition; }
+    public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
+    public static int getAppFont() { init(); return appFont; }
 
     public static boolean isHistoryRowVisible() {
         init();

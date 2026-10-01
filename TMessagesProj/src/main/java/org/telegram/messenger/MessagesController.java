@@ -6699,7 +6699,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isChatNoForwards(TLRPC.Chat chat) {
-        if (chat == null) {
+        if (chat == null || PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         }
         if (chat.migrated_to != null) {
@@ -6724,7 +6724,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isUserNoForwards(TLRPC.UserFull userFull) {
-        if (userFull == null) {
+        if (userFull == null || PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         }
 
@@ -14433,6 +14433,11 @@ public class MessagesController extends BaseController implements NotificationCe
         if (messageObject.scheduled) {
             return;
         }
+        if (PengramConfig.isKeepingOnceMedia() && messageObject.messageOwner != null && messageObject.messageOwner.media != null
+                && messageObject.messageOwner.media.ttl_seconds != 0 && !messageObject.isOutOwner()) {
+            // одноразовое медиа: не сообщаем серверу о просмотре, чтобы оно не «сгорело»
+            return;
+        }
         ArrayList<Integer> arrayList = new ArrayList<>();
         if (messageObject.messageOwner.mentioned) {
             getMessagesStorage().markMentionMessageAsRead(-messageObject.messageOwner.peer_id.channel_id, messageObject.getId(), messageObject.getDialogId());
@@ -21652,6 +21657,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+        if (PengramConfig.isHidingAds()) {
+            return null;
+        }
         SponsoredMessagesInfo info = sponsoredMessages.get(dialogId);
         if (info != null && (info.loading || Math.abs(SystemClock.elapsedRealtime() - info.loadTime) <= 5 * 60 * 1000)) {
             return info;

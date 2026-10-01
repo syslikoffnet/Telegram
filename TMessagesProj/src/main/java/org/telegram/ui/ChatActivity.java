@@ -1687,6 +1687,43 @@ public class ChatActivity extends BaseFragment implements
 
     private final static int chat_menu_topic_create = 73;
 
+
+    /** Pengram: отдельный «остров» в меню чата */
+    private void addPengramMenuItems() {
+        try {
+            if (headerItem == null || getDialogId() == 0) {
+                return;
+            }
+            headerItem.lazilyAddColoredGap();
+            headerItem.lazilyAddSubItem(pengram_deleted, R.drawable.msg_viewchats, LocaleController.getString(R.string.PengramHistoryOpen));
+            headerItem.lazilyAddSubItem(pengram_clear_deleted, R.drawable.msg_delete, LocaleController.getString(R.string.PengramHistoryClearButton));
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void openPengramHistory() {
+        presentFragment(new PengramHistoryActivity(getDialogId()));
+    }
+
+    private void clearPengramHistory() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramHistoryClearTitle));
+        builder.setMessage(LocaleController.getString(R.string.PengramHistoryClearChat));
+        builder.setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> {
+            org.telegram.messenger.PengramHistory.clear(getDialogId());
+            BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_delete, LocaleController.getString(R.string.PengramHistoryCleared)).show();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private final static int pengram_deleted = 900;
+    private final static int pengram_clear_deleted = 901;
+
     private final static int id_chat_compose_panel = 1000;
 
     RecyclerListView.OnItemLongClickListenerExtended onItemLongClickListener = new RecyclerListView.OnItemLongClickListenerExtended() {
@@ -3688,6 +3725,13 @@ public class ChatActivity extends BaseFragment implements
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(final int id) {
+                if (id == pengram_deleted) {
+                    openPengramHistory();
+                    return;
+                } else if (id == pengram_clear_deleted) {
+                    clearPengramHistory();
+                    return;
+                }
                 if (id == -1) {
                     if (isInPollAddOptionMode()) {
                         pollAddOptionModeClose();
@@ -4309,6 +4353,10 @@ public class ChatActivity extends BaseFragment implements
             otherIcon.addView(headerItem.getIconView());
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
+            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
+                addPengramMenuItems();
+            }
+
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
                 savedChatsItem = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.SavedViewAsChats));
                 savedChatsGap = headerItem.lazilyAddColoredGap();
@@ -4506,6 +4554,9 @@ public class ChatActivity extends BaseFragment implements
         if (currentChat != null && forumTopic != null && chatMode == 0) {
             closeTopicItem = headerItem.lazilyAddSubItem(topic_close, R.drawable.msg_topic_close, LocaleController.getString(R.string.CloseTopic));
             closeTopicItem.setVisibility(currentChat != null && ChatObject.canManageTopic(currentAccount, currentChat, forumTopic) && forumTopic != null && !forumTopic.closed ? View.VISIBLE : View.GONE);
+        }
+        if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_BOTTOM) {
+            addPengramMenuItems();
         }
         menu.setVisibility(inMenuMode ? View.GONE : View.VISIBLE);
 

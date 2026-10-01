@@ -62,6 +62,20 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
 
+    private static final int BTN_SCREENSHOTS = 500;
+    private static final int BTN_NO_SS_NOTIFY = 501;
+    private static final int BTN_FORWARDS = 502;
+    private static final int BTN_KEEP_ONCE = 503;
+    private static final int BTN_ADS = 510;
+    private static final int BTN_LOCAL_PREMIUM = 520;
+    private static final int BTN_FONT_DEFAULT = 530;
+    private static final int BTN_FONT_SYSTEM = 531;
+    private static final int BTN_FONT_SERIF = 532;
+    private static final int BTN_FONT_MONO = 533;
+    private static final int BTN_CHAT_MENU = 540;
+    private static final int BTN_CHAT_MENU_TOP = 541;
+    private static final int BTN_CHAT_MENU_BOTTOM = 542;
+
     private ProfilePreviewView previewView;
 
     @Override
@@ -111,6 +125,32 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping).setEnabled(PengramConfig.ghostMode));
         items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews).setEnabled(PengramConfig.ghostMode));
         items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramFreedomHeader)));
+        items.add(UItem.asCheck(BTN_SCREENSHOTS, getString(R.string.PengramAllowScreenshots)).setChecked(PengramConfig.allowScreenshots));
+        items.add(UItem.asCheck(BTN_NO_SS_NOTIFY, getString(R.string.PengramNoScreenshotNotify)).setChecked(PengramConfig.noScreenshotNotify).setEnabled(PengramConfig.allowScreenshots));
+        items.add(UItem.asCheck(BTN_FORWARDS, getString(R.string.PengramAllowForwards)).setChecked(PengramConfig.allowForwards));
+        items.add(UItem.asCheck(BTN_KEEP_ONCE, getString(R.string.PengramKeepOnce)).setChecked(PengramConfig.keepOnceMedia));
+        items.add(UItem.asShadow(getString(R.string.PengramFreedomInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAdsHeader)));
+        items.add(UItem.asCheck(BTN_ADS, getString(R.string.PengramHideAds)).setChecked(PengramConfig.hideAds));
+        items.add(UItem.asShadow(getString(R.string.PengramAdsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPremiumHeader)));
+        items.add(UItem.asCheck(BTN_LOCAL_PREMIUM, getString(R.string.PengramLocalPremium)).setChecked(PengramConfig.localPremium));
+        items.add(UItem.asShadow(getString(R.string.PengramPremiumInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
+        items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
+        items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
+        items.add(UItem.asRadio(BTN_FONT_SERIF, getString(R.string.PengramFontSerif)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SERIF));
+        items.add(UItem.asRadio(BTN_FONT_MONO, getString(R.string.PengramFontMono)).setChecked(PengramConfig.appFont == PengramConfig.FONT_MONOSPACE));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
+        items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP).setEnabled(PengramConfig.chatMenuEnabled));
+        items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM).setEnabled(PengramConfig.chatMenuEnabled));
+        items.add(UItem.asShadow(null));
     }
 
     @Override
@@ -187,6 +227,49 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_HIST_OPEN:
                 presentFragment(new PengramHistoryActivity(0));
+                break;
+            case BTN_SCREENSHOTS:
+                PengramConfig.toggleAllowScreenshots();
+                updateAll = true;
+                break;
+            case BTN_NO_SS_NOTIFY:
+                PengramConfig.toggleNoScreenshotNotify();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.noScreenshotNotify);
+                break;
+            case BTN_FORWARDS:
+                PengramConfig.toggleAllowForwards();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.allowForwards);
+                break;
+            case BTN_KEEP_ONCE:
+                PengramConfig.toggleKeepOnceMedia();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.keepOnceMedia);
+                break;
+            case BTN_ADS:
+                PengramConfig.toggleHideAds();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hideAds);
+                break;
+            case BTN_LOCAL_PREMIUM:
+                PengramConfig.toggleLocalPremium();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.localPremium);
+                break;
+            case BTN_FONT_DEFAULT:
+            case BTN_FONT_SYSTEM:
+            case BTN_FONT_SERIF:
+            case BTN_FONT_MONO:
+                PengramConfig.setAppFont(item.id - BTN_FONT_DEFAULT);
+                updateAll = true;
+                break;
+            case BTN_CHAT_MENU:
+                PengramConfig.toggleChatMenu();
+                updateAll = true;
+                break;
+            case BTN_CHAT_MENU_TOP:
+                PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_TOP);
+                updateAll = true;
+                break;
+            case BTN_CHAT_MENU_BOTTOM:
+                PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_BOTTOM);
+                updateAll = true;
                 break;
             case BTN_HIST_CLEAR:
                 if (getParentActivity() != null) {
