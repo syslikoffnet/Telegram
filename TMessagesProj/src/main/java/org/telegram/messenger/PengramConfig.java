@@ -67,6 +67,29 @@ public class PengramConfig {
     public static String mediaFolder = DEFAULT_MEDIA_FOLDER;
     public static String mediaPattern = DEFAULT_MEDIA_PATTERN;
 
+    // --- приватность локально ---
+    public static boolean hidePhoneNumber = false;
+
+    // --- история: дополнительно ---
+    public static boolean saveInBots = true;
+    public static boolean saveReadDate = true;
+    public static boolean saveLastOnline = true;
+    public static int mediaMaxSizeMb = 2048;   // 0 = без лимита
+
+    // --- скрытие кнопок ---
+    public static boolean hideMenuNewGroup = false;
+    public static boolean hideMenuSavedMessages = false;
+    public static boolean hideMenuSettings = false;
+    public static boolean hideMenuTheme = false;
+    public static boolean hideChatSearch = false;
+    public static boolean hideChatTranslate = false;
+    public static boolean hideChatClearHistory = false;
+    public static boolean hideChatWallpaper = false;
+    public static boolean hideChatShortcut = false;
+    public static boolean hideChatReport = false;
+    public static boolean hideChatCall = false;
+    public static boolean hideChatAutoDelete = false;
+
     private static boolean loaded;
 
     public static void init() {
@@ -99,6 +122,23 @@ public class PengramConfig {
             saveDeletedMedia = p.getBoolean("saveDeletedMedia", false);
             mediaFolder = p.getString("mediaFolder", DEFAULT_MEDIA_FOLDER);
             mediaPattern = p.getString("mediaPattern", DEFAULT_MEDIA_PATTERN);
+            hidePhoneNumber = p.getBoolean("hidePhoneNumber", false);
+            saveInBots = p.getBoolean("saveInBots", true);
+            saveReadDate = p.getBoolean("saveReadDate", true);
+            saveLastOnline = p.getBoolean("saveLastOnline", true);
+            mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 2048);
+            hideMenuNewGroup = p.getBoolean("hideMenuNewGroup", false);
+            hideMenuSavedMessages = p.getBoolean("hideMenuSavedMessages", false);
+            hideMenuSettings = p.getBoolean("hideMenuSettings", false);
+            hideMenuTheme = p.getBoolean("hideMenuTheme", false);
+            hideChatSearch = p.getBoolean("hideChatSearch", false);
+            hideChatTranslate = p.getBoolean("hideChatTranslate", false);
+            hideChatClearHistory = p.getBoolean("hideChatClearHistory", false);
+            hideChatWallpaper = p.getBoolean("hideChatWallpaper", false);
+            hideChatShortcut = p.getBoolean("hideChatShortcut", false);
+            hideChatReport = p.getBoolean("hideChatReport", false);
+            hideChatCall = p.getBoolean("hideChatCall", false);
+            hideChatAutoDelete = p.getBoolean("hideChatAutoDelete", false);
             loaded = true;
         }
     }
@@ -258,6 +298,37 @@ public class PengramConfig {
     public static boolean isSavingDeletedMedia() { init(); return saveDeleted && saveDeletedMedia; }
     public static String getMediaFolder() { init(); return mediaFolder == null || mediaFolder.isEmpty() ? DEFAULT_MEDIA_FOLDER : mediaFolder; }
     public static String getMediaPattern() { init(); return mediaPattern == null || mediaPattern.isEmpty() ? DEFAULT_MEDIA_PATTERN : mediaPattern; }
+
+    public static void toggleHidePhoneNumber() { init(); hidePhoneNumber = !hidePhoneNumber; putBoolean("hidePhoneNumber", hidePhoneNumber); }
+    public static void toggleSaveInBots() { init(); saveInBots = !saveInBots; putBoolean("saveInBots", saveInBots); }
+    public static void toggleSaveReadDate() { init(); saveReadDate = !saveReadDate; putBoolean("saveReadDate", saveReadDate); }
+    public static void toggleSaveLastOnline() { init(); saveLastOnline = !saveLastOnline; putBoolean("saveLastOnline", saveLastOnline); }
+    public static void setMediaMaxSizeMb(int mb) { init(); mediaMaxSizeMb = mb; putInt("mediaMaxSizeMb", mb); }
+
+    public static boolean toggleBoolean(String key) {
+        init();
+        switch (key) {
+            case "hideMenuNewGroup": hideMenuNewGroup = !hideMenuNewGroup; putBoolean(key, hideMenuNewGroup); return hideMenuNewGroup;
+            case "hideMenuSavedMessages": hideMenuSavedMessages = !hideMenuSavedMessages; putBoolean(key, hideMenuSavedMessages); return hideMenuSavedMessages;
+            case "hideMenuSettings": hideMenuSettings = !hideMenuSettings; putBoolean(key, hideMenuSettings); return hideMenuSettings;
+            case "hideMenuTheme": hideMenuTheme = !hideMenuTheme; putBoolean(key, hideMenuTheme); return hideMenuTheme;
+            case "hideChatSearch": hideChatSearch = !hideChatSearch; putBoolean(key, hideChatSearch); return hideChatSearch;
+            case "hideChatTranslate": hideChatTranslate = !hideChatTranslate; putBoolean(key, hideChatTranslate); return hideChatTranslate;
+            case "hideChatClearHistory": hideChatClearHistory = !hideChatClearHistory; putBoolean(key, hideChatClearHistory); return hideChatClearHistory;
+            case "hideChatWallpaper": hideChatWallpaper = !hideChatWallpaper; putBoolean(key, hideChatWallpaper); return hideChatWallpaper;
+            case "hideChatShortcut": hideChatShortcut = !hideChatShortcut; putBoolean(key, hideChatShortcut); return hideChatShortcut;
+            case "hideChatReport": hideChatReport = !hideChatReport; putBoolean(key, hideChatReport); return hideChatReport;
+            case "hideChatCall": hideChatCall = !hideChatCall; putBoolean(key, hideChatCall); return hideChatCall;
+            case "hideChatAutoDelete": hideChatAutoDelete = !hideChatAutoDelete; putBoolean(key, hideChatAutoDelete); return hideChatAutoDelete;
+        }
+        return false;
+    }
+
+    public static boolean isHidingPhoneNumber() { init(); return hidePhoneNumber; }
+    public static boolean isSavingInBots() { init(); return saveInBots; }
+    public static boolean isSavingReadDate() { init(); return saveReadDate; }
+    public static boolean isSavingLastOnline() { init(); return saveLastOnline; }
+    public static int getMediaMaxSizeMb() { init(); return mediaMaxSizeMb; }
 
     public static boolean isHistoryRowVisible() {
         init();

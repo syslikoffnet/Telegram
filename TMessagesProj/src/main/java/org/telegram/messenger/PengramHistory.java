@@ -8,7 +8,6 @@ import android.text.TextUtils;
 
 import org.telegram.tgnet.TLRPC;
 
-import android.content.ContentValues;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -40,7 +39,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static final String TABLE = "history";
 
     private static volatile PengramHistory instance;
@@ -89,11 +88,27 @@ public class PengramHistory extends SQLiteOpenHelper {
                 "prev_text TEXT)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_dialog ON " + TABLE + " (dialog_id)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_saved ON " + TABLE + " (saved_at)");
+        createV2(db);
+    }
+
+    private void createV2(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS peer_meta (" +
+                "peer_id INTEGER PRIMARY KEY," +
+                "last_online INTEGER NOT NULL DEFAULT 0," +
+                "read_date INTEGER NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS saved_media (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "uri TEXT," +
+                "path TEXT," +
+                "size INTEGER NOT NULL DEFAULT 0," +
+                "saved_at INTEGER NOT NULL DEFAULT 0)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // пока миграций нет
+        if (oldVersion < 2) {
+            createV2(db);
+        }
     }
 
     // ------------------------------------------------------------------ запись
@@ -248,6 +263,58 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
+    // ------------------------------------------------- последний онлайн / прочтение
+
+    public static void saveLastOnline(final long userId, final int unixtime) {
+        if (userId == 0 || unixtime <= 0) return;
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        executor.execute(() -> {
+            try {
+                SQLiteDatabase db = history.getWritableDatabase();
+                db.execSQL("INSERT OR IGNORE INTO peer_meta (peer_id, last_online, read_date) VALUES (?, 0, 0)", new Object[]{userId});
+                db.execSQL("UPDATE peer_meta SET last_online = MAX(last_online, ?) WHERE peer_id = ?", new Object[]{unixtime, userId});
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    public static void saveReadDate(final long peerId, final int unixtime) {
+        if (peerId == 0 || unixtime <= 0) return;
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        executor.execute(() -> {
+            try {
+                SQLiteDatabase db = history.getWritableDatabase();
+                db.execSQL("INSERT OR IGNORE INTO peer_meta (peer_id, last_online, read_date) VALUES (?, 0, 0)", new Object[]{peerId});
+                db.execSQL("UPDATE peer_meta SET read_date = MAX(read_date, ?) WHERE peer_id = ?", new Object[]{unixtime, peerId});
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    /** @return {last_online, read_date} */
+    public static int[] getPeerMeta(long peerId) {
+        final int[] result = new int[]{0, 0};
+        final PengramHistory history = getInstance();
+        if (history == null || peerId == 0) return result;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery("SELECT last_online, read_date FROM peer_meta WHERE peer_id = ?", new String[]{String.valueOf(peerId)});
+            if (c.moveToFirst()) {
+                result[0] = c.getInt(0);
+                result[1] = c.getInt(1);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        return result;
+    }
+
     // --------------------------------------------- сохранение медиа удалёнок
 
     /**
@@ -292,6 +359,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                             out.write(buf, 0, len);
                         }
                     }
+                    trackSavedMedia(uri.toString(), null, source.length());
                 } else {
                     File dir = new File(Environment.getExternalStoragePublicDirectory(
                             isVideo ? Environment.DIRECTORY_MOVIES : isImage ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_DOWNLOADS), folder);
@@ -307,6 +375,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                             out.write(buf, 0, len);
                         }
                     }
+                    trackSavedMedia(null, dest.getAbsolutePath(), dest.length());
                     try {
                         android.media.MediaScannerConnection.scanFile(ApplicationLoader.applicationContext,
                                 new String[]{dest.getAbsolutePath()}, new String[]{mime}, null);
@@ -316,6 +385,110 @@ public class PengramHistory extends SQLiteOpenHelper {
                 FileLog.e(e);
             }
         });
+    }
+
+    /** учёт сохранённого файла + контроль лимита папки (удаляем самые старые) */
+    private static void trackSavedMedia(String uri, String path, long size) {
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        try {
+            ContentValues cv = new ContentValues();
+            cv.put("uri", uri);
+            cv.put("path", path);
+            cv.put("size", size);
+            cv.put("saved_at", (int) (System.currentTimeMillis() / 1000L));
+            history.getWritableDatabase().insert("saved_media", null, cv);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return;
+        }
+        enforceMediaLimit();
+    }
+
+    /** суммарный размер сохранённых медиа, байт */
+    public static long getSavedMediaSize() {
+        final PengramHistory history = getInstance();
+        if (history == null) return 0;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery("SELECT SUM(size) FROM saved_media", null);
+            if (c.moveToFirst()) {
+                return c.getLong(0);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        return 0;
+    }
+
+    private static void enforceMediaLimit() {
+        final int limitMb = PengramConfig.getMediaMaxSizeMb();
+        if (limitMb <= 0) {
+            return;
+        }
+        final long limit = limitMb * 1024L * 1024L;
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        long total = getSavedMediaSize();
+        if (total <= limit) {
+            return;
+        }
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery("SELECT id, uri, path, size FROM saved_media ORDER BY saved_at ASC, id ASC", null);
+            while (c.moveToNext() && total > limit) {
+                final long id = c.getLong(0);
+                final String uri = c.getString(1);
+                final String path = c.getString(2);
+                final long size = c.getLong(3);
+                boolean removed = false;
+                try {
+                    if (uri != null && ApplicationLoader.applicationContext != null) {
+                        removed = ApplicationLoader.applicationContext.getContentResolver().delete(Uri.parse(uri), null, null) > 0;
+                    } else if (path != null) {
+                        File f = new File(path);
+                        removed = !f.exists() || f.delete();
+                    }
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+                history.getWritableDatabase().delete("saved_media", "id = ?", new String[]{String.valueOf(id)});
+                if (removed || uri != null || path != null) {
+                    total -= size;
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+    }
+
+    public static void clearSavedMedia() {
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery("SELECT uri, path FROM saved_media", null);
+            while (c.moveToNext()) {
+                final String uri = c.getString(0);
+                final String path = c.getString(1);
+                try {
+                    if (uri != null && ApplicationLoader.applicationContext != null) {
+                        ApplicationLoader.applicationContext.getContentResolver().delete(Uri.parse(uri), null, null);
+                    } else if (path != null) {
+                        new File(path).delete();
+                    }
+                } catch (Throwable ignore) {}
+            }
+            history.getWritableDatabase().delete("saved_media", null, null);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
     }
 
     /** Имя файла по шаблону пользователя */

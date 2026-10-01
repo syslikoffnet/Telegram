@@ -11388,6 +11388,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 return;
             }
             final long dialogId = MessageObject.getDialogId(message);
+            if (!PengramConfig.isSavingInBots() && getMessagesStorage().pengramIsBotDialog(dialogId)) {
+                return;
+            }
             final int messageId = message.id;
             final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
             final int date = message.date;
@@ -18852,6 +18855,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         interfaceUpdateMask |= UPDATE_MASK_STATUS;
                     }
                 }
+                if (PengramConfig.isSavingReadDate()) {
+                    PengramHistory.saveReadDate(dialogId, getConnectionsManager().getCurrentTime());
+                }
                 Integer value = dialogs_read_outbox_max.get(dialogId);
                 if (value == null) {
                     value = getMessagesStorage().getDialogReadMax(true, dialogId);
@@ -19954,6 +19960,13 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateUserStatus) {
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
+                        if (PengramConfig.isSavingLastOnline() && update.user_id != getUserConfig().getClientUserId()) {
+                            if (update.status instanceof TLRPC.TL_userStatusOnline) {
+                                PengramHistory.saveLastOnline(update.user_id, getConnectionsManager().getCurrentTime());
+                            } else if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
+                                PengramHistory.saveLastOnline(update.user_id, update.status.expires);
+                            }
+                        }
 
                         if (update.status instanceof TLRPC.TL_userStatusRecently) {
                             update.status.expires = -100;

@@ -14582,9 +14582,25 @@ public class MessagesStorage extends BaseController {
         }
     }
 
+    /** Pengram: это диалог с ботом? */
+    public boolean pengramIsBotDialog(long dialogId) {
+        try {
+            if (dialogId <= 0) {
+                return false;
+            }
+            TLRPC.User user = getMessagesController().getUser(dialogId);
+            return user != null && user.bot;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
     /** Pengram: перед удалением сохраняем сообщения в собственную базу */
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
         if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(dialogId)) {
             return;
         }
         SQLiteCursor cursor = null;
