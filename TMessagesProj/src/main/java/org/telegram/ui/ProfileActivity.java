@@ -7299,6 +7299,28 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         presentFragment(fragment);
     }
 
+    /** «Вы создали свой аккаунт примерно …» по тапу на календарик в строке ID */
+    private void showRegDateInfo(long estimate) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        String date = PengramRegDate.formatMonthYear(estimate);
+        if (date == null) {
+            return;
+        }
+        final String age = PengramRegDate.formatAge(estimate);
+        final boolean self = userId != 0 && UserObject.isUserSelf(getMessagesController().getUser(userId));
+        String text = LocaleController.formatString(self ? R.string.PengramRegDateSelf : R.string.PengramRegDateOther, date);
+        if (age != null && PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
+            text = text + "\n\n" + LocaleController.formatString(R.string.PengramRegDateAge, age);
+        }
+        new AlertDialog.Builder(getParentActivity(), resourcesProvider)
+                .setTitle(LocaleController.getString(R.string.PengramRegDate))
+                .setMessage(text)
+                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .show();
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if (position == idRow) {
             final long peerId = userId != 0 ? userId : chatId;
@@ -10749,9 +10771,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
-                if (user != null && !user.bot && PengramConfig.isRegDateVisible() && PengramRegDate.estimate(user.id) > 0) {
-                    regDateRow = rowCount++;
-                }
+                // дата регистрации теперь живёт в строке ID (иконка-календарик)
                 if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
                     pengramHistoryRow = rowCount++;
                 }
@@ -13545,9 +13565,28 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 dcId = chat.photo.dc_id;
                             }
                         }
-                        final String label = (dcId > 0 && PengramConfig.isShowingDc()) ? ("ID \u2022 DC" + dcId) : "ID";
+                        String label = null;
+                        if (dcId > 0 && PengramConfig.isShowingDc()) {
+                            label = PengramRegDate.formatDc(dcId);
+                        }
+                        if (label == null) {
+                            label = "ID";
+                        }
                         detailCell.setTextAndValue(String.valueOf(peerId), label, regDateRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
+                        // календарик с приблизительной датой регистрации — прямо в строке ID
+                        final long regEstimate = userId != 0 && PengramConfig.isRegDateVisible() ? PengramRegDate.estimate(userId) : 0;
+                        if (regEstimate > 0) {
+                            Drawable calendarDrawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                            if (calendarDrawable != null) {
+                                calendarDrawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+                                detailCell.setImage(calendarDrawable, LocaleController.getString(R.string.PengramRegDate));
+                                detailCell.setImageClickListener(v -> showRegDateInfo(regEstimate));
+                            }
+                        } else {
+                            detailCell.setImage(null);
+                            detailCell.setImageClickListener(null);
+                        }
                     } else if (position == regDateRow) {
                         final long estimate = PengramRegDate.estimate(userId);
                         String text = PengramRegDate.formatMonthYear(estimate);
@@ -14650,6 +14689,36 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             final int currentAccount = f.getCurrentAccount();
             final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
             return new SearchResult[]{
+                    new SearchResult(9000, getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity())).withLink("tg://settings/pengram"),
+                    new SearchResult(9001, getString(R.string.PengramSectionProfile), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9002, getString(R.string.PengramSectionGhost), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9003, getString(R.string.PengramSectionHistory), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9004, getString(R.string.PengramSectionAppearance), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
+                    new SearchResult(9005, getString(R.string.PengramSectionChats), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9006, getString(R.string.PengramSectionMedia), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9007, getString(R.string.PengramSectionFreedom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9010, getString(R.string.PengramGhostMode), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9011, getString(R.string.PengramGhostHideOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9012, getString(R.string.PengramGhostDontRead), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9013, getString(R.string.PengramSaveReadDate), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9014, getString(R.string.PengramSaveLastOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9020, getString(R.string.PengramHistorySaveDeleted), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9021, getString(R.string.PengramHistorySaveEdited), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9022, getString(R.string.PengramHistoryOpen), getString(R.string.PengramSettings), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramHistoryActivity(0))),
+                    new SearchResult(9023, getString(R.string.PengramMediaSave), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9024, getString(R.string.PengramMediaFolder), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9030, getString(R.string.PengramVoiceHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9031, getString(R.string.PengramBoostHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9040, getString(R.string.PengramHidePhone), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9041, getString(R.string.PengramIdHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9042, getString(R.string.PengramRegHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9050, getString(R.string.PengramHideMenuHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9051, getString(R.string.PengramHideChatHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9060, getString(R.string.PengramAllowScreenshots), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9061, getString(R.string.PengramHideAds), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9062, getString(R.string.PengramLocalPremium), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9070, getString(R.string.PengramFontDefault), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionAppearance), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
+                    new SearchResult(9071, getString(R.string.PengramChatMenu), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionAppearance), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
                     new SearchResult(500, getString(R.string.EditName), 0, () -> f.presentFragment(new ChangeNameActivity(resourcesProvider))),
                     new SearchResult(501, getString(R.string.ChangePhoneNumber), 0, () -> f.presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANGE_PHONE_NUMBER))).withLink("tg://settings/edit/change-number"),
                     new SearchResult(502, getString(R.string.AddAnotherAccount), 0, () -> {

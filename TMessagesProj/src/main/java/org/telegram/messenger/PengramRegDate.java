@@ -121,4 +121,22 @@ public class PengramRegDate {
         }
         return sb.toString();
     }
+
+    /** человекочитаемое расположение дата-центра: «DC 5, Singapore, SG» */
+    public static String formatDc(int dcId) {
+        if (dcId <= 0) {
+            return null;
+        }
+        final String city;
+        final String country;
+        switch (dcId) {
+            case 1: city = "Miami"; country = "US"; break;
+            case 2: city = "Amsterdam"; country = "NL"; break;
+            case 3: city = "Miami"; country = "US"; break;
+            case 4: city = "Amsterdam"; country = "NL"; break;
+            case 5: city = "Singapore"; country = "SG"; break;
+            default: return "DC " + dcId;
+        }
+        return "DC " + dcId + ", " + city + ", " + country;
+    }
 }

@@ -11359,4 +11359,7 @@
     <string name="PengramVoiceCustom">Custom pitch</string>
     <string name="PengramVoicePitch">Pitch, semitones</string>
     <string name="PengramVoiceInfo">The effect is applied while recording, so the recipient hears the changed voice. Works for voice messages.</string>
+    <string name="PengramRegDateSelf">You created your account approximately in %s.</string>
+    <string name="PengramRegDateOther">This account was created approximately in %s.</string>
+    <string name="PengramRegDateAge">Account age: %s.</string>
 </resources>

@@ -387,4 +387,7 @@
     <string name="PengramVoiceCustom">Свой сдвиг</string>
     <string name="PengramVoicePitch">Высота тона, полутона</string>
     <string name="PengramVoiceInfo">Эффект применяется прямо при записи, поэтому собеседник слышит изменённый голос. Работает для голосовых сообщений.</string>
+    <string name="PengramRegDateSelf">Вы создали свой аккаунт примерно в %s.</string>
+    <string name="PengramRegDateOther">Этот аккаунт создан примерно в %s.</string>
+    <string name="PengramRegDateAge">Возраст аккаунта: %s.</string>
 </resources>
