@@ -139,8 +139,10 @@ public class PengramHistoryActivity extends UniversalFragment {
             final int index = item.id - 1000;
             if (index >= 0 && index < entries.size()) {
                 final PengramHistory.Entry entry = entries.get(index);
-                if (dialogId == 0 && entry.dialogId != 0) {
-                    presentFragment(new PengramHistoryActivity(entry.dialogId));
+                if (entry.action == PengramHistory.ACTION_EDITED) {
+                    presentFragment(new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_EDITED, entry.messageId));
+                } else {
+                    presentFragment(new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_DELETED));
                 }
             }
         }
