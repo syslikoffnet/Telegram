@@ -147,6 +147,14 @@ android {
 
         multiDexEnabled true
 
+        ndk {
+            // Ограничивает список ABI, под которые собирается нативный код.
+            //   ./gradlew ... -PABI_FILTERS=arm64-v8a
+            def filters = (project.findProperty("ABI_FILTERS") ?: "armeabi-v7a,arm64-v8a,x86,x86_64")
+                    .toString().split(",").collect { it.trim() }.findAll { it }
+            filters.each { f -> abiFilters f }
+        }
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'
