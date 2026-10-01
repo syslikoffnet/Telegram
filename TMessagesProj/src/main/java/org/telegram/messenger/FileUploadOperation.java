@@ -318,6 +318,9 @@ public class FileUploadOperation {
                     uploadChunkSize = chunkSize;
                 }
                 maxRequestsCount = Math.max(1, (slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes) / uploadChunkSize);
+                if (!slowNetwork) {
+                    maxRequestsCount = Math.min(32, maxRequestsCount * PengramConfig.getSpeedBoostMultiplier());
+                }
 
                 if (isEncrypted) {
                     freeRequestIvs = new ArrayList<>(maxRequestsCount);

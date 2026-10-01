@@ -369,4 +369,22 @@
     <string name="PengramGhostOn">Режим призрака включён</string>
     <string name="PengramGhostOff">Режим призрака выключен</string>
     <string name="PengramPhoneHidden">Номер скрыт</string>
+    <string name="PengramSectionMedia">Скорость и голос</string>
+    <string name="PengramBoostHeader">Скорость загрузки и отправки</string>
+    <string name="PengramBoostOff">Как в оригинале</string>
+    <string name="PengramBoostFast">Быстро (2x потоков)</string>
+    <string name="PengramBoostExtreme">Максимум (4x потоков)</string>
+    <string name="PengramBoostInfo">Увеличивает число параллельных частей при скачивании и отправке и включает большие куски по 512 КБ. «Максимум» лучше всего на быстром Wi-Fi; на слабой мобильной сети выбирайте «Как в оригинале».</string>
+    <string name="PengramVoiceHeader">Изменение голоса в голосовых</string>
+    <string name="PengramVoiceOff">Выключено</string>
+    <string name="PengramVoiceHelium">Гелий</string>
+    <string name="PengramVoiceChild">Ребёнок</string>
+    <string name="PengramVoiceFemale">Выше (женский)</string>
+    <string name="PengramVoiceMale">Ниже (мужской)</string>
+    <string name="PengramVoiceDeep">Очень низкий</string>
+    <string name="PengramVoiceMonster">Монстр</string>
+    <string name="PengramVoiceRobot">Робот</string>
+    <string name="PengramVoiceCustom">Свой сдвиг</string>
+    <string name="PengramVoicePitch">Высота тона, полутона</string>
+    <string name="PengramVoiceInfo">Эффект применяется прямо при записи, поэтому собеседник слышит изменённый голос. Работает для голосовых сообщений.</string>
 </resources>

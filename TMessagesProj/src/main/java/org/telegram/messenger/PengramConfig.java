@@ -74,6 +74,9 @@ public class PengramConfig {
     public static boolean saveInBots = true;
     public static boolean saveReadDate = true;
     public static boolean saveLastOnline = true;
+    public static int voiceChangerMode;
+    public static int voiceChangerPitch;
+    public static int speedBoost = BOOST_FAST;
     public static int mediaMaxSizeMb = 2048;   // 0 = без лимита
 
     // --- скрытие кнопок ---
@@ -127,6 +130,9 @@ public class PengramConfig {
             saveReadDate = p.getBoolean("saveReadDate", true);
             saveLastOnline = p.getBoolean("saveLastOnline", true);
             mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 2048);
+            voiceChangerMode = p.getInt("voiceChangerMode", 0);
+            voiceChangerPitch = p.getInt("voiceChangerPitch", 0);
+            speedBoost = p.getInt("speedBoost", BOOST_FAST);
             hideMenuNewGroup = p.getBoolean("hideMenuNewGroup", false);
             hideMenuSavedMessages = p.getBoolean("hideMenuSavedMessages", false);
             hideMenuSettings = p.getBoolean("hideMenuSettings", false);
@@ -299,6 +305,10 @@ public class PengramConfig {
     public static String getMediaFolder() { init(); return mediaFolder == null || mediaFolder.isEmpty() ? DEFAULT_MEDIA_FOLDER : mediaFolder; }
     public static String getMediaPattern() { init(); return mediaPattern == null || mediaPattern.isEmpty() ? DEFAULT_MEDIA_PATTERN : mediaPattern; }
 
+    public static final int BOOST_OFF = 0;
+    public static final int BOOST_FAST = 1;
+    public static final int BOOST_EXTREME = 2;
+
     public static void toggleHidePhoneNumber() { init(); hidePhoneNumber = !hidePhoneNumber; putBoolean("hidePhoneNumber", hidePhoneNumber); }
     public static void toggleSaveInBots() { init(); saveInBots = !saveInBots; putBoolean("saveInBots", saveInBots); }
     public static void toggleSaveReadDate() { init(); saveReadDate = !saveReadDate; putBoolean("saveReadDate", saveReadDate); }
@@ -322,6 +332,23 @@ public class PengramConfig {
             case "hideChatAutoDelete": hideChatAutoDelete = !hideChatAutoDelete; putBoolean(key, hideChatAutoDelete); return hideChatAutoDelete;
         }
         return false;
+    }
+
+    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = mode; putInt("voiceChangerMode", mode); }
+    public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = semitones; putInt("voiceChangerPitch", semitones); }
+    public static int getVoiceChangerMode() { init(); return voiceChangerMode; }
+    public static int getVoiceChangerPitch() { init(); return voiceChangerPitch; }
+
+    public static void setSpeedBoost(int level) { init(); speedBoost = level; putInt("speedBoost", level); }
+    public static int getSpeedBoost() { init(); return speedBoost; }
+    /** множитель параллельных запросов: 0 — как в оригинале */
+    public static int getSpeedBoostMultiplier() {
+        init();
+        switch (speedBoost) {
+            case BOOST_FAST: return 2;
+            case BOOST_EXTREME: return 4;
+            default: return 1;
+        }
     }
 
     public static boolean isHidingPhoneNumber() { init(); return hidePhoneNumber; }

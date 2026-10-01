@@ -454,7 +454,7 @@ public class FileLoader extends BaseController {
                             }
                         } else {
                             currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
+                            if (currentUploadOperationsCount < PengramConfig.getSpeedBoostMultiplier()) {
                                 FileUploadOperation operation12 = uploadOperationQueue.poll();
                                 if (operation12 != null) {
                                     currentUploadOperationsCount++;
@@ -490,7 +490,7 @@ public class FileLoader extends BaseController {
                             }
                         } else {
                             currentUploadOperationsCount--;
-                            if (currentUploadOperationsCount < 1) {
+                            if (currentUploadOperationsCount < PengramConfig.getSpeedBoostMultiplier()) {
                                 FileUploadOperation operation1 = uploadOperationQueue.poll();
                                 if (operation1 != null) {
                                     currentUploadOperationsCount++;
@@ -516,7 +516,7 @@ public class FileLoader extends BaseController {
                     uploadSmallOperationQueue.add(operation);
                 }
             } else {
-                if (currentUploadOperationsCount < 1) {
+                if (currentUploadOperationsCount < PengramConfig.getSpeedBoostMultiplier()) {
                     currentUploadOperationsCount++;
                     operation.start();
                 } else {

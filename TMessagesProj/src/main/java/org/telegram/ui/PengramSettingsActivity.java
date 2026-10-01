@@ -16,6 +16,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramVoiceChanger;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
@@ -89,6 +90,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_APPEARANCE = 4;
     public static final int SECTION_CHATS = 5;
     public static final int SECTION_FREEDOM = 6;
+    public static final int SECTION_MEDIA = 7;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -96,6 +98,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_APPEARANCE = 1004;
     private static final int BTN_SECTION_CHATS = 1005;
     private static final int BTN_SECTION_FREEDOM = 1006;
+    private static final int BTN_SECTION_MEDIA = 1007;
+
+    private static final int BTN_BOOST_OFF = 1300;
+    private static final int BTN_BOOST_FAST = 1301;
+    private static final int BTN_BOOST_EXTREME = 1302;
+    private static final int BTN_VOICE_BASE = 1310; // + режим
 
     private static final int BTN_HIDE_PHONE = 1100;
     private static final int BTN_SAVE_IN_BOTS = 1101;
@@ -141,6 +149,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_APPEARANCE: return getString(R.string.PengramSectionAppearance);
             case SECTION_CHATS: return getString(R.string.PengramSectionChats);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
+            case SECTION_MEDIA: return getString(R.string.PengramSectionMedia);
             default: return getString(R.string.PengramSettings);
         }
     }
@@ -155,6 +164,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_APPEARANCE: fillAppearance(items); break;
             case SECTION_CHATS: fillChats(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
+            case SECTION_MEDIA: fillMedia(items); break;
             default: fillRoot(items); break;
         }
     }
@@ -173,6 +183,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionHistory)));
         items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.settings_features, getString(R.string.PengramSectionAppearance)));
         items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats)));
+        items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia)));
         items.add(UItem.asButton(BTN_SECTION_FREEDOM, R.drawable.settings_devices, getString(R.string.PengramSectionFreedom)));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
     }
@@ -286,6 +297,34 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
     }
 
+    private void fillMedia(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramBoostHeader)));
+        items.add(UItem.asRadio(BTN_BOOST_OFF, getString(R.string.PengramBoostOff)).setChecked(PengramConfig.getSpeedBoost() == PengramConfig.BOOST_OFF));
+        items.add(UItem.asRadio(BTN_BOOST_FAST, getString(R.string.PengramBoostFast)).setChecked(PengramConfig.getSpeedBoost() == PengramConfig.BOOST_FAST));
+        items.add(UItem.asRadio(BTN_BOOST_EXTREME, getString(R.string.PengramBoostExtreme)).setChecked(PengramConfig.getSpeedBoost() == PengramConfig.BOOST_EXTREME));
+        items.add(UItem.asShadow(getString(R.string.PengramBoostInfo)));
+
+        final int mode = PengramConfig.getVoiceChangerMode();
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
+        for (int m = PengramVoiceChanger.MODE_OFF; m <= PengramVoiceChanger.MODE_CUSTOM; ++m) {
+            items.add(UItem.asRadio(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m)).setChecked(mode == m));
+        }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            items.add(UItem.asShadow(null));
+            items.add(UItem.asHeader(getString(R.string.PengramVoicePitch)));
+            items.add(UItem.asIntSlideView(
+                    1,
+                    -12, PengramConfig.getVoiceChangerPitch(), 12,
+                    value -> value > 0 ? "+" + value : String.valueOf(value),
+                    value -> {
+                        PengramConfig.setVoiceChangerPitch(value);
+                        PengramVoiceChanger.reset();
+                    }
+            ));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+    }
+
     private void fillChats(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
@@ -309,6 +348,19 @@ public class PengramSettingsActivity extends UniversalFragment {
     private void toggleHideFlag(int id, View view) {
         boolean value;
         switch (id) {
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_OFF:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_HELIUM:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CHILD:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_FEMALE:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MALE:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_DEEP:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MONSTER:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_ROBOT:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
+                PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
+                PengramVoiceChanger.reset();
+                updateAll = true;
+                break;
             case BTN_HIDE_MENU_NEW_GROUP: value = PengramConfig.toggleBoolean("hideMenuNewGroup"); break;
             case BTN_HIDE_MENU_SAVED: value = PengramConfig.toggleBoolean("hideMenuSavedMessages"); break;
             case BTN_HIDE_MENU_SETTINGS: value = PengramConfig.toggleBoolean("hideMenuSettings"); break;
@@ -350,6 +402,21 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_FREEDOM:
                 presentFragment(new PengramSettingsActivity(SECTION_FREEDOM));
                 return;
+            case BTN_SECTION_MEDIA:
+                presentFragment(new PengramSettingsActivity(SECTION_MEDIA));
+                return;
+            case BTN_BOOST_OFF:
+                PengramConfig.setSpeedBoost(PengramConfig.BOOST_OFF);
+                updateAll = true;
+                break;
+            case BTN_BOOST_FAST:
+                PengramConfig.setSpeedBoost(PengramConfig.BOOST_FAST);
+                updateAll = true;
+                break;
+            case BTN_BOOST_EXTREME:
+                PengramConfig.setSpeedBoost(PengramConfig.BOOST_EXTREME);
+                updateAll = true;
+                break;
             case BTN_HIDE_PHONE:
                 PengramConfig.toggleHidePhoneNumber();
                 if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hidePhoneNumber);
