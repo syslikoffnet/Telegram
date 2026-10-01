@@ -1279,6 +1279,9 @@ public class StoriesController {
     }
 
     public boolean markStoryAsRead(TL_stories.PeerStories userStories, TL_stories.StoryItem storyItem, boolean profile) {
+        if (org.telegram.messenger.PengramConfig.isNotSendingStoryViews()) {
+            return false;
+        }
         if (storyItem == null || userStories == null) {
             return false;
         }
@@ -3723,6 +3726,9 @@ public class StoriesController {
             if (seenStories.contains(storyId)) return false;
             seenStories.add(storyId);
             saveCache();
+            if (org.telegram.messenger.PengramConfig.isNotSendingStoryViews()) {
+                return true;
+            }
             TL_stories.TL_stories_incrementStoryViews req = new TL_stories.TL_stories_incrementStoryViews();
             req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
             req.id.add(storyId);

@@ -11235,4 +11235,20 @@
     <string name="RoundVideoComposition">Composition</string>
     <string name="RoundVideoCompositionEnabled">Round video styling</string>
     <string name="RoundVideoCompositionInfo">Disable styling to record a plain square without outside-circle blur, dimming or Telegram overlays.</string>
+    <string name="PengramSettings">Pengram</string>
+    <string name="PengramIdHeader">User ID</string>
+    <string name="PengramIdPreviewInfo">This is how the profile card will look.</string>
+    <string name="PengramIdStyleOff">Don\'t show</string>
+    <string name="PengramIdStyleRow">Separate row (ID)</string>
+    <string name="PengramIdStyleRowDc">Separate row (ID and DC)</string>
+    <string name="PengramIdStyleInline">Next to the username</string>
+    <string name="PengramIdCopyOnTap">Copy ID on tap</string>
+    <string name="PengramGhostHeader">Ghost mode</string>
+    <string name="PengramGhostMode">Ghost mode</string>
+    <string name="PengramGhostHideOnline">Stay offline</string>
+    <string name="PengramGhostDontRead">Don\'t send read receipts</string>
+    <string name="PengramGhostDontType">Don\'t send typing status</string>
+    <string name="PengramGhostDontStory">Don\'t mark stories as viewed</string>
+    <string name="PengramGhostInfo">While ghost mode is on, others will not see that you are online, that you read their messages or that you are typing.</string>
+    <string name="PengramIdCopied">ID copied to clipboard</string>
 </resources>

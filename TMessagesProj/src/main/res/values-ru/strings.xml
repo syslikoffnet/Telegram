@@ -263,4 +263,20 @@
     <string name="RemindTodayAt">\'Отправить сегодня в\' HH:mm</string>
     <string name="RemindDayAt">\'Отправить\' d MMM \'в\' HH:mm</string>
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
+    <string name="PengramSettings">Pengram</string>
+    <string name="PengramIdHeader">ID пользователя</string>
+    <string name="PengramIdPreviewInfo">Так будет выглядеть карточка профиля.</string>
+    <string name="PengramIdStyleOff">Не показывать</string>
+    <string name="PengramIdStyleRow">Отдельной строкой (ID)</string>
+    <string name="PengramIdStyleRowDc">Отдельной строкой (ID и DC)</string>
+    <string name="PengramIdStyleInline">Рядом с юзернеймом</string>
+    <string name="PengramIdCopyOnTap">Копировать ID по нажатию</string>
+    <string name="PengramGhostHeader">Режим призрака</string>
+    <string name="PengramGhostMode">Режим призрака</string>
+    <string name="PengramGhostHideOnline">Всегда оффлайн</string>
+    <string name="PengramGhostDontRead">Не отправлять прочтение</string>
+    <string name="PengramGhostDontType">Не отправлять «печатает»</string>
+    <string name="PengramGhostDontStory">Не отмечать просмотр историй</string>
+    <string name="PengramGhostInfo">Пока включён режим призрака, другие не увидят, что вы онлайн, что прочитали их сообщения и что печатаете.</string>
+    <string name="PengramIdCopied">ID скопирован в буфер обмена</string>
 </resources>
