@@ -171,6 +171,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagePreviewParams;
 import org.telegram.messenger.MessageSuggestionParams;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -1686,6 +1687,43 @@ public class ChatActivity extends BaseFragment implements
     private final static int charge_fee = 72;
 
     private final static int chat_menu_topic_create = 73;
+
+
+    /** Pengram: отдельный «остров» в меню чата */
+    private void addPengramMenuItems() {
+        try {
+            if (headerItem == null || getDialogId() == 0) {
+                return;
+            }
+            headerItem.lazilyAddColoredGap();
+            headerItem.lazilyAddSubItem(pengram_deleted, R.drawable.msg_viewchats, LocaleController.getString(R.string.PengramHistoryOpen));
+            headerItem.lazilyAddSubItem(pengram_clear_deleted, R.drawable.msg_delete, LocaleController.getString(R.string.PengramHistoryClearButton));
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void openPengramHistory() {
+        presentFragment(new PengramHistoryActivity(getDialogId()));
+    }
+
+    private void clearPengramHistory() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramHistoryClearTitle));
+        builder.setMessage(LocaleController.getString(R.string.PengramHistoryClearChat));
+        builder.setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> {
+            org.telegram.messenger.PengramHistory.clear(getDialogId());
+            BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_delete, LocaleController.getString(R.string.PengramHistoryCleared)).show();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private final static int pengram_deleted = 900;
+    private final static int pengram_clear_deleted = 901;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -3688,6 +3726,13 @@ public class ChatActivity extends BaseFragment implements
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(final int id) {
+                if (id == pengram_deleted) {
+                    openPengramHistory();
+                    return;
+                } else if (id == pengram_clear_deleted) {
+                    clearPengramHistory();
+                    return;
+                }
                 if (id == -1) {
                     if (isInPollAddOptionMode()) {
                         pollAddOptionModeClose();
@@ -4309,6 +4354,10 @@ public class ChatActivity extends BaseFragment implements
             otherIcon.addView(headerItem.getIconView());
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
+            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
+                addPengramMenuItems();
+            }
+
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
                 savedChatsItem = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.SavedViewAsChats));
                 savedChatsGap = headerItem.lazilyAddColoredGap();
@@ -4393,8 +4442,10 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.setSubItemShown(open_direct, ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && currentChat.linked_monoforum_id != 0 && ChatObject.canManageMonoForum(currentAccount, -currentChat.linked_monoforum_id));
             }
             if (currentUser != null && chatMode != MODE_SAVED) {
+                if (!PengramConfig.hideChatCall) {
                 headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
                 headerItem.lazilyAddSubItem(video_call, R.drawable.msg_videocall, LocaleController.getString(R.string.VideoCall));
+                }
                 if (userFull != null && userFull.phone_calls_available) {
                     headerItem.showSubItem(call);
                     if (userFull.video_calls_available) {
@@ -4409,33 +4460,40 @@ public class ChatActivity extends BaseFragment implements
             }
 
             if (searchItem != null) {
+                if (!PengramConfig.hideChatSearch)
                 headerItem.lazilyAddSubItem(search, R.drawable.msg_search, LocaleController.getString(R.string.Search));
             }
             if (ChatObject.isBoostSupported(currentChat) && (getUserConfig().isPremium() || ChatObject.isBoosted(chatInfo) || ChatObject.hasAdminRights(currentChat))) {
                 RLottieDrawable drawable = new RLottieDrawable(R.raw.boosts, dp(24), dp(24));
                 headerItem.lazilyAddSubItem(boost_group, drawable, LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.BoostingBoostChannelMenu : R.string.BoostingBoostGroupMenu));
             }
+            if (!PengramConfig.hideChatTranslate)
             translateItem = headerItem.lazilyAddSubItem(translate, R.drawable.msg_translate, LocaleController.getString(R.string.TranslateMessage));
             updateTranslateItemVisibility();
             if (currentChat != null && !currentChat.creator && !ChatObject.hasAdminRights(currentChat)) {
+                if (!PengramConfig.hideChatReport)
                 headerItem.lazilyAddSubItem(report, R.drawable.msg_report, LocaleController.getString(R.string.ReportChat));
             }
             if (currentUser != null && currentUser.id != UserObject.VERIFY && currentUser.id != UserObject.REPLY_BOT) {
                 addContactItem = headerItem.lazilyAddSubItem(share_contact, R.drawable.msg_addcontact, LocaleController.getString(R.string.AddToContacts));
             }
             if (currentEncryptedChat != null) {
+                if (!PengramConfig.hideChatAutoDelete)
                 timeItem2 = headerItem.lazilyAddSubItem(chat_enc_timer, R.drawable.msg_autodelete, LocaleController.getString(R.string.SetTimer));
             }
             if (currentChat != null && !isTopic) {
                 viewAsTopics = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.TopicViewAsTopics));
             }
             if (themeDelegate.isThemeChangeAvailable(true)) {
+                if (!PengramConfig.hideChatWallpaper)
                 headerItem.lazilyAddSubItem(change_colors, R.drawable.msg_background, LocaleController.getString(R.string.SetWallpapers));
             }
             if (currentUser != null && currentUser.self && getDialogId() != UserObject.VERIFY) {
+                if (!PengramConfig.hideChatShortcut)
                 headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
             }
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
+                if (!PengramConfig.hideChatClearHistory)
                 clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
                     LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
             }
@@ -4506,6 +4564,9 @@ public class ChatActivity extends BaseFragment implements
         if (currentChat != null && forumTopic != null && chatMode == 0) {
             closeTopicItem = headerItem.lazilyAddSubItem(topic_close, R.drawable.msg_topic_close, LocaleController.getString(R.string.CloseTopic));
             closeTopicItem.setVisibility(currentChat != null && ChatObject.canManageTopic(currentAccount, currentChat, forumTopic) && forumTopic != null && !forumTopic.closed ? View.VISIBLE : View.GONE);
+        }
+        if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_BOTTOM) {
+            addPengramMenuItems();
         }
         menu.setVisibility(inMenuMode ? View.GONE : View.VISIBLE);
 

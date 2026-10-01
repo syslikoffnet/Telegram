@@ -1,0 +1,253 @@
+name: Build Pengram (Android arm64-v8a)
+
+# Собирает APK только под arm64-v8a (Poco X6 Pro и любой современный Android).
+# Запуск вручную: вкладка Actions -> этот workflow -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Тип сборки"
+        type: choice
+        default: standalone
+        options:
+          - standalone   # подписанная, с оптимизацией (рекомендуется)
+          - debug        # без R8, с логами, собирается быстрее
+      abi:
+        description: "ABI"
+        type: choice
+        default: arm64-v8a
+        options:
+          - arm64-v8a
+          - armeabi-v7a,arm64-v8a
+          - armeabi-v7a,arm64-v8a,x86,x86_64
+  push:
+    tags:
+      - "build-*"
+
+permissions:
+  contents: write
+
+env:
+  ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
+  NDK_VERSION: "27.2.12479018"
+  CMAKE_VERSION: "3.22.1"
+  # ccache ускоряет повторную нативную сборку в разы
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: "5G"
+  CCACHE_COMPILERCHECK: content
+  CCACHE_SLOPPINESS: time_macros,include_file_mtime,include_file_ctime,file_macro,pch_defines
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Free disk space
+        run: |
+          echo "=== before ==="; df -h /
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /opt/ghc /opt/hostedtoolcache/CodeQL \
+                      /usr/local/share/powershell /usr/local/share/chromium \
+                      /usr/local/lib/node_modules "/usr/local/share/boost" || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          echo "=== after ==="; df -h /
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Используем Android SDK, который уже предустановлен на раннере.
+      # android-actions/setup-android@v3 здесь падает на --licenses, поэтому
+      # лицензии принимаем вручную (записываем хеши) и ставим пакеты сами.
+      - name: Configure Android SDK
+        run: |
+          set -eux
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$SDK"     >> $GITHUB_ENV
+
+          SDKMANAGER="$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1 || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(ls "$SDK"/tools/bin/sdkmanager 2>/dev/null | head -1)"
+          fi
+          echo "SDKMANAGER=$SDKMANAGER" >> $GITHUB_ENV
+
+          # принимаем лицензии без интерактива
+          mkdir -p "$SDK/licenses"
+          printf '%s\n' 8933bad161af4178b1185d1a37fbf41ea5269c55 d56f5187479451eabf01fb78af6dfcb131a6481e 24333f8a63b6825ea9c5514f83c2829b004d1fee > "$SDK/licenses/android-sdk-license"
+          printf '%s\n' 84831b9409646a918e30573bab4c9c91346d8abd 504667f4c0de7af1a06de9f4b1727b84351f2910 > "$SDK/licenses/android-sdk-preview-license"
+          printf '%s\n' 33b6a2b64607f11b759f320ef9dff4ae5c47d97a > "$SDK/licenses/android-sdk-arm-dbt-license"
+
+          # ставим всё нужное; если какой-то пакет недоступен — AGP докачает сам
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "cmake;${CMAKE_VERSION}" \
+            "ndk;${NDK_VERSION}" > /dev/null || \
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;36.0.0" "cmake;${CMAKE_VERSION}" "ndk;${NDK_VERSION}" || true
+
+          ls "$SDK/ndk" || true
+          echo "ANDROID_NDK_HOME=$SDK/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          echo "sdk.dir=$SDK" > local.properties
+
+      - name: Install ccache
+        run: |
+          set -eux
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$CCACHE_DIR"
+          ccache --max-size="$CCACHE_MAXSIZE"
+          ccache --zero-stats
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-${{ env.ABI }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ env.ABI }}-
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.sha }}
+          restore-keys: |
+            gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}-
+            gradle-${{ env.ABI }}-
+
+      # Кэш нативной сборки (CMake/NDK) — главное ускорение повторных запусков
+      - name: Native build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            TMessagesProj/.cxx
+            TMessagesProj/build/intermediates/cxx
+          key: cxx-${{ env.ABI }}-${{ hashFiles('TMessagesProj/jni/**/CMakeLists.txt', '.gitmodules') }}-${{ github.sha }}
+          restore-keys: |
+            cxx-${{ env.ABI }}-${{ hashFiles('TMessagesProj/jni/**/CMakeLists.txt', '.gitmodules') }}-
+            cxx-${{ env.ABI }}-
+
+      # Keystore. По умолчанию — ключ из репозитория (пароли android/android).
+      # Свой ключ: секреты KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > TMessagesProj/config/release.keystore
+            {
+              echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> gradle.properties
+            echo "Используется пользовательский keystore"
+          else
+            echo "Используется keystore из репозитория"
+          fi
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -ux
+          chmod +x ./gradlew
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            TASK=":TMessagesProj_AppStandalone:assembleAfatDebug"
+          else
+            TASK=":TMessagesProj_AppStandalone:assembleAfatStandalone"
+          fi
+          set +e
+          ./gradlew "$TASK" \
+            -PABI_FILTERS="$ABI" \
+            --no-daemon --stacktrace \
+            --build-cache --parallel --max-workers=4 \
+            -Pandroid.lint.checkReleaseBuilds=false \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" \
+            -Dfile.encoding=UTF-8 2>&1 | tee build.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$STATUS" != "0" ]; then
+            {
+              echo '### Build failed'
+              echo '```'
+              tail -n 200 build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
+
+      - name: ccache stats
+        if: always()
+        run: |
+          ccache --show-stats || true
+          { echo "### ccache"; echo '```'; ccache --show-stats || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect APK
+        run: |
+          set -eux
+          mkdir -p out
+          find TMessagesProj_AppStandalone/build/outputs/apk -name "*.apk" -exec sh -c \
+            'cp "$1" "out/Pengram-${BUILD_TYPE}-${ABI%%,*}.apk"' _ {} \;
+          ls -lh out
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pengram-${{ env.BUILD_TYPE }}-apk
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish failure log to repo
+        if: failure()
+        env:
+          LOG_BRANCH: arena/01a0f7dc-telegram
+        run: |
+          set -eux
+          # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
+          grep -nE "error:|e: |^FAILURE|What went wrong|Execution failed" build.log | tail -n 40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done || true
+
+          mkdir -p ci-logs
+          tail -n 400 build.log > ci-logs/last-failure.log || echo "no build.log" > ci-logs/last-failure.log
+          grep -nE "error:|e: |warning: unchecked" build.log | tail -n 200 > ci-logs/last-errors.log || true
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git fetch origin "$LOG_BRANCH"
+          git stash -u || true
+          git checkout -B ci-log-tmp "origin/$LOG_BRANCH"
+          git stash pop || true
+          git add -f ci-logs/last-failure.log ci-logs/last-errors.log
+          git commit -m "ci: build failure log [skip ci]" || exit 0
+          git push origin "ci-log-tmp:$LOG_BRANCH"
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            **/build/reports/**
+            **/.cxx/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7

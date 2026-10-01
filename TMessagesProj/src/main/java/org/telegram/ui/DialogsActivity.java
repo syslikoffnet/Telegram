@@ -120,6 +120,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -13682,6 +13683,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             isCurrentThemeDark = Theme.isCurrentThemeDark();
         }
+        io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
+        io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
+            PengramConfig.toggleGhostMode();
+            BulletinFactory.of(this).createSimpleBulletin(
+                    PengramConfig.ghostMode ? R.raw.ic_ban : R.raw.ic_unban,
+                    getString(R.string.PengramGhostToggle),
+                    getString(PengramConfig.ghostMode ? R.string.PengramGhostOn : R.string.PengramGhostOff)
+            ).show();
+        });
+        io.addGap();
+        if (!PengramConfig.hideMenuTheme)
         io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
                 getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
             if (switchingTheme) {
@@ -13718,10 +13730,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             });
         });
         io.addGap();
+        if (!PengramConfig.hideMenuNewGroup)
         io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
             Bundle args = new Bundle();
             presentFragment(new GroupCreateActivity(args));
         });
+        if (!PengramConfig.hideMenuSavedMessages)
         io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
@@ -13754,7 +13768,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         }
-        if (getUserConfig().showCallsTab) {
+        if (getUserConfig().showCallsTab && !PengramConfig.hideMenuSettings) {
             io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
                 presentFragment(new SettingsActivity());
             });

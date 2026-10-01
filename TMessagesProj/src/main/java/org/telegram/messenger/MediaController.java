@@ -1125,6 +1125,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 int len = audioRecorder.read(buffer, buffer.capacity());
                 if (len > 0) {
                     buffer.limit(len);
+                    if (PengramVoiceChanger.isEnabled()) {
+                        PengramVoiceChanger.process(buffer, len);
+                        buffer.position(0);
+                        buffer.limit(len);
+                    }
                     double sum = 0;
                     try {
                         long newSamplesCount = samplesCount + len / 2;
@@ -4673,7 +4678,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             return super.delete();
                         }
                     };
-                    if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
+                    PengramVoiceChanger.reset();
+                    PengramVoiceChanger.reset();
+                if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                         AndroidUtilities.runOnUIThread(() -> {
                             recordStartRunnable = null;
                             NotificationCenter.getInstance(recordingCurrentAccount).postNotificationName(NotificationCenter.recordStartError, recordingGuid);

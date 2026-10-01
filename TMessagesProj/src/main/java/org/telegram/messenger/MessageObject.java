@@ -8387,7 +8387,7 @@ public class MessageObject {
             return false;
         } else if (searchType == ChatActivity.SEARCH_PUBLIC_POSTS) {
             return true;
-        } else if (messageOwner.noforwards) {
+        } else if (messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         } else if (messageOwner.fwd_from != null && !isOutOwner() && messageOwner.fwd_from.saved_from_peer != null && getDialogId() == UserConfig.getInstance(currentAccount).getClientUserId()) {
             return true;
@@ -8658,7 +8658,7 @@ public class MessageObject {
             return;
         }
         boolean hasUrls = applyEntities();
-        boolean noforwards = messageOwner != null && messageOwner.noforwards;
+        boolean noforwards = messageOwner != null && messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions();
         if (!noforwards) {
             final long dialogId = getDialogId();
             noforwards = MessagesController.getInstance(currentAccount).isPeerNoForwards(dialogId);
@@ -11601,6 +11601,9 @@ public class MessageObject {
     public boolean canForwardMessage() {
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
+        if (PengramConfig.isBypassingForwardRestrictions()) {
+            return !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored();
+        }
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;
     }
 

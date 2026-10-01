@@ -14514,6 +14514,132 @@ public class MessagesStorage extends BaseController {
         AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.quickRepliesUpdated));
     }
 
+    /** Pengram: текст сообщения из локальной базы Telegram (вызывать в storageQueue) */
+    public String pengramGetMessageText(int messageId, long dialogId) {
+        SQLiteCursor cursor = null;
+        try {
+            cursor = database.queryFinalized("SELECT data FROM messages_v2 WHERE mid = ? AND uid = ?", messageId, dialogId);
+            if (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data != null) {
+                    try {
+                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (message != null) {
+                            message.readAttachPath(data, getUserConfig().clientUserId);
+                            return PengramHistory.describe(message);
+                        }
+                    } finally {
+                        data.reuse();
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) {
+                try { cursor.dispose(); } catch (Throwable ignore) {}
+            }
+        }
+        return null;
+    }
+
+    /** Pengram: копирует медиа удалённого сообщения в выбранную папку */
+    private void pengramSaveDeletedMedia(long dialogId, TLRPC.Message message) {
+        try {
+            if (!PengramConfig.isSavingDeletedMedia() || message == null || message.media == null) {
+                return;
+            }
+            final boolean isImage = message.media instanceof TLRPC.TL_messageMediaPhoto;
+            boolean isVideo = false;
+            String mime = null;
+            String ext = isImage ? "jpg" : null;
+            TLRPC.Document doc = message.media.document;
+            if (doc != null) {
+                mime = doc.mime_type;
+                for (int i = 0; i < doc.attributes.size(); ++i) {
+                    if (doc.attributes.get(i) instanceof TLRPC.TL_documentAttributeVideo) {
+                        isVideo = true;
+                    }
+                }
+                final String docName = FileLoader.getDocumentFileName(doc);
+                if (docName != null && docName.contains(".")) {
+                    ext = docName.substring(docName.lastIndexOf('.') + 1);
+                } else if (isVideo) {
+                    ext = "mp4";
+                }
+            }
+            if (!isImage && doc == null) {
+                return;
+            }
+            final java.io.File file = FileLoader.getInstance(currentAccount).getPathToMessage(message);
+            if (file == null || !file.exists() || file.length() <= 0) {
+                return;
+            }
+            final String name = PengramHistory.buildFileName(PengramConfig.getMediaPattern(), dialogId, message.id, message.date, ext);
+            PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** Pengram: это диалог с ботом? */
+    public boolean pengramIsBotDialog(long dialogId) {
+        try {
+            if (dialogId <= 0) {
+                return false;
+            }
+            TLRPC.User user = getMessagesController().getUser(dialogId);
+            return user != null && user.bot;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** Pengram: перед удалением сохраняем сообщения в собственную базу */
+    private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
+        if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
+            return;
+        }
+        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(dialogId)) {
+            return;
+        }
+        SQLiteCursor cursor = null;
+        try {
+            final long selfId = getUserConfig().getClientUserId();
+            final String ids = TextUtils.join(",", messages);
+            cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            while (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data == null) {
+                    continue;
+                }
+                try {
+                    TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                    if (message != null) {
+                        message.readAttachPath(data, selfId);
+                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
+                        if (message.out && !PengramConfig.isSavingOutgoing()) {
+                            continue;
+                        }
+                        final String text = PengramHistory.describe(message);
+                        if (!TextUtils.isEmpty(text)) {
+                            PengramHistory.save(currentAccount, dialogId, message.id, fromId, message.date, PengramHistory.ACTION_DELETED, text, null);
+                        }
+                        pengramSaveDeletedMedia(dialogId, message);
+                    }
+                } finally {
+                    data.reuse();
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) {
+                try { cursor.dispose(); } catch (Throwable ignore) {}
+            }
+        }
+    }
+
     private ArrayList<Long> markMessagesAsDeletedInternal(long dialogId, ArrayList<Integer> messages, boolean deleteFiles, int mode, int threadMessageId) {
         SQLiteCursor cursor = null;
         SQLitePreparedStatement state = null;
@@ -14584,6 +14710,8 @@ public class MessagesStorage extends BaseController {
                 }
             } else {
                 long currentUser = getUserConfig().getClientUserId();
+
+                pengramSaveDeleted(dialogId, messages);
 
                 ArrayList<Integer> unknownMessages = new ArrayList<>(messages);
                 ArrayList<Integer> unknownMessagesInTopics = new ArrayList<>(messages);

@@ -1,46 +1,142 @@
-## Telegram messenger for Android
+# Pengram
 
-[Telegram](https://telegram.org) is a messaging app with a focus on speed and security. It’s superfast, simple and free.
-This repo contains the official source code for [Telegram App for Android](https://play.google.com/store/apps/details?id=org.telegram.messenger).
+<img src="branding/pengram_icon.png" width="120" align="right" alt="Pengram icon"/>
 
-## Creating your Telegram Application
+Форк официального Telegram для Android со своими ключами API, собственной иконкой/названием
+и набором фич в духе AyuGram / exteraGram. Ставится **рядом** с оригинальным Telegram
+(`applicationId = org.telegram.messenger.pengram`), ничего не затирает.
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+Все настройки форка собраны в одном месте: **Настройки → Pengram** — пункт закреплён
+самым первым, выше «Аккаунта». Дополнительные входы: «три точки» на главном экране,
+поиск по настройкам (пункты Pengram ищутся как родные) и диплинк `tg://settings/pengram`.
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+Внутри экран разложен по разделам: **Основное и профиль · Режим призрака · История сообщений ·
+Оформление · Чаты и кнопки · Скорость и голос · Свобода и Premium**.
 
-### API, Protocol documentation
+---
 
-Telegram API manuals: https://core.telegram.org/api
+## Что уже есть
 
-MTproto protocol manuals: https://core.telegram.org/mtproto
+### 👤 Профиль
+- **ID пользователя/чата** отдельной строкой под юзернеймом: крупно сам ID, мелкой подписью —
+  расположение дата-центра, `DC 5, Singapore, SG`. Стили: не показывать · `ID` ·
+  `ID` + дата-центр · рядом с юзернеймом.
+- **Копирование ID по тапу** (отключаемо).
+- **Дата регистрации аккаунта** — иконка-календарик прямо в строке ID; по нажатию:
+  «Вы создали свой аккаунт примерно в марте 2021» (+ возраст аккаунта, если включено).
+  Вычисляется интерполяцией по ID, поэтому приблизительная.
+- **Скрытие своего номера телефона** локально — в профиле и в шапке настроек вместо номера «Номер скрыт».
+- **Живое превью** в настройках: карточка профиля перерисовывается сразу при смене стиля.
 
-### Compilation Guide
+### 👻 Режим призрака
+Мастер-тумблер + независимые опции:
+- всегда оффлайн (не отправляется `updateStatus`);
+- не отправлять прочтение сообщений (локально читается, собеседник галочек не видит);
+- не отправлять статус «печатает»;
+- не отмечать просмотр историй.
 
-**Note**: In order to support [reproducible builds](https://core.telegram.org/reproducible-builds), this repo contains dummy release.keystore,  google-services.json and filled variables inside BuildVars.java. Before publishing your own APKs please make sure to replace all these files with your own.
+Быстрый тумблер режима призрака вынесен в **«три точки» на главном экране** — с галочкой и
+всплывающим подтверждением, без захода в настройки.
 
-You will require Android Studio 2025.1.4, Android NDK 27.2.12479018 and Android SDK 36.
+**Локальное отслеживание** (работает независимо от призрака): Pengram запоминает у себя
+даты прочтения ваших сообщений и последние заходы собеседников — даже когда Telegram их прячет.
 
-1. Clone the Telegram source code with its submodules:
-   ```bash
-   git clone --recursive --shallow-submodules https://github.com/DrKLO/Telegram.git Telegram
-   ```
-   In case you forgot the `--recursive` flag, change to the `Telegram` directory and run:
-   ```bash
-   git submodule init && git submodule update --init --recursive --depth=1
-   ```
-2. Copy your release.keystore into TMessagesProj/config
-3. Fill out RELEASE_KEY_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_STORE_PASSWORD in gradle.properties to access your  release.keystore
-4.  Go to https://console.firebase.google.com/, create two android apps with application IDs org.telegram.messenger and org.telegram.messenger.beta, turn on firebase messaging and download google-services.json, which should be copied to the same folder as TMessagesProj.
-5. Open the project in the Studio (note that it should be opened, NOT imported).
-6. Fill out values in TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java – there’s a link for each of the variables showing where and which data to obtain.
-7. You are ready to compile Telegram.
+### 🗃 Неубиваемая история удалённых и изменённых
+- Отдельная база `pengram_history.db` в `files/` — **очистка кэша Telegram её не трогает**.
+- Удалённые сообщения перехватываются до удаления из кэша, изменённые — сохраняются парой
+  «было → стало».
+- Опции: сохранять удалённые / изменённые / свои исходящие / в чатах с ботами /
+  показывать строку в профиле. Зависимые пункты скрываются, если сохранение выключено.
+- **Сохранение медиа удалёнок** в выбранную папку:
+  фото → `Pictures/<папка>`, видео → `Movies/<папка>`, файлы → `Download/<папка>`,
+  с настраиваемым **шаблоном имени** (`{date}`, `{time}`, `{chat}`, `{id}`, `{dialog}`).
+- **Лимит размера папки вложений** — слайдер по ровным ГБ (без лимита · 1 · 2 · 4 · 8 · 16 · 32 · 64):
+  при достижении лимита самые старые файлы удаляются автоматически. Показывается занятый объём,
+  есть кнопка «удалить все сохранённые вложения».
+- Просмотр: фильтр Все / Только удалённые / Только изменённые, старый текст зачёркнут,
+  долгий тап — копировать или удалить запись, в шапке — очистка.
+- Точки входа: Настройки → Pengram, строка в карточке профиля, и **остров Pengram
+  в меню «три точки» внутри чата** (только удалёнки этого чата + очистка этого чата).
+  Позиция острова настраивается — сверху или снизу меню.
 
-### Localization
+### 🔓 Без ограничений
+- **Скриншоты и запись экрана везде**: секретные чаты, одноразовые медиа, истории,
+  просмотрщик фото/видео, экраны оплаты, звонки, пасскод.
+- **Не уведомлять о скриншоте** в секретных чатах.
+- **Обход запрета пересылки/сохранения** в «закрытых» каналах и чатах (копирование,
+  пересылка, сохранение медиа, кнопка копирования кода).
+- **Одноразовые медиа не «сгорают»** — просмотр не подтверждается серверу, поэтому
+  фото/видео/голосовые «один раз» остаются, их можно пересматривать, пересылать и сохранять.
 
-We moved all translations to https://translations.telegram.org/en/android/. Please use it.
+### 🚫 Реклама
+Спонсорские посты не запрашиваются у сервера вообще — ни в каналах, ни где-либо ещё.
+Работает без локального премиума, без «дырок» в ленте и лишних запросов.
+
+### ⭐ Локальный Premium
+Разблокирует клиентские premium-функции (анимированные эмодзи и статусы, premium-пункты
+интерфейса, расширенные лимиты UI). Серверные возможности по-прежнему требуют подписки.
+
+### 🚀 Ускорение сети
+Режимы **Как в оригинале · Быстро (2x потоков) · Максимум (4x потоков)**:
+- скачивание — большие куски 512 КБ и до 8–16 параллельных запросов на файл (включая стриминг видео);
+- отправка — во столько же раз больше параллельных частей и несколько файлов одновременно
+  (в оригинале файлы грузятся строго по одному).
+На медленных сетях буст автоматически не применяется.
+
+### 🎙 Изменение голоса в голосовых
+Эффект накладывается **прямо при записи**, поэтому собеседник слышит изменённый голос.
+- Пресеты: Гелий · Ребёнок · Выше (женский) · Ниже (мужской) · Очень низкий · Монстр · Робот.
+- «Свой сдвиг» — слайдер от −12 до +12 полутонов.
+- Экран с «островком»-превью: живая анимированная волна, частота и амплитуда которой
+  зависят от выбранного эффекта, и подпись со сдвигом тона у каждого пресета.
+- Реализовано на чистой Java (гранулярный питч-шифтер по PCM), без нативного кода;
+  при выключенном эффекте запись не трогается вообще.
+
+### 🧹 Скрытие лишних кнопок
+- Меню главного экрана: «Создать группу», «Избранное», «Настройки», переключатель темы.
+- Меню чата (ЛС, группы, каналы, боты): Поиск, Перевести, Очистить историю, Обои,
+  Добавить на экран, Пожаловаться, Звонок, Автоудаление.
+
+### 🎨 Внешний вид
+- Шрифт приложения: Telegram · системный · с засечками · моноширинный.
+- Позиция острова Pengram в меню чата.
+- Своя иконка-пингвин (адаптивная + монохромная для тем Android 13+) и название **Pengram**.
+
+---
+
+## Сборка
+
+### GitHub Actions (рекомендуется)
+Вкладка **Actions → Build Pengram (Android arm64-v8a) → Run workflow**.
+Выбираются тип сборки (`standalone` / `debug`) и ABI (по умолчанию `arm64-v8a`).
+Готовый APK лежит в артефактах запуска. Сборка также стартует при пуше тега `build-*`.
+
+Workflow сам ставит JDK 17, Android SDK, NDK 27.2.12479018 и CMake 3.22.1. Для скорости
+подключены **ccache** (кэш компилятора C/C++ между запусками), **Gradle build cache**,
+кэш `.cxx`/`~/.gradle` с обновляемыми ключами и параллельные воркеры — повторные сборки
+заметно быстрее первой.
+
+Подпись: по умолчанию ключ из репозитория. Свой ключ — через секреты
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+
+### Локально
+```bash
+./scripts/build-arm64.sh standalone   # или debug
+# APK: TMessagesProj_AppStandalone/build/outputs/apk/...
+```
+Нужны JDK 17, Android SDK, NDK `27.2.12479018`, CMake `3.22.1` и `git submodule update --init --recursive`.
+
+---
+
+## Исходники
+
+Основано на [Telegram for Android](https://github.com/DrKLO/Telegram), лицензия GPL v2 или новее.
+Идеи фич — из [AyuGram4A](https://github.com/AyuGram/AyuGram4A) и [exteraGram](https://github.com/exteraSquad/exteraGram).
+
+Код форка живёт в:
+- `org/telegram/messenger/PengramConfig.java` — все настройки;
+- `org/telegram/messenger/PengramHistory.java` — база удалёнок/изменёнок и сохранение медиа;
+- `org/telegram/messenger/PengramRegDate.java` — оценка даты регистрации;
+- `org/telegram/messenger/PengramVoiceChanger.java` — изменение голоса в голосовых;
+- `org/telegram/ui/PengramSettingsActivity.java` — экран настроек с разделами и превью;
+- `org/telegram/ui/PengramHistoryActivity.java` — просмотр истории.

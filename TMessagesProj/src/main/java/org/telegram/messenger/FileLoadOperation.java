@@ -295,6 +295,13 @@ public class FileLoadOperation {
             maxDownloadRequests = 4;
             maxDownloadRequestsBig = 4;
         }
+        final int boost = PengramConfig.getSpeedBoostMultiplier();
+        if (boost > 1 && !forceSmallChunk) {
+            downloadChunkSizeBig = 1024 * 512;
+            maxDownloadRequests = Math.min(32, 4 * boost);
+            maxDownloadRequestsBig = Math.min(32, 4 * boost);
+            maxDownloadRequestsAnimation = Math.min(16, 4 * boost);
+        }
         maxCdnParts = (int) (FileLoader.DEFAULT_MAX_FILE_SIZE / downloadChunkSizeBig);
     }
 

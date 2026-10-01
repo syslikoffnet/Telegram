@@ -158,6 +158,9 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
+import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramRegDate;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
@@ -631,6 +634,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int chatRow;
     private int filtersRow;
     private int liteModeRow;
+    private int pengramRow;
     private int stickersRow;
     private int devicesRow;
     private int devicesSectionRow;
@@ -657,6 +661,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int userInfoRow;
     private int channelInfoRow;
     private int usernameRow;
+    private int idRow;
+    private int regDateRow;
+    private int pengramHistoryRow;
     private int notificationsDividerRow;
     private int notificationsRow;
     private int bizHoursRow;
@@ -4544,6 +4551,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new StickersActivity(MediaDataController.TYPE_IMAGE, null));
             } else if (position == liteModeRow) {
                 presentFragment(new LiteModeSettingsActivity());
+            } else if (position == pengramRow) {
+                presentFragment(new PengramSettingsActivity());
+            } else if (position == pengramHistoryRow) {
+                presentFragment(new PengramHistoryActivity(userId != 0 ? userId : -chatId));
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
             } else if (position == questionRow) {
@@ -7288,7 +7299,43 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         presentFragment(fragment);
     }
 
+    /** «Вы создали свой аккаунт примерно …» по тапу на календарик в строке ID */
+    private void showRegDateInfo(long estimate) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        String date = PengramRegDate.formatMonthYear(estimate);
+        if (date == null) {
+            return;
+        }
+        final String age = PengramRegDate.formatAge(estimate);
+        final boolean self = userId != 0 && UserObject.isUserSelf(getMessagesController().getUser(userId));
+        String text = LocaleController.formatString(self ? R.string.PengramRegDateSelf : R.string.PengramRegDateOther, date);
+        if (age != null && PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
+            text = text + "\n\n" + LocaleController.formatString(R.string.PengramRegDateAge, age);
+        }
+        new AlertDialog.Builder(getParentActivity(), resourcesProvider)
+                .setTitle(LocaleController.getString(R.string.PengramRegDate))
+                .setMessage(text)
+                .setPositiveButton(LocaleController.getString(R.string.OK), null)
+                .show();
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
+        if (position == idRow) {
+            final long peerId = userId != 0 ? userId : chatId;
+            if (peerId == 0 || !PengramConfig.copyIdOnTap) {
+                return false;
+            }
+            try {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("label", String.valueOf(peerId)));
+                BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return true;
+        }
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
             final TLRPC.TL_username usernameObj;
@@ -10480,6 +10527,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         chatRow = -1;
         filtersRow = -1;
         liteModeRow = -1;
+        pengramRow = -1;
         stickersRow = -1;
         devicesRow = -1;
         devicesSectionRow = -1;
@@ -10521,6 +10569,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         locationRow = -1;
         channelInfoRow = -1;
         usernameRow = -1;
+        idRow = -1;
+        regDateRow = -1;
+        pengramHistoryRow = -1;
         settingsTimerRow = -1;
         settingsKeyRow = -1;
         notificationsDividerRow = -1;
@@ -10621,6 +10672,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 numberSectionRow = rowCount++;
                 numberRow = rowCount++;
                 setUsernameRow = rowCount++;
+                if (PengramConfig.isIdSeparateRow()) {
+                    idRow = rowCount++;
+                }
                 bioRow = rowCount++;
 
                 settingsSectionRow = rowCount++;
@@ -10643,6 +10697,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 notificationRow = rowCount++;
                 dataRow = rowCount++;
                 liteModeRow = rowCount++;
+                pengramRow = rowCount++;
 //                stickersRow = rowCount++;
                 if (getMessagesController().filtersEnabled || !getMessagesController().dialogFilters.isEmpty()) {
                     filtersRow = rowCount++;
@@ -10712,6 +10767,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
+                }
+                if (user != null && PengramConfig.isIdSeparateRow()) {
+                    idRow = rowCount++;
+                }
+                // дата регистрации теперь живёт в строке ID (иконка-календарик)
+                if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
+                    pengramHistoryRow = rowCount++;
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -10870,6 +10932,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
+                }
+                if (currentChat != null && PengramConfig.isIdSeparateRow()) {
+                    idRow = rowCount++;
+                }
+                if (currentChat != null && PengramConfig.isHistoryRowVisible()) {
+                    pengramHistoryRow = rowCount++;
                 }
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
@@ -13483,6 +13551,63 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
                             containsGift = !myProfile && today && !getMessagesController().premiumPurchaseBlocked();
                         }
+                    } else if (position == idRow) {
+                        final long peerId = userId != 0 ? userId : chatId;
+                        int dcId = -1;
+                        if (userId != 0) {
+                            final TLRPC.User user = getMessagesController().getUser(userId);
+                            if (user != null && user.photo != null) {
+                                dcId = user.photo.dc_id;
+                            }
+                        } else {
+                            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+                            if (chat != null && chat.photo != null) {
+                                dcId = chat.photo.dc_id;
+                            }
+                        }
+                        String label = null;
+                        if (dcId > 0 && PengramConfig.isShowingDc()) {
+                            label = PengramRegDate.formatDc(dcId);
+                        }
+                        if (label == null) {
+                            label = "ID";
+                        }
+                        detailCell.setTextAndValue(String.valueOf(peerId), label, regDateRow != -1);
+                        detailCell.setContentDescriptionValueFirst(true);
+                        // календарик с приблизительной датой регистрации — прямо в строке ID
+                        final long regEstimate = userId != 0 && PengramConfig.isRegDateVisible() ? PengramRegDate.estimate(userId) : 0;
+                        if (regEstimate > 0) {
+                            Drawable calendarDrawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                            if (calendarDrawable != null) {
+                                calendarDrawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+                                detailCell.setImage(calendarDrawable, LocaleController.getString(R.string.PengramRegDate));
+                                detailCell.setImageClickListener(v -> showRegDateInfo(regEstimate));
+                            }
+                        } else {
+                            detailCell.setImage(null);
+                            detailCell.setImageClickListener(null);
+                        }
+                    } else if (position == regDateRow) {
+                        final long estimate = PengramRegDate.estimate(userId);
+                        String text = PengramRegDate.formatMonthYear(estimate);
+                        if (text == null) {
+                            text = "—";
+                        }
+                        text = "\u2248 " + text;
+                        if (PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
+                            final String age = PengramRegDate.formatAge(estimate);
+                            if (age != null) {
+                                text = text + " \u2022 " + age;
+                            }
+                        }
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), false);
+                        detailCell.setContentDescriptionValueFirst(true);
+                        Drawable calendar = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                        if (calendar != null) {
+                            calendar.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+                            detailCell.setImage(calendar, LocaleController.getString(R.string.PengramRegDate));
+                            detailCell.setImageClickListener(null);
+                        }
                     } else if (position == phoneRow) {
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);
@@ -13575,7 +13700,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             value = "";
                             usernames = new ArrayList<>();
                         }
-                        detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                        detailCell.setTextAndValue(text, appendInlineId(alsoUsernamesString(username, usernames, value)), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -13584,7 +13709,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     } else if (position == numberRow) {
                         TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
                         String value;
-                        if (user != null && user.phone != null && user.phone.length() != 0) {
+                        if (PengramConfig.isHidingPhoneNumber()) {
+                            value = LocaleController.getString(R.string.PengramPhoneHidden);
+                        } else if (user != null && user.phone != null && user.phone.length() != 0) {
                             value = PhoneFormat.getInstance().format("+" + user.phone);
                         } else {
                             value = LocaleController.getString(R.string.NumberUnknown);
@@ -13621,7 +13748,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 text = LocaleController.getString(R.string.UsernameEmpty);
                             }
                         }
-                        detailCell.setTextAndValue(text, value, true);
+                        detailCell.setTextAndValue(text, appendInlineId(value), true);
                         detailCell.setContentDescriptionValueFirst(true);
                     }
                     if (containsGift) {
@@ -13639,7 +13766,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
-                    } else {
+                    } else if (position != regDateRow) {
                         detailCell.setImage(null);
                         detailCell.setImageClickListener(null);
                     }
@@ -13847,6 +13974,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setTextAndIcon(LocaleController.getString(R.string.StickersName), R.drawable.msg2_sticker, true);
                     } else if (position == liteModeRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PowerUsage), R.drawable.msg2_battery, true);
+                    } else if (position == pengramHistoryRow) {
+                        final long did = userId != 0 ? userId : -chatId;
+                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(PengramHistory.getCount(did)), R.drawable.msg_viewchats, false);
+                    } else if (position == pengramRow) {
+                        textCell.setTextAndIcon(LocaleController.getString(R.string.PengramSettings), R.drawable.msg2_devices, true);
                     } else if (position == questionRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.AskAQuestion), R.drawable.msg2_ask_question, true);
                     } else if (position == faqRow) {
@@ -14174,6 +14306,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
+        private CharSequence appendInlineId(CharSequence value) {
+            if (PengramConfig.getIdStyle() != PengramConfig.ID_STYLE_INLINE) {
+                return value;
+            }
+            final long peerId = userId != 0 ? userId : chatId;
+            if (peerId == 0) {
+                return value;
+            }
+            SpannableStringBuilder sb = new SpannableStringBuilder();
+            if (!TextUtils.isEmpty(value)) {
+                sb.append(value).append(" \u2022 ");
+            }
+            sb.append("ID: ").append(String.valueOf(peerId));
+            return sb;
+        }
+
         private CharSequence alsoUsernamesString(String originalUsername, ArrayList<TLRPC.TL_username> alsoUsernames, CharSequence fallback) {
             if (alsoUsernames == null) {
                 return fallback;
@@ -14279,13 +14427,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (notificationRow != -1) {
                 int position = holder.getAdapterPosition();
                 return position == notificationRow || position == numberRow || position == privacyRow ||
-                        position == languageRow || position == setUsernameRow || position == bioRow ||
+                        position == languageRow || position == setUsernameRow || position == bioRow || position == idRow ||
                         position == versionRow || position == dataRow || position == chatRow ||
                         position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                         position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
                         position == clearLogsRow || position == switchBackendRow || position == setAvatarRow ||
                         position == addToGroupButtonRow || position == premiumRow || position == premiumGiftingRow ||
-                        position == businessRow || position == liteModeRow || position == birthdayRow || position == channelRow ||
+                        position == businessRow || position == liteModeRow || position == pengramRow || position == birthdayRow || position == channelRow ||
                         position == starsRow || position == tonRow || position == linkedCommunityRow;
             }
             if (holder.itemView instanceof UserCell) {
@@ -14314,7 +14462,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == idRow || position == regDateRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -14330,7 +14478,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                     position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
                     position == clearLogsRow || position == switchBackendRow || position == setAvatarRow || position == addToGroupButtonRow ||
-                    position == addToContactsRow || position == liteModeRow || position == premiumGiftingRow || position == businessRow ||
+                    position == addToContactsRow || position == liteModeRow || position == pengramRow || position == pengramHistoryRow || position == premiumGiftingRow || position == businessRow ||
                     position == botStarsBalanceRow || position == botTonBalanceRow || position == channelBalanceRow || position == botPermissionLocation ||
                     position == botPermissionBiometry || position == botPermissionEmojiStatus || position == tonRow
             ) {
@@ -14541,6 +14689,36 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             final int currentAccount = f.getCurrentAccount();
             final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
             return new SearchResult[]{
+                    new SearchResult(9000, getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity())).withLink("tg://settings/pengram"),
+                    new SearchResult(9001, getString(R.string.PengramSectionProfile), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9002, getString(R.string.PengramSectionGhost), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9003, getString(R.string.PengramSectionHistory), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9004, getString(R.string.PengramSectionAppearance), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
+                    new SearchResult(9005, getString(R.string.PengramSectionChats), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9006, getString(R.string.PengramSectionMedia), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9007, getString(R.string.PengramSectionFreedom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9010, getString(R.string.PengramGhostMode), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9011, getString(R.string.PengramGhostHideOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9012, getString(R.string.PengramGhostDontRead), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9013, getString(R.string.PengramSaveReadDate), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9014, getString(R.string.PengramSaveLastOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
+                    new SearchResult(9020, getString(R.string.PengramHistorySaveDeleted), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9021, getString(R.string.PengramHistorySaveEdited), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9022, getString(R.string.PengramHistoryOpen), getString(R.string.PengramSettings), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramHistoryActivity(0))),
+                    new SearchResult(9023, getString(R.string.PengramMediaSave), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9024, getString(R.string.PengramMediaFolder), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
+                    new SearchResult(9030, getString(R.string.PengramVoiceHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9031, getString(R.string.PengramBoostHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
+                    new SearchResult(9040, getString(R.string.PengramHidePhone), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9041, getString(R.string.PengramIdHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9042, getString(R.string.PengramRegHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionProfile), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
+                    new SearchResult(9050, getString(R.string.PengramHideMenuHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9051, getString(R.string.PengramHideChatHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
+                    new SearchResult(9060, getString(R.string.PengramAllowScreenshots), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9061, getString(R.string.PengramHideAds), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9062, getString(R.string.PengramLocalPremium), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionFreedom), R.drawable.settings_devices, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9070, getString(R.string.PengramFontDefault), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionAppearance), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
+                    new SearchResult(9071, getString(R.string.PengramChatMenu), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionAppearance), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_APPEARANCE))),
                     new SearchResult(500, getString(R.string.EditName), 0, () -> f.presentFragment(new ChangeNameActivity(resourcesProvider))),
                     new SearchResult(501, getString(R.string.ChangePhoneNumber), 0, () -> f.presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANGE_PHONE_NUMBER))).withLink("tg://settings/edit/change-number"),
                     new SearchResult(502, getString(R.string.AddAnotherAccount), 0, () -> {
@@ -15671,6 +15849,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, numberSectionRow, sparseIntArray);
             put(++pointer, numberRow, sparseIntArray);
             put(++pointer, setUsernameRow, sparseIntArray);
+            put(++pointer, idRow, sparseIntArray);
+            put(++pointer, regDateRow, sparseIntArray);
+            put(++pointer, pengramHistoryRow, sparseIntArray);
             put(++pointer, bioRow, sparseIntArray);
             put(++pointer, phoneSuggestionRow, sparseIntArray);
             put(++pointer, phoneSuggestionSectionRow, sparseIntArray);
@@ -15690,6 +15871,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, privacyRow, sparseIntArray);
             put(++pointer, dataRow, sparseIntArray);
             put(++pointer, liteModeRow, sparseIntArray);
+            put(++pointer, pengramRow, sparseIntArray);
             put(++pointer, chatRow, sparseIntArray);
             put(++pointer, filtersRow, sparseIntArray);
             put(++pointer, stickersRow, sparseIntArray);
@@ -15718,6 +15900,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, userInfoRow, sparseIntArray);
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
+            put(++pointer, idRow, sparseIntArray);
+            put(++pointer, regDateRow, sparseIntArray);
+            put(++pointer, pengramHistoryRow, sparseIntArray);
             put(++pointer, notificationsDividerRow, sparseIntArray);
             put(++pointer, reportDividerRow, sparseIntArray);
             put(++pointer, notificationsRow, sparseIntArray);

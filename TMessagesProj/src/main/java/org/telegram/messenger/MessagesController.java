@@ -6699,7 +6699,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isChatNoForwards(TLRPC.Chat chat) {
-        if (chat == null) {
+        if (chat == null || PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         }
         if (chat.migrated_to != null) {
@@ -6724,7 +6724,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isUserNoForwards(TLRPC.UserFull userFull) {
-        if (userFull == null) {
+        if (userFull == null || PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         }
 
@@ -10524,7 +10524,7 @@ public class MessagesController extends BaseController implements NotificationCe
         checkReadTasks();
 
         if (getUserConfig().isClientActivated()) {
-            if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
+            if (!ignoreSetOnline && !PengramConfig.isHidingOnline() && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     if (statusSettingState != 1 && (lastStatusUpdateTime == 0 || Math.abs(System.currentTimeMillis() - lastStatusUpdateTime) >= 55000 || offlineSent)) {
                         statusSettingState = 1;
@@ -11378,12 +11378,51 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    /** Pengram: сохраняем предыдущую версию отредактированного сообщения */
+    private void pengramSaveEdited(TLRPC.Message message) {
+        try {
+            if (message == null || !PengramConfig.isSavingEdited()) {
+                return;
+            }
+            if (message.out && !PengramConfig.isSavingOutgoing()) {
+                return;
+            }
+            final long dialogId = MessageObject.getDialogId(message);
+            if (!PengramConfig.isSavingInBots() && getMessagesStorage().pengramIsBotDialog(dialogId)) {
+                return;
+            }
+            final int messageId = message.id;
+            final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
+            final int date = message.date;
+            final String newText = PengramHistory.describe(message);
+            final int account = currentAccount;
+            getMessagesStorage().getStorageQueue().postRunnable(() -> {
+                String oldText = null;
+                try {
+                    oldText = getMessagesStorage().pengramGetMessageText(messageId, dialogId);
+                } catch (Throwable ignore) {}
+                if (oldText == null) {
+                    oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
+                }
+                if (oldText == null || android.text.TextUtils.equals(oldText, newText)) {
+                    return;
+                }
+                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText);
+            });
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     public boolean sendTyping(long dialogId, long threadMsgId, int action, int classGuid) {
         return sendTyping(dialogId, threadMsgId, action, null, classGuid);
     }
 
     public boolean sendTyping(long dialogId, long threadMsgId, int action, String emojicon, int classGuid) {
         if (action < 0 || action >= sendingTypings.length || dialogId == 0) {
+            return false;
+        }
+        if (PengramConfig.isNotSendingTyping()) {
             return false;
         }
         final long selfId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
@@ -14397,6 +14436,11 @@ public class MessagesController extends BaseController implements NotificationCe
         if (messageObject.scheduled) {
             return;
         }
+        if (PengramConfig.isKeepingOnceMedia() && messageObject.messageOwner != null && messageObject.messageOwner.media != null
+                && messageObject.messageOwner.media.ttl_seconds != 0 && !messageObject.isOutOwner()) {
+            // одноразовое медиа: не сообщаем серверу о просмотре, чтобы оно не «сгорело»
+            return;
+        }
         ArrayList<Integer> arrayList = new ArrayList<>();
         if (messageObject.messageOwner.mentioned) {
             getMessagesStorage().markMentionMessageAsRead(-messageObject.messageOwner.peer_id.channel_id, messageObject.getId(), messageObject.getDialogId());
@@ -14557,6 +14601,10 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
+        if (PengramConfig.isNotSendingRead() && !DialogObject.isEncryptedDialog(task.dialogId)) {
+            // режим призрака: локально прочитано, но серверу об этом не сообщаем
+            return;
+        }
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -18807,6 +18855,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         interfaceUpdateMask |= UPDATE_MASK_STATUS;
                     }
                 }
+                if (PengramConfig.isSavingReadDate()) {
+                    PengramHistory.saveReadDate(dialogId, getConnectionsManager().getCurrentTime());
+                }
                 Integer value = dialogs_read_outbox_max.get(dialogId);
                 if (value == null) {
                     value = getMessagesStorage().getDialogReadMax(true, dialogId);
@@ -19487,6 +19538,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     message.attachPath = "";
                 }
 
+                pengramSaveEdited(message);
+
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
 
@@ -19907,6 +19960,13 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateUserStatus) {
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
+                        if (PengramConfig.isSavingLastOnline() && update.user_id != getUserConfig().getClientUserId()) {
+                            if (update.status instanceof TLRPC.TL_userStatusOnline) {
+                                PengramHistory.saveLastOnline(update.user_id, getConnectionsManager().getCurrentTime());
+                            } else if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
+                                PengramHistory.saveLastOnline(update.user_id, update.status.expires);
+                            }
+                        }
 
                         if (update.status instanceof TLRPC.TL_userStatusRecently) {
                             update.status.expires = -100;
@@ -21610,6 +21670,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public SponsoredMessagesInfo getSponsoredMessages(long dialogId) {
+        if (PengramConfig.isHidingAds()) {
+            return null;
+        }
         SponsoredMessagesInfo info = sponsoredMessages.get(dialogId);
         if (info != null && (info.loading || Math.abs(SystemClock.elapsedRealtime() - info.loadTime) <= 5 * 60 * 1000)) {
             return info;

@@ -488,6 +488,9 @@ public class SecretChatHelper extends BaseController {
     }
 
     public void sendScreenshotMessage(TLRPC.EncryptedChat encryptedChat, ArrayList<Long> random_ids, TLRPC.Message resendMessage) {
+        if (PengramConfig.isNoScreenshotNotify()) {
+            return;
+        }
         if (!(encryptedChat instanceof TLRPC.TL_encryptedChat)) {
             return;
         }
