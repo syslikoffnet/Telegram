@@ -11362,4 +11362,14 @@
     <string name="PengramRegDateSelf">You created your account approximately in %s.</string>
     <string name="PengramRegDateOther">This account was created approximately in %s.</string>
     <string name="PengramRegDateAge">Account age: %s.</string>
+    <string name="PengramHistoryInfo2">Messages deleted or edited by others are saved to a local database that survives cache clearing.</string>
+    <string name="PengramHistoryStorage">Storage</string>
+    <string name="PengramMediaHeader">Attachments of deleted messages</string>
+    <string name="PengramMediaLimitHeader">Folder size limit</string>
+    <string name="PengramTrackHeader">Local tracking</string>
+    <string name="PengramTrackInfo">Pengram remembers read dates and last seen times locally, even when Telegram hides them.</string>
+    <string name="PengramVoiceOffValue">Original voice</string>
+    <string name="PengramVoiceRobotValue">Ring modulation</string>
+    <string name="PengramVoicePreviewOff">Voice messages are sent as they are recorded</string>
+    <string name="PengramVoicePreviewOn">Pitch shifted by %s semitones</string>
 </resources>

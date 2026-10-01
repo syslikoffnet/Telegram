@@ -5,9 +5,16 @@ import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
 import android.graphics.Typeface;
+import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.text.TextPaint;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -139,6 +146,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
     private ProfilePreviewView previewView;
+    private VoicePreviewView voicePreview;
 
     @Override
     protected CharSequence getTitle() {
@@ -201,7 +209,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asRadio(BTN_ID_ROW, getString(R.string.PengramIdStyleRow)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
         items.add(UItem.asRadio(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
         items.add(UItem.asRadio(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
-        items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap).setEnabled(PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF));
+        if (PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF) {
+            items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap));
+        }
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
@@ -219,57 +229,72 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
         items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
-        items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing)).setChecked(PengramConfig.saveOutgoing));
-        items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
-        items.add(UItem.asCheck(BTN_HIST_PROFILE, getString(R.string.PengramHistoryShowInProfile)).setChecked(PengramConfig.historyRowInProfile));
+        final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
+        if (saving) {
+            items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing)).setChecked(PengramConfig.saveOutgoing));
+            items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
+            items.add(UItem.asCheck(BTN_HIST_PROFILE, getString(R.string.PengramHistoryShowInProfile)).setChecked(PengramConfig.historyRowInProfile));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo2)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
         items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen),
                 String.valueOf(PengramHistory.getCount(0))));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
-        items.add(UItem.asCheck(BTN_MEDIA_SAVE, getString(R.string.PengramMediaSave)).setChecked(PengramConfig.saveDeletedMedia));
-        items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()).setEnabled(PengramConfig.saveDeletedMedia));
-        items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()).setEnabled(PengramConfig.saveDeletedMedia));
-        if (PengramConfig.saveDeletedMedia) {
-            final int[] gb = MEDIA_LIMITS;
-            int chosen = 0;
-            for (int i = 0; i < gb.length; ++i) {
-                if (gb[i] == PengramConfig.getMediaMaxSizeMb()) {
-                    chosen = i;
-                    break;
-                }
-            }
-            String[] titles = new String[gb.length];
-            for (int i = 0; i < gb.length; ++i) {
-                titles[i] = gb[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (gb[i] / 1024) + " GB";
-            }
-            items.add(UItem.asSlideView(titles, chosen, index -> {
-                PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
-                if (listView != null && listView.adapter != null) listView.adapter.update(true);
-            }));
-            items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo, AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize()))));
-            items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
-        }
-        items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
         items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
 
+        if (PengramConfig.saveDeleted) {
+            items.add(UItem.asHeader(getString(R.string.PengramMediaHeader)));
+            items.add(UItem.asCheck(BTN_MEDIA_SAVE, getString(R.string.PengramMediaSave)).setChecked(PengramConfig.saveDeletedMedia));
+            if (PengramConfig.saveDeletedMedia) {
+                items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()));
+                items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()));
+                items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
+
+                items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
+                int chosen = 0;
+                final String[] titles = new String[MEDIA_LIMITS.length];
+                for (int i = 0; i < MEDIA_LIMITS.length; ++i) {
+                    if (MEDIA_LIMITS[i] == PengramConfig.getMediaMaxSizeMb()) {
+                        chosen = i;
+                    }
+                    titles[i] = MEDIA_LIMITS[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (MEDIA_LIMITS[i] / 1024) + " GB";
+                }
+                items.add(UItem.asSlideView(titles, chosen, index -> {
+                    PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                }));
+                items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
+                items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo, AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize()))));
+            } else {
+                items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
+            }
+        }
     }
 
     private void fillGhost(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
         items.add(UItem.asCheck(BTN_GHOST, getString(R.string.PengramGhostMode)).setChecked(PengramConfig.ghostMode));
-        items.add(UItem.asCheck(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline).setEnabled(PengramConfig.ghostMode));
-        items.add(UItem.asCheck(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead).setEnabled(PengramConfig.ghostMode));
-        items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping).setEnabled(PengramConfig.ghostMode));
-        items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews).setEnabled(PengramConfig.ghostMode));
-        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
-        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
+        if (PengramConfig.ghostMode) {
+            items.add(UItem.asCheck(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline));
+            items.add(UItem.asCheck(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead));
+            items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping));
+            items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
+        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
+        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
+        items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
     }
 
     private void fillFreedom(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramFreedomHeader)));
         items.add(UItem.asCheck(BTN_SCREENSHOTS, getString(R.string.PengramAllowScreenshots)).setChecked(PengramConfig.allowScreenshots));
-        items.add(UItem.asCheck(BTN_NO_SS_NOTIFY, getString(R.string.PengramNoScreenshotNotify)).setChecked(PengramConfig.noScreenshotNotify).setEnabled(PengramConfig.allowScreenshots));
+        if (PengramConfig.allowScreenshots) {
+            items.add(UItem.asCheck(BTN_NO_SS_NOTIFY, getString(R.string.PengramNoScreenshotNotify)).setChecked(PengramConfig.noScreenshotNotify));
+        }
         items.add(UItem.asCheck(BTN_FORWARDS, getString(R.string.PengramAllowForwards)).setChecked(PengramConfig.allowForwards));
         items.add(UItem.asCheck(BTN_KEEP_ONCE, getString(R.string.PengramKeepOnce)).setChecked(PengramConfig.keepOnceMedia));
         items.add(UItem.asShadow(getString(R.string.PengramFreedomInfo)));
@@ -292,8 +317,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asRadio(BTN_FONT_MONO, getString(R.string.PengramFontMono)).setChecked(PengramConfig.appFont == PengramConfig.FONT_MONOSPACE));
         items.add(UItem.asShadow(null));
         items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
-        items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP).setEnabled(PengramConfig.chatMenuEnabled));
-        items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM).setEnabled(PengramConfig.chatMenuEnabled));
+        if (PengramConfig.chatMenuEnabled) {
+            items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP));
+            items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
+        }
         items.add(UItem.asShadow(null));
     }
 
@@ -305,9 +332,17 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramBoostInfo)));
 
         final int mode = PengramConfig.getVoiceChangerMode();
+
+        if (voicePreview == null) {
+            voicePreview = new VoicePreviewView(getContext());
+        }
+        voicePreview.update();
+        items.add(UItem.asCustom(voicePreview));
+        items.add(UItem.asShadow(null));
+
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
         for (int m = PengramVoiceChanger.MODE_OFF; m <= PengramVoiceChanger.MODE_CUSTOM; ++m) {
-            items.add(UItem.asRadio(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m)).setChecked(mode == m));
+            items.add(UItem.asRadio2(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m), voiceModeDescription(m)).setChecked(mode == m));
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
             items.add(UItem.asShadow(null));
@@ -315,14 +350,36 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asIntSlideView(
                     1,
                     -12, PengramConfig.getVoiceChangerPitch(), 12,
-                    value -> value > 0 ? "+" + value : String.valueOf(value),
+                    value -> value > 0 ? "+" + value + " st" : value + " st",
                     value -> {
                         PengramConfig.setVoiceChangerPitch(value);
                         PengramVoiceChanger.reset();
+                        if (voicePreview != null) {
+                            voicePreview.update();
+                        }
                     }
             ));
         }
         items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+    }
+
+    private CharSequence voiceModeDescription(int mode) {
+        if (mode == PengramVoiceChanger.MODE_OFF) {
+            return getString(R.string.PengramVoiceOffValue);
+        }
+        if (mode == PengramVoiceChanger.MODE_ROBOT) {
+            return getString(R.string.PengramVoiceRobotValue);
+        }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            final int st = PengramConfig.getVoiceChangerPitch();
+            return (st > 0 ? "+" + st : String.valueOf(st)) + " st";
+        }
+        final int saved = PengramConfig.getVoiceChangerMode();
+        PengramConfig.voiceChangerMode = mode;
+        final float factor = PengramVoiceChanger.getPitchFactor();
+        PengramConfig.voiceChangerMode = saved;
+        final int semitones = Math.round((float) (12.0 * Math.log(factor) / Math.log(2.0)));
+        return String.format(java.util.Locale.US, "%s%d st  \u00b7  \u00d7%.2f", semitones > 0 ? "+" : "", semitones, factor);
     }
 
     private void fillChats(ArrayList<UItem> items) {
@@ -359,6 +416,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
                 PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
                 PengramVoiceChanger.reset();
+                if (voicePreview != null) {
+                    voicePreview.update();
+                }
                 updateAll = true;
                 break;
             case BTN_HIDE_MENU_NEW_GROUP: value = PengramConfig.toggleBoolean("hideMenuNewGroup"); break;
@@ -638,6 +698,103 @@ public class PengramSettingsActivity extends UniversalFragment {
     /**
      * Живое превью: так карточка профиля будет выглядеть с текущими настройками.
      */
+    /** «Островок» с живой волной: наглядно показывает выбранный эффект голоса */
+    private class VoicePreviewView extends View {
+
+        private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final TextPaint subtitlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private final float[] seeds = new float[48];
+
+        private String title = "";
+        private String subtitle = "";
+        private float pitch = 1f;
+        private long startTime = System.currentTimeMillis();
+
+        public VoicePreviewView(Context context) {
+            super(context);
+            titlePaint.setTextSize(dp(17));
+            titlePaint.setTypeface(AndroidUtilities.bold());
+            subtitlePaint.setTextSize(dp(13));
+            final java.util.Random random = new java.util.Random(42);
+            for (int i = 0; i < seeds.length; ++i) {
+                seeds[i] = 0.25f + random.nextFloat() * 0.75f;
+            }
+        }
+
+        public void update() {
+            final int mode = PengramConfig.getVoiceChangerMode();
+            title = PengramVoiceChanger.getModeName(mode);
+            pitch = PengramVoiceChanger.getPitchFactor();
+            if (mode == PengramVoiceChanger.MODE_OFF) {
+                subtitle = getString(R.string.PengramVoicePreviewOff);
+            } else {
+                final int semitones = Math.round((float) (12.0 * Math.log(pitch) / Math.log(2.0)));
+                subtitle = LocaleController.formatString(R.string.PengramVoicePreviewOn,
+                        (semitones > 0 ? "+" : "") + semitones);
+            }
+            startTime = System.currentTimeMillis();
+            invalidate();
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(dp(132), MeasureSpec.EXACTLY));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            final int width = getWidth();
+            final int height = getHeight();
+            if (width <= 0) {
+                return;
+            }
+            final boolean enabled = PengramConfig.getVoiceChangerMode() != PengramVoiceChanger.MODE_OFF;
+            final int accent = Theme.getColor(enabled ? Theme.key_switch2TrackChecked : Theme.key_windowBackgroundWhiteGrayText, getResourceProvider());
+
+            rect.set(dp(14), dp(10), width - dp(14), height - dp(10));
+            cardPaint.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
+                    new int[]{
+                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.14f)),
+                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.04f))
+                    }, null, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(rect, dp(16), dp(16), cardPaint);
+
+            titlePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            subtitlePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
+            canvas.drawText(title, rect.left + dp(16), rect.top + dp(26), titlePaint);
+            canvas.drawText(subtitle, rect.left + dp(16), rect.top + dp(46), subtitlePaint);
+
+            // волна: чем выше питч — тем чаще и «звонче» столбики
+            final float time = (System.currentTimeMillis() - startTime) / 1000f;
+            final float left = rect.left + dp(16);
+            final float right = rect.right - dp(16);
+            final float centerY = rect.bottom - dp(30);
+            final float barWidth = dp(3);
+            final float gap = dp(3);
+            final int count = (int) ((right - left) / (barWidth + gap));
+            barPaint.setColor(accent);
+            for (int i = 0; i < count; ++i) {
+                final float seed = seeds[i % seeds.length];
+                final double wave = Math.sin(i * 0.45f * pitch + time * 3.2f * pitch);
+                float amplitude = (float) (0.35f + 0.65f * Math.abs(wave)) * seed;
+                if (!enabled) {
+                    amplitude *= 0.5f;
+                }
+                final float h = dp(6) + amplitude * dp(26);
+                final float x = left + i * (barWidth + gap);
+                rect.set(x, centerY - h / 2f, x + barWidth, centerY + h / 2f);
+                barPaint.setAlpha((int) (255 * (enabled ? 0.9f : 0.45f)));
+                canvas.drawRoundRect(rect, barWidth / 2f, barWidth / 2f, barPaint);
+            }
+            if (isAttachedToWindow()) {
+                invalidate();
+            }
+        }
+    }
+
     private class ProfilePreviewView extends LinearLayout {
 
         private final BackupImageView avatarImage;

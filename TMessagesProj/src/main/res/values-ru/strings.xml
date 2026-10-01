@@ -390,4 +390,14 @@
     <string name="PengramRegDateSelf">Вы создали свой аккаунт примерно в %s.</string>
     <string name="PengramRegDateOther">Этот аккаунт создан примерно в %s.</string>
     <string name="PengramRegDateAge">Возраст аккаунта: %s.</string>
+    <string name="PengramHistoryInfo2">Удалённые и отредактированные собеседниками сообщения сохраняются в локальную базу, которая переживает очистку кэша.</string>
+    <string name="PengramHistoryStorage">Хранилище</string>
+    <string name="PengramMediaHeader">Вложения удалённых сообщений</string>
+    <string name="PengramMediaLimitHeader">Лимит размера папки</string>
+    <string name="PengramTrackHeader">Локальное отслеживание</string>
+    <string name="PengramTrackInfo">Pengram локально запоминает даты прочтения и последние заходы, даже когда Telegram их скрывает.</string>
+    <string name="PengramVoiceOffValue">Оригинальный голос</string>
+    <string name="PengramVoiceRobotValue">Кольцевая модуляция</string>
+    <string name="PengramVoicePreviewOff">Голосовые отправляются как записаны</string>
+    <string name="PengramVoicePreviewOn">Сдвиг тона на %s полутонов</string>
 </resources>

@@ -294,6 +294,20 @@ public class LinkManager {
         final String first  = segments.get(0);
         final String second = segments.size() > 1 ? segments.get(1) : null;
         final String third  = segments.size() > 2 ? segments.get(2) : null;
+
+        // tg://settings/pengram[/section]
+        if ("pengram".equalsIgnoreCase(first)) {
+            int section = PengramSettingsActivity.SECTION_ROOT;
+            if ("ghost".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_GHOST;
+            else if ("history".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_HISTORY;
+            else if ("appearance".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_APPEARANCE;
+            else if ("chats".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_CHATS;
+            else if ("media".equalsIgnoreCase(second) || "voice".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_MEDIA;
+            else if ("freedom".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_FREEDOM;
+            else if ("profile".equalsIgnoreCase(second)) section = PengramSettingsActivity.SECTION_PROFILE;
+            presentFragment(new PengramSettingsActivity(section), false);
+            return true;
+        }
         final String fourth = segments.size() > 3 ? segments.get(3) : null;
         final String fifth  = segments.size() > 4 ? segments.get(4) : null;
 
