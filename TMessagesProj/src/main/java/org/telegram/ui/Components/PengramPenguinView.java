@@ -351,9 +351,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // глаза живут отдельной сеткой, чтобы их можно было «прикрыть» при моргании
         if (blink > 0.01f) {
             Matrix.setIdentityM(tmp, 0);
-            Matrix.translateM(model, 0, 0, 0.82f, 0);
+            Matrix.translateM(model, 0, 0, 0.827f, 0);
             Matrix.scaleM(model, 0, 1f, Math.max(0.08f, 1f - blink), 1f);
-            Matrix.translateM(model, 0, 0, -0.82f, 0);
+            Matrix.translateM(model, 0, 0, -0.827f, 0);
             Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
             Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
             GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
@@ -477,19 +477,33 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private static final float[] DARK = {0.051f, 0.063f, 0.086f};
     private static final float[] SHINE = {1f, 1f, 1f};
 
+    private static float smoothstep(float edge0, float edge1, float x) {
+        float t = (x - edge0) / (edge1 - edge0);
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+        return t * t * (3f - 2f * t);
+    }
+
+    private static float[] mix(float[] a, float[] b, float t) {
+        if (t <= 0f) return a;
+        if (t >= 1f) return b;
+        return new float[]{a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t};
+    }
+
     private void buildMeshes() {
         final ArrayList<Float> body = new ArrayList<>();
 
-        // туловище: чёрная спина + белое пузо
-        addEllipsoid(body, 0f, -0.18f, 0f, 0.64f, 0.80f, 0.60f, 0f, 0f, 36, 24, (ux, uy, uz) -> {
+        // туловище: чёрная спина + белое пузо (граница размыта, чтобы не было «лесенки»)
+        addEllipsoid(body, 0f, -0.18f, 0f, 0.64f, 0.80f, 0.60f, 0f, 0f, 64, 44, (ux, uy, uz) -> {
             final float front = uz - uy * 0.28f;
-            return front > 0.42f && uy < 0.74f ? WHITE : BLACK;
+            final float t = smoothstep(0.38f, 0.46f, front) * (1f - smoothstep(0.70f, 0.78f, uy));
+            return mix(BLACK, WHITE, t);
         });
 
         // голова с белой «маской» на лице
-        addEllipsoid(body, 0f, 0.70f, 0.015f, 0.505f, 0.475f, 0.475f, 0f, 0f, 32, 22, (ux, uy, uz) -> {
+        addEllipsoid(body, 0f, 0.70f, 0.015f, 0.505f, 0.475f, 0.475f, 0f, 0f, 56, 38, (ux, uy, uz) -> {
             final float front = uz - uy * 0.35f - Math.abs(ux) * 0.25f;
-            return front > 0.40f && uy < 0.55f ? WHITE : BLACK;
+            final float t = smoothstep(0.36f, 0.44f, front) * (1f - smoothstep(0.50f, 0.60f, uy));
+            return mix(BLACK, WHITE, t);
         });
 
         // клюв
@@ -509,10 +523,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         bodyMesh = new Mesh(body);
 
         final ArrayList<Float> eyes = new ArrayList<>();
-        addEllipsoid(eyes, -0.175f, 0.815f, 0.375f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, 0.175f, 0.815f, 0.375f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, -0.196f, 0.842f, 0.425f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
-        addEllipsoid(eyes, 0.154f, 0.842f, 0.425f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
+        // центры глаз вынесены почти на поверхность головы, иначе сферы тонут внутри неё
+        addEllipsoid(eyes, -0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
+        addEllipsoid(eyes, 0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
+        addEllipsoid(eyes, -0.215f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
+        addEllipsoid(eyes, 0.173f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
         eyesMesh = new Mesh(eyes);
     }
 
