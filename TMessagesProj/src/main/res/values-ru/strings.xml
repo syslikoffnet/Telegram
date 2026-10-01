@@ -480,4 +480,21 @@
     <string name="PengramIdFormatBot">Bot API</string>
     <string name="PengramIdFormatInfo">Telegram API показывает ID как есть, а Bot API добавляет минус для групп и -100 для супергрупп и каналов.</string>
     <string name="PengramIdStyleHeader">Как показывать</string>
+    <string name="PengramVoiceAnonymous">Аноним</string>
+    <string name="PengramVoiceAnonymousValue">Необратимо · тон и тембр случайны</string>
+    <string name="PengramVoiceDemon">Демон</string>
+    <string name="PengramVoiceDemonValue">Очень низкий, с рычанием</string>
+    <string name="PengramVoiceAlien">Инопланетянин</string>
+    <string name="PengramVoiceAlienValue">Кольцевая модуляция</string>
+    <string name="PengramVoiceRadio">Рация</string>
+    <string name="PengramVoiceRadioValue">Узкая полоса и эфирный шум</string>
+    <string name="PengramVoicePhone">Телефон</string>
+    <string name="PengramVoicePhoneValue">Как в телефонной линии</string>
+    <string name="PengramVoiceCave">Пещера</string>
+    <string name="PengramVoiceCaveValue">Эхо и реверберация</string>
+    <string name="PengramVoiceUnderwater">Под водой</string>
+    <string name="PengramVoiceUnderwaterValue">Глухо, с покачиванием</string>
+    <string name="PengramVoiceWhisper">Шёпот</string>
+    <string name="PengramVoiceWhisperValue">Голос заменяется дыханием</string>
+    <string name="PengramVoiceAnonymousInfo">В режиме «Аноним» высота тона, тембр, микро-дрожание и фаза выбираются случайно при каждой записи и плавают прямо во время неё. Параметры нигде не сохраняются, поэтому вернуть исходный голос обратной обработкой невозможно — при этом речь остаётся чёткой и разборчивой.</string>
 </resources>

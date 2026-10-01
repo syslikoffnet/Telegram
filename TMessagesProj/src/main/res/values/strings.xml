@@ -11452,4 +11452,21 @@
     <string name="PengramIdFormatBot">Bot API</string>
     <string name="PengramIdFormatInfo">Telegram API shows the ID as is, while Bot API adds a minus for groups and -100 for supergroups and channels.</string>
     <string name="PengramIdStyleHeader">How to show</string>
+    <string name="PengramVoiceAnonymous">Anonymous</string>
+    <string name="PengramVoiceAnonymousValue">Irreversible · random pitch and timbre</string>
+    <string name="PengramVoiceDemon">Demon</string>
+    <string name="PengramVoiceDemonValue">Very low, with a growl</string>
+    <string name="PengramVoiceAlien">Alien</string>
+    <string name="PengramVoiceAlienValue">Ring modulation</string>
+    <string name="PengramVoiceRadio">Walkie-talkie</string>
+    <string name="PengramVoiceRadioValue">Narrow band with air noise</string>
+    <string name="PengramVoicePhone">Phone</string>
+    <string name="PengramVoicePhoneValue">Like a phone line</string>
+    <string name="PengramVoiceCave">Cave</string>
+    <string name="PengramVoiceCaveValue">Echo and reverb</string>
+    <string name="PengramVoiceUnderwater">Underwater</string>
+    <string name="PengramVoiceUnderwaterValue">Muffled, with wobble</string>
+    <string name="PengramVoiceWhisper">Whisper</string>
+    <string name="PengramVoiceWhisperValue">Voice replaced with breath</string>
+    <string name="PengramVoiceAnonymousInfo">In Anonymous mode pitch, timbre, micro-jitter and phase are picked randomly for every recording and keep drifting while you speak. Nothing is stored, so the original voice cannot be restored by reverse processing — yet speech stays clear and intelligible.</string>
 </resources>

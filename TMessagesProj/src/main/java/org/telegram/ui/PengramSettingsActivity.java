@@ -41,6 +41,7 @@ import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.PengramPenguinView;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -580,7 +581,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
-        for (int m = PengramVoiceChanger.MODE_OFF; m <= PengramVoiceChanger.MODE_CUSTOM; ++m) {
+        for (int a = 0; a < PengramVoiceChanger.MODES.length; ++a) {
+            final int m = PengramVoiceChanger.MODES[a];
             items.add(UItem.asRadio2(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m), voiceModeDescription(m)).setChecked(mode == m));
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
@@ -599,15 +601,25 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
             ));
         }
-        items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+        if (mode == PengramVoiceChanger.MODE_ANONYMOUS) {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceAnonymousInfo)));
+        } else {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+        }
     }
 
     private CharSequence voiceModeDescription(int mode) {
-        if (mode == PengramVoiceChanger.MODE_OFF) {
-            return getString(R.string.PengramVoiceOffValue);
-        }
-        if (mode == PengramVoiceChanger.MODE_ROBOT) {
-            return getString(R.string.PengramVoiceRobotValue);
+        switch (mode) {
+            case PengramVoiceChanger.MODE_OFF: return getString(R.string.PengramVoiceOffValue);
+            case PengramVoiceChanger.MODE_ROBOT: return getString(R.string.PengramVoiceRobotValue);
+            case PengramVoiceChanger.MODE_ANONYMOUS: return getString(R.string.PengramVoiceAnonymousValue);
+            case PengramVoiceChanger.MODE_ALIEN: return getString(R.string.PengramVoiceAlienValue);
+            case PengramVoiceChanger.MODE_RADIO: return getString(R.string.PengramVoiceRadioValue);
+            case PengramVoiceChanger.MODE_PHONE: return getString(R.string.PengramVoicePhoneValue);
+            case PengramVoiceChanger.MODE_CAVE: return getString(R.string.PengramVoiceCaveValue);
+            case PengramVoiceChanger.MODE_UNDERWATER: return getString(R.string.PengramVoiceUnderwaterValue);
+            case PengramVoiceChanger.MODE_WHISPER: return getString(R.string.PengramVoiceWhisperValue);
+            case PengramVoiceChanger.MODE_DEMON: return getString(R.string.PengramVoiceDemonValue);
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
             final int st = PengramConfig.getVoiceChangerPitch();
@@ -686,6 +698,17 @@ public class PengramSettingsActivity extends UniversalFragment {
                     || item.id == boolId(PengramConfig.KEY_FADE_DELETED)
                     || item.id == boolId(PengramConfig.KEY_MARK_EDITED)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_PHONE) {
+            PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
+            PengramVoiceChanger.reset();
+            if (voicePreview != null) {
+                voicePreview.update();
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
             }
             return;
         }
@@ -774,22 +797,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_MEDIA_CLEAR:
                 PengramHistory.clearSavedMedia();
-                updateAll = true;
-                break;
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_OFF:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_HELIUM:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CHILD:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_FEMALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_DEEP:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MONSTER:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_ROBOT:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
-                PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
-                PengramVoiceChanger.reset();
-                if (voicePreview != null) {
-                    voicePreview.update();
-                }
                 updateAll = true;
                 break;
             case BTN_HIDE_MENU_NEW_GROUP:
@@ -978,6 +985,22 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        if (headerView != null) {
+            headerView.setPaused(true);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (headerView != null) {
+            headerView.setPaused(false);
+        }
+    }
+
+    @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
         final String username;
         if (item.id == BTN_LINK_CHANNEL) {
@@ -1045,19 +1068,47 @@ public class PengramSettingsActivity extends UniversalFragment {
         showDialog(builder.create());
     }
 
-    /** Шапка настроек: пингвин, название и короткое описание — как у родных разделов */
+    /** Шапка настроек: живой 3D-пингвин, название и короткое описание */
     private class PengramHeaderView extends LinearLayout {
+
+        private PengramPenguinView penguinView;
+        private android.widget.ImageView fallbackLogo;
 
         public PengramHeaderView(Context context) {
             super(context);
             setOrientation(VERTICAL);
             setGravity(Gravity.CENTER_HORIZONTAL);
-            setPadding(dp(16), dp(16), dp(16), dp(18));
+            setPadding(dp(16), dp(14), dp(16), dp(18));
 
-            final android.widget.ImageView logo = new android.widget.ImageView(context);
-            logo.setImageResource(R.drawable.pengram_logo);
-            logo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            addView(logo, LayoutHelper.createLinear(84, 84, Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
+            final FrameLayout penguinContainer = new FrameLayout(context);
+
+            fallbackLogo = new android.widget.ImageView(context);
+            fallbackLogo.setImageResource(R.drawable.pengram_logo);
+            fallbackLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            penguinContainer.addView(fallbackLogo, LayoutHelper.createFrame(96, 96, Gravity.CENTER));
+
+            try {
+                penguinView = new PengramPenguinView(context);
+                penguinView.setOnTapListener(() -> {
+                    try {
+                        if (PengramConfig.isVibrationEnabled()) {
+                            penguinView.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP,
+                                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        }
+                    } catch (Exception ignore) {}
+                });
+                penguinView.whenReady(() -> {
+                    if (fallbackLogo != null) {
+                        fallbackLogo.animate().alpha(0f).setDuration(180).start();
+                    }
+                });
+                penguinContainer.addView(penguinView, LayoutHelper.createFrame(132, 132, Gravity.CENTER));
+            } catch (Throwable e) {
+                org.telegram.messenger.FileLog.e(e);
+                penguinView = null;
+            }
+
+            addView(penguinContainer, LayoutHelper.createLinear(140, 132, Gravity.CENTER_HORIZONTAL));
 
             final TextView title = new TextView(context);
             title.setText("Pengram");
@@ -1065,7 +1116,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             title.setTypeface(AndroidUtilities.bold());
             title.setGravity(Gravity.CENTER_HORIZONTAL);
             title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+            addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
 
             final TextView subtitle = new TextView(context);
             subtitle.setText(getString(R.string.PengramHeaderSubtitle));
@@ -1074,6 +1125,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             subtitle.setLineSpacing(dp(2), 1f);
             subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
             addView(subtitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 6, 24, 0));
+        }
+
+        public void setPaused(boolean paused) {
+            if (penguinView != null) {
+                penguinView.setPaused(paused);
+            }
         }
     }
 
