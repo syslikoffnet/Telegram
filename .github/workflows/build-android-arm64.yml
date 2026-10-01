@@ -28,7 +28,7 @@ on:
       - "**/*.md"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
@@ -170,6 +170,19 @@ jobs:
           path: out/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish failure log to repo
+        if: failure()
+        run: |
+          set -eux
+          mkdir -p ci-logs
+          tail -n 400 build.log > ci-logs/last-failure.log || echo "no build.log" > ci-logs/last-failure.log
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -f ci-logs/last-failure.log
+          git commit -m "ci: build failure log [skip ci]" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin HEAD:"${GITHUB_REF_NAME}"
 
       - name: Upload build reports on failure
         if: failure()
