@@ -33,6 +33,13 @@ env:
   BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
   NDK_VERSION: "27.2.12479018"
   CMAKE_VERSION: "3.22.1"
+  # ccache ускоряет повторную нативную сборку в разы
+  CCACHE_DIR: /home/runner/.ccache
+  CCACHE_MAXSIZE: "5G"
+  CCACHE_COMPILERCHECK: content
+  CCACHE_SLOPPINESS: time_macros,include_file_mtime,include_file_ctime,file_macro,pch_defines
+  CMAKE_C_COMPILER_LAUNCHER: ccache
+  CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
 jobs:
   build:
@@ -96,14 +103,33 @@ jobs:
           echo "ANDROID_NDK_HOME=$SDK/ndk/${NDK_VERSION}" >> $GITHUB_ENV
           echo "sdk.dir=$SDK" > local.properties
 
+      - name: Install ccache
+        run: |
+          set -eux
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ccache
+          mkdir -p "$CCACHE_DIR"
+          ccache --max-size="$CCACHE_MAXSIZE"
+          ccache --zero-stats
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-${{ env.ABI }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ env.ABI }}-
+
       - name: Gradle cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ env.ABI }}-
+          key: gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.sha }}
+          restore-keys: |
+            gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/wrapper/gradle-wrapper.properties') }}-
+            gradle-${{ env.ABI }}-
 
       # Кэш нативной сборки (CMake/NDK) — главное ускорение повторных запусков
       - name: Native build cache
@@ -112,8 +138,10 @@ jobs:
           path: |
             TMessagesProj/.cxx
             TMessagesProj/build/intermediates/cxx
-          key: cxx-${{ env.ABI }}-${{ hashFiles('TMessagesProj/jni/**/CMakeLists.txt', '.gitmodules') }}
-          restore-keys: cxx-${{ env.ABI }}-
+          key: cxx-${{ env.ABI }}-${{ hashFiles('TMessagesProj/jni/**/CMakeLists.txt', '.gitmodules') }}-${{ github.sha }}
+          restore-keys: |
+            cxx-${{ env.ABI }}-${{ hashFiles('TMessagesProj/jni/**/CMakeLists.txt', '.gitmodules') }}-
+            cxx-${{ env.ABI }}-
 
       # Keystore. По умолчанию — ключ из репозитория (пароли android/android).
       # Свой ключ: секреты KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.
@@ -150,6 +178,8 @@ jobs:
           ./gradlew "$TASK" \
             -PABI_FILTERS="$ABI" \
             --no-daemon --stacktrace \
+            --build-cache --parallel --max-workers=4 \
+            -Pandroid.lint.checkReleaseBuilds=false \
             -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" \
             -Dfile.encoding=UTF-8 2>&1 | tee build.log
           STATUS=${PIPESTATUS[0]}
@@ -163,6 +193,12 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit $STATUS
+
+      - name: ccache stats
+        if: always()
+        run: |
+          ccache --show-stats || true
+          { echo "### ccache"; echo '```'; ccache --show-stats || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect APK
         run: |
