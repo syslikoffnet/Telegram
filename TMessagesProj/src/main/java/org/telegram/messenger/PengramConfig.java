@@ -76,7 +76,7 @@ public class PengramConfig {
     public static boolean saveLastOnline = true;
     public static int voiceChangerMode;
     public static int voiceChangerPitch;
-    public static int speedBoost = BOOST_FAST;
+    public static int speedBoost = 1; // BOOST_FAST
     public static int mediaMaxSizeMb = 2048;   // 0 = без лимита
 
     // --- скрытие кнопок ---

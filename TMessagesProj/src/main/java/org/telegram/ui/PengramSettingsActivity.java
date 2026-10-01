@@ -405,22 +405,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private void toggleHideFlag(int id, View view) {
         boolean value;
         switch (id) {
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_OFF:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_HELIUM:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CHILD:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_FEMALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_DEEP:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MONSTER:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_ROBOT:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
-                PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
-                PengramVoiceChanger.reset();
-                if (voicePreview != null) {
-                    voicePreview.update();
-                }
-                updateAll = true;
-                break;
             case BTN_HIDE_MENU_NEW_GROUP: value = PengramConfig.toggleBoolean("hideMenuNewGroup"); break;
             case BTN_HIDE_MENU_SAVED: value = PengramConfig.toggleBoolean("hideMenuSavedMessages"); break;
             case BTN_HIDE_MENU_SETTINGS: value = PengramConfig.toggleBoolean("hideMenuSettings"); break;
@@ -495,6 +479,22 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_MEDIA_CLEAR:
                 PengramHistory.clearSavedMedia();
+                updateAll = true;
+                break;
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_OFF:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_HELIUM:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CHILD:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_FEMALE:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MALE:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_DEEP:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MONSTER:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_ROBOT:
+            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
+                PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
+                PengramVoiceChanger.reset();
+                if (voicePreview != null) {
+                    voicePreview.update();
+                }
                 updateAll = true;
                 break;
             case BTN_HIDE_MENU_NEW_GROUP:
