@@ -60,6 +60,13 @@ public class PengramConfig {
     public static final int FONT_MONOSPACE = 3;
     public static int appFont = FONT_DEFAULT;
 
+    // --- сохранение медиа удалённых сообщений ---
+    public static final String DEFAULT_MEDIA_FOLDER = "Pengram";
+    public static final String DEFAULT_MEDIA_PATTERN = "deleted_{date}_{chat}_{id}";
+    public static boolean saveDeletedMedia = false;
+    public static String mediaFolder = DEFAULT_MEDIA_FOLDER;
+    public static String mediaPattern = DEFAULT_MEDIA_PATTERN;
+
     private static boolean loaded;
 
     public static void init() {
@@ -89,6 +96,9 @@ public class PengramConfig {
             chatMenuPosition = p.getInt("chatMenuPosition", MENU_POS_TOP);
             chatMenuEnabled = p.getBoolean("chatMenuEnabled", true);
             appFont = p.getInt("appFont", FONT_DEFAULT);
+            saveDeletedMedia = p.getBoolean("saveDeletedMedia", false);
+            mediaFolder = p.getString("mediaFolder", DEFAULT_MEDIA_FOLDER);
+            mediaPattern = p.getString("mediaPattern", DEFAULT_MEDIA_PATTERN);
             loaded = true;
         }
     }
@@ -101,6 +111,11 @@ public class PengramConfig {
     private static void putBoolean(String key, boolean value) {
         SharedPreferences p = prefs();
         if (p != null) p.edit().putBoolean(key, value).apply();
+    }
+
+    private static void putString(String key, String value) {
+        SharedPreferences p = prefs();
+        if (p != null) p.edit().putString(key, value).apply();
     }
 
     private static void putInt(String key, int value) {
@@ -222,6 +237,27 @@ public class PengramConfig {
     public static int getChatMenuPosition() { init(); return chatMenuPosition; }
     public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
     public static int getAppFont() { init(); return appFont; }
+
+    public static void toggleSaveDeletedMedia() { init(); saveDeletedMedia = !saveDeletedMedia; putBoolean("saveDeletedMedia", saveDeletedMedia); }
+
+    public static void setMediaFolder(String folder) {
+        init();
+        if (folder == null || folder.trim().isEmpty()) folder = DEFAULT_MEDIA_FOLDER;
+        folder = folder.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+        mediaFolder = folder;
+        putString("mediaFolder", folder);
+    }
+
+    public static void setMediaPattern(String pattern) {
+        init();
+        if (pattern == null || pattern.trim().isEmpty()) pattern = DEFAULT_MEDIA_PATTERN;
+        mediaPattern = pattern.trim();
+        putString("mediaPattern", mediaPattern);
+    }
+
+    public static boolean isSavingDeletedMedia() { init(); return saveDeleted && saveDeletedMedia; }
+    public static String getMediaFolder() { init(); return mediaFolder == null || mediaFolder.isEmpty() ? DEFAULT_MEDIA_FOLDER : mediaFolder; }
+    public static String getMediaPattern() { init(); return mediaPattern == null || mediaPattern.isEmpty() ? DEFAULT_MEDIA_PATTERN : mediaPattern; }
 
     public static boolean isHistoryRowVisible() {
         init();

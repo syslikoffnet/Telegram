@@ -8,7 +8,19 @@ import android.text.TextUtils;
 
 import org.telegram.tgnet.TLRPC;
 
+import android.content.ContentValues;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
@@ -234,6 +246,116 @@ public class PengramHistory extends SQLiteOpenHelper {
         } catch (Throwable e) {
             return 0;
         }
+    }
+
+    // --------------------------------------------- сохранение медиа удалёнок
+
+    /**
+     * Копирует файл удалённого сообщения в выбранную пользователем папку.
+     * На Android 10+ пишем через MediaStore (без разрешений), ниже — обычным файлом.
+     */
+    public static void saveMediaCopy(final File source, final String displayName, final String mimeType, final boolean isVideo, final boolean isImage) {
+        if (source == null || !source.exists() || ApplicationLoader.applicationContext == null) {
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                final String folder = PengramConfig.getMediaFolder();
+                final String mime = mimeType != null ? mimeType : (isVideo ? "video/mp4" : isImage ? "image/jpeg" : "application/octet-stream");
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues cv = new ContentValues();
+                    cv.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
+                    cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                    final String relative;
+                    final Uri collection;
+                    if (isImage) {
+                        relative = Environment.DIRECTORY_PICTURES + "/" + folder;
+                        collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                    } else if (isVideo) {
+                        relative = Environment.DIRECTORY_MOVIES + "/" + folder;
+                        collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                    } else {
+                        relative = Environment.DIRECTORY_DOWNLOADS + "/" + folder;
+                        collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                    }
+                    cv.put(MediaStore.MediaColumns.RELATIVE_PATH, relative);
+                    Uri uri = ApplicationLoader.applicationContext.getContentResolver().insert(collection, cv);
+                    if (uri == null) {
+                        return;
+                    }
+                    try (FileInputStream in = new FileInputStream(source);
+                         OutputStream out = ApplicationLoader.applicationContext.getContentResolver().openOutputStream(uri)) {
+                        if (out == null) return;
+                        byte[] buf = new byte[64 * 1024];
+                        int len;
+                        while ((len = in.read(buf)) > 0) {
+                            out.write(buf, 0, len);
+                        }
+                    }
+                } else {
+                    File dir = new File(Environment.getExternalStoragePublicDirectory(
+                            isVideo ? Environment.DIRECTORY_MOVIES : isImage ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_DOWNLOADS), folder);
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        return;
+                    }
+                    File dest = new File(dir, displayName);
+                    try (FileInputStream in = new FileInputStream(source);
+                         FileOutputStream out = new FileOutputStream(dest)) {
+                        byte[] buf = new byte[64 * 1024];
+                        int len;
+                        while ((len = in.read(buf)) > 0) {
+                            out.write(buf, 0, len);
+                        }
+                    }
+                    try {
+                        android.media.MediaScannerConnection.scanFile(ApplicationLoader.applicationContext,
+                                new String[]{dest.getAbsolutePath()}, new String[]{mime}, null);
+                    } catch (Throwable ignore) {}
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    /** Имя файла по шаблону пользователя */
+    public static String buildFileName(String pattern, long dialogId, int messageId, int date, String extension) {
+        if (pattern == null || pattern.trim().isEmpty()) {
+            pattern = PengramConfig.DEFAULT_MEDIA_PATTERN;
+        }
+        String chatName;
+        try {
+            if (dialogId > 0) {
+                TLRPC.User user = MessagesController.getInstance(UserConfig.selectedAccount).getUser(dialogId);
+                chatName = user != null ? UserObject.getUserName(user) : String.valueOf(dialogId);
+            } else {
+                TLRPC.Chat chat = MessagesController.getInstance(UserConfig.selectedAccount).getChat(-dialogId);
+                chatName = chat != null ? chat.title : String.valueOf(dialogId);
+            }
+        } catch (Throwable e) {
+            chatName = String.valueOf(dialogId);
+        }
+        chatName = sanitize(chatName);
+        final Date d = new Date((date > 0 ? date : (int) (System.currentTimeMillis() / 1000L)) * 1000L);
+        String name = pattern
+                .replace("{date}", new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(d))
+                .replace("{time}", new SimpleDateFormat("HH-mm-ss", Locale.US).format(d))
+                .replace("{chat}", chatName)
+                .replace("{id}", String.valueOf(messageId))
+                .replace("{dialog}", String.valueOf(dialogId));
+        name = sanitize(name);
+        if (name.isEmpty()) {
+            name = "pengram_" + messageId;
+        }
+        if (extension != null && !extension.isEmpty() && !name.toLowerCase(Locale.US).endsWith("." + extension.toLowerCase(Locale.US))) {
+            name = name + "." + extension;
+        }
+        return name;
+    }
+
+    private static String sanitize(String s) {
+        if (s == null) return "";
+        return s.replaceAll("[\\\\/:*?\"<>|\\n\\r]", "_").trim();
     }
 
     // --------------------------------------------------------------- хелперы

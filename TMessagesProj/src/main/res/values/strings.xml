@@ -11299,4 +11299,9 @@
     <string name="PengramChatMenu">Pengram island in chat menu</string>
     <string name="PengramChatMenuTop">At the top of the menu</string>
     <string name="PengramChatMenuBottom">At the bottom of the menu</string>
+    <string name="PengramMediaSave">Save media of deleted messages</string>
+    <string name="PengramMediaFolder">Folder</string>
+    <string name="PengramMediaPattern">File name</string>
+    <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
+    <string name="PengramMediaInfo">Photos go to Pictures/folder, videos to Movies/folder, other files to Download/folder. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
 </resources>

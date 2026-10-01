@@ -19,10 +19,12 @@ import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
@@ -61,6 +63,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
+
+    private static final int BTN_MEDIA_SAVE = 450;
+    private static final int BTN_MEDIA_FOLDER = 451;
+    private static final int BTN_MEDIA_PATTERN = 452;
 
     private static final int BTN_SCREENSHOTS = 500;
     private static final int BTN_NO_SS_NOTIFY = 501;
@@ -116,6 +122,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen),
                 String.valueOf(PengramHistory.getCount(0))));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
+        items.add(UItem.asCheck(BTN_MEDIA_SAVE, getString(R.string.PengramMediaSave)).setChecked(PengramConfig.saveDeletedMedia));
+        items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()).setEnabled(PengramConfig.saveDeletedMedia));
+        items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()).setEnabled(PengramConfig.saveDeletedMedia));
+        items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
         items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
 
         items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
@@ -228,6 +238,22 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIST_OPEN:
                 presentFragment(new PengramHistoryActivity(0));
                 break;
+            case BTN_MEDIA_SAVE:
+                PengramConfig.toggleSaveDeletedMedia();
+                updateAll = true;
+                break;
+            case BTN_MEDIA_FOLDER:
+                showTextDialog(getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder(), PengramConfig.DEFAULT_MEDIA_FOLDER, value -> {
+                    PengramConfig.setMediaFolder(value);
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                });
+                break;
+            case BTN_MEDIA_PATTERN:
+                showTextDialog(getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern(), getString(R.string.PengramMediaPatternHint), value -> {
+                    PengramConfig.setMediaPattern(value);
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                });
+                break;
             case BTN_SCREENSHOTS:
                 PengramConfig.toggleAllowScreenshots();
                 updateAll = true;
@@ -296,6 +322,33 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
         return false;
+    }
+
+    private void showTextDialog(String title, String current, String hint, Utilities.Callback<String> onDone) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final EditTextBoldCursor editText = new EditTextBoldCursor(context);
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        editText.setText(current);
+        editText.setHint(hint);
+        editText.setSingleLine(true);
+        editText.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        editText.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
+        editText.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        editText.setBackgroundDrawable(null);
+        editText.setPadding(dp(22), dp(8), dp(22), dp(8));
+        if (current != null) {
+            editText.setSelection(current.length());
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(title);
+        builder.setView(editText);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> onDone.run(editText.getText().toString()));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
     }
 
     /**

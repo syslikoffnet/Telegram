@@ -327,4 +327,9 @@
     <string name="PengramChatMenu">Остров Pengram в меню чата</string>
     <string name="PengramChatMenuTop">Сверху меню</string>
     <string name="PengramChatMenuBottom">Снизу меню</string>
+    <string name="PengramMediaSave">Сохранять медиа удалённых сообщений</string>
+    <string name="PengramMediaFolder">Папка</string>
+    <string name="PengramMediaPattern">Имя файла</string>
+    <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
+    <string name="PengramMediaInfo">Фото сохраняются в Pictures/папка, видео — в Movies/папка, остальные файлы — в Download/папка. Доступные подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
 </resources>
