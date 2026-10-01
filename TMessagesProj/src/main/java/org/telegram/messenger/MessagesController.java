@@ -923,7 +923,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isPremiumUser(TLRPC.User currentUser) {
-        if (currentUser != null && PengramConfig.isPremiumStatusLocal() && currentUser.id == getUserConfig().getClientUserId()) {
+        if (currentUser != null && PengramConfig.localPremium && PengramConfig.isPremiumStatusLocal() && currentUser.id == getUserConfig().getClientUserId()) {
             return true;
         }
         return currentUser != null && currentUser.premium && !isSupportUser(currentUser);
@@ -6863,7 +6863,7 @@ public class MessagesController extends BaseController implements NotificationCe
             return false;
         }
         // Pengram: локальный premium и фильтр zalgo применяем до того, как объект осядет в кэше
-        if (PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
+        if (PengramConfig.localPremium && PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
             user.premium = true;
         }
         if (PengramConfig.isZalgoFilter()) {
