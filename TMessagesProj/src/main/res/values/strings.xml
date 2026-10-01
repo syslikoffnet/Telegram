@@ -11469,4 +11469,10 @@
     <string name="PengramVoiceWhisper">Whisper</string>
     <string name="PengramVoiceWhisperValue">Voice replaced with breath</string>
     <string name="PengramVoiceAnonymousInfo">In Anonymous mode pitch, timbre, micro-jitter and phase are picked randomly for every recording and keep drifting while you speak. Nothing is stored, so the original voice cannot be restored by reverse processing — yet speech stays clear and intelligible.</string>
+    <string name="PengramValueOn">On</string>
+    <string name="PengramValueOff">Off</string>
+    <string name="PengramHiddenItems_one">%1$d hidden</string>
+    <string name="PengramHiddenItems_few">%1$d hidden</string>
+    <string name="PengramHiddenItems_many">%1$d hidden</string>
+    <string name="PengramHiddenItems_other">%1$d hidden</string>
 </resources>

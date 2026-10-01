@@ -497,4 +497,10 @@
     <string name="PengramVoiceWhisper">Шёпот</string>
     <string name="PengramVoiceWhisperValue">Голос заменяется дыханием</string>
     <string name="PengramVoiceAnonymousInfo">В режиме «Аноним» высота тона, тембр, микро-дрожание и фаза выбираются случайно при каждой записи и плавают прямо во время неё. Параметры нигде не сохраняются, поэтому вернуть исходный голос обратной обработкой невозможно — при этом речь остаётся чёткой и разборчивой.</string>
+    <string name="PengramValueOn">Вкл</string>
+    <string name="PengramValueOff">Выкл</string>
+    <string name="PengramHiddenItems_one">%1$d скрыт</string>
+    <string name="PengramHiddenItems_few">%1$d скрыто</string>
+    <string name="PengramHiddenItems_many">%1$d скрыто</string>
+    <string name="PengramHiddenItems_other">%1$d скрыто</string>
 </resources>

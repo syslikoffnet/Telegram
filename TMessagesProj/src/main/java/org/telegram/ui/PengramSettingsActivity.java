@@ -275,6 +275,58 @@ public class PengramSettingsActivity extends UniversalFragment {
         return true;
     }
 
+    /** «Вкл» / «Выкл» справа в строке раздела */
+    private CharSequence onOff(boolean value) {
+        return getString(value ? R.string.PengramValueOn : R.string.PengramValueOff);
+    }
+
+    private CharSequence fontName(int font) {
+        switch (font) {
+            case PengramConfig.FONT_SYSTEM: return getString(R.string.PengramFontSystem);
+            case PengramConfig.FONT_SERIF: return getString(R.string.PengramFontSerif);
+            case PengramConfig.FONT_MONOSPACE: return getString(R.string.PengramFontMono);
+            default: return getString(R.string.PengramFontDefault);
+        }
+    }
+
+    /** Сколько пунктов интерфейса сейчас скрыто */
+    private CharSequence hiddenCountValue() {
+        int count = 0;
+        final String[] keys = new String[] {
+                PengramConfig.KEY_TAB_CONTACTS, PengramConfig.KEY_TAB_CALLS, PengramConfig.KEY_TAB_SETTINGS,
+                PengramConfig.KEY_TAB_PROFILE, PengramConfig.KEY_MENU_PENGRAM, PengramConfig.KEY_MENU_GHOST
+        };
+        for (int a = 0; a < keys.length; ++a) {
+            if (PengramConfig.getBool(keys[a], false)) {
+                count++;
+            }
+        }
+        final boolean[] flags = new boolean[] {
+                PengramConfig.hideMenuNewGroup, PengramConfig.hideMenuSavedMessages, PengramConfig.hideMenuSettings, PengramConfig.hideMenuTheme,
+                PengramConfig.hideChatSearch, PengramConfig.hideChatTranslate, PengramConfig.hideChatClearHistory, PengramConfig.hideChatWallpaper,
+                PengramConfig.hideChatShortcut, PengramConfig.hideChatReport, PengramConfig.hideChatCall, PengramConfig.hideChatAutoDelete
+        };
+        for (int a = 0; a < flags.length; ++a) {
+            if (flags[a]) {
+                count++;
+            }
+        }
+        return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
+    }
+
+    /** Коротко о скорости и голосе */
+    private CharSequence mediaSectionValue() {
+        final int voice = PengramConfig.getVoiceChangerMode();
+        if (voice != PengramVoiceChanger.MODE_OFF) {
+            return PengramVoiceChanger.getModeName(voice);
+        }
+        switch (PengramConfig.getSpeedBoost()) {
+            case PengramConfig.BOOST_FAST: return getString(R.string.PengramBoostFast);
+            case PengramConfig.BOOST_EXTREME: return getString(R.string.PengramBoostExtreme);
+            default: return "";
+        }
+    }
+
     private CharSequence markName(int mark) {
         switch (mark) {
             case PengramConfig.MARK_TRASH: return getString(R.string.PengramMarkTrash) + "  \uD83D\uDDD1";
@@ -338,12 +390,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asButton(BTN_SECTION_GENERAL, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral)));
         items.add(UItem.asButton(BTN_SECTION_PROFILE, R.drawable.settings_account, getString(R.string.PengramSectionProfile)));
-        items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance)));
-        items.add(UItem.asButton(BTN_SECTION_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramSectionCustom)));
-        items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats)));
-        items.add(UItem.asButton(BTN_SECTION_GHOST, R.drawable.msg_secret, getString(R.string.PengramSectionGhost)));
-        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy)));
-        items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia)));
+        items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
+        items.add(UItem.asButton(BTN_SECTION_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
+        items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats), hiddenCountValue()));
+        items.add(UItem.asButton(BTN_SECTION_GHOST, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
+        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), onOff(PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited())));
+        items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
         items.add(UItem.asButton(BTN_SECTION_FREEDOM, R.drawable.settings_features, getString(R.string.PengramSectionFreedom)));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
@@ -625,10 +677,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int st = PengramConfig.getVoiceChangerPitch();
             return (st > 0 ? "+" + st : String.valueOf(st)) + " st";
         }
-        final int saved = PengramConfig.getVoiceChangerMode();
-        PengramConfig.voiceChangerMode = mode;
-        final float factor = PengramVoiceChanger.getPitchFactor();
-        PengramConfig.voiceChangerMode = saved;
+        final float factor = PengramVoiceChanger.getPitchFactor(mode);
         final int semitones = Math.round((float) (12.0 * Math.log(factor) / Math.log(2.0)));
         return String.format(java.util.Locale.US, "%s%d st  \u00b7  \u00d7%.2f", semitones > 0 ? "+" : "", semitones, factor);
     }
@@ -997,6 +1046,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         super.onResume();
         if (headerView != null) {
             headerView.setPaused(false);
+        }
+        // значения справа в строках разделов могли измениться на вложенном экране
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
         }
     }
 
