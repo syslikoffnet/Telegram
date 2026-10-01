@@ -218,16 +218,28 @@ jobs:
 
       - name: Publish failure log to repo
         if: failure()
+        env:
+          LOG_BRANCH: arena/01a0f7dc-telegram
         run: |
           set -eux
+          # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
+          grep -nE "error:|e: |^FAILURE|What went wrong|Execution failed" build.log | tail -n 40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done || true
+
           mkdir -p ci-logs
           tail -n 400 build.log > ci-logs/last-failure.log || echo "no build.log" > ci-logs/last-failure.log
+          grep -nE "error:|e: |warning: unchecked" build.log | tail -n 200 > ci-logs/last-errors.log || true
+
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add -f ci-logs/last-failure.log
+          git fetch origin "$LOG_BRANCH"
+          git stash -u || true
+          git checkout -B ci-log-tmp "origin/$LOG_BRANCH"
+          git stash pop || true
+          git add -f ci-logs/last-failure.log ci-logs/last-errors.log
           git commit -m "ci: build failure log [skip ci]" || exit 0
-          git pull --rebase origin "${GITHUB_REF_NAME}" || true
-          git push origin HEAD:"${GITHUB_REF_NAME}"
+          git push origin "ci-log-tmp:$LOG_BRANCH"
 
       - name: Upload build reports on failure
         if: failure()
