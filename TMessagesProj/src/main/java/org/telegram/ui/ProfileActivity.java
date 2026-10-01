@@ -159,6 +159,8 @@ import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramRegDate;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
 import org.telegram.messenger.SharedConfig;
@@ -660,6 +662,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int channelInfoRow;
     private int usernameRow;
     private int idRow;
+    private int regDateRow;
+    private int pengramHistoryRow;
     private int notificationsDividerRow;
     private int notificationsRow;
     private int bizHoursRow;
@@ -4549,6 +4553,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new LiteModeSettingsActivity());
             } else if (position == pengramRow) {
                 presentFragment(new PengramSettingsActivity());
+            } else if (position == pengramHistoryRow) {
+                presentFragment(new PengramHistoryActivity(userId != 0 ? userId : -chatId));
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
             } else if (position == questionRow) {
@@ -10542,6 +10548,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         channelInfoRow = -1;
         usernameRow = -1;
         idRow = -1;
+        regDateRow = -1;
+        pengramHistoryRow = -1;
         settingsTimerRow = -1;
         settingsKeyRow = -1;
         notificationsDividerRow = -1;
@@ -10741,6 +10749,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
+                if (user != null && !user.bot && PengramConfig.isRegDateVisible() && PengramRegDate.estimate(user.id) > 0) {
+                    regDateRow = rowCount++;
+                }
+                if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
+                    pengramHistoryRow = rowCount++;
+                }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
                         birthdayRow = rowCount++;
@@ -10901,6 +10915,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (currentChat != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
+                }
+                if (currentChat != null && PengramConfig.isHistoryRowVisible()) {
+                    pengramHistoryRow = rowCount++;
                 }
             }
             if (emptyRow < 0 && emptyRow2 < 0) {
@@ -13529,8 +13546,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             }
                         }
                         final String label = (dcId > 0 && PengramConfig.isShowingDc()) ? ("ID \u2022 DC" + dcId) : "ID";
-                        detailCell.setTextAndValue(String.valueOf(peerId), label, false);
+                        detailCell.setTextAndValue(String.valueOf(peerId), label, regDateRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
+                    } else if (position == regDateRow) {
+                        final long estimate = PengramRegDate.estimate(userId);
+                        String text = PengramRegDate.formatMonthYear(estimate);
+                        if (text == null) {
+                            text = "—";
+                        }
+                        text = "\u2248 " + text;
+                        if (PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
+                            final String age = PengramRegDate.formatAge(estimate);
+                            if (age != null) {
+                                text = text + " \u2022 " + age;
+                            }
+                        }
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), false);
+                        detailCell.setContentDescriptionValueFirst(true);
+                        Drawable calendar = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                        if (calendar != null) {
+                            calendar.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+                            detailCell.setImage(calendar, LocaleController.getString(R.string.PengramRegDate));
+                            detailCell.setImageClickListener(null);
+                        }
                     } else if (position == phoneRow) {
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);
@@ -13687,7 +13725,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
-                    } else {
+                    } else if (position != regDateRow) {
                         detailCell.setImage(null);
                         detailCell.setImageClickListener(null);
                     }
@@ -13895,6 +13933,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setTextAndIcon(LocaleController.getString(R.string.StickersName), R.drawable.msg2_sticker, true);
                     } else if (position == liteModeRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PowerUsage), R.drawable.msg2_battery, true);
+                    } else if (position == pengramHistoryRow) {
+                        final long did = userId != 0 ? userId : -chatId;
+                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(PengramHistory.getCount(did)), R.drawable.msg_viewchats, false);
                     } else if (position == pengramRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PengramSettings), R.drawable.msg2_devices, true);
                     } else if (position == questionRow) {
@@ -14380,7 +14421,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == idRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == idRow || position == regDateRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -14396,7 +14437,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                     position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
                     position == clearLogsRow || position == switchBackendRow || position == setAvatarRow || position == addToGroupButtonRow ||
-                    position == addToContactsRow || position == liteModeRow || position == pengramRow || position == premiumGiftingRow || position == businessRow ||
+                    position == addToContactsRow || position == liteModeRow || position == pengramRow || position == pengramHistoryRow || position == premiumGiftingRow || position == businessRow ||
                     position == botStarsBalanceRow || position == botTonBalanceRow || position == channelBalanceRow || position == botPermissionLocation ||
                     position == botPermissionBiometry || position == botPermissionEmojiStatus || position == tonRow
             ) {
@@ -15738,6 +15779,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, numberRow, sparseIntArray);
             put(++pointer, setUsernameRow, sparseIntArray);
             put(++pointer, idRow, sparseIntArray);
+            put(++pointer, regDateRow, sparseIntArray);
+            put(++pointer, pengramHistoryRow, sparseIntArray);
             put(++pointer, bioRow, sparseIntArray);
             put(++pointer, phoneSuggestionRow, sparseIntArray);
             put(++pointer, phoneSuggestionSectionRow, sparseIntArray);
@@ -15787,6 +15830,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
             put(++pointer, idRow, sparseIntArray);
+            put(++pointer, regDateRow, sparseIntArray);
+            put(++pointer, pengramHistoryRow, sparseIntArray);
             put(++pointer, notificationsDividerRow, sparseIntArray);
             put(++pointer, reportDividerRow, sparseIntArray);
             put(++pointer, notificationsRow, sparseIntArray);

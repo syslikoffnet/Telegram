@@ -15,10 +15,12 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextDetailCell;
@@ -49,6 +51,17 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ID_INLINE = 203;
     private static final int BTN_ID_COPY = 210;
 
+    private static final int BTN_REG_OFF = 300;
+    private static final int BTN_REG_DATE = 301;
+    private static final int BTN_REG_DATE_AGE = 302;
+
+    private static final int BTN_HIST_DELETED = 400;
+    private static final int BTN_HIST_EDITED = 401;
+    private static final int BTN_HIST_OUTGOING = 402;
+    private static final int BTN_HIST_PROFILE = 403;
+    private static final int BTN_HIST_OPEN = 404;
+    private static final int BTN_HIST_CLEAR = 405;
+
     private ProfilePreviewView previewView;
 
     @Override
@@ -74,6 +87,22 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asRadio(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
         items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap).setEnabled(PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF));
         items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
+        items.add(UItem.asRadio(BTN_REG_OFF, getString(R.string.PengramRegStyleOff)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_OFF));
+        items.add(UItem.asRadio(BTN_REG_DATE, getString(R.string.PengramRegStyleDate)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE));
+        items.add(UItem.asRadio(BTN_REG_DATE_AGE, getString(R.string.PengramRegStyleDateAge)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE_AGE));
+        items.add(UItem.asShadow(getString(R.string.PengramRegInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
+        items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
+        items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
+        items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing)).setChecked(PengramConfig.saveOutgoing));
+        items.add(UItem.asCheck(BTN_HIST_PROFILE, getString(R.string.PengramHistoryShowInProfile)).setChecked(PengramConfig.historyRowInProfile));
+        items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen),
+                String.valueOf(PengramHistory.getCount(0))));
+        items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
+        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
 
         items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
         items.add(UItem.asCheck(BTN_GHOST, getString(R.string.PengramGhostMode)).setChecked(PengramConfig.ghostMode));
@@ -127,6 +156,50 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_ID_INLINE:
                 PengramConfig.setIdStyle(PengramConfig.ID_STYLE_INLINE);
                 updateAll = true;
+                break;
+            case BTN_REG_OFF:
+                PengramConfig.setRegDateStyle(PengramConfig.REG_STYLE_OFF);
+                updateAll = true;
+                break;
+            case BTN_REG_DATE:
+                PengramConfig.setRegDateStyle(PengramConfig.REG_STYLE_DATE);
+                updateAll = true;
+                break;
+            case BTN_REG_DATE_AGE:
+                PengramConfig.setRegDateStyle(PengramConfig.REG_STYLE_DATE_AGE);
+                updateAll = true;
+                break;
+            case BTN_HIST_DELETED:
+                PengramConfig.toggleSaveDeleted();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveDeleted);
+                break;
+            case BTN_HIST_EDITED:
+                PengramConfig.toggleSaveEdited();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveEdited);
+                break;
+            case BTN_HIST_OUTGOING:
+                PengramConfig.toggleSaveOutgoing();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveOutgoing);
+                break;
+            case BTN_HIST_PROFILE:
+                PengramConfig.toggleHistoryRowInProfile();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.historyRowInProfile);
+                break;
+            case BTN_HIST_OPEN:
+                presentFragment(new PengramHistoryActivity(0));
+                break;
+            case BTN_HIST_CLEAR:
+                if (getParentActivity() != null) {
+                    AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                    b.setTitle(getString(R.string.PengramHistoryClearTitle));
+                    b.setMessage(getString(R.string.PengramHistoryClearAll));
+                    b.setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                        PengramHistory.clear(0);
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    });
+                    b.setNegativeButton(getString(R.string.Cancel), null);
+                    showDialog(b.create());
+                }
                 break;
         }
         if (previewView != null) {

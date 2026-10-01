@@ -14514,6 +14514,76 @@ public class MessagesStorage extends BaseController {
         AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.quickRepliesUpdated));
     }
 
+    /** Pengram: текст сообщения из локальной базы Telegram (вызывать в storageQueue) */
+    public String pengramGetMessageText(int messageId, long dialogId) {
+        SQLiteCursor cursor = null;
+        try {
+            cursor = database.queryFinalized("SELECT data FROM messages_v2 WHERE mid = ? AND uid = ?", messageId, dialogId);
+            if (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data != null) {
+                    try {
+                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (message != null) {
+                            message.readAttachPath(data, getUserConfig().clientUserId);
+                            return PengramHistory.describe(message);
+                        }
+                    } finally {
+                        data.reuse();
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) {
+                try { cursor.dispose(); } catch (Throwable ignore) {}
+            }
+        }
+        return null;
+    }
+
+    /** Pengram: перед удалением сохраняем сообщения в собственную базу */
+    private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
+        if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
+            return;
+        }
+        SQLiteCursor cursor = null;
+        try {
+            final long selfId = getUserConfig().getClientUserId();
+            final String ids = TextUtils.join(",", messages);
+            cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            while (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data == null) {
+                    continue;
+                }
+                try {
+                    TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                    if (message != null) {
+                        message.readAttachPath(data, selfId);
+                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
+                        if (message.out && !PengramConfig.isSavingOutgoing()) {
+                            continue;
+                        }
+                        final String text = PengramHistory.describe(message);
+                        if (!TextUtils.isEmpty(text)) {
+                            PengramHistory.save(currentAccount, dialogId, message.id, fromId, message.date, PengramHistory.ACTION_DELETED, text, null);
+                        }
+                    }
+                } finally {
+                    data.reuse();
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) {
+                try { cursor.dispose(); } catch (Throwable ignore) {}
+            }
+        }
+    }
+
     private ArrayList<Long> markMessagesAsDeletedInternal(long dialogId, ArrayList<Integer> messages, boolean deleteFiles, int mode, int threadMessageId) {
         SQLiteCursor cursor = null;
         SQLitePreparedStatement state = null;
@@ -14584,6 +14654,8 @@ public class MessagesStorage extends BaseController {
                 }
             } else {
                 long currentUser = getUserConfig().getClientUserId();
+
+                pengramSaveDeleted(dialogId, messages);
 
                 ArrayList<Integer> unknownMessages = new ArrayList<>(messages);
                 ArrayList<Integer> unknownMessagesInTopics = new ArrayList<>(messages);

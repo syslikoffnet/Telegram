@@ -11378,6 +11378,39 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    /** Pengram: сохраняем предыдущую версию отредактированного сообщения */
+    private void pengramSaveEdited(TLRPC.Message message) {
+        try {
+            if (message == null || !PengramConfig.isSavingEdited()) {
+                return;
+            }
+            if (message.out && !PengramConfig.isSavingOutgoing()) {
+                return;
+            }
+            final long dialogId = MessageObject.getDialogId(message);
+            final int messageId = message.id;
+            final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
+            final int date = message.date;
+            final String newText = PengramHistory.describe(message);
+            final int account = currentAccount;
+            getMessagesStorage().getStorageQueue().postRunnable(() -> {
+                String oldText = null;
+                try {
+                    oldText = getMessagesStorage().pengramGetMessageText(messageId, dialogId);
+                } catch (Throwable ignore) {}
+                if (oldText == null) {
+                    oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
+                }
+                if (oldText == null || android.text.TextUtils.equals(oldText, newText)) {
+                    return;
+                }
+                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText);
+            });
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     public boolean sendTyping(long dialogId, long threadMsgId, int action, int classGuid) {
         return sendTyping(dialogId, threadMsgId, action, null, classGuid);
     }
@@ -19493,6 +19526,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     message.message = "";
                     message.attachPath = "";
                 }
+
+                pengramSaveEdited(message);
 
                 ImageLoader.saveMessageThumbs(message);
                 AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));

@@ -28,6 +28,18 @@ public class PengramConfig {
     public static int idStyle = ID_STYLE_ROW_DC;
     public static boolean copyIdOnTap = true;
 
+    // --- дата регистрации ---
+    public static final int REG_STYLE_OFF = 0;
+    public static final int REG_STYLE_DATE = 1;      // «≈ март 2021»
+    public static final int REG_STYLE_DATE_AGE = 2;  // «≈ март 2021 • 4 года»
+    public static int regDateStyle = REG_STYLE_DATE_AGE;
+
+    // --- история удалённых/изменённых ---
+    public static boolean saveDeleted = true;
+    public static boolean saveEdited = true;
+    public static boolean saveOutgoing = false;      // сохранять и свои сообщения
+    public static boolean historyRowInProfile = true;
+
     private static boolean loaded;
 
     public static void init() {
@@ -43,6 +55,11 @@ public class PengramConfig {
             dontSendStoryViews = p.getBoolean("dontSendStoryViews", true);
             idStyle = p.getInt("idStyle", ID_STYLE_ROW_DC);
             copyIdOnTap = p.getBoolean("copyIdOnTap", true);
+            regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
+            saveDeleted = p.getBoolean("saveDeleted", true);
+            saveEdited = p.getBoolean("saveEdited", true);
+            saveOutgoing = p.getBoolean("saveOutgoing", false);
+            historyRowInProfile = p.getBoolean("historyRowInProfile", true);
             loaded = true;
         }
     }
@@ -96,6 +113,65 @@ public class PengramConfig {
         init();
         copyIdOnTap = !copyIdOnTap;
         putBoolean("copyIdOnTap", copyIdOnTap);
+    }
+
+    public static void setRegDateStyle(int style) {
+        init();
+        regDateStyle = style;
+        putInt("regDateStyle", style);
+    }
+
+    public static void toggleSaveDeleted() {
+        init();
+        saveDeleted = !saveDeleted;
+        putBoolean("saveDeleted", saveDeleted);
+    }
+
+    public static void toggleSaveEdited() {
+        init();
+        saveEdited = !saveEdited;
+        putBoolean("saveEdited", saveEdited);
+    }
+
+    public static void toggleSaveOutgoing() {
+        init();
+        saveOutgoing = !saveOutgoing;
+        putBoolean("saveOutgoing", saveOutgoing);
+    }
+
+    public static void toggleHistoryRowInProfile() {
+        init();
+        historyRowInProfile = !historyRowInProfile;
+        putBoolean("historyRowInProfile", historyRowInProfile);
+    }
+
+    public static boolean isSavingDeleted() {
+        init();
+        return saveDeleted;
+    }
+
+    public static boolean isSavingEdited() {
+        init();
+        return saveEdited;
+    }
+
+    public static boolean isSavingOutgoing() {
+        init();
+        return saveOutgoing;
+    }
+
+    public static int getRegDateStyle() {
+        init();
+        return regDateStyle;
+    }
+
+    public static boolean isRegDateVisible() {
+        return getRegDateStyle() != REG_STYLE_OFF;
+    }
+
+    public static boolean isHistoryRowVisible() {
+        init();
+        return historyRowInProfile && (saveDeleted || saveEdited);
     }
 
     public static void setIdStyle(int style) {
