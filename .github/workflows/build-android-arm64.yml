@@ -128,19 +128,32 @@ jobs:
           fi
 
       - name: Build APK
+        shell: bash
         run: |
-          set -eux
+          set -ux
           chmod +x ./gradlew
           if [ "$BUILD_TYPE" = "debug" ]; then
             TASK=":TMessagesProj_AppStandalone:assembleAfatDebug"
           else
             TASK=":TMessagesProj_AppStandalone:assembleAfatStandalone"
           fi
+          set +e
           ./gradlew "$TASK" \
             -PABI_FILTERS="$ABI" \
             --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" \
-            -Dfile.encoding=UTF-8
+            -Dfile.encoding=UTF-8 2>&1 | tee build.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$STATUS" != "0" ]; then
+            {
+              echo '### Build failed'
+              echo '```'
+              tail -n 200 build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit $STATUS
 
       - name: Collect APK
         run: |
