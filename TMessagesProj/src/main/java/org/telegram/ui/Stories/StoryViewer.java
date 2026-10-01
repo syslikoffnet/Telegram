@@ -372,7 +372,38 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public void open(Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
         open(UserConfig.selectedAccount, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed);
     }
+    /* Pengram: «Предлагать призрака для сторис» */
+    private boolean pengramSkipStoriesWarn;
+
+    private boolean pengramWarnAboutStories(Context context, Runnable openRunnable) {
+        if (pengramSkipStoriesWarn) {
+            pengramSkipStoriesWarn = false;
+            return false;
+        }
+        if (!org.telegram.messenger.PengramConfig.isGhostStoriesWarn() || org.telegram.messenger.PengramConfig.ghostMode || isShowing || !isContextSafe(context)) {
+            return false;
+        }
+        final Runnable proceed = () -> {
+            pengramSkipStoriesWarn = true;
+            AndroidUtilities.runOnUIThread(openRunnable);
+        };
+        org.telegram.ui.ActionBar.AlertDialog.Builder builder = new org.telegram.ui.ActionBar.AlertDialog.Builder(context);
+        builder.setTitle(LocaleController.getString(R.string.PengramGhostStoriesWarn));
+        builder.setMessage(LocaleController.getString(R.string.PengramGhostStoriesAlert));
+        builder.setPositiveButton(LocaleController.getString(R.string.PengramGhostStoriesEnable), (dialog, which) -> {
+            org.telegram.messenger.PengramConfig.setGhostMode(true);
+            proceed.run();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.PengramGhostStoriesOpen), (dialog, which) -> proceed.run());
+        builder.setNeutralButton(LocaleController.getString(R.string.Cancel), null);
+        builder.show();
+        return true;
+    }
+
     public void open(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
+        if (pengramWarnAboutStories(context, () -> open(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed))) {
+            return;
+        }
         if (!isContextSafe(context)) {
             doOnAnimationReadyRunnables.clear();
             return;

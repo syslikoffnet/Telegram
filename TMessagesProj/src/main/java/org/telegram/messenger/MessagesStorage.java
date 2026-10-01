@@ -14595,41 +14595,63 @@ public class MessagesStorage extends BaseController {
         }
     }
 
-    /** Pengram: перед удалением сохраняем сообщения в собственную базу */
+    /**
+     * Pengram: перед удалением сохраняем сообщения в собственную базу.
+     * ВАЖНО: dialogId здесь может быть 0 (обычные чаты и группы), поэтому реальный uid
+     * всегда берём из самой таблицы — иначе удалёнки сохранялись бы только в каналах.
+     */
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
         if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
-            return;
-        }
-        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(dialogId)) {
             return;
         }
         SQLiteCursor cursor = null;
         try {
             final long selfId = getUserConfig().getClientUserId();
             final String ids = TextUtils.join(",", messages);
-            cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            if (dialogId != 0) {
+                cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            } else {
+                cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s)", ids));
+            }
+            final LongSparseArray<ArrayList<Integer>> marksByDialog = new LongSparseArray<>();
             while (cursor.next()) {
                 NativeByteBuffer data = cursor.byteBufferValue(0);
                 if (data == null) {
                     continue;
                 }
+                final long did = cursor.longValue(2);
                 try {
                     TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                     if (message != null) {
                         message.readAttachPath(data, selfId);
-                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
-                        if (message.out && !PengramConfig.isSavingOutgoing()) {
+                        if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
+                            continue; // «Избранное» — там ничего не пропадает
+                        }
+                        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(did)) {
+                            continue;
+                        }
+                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
+                        final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
+                        if (message.out && !PengramConfig.isSavingOutgoing() && !forceSave) {
                             continue;
                         }
                         final String text = PengramHistory.describe(message);
-                        if (!TextUtils.isEmpty(text)) {
-                            PengramHistory.save(currentAccount, dialogId, message.id, fromId, message.date, PengramHistory.ACTION_DELETED, text, null);
+                        PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
+                                PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                        ArrayList<Integer> marks = marksByDialog.get(did);
+                        if (marks == null) {
+                            marks = new ArrayList<>();
+                            marksByDialog.put(did, marks);
                         }
-                        pengramSaveDeletedMedia(dialogId, message);
+                        marks.add(message.id);
+                        pengramSaveDeletedMedia(did, message);
                     }
                 } finally {
                     data.reuse();
                 }
+            }
+            for (int a = 0; a < marksByDialog.size(); ++a) {
+                PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a), marksByDialog.valueAt(a));
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14712,6 +14734,11 @@ public class MessagesStorage extends BaseController {
                 long currentUser = getUserConfig().getClientUserId();
 
                 pengramSaveDeleted(dialogId, messages);
+
+                if (currentUser != dialogId && PengramHistory.shouldKeep(messages)) {
+                    // Pengram: сообщение остаётся в базе и в чате, мы только помечаем его удалённым
+                    return dialogsIds;
+                }
 
                 ArrayList<Integer> unknownMessages = new ArrayList<>(messages);
                 ArrayList<Integer> unknownMessagesInTopics = new ArrayList<>(messages);

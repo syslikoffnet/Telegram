@@ -582,6 +582,33 @@ public class UserConfig extends BaseController {
         return user.premium;
     }
 
+    /**
+     * Pengram: «витрина» локального премиума — звёздочка рядом с именем.
+     * Меняем флаг только у себя и умеем вернуть всё назад.
+     */
+    public void pengramApplyLocalPremiumStatus() {
+        final TLRPC.User user = currentUser;
+        if (user == null) {
+            return;
+        }
+        final boolean show = PengramConfig.isPremiumStatusLocal();
+        final boolean applied = PengramConfig.getBool("localPremiumStatusApplied", false);
+        boolean changed = false;
+        if (show && !user.premium) {
+            user.premium = true;
+            PengramConfig.setBool("localPremiumStatusApplied", true);
+            changed = true;
+        } else if (!show && applied) {
+            user.premium = false;
+            PengramConfig.setBool("localPremiumStatusApplied", false);
+            changed = true;
+        }
+        if (changed) {
+            MessagesController.getInstance(currentAccount).putUser(user, false);
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
+        }
+    }
+
     public Long getEmojiStatus() {
         return UserObject.getEmojiStatusDocumentId(currentUser);
     }

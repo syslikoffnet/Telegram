@@ -10517,6 +10517,34 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
+    /**
+     * Pengram: «автоофлайн» — сразу после нашей активности говорим серверу, что мы офлайн,
+     * чтобы собеседник не увидел всплывающий онлайн.
+     */
+    public void pengramSendOfflineStatus() {
+        if (!PengramConfig.isGhostAutoOffline() || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!PengramConfig.isGhostAutoOffline()) {
+                return;
+            }
+            if (statusRequest != 0) {
+                getConnectionsManager().cancelRequest(statusRequest, true);
+                statusRequest = 0;
+            }
+            statusSettingState = 2;
+            TL_account.updateStatus req = new TL_account.updateStatus();
+            req.offline = true;
+            statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
+                if (error == null) {
+                    offlineSent = true;
+                }
+                statusRequest = 0;
+            });
+        }, 1500);
+    }
+
     public void updateTimerProc() {
         long currentTime = System.currentTimeMillis();
 
@@ -11396,6 +11424,8 @@ public class MessagesController extends BaseController implements NotificationCe
             final int date = message.date;
             final String newText = PengramHistory.describe(message);
             final int account = currentAccount;
+            final boolean out = message.out;
+            final byte[] data = PengramHistory.serialize(message);
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
                 String oldText = null;
                 try {
@@ -11407,7 +11437,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (oldText == null || android.text.TextUtils.equals(oldText, newText)) {
                     return;
                 }
-                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText);
+                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText, out, data);
             });
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14449,6 +14479,11 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (PengramConfig.isNotSendingVoiceRead() && !messageObject.isOutOwner()
+                && (messageObject.isVoice() || messageObject.isRoundVideo())) {
+            // призрак: помечаем прослушанным только локально
+            return;
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -21622,6 +21657,9 @@ public class MessagesController extends BaseController implements NotificationCe
             topicsController.markAllReactionsAsRead(-dialogId, topicId);
         }
         getMessagesStorage().updateUnreadReactionsCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingReactionsRead()) {
+            return;
+        }
         TLRPC.TL_messages_readReactions req = new TLRPC.TL_messages_readReactions();
         req.peer = getInputPeer(dialogId);
 

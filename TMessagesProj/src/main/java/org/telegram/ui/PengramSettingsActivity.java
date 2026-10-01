@@ -132,6 +132,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIDE_CHAT_CALL = 1216;
     private static final int BTN_HIDE_CHAT_AUTODELETE = 1217;
 
+    private static final int BTN_DELETED_MARK = 1400;
+    private static final int BTN_OPEN_DELETED_CHAT = 1401;
+    private static final int BTN_OPEN_EDITED_CHAT = 1402;
+    private static final int BTN_GENERIC_BASE = 2000;
+
+    private final java.util.HashMap<String, Integer> boolIds = new java.util.HashMap<>();
+    private final ArrayList<String> boolKeys = new ArrayList<>();
+    private final ArrayList<Boolean> boolDefaults = new ArrayList<>();
+
     private final int section;
 
     public PengramSettingsActivity() {
@@ -147,6 +156,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
+    private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
 
     @Override
     protected CharSequence getTitle() {
@@ -175,6 +185,93 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_MEDIA: fillMedia(items); break;
             default: fillRoot(items); break;
         }
+    }
+
+    /** чекбокс, завязанный на ключ в PengramConfig — чтобы не плодить константы */
+    private UItem check(String key, boolean def, CharSequence text) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        return UItem.asCheck(id, text).setChecked(PengramConfig.getBool(key, def));
+    }
+
+    private int boolId(String key) {
+        Integer id = boolIds.get(key);
+        return id == null ? -1 : id;
+    }
+
+    private boolean onGenericClick(UItem item, View view) {
+        final int index = item.id - BTN_GENERIC_BASE;
+        if (index < 0 || index >= boolKeys.size()) {
+            return false;
+        }
+        final String key = boolKeys.get(index);
+        final boolean value = PengramConfig.toggle(key, boolDefaults.get(index));
+        if (view instanceof TextCheckCell) {
+            ((TextCheckCell) view).setChecked(value);
+        }
+        if (previewMessages != null) {
+            previewMessages.update();
+        }
+        return true;
+    }
+
+    private CharSequence markName(int mark) {
+        switch (mark) {
+            case PengramConfig.MARK_TRASH: return getString(R.string.PengramMarkTrash) + "  \uD83D\uDDD1";
+            case PengramConfig.MARK_CROSS: return getString(R.string.PengramMarkCross) + "  \u2715";
+            case PengramConfig.MARK_EYE: return getString(R.string.PengramMarkEye) + "  \uD83D\uDC41";
+            default: return getString(R.string.PengramMarkNone);
+        }
+    }
+
+    /** красивое меню выбора значка — как родное телеграмовское */
+    private void showMarkPicker() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramDeletedMarkTitle), true);
+
+        final LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[4];
+        for (int a = 0; a < cells.length; ++a) {
+            final int mark = a;
+            cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
+            cells[a].setPadding(dp(4), 0, dp(4), 0);
+            cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
+            cells[a].setTextAndValue(markName(mark), PengramConfig.getDeletedMark() == mark);
+            cells[a].setBackground(Theme.getSelectorDrawable(false));
+            cells[a].setOnClickListener(v -> {
+                PengramConfig.setDeletedMark(mark);
+                for (int b = 0; b < cells.length; ++b) {
+                    cells[b].setChecked(b == mark, true);
+                }
+                if (previewMessages != null) {
+                    previewMessages.update();
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    try {
+                        if (visibleDialog != null) {
+                            visibleDialog.dismiss();
+                        }
+                    } catch (Throwable ignore) {}
+                }, 180);
+            });
+            linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        builder.setCustomView(linearLayout);
+        showDialog(builder.create());
     }
 
     private void fillRoot(ArrayList<UItem> items) {
@@ -231,15 +328,23 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
         final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
         if (saving) {
-            items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing)).setChecked(PengramConfig.saveOutgoing));
+            items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_SHOW, true, getString(R.string.PengramSaveForMyselfOption)));
+            items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_DEFAULT, false, getString(R.string.PengramSaveForMyselfDefault)));
             items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
-            items.add(UItem.asCheck(BTN_HIST_PROFILE, getString(R.string.PengramHistoryShowInProfile)).setChecked(PengramConfig.historyRowInProfile));
         }
         items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo2)));
 
+        if (PengramConfig.saveDeleted) {
+            items.add(UItem.asHeader(getString(R.string.PengramInChatHeader)));
+            items.add(check(PengramConfig.KEY_KEEP_DELETED, true, getString(R.string.PengramKeepDeleted)));
+            items.add(UItem.asShadow(getString(R.string.PengramKeepDeletedInfo)));
+        }
+
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
-        items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen),
+        items.add(UItem.asButton(BTN_OPEN_DELETED_CHAT, R.drawable.msg_delete, getString(R.string.PengramOpenDeletedChat),
                 String.valueOf(PengramHistory.getCount(0))));
+        items.add(UItem.asButton(BTN_OPEN_EDITED_CHAT, R.drawable.msg_edit, getString(R.string.PengramOpenEditedChat)));
+        items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen)));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
         items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
 
@@ -275,13 +380,23 @@ public class PengramSettingsActivity extends UniversalFragment {
     private void fillGhost(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
         items.add(UItem.asCheck(BTN_GHOST, getString(R.string.PengramGhostMode)).setChecked(PengramConfig.ghostMode));
-        if (PengramConfig.ghostMode) {
-            items.add(UItem.asCheck(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline));
-            items.add(UItem.asCheck(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead));
-            items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping));
-            items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews));
-        }
         items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGhostWhatHeader)));
+        items.add(UItem.asCheck(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead));
+        items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews));
+        items.add(UItem.asCheck(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline));
+        items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping));
+        items.add(check(PengramConfig.KEY_GHOST_AUTO_OFFLINE, true, getString(R.string.PengramGhostAutoOffline)));
+        items.add(check(PengramConfig.KEY_GHOST_DONT_SEND_VOICE_READ, true, getString(R.string.PengramGhostDontSendVoiceRead)));
+        items.add(check(PengramConfig.KEY_GHOST_DONT_SEND_REACTIONS, false, getString(R.string.PengramGhostDontSendReactions)));
+        items.add(UItem.asShadow(getString(R.string.PengramGhostWhatInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGhostExtraHeader)));
+        items.add(check(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn)));
+        items.add(UItem.asShadow(getString(R.string.PengramGhostStoriesWarnInfo)));
+        items.add(check(PengramConfig.KEY_GHOST_SEND_DELAY, false, getString(R.string.PengramGhostSendDelay)));
+        items.add(UItem.asShadow(getString(R.string.PengramGhostSendDelayInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
         items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
@@ -305,11 +420,33 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramPremiumHeader)));
         items.add(UItem.asCheck(BTN_LOCAL_PREMIUM, getString(R.string.PengramLocalPremium)).setChecked(PengramConfig.localPremium));
+        if (PengramConfig.localPremium) {
+            items.add(check(PengramConfig.KEY_PREMIUM_STATUS, true, getString(R.string.PengramLocalPremiumStatus)));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramPremiumInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramBackgroundHeader)));
+        items.add(check(PengramConfig.KEY_BACKGROUND_MODE, false, getString(R.string.PengramBackgroundMode)));
+        if (PengramConfig.isBackgroundMode()) {
+            items.add(check(PengramConfig.KEY_BACKGROUND_SILENT, true, getString(R.string.PengramBackgroundSilent)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramBackgroundInfo)));
     }
 
     private void fillAppearance(ArrayList<UItem> items) {
+        if (previewMessages == null) {
+            previewMessages = new org.telegram.ui.Components.PengramMessagePreviewView(getContext(), getResourceProvider());
+        }
+        previewMessages.update();
+        items.add(UItem.asCustom(previewMessages));
+        items.add(UItem.asShadow(getString(R.string.PengramPreviewInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeletedLookHeader)));
+        items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
+        items.add(UItem.asButton(BTN_DELETED_MARK, R.drawable.msg_delete, getString(R.string.PengramDeletedMark), markName(PengramConfig.getDeletedMark())));
+        items.add(check(PengramConfig.KEY_MARK_EDITED, false, getString(R.string.PengramMarkEditedOption)));
+        items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
         items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
         items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
@@ -383,7 +520,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillChats(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
+        items.add(check(PengramConfig.KEY_TAB_CONTACTS, false, getString(R.string.PengramHideTabContacts)));
+        items.add(check(PengramConfig.KEY_TAB_CALLS, false, getString(R.string.PengramHideTabCalls)));
+        items.add(check(PengramConfig.KEY_TAB_SETTINGS, false, getString(R.string.PengramHideTabSettings)));
+        items.add(check(PengramConfig.KEY_TAB_PROFILE, false, getString(R.string.PengramHideTabProfile)));
+        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
+        items.add(check(PengramConfig.KEY_MENU_PENGRAM, false, getString(R.string.PengramHideMenuPengram)));
+        items.add(check(PengramConfig.KEY_MENU_GHOST, false, getString(R.string.PengramHideMenuGhost)));
         items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
         items.add(UItem.asCheck(BTN_HIDE_MENU_SAVED, getString(R.string.PengramHideMenuSaved)).setChecked(PengramConfig.hideMenuSavedMessages));
         items.add(UItem.asCheck(BTN_HIDE_MENU_SETTINGS, getString(R.string.PengramHideMenuSettings)).setChecked(PengramConfig.hideMenuSettings));
@@ -427,7 +573,30 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        if (item.id >= BTN_GENERIC_BASE && onGenericClick(item, view)) {
+            if (item.id == boolId(PengramConfig.KEY_PREMIUM_STATUS)) {
+                getUserConfig().pengramApplyLocalPremiumStatus();
+            }
+            if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
+                org.telegram.messenger.PengramBackgroundService.update(getContext());
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            } else if (item.id == boolId(PengramConfig.KEY_KEEP_DELETED)
+                    || item.id == boolId(PengramConfig.KEY_FADE_DELETED)
+                    || item.id == boolId(PengramConfig.KEY_MARK_EDITED)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
+            return;
+        }
         switch (item.id) {
+            case BTN_DELETED_MARK:
+                showMarkPicker();
+                return;
+            case BTN_OPEN_DELETED_CHAT:
+                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_DELETED));
+                return;
+            case BTN_OPEN_EDITED_CHAT:
+                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_EDITED));
+                return;
             case BTN_SECTION_PROFILE:
                 presentFragment(new PengramSettingsActivity(SECTION_PROFILE));
                 return;
@@ -565,19 +734,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_HIST_DELETED:
                 PengramConfig.toggleSaveDeleted();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveDeleted);
+                updateAll = true;
                 break;
             case BTN_HIST_EDITED:
                 PengramConfig.toggleSaveEdited();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveEdited);
-                break;
-            case BTN_HIST_OUTGOING:
-                PengramConfig.toggleSaveOutgoing();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveOutgoing);
-                break;
-            case BTN_HIST_PROFILE:
-                PengramConfig.toggleHistoryRowInProfile();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.historyRowInProfile);
+                updateAll = true;
                 break;
             case BTN_HIST_OPEN:
                 presentFragment(new PengramHistoryActivity(0));
@@ -620,7 +781,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_LOCAL_PREMIUM:
                 PengramConfig.toggleLocalPremium();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.localPremium);
+                getUserConfig().pengramApplyLocalPremiumStatus();
+                updateAll = true;
                 break;
             case BTN_FONT_DEFAULT:
             case BTN_FONT_SYSTEM:
@@ -657,6 +819,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         if (previewView != null) {
             previewView.update();
+        }
+        if (previewMessages != null) {
+            previewMessages.update();
         }
         if (updateAll && listView != null && listView.adapter != null) {
             listView.adapter.update(true);

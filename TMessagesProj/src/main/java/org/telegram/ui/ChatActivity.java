@@ -1704,7 +1704,67 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openPengramHistory() {
-        presentFragment(new PengramHistoryActivity(getDialogId()));
+        presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+    }
+
+    /** Pengram: помечаем удалённое сообщение (прозрачность + метка у времени) */
+    private void pengramApplyDeletedState(MessageObject message, View cell) {
+        if (message == null) {
+            return;
+        }
+        boolean deleted = false;
+        try {
+            deleted = chatMode == MODE_DEFAULT
+                    && org.telegram.messenger.PengramConfig.isSavingDeleted()
+                    && org.telegram.messenger.PengramHistory.isMarkedDeleted(dialog_id, message.getId());
+        } catch (Throwable ignore) {}
+        message.pengramDeleted = deleted;
+        if (cell != null) {
+            final float alpha = deleted && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+            if (cell.getAlpha() != alpha) {
+                cell.setAlpha(alpha);
+            }
+        }
+    }
+
+    /**
+     * Pengram: вместо удаления оставляем сообщения в чате.
+     * @return true — удаление перехвачено, выше по коду ничего делать не нужно
+     */
+    private boolean pengramKeepDeletedMessages(ArrayList<Integer> ids) {
+        if (ids == null || ids.isEmpty() || chatMode != MODE_DEFAULT || dialog_id == 0) {
+            return false;
+        }
+        if (currentEncryptedChat != null) {
+            return false;
+        }
+        if (getUserConfig().getClientUserId() == dialog_id) {
+            return false;
+        }
+        if (!org.telegram.messenger.PengramHistory.shouldKeep(ids)) {
+            return false;
+        }
+        org.telegram.messenger.PengramHistory.markDeleted(currentAccount, dialog_id, ids);
+        boolean any = false;
+        for (int a = 0; a < ids.size(); ++a) {
+            final Integer mid = ids.get(a);
+            if (mid == null) continue;
+            MessageObject obj = messagesDict[0].get(mid);
+            if (obj == null && filteredMessagesDict != null) {
+                obj = filteredMessagesDict.get((long) mid);
+            }
+            if (obj != null) {
+                obj.pengramDeleted = true;
+                any = true;
+                if (chatAdapter != null) {
+                    chatAdapter.updateRowWithMessageObject(obj, false, false);
+                }
+            }
+        }
+        if (!any && chatListView != null) {
+            chatListView.invalidateViews();
+        }
+        return true;
     }
 
     private void clearPengramHistory() {
@@ -3604,6 +3664,18 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
+
+        if (dialog_id != 0 && org.telegram.messenger.PengramConfig.isSavingDeleted()) {
+            org.telegram.messenger.PengramHistory.loadMarks(dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
+                try {
+                    if (chatAdapter != null) {
+                        chatAdapter.notifyDataSetChanged();
+                    } else if (chatListView != null) {
+                        chatListView.invalidateViews();
+                    }
+                } catch (Throwable ignore) {}
+            }, 50));
+        }
 
         blurredBackgroundColorProvider = new BlurredBackgroundColorProviderThemed(themeDelegate, Theme.key_chat_messagePanelBackground) {
             @Override
@@ -26331,6 +26403,9 @@ public class ChatActivity extends BaseFragment implements
         processDeletedMessages(markAsDeletedMessages, channelId, sent, true);
     }
     private void processDeletedMessages(ArrayList<Integer> markAsDeletedMessages, long channelId, boolean sent, boolean thanos) {
+        if (!sent && pengramKeepDeletedMessages(markAsDeletedMessages)) {
+            return;
+        }
         ArrayList<Integer> removedIndexes = new ArrayList<>();
         ArrayList<Integer> thanosMessagesIndexes = new ArrayList<>();
         final int currentTime = getConnectionsManager().getCurrentTime();
@@ -37780,6 +37855,7 @@ public class ChatActivity extends BaseFragment implements
                     //}
 
                     messageCell.setShowTopic(true);
+                    pengramApplyDeletedState(message, messageCell);
                     messageCell.setMessageObject(message, groupedMessages, pinnedBottom, pinnedTop, firstInChat, lastInChatList);
                     messageCell.setSpoilersSuppressed(chatListView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE);
                     messageCell.setHighlighted(highlightMessageId != Integer.MAX_VALUE && message.getId() == highlightMessageId);
@@ -39516,6 +39592,19 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
             openChat(cell, chat, postId, asForward);
+        }
+
+        @Override
+        public void didPressPengramMark(ChatMessageCell cell) {
+            final MessageObject messageObject = cell.getMessageObject();
+            if (messageObject == null) {
+                return;
+            }
+            if (messageObject.pengramDeleted) {
+                presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_DELETED));
+            } else {
+                presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_EDITED, messageObject.getId()));
+            }
         }
 
         @Override

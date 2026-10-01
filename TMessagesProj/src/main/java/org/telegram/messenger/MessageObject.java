@@ -223,6 +223,8 @@ public class MessageObject {
     public int dateKeyInt;
     public String monthKey;
     public boolean deleted;
+    /** Pengram: сообщение удалено собеседником, но оставлено локально */
+    public boolean pengramDeleted;
     public boolean deletedByThanos;
     public float audioProgress;
     public float forceSeekTo = -1;

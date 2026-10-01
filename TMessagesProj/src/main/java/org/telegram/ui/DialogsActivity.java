@@ -13683,7 +13683,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             isCurrentThemeDark = Theme.isCurrentThemeDark();
         }
+        if (!PengramConfig.getBool(PengramConfig.KEY_MENU_PENGRAM, false))
         io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
+        if (!PengramConfig.getBool(PengramConfig.KEY_MENU_GHOST, false))
         io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
             PengramConfig.toggleGhostMode();
             BulletinFactory.of(this).createSimpleBulletin(

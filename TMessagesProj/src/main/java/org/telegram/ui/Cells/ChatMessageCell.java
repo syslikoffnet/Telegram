@@ -689,6 +689,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         default void didPressSponsoredInfo(ChatMessageCell cell, float x, float y) {
         }
 
+        /** Pengram: нажатие на значок удалённого/изменённого сообщения у времени */
+        default void didPressPengramMark(ChatMessageCell cell) {
+
+        }
+
         default void didPressTime(ChatMessageCell cell) {
         }
 
@@ -4175,6 +4180,34 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    /* Pengram */
+    public boolean pengramMarkDrawn;
+    private boolean pengramMarkPressed;
+
+    private boolean checkPengramMarkMotionEvent(MotionEvent event) {
+        if (!pengramMarkDrawn || currentMessageObject == null || delegate == null) {
+            return false;
+        }
+        final int x = (int) getEventX(event);
+        final int y = (int) getEventY(event);
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (x >= drawTimeX - dp(4) && x <= drawTimeX + timeWidth + dp(4) && y >= drawTimeY - dp(6) && y <= drawTimeY + dp(22)) {
+                pengramMarkPressed = true;
+                return true;
+            }
+        } else if (event.getAction() == MotionEvent.ACTION_UP) {
+            if (pengramMarkPressed) {
+                pengramMarkPressed = false;
+                playSoundEffect(SoundEffectConstants.CLICK);
+                delegate.didPressPengramMark(this);
+                return true;
+            }
+        } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+            pengramMarkPressed = false;
+        }
+        return false;
+    }
+
     private boolean checkDateMotionEvent(MotionEvent event) {
         if (!currentMessageObject.isImportedForward()) {
             return false;
@@ -4985,6 +5018,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (!result) {
             result = checkDateMotionEvent(event);
+        }
+        if (!result) {
+            result = checkPengramMarkMotionEvent(event);
         }
         if (!result) {
             result = checkTextSelection(event);
@@ -18499,6 +18535,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         } else {
             currentTimeString = timeString;
+        }
+        pengramMarkDrawn = false;
+        if (currentMessageObject.pengramDeleted) {
+            final String mark = org.telegram.messenger.PengramConfig.getDeletedMarkGlyph();
+            if (mark != null) {
+                currentTimeString = TextUtils.concat(mark, " ", currentTimeString);
+                pengramMarkDrawn = true;
+            }
+        } else if (edited && org.telegram.messenger.PengramConfig.isMarkingEdited()) {
+            currentTimeString = TextUtils.concat("\u270E ", currentTimeString);
+            pengramMarkDrawn = true;
         }
         if (currentMessageObject.isStakedDice()) {
             currentTimeString = TextUtils.concat("💎", StarsIntroActivity.formatTON(currentMessageObject.getStakedDiceAmount()), "  ", currentTimeString);

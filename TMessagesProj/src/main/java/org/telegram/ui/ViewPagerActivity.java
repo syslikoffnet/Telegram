@@ -62,6 +62,7 @@ public abstract class ViewPagerActivity extends BaseFragment {
         if (initialFragmentPosition == -1) {
             initialFragmentPosition = getStartPosition();
         }
+        initialFragmentPosition = Math.max(0, Math.min(getFragmentsCount() - 1, initialFragmentPosition));
         viewPager.setPosition(initialFragmentPosition);
         viewPager.setAdapter(new ViewPagerFixed.Adapter() {
             @Override

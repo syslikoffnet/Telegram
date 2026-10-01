@@ -37,7 +37,7 @@ public class PengramConfig {
     // --- история удалённых/изменённых ---
     public static boolean saveDeleted = true;
     public static boolean saveEdited = true;
-    public static boolean saveOutgoing = false;      // сохранять и свои сообщения
+    public static boolean saveOutgoing = true;       // сохранять и свои сообщения (удалённые собеседником)
     public static boolean historyRowInProfile = true;
 
     // --- снятие ограничений ---
@@ -93,6 +93,114 @@ public class PengramConfig {
     public static boolean hideChatCall = false;
     public static boolean hideChatAutoDelete = false;
 
+    // --- удалённые прямо в чате ---
+    public static final int MARK_NONE = 0;
+    public static final int MARK_TRASH = 1;
+    public static final int MARK_CROSS = 2;
+    public static final int MARK_EYE = 3;
+
+    /** оставлять удалённые сообщения в чате (помечать, а не удалять) */
+    public static final String KEY_KEEP_DELETED = "keepDeletedInChat";
+    /** делать удалённые полупрозрачными */
+    public static final String KEY_FADE_DELETED = "fadeDeleted";
+    /** метка у изменённых сообщений */
+    public static final String KEY_MARK_EDITED = "markEdited";
+    /** галочка «сохранить у себя» включена по умолчанию */
+    public static final String KEY_SAVE_FOR_MYSELF_DEFAULT = "saveForMyselfDefault";
+    /** показывать подсказку «сохранить у себя» в меню удаления */
+    public static final String KEY_SAVE_FOR_MYSELF_SHOW = "saveForMyselfShow";
+
+    // --- призрак ---
+    public static final String KEY_GHOST_AUTO_OFFLINE = "ghostAutoOffline";
+    public static final String KEY_GHOST_STORIES_WARN = "ghostStoriesWarn";
+    public static final String KEY_GHOST_SEND_DELAY = "ghostSendDelay";
+    public static final String KEY_GHOST_DONT_SEND_REACTIONS = "ghostDontSendReactions";
+    public static final String KEY_GHOST_DONT_SEND_VOICE_READ = "ghostDontSendVoiceRead";
+
+    // --- полезные функции ---
+    public static final String KEY_BACKGROUND_MODE = "backgroundMode";
+    public static final String KEY_BACKGROUND_SILENT = "backgroundSilentIcon";
+    public static final String KEY_PREMIUM_STATUS = "localPremiumStatus";
+
+    // --- вкладки главного экрана ---
+    public static final String KEY_TAB_CONTACTS = "hideTabContacts";
+    public static final String KEY_TAB_CALLS = "hideTabCalls";
+    public static final String KEY_TAB_SETTINGS = "hideTabSettings";
+    public static final String KEY_TAB_PROFILE = "hideTabProfile";
+    public static final String KEY_MENU_CONTACTS = "hideMenuContacts";
+    public static final String KEY_MENU_CALLS = "hideMenuCalls";
+    public static final String KEY_MENU_GHOST = "hideMenuGhost";
+    public static final String KEY_MENU_PENGRAM = "hideMenuPengram";
+
+    public static int deletedMark = MARK_TRASH;
+
+    private static final java.util.HashMap<String, Boolean> boolCache = new java.util.HashMap<>();
+
+    public static boolean getBool(String key, boolean def) {
+        init();
+        synchronized (boolCache) {
+            Boolean cached = boolCache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            SharedPreferences p = prefs();
+            final boolean value = p != null ? p.getBoolean(key, def) : def;
+            boolCache.put(key, value);
+            return value;
+        }
+    }
+
+    public static void setBool(String key, boolean value) {
+        init();
+        synchronized (boolCache) {
+            boolCache.put(key, value);
+        }
+        putBoolean(key, value);
+    }
+
+    public static boolean toggle(String key, boolean def) {
+        final boolean value = !getBool(key, def);
+        setBool(key, value);
+        return value;
+    }
+
+    public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
+    public static boolean isFadingDeleted() { return getBool(KEY_FADE_DELETED, true); }
+    public static boolean isMarkingEdited() { return getBool(KEY_MARK_EDITED, false); }
+    public static boolean isSaveForMyselfDefault() { return getBool(KEY_SAVE_FOR_MYSELF_DEFAULT, false); }
+    public static boolean isSaveForMyselfVisible() { return getBool(KEY_SAVE_FOR_MYSELF_SHOW, true); }
+
+    public static boolean isGhostAutoOffline() { return ghostMode && getBool(KEY_GHOST_AUTO_OFFLINE, true); }
+    public static boolean isGhostStoriesWarn() { return getBool(KEY_GHOST_STORIES_WARN, false); }
+    public static boolean isGhostSendDelay() { return ghostMode && getBool(KEY_GHOST_SEND_DELAY, false); }
+    public static boolean isNotSendingReactionsRead() { return ghostMode && getBool(KEY_GHOST_DONT_SEND_REACTIONS, false); }
+    public static boolean isNotSendingVoiceRead() { return ghostMode && getBool(KEY_GHOST_DONT_SEND_VOICE_READ, true); }
+
+    public static boolean isBackgroundMode() { return getBool(KEY_BACKGROUND_MODE, false); }
+    public static boolean isPremiumStatusLocal() { return isLocalPremium() && getBool(KEY_PREMIUM_STATUS, true); }
+
+    public static int getDeletedMark() { init(); return deletedMark; }
+
+    public static void setDeletedMark(int mark) {
+        init();
+        deletedMark = mark;
+        putInt("deletedMark", mark);
+    }
+
+    /** символ-метка, который дорисовывается рядом со временем */
+    public static String getMarkGlyph(int mark) {
+        switch (mark) {
+            case MARK_TRASH: return "\uD83D\uDDD1";
+            case MARK_CROSS: return "\u2715";
+            case MARK_EYE: return "\uD83D\uDC41";
+            default: return null;
+        }
+    }
+
+    public static String getDeletedMarkGlyph() {
+        return getMarkGlyph(getDeletedMark());
+    }
+
     private static boolean loaded;
 
     public static void init() {
@@ -111,7 +219,7 @@ public class PengramConfig {
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
             saveDeleted = p.getBoolean("saveDeleted", true);
             saveEdited = p.getBoolean("saveEdited", true);
-            saveOutgoing = p.getBoolean("saveOutgoing", false);
+            saveOutgoing = p.getBoolean("saveOutgoing2", true);
             historyRowInProfile = p.getBoolean("historyRowInProfile", true);
             allowScreenshots = p.getBoolean("allowScreenshots", true);
             noScreenshotNotify = p.getBoolean("noScreenshotNotify", true);
@@ -145,6 +253,7 @@ public class PengramConfig {
             hideChatReport = p.getBoolean("hideChatReport", false);
             hideChatCall = p.getBoolean("hideChatCall", false);
             hideChatAutoDelete = p.getBoolean("hideChatAutoDelete", false);
+            deletedMark = p.getInt("deletedMark", MARK_TRASH);
             loaded = true;
         }
     }
@@ -167,6 +276,15 @@ public class PengramConfig {
     private static void putInt(String key, int value) {
         SharedPreferences p = prefs();
         if (p != null) p.edit().putInt(key, value).apply();
+    }
+
+    public static void setGhostMode(boolean value) {
+        init();
+        if (ghostMode == value) {
+            return;
+        }
+        ghostMode = value;
+        putBoolean("ghostMode", ghostMode);
     }
 
     public static void toggleGhostMode() {
@@ -226,7 +344,7 @@ public class PengramConfig {
     public static void toggleSaveOutgoing() {
         init();
         saveOutgoing = !saveOutgoing;
-        putBoolean("saveOutgoing", saveOutgoing);
+        putBoolean("saveOutgoing2", saveOutgoing);
     }
 
     public static void toggleHistoryRowInProfile() {
@@ -246,6 +364,10 @@ public class PengramConfig {
     }
 
     public static boolean isSavingOutgoing() {
+        return true; // отдельной опции больше нет: свои сообщения сохраняются (см. «сохранить у себя»)
+    }
+
+    private static boolean isSavingOutgoingLegacy() {
         init();
         return saveOutgoing;
     }
@@ -358,6 +480,10 @@ public class PengramConfig {
     public static int getMediaMaxSizeMb() { init(); return mediaMaxSizeMb; }
 
     public static boolean isHistoryRowVisible() {
+        return false; // строку истории в профиле убрали — всё живёт в настройках Pengram
+    }
+
+    private static boolean isHistoryRowVisibleLegacy() {
         init();
         return historyRowInProfile && (saveDeleted || saveEdited);
     }

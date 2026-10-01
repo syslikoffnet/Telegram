@@ -39,8 +39,9 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
     private static final String TABLE = "history";
+    private static final String TABLE_MARKS = "deleted_marks";
 
     private static volatile PengramHistory instance;
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -56,6 +57,8 @@ public class PengramHistory extends SQLiteOpenHelper {
         public int action;
         public String text;
         public String prevText;
+        public boolean out;
+        public byte[] data;    // сериализованное TLRPC.Message (может быть null)
     }
 
     private PengramHistory(android.content.Context context) {
@@ -89,6 +92,22 @@ public class PengramHistory extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_dialog ON " + TABLE + " (dialog_id)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_saved ON " + TABLE + " (saved_at)");
         createV2(db);
+        createV3(db);
+    }
+
+    private void createV3(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_MARKS + " (" +
+                "account INTEGER NOT NULL DEFAULT 0," +
+                "dialog_id INTEGER NOT NULL," +
+                "message_id INTEGER NOT NULL," +
+                "date INTEGER NOT NULL DEFAULT 0," +
+                "PRIMARY KEY (account, dialog_id, message_id))");
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN data BLOB");
+        } catch (Throwable ignore) {}
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN out INTEGER NOT NULL DEFAULT 0");
+        } catch (Throwable ignore) {}
     }
 
     private void createV2(SQLiteDatabase db) {
@@ -109,13 +128,22 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             createV2(db);
         }
+        if (oldVersion < 3) {
+            createV3(db);
+        }
     }
 
     // ------------------------------------------------------------------ запись
 
     public static void save(final int account, final long dialogId, final int messageId, final long fromId,
                             final int date, final int action, final String text, final String prevText) {
-        if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText)) {
+        save(account, dialogId, messageId, fromId, date, action, text, prevText, false, null);
+    }
+
+    public static void save(final int account, final long dialogId, final int messageId, final long fromId,
+                            final int date, final int action, final String text, final String prevText,
+                            final boolean out, final byte[] data) {
+        if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null) {
             return;
         }
         final PengramHistory history = getInstance();
@@ -134,11 +162,297 @@ public class PengramHistory extends SQLiteOpenHelper {
                 cv.put("action", action);
                 cv.put("text", text);
                 cv.put("prev_text", prevText);
+                cv.put("out", out ? 1 : 0);
+                if (data != null) {
+                    cv.put("data", data);
+                }
                 history.getWritableDatabase().insert(TABLE, null, cv);
             } catch (Throwable e) {
                 FileLog.e(e);
             }
         });
+    }
+
+    /** сериализует сообщение целиком — чтобы потом показать его как настоящее */
+    public static byte[] serialize(TLRPC.Message message) {
+        if (message == null) {
+            return null;
+        }
+        try {
+            final org.telegram.tgnet.NativeByteBuffer buffer = new org.telegram.tgnet.NativeByteBuffer(message.getObjectSize());
+            message.serializeToStream(buffer);
+            final byte[] bytes = new byte[buffer.limit()];
+            buffer.position(0);
+            buffer.readBytes(bytes, false);
+            buffer.reuse();
+            return bytes;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
+    public static TLRPC.Message deserialize(byte[] data) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        org.telegram.tgnet.NativeByteBuffer buffer = null;
+        try {
+            buffer = new org.telegram.tgnet.NativeByteBuffer(data.length);
+            buffer.writeBytes(data);
+            buffer.position(0);
+            TLRPC.Message message = TLRPC.Message.TLdeserialize(buffer, buffer.readInt32(false), false);
+            if (message != null) {
+                message.readAttachPath(buffer, UserConfig.getInstance(UserConfig.selectedAccount).clientUserId);
+            }
+            return message;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        } finally {
+            if (buffer != null) {
+                try { buffer.reuse(); } catch (Throwable ignore) {}
+            }
+        }
+    }
+
+    // ------------------------------------------------- метки «сообщение удалено»
+
+    /** кэш: dialogId -> набор id удалённых сообщений (чтобы не дёргать базу при отрисовке) */
+    private static final java.util.HashMap<Long, java.util.HashSet<Integer>> marksCache = new java.util.HashMap<>();
+
+    public static void markDeleted(final int account, final long dialogId, final java.util.Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty() || dialogId == 0) {
+            return;
+        }
+        final ArrayList<Integer> copy = new ArrayList<>(ids);
+        synchronized (marksCache) {
+            java.util.HashSet<Integer> set = marksCache.get(dialogId);
+            if (set == null) {
+                set = new java.util.HashSet<>();
+                marksCache.put(dialogId, set);
+            }
+            set.addAll(copy);
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        final int now = (int) (System.currentTimeMillis() / 1000L);
+        executor.execute(() -> {
+            try {
+                SQLiteDatabase db = history.getWritableDatabase();
+                db.beginTransaction();
+                try {
+                    for (int i = 0; i < copy.size(); ++i) {
+                        ContentValues cv = new ContentValues();
+                        cv.put("account", account);
+                        cv.put("dialog_id", dialogId);
+                        cv.put("message_id", copy.get(i));
+                        cv.put("date", now);
+                        db.insertWithOnConflict(TABLE_MARKS, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    /** быстрая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
+    public static boolean isMarkedDeleted(long dialogId, int messageId) {
+        if (dialogId == 0) {
+            return false;
+        }
+        synchronized (marksCache) {
+            java.util.HashSet<Integer> set = marksCache.get(dialogId);
+            return set != null && set.contains(messageId);
+        }
+    }
+
+    public static boolean hasMarks(long dialogId) {
+        synchronized (marksCache) {
+            java.util.HashSet<Integer> set = marksCache.get(dialogId);
+            return set != null && !set.isEmpty();
+        }
+    }
+
+    /** подгружает метки диалога в память (вызывается при открытии чата) */
+    public static void loadMarks(final long dialogId, final Runnable done) {
+        if (dialogId == 0) {
+            if (done != null) AndroidUtilities.runOnUIThread(done);
+            return;
+        }
+        synchronized (marksCache) {
+            if (marksCache.containsKey(dialogId)) {
+                if (done != null) AndroidUtilities.runOnUIThread(done);
+                return;
+            }
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        executor.execute(() -> {
+            final java.util.HashSet<Integer> set = new java.util.HashSet<>();
+            Cursor c = null;
+            try {
+                c = history.getReadableDatabase().rawQuery(
+                        "SELECT message_id FROM " + TABLE_MARKS + " WHERE dialog_id = ?",
+                        new String[]{String.valueOf(dialogId)});
+                while (c.moveToNext()) {
+                    set.add(c.getInt(0));
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            } finally {
+                if (c != null) try { c.close(); } catch (Throwable ignore) {}
+            }
+            synchronized (marksCache) {
+                java.util.HashSet<Integer> existing = marksCache.get(dialogId);
+                if (existing != null) {
+                    set.addAll(existing);
+                }
+                marksCache.put(dialogId, set);
+            }
+            if (done != null) {
+                AndroidUtilities.runOnUIThread(done);
+            }
+        });
+    }
+
+    public static void unmarkDeleted(final long dialogId, final java.util.Collection<Integer> ids) {
+        if (dialogId == 0 || ids == null || ids.isEmpty()) {
+            return;
+        }
+        final ArrayList<Integer> copy = new ArrayList<>(ids);
+        synchronized (marksCache) {
+            java.util.HashSet<Integer> set = marksCache.get(dialogId);
+            if (set != null) {
+                set.removeAll(copy);
+            }
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        executor.execute(() -> {
+            try {
+                history.getWritableDatabase().delete(TABLE_MARKS,
+                        "dialog_id = ? AND message_id IN (" + TextUtils.join(",", copy) + ")",
+                        new String[]{String.valueOf(dialogId)});
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    public static void clearMarks(final long dialogId) {
+        synchronized (marksCache) {
+            if (dialogId == 0) {
+                marksCache.clear();
+            } else {
+                marksCache.remove(dialogId);
+            }
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        executor.execute(() -> {
+            try {
+                if (dialogId == 0) {
+                    history.getWritableDatabase().delete(TABLE_MARKS, null, null);
+                } else {
+                    history.getWritableDatabase().delete(TABLE_MARKS, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    // ------------------------------- «я удалил сам»: такие сообщения реально удаляем
+
+    private static final java.util.HashMap<Integer, Long> userDeletedGuard = new java.util.HashMap<>();
+    private static final java.util.HashSet<Integer> saveForMyself = new java.util.HashSet<>();
+    private static final long GUARD_TTL = 120_000L;
+
+    /** пользователь сам удалил эти сообщения — удаляем по-настоящему */
+    public static void guardUserDeleted(java.util.Collection<Integer> ids) {
+        if (ids == null) return;
+        final long now = System.currentTimeMillis();
+        synchronized (userDeletedGuard) {
+            cleanupGuard(now);
+            for (Integer id : ids) {
+                if (id != null) {
+                    userDeletedGuard.put(id, now);
+                }
+            }
+        }
+    }
+
+    /** пользователь удалил, но попросил оставить копию у себя */
+    public static void guardSaveForMyself(java.util.Collection<Integer> ids) {
+        if (ids == null) return;
+        final long now = System.currentTimeMillis();
+        synchronized (userDeletedGuard) {
+            cleanupGuard(now);
+            for (Integer id : ids) {
+                if (id != null) {
+                    saveForMyself.add(id);
+                    userDeletedGuard.remove(id);
+                }
+            }
+        }
+    }
+
+    private static void cleanupGuard(long now) {
+        java.util.Iterator<java.util.Map.Entry<Integer, Long>> it = userDeletedGuard.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<Integer, Long> e = it.next();
+            if (now - e.getValue() > GUARD_TTL) {
+                saveForMyself.remove(e.getKey());
+                it.remove();
+            }
+        }
+        if (userDeletedGuard.isEmpty() && saveForMyself.size() > 512) {
+            saveForMyself.clear();
+        }
+    }
+
+    public static boolean isUserDeleted(int messageId) {
+        synchronized (userDeletedGuard) {
+            return userDeletedGuard.containsKey(messageId);
+        }
+    }
+
+    public static boolean isSaveForMyself(int messageId) {
+        synchronized (userDeletedGuard) {
+            return saveForMyself.contains(messageId);
+        }
+    }
+
+    /** решаем, оставлять ли сообщения в чате вместо удаления */
+    public static boolean shouldKeep(java.util.Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return false;
+        }
+        boolean anySaveForMyself = false;
+        boolean anyUserDeleted = false;
+        synchronized (userDeletedGuard) {
+            for (Integer id : ids) {
+                if (id == null) continue;
+                if (saveForMyself.contains(id)) anySaveForMyself = true;
+                if (userDeletedGuard.containsKey(id)) anyUserDeleted = true;
+            }
+        }
+        if (anySaveForMyself) {
+            return true;
+        }
+        if (anyUserDeleted) {
+            return false;
+        }
+        return PengramConfig.isKeepingDeletedInChat();
     }
 
     /** последний сохранённый вариант текста этого сообщения (для цепочки правок) */
@@ -164,6 +478,14 @@ public class PengramHistory extends SQLiteOpenHelper {
     // ------------------------------------------------------------------ чтение
 
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {
+        return getEntries(dialogId, filter, limit, null, 0, false);
+    }
+
+    /**
+     * @param messageId если != 0 — только версии конкретного сообщения
+     * @param ascending true — от старых к новым (как в чате)
+     */
+    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending) {
         ArrayList<Entry> result = new ArrayList<>();
         final PengramHistory history = getInstance();
         if (history == null) return result;
@@ -180,9 +502,21 @@ public class PengramHistory extends SQLiteOpenHelper {
                 where.append("action = ?");
                 args.add(String.valueOf(filter == FILTER_DELETED ? ACTION_DELETED : ACTION_EDITED));
             }
-            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text FROM " + TABLE +
+            if (messageId != 0) {
+                if (where.length() > 0) where.append(" AND ");
+                where.append("message_id = ?");
+                args.add(String.valueOf(messageId));
+            }
+            if (!TextUtils.isEmpty(query)) {
+                if (where.length() > 0) where.append(" AND ");
+                where.append("(text LIKE ? OR prev_text LIKE ?)");
+                args.add("%" + query + "%");
+                args.add("%" + query + "%");
+            }
+            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data FROM " + TABLE +
                     (where.length() > 0 ? (" WHERE " + where) : "") +
-                    " ORDER BY saved_at DESC, id DESC LIMIT " + Math.max(1, limit);
+                    (ascending ? " ORDER BY saved_at ASC, id ASC" : " ORDER BY saved_at DESC, id DESC") +
+                    " LIMIT " + Math.max(1, limit);
             c = history.getReadableDatabase().rawQuery(sql, args.toArray(new String[0]));
             while (c.moveToNext()) {
                 Entry e = new Entry();
@@ -196,6 +530,12 @@ public class PengramHistory extends SQLiteOpenHelper {
                 e.action = c.getInt(7);
                 e.text = c.getString(8);
                 e.prevText = c.getString(9);
+                e.out = c.getInt(10) != 0;
+                try {
+                    e.data = c.getBlob(11);
+                } catch (Throwable ignore) {
+                    e.data = null;
+                }
                 result.add(e);
             }
         } catch (Throwable e) {
@@ -204,6 +544,26 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (c != null) try { c.close(); } catch (Throwable ignore) {}
         }
         return result;
+    }
+
+    /** сколько раз правили конкретное сообщение */
+    public static int getEditCount(long dialogId, int messageId) {
+        final PengramHistory history = getInstance();
+        if (history == null) return 0;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery(
+                    "SELECT COUNT(*) FROM " + TABLE + " WHERE dialog_id = ? AND message_id = ? AND action = " + ACTION_EDITED,
+                    new String[]{String.valueOf(dialogId), String.valueOf(messageId)});
+            if (c.moveToFirst()) {
+                return c.getInt(0);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        return 0;
     }
 
     public static int getCount(long dialogId) {
@@ -231,6 +591,7 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     public static void clear(final long dialogId) {
         final PengramHistory history = getInstance();
+        clearMarks(dialogId);
         if (history == null) return;
         try {
             if (dialogId != 0) {

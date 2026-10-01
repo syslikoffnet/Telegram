@@ -7528,6 +7528,10 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     protected void performSendMessageRequestMulti(final TLObject request, final ArrayList<MessageObject> msgObjs, final ArrayList<String> originalPaths, final ArrayList<Object> parentObjects, DelayedMessage delayedMessage, boolean scheduled) {
+        if (pengramDelaySend(request, scheduled, () -> performSendMessageRequestMulti(request, msgObjs, originalPaths, parentObjects, delayedMessage, scheduled))) {
+            return;
+        }
+        getMessagesController().pengramSendOfflineStatus();
         for (int a = 0, size = msgObjs.size(); a < size; a++) {
             putToSendingMessages(msgObjs.get(a).messageOwner, scheduled);
         }
@@ -7866,7 +7870,34 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         return maxDelayedMessage;
     }
 
+    /* Pengram: «отложка» — придерживаем отправку, чтобы не светиться онлайн */
+    private final java.util.Set<Object> pengramDelayedRequests = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private boolean pengramDelaySend(TLObject req, boolean scheduled, Runnable retry) {
+        if (req == null || scheduled || !PengramConfig.isGhostSendDelay()) {
+            return false;
+        }
+        if (req instanceof TLRPC.TL_messages_editMessage || req instanceof TLRPC.TL_messages_addPollAnswer) {
+            return false;
+        }
+        if (pengramDelayedRequests.remove(req)) {
+            return false;
+        }
+        final boolean withMedia = !(req instanceof TLRPC.TL_messages_sendMessage);
+        pengramDelayedRequests.add(req);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!PengramConfig.isGhostSendDelay()) {
+                pengramDelayedRequests.remove(req);
+            }
+            retry.run();
+        }, withMedia ? 20000 : 12000);
+        return true;
+    }
+
     protected void performSendMessageRequest(final TLObject req, final MessageObject msgObj, final String originalPath, DelayedMessage parentMessage, boolean check, DelayedMessage delayedMessage, Object parentObject, HashMap<String, String> params, boolean scheduled) {
+        if (pengramDelaySend(req, scheduled, () -> performSendMessageRequest(req, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled))) {
+            return;
+        }
         if (req instanceof TLRPC.TL_messages_addPollAnswer) {
             TLRPC.TL_messages_addPollAnswer r = (TLRPC.TL_messages_addPollAnswer) req;
             if (r.answer.input_media instanceof TLRPC.TL_inputMediaUploadedDocument || r.answer.input_media instanceof TLRPC.TL_inputMediaUploadedPhoto) {
@@ -7932,6 +7963,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             return;
         }
 
+        getMessagesController().pengramSendOfflineStatus();
         newMsgObj.reqId = getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error != null && (req instanceof TLRPC.TL_messages_sendMedia || req instanceof TL_ephemeral.TL_sendMessage || req instanceof TLRPC.TL_messages_editMessage || req instanceof TLRPC.TL_messages_addPollAnswer) && FileRefController.isFileRefError(error.text)) {
                 if (FileRefController.isFileRefErrorCover(error.text)) {

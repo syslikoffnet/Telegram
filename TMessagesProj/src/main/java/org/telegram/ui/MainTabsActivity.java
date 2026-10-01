@@ -19,6 +19,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextPaint;
 import android.text.style.ReplacementSpan;
+import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -49,6 +50,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
@@ -90,10 +92,10 @@ import me.vkryl.android.animator.FactorAnimator;
 public class MainTabsActivity extends ViewPagerActivity implements NotificationCenter.NotificationCenterDelegate, FactorAnimator.Target {
 
     public static final int TABS_COUNT = 4;
-    private static final int POSITION_CHATS = 0;
-    private static final int POSITION_CONTACTS = 1;
-    private static final int POSITION_CALLS_OR_SETTINGS = 2;
-    private static final int POSITION_PROFILE = 3;
+    private static final int KIND_CHATS = 0;
+    private static final int KIND_CONTACTS = 1;
+    private static final int KIND_CALLS_OR_SETTINGS = 2;
+    private static final int KIND_PROFILE = 3;
 
     private static final int INDEX_CHATS = 0;
     private static final int INDEX_CONTACTS = 1;
@@ -101,8 +103,80 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private static final int INDEX_CALLS = 3;
     private static final int INDEX_PROFILE = 4;
 
-    private static int indexToPosition(int index) {
-        return index > 2 ? index - 1 : index;
+    /* Pengram: набор страниц зависит от настроек — скрытые вкладки не создаются вовсе */
+    private int[] pageKinds;
+
+    private static int indexToKind(int index) {
+        switch (index) {
+            case INDEX_CONTACTS: return KIND_CONTACTS;
+            case INDEX_SETTINGS:
+            case INDEX_CALLS: return KIND_CALLS_OR_SETTINGS;
+            case INDEX_PROFILE: return KIND_PROFILE;
+            default: return KIND_CHATS;
+        }
+    }
+
+    public static boolean isTabHidden(int index) {
+        switch (index) {
+            case INDEX_CONTACTS: return PengramConfig.getBool(PengramConfig.KEY_TAB_CONTACTS, false);
+            case INDEX_SETTINGS: return PengramConfig.getBool(PengramConfig.KEY_TAB_SETTINGS, false);
+            case INDEX_CALLS: return PengramConfig.getBool(PengramConfig.KEY_TAB_CALLS, false);
+            case INDEX_PROFILE: return PengramConfig.getBool(PengramConfig.KEY_TAB_PROFILE, false);
+            default: return false;
+        }
+    }
+
+    private int[] buildPageKinds() {
+        final ArrayList<Integer> kinds = new ArrayList<>();
+        kinds.add(KIND_CHATS);
+        if (!isTabHidden(INDEX_CONTACTS)) {
+            kinds.add(KIND_CONTACTS);
+        }
+        final boolean callsTab = UserConfig.getInstance(currentAccount).showCallsTab;
+        if (!isTabHidden(callsTab ? INDEX_CALLS : INDEX_SETTINGS)) {
+            kinds.add(KIND_CALLS_OR_SETTINGS);
+        }
+        if (!isTabHidden(INDEX_PROFILE)) {
+            kinds.add(KIND_PROFILE);
+        }
+        final int[] result = new int[kinds.size()];
+        for (int a = 0; a < result.length; a++) {
+            result[a] = kinds.get(a);
+        }
+        return result;
+    }
+
+    private int[] getPageKinds() {
+        if (pageKinds == null) {
+            pageKinds = buildPageKinds();
+        }
+        return pageKinds;
+    }
+
+    /** позиция страницы данного типа или -1, если вкладка скрыта */
+    private int positionOf(int kind) {
+        final int[] kinds = getPageKinds();
+        for (int a = 0; a < kinds.length; a++) {
+            if (kinds[a] == kind) {
+                return a;
+            }
+        }
+        return -1;
+    }
+
+    private int kindAt(int position) {
+        final int[] kinds = getPageKinds();
+        if (position < 0 || position >= kinds.length) {
+            return -1;
+        }
+        return kinds[position];
+    }
+
+    private int indexToPosition(int index) {
+        if (isTabHidden(index)) {
+            return -1;
+        }
+        return positionOf(indexToKind(index));
     }
 
     private static final int ANIMATOR_ID_TABS_VISIBLE = 0;
@@ -274,8 +348,58 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
+        checkPengramTabs();
 
         showAccountChangeHint();
+    }
+
+    /** Pengram: применяем скрытие/возврат вкладок без перезапуска приложения */
+    private void checkPengramTabs() {
+        final int[] oldKinds = getPageKinds();
+        final int[] newKinds = buildPageKinds();
+        if (java.util.Arrays.equals(oldKinds, newKinds)) {
+            return;
+        }
+
+        final SparseArray<FragmentState> byKind = new SparseArray<>();
+        for (int a = 0; a < oldKinds.length; a++) {
+            final FragmentState state = fragmentsArr.get(a);
+            if (state == null) {
+                continue;
+            }
+            boolean present = false;
+            for (int b = 0; b < newKinds.length; b++) {
+                if (newKinds[b] == oldKinds[a]) {
+                    present = true;
+                    break;
+                }
+            }
+            if (present) {
+                byKind.put(oldKinds[a], state);
+            }
+        }
+        for (int a = oldKinds.length - 1; a >= 0; a--) {
+            if (byKind.get(oldKinds[a]) == null) {
+                dropFragmentAtPosition(a);
+            }
+        }
+        fragmentsArr.clear();
+        for (int a = 0; a < newKinds.length; a++) {
+            final FragmentState state = byKind.get(newKinds[a]);
+            if (state != null) {
+                fragmentsArr.put(a, state);
+            }
+        }
+        if (byKind.get(KIND_CHATS) == null) {
+            dialogsActivity = null;
+        }
+        pageKinds = newKinds;
+
+        AndroidUtilities.runOnUIThread(() -> {
+            if (getParentLayout() != null) {
+                getParentLayout().rebuildAllFragmentViews(true, true);
+            }
+        });
     }
 
     private void checkContactsTabBadge() {
@@ -348,7 +472,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             });
 
             tabsView.addView(tabs[index]);
-            tabsView.setViewVisible(view, true, false);
+            tabsView.setViewVisible(view, !isTabHidden(index), false);
         }
         checkUi_callTabVisible(getUserConfig().showCallsTab, false);
 
@@ -588,15 +712,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void openFolder(int folderId) {
-        if (viewPager.getCurrentPosition() == POSITION_CHATS && dialogsActivity != null) {
+        final int chatsPosition = positionOf(KIND_CHATS);
+        if (viewPager.getCurrentPosition() == chatsPosition && dialogsActivity != null) {
             dialogsActivity.scrollToFolder(folderId);
         } else {
             if (dialogsActivity == null) {
                 prepareDialogsActivity(null);
             }
             pendingFolderId = folderId;
-            selectTab(POSITION_CHATS, true);
-            viewPager.scrollToPosition(POSITION_CHATS);
+            selectTab(chatsPosition, true);
+            viewPager.scrollToPosition(chatsPosition);
         }
     }
 
@@ -732,14 +857,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         if (viewPager != null) {
             final int currentPosition = viewPager.getCurrentPosition();
-            if (currentPosition != POSITION_CALLS_OR_SETTINGS && dropCallsFragmentAfterPageScroll) {
-                dropFragmentAtPosition(POSITION_CALLS_OR_SETTINGS);
+            final int callsPosition = positionOf(KIND_CALLS_OR_SETTINGS);
+            final int profilePosition = positionOf(KIND_PROFILE);
+            if (callsPosition >= 0 && currentPosition != callsPosition && dropCallsFragmentAfterPageScroll) {
+                dropFragmentAtPosition(callsPosition);
                 dropCallsFragmentAfterPageScroll = false;
             }
-            if (currentPosition != POSITION_PROFILE) {
-                dropFragmentAtPosition(POSITION_PROFILE);
+            if (profilePosition >= 0 && currentPosition != profilePosition) {
+                dropFragmentAtPosition(profilePosition);
             }
-            if (pendingFolderId != null && currentPosition == POSITION_CHATS && dialogsActivity != null) {
+            if (pendingFolderId != null && currentPosition == positionOf(KIND_CHATS) && dialogsActivity != null) {
                 dialogsActivity.scrollToFolder(pendingFolderId);
                 pendingFolderId = null;
             }
@@ -767,12 +894,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected int getFragmentsCount() {
-        return TABS_COUNT;
+        return getPageKinds().length;
     }
 
     @Override
     protected int getStartPosition() {
-        return POSITION_CHATS;
+        return positionOf(KIND_CHATS);
     }
 
     private DialogsActivity dialogsActivity;
@@ -800,19 +927,20 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         bundle.putBoolean("hasMainTabs", true);
         dialogsActivity = new DialogsActivity(bundle);
         dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
-        putFragmentAtPosition(POSITION_CHATS, dialogsActivity);
+        putFragmentAtPosition(positionOf(KIND_CHATS), dialogsActivity);
         return dialogsActivity;
     }
 
     @Override
     protected BaseFragment createBaseFragmentAt(int position) {
-        if (position == POSITION_CONTACTS) {
+        final int kind = kindAt(position);
+        if (kind == KIND_CONTACTS) {
             Bundle args = new Bundle();
             args.putBoolean("needPhonebook", true);
             args.putBoolean("needFinishFragment", false);
             args.putBoolean("hasMainTabs", true);
             return new ContactsActivity(args);
-        } else if (position == POSITION_CALLS_OR_SETTINGS) {
+        } else if (kind == KIND_CALLS_OR_SETTINGS) {
             if (getUserConfig().showCallsTab) {
                 Bundle args = new Bundle();
                 args.putBoolean("needFinishFragment", false);
@@ -822,13 +950,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             return new SettingsActivity(args);
-        } else if (position == POSITION_CHATS) {
+        } else if (kind == KIND_CHATS) {
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             dialogsActivity = new DialogsActivity(args);
             dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
             return dialogsActivity;
-        } else if (position == POSITION_PROFILE) {
+        } else if (kind == KIND_PROFILE) {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
             args.putBoolean("my_profile", true);
@@ -993,13 +1121,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         } else if (id == NotificationCenter.callTabsVisibleToggled) {
             final boolean callTabsVisible = getUserConfig().showCallsTab;
             checkUi_callTabVisible(callTabsVisible, true);
-            if (viewPager != null && viewPager.getCurrentPosition() == POSITION_CALLS_OR_SETTINGS) {
-                viewPager.scrollToPosition(POSITION_CHATS);
-                selectTab(POSITION_CHATS, true);
+            final int callsPosition = positionOf(KIND_CALLS_OR_SETTINGS);
+            if (viewPager != null && callsPosition >= 0 && viewPager.getCurrentPosition() == callsPosition) {
+                final int chatsPosition = positionOf(KIND_CHATS);
+                viewPager.scrollToPosition(chatsPosition);
+                selectTab(chatsPosition, true);
                 dropCallsFragmentAfterPageScroll = true;
-            } else {
-                dropFragmentAtPosition(POSITION_CALLS_OR_SETTINGS);
+            } else if (callsPosition >= 0) {
+                dropFragmentAtPosition(callsPosition);
             }
+            checkPengramTabs();
         } else if (id == NotificationCenter.mainUserInfoChanged) {
             if (tabs != null && tabs[INDEX_PROFILE] != null) {
                 tabs[INDEX_PROFILE].updateUserAvatar(currentAccount);
@@ -1057,7 +1188,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
 
         final float animatedPosition = viewPager.getPositionAnimated();
-        final float isProfile = 1f - MathUtils.clamp(Math.abs(POSITION_PROFILE - animatedPosition), 0, 1);
+        final int profilePosition = positionOf(KIND_PROFILE);
+        final float isProfile = profilePosition < 0 ? 0f : 1f - MathUtils.clamp(Math.abs(profilePosition - animatedPosition), 0, 1);
         final float hide = 1f - AndroidUtilities.getNavigationBarThirdButtonsFactor(0, 1f, navigationBarHeight);
         float alpha = (1f - isProfile * hide) * animatorTabsVisible.getFloatValue();
         if (tabletLayout) {
@@ -1087,8 +1219,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private void checkUi_callTabVisible(boolean callTabsVisible, boolean animated) {
         if (tabsView != null) {
-            tabsView.setViewVisible(tabs[INDEX_SETTINGS], !callTabsVisible, animated);
-            tabsView.setViewVisible(tabs[INDEX_CALLS], callTabsVisible, animated);
+            tabsView.setViewVisible(tabs[INDEX_SETTINGS], !callTabsVisible && !isTabHidden(INDEX_SETTINGS), animated);
+            tabsView.setViewVisible(tabs[INDEX_CALLS], callTabsVisible && !isTabHidden(INDEX_CALLS), animated);
         }
     }
 
