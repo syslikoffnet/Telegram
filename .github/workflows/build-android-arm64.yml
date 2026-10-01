@@ -219,7 +219,7 @@ jobs:
       - name: Publish failure log to repo
         if: failure()
         env:
-          LOG_BRANCH: arena/01a0f7dc-telegram
+          LOG_BRANCH: arena/01a0f8b4-telegram
         run: |
           set -eux
           # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
