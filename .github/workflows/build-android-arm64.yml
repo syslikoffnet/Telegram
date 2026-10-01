@@ -1,0 +1,136 @@
+name: Build Telegram (Android arm64-v8a)
+
+# Собирает APK только под arm64-v8a (подходит для Poco X6 Pro, Dimensity 8300-Ultra).
+# Запуск: вкладка Actions -> "Build Telegram (Android arm64-v8a)" -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Тип сборки"
+        type: choice
+        default: standalone
+        options:
+          - standalone   # release-подобная, подписанная, minify включён
+          - debug        # быстрее собирается, с логами
+      abi:
+        description: "ABI"
+        type: choice
+        default: arm64-v8a
+        options:
+          - arm64-v8a
+          - armeabi-v7a,arm64-v8a
+          - armeabi-v7a,arm64-v8a,x86,x86_64
+  push:
+    branches:
+      - arena/01a0f7dc-telegram
+    paths-ignore:
+      - "**/*.md"
+
+permissions:
+  contents: write
+
+env:
+  ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
+  NDK_VERSION: "27.2.12479018"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK ${{ env.NDK_VERSION }} + cmake
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "ndk;${NDK_VERSION}" "cmake;3.22.1" \
+                     "platforms;android-36" "build-tools;36.0.0" >/dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            TMessagesProj/.cxx
+          key: ${{ runner.os }}-gradle-${{ env.ABI }}-${{ hashFiles('**/*.gradle', 'gradle/**', 'TMessagesProj/jni/**/CMakeLists.txt') }}
+          restore-keys: ${{ runner.os }}-gradle-${{ env.ABI }}-
+
+      # Keystore. По умолчанию используется тестовый ключ из репозитория
+      # (TMessagesProj/config/release.keystore, пароли android/android).
+      # Чтобы подписывать своим ключом, добавьте секреты:
+      #   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > TMessagesProj/config/release.keystore
+            {
+              echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> gradle.properties
+            echo "Используется пользовательский keystore"
+          else
+            echo "Используется keystore из репозитория (тестовый)"
+          fi
+
+      - name: Build APK
+        run: |
+          chmod +x ./gradlew
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            TASK=":TMessagesProj_AppStandalone:assembleAfatDebug"
+          else
+            TASK=":TMessagesProj_AppStandalone:assembleAfatStandalone"
+          fi
+          ./gradlew $TASK \
+            -PABI_FILTERS="$ABI" \
+            --stacktrace --no-daemon -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g"
+
+      - name: Collect artifacts
+        id: collect
+        run: |
+          mkdir -p out
+          find TMessagesProj_AppStandalone/build/outputs/apk -name "*.apk" -print -exec cp {} out/ \;
+          cd out
+          for f in *.apk; do
+            mv "$f" "Telegram-${APP_VER:-custom}-$BUILD_TYPE-${ABI//,/_}.apk" 2>/dev/null || true
+          done
+          ls -lh
+        env:
+          APP_VER: ""
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: telegram-${{ env.BUILD_TYPE }}-${{ env.ABI }}
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 30

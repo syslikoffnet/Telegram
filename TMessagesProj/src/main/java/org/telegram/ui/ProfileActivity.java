@@ -13575,7 +13575,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             value = "";
                             usernames = new ArrayList<>();
                         }
-                        detailCell.setTextAndValue(text, alsoUsernamesString(username, usernames, value), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                        detailCell.setTextAndValue(text, withPeerId(alsoUsernamesString(username, usernames, value)), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -13621,7 +13621,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 text = LocaleController.getString(R.string.UsernameEmpty);
                             }
                         }
-                        detailCell.setTextAndValue(text, value, true);
+                        detailCell.setTextAndValue(text, withPeerId(value), true);
                         detailCell.setContentDescriptionValueFirst(true);
                     }
                     if (containsGift) {
@@ -14172,6 +14172,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 case VIEW_TYPE_MUSIC:
                     break;
             }
+        }
+
+        private CharSequence withPeerId(CharSequence value) {
+            final long peerId = userId != 0 ? userId : chatId;
+            if (peerId == 0) {
+                return value;
+            }
+            SpannableStringBuilder sb = new SpannableStringBuilder();
+            if (!TextUtils.isEmpty(value)) {
+                sb.append(value).append(" \u2022 ");
+            }
+            sb.append("ID: ").append(String.valueOf(peerId));
+            return sb;
         }
 
         private CharSequence alsoUsernamesString(String originalUsername, ArrayList<TLRPC.TL_username> alsoUsernames, CharSequence fallback) {
