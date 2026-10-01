@@ -44,7 +44,7 @@ public abstract class BaseCell extends ViewGroup implements SizeNotifierFrameLay
                 checkingForLongPress = false;
                 if (onLongPress()) {
                     try {
-                        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                     } catch (Exception ignore) {}
                     MotionEvent event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0, 0, 0);
                     onTouchEvent(event);

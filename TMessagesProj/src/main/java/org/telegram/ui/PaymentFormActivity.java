@@ -2385,7 +2385,7 @@ public class PaymentFormActivity extends BaseFragment implements NotificationCen
                         AndroidUtilities.shakeViewSpring(recurrentAcceptCell.getTextView(), shiftDp);
                         AndroidUtilities.shakeViewSpring(recurrentAcceptCell.getCheckBox(), shiftDp);
                         try {
-                            recurrentAcceptCell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) recurrentAcceptCell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         } catch (Exception ignored) {}
                         return;
                     }
@@ -3630,7 +3630,7 @@ public class PaymentFormActivity extends BaseFragment implements NotificationCen
                 parentLayout.presentFragment(new PremiumPreviewFragment(null).setForcePremium(), !isFinishing());
                 if (parentActivity instanceof LaunchActivity) {
                     try {
-                        fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                     } catch (Exception ignored) {
                     }
                     ((LaunchActivity) parentActivity).getFireworksOverlay().start();
@@ -4572,7 +4572,7 @@ public class PaymentFormActivity extends BaseFragment implements NotificationCen
 
     private void shakeView(View view) {
         try {
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         AndroidUtilities.shakeViewSpring(view, 2.5f);
     }
@@ -4606,7 +4606,7 @@ public class PaymentFormActivity extends BaseFragment implements NotificationCen
         }
         if (inputFields[FIELD_SAVEDPASSWORD].length() == 0) {
             try {
-                inputFields[FIELD_SAVEDPASSWORD].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) inputFields[FIELD_SAVEDPASSWORD].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignored) {}
             AndroidUtilities.shakeViewSpring(inputFields[FIELD_SAVEDPASSWORD], 2.5f);
             return;
@@ -4651,7 +4651,7 @@ public class PaymentFormActivity extends BaseFragment implements NotificationCen
                             } else {
                                 if (error1.text.equals("PASSWORD_HASH_INVALID")) {
                                     try {
-                                        inputFields[FIELD_SAVEDPASSWORD].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) inputFields[FIELD_SAVEDPASSWORD].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                     } catch (Exception ignored) {}
                                     AndroidUtilities.shakeViewSpring(inputFields[FIELD_SAVEDPASSWORD], 3.25f);
                                     inputFields[FIELD_SAVEDPASSWORD].setText("");

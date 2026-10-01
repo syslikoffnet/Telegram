@@ -102,7 +102,7 @@ public class CarouselView extends View implements PagerHeaderView {
                             }
                             scrollToInternal(offsetAngle + (float) toAngle);
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             } catch (Exception ignored) {}
                         }
                         return true;
@@ -159,7 +159,7 @@ public class CarouselView extends View implements PagerHeaderView {
         if (lastSelected != selected) {
             lastSelected = selected;
             try {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             } catch (Exception ignored) {}
         }
     }

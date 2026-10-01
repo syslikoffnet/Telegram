@@ -923,6 +923,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isPremiumUser(TLRPC.User currentUser) {
+        if (currentUser != null && PengramConfig.isPremiumStatusLocal() && currentUser.id == getUserConfig().getClientUserId()) {
+            return true;
+        }
         return currentUser != null && currentUser.premium && !isSupportUser(currentUser);
     }
 
@@ -6859,6 +6862,14 @@ public class MessagesController extends BaseController implements NotificationCe
         if (user == null) {
             return false;
         }
+        // Pengram: локальный premium и фильтр zalgo применяем до того, как объект осядет в кэше
+        if (PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
+            user.premium = true;
+        }
+        if (PengramConfig.isZalgoFilter()) {
+            user.first_name = PengramConfig.filterZalgo(user.first_name);
+            user.last_name = PengramConfig.filterZalgo(user.last_name);
+        }
         fromCache = fromCache && user.id / 1000 != 333 && user.id != 777000;
         TLRPC.User oldUser = users.get(user.id);
         if (oldUser == user && !force) {
@@ -6993,6 +7004,9 @@ public class MessagesController extends BaseController implements NotificationCe
     public void putChat(final TLRPC.Chat chat, boolean fromCache) {
         if (chat == null) {
             return;
+        }
+        if (PengramConfig.isZalgoFilter()) {
+            chat.title = PengramConfig.filterZalgo(chat.title);
         }
         TLRPC.Chat oldChat = chats.get(chat.id);
         if (oldChat == chat) {

@@ -474,7 +474,7 @@ public class ReactionsEffectOverlay {
                                 if (!isFinished) {
                                     isFinished = true;
                                     try {
-                                        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                                     } catch (Exception ignored) {}
 
                                     ViewGroup viewGroup = (ViewGroup) getParent();
@@ -805,7 +805,7 @@ public class ReactionsEffectOverlay {
             currentOverlay.startTime = System.currentTimeMillis();
             if (currentOverlay.animationType == LONG_ANIMATION && System.currentTimeMillis() - lastHapticTime > 200) {
                 lastHapticTime = System.currentTimeMillis();
-                currentOverlay.cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) currentOverlay.cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             }
         } else {
             startShortAnimation();
@@ -826,7 +826,7 @@ public class ReactionsEffectOverlay {
             if (currentShortOverlay.animationType == SHORT_ANIMATION && System.currentTimeMillis() - lastHapticTime > 200) {
                 lastHapticTime = System.currentTimeMillis();
                 if (currentShortOverlay.cell != null) {
-                    currentShortOverlay.cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) currentShortOverlay.cell.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 }
             }
         }

@@ -2518,7 +2518,7 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         });
         animatorSet.start();
         try {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         } catch (Exception ignore) {}
 
         containerView.setShouldHandleBottomInsets(fragment.getEdgeToEdgeSupportMode());

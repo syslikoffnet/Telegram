@@ -464,7 +464,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
                         forceWasUnread = messageObject.wasUnread = false;
 
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         } catch (Exception ignored) {}
 
                         if (getContext() instanceof LaunchActivity) {

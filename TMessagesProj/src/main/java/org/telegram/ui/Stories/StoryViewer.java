@@ -510,7 +510,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                                 swipeToReplyWaitingKeyboard = true;
                                 showKeyboard();
                                 try {
-                                    windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                                 } catch (Exception ignored) {}
                             }
                             swipeToReplyProgress = Utilities.clamp(swipeToReplyOffset / maxOffset, 1f, 0);
@@ -565,7 +565,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                         if (velocityY < -1000 && !swipeToReplyWaitingKeyboard) {
                             swipeToReplyWaitingKeyboard = true;
                             try {
-                                windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             } catch (Exception ignored) {}
                             showKeyboard();
                         }
@@ -1043,7 +1043,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                                     final float nowSeek = currentPlayerScope.player.seek((x - lastTouchX) / dp(220), videoDuration);
                                     if ((int) (nowSeek * 10) != (int) (wasSeek * 10)) {
                                         try {
-                                            peerView.performHapticFeedback(9, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) peerView.performHapticFeedback(9, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                                         } catch (Exception ignore) {}
                                     }
                                     peerView.storyContainer.invalidate();

@@ -467,7 +467,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             return;
         }
         try {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         } catch (Exception ignored) {}
         if (cell.isSelf && !storiesController.hasSelfStories()) {
             if (!MessagesController.getInstance(currentAccount).storiesEnabled()) {
@@ -1086,7 +1086,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                     public void onAnimationStart(Animator animation) {
                         super.onAnimationStart(animation);
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                         } catch (Exception ignored) {}
                     }
                 });

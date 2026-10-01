@@ -361,7 +361,7 @@ public class TimelineView extends View {
                 itemOptions.setBlurBackground(blurManager, -previewContainer.getX(), -previewContainer.getY());
 
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception e) {}
             } else if (pressType == 1 && hasRound) {
                 SliderView slider =
@@ -391,7 +391,7 @@ public class TimelineView extends View {
                 itemOptions.setBlurBackground(blurManager, -previewContainer.getX(), -previewContainer.getY());
 
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception e) {}
             } else if (pressType == 0 && videoTrack != null) {
                 SliderView slider =
@@ -412,7 +412,7 @@ public class TimelineView extends View {
                     .show();
                 itemOptions.setBlurBackground(blurManager, -previewContainer.getX(), -previewContainer.getY());
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception e) {}
             } else if (pressType == 3 && pressCollageIndex >= 0 && pressCollageIndex < collageTracks.size()) {
                 final Track track = collageTracks.get(pressCollageIndex);
@@ -434,7 +434,7 @@ public class TimelineView extends View {
                         .show();
                 itemOptions.setBlurBackground(blurManager, -previewContainer.getX(), -previewContainer.getY());
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception e) {}
             }
         };

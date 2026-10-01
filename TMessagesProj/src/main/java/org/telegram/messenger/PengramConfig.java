@@ -24,8 +24,14 @@ public class PengramConfig {
     public static boolean dontSendTyping;     // не отправлять "печатает"
     public static boolean dontSendStoryViews; // не отмечать просмотр историй
 
+    // --- формат ID ---
+    public static final int ID_FORMAT_HIDE = 0;        // не показывать ID вовсе
+    public static final int ID_FORMAT_TELEGRAM = 1;    // как есть (Telegram API)
+    public static final int ID_FORMAT_BOT = 2;         // с минусом / -100 (Bot API)
+
     // --- профиль ---
     public static int idStyle = ID_STYLE_ROW_DC;
+    public static int idFormat = ID_FORMAT_TELEGRAM;
     public static boolean copyIdOnTap = true;
 
     // --- дата регистрации ---
@@ -122,6 +128,16 @@ public class PengramConfig {
     public static final String KEY_BACKGROUND_SILENT = "backgroundSilentIcon";
     public static final String KEY_PREMIUM_STATUS = "localPremiumStatus";
 
+    // --- основное ---
+    /** не округлять числа (1 234 567 вместо 1,2M) */
+    public static final String KEY_NO_ROUNDING = "noNumberRounding";
+    /** показывать время с секундами */
+    public static final String KEY_TIME_SECONDS = "timeWithSeconds";
+    /** вибрация внутри приложения */
+    public static final String KEY_VIBRATION = "inAppVibration";
+    /** фильтр Zalgo-символов */
+    public static final String KEY_ZALGO = "zalgoFilter";
+
     // --- вкладки главного экрана ---
     public static final String KEY_TAB_CONTACTS = "hideTabContacts";
     public static final String KEY_TAB_CALLS = "hideTabCalls";
@@ -176,6 +192,67 @@ public class PengramConfig {
     public static boolean isNotSendingReactionsRead() { return ghostMode && getBool(KEY_GHOST_DONT_SEND_REACTIONS, false); }
     public static boolean isNotSendingVoiceRead() { return ghostMode && getBool(KEY_GHOST_DONT_SEND_VOICE_READ, true); }
 
+    public static boolean isNoRounding() { return getBool(KEY_NO_ROUNDING, false); }
+    public static boolean isTimeWithSeconds() { return getBool(KEY_TIME_SECONDS, false); }
+    public static boolean isVibrationEnabled() { return getBool(KEY_VIBRATION, true); }
+    public static boolean isZalgoFilter() { return getBool(KEY_ZALGO, false); }
+
+    /**
+     * Вырезает «zalgo» — комбинируемые символы, которыми ломают текст.
+     * Трогаем только диакритические блоки, чтобы не портить нормальные языки.
+     */
+    public static CharSequence filterZalgo(CharSequence text) {
+        if (text == null || text.length() == 0 || !isZalgoFilter()) {
+            return text;
+        }
+        StringBuilder sb = null;
+        for (int i = 0; i < text.length(); ++i) {
+            final char c = text.charAt(i);
+            if (isZalgoChar(c)) {
+                if (sb == null) {
+                    sb = new StringBuilder(text.length());
+                    sb.append(text, 0, i);
+                }
+            } else if (sb != null) {
+                sb.append(c);
+            }
+        }
+        return sb == null ? text : sb.toString();
+    }
+
+    public static String filterZalgo(String text) {
+        if (text == null || text.length() == 0 || !isZalgoFilter()) {
+            return text;
+        }
+        return filterZalgo((CharSequence) text).toString();
+    }
+
+    /** то же, но длина строки сохраняется — важно, чтобы не поехали entity-смещения */
+    public static String filterZalgoKeepLength(String text) {
+        if (text == null || text.length() == 0 || !isZalgoFilter()) {
+            return text;
+        }
+        char[] chars = null;
+        for (int i = 0; i < text.length(); ++i) {
+            if (isZalgoChar(text.charAt(i))) {
+                if (chars == null) {
+                    chars = text.toCharArray();
+                }
+                chars[i] = '\u200C';
+            }
+        }
+        return chars == null ? text : new String(chars);
+    }
+
+    private static boolean isZalgoChar(char c) {
+        return (c >= '\u0300' && c <= '\u036F')    // Combining Diacritical Marks
+                || (c >= '\u0483' && c <= '\u0489') // Cyrillic combining
+                || (c >= '\u1AB0' && c <= '\u1AFF') // Extended
+                || (c >= '\u1DC0' && c <= '\u1DFF') // Supplement
+                || (c >= '\u20D0' && c <= '\u20F0') // Combining for symbols
+                || (c >= '\uFE20' && c <= '\uFE2F');// Half marks
+    }
+
     public static boolean isBackgroundMode() { return getBool(KEY_BACKGROUND_MODE, false); }
     public static boolean isPremiumStatusLocal() { return isLocalPremium() && getBool(KEY_PREMIUM_STATUS, true); }
 
@@ -215,6 +292,7 @@ public class PengramConfig {
             dontSendTyping = p.getBoolean("dontSendTyping", true);
             dontSendStoryViews = p.getBoolean("dontSendStoryViews", true);
             idStyle = p.getInt("idStyle", ID_STYLE_ROW_DC);
+            idFormat = p.getInt("idFormat", ID_FORMAT_TELEGRAM);
             copyIdOnTap = p.getBoolean("copyIdOnTap", true);
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
             saveDeleted = p.getBoolean("saveDeleted", true);
@@ -488,6 +566,28 @@ public class PengramConfig {
         return historyRowInProfile && (saveDeleted || saveEdited);
     }
 
+    public static void setIdFormat(int format) {
+        init();
+        idFormat = format;
+        putInt("idFormat", format);
+    }
+
+    public static int getIdFormat() {
+        init();
+        return idFormat;
+    }
+
+    /**
+     * ID так, как его нужно показать: Telegram API — как есть,
+     * Bot API — с минусом у групп и -100 у супергрупп/каналов.
+     */
+    public static String formatId(long id, boolean isChat, boolean isChannelOrSupergroup) {
+        if (getIdFormat() == ID_FORMAT_BOT && isChat && id > 0) {
+            return isChannelOrSupergroup ? ("-100" + id) : ("-" + id);
+        }
+        return String.valueOf(id);
+    }
+
     public static void setIdStyle(int style) {
         init();
         idStyle = style;
@@ -522,15 +622,18 @@ public class PengramConfig {
     }
 
     public static boolean isIdVisible() {
-        return getIdStyle() != ID_STYLE_OFF;
+        return getIdFormat() != ID_FORMAT_HIDE && getIdStyle() != ID_STYLE_OFF;
     }
 
     public static boolean isIdSeparateRow() {
+        if (!isIdVisible()) {
+            return false;
+        }
         final int s = getIdStyle();
         return s == ID_STYLE_ROW || s == ID_STYLE_ROW_DC;
     }
 
     public static boolean isShowingDc() {
-        return getIdStyle() == ID_STYLE_ROW_DC;
+        return isIdVisible() && getIdStyle() == ID_STYLE_ROW_DC;
     }
 }

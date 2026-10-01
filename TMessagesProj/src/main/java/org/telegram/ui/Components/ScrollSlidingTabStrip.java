@@ -138,7 +138,7 @@ public class ScrollSlidingTabStrip extends HorizontalScrollView {
             }
             if (p >= 0 && p < tabsContainer.getChildCount()) {
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 } catch (Exception ignored) {}
                 draggindViewDxOnScreen = 0f;
                 draggingViewOutProgress = 0f;

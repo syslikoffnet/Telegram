@@ -82,7 +82,7 @@ public class StarReactionsOverlay extends View {
         longPressRunnable = () -> {
             if (cell == null) return;
             try {
-                cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             } catch (Exception ignored) {}
             onTouchEvent(MotionEvent.obtain(0, 0, MotionEvent.ACTION_CANCEL, 0, 0, 0));
 
@@ -365,7 +365,7 @@ public class StarReactionsOverlay extends View {
         if (btn != null) btn.startAnimation();
         if (send) {
             try {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
             } catch (Exception ignore) {}
             StarsController.getInstance(chatActivity.getCurrentAccount()).sendPaidReaction(msg, chatActivity, +1, true, false, null);
         }

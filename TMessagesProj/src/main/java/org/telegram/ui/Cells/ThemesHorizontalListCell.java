@@ -198,7 +198,7 @@ public class ThemesHorizontalListCell extends RecyclerListView implements Notifi
                         pressed = true;
                     } else {
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                         } catch (Exception ignored) {}
                         showOptionsForTheme(themeInfo);
                     }

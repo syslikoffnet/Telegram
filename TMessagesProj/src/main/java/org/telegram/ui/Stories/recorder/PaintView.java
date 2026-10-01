@@ -1952,7 +1952,7 @@ public class PaintView extends SizeNotifierFrameLayoutPhoto implements IPhotoPai
                     }
                     if (widgetsCount >= MessagesController.getInstance(currentAccount).storiesSuggestedReactionsLimitPremium) {
                         try {
-                            container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                         } catch (Exception ignored) {}
                         BulletinFactory.of(container, resourcesProvider).createSimpleBulletin(R.raw.chats_infotip,
                                 getString("LimitReached", R.string.LimitReached),
@@ -2019,7 +2019,7 @@ public class PaintView extends SizeNotifierFrameLayoutPhoto implements IPhotoPai
             } else if (widgetId == EmojiBottomSheet.WIDGET_LINK) {
                 if (!UserConfig.getInstance(currentAccount).isPremium()) {
                     try {
-                        alert.container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) alert.container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                     } catch (Exception ignored) {}
                     BulletinFactory.of(alert.container, resourcesProvider).createSimpleBulletin(R.raw.star_premium_2,
                         AndroidUtilities.premiumText(getString(R.string.StoryLinkPremium), () -> {

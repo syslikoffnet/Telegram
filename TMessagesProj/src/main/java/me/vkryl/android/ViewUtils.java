@@ -79,7 +79,7 @@ public final class ViewUtils {
       }
       int feedbackConstant = isForce ? HapticFeedbackConstants.LONG_PRESS : HapticFeedbackConstants.KEYBOARD_TAP;
       int flags = ignoreSetting ? HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING : 0;
-      view.performHapticFeedback(feedbackConstant, flags);
+      if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(feedbackConstant, flags);
     }
   }
 

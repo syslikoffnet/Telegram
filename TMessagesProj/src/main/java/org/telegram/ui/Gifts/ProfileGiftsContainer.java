@@ -1247,7 +1247,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                                     bulletinFactory.createSimpleBulletin(R.raw.forward, AndroidUtilities.replaceTags(LocaleController.formatPluralString("GiftCollectionSharedToManyChats", dids.size(), dids.size()))).hideAfterBottomSheet(false).show();
                                 }
                                 try {
-                                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                                 } catch (Exception ignored) {}
                             }
                         }
@@ -2034,7 +2034,7 @@ public class ProfileGiftsContainer extends FrameLayout implements NotificationCe
                     s.delete(MAX_LENGTH, s.length());
                     AndroidUtilities.shakeView(editText);
                     try {
-                        editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                     } catch (Exception ignore) {}
                     ignoreTextChange = false;
                 }

@@ -7321,6 +7321,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 .show();
     }
 
+    /** ID в выбранном формате: как есть (Telegram API) или с минусом/-100 (Bot API) */
+    private String pengramFormatPeerId(long peerId) {
+        if (chatId != 0 && userId == 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+            return PengramConfig.formatId(peerId, true, chat != null && ChatObject.isChannel(chat));
+        }
+        return PengramConfig.formatId(peerId, false, false);
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if (position == idRow) {
             final long peerId = userId != 0 ? userId : chatId;
@@ -7329,7 +7338,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
             try {
                 android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("label", String.valueOf(peerId)));
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("label", pengramFormatPeerId(peerId)));
                 BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
             } catch (Exception e) {
                 FileLog.e(e);
@@ -8562,7 +8571,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         avatarsViewPager.setVisibility(View.VISIBLE);
 
                         try {
-                            avatarContainer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) avatarContainer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignore) {
                         }
                     }
@@ -8646,7 +8655,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         expandAnimator.start();
                         ignoreScrollOnFullExpand = false;
                         try {
-                            avatarContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) avatarContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignore) {
                         }
                     }
@@ -13572,7 +13581,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (label == null) {
                             label = "ID";
                         }
-                        detailCell.setTextAndValue(String.valueOf(peerId), label, regDateRow != -1);
+                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, regDateRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
                         // календарик с приблизительной датой регистрации — прямо в строке ID
                         final long regEstimate = userId != 0 && PengramConfig.isRegDateVisible() ? PengramRegDate.estimate(userId) : 0;
@@ -13612,7 +13621,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);
                         String phoneNumber;
-                        if (user != null && !TextUtils.isEmpty(vcardPhone)) {
+                        if (user != null && UserObject.isUserSelf(user) && PengramConfig.isHidingPhoneNumber()) {
+                            text = LocaleController.getString(R.string.PengramPhoneHidden);
+                            phoneNumber = null;
+                        } else if (user != null && !TextUtils.isEmpty(vcardPhone)) {
                             text = PhoneFormat.getInstance().format("+" + vcardPhone);
                             phoneNumber = vcardPhone;
                         } else if (user != null && !TextUtils.isEmpty(user.phone)) {
@@ -14307,7 +14319,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         private CharSequence appendInlineId(CharSequence value) {
-            if (PengramConfig.getIdStyle() != PengramConfig.ID_STYLE_INLINE) {
+            if (!PengramConfig.isIdVisible() || PengramConfig.getIdStyle() != PengramConfig.ID_STYLE_INLINE) {
                 return value;
             }
             final long peerId = userId != 0 ? userId : chatId;
@@ -14318,7 +14330,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (!TextUtils.isEmpty(value)) {
                 sb.append(value).append(" \u2022 ");
             }
-            sb.append("ID: ").append(String.valueOf(peerId));
+            sb.append("ID: ").append(pengramFormatPeerId(peerId));
             return sb;
         }
 

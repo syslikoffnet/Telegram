@@ -472,7 +472,7 @@ public class LimitPreviewView extends LinearLayout {
                     if (!wasHaptic) {
                         wasHaptic = true;
                         try {
-                            limitIcon.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) limitIcon.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                         } catch (Exception ignored) {}
                     }
                     limitIcon.setRotation(limitIconRotation + (v - 1f) * 60);

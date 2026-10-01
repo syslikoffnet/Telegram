@@ -6077,6 +6077,11 @@ public class MessageObject {
             }
         }
 
+        if (PengramConfig.isZalgoFilter() && messageText != null) {
+            // длину не меняем, иначе поедут entity
+            messageText = PengramConfig.filterZalgoKeepLength(messageText.toString());
+        }
+
         if (messageText == null) {
             messageText = "";
         }

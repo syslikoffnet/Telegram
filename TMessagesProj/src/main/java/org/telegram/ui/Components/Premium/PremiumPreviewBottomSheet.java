@@ -716,7 +716,7 @@ public class PremiumPreviewBottomSheet extends BottomSheetWithRecyclerListView i
         if (animateConfetti) {
             AndroidUtilities.runOnUIThread(()->{
                 try {
-                    container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {}
                 fireworksOverlay.start(animateConfettiWithStars);
             }, 200);

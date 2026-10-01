@@ -79,7 +79,7 @@ public class FloatingDebugView extends FrameLayout implements NotificationCenter
     private Runnable onLongPress = () -> {
         inLongPress = true;
         try {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         } catch (Exception ignored) {}
     };
 

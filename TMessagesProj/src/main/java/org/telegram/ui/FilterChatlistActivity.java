@@ -589,7 +589,7 @@ public class FilterChatlistActivity extends BaseFragment {
                                     s.delete(MAX_NAME_LENGTH, s.length());
                                     AndroidUtilities.shakeView(editText);
                                     try {
-                                        editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                     } catch (Exception ignored) {}
                                     ignoreTextChange = false;
                                 }

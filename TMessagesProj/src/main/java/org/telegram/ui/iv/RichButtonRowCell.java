@@ -266,7 +266,7 @@ public class RichButtonRowCell extends RichBlockCell implements Theme.Colorable 
                 longPressed = true;
                 button.setPressed(false);
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 } catch (Exception ignore) {}
                 delegate.onEditButton(currentRow, index, this);
             };

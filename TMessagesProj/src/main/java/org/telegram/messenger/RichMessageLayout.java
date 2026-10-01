@@ -3019,7 +3019,7 @@ public class RichMessageLayout {
                     longPressFired = true;
                     if (view != null) {
                         try {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                         } catch (Exception ignore) {}
                     }
                     pressedButtonSpan.didPress(root.getCell(), root.getDelegate(), true);
@@ -3029,7 +3029,7 @@ public class RichMessageLayout {
                 longPressFired = true;
                 if (view != null) {
                     try {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                     } catch (Exception ignore) {}
                 }
                 dispatchLinkClick(pressedLink, true);
@@ -9611,7 +9611,7 @@ public class RichMessageLayout {
             checkbox.setChecked(newChecked, true);
             invalidateCell();
             if (root.view != null) {
-                root.view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) root.view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             }
             final Runnable revertOnError = () -> {
                 setCheckboxChecked(!newChecked);

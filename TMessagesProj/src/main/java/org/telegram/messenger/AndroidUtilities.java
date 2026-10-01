@@ -4093,6 +4093,9 @@ public class AndroidUtilities {
         if (v == 0) {
             return "0";
         }
+        if (PengramConfig.isNoRounding()) {
+            return formatCount(v);
+        }
         float num_ = v;
         int count = 0;
         if (dif == 0) dif = v;
@@ -6499,6 +6502,7 @@ public class AndroidUtilities {
     public static void vibrateCursor(View view) {
         try {
             if (view == null || view.getContext() == null) return;
+            if (!PengramConfig.isVibrationEnabled()) return;
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
             if (!((Vibrator) view.getContext().getSystemService(Context.VIBRATOR_SERVICE)).hasAmplitudeControl()) return;
             view.performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
@@ -6508,6 +6512,7 @@ public class AndroidUtilities {
     public static void vibrate(View view) {
         try {
             if (view == null || view.getContext() == null) return;
+            if (!PengramConfig.isVibrationEnabled()) return;
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
             if (!((Vibrator) view.getContext().getSystemService(Context.VIBRATOR_SERVICE)).hasAmplitudeControl()) return;
             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);

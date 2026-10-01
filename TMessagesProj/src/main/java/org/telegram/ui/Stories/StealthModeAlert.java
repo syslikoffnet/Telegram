@@ -172,7 +172,7 @@ public class StealthModeAlert extends BottomSheet {
 
                     }));
                     try {
-                        containerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) containerView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                     } catch (Exception ignored) {}
                     dismiss();
                     if (type == TYPE_FROM_STORIES) {
