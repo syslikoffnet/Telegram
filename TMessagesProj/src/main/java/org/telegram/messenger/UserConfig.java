@@ -603,9 +603,18 @@ public class UserConfig extends BaseController {
             PengramConfig.setBool("localPremiumStatusApplied", false);
             changed = true;
         }
+        // синхронизируем и копию, которая лежит в кэше контроллера, иначе звёздочка не появится
+        final TLRPC.User cached = MessagesController.getInstance(currentAccount).getUser(user.id);
+        if (cached != null && cached != user && cached.premium != user.premium) {
+            cached.premium = user.premium;
+            changed = true;
+        }
         if (changed) {
-            MessagesController.getInstance(currentAccount).putUser(user, false);
+            saveConfig(true);
+            MessagesController.getInstance(currentAccount).putUser(user, false, true);
             NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS);
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
         }
     }
 
