@@ -86,6 +86,9 @@ public class PengramVoiceChanger {
     private static float highpassState;
     private static float highpassPrev;
     private static float limiterGain = 1f;
+    private static float dryEnv;
+    private static float wetEnv;
+    private static float makeupGain = 1f;
 
     // --- состояние анонимайзера (новое на каждую запись) ---
     private static final SecureRandom secureRandom = new SecureRandom();
@@ -96,6 +99,7 @@ public class PengramVoiceChanger {
     private static float anonFormant1Freq, anonFormant2Freq, anonFormant1Gain, anonFormant2Gain;
     private static double anonJitterPhase, anonJitterSpeed, anonJitter2Phase, anonJitter2Speed;
     private static float anonNoise;
+    private static float anonMakeup = 1f;
     private static float anonTilt;
     private static final Allpass anonAllpass1 = new Allpass(311);
     private static final Allpass anonAllpass2 = new Allpass(523);
@@ -115,6 +119,10 @@ public class PengramVoiceChanger {
         highpassState = 0;
         highpassPrev = 0;
         limiterGain = 1f;
+        dryEnv = 0;
+        wetEnv = 0;
+        makeupGain = 1f;
+        envelopeState = 0;
         formant1.reset();
         formant2.reset();
         bandLow.reset();
@@ -143,7 +151,14 @@ public class PengramVoiceChanger {
         anonFormant1Freq = 420f + secureRandom.nextFloat() * 520f;
         anonFormant2Freq = 1500f + secureRandom.nextFloat() * 1400f;
         anonFormant1Gain = (secureRandom.nextBoolean() ? 1f : -1f) * (3.5f + secureRandom.nextFloat() * 3.5f);
-        anonFormant2Gain = (secureRandom.nextBoolean() ? 1f : -1f) * (3f + secureRandom.nextFloat() * 4f);
+        // второй резонанс всегда в противофазе первому: тембр меняется, а общая громкость — нет
+        anonFormant2Gain = (anonFormant1Gain > 0 ? -1f : 1f) * (3f + secureRandom.nextFloat() * 4f);
+        anonMakeup = (float) Math.pow(10.0, -(anonFormant1Gain + anonFormant2Gain) / 40.0);
+        if (anonMakeup > 1.25f) {
+            anonMakeup = 1.25f;
+        } else if (anonMakeup < 0.8f) {
+            anonMakeup = 0.8f;
+        }
         anonTilt = -0.25f + secureRandom.nextFloat() * 0.5f;
 
         // микро-таймварп: две несинхронные медленные волны
@@ -248,12 +263,13 @@ public class PengramVoiceChanger {
                             ? readPhase + WINDOW / 2f - WINDOW
                             : readPhase + WINDOW / 2f;
 
-                    // треугольные окна, чтобы не было щелчков на стыках гранул
-                    final float gain1 = 1f - Math.abs(head1 - WINDOW / 2f) / (WINDOW / 2f);
-                    final float gain2 = 1f - Math.abs(head2 - WINDOW / 2f) / (WINDOW / 2f);
-                    final float sum = gain1 + gain2 < 0.0001f ? 1f : gain1 + gain2;
+                    // окна равной мощности (sin/cos): нет ни щелчков, ни провала громкости
+                    final float theta = (float) (Math.PI * head1 / WINDOW);
+                    final float gain1 = (float) Math.sin(theta);
+                    final float gain2 = Math.abs((float) Math.cos(theta));
 
-                    out = (read(head1) * gain1 + read(head2) * gain2) / sum;
+                    out = read(head1) * gain1 + read(head2) * gain2;
+                    out = makeup(out, in);
                 }
 
                 out = applyMode(mode, out, in);
@@ -266,6 +282,26 @@ public class PengramVoiceChanger {
         } catch (Throwable e) {
             FileLog.e(e);
         }
+    }
+
+    /**
+     * Гранулярный сдвиг неизбежно немного «съедает» громкость из-за гребенчатой интерференции
+     * двух головок. Медленный АРУ возвращает уровень к исходному, не создавая накачки.
+     */
+    private static float makeup(float wet, float dry) {
+        dryEnv += (Math.abs(dry) - dryEnv) * 0.0015f;
+        wetEnv += (Math.abs(wet) - wetEnv) * 0.0015f;
+        if (wetEnv > 1f) {
+            float gain = dryEnv / wetEnv;
+            if (gain > 2f) {
+                gain = 2f;
+            } else if (gain < 1f) {
+                gain = 1f;
+            }
+            makeupGain += (gain - makeupGain) * 0.002f;
+            return wet * makeupGain;
+        }
+        return wet;
     }
 
     /** плавающий сдвиг тона для анонимного режима */
@@ -299,7 +335,7 @@ public class PengramVoiceChanger {
                 final float scrambled = anonAllpass2.process(anonAllpass1.process(x));
                 x = x * (1f - anonAllpassMix) + scrambled * anonAllpassMix;
                 x += noise() * anonNoise * 32768f;
-                return x * 1.08f;
+                return x * anonMakeup;
             }
             case MODE_ROBOT: {
                 lfoPhase += 2.0 * Math.PI * 75.0 / SAMPLE_RATE;
