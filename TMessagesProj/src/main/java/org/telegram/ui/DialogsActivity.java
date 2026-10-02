@@ -12751,8 +12751,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             animated = false;
         }
         boolean onlySelfStories = !isArchive() && getStoriesController().hasOnlySelfStories();
+        // Pengram: лента историй спрятана настройками
+        final boolean pengramHideStories = org.telegram.messenger.PengramConfig.isHidingStories();
+        if (pengramHideStories) {
+            onlySelfStories = false;
+        }
         boolean newVisibility;
-        if (communityId != 0) {
+        if (pengramHideStories) {
+            newVisibility = false;
+        } else if (communityId != 0) {
             newVisibility = false;
         } else if (isArchive()) {
             newVisibility = !getStoriesController().getHiddenList().isEmpty();
@@ -12764,12 +12771,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         hasOnlySlefStories = onlySelfStories;
 
         boolean oldStoriesCellVisibility = dialogStoriesCellVisible;
-        dialogStoriesCellVisible = onlySelfStories || newVisibility;
-        if (org.telegram.messenger.PengramConfig.isHidingStories()) {
-            // Pengram: лента историй спрятана настройками
-            newVisibility = false;
-            dialogStoriesCellVisible = false;
-        }
+        dialogStoriesCellVisible = !pengramHideStories && (onlySelfStories || newVisibility);
 
         if (newVisibility || dialogStoriesCellVisible) {
             dialogStoriesCell.updateItems(animated, dialogStoriesCellVisible != oldStoriesCellVisibility);
