@@ -6545,6 +6545,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (messageObjectToSet != null) {
             messageObjectToSet.animateComments = false;
             setMessageContent(messageObjectToSet, groupedMessagesToSet, bottomNearToSet, topNearToSet, firstInChatToSet, lastInChatListToSet);
+            pengramUpdateFade();
             messageObjectToSet = null;
             groupedMessagesToSet = null;
         }
@@ -13380,6 +13381,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                  boolean lastInChatList) {
         if (attachedToWindow && !frozen) {
             setMessageContent(messageObject, groupedMessages, bottomNear, topNear, firstInChat, lastInChatList);
+            pengramUpdateFade();
         } else {
             messageObjectToSet = messageObject;
             groupedMessagesToSet = groupedMessages;
@@ -13396,6 +13398,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (!frozen && messageObjectToSet != null && attachedToWindow) {
             messageObjectToSet.animateComments = false;
             setMessageContent(messageObjectToSet, groupedMessagesToSet, bottomNearToSet, topNearToSet, firstInChatToSet, lastInChatListToSet);
+            pengramUpdateFade();
             messageObjectToSet = null;
             groupedMessagesToSet = null;
         }
@@ -28095,8 +28098,31 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return super.getAlpha();
     }
 
+    /** Pengram: прозрачность удалённого сообщения (его нельзя «засветлить» анимациями) */
+    public static final float PENGRAM_DELETED_ALPHA = 0.55f;
+
+    private boolean pengramFaded() {
+        return currentMessageObject != null && currentMessageObject.pengramDeleted
+                && org.telegram.messenger.PengramConfig.isFadingDeleted();
+    }
+
+    /**
+     * Pengram: держим удалённые сообщения полупрозрачными при любом раскладе —
+     * ячейки переиспользуются и аниматор списка любит сбрасывать alpha в 1.
+     */
+    public void pengramUpdateFade() {
+        final float target = pengramFaded() ? PENGRAM_DELETED_ALPHA : 1f;
+        if (Math.abs(getAlpha() - target) > 0.001f) {
+            // анимации списка не трогаем — setAlpha сам ограничит значение сверху
+            setAlpha(target);
+        }
+    }
+
     @Override
     public void setAlpha(float alpha) {
+        if (pengramFaded()) {
+            alpha = Math.min(alpha, PENGRAM_DELETED_ALPHA);
+        }
         if ((alpha == 1f) != (getAlpha() == 1)) {
             invalidate();
         }

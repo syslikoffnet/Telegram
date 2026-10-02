@@ -273,6 +273,13 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
+    /** успели ли подгрузить метки этого диалога (до этого «не удалено» ничего не значит) */
+    public static boolean marksLoaded(long dialogId) {
+        synchronized (marksCache) {
+            return marksCache.containsKey(dialogId);
+        }
+    }
+
     public static boolean hasMarks(long dialogId) {
         synchronized (marksCache) {
             java.util.HashSet<Integer> set = marksCache.get(dialogId);

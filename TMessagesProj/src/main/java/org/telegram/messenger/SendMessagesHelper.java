@@ -4317,6 +4317,31 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (peer == 0) {
             return;
         }
+
+        // Pengram: автоматический стиль отправляемого текста
+        if (retryMessageObject == null && PengramConfig.getSendTextStyle() != PengramConfig.SEND_STYLE_OFF) {
+            try {
+                if (message != null) {
+                    final PengramTextStyle.Styled styled = PengramTextStyle.apply(message, entities);
+                    if (styled != null) {
+                        message = styled.text;
+                        entities = styled.entities;
+                        sendMessageParams.message = message;
+                        sendMessageParams.entities = entities;
+                    }
+                } else if (caption != null && PengramConfig.isSendStyleForCaptions()) {
+                    final PengramTextStyle.Styled styled = PengramTextStyle.apply(caption, entities);
+                    if (styled != null) {
+                        caption = styled.text;
+                        entities = styled.entities;
+                        sendMessageParams.caption = caption;
+                        sendMessageParams.entities = entities;
+                    }
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
         if (richMessage != null && DialogObject.isEncryptedDialog(peer)) {
             return;
         }

@@ -1689,15 +1689,53 @@ public class ChatActivity extends BaseFragment implements
     private final static int chat_menu_topic_create = 73;
 
 
-    /** Pengram: отдельный «остров» в меню чата */
+    /** Pengram: один пункт «Pengram» в меню чата, внутри — свои инструменты */
     private void addPengramMenuItems() {
         try {
-            if (headerItem == null || getDialogId() == 0) {
+            if (headerItem == null || getDialogId() == 0 || getContext() == null) {
                 return;
             }
-            headerItem.lazilyAddColoredGap();
-            headerItem.lazilyAddSubItem(pengram_deleted, R.drawable.msg_viewchats, LocaleController.getString(R.string.PengramHistoryOpen));
-            headerItem.lazilyAddSubItem(pengram_clear_deleted, R.drawable.msg_delete, LocaleController.getString(R.string.PengramHistoryClearButton));
+            final long dialogId = getDialogId();
+            final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
+                    getContext(),
+                    headerItem.getPopupLayout().getSwipeBack(),
+                    dialogId,
+                    themeDelegate,
+                    new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
+                        @Override
+                        public void dismiss() {
+                            if (headerItem != null) {
+                                headerItem.toggleSubMenu();
+                            }
+                        }
+
+                        @Override
+                        public void openDeleted() {
+                            presentFragment(new PengramHistoryChatActivity(dialogId, PengramHistoryChatActivity.MODE_DELETED));
+                        }
+
+                        @Override
+                        public void openEdited() {
+                            presentFragment(new PengramHistoryChatActivity(dialogId, PengramHistoryChatActivity.MODE_EDITED));
+                        }
+
+                        @Override
+                        public void openAll() {
+                            openPengramHistory();
+                        }
+
+                        @Override
+                        public void clearHistory() {
+                            clearPengramHistory();
+                        }
+
+                        @Override
+                        public void openSettings() {
+                            presentFragment(new PengramSettingsActivity());
+                        }
+                    });
+            headerItem.addSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
+            headerItem.addColoredGap();
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -1713,13 +1751,20 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         boolean deleted = false;
+        boolean known = false;
         try {
-            deleted = chatMode == MODE_DEFAULT
-                    && org.telegram.messenger.PengramConfig.isSavingDeleted()
-                    && org.telegram.messenger.PengramHistory.isMarkedDeleted(dialog_id, message.getId());
+            final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramConfig.isSavingDeleted();
+            known = !enabled || org.telegram.messenger.PengramHistory.marksLoaded(dialog_id);
+            deleted = enabled && org.telegram.messenger.PengramHistory.isMarkedDeleted(dialog_id, message.getId());
         } catch (Throwable ignore) {}
-        message.pengramDeleted = deleted;
-        if (cell != null) {
+        // пока метки диалога не подгружены, «не удалено» ещё ничего не значит —
+        // раньше из-за этого сообщения теряли прозрачность до перезахода в чат
+        if (deleted || known) {
+            message.pengramDeleted = deleted;
+        }
+        if (cell instanceof ChatMessageCell) {
+            ((ChatMessageCell) cell).pengramUpdateFade();
+        } else if (cell != null) {
             final float alpha = pengramAlphaFor(message);
             if (cell.getAlpha() != alpha) {
                 cell.animate().cancel();
@@ -1765,6 +1810,145 @@ public class ChatActivity extends BaseFragment implements
             cell.forceResetMessageObject();
             cell.invalidate();
         }
+    }
+
+    // ================= Pengram: статус пересылки вместо поля ввода =================
+
+    private int pengramForwardTotal;
+    private boolean pengramForwardActive;
+    private boolean pengramForwardBackgrounded;
+    private Runnable pengramForwardTicker;
+    private CharSequence pengramForwardLastText;
+
+    /** сколько медиа/пересланных сообщений сейчас реально уходит в этот чат */
+    private int pengramSendingCount() {
+        if (chatMode != MODE_DEFAULT || messages == null) {
+            return 0;
+        }
+        int count = 0;
+        final int n = Math.min(messages.size(), 120);
+        for (int a = 0; a < n; ++a) {
+            final MessageObject m = messages.get(a);
+            if (m == null || m.messageOwner == null) {
+                continue;
+            }
+            if (m.messageOwner.send_state != MessageObject.MESSAGE_SEND_STATE_SENDING) {
+                continue;
+            }
+            if (m.isForwarded() || m.getDocument() != null || m.type == MessageObject.TYPE_PHOTO
+                    || m.type == MessageObject.TYPE_VIDEO || m.type == MessageObject.TYPE_VOICE
+                    || m.type == MessageObject.TYPE_ROUND_VIDEO || m.type == MessageObject.TYPE_FILE) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** нужно ли сейчас прятать поле ввода за статусом пересылки */
+    private boolean pengramForwardBlocking() {
+        return pengramForwardActive && !pengramForwardBackgrounded
+                && org.telegram.messenger.PengramConfig.isForwardLockEnabled()
+                && chatMode == MODE_DEFAULT && !inPreviewMode;
+    }
+
+    private CharSequence pengramForwardStatusText() {
+        final int sending = pengramSendingCount();
+        final int total = Math.max(pengramForwardTotal, sending);
+        final int done = Math.max(0, total - sending);
+        final SpannableStringBuilder sb = new SpannableStringBuilder();
+        final String title = LocaleController.formatString(R.string.PengramForwardProgress, done, total);
+        sb.append(title);
+        sb.setSpan(new TypefaceSpan(AndroidUtilities.bold()), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new ForegroundColorSpan(getThemedColor(Theme.key_featuredStickers_addButton)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.append("\n");
+        sb.append(LocaleController.getString(R.string.PengramForwardHold));
+        return sb;
+    }
+
+    private void pengramUpdateForwardText() {
+        if (bottomOverlayLinksText == null || !pengramForwardBlocking()) {
+            return;
+        }
+        final CharSequence text = pengramForwardStatusText();
+        if (pengramForwardLastText == null || !TextUtils.equals(pengramForwardLastText.toString(), text.toString())) {
+            pengramForwardLastText = text;
+            bottomOverlayLinksText.setText(text);
+        }
+    }
+
+    /** главный пересчёт: включаем/выключаем статус и двигаем счётчик */
+    private void pengramForwardCheck(boolean fromTicker) {
+        if (getContext() == null || bottomOverlayLinksText == null) {
+            return;
+        }
+        final int sending = pengramSendingCount();
+        if (sending > pengramForwardTotal) {
+            pengramForwardTotal = sending;
+        }
+        final boolean active = sending >= 2 && org.telegram.messenger.PengramConfig.isForwardLockEnabled();
+        if (active != pengramForwardActive) {
+            final boolean wasBlocking = pengramForwardBlocking();
+            pengramForwardActive = active;
+            if (!active) {
+                pengramForwardTotal = 0;
+                pengramForwardLastText = null;
+                final boolean wasBackgrounded = pengramForwardBackgrounded;
+                pengramForwardBackgrounded = false;
+                if ((wasBlocking || wasBackgrounded) && org.telegram.messenger.PengramConfig.isForwardDoneAlert()) {
+                    try {
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.getString(R.string.PengramForwardDone)).show();
+                    } catch (Throwable ignore) {}
+                }
+            }
+            updateBottomOverlay(true);
+        } else if (active) {
+            pengramUpdateForwardText();
+        }
+        pengramScheduleForwardTick(sending > 0);
+    }
+
+    private long pengramForwardLastCheck;
+
+    private void pengramForwardCheckThrottled() {
+        final long now = System.currentTimeMillis();
+        if (now - pengramForwardLastCheck < 250) {
+            return;
+        }
+        pengramForwardLastCheck = now;
+        // не трогаем разметку прямо во время layout — откладываем на следующий кадр
+        AndroidUtilities.runOnUIThread(() -> pengramForwardCheck(false));
+    }
+
+    private void pengramScheduleForwardTick(boolean need) {
+        if (pengramForwardTicker != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramForwardTicker);
+            pengramForwardTicker = null;
+        }
+        if (!need || isPaused || getContext() == null) {
+            return;
+        }
+        pengramForwardTicker = () -> {
+            pengramForwardTicker = null;
+            pengramForwardCheck(true);
+        };
+        AndroidUtilities.runOnUIThread(pengramForwardTicker, 600);
+    }
+
+    /** долгий тап по статусу — пересылка уходит в фон, в чат снова можно писать */
+    private void pengramForwardToBackground() {
+        if (!pengramForwardBlocking()) {
+            return;
+        }
+        pengramForwardBackgrounded = true;
+        if (org.telegram.messenger.PengramConfig.isVibrationEnabled() && bottomOverlayLinksText != null) {
+            try {
+                bottomOverlayLinksText.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+            } catch (Throwable ignore) {}
+        }
+        updateBottomOverlay(true);
+        try {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramForwardBackground)).show();
+        } catch (Throwable ignore) {}
     }
 
     /** Pengram: прозрачность ячейки для текущего состояния сообщения */
@@ -8675,9 +8859,23 @@ public class ChatActivity extends BaseFragment implements
         bottomChannelButtonsLayout.getContainer().addView(bottomOverlayLinksText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
         bottomOverlayLinksText.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
         bottomOverlayLinksText.setOnClickListener(v -> {
+            if (pengramForwardBlocking()) {
+                try {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.getString(R.string.PengramForwardHint)).show();
+                } catch (Throwable ignore) {}
+                return;
+            }
             if (chatMode == MODE_DEFAULT && getMessagesController().freezeUntilDate > getConnectionsManager().getCurrentTime() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
                 AccountFrozenAlert.show(getContext(), currentAccount, getResourceProvider());
             }
+        });
+        // Pengram: зажать статус пересылки — она уходит в фон, можно писать
+        bottomOverlayLinksText.setOnLongClickListener(v -> {
+            if (!pengramForwardBlocking()) {
+                return false;
+            }
+            pengramForwardToBackground();
+            return true;
         });
 
         bottomOverlayChatText = new UnreadCounterTextView(context) {
@@ -27940,7 +28138,28 @@ public class ChatActivity extends BaseFragment implements
         boolean showSuggestButton = false;
         boolean showSearchButton = chatMode == MODE_DEFAULT && ChatObject.isChannelOrGiga(currentChat);
         boolean showGigaGroupButton = false;
-        if (chatMode == MODE_DEFAULT && getMessagesController().isFrozen() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
+        if (pengramForwardBlocking()) {
+            // Pengram: пока в чат идёт пересылка — вместо поля ввода статус
+            if (bottomOverlayStartButton != null) {
+                bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+            }
+            forceVisible = true;
+            bottomOverlayLinks = true;
+            bottomOverlayChatText.setVisibility(View.GONE);
+            bottomOverlayLinksText.setVisibility(View.VISIBLE);
+            bottomOverlayLinksText.setTextColor(getThemedColor(Theme.key_graySectionText));
+            bottomOverlayLinksText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            pengramForwardLastText = pengramForwardStatusText();
+            bottomOverlayLinksText.setText(pengramForwardLastText);
+            bottomOverlayLinksText.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), .05f), Theme.RIPPLE_MASK_ALL));
+            bottomOverlayLinksText.setClickable(false);
+            bottomOverlayLinksText.setLongClickable(true);
+            showBottomOverlayProgress(false, false);
+            if (chatActivityEnterView != null) {
+                chatActivityEnterView.setFieldFocused(false);
+                chatActivityEnterView.closeKeyboard();
+            }
+        } else if (chatMode == MODE_DEFAULT && getMessagesController().isFrozen() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
             if (bottomOverlayStartButton != null) {
                 bottomOverlayStartButton.setVisibility(View.INVISIBLE);
             }
@@ -30024,6 +30243,8 @@ public class ChatActivity extends BaseFragment implements
         super.onResume();
         checkShowBlur(false);
         pengramCheckMarksSettings();
+        pengramRefreshVisibleFades();
+        pengramForwardCheck(false);
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
             ImportingAlert alert = new ImportingAlert(getParentActivity(), null, this, themeDelegate);
@@ -30235,6 +30456,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onPause() {
         super.onPause();
+        pengramScheduleForwardTick(false);
         scrolling = false;
         if (scrimPopupWindow != null) {
             scrimPopupWindow.setPauseNotifications(false);
@@ -35068,10 +35290,25 @@ public class ChatActivity extends BaseFragment implements
         updateVisibleRows(false);
     }
 
+    /** Pengram: прогон по видимым ячейкам — удалённые всегда остаются полупрозрачными */
+    private void pengramRefreshVisibleFades() {
+        if (chatListView == null) {
+            return;
+        }
+        for (int i = 0; i < chatListView.getChildCount(); ++i) {
+            final View child = chatListView.getChildAt(i);
+            if (child instanceof ChatMessageCell) {
+                ((ChatMessageCell) child).pengramUpdateFade();
+            }
+        }
+    }
+
     private void updateVisibleRows(boolean suppressUpdateMessageObject) {
         if (chatListView == null) {
             return;
         }
+        pengramRefreshVisibleFades();
+        pengramForwardCheckThrottled();
         int lastVisibleItem = RecyclerView.NO_POSITION;
         int top = 0;
         if (!wasManualScroll && unreadMessageObject != null) {

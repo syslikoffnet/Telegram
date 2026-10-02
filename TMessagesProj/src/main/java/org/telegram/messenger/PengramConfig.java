@@ -66,6 +66,29 @@ public class PengramConfig {
     public static final int FONT_MONOSPACE = 3;
     public static int appFont = FONT_DEFAULT;
 
+    // --- автостиль отправляемого текста ---
+    public static final int SEND_STYLE_OFF = 0;
+    public static final int SEND_STYLE_BOLD = 1;
+    public static final int SEND_STYLE_ITALIC = 2;
+    public static final int SEND_STYLE_MONO = 3;
+    public static final int SEND_STYLE_STRIKE = 4;
+    public static final int SEND_STYLE_UNDERLINE = 5;
+    public static final int SEND_STYLE_SPOILER = 6;
+    public static final int SEND_STYLE_QUOTE = 7;
+    public static final int SEND_STYLE_WIDE = 8;       // ш и р о к и й  (полноширинные символы)
+    public static int sendTextStyle = SEND_STYLE_OFF;
+    /** применять стиль и к подписям к фото/видео */
+    public static final String KEY_SEND_STYLE_CAPTIONS = "sendStyleCaptions";
+
+    // --- пересылка ---
+    /** прятать ленту историй в списке чатов */
+    public static final String KEY_HIDE_STORIES = "hideStories";
+
+    /** блокировать поле ввода, пока в чат идёт пересылка */
+    public static final String KEY_FORWARD_LOCK = "forwardLockInput";
+    /** вибрация/звук по окончании пересылки */
+    public static final String KEY_FORWARD_DONE_ALERT = "forwardDoneAlert";
+
     // --- сохранение медиа удалённых сообщений ---
     public static final String DEFAULT_MEDIA_FOLDER = "Pengram";
     public static final String DEFAULT_MEDIA_PATTERN = "deleted_{date}_{chat}_{id}";
@@ -348,6 +371,7 @@ public class PengramConfig {
             chatMenuPosition = p.getInt("chatMenuPosition", MENU_POS_TOP);
             chatMenuEnabled = p.getBoolean("chatMenuEnabled", true);
             appFont = p.getInt("appFont", FONT_DEFAULT);
+            sendTextStyle = p.getInt("sendTextStyle", SEND_STYLE_OFF);
             saveDeletedMedia = p.getBoolean("saveDeletedMedia", false);
             mediaFolder = p.getString("mediaFolder", DEFAULT_MEDIA_FOLDER);
             mediaPattern = p.getString("mediaPattern", DEFAULT_MEDIA_PATTERN);
@@ -510,6 +534,12 @@ public class PengramConfig {
     public static void toggleChatMenu() { init(); chatMenuEnabled = !chatMenuEnabled; putBoolean("chatMenuEnabled", chatMenuEnabled); }
     public static void setChatMenuPosition(int pos) { init(); chatMenuPosition = pos; putInt("chatMenuPosition", pos); }
     public static void setAppFont(int font) { init(); appFont = font; putInt("appFont", font); }
+    public static int getSendTextStyle() { init(); return sendTextStyle; }
+    public static void setSendTextStyle(int style) { init(); sendTextStyle = style; putInt("sendTextStyle", style); }
+    public static boolean isSendStyleForCaptions() { return getBool(KEY_SEND_STYLE_CAPTIONS, true); }
+    public static boolean isForwardLockEnabled() { return getBool(KEY_FORWARD_LOCK, true); }
+    public static boolean isHidingStories() { return getBool(KEY_HIDE_STORIES, false); }
+    public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
     public static boolean screenshotsAllowed() {

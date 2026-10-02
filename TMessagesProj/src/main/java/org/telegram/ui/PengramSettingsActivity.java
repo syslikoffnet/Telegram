@@ -24,6 +24,7 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramTextStyle;
 import org.telegram.messenger.PengramVoiceChanger;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -161,6 +162,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CFG_EXPORT = 1406;
     private static final int BTN_CFG_IMPORT = 1407;
     private static final int BTN_CFG_RESET = 1408;
+    private static final int BTN_SEND_STYLE = 1409;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
@@ -466,6 +468,102 @@ public class PengramSettingsActivity extends UniversalFragment {
         showDialog(builder.create());
     }
 
+    /** «Кнопка скрыта» / «Кнопка видна» — чтобы было сразу понятно, что делает галочка */
+    private CharSequence tabStateText(String key) {
+        return getString(PengramConfig.getBool(key, false) ? R.string.PengramTabHidden : R.string.PengramTabVisible);
+    }
+
+    /** живой пример выбранного стиля отправки */
+    private CharSequence sendStyleInfo() {
+        final int style = PengramConfig.getSendTextStyle();
+        if (style == PengramConfig.SEND_STYLE_OFF) {
+            return getString(R.string.PengramSendStyleInfo);
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(getString(R.string.PengramSendStyleExample));
+        sb.append(" ");
+        sb.append(styledSample(style));
+        return sb;
+    }
+
+    /** образец текста, оформленный выбранным стилем */
+    private CharSequence styledSample(int style) {
+        final String sample = getString(R.string.PengramSendStyleSample);
+        if (style == PengramConfig.SEND_STYLE_WIDE) {
+            return org.telegram.messenger.PengramTextStyle.toWide(sample);
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(sample);
+        final int len = sb.length();
+        switch (style) {
+            case PengramConfig.SEND_STYLE_BOLD:
+                sb.setSpan(new org.telegram.ui.Components.TypefaceSpan(AndroidUtilities.bold()), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_ITALIC:
+                sb.setSpan(new android.text.style.StyleSpan(Typeface.ITALIC), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_MONO:
+                sb.setSpan(new org.telegram.ui.Components.TypefaceSpan(Typeface.MONOSPACE), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_STRIKE:
+                sb.setSpan(new android.text.style.StrikethroughSpan(), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_UNDERLINE:
+                sb.setSpan(new android.text.style.UnderlineSpan(), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_SPOILER:
+                sb.setSpan(new android.text.style.BackgroundColorSpan(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()), .35f)),
+                        0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_QUOTE:
+                sb.insert(0, "\u258E ");
+                break;
+        }
+        return sb;
+    }
+
+    /** выбор автостиля отправляемого текста — с наглядными образцами */
+    private void showSendStylePicker() {
+        final int[] styles = org.telegram.messenger.PengramTextStyle.ALL_STYLES;
+        final CharSequence[] options = new CharSequence[styles.length];
+        int selected = 0;
+        for (int a = 0; a < styles.length; ++a) {
+            final int style = styles[a];
+            if (style == PengramConfig.getSendTextStyle()) {
+                selected = a;
+            }
+            final CharSequence name = getString(org.telegram.messenger.PengramTextStyle.getNameRes(style));
+            if (style == PengramConfig.SEND_STYLE_OFF) {
+                options[a] = name;
+            } else {
+                final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(name);
+                sb.append("   ");
+                sb.append(styledSample(style));
+                options[a] = sb;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramSendStyle), options, selected, index -> {
+            PengramConfig.setSendTextStyle(styles[index]);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    /** Pengram: мгновенно применяем скрытие вкладок к главному экрану */
+    private void applyTabsNow() {
+        try {
+            if (getParentLayout() == null) {
+                return;
+            }
+            final java.util.List<org.telegram.ui.ActionBar.BaseFragment> stack = getParentLayout().getFragmentStack();
+            for (int a = 0; a < stack.size(); ++a) {
+                final org.telegram.ui.ActionBar.BaseFragment fragment = stack.get(a);
+                if (fragment instanceof MainTabsActivity) {
+                    ((MainTabsActivity) fragment).checkPengramTabsVisibility();
+                }
+            }
+        } catch (Throwable ignore) {}
+    }
+
     private void fillRoot(ArrayList<UItem> items) {
         if (headerView == null) {
             headerView = new PengramHeaderView(getContext());
@@ -473,7 +571,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
 
-        items.add(UItem.asButton(BTN_SECTION_GENERAL, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral)));
+        items.add(UItem.asButton(BTN_SECTION_GENERAL, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
+                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(UItem.asButton(BTN_SECTION_PROFILE, R.drawable.settings_account, getString(R.string.PengramSectionProfile)));
         items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
         items.add(UItem.asButton(BTN_SECTION_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
@@ -498,6 +597,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
         items.add(checkInfo(PengramConfig.KEY_ZALGO, false, getString(R.string.PengramZalgo), getString(R.string.PengramZalgoInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
+        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit, getString(R.string.PengramSendStyle),
+                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+        if (PengramConfig.getSendTextStyle() != PengramConfig.SEND_STYLE_OFF) {
+            items.add(check(PengramConfig.KEY_SEND_STYLE_CAPTIONS, true, getString(R.string.PengramSendStyleCaptions)));
+        }
+        items.add(UItem.asShadow(sendStyleInfo()));
 
         items.add(UItem.asHeader(getString(R.string.PengramToolsHeader)));
         items.add(UItem.asButton(BTN_OPEN_BY_ID, R.drawable.msg_search, getString(R.string.PengramOpenById)));
@@ -1030,11 +1137,22 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private void fillChats(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
-        items.add(check(PengramConfig.KEY_TAB_CONTACTS, false, getString(R.string.PengramHideTabContacts)));
-        items.add(check(PengramConfig.KEY_TAB_CALLS, false, getString(R.string.PengramHideTabCalls)));
-        items.add(check(PengramConfig.KEY_TAB_SETTINGS, false, getString(R.string.PengramHideTabSettings)));
-        items.add(check(PengramConfig.KEY_TAB_PROFILE, false, getString(R.string.PengramHideTabProfile)));
-        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo)));
+        items.add(checkInfo(PengramConfig.KEY_TAB_CONTACTS, false, getString(R.string.PengramHideTabContacts), tabStateText(PengramConfig.KEY_TAB_CONTACTS)));
+        items.add(checkInfo(PengramConfig.KEY_TAB_CALLS, false, getString(R.string.PengramHideTabCalls), tabStateText(PengramConfig.KEY_TAB_CALLS)));
+        items.add(checkInfo(PengramConfig.KEY_TAB_SETTINGS, false, getString(R.string.PengramHideTabSettings), tabStateText(PengramConfig.KEY_TAB_SETTINGS)));
+        items.add(checkInfo(PengramConfig.KEY_TAB_PROFILE, false, getString(R.string.PengramHideTabProfile), tabStateText(PengramConfig.KEY_TAB_PROFILE)));
+        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
+        items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
+        if (PengramConfig.isForwardLockEnabled()) {
+            items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(check(PengramConfig.KEY_MENU_PENGRAM, false, getString(R.string.PengramHideMenuPengram)));
@@ -1099,6 +1217,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_GENERIC_BASE && onGenericClick(item, view)) {
+            if (item.id == boolId(PengramConfig.KEY_TAB_CONTACTS) || item.id == boolId(PengramConfig.KEY_TAB_CALLS)
+                    || item.id == boolId(PengramConfig.KEY_TAB_SETTINGS) || item.id == boolId(PengramConfig.KEY_TAB_PROFILE)) {
+                applyTabsNow();
+            }
             if (item.id == boolId(PengramConfig.KEY_PREMIUM_STATUS)) {
                 getUserConfig().pengramApplyLocalPremiumStatus();
             }
@@ -1132,6 +1254,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_KEEP_DAYS:
                 showKeepDaysPicker();
+                return;
+            case BTN_SEND_STYLE:
+                showSendStylePicker();
                 return;
             case BTN_OPEN_BY_ID:
                 showOpenByIdDialog();

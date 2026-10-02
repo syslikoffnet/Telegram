@@ -349,15 +349,40 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         checkContactsTabBadge();
         checkUnreadCount(true);
         checkPengramTabs();
+        checkPengramTabsVisibility();
 
         showAccountChangeHint();
     }
 
+    /**
+     * Pengram: страховка — кнопка скрытой вкладки убирается с панели в любом случае,
+     * даже если набор страниц перестраивать не нужно.
+     */
+    public void checkPengramTabsVisibility() {
+        if (tabsView == null || tabs == null) {
+            return;
+        }
+        final boolean callsTab = UserConfig.getInstance(currentAccount).showCallsTab;
+        for (int index = 0; index < tabs.length; index++) {
+            if (tabs[index] == null) {
+                continue;
+            }
+            boolean visible = !isTabHidden(index);
+            if (index == INDEX_SETTINGS) {
+                visible = visible && !callsTab;
+            } else if (index == INDEX_CALLS) {
+                visible = visible && callsTab;
+            }
+            tabsView.setViewVisible(tabs[index], visible, false);
+        }
+    }
+
     /** Pengram: применяем скрытие/возврат вкладок без перезапуска приложения */
-    private void checkPengramTabs() {
+    public void checkPengramTabs() {
         final int[] oldKinds = getPageKinds();
         final int[] newKinds = buildPageKinds();
         if (java.util.Arrays.equals(oldKinds, newKinds)) {
+            checkPengramTabsVisibility();
             return;
         }
 

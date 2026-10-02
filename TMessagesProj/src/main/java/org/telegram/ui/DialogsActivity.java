@@ -7020,6 +7020,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         super.onResume();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
+            updateStoriesVisibility(false);
         }
         if (rightSlidingDialogContainer != null) {
             rightSlidingDialogContainer.onResume();
@@ -12764,6 +12765,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         boolean oldStoriesCellVisibility = dialogStoriesCellVisible;
         dialogStoriesCellVisible = onlySelfStories || newVisibility;
+        if (org.telegram.messenger.PengramConfig.isHidingStories()) {
+            // Pengram: лента историй спрятана настройками
+            newVisibility = false;
+            dialogStoriesCellVisible = false;
+        }
 
         if (newVisibility || dialogStoriesCellVisible) {
             dialogStoriesCell.updateItems(animated, dialogStoriesCellVisible != oldStoriesCellVisibility);
