@@ -10040,7 +10040,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 fontMetricsInt = paint.getFontMetricsInt();
 
                 ArrayList<TLRPC.MessageEntity> entities = editingMessageObject.messageOwner.entities;
-                textToSetWithKeyboard = applyMessageEntities(entities, editingText, fontMetricsInt);
+                textToSetWithKeyboard = PengramTextFormatting.keepStyleOnType(applyMessageEntities(entities, editingText, fontMetricsInt));
             } else {
                 textToSetWithKeyboard = "";
             }

@@ -669,6 +669,7 @@ public class EditTextCaption extends EditTextBoldCursor implements FloatingToolb
             end = getSelectionEnd();
         }
         MediaDataController.addStyleToText(span, start, end, getText(), allowTextEntitiesIntersection);
+        PengramTextFormatting.apply(getText());
 
         if (span == null) {
             Editable editable = getText();

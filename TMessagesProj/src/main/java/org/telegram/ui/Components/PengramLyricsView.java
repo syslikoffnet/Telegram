@@ -58,6 +58,8 @@ public class PengramLyricsView extends View {
     private int previewSize;
     private int builtSize;
     private boolean builtBold;
+    private float[] charFractions;
+    private int fractionsLine = -1;
     private int builtAlign;
 
     public PengramLyricsView(Context context) {
@@ -158,6 +160,56 @@ public class PengramLyricsView extends View {
     }
 
     /** какая строка сейчас звучит и насколько она «прожита» (0..1) */
+    /**
+     * Доля строки, на которой «зажигается» символ. Если у строки есть пословные метки
+     * (enhanced LRC), считаем по ним — тогда подсветка идёт ровно по голосу.
+     */
+    private void buildCharFractions(int lineIndex, CharSequence text) {
+        fractionsLine = lineIndex;
+        final int total = text.length();
+        charFractions = new float[total + 1];
+        PengramLyrics.Line line = lineIndex >= 0 && lineIndex < lines.size() ? lines.get(lineIndex) : null;
+        if (line == null || !line.hasWords() || !timed) {
+            for (int a = 0; a <= total; ++a) {
+                charFractions[a] = total == 0 ? 0 : a / (float) total;
+            }
+            return;
+        }
+        final long start = Math.max(0, line.time);
+        long end = durationMs;
+        for (int a = lineIndex + 1; a < lines.size(); ++a) {
+            if (lines.get(a).time >= 0) {
+                end = lines.get(a).time;
+                break;
+            }
+        }
+        final long lastWord = line.wordTimes[line.wordTimes.length - 1];
+        if (end <= lastWord) {
+            end = lastWord + 1200;
+        }
+        final float span = Math.max(1, end - start);
+        int mark = 0;
+        for (int a = 0; a <= total; ++a) {
+            while (mark + 1 < line.wordChars.length && line.wordChars[mark + 1] <= a) {
+                mark++;
+            }
+            final int charFrom = Math.min(total, line.wordChars[mark]);
+            final long timeFrom = line.wordTimes[mark];
+            final int charTo = mark + 1 < line.wordChars.length ? Math.min(total, line.wordChars[mark + 1]) : total;
+            final long timeTo = mark + 1 < line.wordTimes.length ? line.wordTimes[mark + 1] : end;
+            final float inner = charTo > charFrom ? (a - charFrom) / (float) (charTo - charFrom) : 1f;
+            final float time = timeFrom + (timeTo - timeFrom) * Utilities.clamp(inner, 1f, 0f);
+            charFractions[a] = Utilities.clamp((time - start) / span, 1f, 0f);
+        }
+    }
+
+    private float charFraction(int charIndex, int total) {
+        if (charFractions == null || charFractions.length <= total) {
+            return total == 0 ? 0 : Utilities.clamp(charIndex / (float) total, 1f, 0f);
+        }
+        return charFractions[Math.max(0, Math.min(charFractions.length - 1, charIndex))];
+    }
+
     private float lineProgress(int index) {
         if (index < 0 || index >= lines.size()) {
             return 0;
@@ -220,6 +272,8 @@ public class PengramLyricsView extends View {
         if (line != activeLine) {
             activeLine = line;
             enterAnim = 0;
+            charFractions = null;
+            fractionsLine = -1;
         }
         enterAnim = Math.min(1f, enterAnim + dt * 2.6f * speed);
 
@@ -298,6 +352,10 @@ public class PengramLyricsView extends View {
             return;
         }
 
+        if (charFractions == null || fractionsLine != activeLine || charFractions.length != text.length() + 1) {
+            buildCharFractions(activeLine, text);
+        }
+
         int charIndex = 0;
         for (int l = 0; l < layout.getLineCount(); ++l) {
             final int start = layout.getLineStart(l);
@@ -317,8 +375,9 @@ public class PengramLyricsView extends View {
                     charIndex++;
                     continue;
                 }
-                final float charStart = charIndex / (float) total;
-                final float raw = (lineProgress - charStart) * total;
+                final float charStart = charFraction(charIndex, total);
+                final float charSpan = Math.max(0.0005f, charFraction(charIndex + 1, total) - charStart);
+                final float raw = (lineProgress - charStart) / charSpan;
                 final float p = Utilities.clamp(raw, 1f, 0f);
                 float dy = 0;
                 float scale = 1f;
@@ -371,6 +430,63 @@ public class PengramLyricsView extends View {
                         alpha = Math.max(dimAlpha, p);
                         break;
                     }
+                    case PengramConfig.LYRICS_ANIM_GRADIENT: {
+                        final float shift = (time * 0.35f * speed + charIndex * 0.06f) % 1f;
+                        color = ColorUtils.blendARGB(accentColor, 0xFFFFFFFF, 0.5f + 0.5f * (float) Math.sin(shift * 6.283f));
+                        alpha = Math.max(dimAlpha, p);
+                        break;
+                    }
+                    case PengramConfig.LYRICS_ANIM_SHAKE: {
+                        alpha = Math.max(dimAlpha, p);
+                        final float energy = p * (1f - Math.min(1f, Math.abs(raw - 1f) * 0.6f));
+                        dy = (float) Math.sin(time * 26f * speed + charIndex) * AndroidUtilities.dp(1.6f) * energy;
+                        scale = 1f + 0.05f * energy;
+                        break;
+                    }
+                    case PengramConfig.LYRICS_ANIM_DROP: {
+                        alpha = Math.max(dimAlpha * 0.5f, p);
+                        final float fall = 1f - Utilities.clamp(raw, 1f, 0f);
+                        dy = -fall * AndroidUtilities.dp(22);
+                        scale = 0.9f + 0.1f * p;
+                        break;
+                    }
+                    case PengramConfig.LYRICS_ANIM_FLIP: {
+                        alpha = Math.max(dimAlpha, p);
+                        final float turn = Utilities.clamp(raw, 1f, 0f);
+                        canvas.save();
+                        canvas.translate(x, 0);
+                        canvas.scale(1f, 0.15f + 0.85f * (float) Math.sin(turn * 1.5707963f), w * 0.5f, baseline - textPaint.getTextSize() * 0.32f);
+                        textPaint.setColor(ColorUtils.setAlphaComponent(
+                                p > 0 ? accentColor : ColorUtils.setAlphaComponent(baseColor, (int) (255 * dimAlpha)),
+                                (int) (255 * Utilities.clamp(alpha * enterAnim + (1f - enterAnim) * dimAlpha, 1f, 0f))));
+                        canvas.drawText(text, start + c, start + c + 1, 0, baseline, textPaint);
+                        canvas.restore();
+                        x += w;
+                        charIndex++;
+                        continue;
+                    }
+                    case PengramConfig.LYRICS_ANIM_SWEEP: {
+                        final float head = lineProgress;
+                        final float distance = Math.abs(charStart - head);
+                        final float band = (float) Math.exp(-Math.pow(distance * 9f, 2));
+                        color = ColorUtils.blendARGB(
+                                p > 0 ? accentColor : ColorUtils.setAlphaComponent(baseColor, (int) (255 * dimAlpha)),
+                                0xFFFFFFFF, band);
+                        alpha = Math.max(dimAlpha, Math.max(p, band));
+                        if (band > 0.1f) {
+                            textPaint.setShadowLayer(AndroidUtilities.dp(10) * band, 0, 0, ColorUtils.setAlphaComponent(0xFFFFFFFF, (int) (160 * band)));
+                        }
+                        break;
+                    }
+                    case PengramConfig.LYRICS_ANIM_MAGNIFY: {
+                        final float head = lineProgress;
+                        final float distance = Math.abs(charStart - head);
+                        final float near = (float) Math.exp(-Math.pow(distance * 11f, 2));
+                        alpha = Math.max(dimAlpha, Math.max(p * 0.85f, near));
+                        scale = 1f + 0.4f * near;
+                        dy = -near * AndroidUtilities.dp(3);
+                        break;
+                    }
                     case PengramConfig.LYRICS_ANIM_BLUR: {
                         alpha = Math.max(dimAlpha * 0.8f, p);
                         if (p < 1) {
@@ -382,7 +498,8 @@ public class PengramLyricsView extends View {
                     }
                 }
 
-                if (anim != PengramConfig.LYRICS_ANIM_NEON && anim != PengramConfig.LYRICS_ANIM_BLUR) {
+                if (anim != PengramConfig.LYRICS_ANIM_NEON && anim != PengramConfig.LYRICS_ANIM_BLUR
+                        && anim != PengramConfig.LYRICS_ANIM_SWEEP) {
                     if (shadow) {
                         textPaint.setShadowLayer(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(1), 0x66000000);
                     } else {

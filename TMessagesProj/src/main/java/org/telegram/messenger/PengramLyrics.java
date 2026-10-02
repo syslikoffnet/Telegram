@@ -47,10 +47,24 @@ public class PengramLyrics {
         /** время начала строки в миллисекундах, -1 если текст без таймкодов */
         public final long time;
         public final String text;
+        /** время начала каждого размеченного слова, мс (enhanced LRC) */
+        public final long[] wordTimes;
+        /** позиция первого символа соответствующего слова в тексте строки */
+        public final int[] wordChars;
 
         public Line(long time, String text) {
+            this(time, text, null, null);
+        }
+
+        public Line(long time, String text, long[] wordTimes, int[] wordChars) {
             this.time = time;
             this.text = text;
+            this.wordTimes = wordTimes;
+            this.wordChars = wordChars;
+        }
+
+        public boolean hasWords() {
+            return wordTimes != null && wordTimes.length > 1;
         }
     }
 
@@ -369,7 +383,74 @@ public class PengramLyrics {
             return result;
         }
         // 5. совсем широкий поиск только по названию
-        return parseList(get("/api/search?track_name=" + enc(title)), duration);
+        result = parseList(get("/api/search?track_name=" + enc(title)), duration);
+        if (result != null) {
+            return result;
+        }
+        // 6. запасной источник с таймкодами
+        result = fetchTextyl(artist, title);
+        if (result != null) {
+            return result;
+        }
+        // 7. последний шанс: обычный текст без таймкодов
+        return fetchLyricsOvh(artist, title);
+    }
+
+    /** api.textyl.co отдаёт готовый список строк с секундами */
+    private static String fetchTextyl(String artist, String title) {
+        try {
+            final String query = (TextUtils.isEmpty(artist) ? "" : artist + " ") + title;
+            final String json = getUrl("https://api.textyl.co/api/lyrics?q=" + enc(query));
+            if (TextUtils.isEmpty(json) || json.charAt(0) != '[') {
+                return null;
+            }
+            final JSONArray array = new JSONArray(json);
+            if (array.length() < 3) {
+                return null;
+            }
+            final StringBuilder builder = new StringBuilder();
+            for (int a = 0; a < array.length(); ++a) {
+                final JSONObject item = array.optJSONObject(a);
+                if (item == null) {
+                    continue;
+                }
+                final String text = item.optString("lyrics", "").trim();
+                if (TextUtils.isEmpty(text)) {
+                    continue;
+                }
+                final int seconds = item.optInt("seconds", -1);
+                if (seconds >= 0) {
+                    builder.append(String.format(Locale.US, "[%02d:%02d.00]", seconds / 60, seconds % 60));
+                }
+                builder.append(text).append('\n');
+            }
+            final String result = builder.toString().trim();
+            return TextUtils.isEmpty(result) ? null : result;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** api.lyrics.ovh — только обычный текст, зато там есть то, чего нет больше нигде */
+    private static String fetchLyricsOvh(String artist, String title) {
+        if (TextUtils.isEmpty(artist) || TextUtils.isEmpty(title)) {
+            return null;
+        }
+        try {
+            final String json = getUrl("https://api.lyrics.ovh/v1/" + enc(artist) + "/" + enc(title));
+            if (TextUtils.isEmpty(json) || json.charAt(0) != '{') {
+                return null;
+            }
+            final JSONObject object = new JSONObject(json);
+            final String lyrics = object.isNull("lyrics") ? null : object.optString("lyrics", null);
+            if (TextUtils.isEmpty(lyrics)) {
+                return null;
+            }
+            final String cleaned = lyrics.replace("\r", "").trim();
+            return cleaned.length() < 20 ? null : cleaned;
+        } catch (Throwable e) {
+            return null;
+        }
     }
 
     private static String enc(String value) {
@@ -381,9 +462,13 @@ public class PengramLyrics {
     }
 
     private static String get(String path) {
+        return getUrl("https://lrclib.net" + path);
+    }
+
+    private static String getUrl(String address) {
         HttpURLConnection connection = null;
         try {
-            final URL url = new URL("https://lrclib.net" + path);
+            final URL url = new URL(address);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", UA);
@@ -507,14 +592,49 @@ public class PengramLyrics {
                 times.add(time);
                 line = trimmed.substring(end + 1);
             }
-            final String text = line.trim();
+            // enhanced LRC: внутри строки встречаются пословные метки <00:12.34>
+            final ArrayList<Long> wordTimes = new ArrayList<>();
+            final ArrayList<Integer> wordChars = new ArrayList<>();
+            final StringBuilder clean = new StringBuilder();
+            for (int i = 0; i < line.length(); ) {
+                final char c = line.charAt(i);
+                if (c == '<') {
+                    final int close = line.indexOf('>', i);
+                    if (close > i) {
+                        final long wordTime = parseTime(line.substring(i + 1, close));
+                        if (wordTime >= 0) {
+                            int at = clean.length();
+                            while (at > 0 && clean.charAt(at - 1) == ' ') {
+                                at--;
+                            }
+                            wordTimes.add(wordTime);
+                            wordChars.add(Math.min(at, clean.length()));
+                            i = close + 1;
+                            continue;
+                        }
+                    }
+                }
+                clean.append(c);
+                i++;
+            }
+            final String text = clean.toString().trim();
+            long[] wt = null;
+            int[] wc = null;
+            if (wordTimes.size() > 1) {
+                wt = new long[wordTimes.size()];
+                wc = new int[wordTimes.size()];
+                for (int i = 0; i < wordTimes.size(); ++i) {
+                    wt[i] = wordTimes.get(i);
+                    wc[i] = Math.max(0, Math.min(text.length(), wordChars.get(i)));
+                }
+            }
             if (times.isEmpty()) {
                 if (!TextUtils.isEmpty(text)) {
-                    result.add(new Line(-1, text));
+                    result.add(new Line(wt != null ? wt[0] : -1, text, wt, wc));
                 }
             } else {
                 for (long time : times) {
-                    result.add(new Line(time, text));
+                    result.add(new Line(time, text, wt, wc));
                 }
             }
         }

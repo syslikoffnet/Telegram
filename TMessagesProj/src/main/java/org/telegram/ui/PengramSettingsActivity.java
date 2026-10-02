@@ -199,6 +199,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_LYRICS_CLEAR = 1430;
     private static final int BTN_PLAYER_STYLE = 1431;
     private static final int BTN_CHAT_LOOK = 1432;
+    private static final int BTN_CONSTRUCTOR = 1433;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -826,6 +827,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         // крупные цветные строки разделов — как на экране «Настройки»
+        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.PURPLE, R.drawable.msg_customize, getString(R.string.PengramConstructor), null));
         items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account, getString(R.string.PengramSectionProfile), null));
@@ -1615,6 +1617,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
         items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
 
+        items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
+        items.add(UItem.asShadow(null));
+
         items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
         items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> {
             PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))]);
@@ -2020,6 +2025,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_CHAT_LOOK:
             case BTN_AVATAR_POS:
                 presentFragment(new PengramChatLookActivity());
+                return;
+            case BTN_CONSTRUCTOR:
+                presentFragment(new PengramConstructorActivity());
                 return;
             case BTN_PLAYER_BG: {
                 final CharSequence[] options = new CharSequence[4];

@@ -2055,6 +2055,41 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
     }
 
+    /**
+     * Pengram: пересылка «копией».
+     * Удалённое сообщение и одноразовое медиа переслать нельзя — но файл обычно уже лежит
+     * в кэше, поэтому отправляем его заново как новое сообщение, сохраняя подпись.
+     * Возвращает true, если удалось отправить медиа.
+     */
+    private boolean pengramSendMediaCopy(MessageObject msgObj, long peer, boolean notify, int scheduleDate, MessageObject replyToTopMsg) {
+        try {
+            if (msgObj == null || msgObj.messageOwner == null) {
+                return false;
+            }
+            String path = msgObj.messageOwner.attachPath;
+            if (TextUtils.isEmpty(path) || !new File(path).exists()) {
+                final File file = FileLoader.getInstance(currentAccount).getPathToMessage(msgObj.messageOwner);
+                path = file != null && file.exists() && file.length() > 0 ? file.getAbsolutePath() : null;
+            }
+            if (TextUtils.isEmpty(path)) {
+                return false;
+            }
+            final CharSequence caption = msgObj.caption;
+            if (msgObj.isPhoto() && !msgObj.isVideo() && !msgObj.isGif() && !msgObj.isSticker()) {
+                prepareSendingPhoto(AccountInstance.getInstance(currentAccount), path, null, peer, null, replyToTopMsg,
+                        null, caption, msgObj.messageOwner.entities, null, null, 0, null, notify, scheduleDate, 0, null);
+            } else {
+                prepareSendingDocument(AccountInstance.getInstance(currentAccount), path, path, null,
+                        caption == null ? null : caption.toString(), null, peer, null, replyToTopMsg, null, null, null,
+                        notify, scheduleDate, null, null, false);
+            }
+            return true;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
     public int sendMessage(ArrayList<MessageObject> messages, final long peer, boolean forwardFromMyName, boolean hideCaption, boolean notify, int scheduleDate, long payStars) {
         return sendMessage(messages, peer, forwardFromMyName, hideCaption, notify, scheduleDate, null, -1, payStars);
     }
@@ -2160,7 +2195,14 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             int pengramChunkIndex = 0; // Pengram: номер пачки из 100 сообщений
             for (int a = 0; a < messages.size(); a++) {
                 MessageObject msgObj = messages.get(a);
-                if (msgObj.getId() <= 0 || msgObj.needDrawBluredPreview()) {
+                // Pengram: удалёнки и одноразки нельзя переслать обычным способом —
+                // их больше нет на сервере (или сервер запрещает). Отправляем копию.
+                final boolean pengramCopy = msgObj.pengramDeleted || msgObj.needDrawBluredPreview();
+                if (msgObj.getId() <= 0 || pengramCopy) {
+                    if (pengramCopy && msgObj.type != MessageObject.TYPE_TEXT
+                            && pengramSendMediaCopy(msgObj, peer, notify, scheduleDate, replyToTopMsg)) {
+                        continue;
+                    }
                     if (msgObj.type == MessageObject.TYPE_TEXT && !TextUtils.isEmpty(msgObj.messageText)) {
                         TLRPC.WebPage webPage = msgObj.messageOwner.media != null ? msgObj.messageOwner.media.webpage : null;
                         final SendMessageParams params = SendMessageParams.of(msgObj.messageText.toString(), peer, null, replyToTopMsg, webPage, webPage != null, msgObj.messageOwner.entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, null, false);

@@ -289,6 +289,44 @@ public class PengramConfig {
     public static boolean isNoRounding() { return getBool(KEY_NO_ROUNDING, false); }
     public static boolean isTimeWithSeconds() { return getBool(KEY_TIME_SECONDS, false); }
     public static boolean isVibrationEnabled() { return getBool(KEY_VIBRATION, true); }
+
+    public static final int DIALOG_AVATAR_CIRCLE = 0;
+    public static final int DIALOG_AVATAR_ROUNDED = 1;
+    public static final int DIALOG_AVATAR_SQUARE = 2;
+    public static final int DIALOG_AVATAR_COUNT = 3;
+
+    /** форма миниатюр в списке чатов */
+    public static int getDialogAvatarShape() {
+        final int value = prefs().getInt("dialogAvatarShape", DIALOG_AVATAR_CIRCLE);
+        return value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value;
+    }
+
+    public static void setDialogAvatarShape(int value) {
+        putInt("dialogAvatarShape", value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value);
+    }
+
+    public static int getDialogAvatarShapeName(int value) {
+        switch (value) {
+            case DIALOG_AVATAR_ROUNDED: return org.telegram.messenger.R.string.PengramCoverRounded;
+            case DIALOG_AVATAR_SQUARE: return org.telegram.messenger.R.string.PengramCoverSquare;
+            case DIALOG_AVATAR_CIRCLE:
+            default: return org.telegram.messenger.R.string.PengramCoverCircle;
+        }
+    }
+
+    /** радиус миниатюры в списке чатов: круг — как было, иначе наш вариант */
+    public static int dialogAvatarRadius(int defaultRadius) {
+        switch (getDialogAvatarShape()) {
+            case DIALOG_AVATAR_ROUNDED: return Math.min(defaultRadius, AndroidUtilities.dp(13));
+            case DIALOG_AVATAR_SQUARE: return 0;
+            default: return defaultRadius;
+        }
+    }
+
+    public static final String KEY_KEEP_FORMATTING = "keepFormatting";
+
+    /** продолжать оформление (жирный, курсив…) при наборе и при правке сообщения */
+    public static boolean isKeepFormatting() { return getBool(KEY_KEEP_FORMATTING, true); }
     public static boolean isZalgoFilter() { return getBool(KEY_ZALGO, false); }
 
     /**
@@ -1599,7 +1637,8 @@ public class PengramConfig {
 
     public static int getPlayerStyle() {
         init();
-        final int value = prefs().getInt("playerStyle", PLAYER_STYLE_FULL);
+        // по умолчанию — наш вариант с текстом песни: караоке «буква в букву»
+        final int value = prefs().getInt("playerStyle", PLAYER_STYLE_LYRICS);
         return value < 0 || value >= PLAYER_STYLE_COUNT ? PLAYER_STYLE_FULL : value;
     }
 
@@ -1649,7 +1688,13 @@ public class PengramConfig {
     public static final int LYRICS_ANIM_RAINBOW = 7;
     public static final int LYRICS_ANIM_BLUR = 8;
     public static final int LYRICS_ANIM_NONE = 9;
-    public static final int LYRICS_ANIM_COUNT = 10;
+    public static final int LYRICS_ANIM_GRADIENT = 10;
+    public static final int LYRICS_ANIM_SHAKE = 11;
+    public static final int LYRICS_ANIM_DROP = 12;
+    public static final int LYRICS_ANIM_FLIP = 13;
+    public static final int LYRICS_ANIM_SWEEP = 14;
+    public static final int LYRICS_ANIM_MAGNIFY = 15;
+    public static final int LYRICS_ANIM_COUNT = 16;
 
     public static int getLyricsAnim() {
         init();
@@ -1672,6 +1717,12 @@ public class PengramConfig {
             case LYRICS_ANIM_RAINBOW: return org.telegram.messenger.R.string.PengramLyricsAnimRainbow;
             case LYRICS_ANIM_BLUR: return org.telegram.messenger.R.string.PengramLyricsAnimBlur;
             case LYRICS_ANIM_NONE: return org.telegram.messenger.R.string.PengramLyricsAnimNone;
+            case LYRICS_ANIM_GRADIENT: return org.telegram.messenger.R.string.PengramLyricsAnimGradient;
+            case LYRICS_ANIM_SHAKE: return org.telegram.messenger.R.string.PengramLyricsAnimShake;
+            case LYRICS_ANIM_DROP: return org.telegram.messenger.R.string.PengramLyricsAnimDrop;
+            case LYRICS_ANIM_FLIP: return org.telegram.messenger.R.string.PengramLyricsAnimFlip;
+            case LYRICS_ANIM_SWEEP: return org.telegram.messenger.R.string.PengramLyricsAnimSweep;
+            case LYRICS_ANIM_MAGNIFY: return org.telegram.messenger.R.string.PengramLyricsAnimMagnify;
             case LYRICS_ANIM_KARAOKE:
             default: return org.telegram.messenger.R.string.PengramLyricsAnimKaraoke;
         }

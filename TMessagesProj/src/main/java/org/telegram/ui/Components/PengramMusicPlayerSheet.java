@@ -62,6 +62,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private android.widget.ScrollView queueScroll;
     private ImageView queueButton;
     private boolean queueShown;
+    private PengramTrackButton prevTrackButton;
+    private PengramTrackButton nextTrackButton;
+    private TextView speedChip;
+    private FrameLayout speedPanel;
     private final BackgroundView backgroundView;
     private final BackupImageView coverView;
     private final BackupImageView smallCoverView;
@@ -72,11 +76,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private final TextView durationView;
     private final ImageView playButton;
     private final PlayPauseDrawable playPauseDrawable;
-    private final ImageView prevButton;
-    private final ImageView nextButton;
+
     private final ImageView repeatButton;
     private final ImageView lyricsButton;
-    private final ImageView speedButton;
     private final FrameLayout lyricsContainer;
     private final PengramLyricsView lyricsView;
     private final TextView lyricsStatusView;
@@ -342,14 +344,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         });
         controls.addView(repeatButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 2, 0, 0, 0));
 
-        prevButton = new ImageView(context);
-        prevButton.setScaleType(ImageView.ScaleType.CENTER);
-        prevButton.setImageResource(R.drawable.msg_go_up);
-        prevButton.setRotation(-90);
-        prevButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-        prevButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
-        prevButton.setOnClickListener(v -> MediaController.getInstance().playPreviousMessage());
-        controls.addView(prevButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, -88, 0, 0, 0));
+        prevTrackButton = new PengramTrackButton(context, false);
+        prevTrackButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
+        prevTrackButton.setOnClickListener(v -> MediaController.getInstance().playPreviousMessage());
+        controls.addView(prevTrackButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, -88, 0, 0, 0));
 
         playButton = new ImageView(context);
         playButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -372,14 +370,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         });
         controls.addView(playButton, LayoutHelper.createFrame(62, 62, Gravity.CENTER));
 
-        nextButton = new ImageView(context);
-        nextButton.setScaleType(ImageView.ScaleType.CENTER);
-        nextButton.setImageResource(R.drawable.msg_go_up);
-        nextButton.setRotation(90);
-        nextButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-        nextButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
-        nextButton.setOnClickListener(v -> MediaController.getInstance().playNextMessage());
-        controls.addView(nextButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, 88, 0, 0, 0));
+        nextTrackButton = new PengramTrackButton(context, true);
+        nextTrackButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
+        nextTrackButton.setOnClickListener(v -> MediaController.getInstance().playNextMessage());
+        controls.addView(nextTrackButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, 88, 0, 0, 0));
 
         lyricsButton = new ImageView(context);
         lyricsButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -390,18 +384,28 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         lyricsButton.setVisibility(lyricsSupported && !lyricsAlways ? View.VISIBLE : View.GONE);
         controls.addView(lyricsButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 2, 0));
 
-        speedButton = new ImageView(context);
-        speedButton.setScaleType(ImageView.ScaleType.CENTER);
-        speedButton.setImageResource(R.drawable.msg_speed_slow);
-        speedButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-        speedButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(18)));
-        speedButton.setOnClickListener(v -> {
+        speedChip = new TextView(context);
+        speedChip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        speedChip.setTypeface(AndroidUtilities.bold());
+        speedChip.setGravity(Gravity.CENTER);
+        speedChip.setTextColor(0xFFFFFFFF);
+        speedChip.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(18)));
+        speedChip.setOnClickListener(v -> {
             final float current = MediaController.getInstance().getPlaybackSpeed(true);
-            final float next = current < 1.2f ? 1.5f : current < 1.7f ? 2f : 1f;
-            MediaController.getInstance().setPlaybackSpeed(true, next);
-            updateSpeedButton();
+            float next = SPEEDS[0];
+            for (int a = 0; a < SPEEDS.length; ++a) {
+                if (current < SPEEDS[a] - 0.01f) {
+                    next = SPEEDS[a];
+                    break;
+                }
+            }
+            setSpeed(next);
         });
-        controls.addView(speedButton, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.CENTER_VERTICAL,
+        speedChip.setOnLongClickListener(v -> {
+            toggleSpeedPanel(true);
+            return true;
+        });
+        controls.addView(speedChip, LayoutHelper.createFrame(40, 36, Gravity.RIGHT | Gravity.CENTER_VERTICAL,
                 0, 0, lyricsSupported && !lyricsAlways ? 48 : 6, 0));
 
         if (!compact) {
@@ -708,6 +712,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         lyricsKey = PengramLyrics.keyFor(playing);
         final long duration = (long) (playing.getDuration() * 1000);
         lyricsView.setColors(accentColor, 0xFFFFFFFF);
+        if (prevTrackButton != null) {
+            prevTrackButton.setColor(0xFFFFFFFF);
+            nextTrackButton.setColor(0xFFFFFFFF);
+        }
         PengramLyrics.request(playing, force, (key, raw, state) -> {
             if (!TextUtils.equals(key, lyricsKey)) {
                 return;
@@ -746,10 +754,90 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
     }
 
+    private static final float[] SPEEDS = new float[]{0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f};
+
+    private static String speedLabel(float speed) {
+        if (Math.abs(speed - Math.round(speed)) < 0.01f) {
+            return Math.round(speed) + "\u00d7";
+        }
+        return String.format(java.util.Locale.getDefault(), "%.2f", speed).replaceAll("0$", "") + "\u00d7";
+    }
+
+    private void setSpeed(float speed) {
+        MediaController.getInstance().setPlaybackSpeed(true, speed);
+        updateSpeedButton();
+        if (speedPanel != null && speedPanel.getVisibility() == View.VISIBLE) {
+            toggleSpeedPanel(false);
+        }
+    }
+
+    /** подпись показывает ровно ту скорость, которая играет — без «примерных» иконок */
     private void updateSpeedButton() {
+        if (speedChip == null) {
+            return;
+        }
         final float speed = MediaController.getInstance().getPlaybackSpeed(true);
-        speedButton.setImageResource(speed > 1.4f ? R.drawable.msg_speed_fast : speed > 1.1f ? R.drawable.msg_speed_medium : R.drawable.msg_speed_slow);
-        speedButton.setColorFilter(new PorterDuffColorFilter(speed > 1.05f ? accentColor : 0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+        speedChip.setText(speedLabel(speed));
+        speedChip.setTextColor(Math.abs(speed - 1f) > 0.01f ? accentColor : 0xFFFFFFFF);
+        if (speedPanel != null) {
+            for (int a = 0; a < speedPanel.getChildCount(); ++a) {
+                final View child = speedPanel.getChildAt(a);
+                if (child instanceof LinearLayout) {
+                    final LinearLayout row = (LinearLayout) child;
+                    for (int b = 0; b < row.getChildCount(); ++b) {
+                        final View chip = row.getChildAt(b);
+                        if (chip instanceof TextView && b < SPEEDS.length) {
+                            final boolean active = Math.abs(SPEEDS[b] - speed) < 0.01f;
+                            ((TextView) chip).setTextColor(active ? 0xFF000000 : 0xFFFFFFFF);
+                            chip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(14),
+                                    active ? 0xFFFFFFFF : 0x22FFFFFF, 0x33FFFFFF));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** панель выбора скорости: все значения сразу, а не вслепую по кругу */
+    private void toggleSpeedPanel(boolean show) {
+        if (speedPanel == null) {
+            if (!show) {
+                return;
+            }
+            final Context context = getContext();
+            speedPanel = new FrameLayout(context);
+            speedPanel.setBackgroundColor(0x80000000);
+            speedPanel.setOnClickListener(v -> toggleSpeedPanel(false));
+
+            final LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0xF21A1A1E, 0xF21A1A1E));
+            row.setPadding(dp(8), dp(8), dp(8), dp(8));
+            row.setOnClickListener(v -> {
+            });
+            for (float value : SPEEDS) {
+                final TextView chip = new TextView(context);
+                chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+                chip.setTypeface(AndroidUtilities.bold());
+                chip.setGravity(Gravity.CENTER);
+                chip.setText(speedLabel(value));
+                chip.setOnClickListener(v -> setSpeed(value));
+                row.addView(chip, LayoutHelper.createLinear(0, 36, 1f, 2, 0, 2, 0));
+            }
+            speedPanel.addView(row, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                    Gravity.BOTTOM, 10, 0, 10, 86));
+            cardLayout.addView(speedPanel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            speedPanel.setVisibility(View.GONE);
+            speedPanel.setAlpha(0f);
+        }
+        if (show) {
+            updateSpeedButton();
+            speedPanel.setVisibility(View.VISIBLE);
+            speedPanel.animate().alpha(1f).setDuration(180).start();
+        } else {
+            speedPanel.animate().alpha(0f).setDuration(150)
+                    .withEndAction(() -> speedPanel.setVisibility(View.GONE)).start();
+        }
     }
 
     private void updateRepeatButton() {
@@ -861,6 +949,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
     @Override
     public void onBackPressed() {
+        if (speedPanel != null && speedPanel.getVisibility() == View.VISIBLE) {
+            toggleSpeedPanel(false);
+            return;
+        }
         if (queueShown) {
             toggleQueue(false);
             return;
