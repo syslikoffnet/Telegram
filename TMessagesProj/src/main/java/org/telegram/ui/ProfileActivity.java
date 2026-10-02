@@ -7331,6 +7331,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
+        if (position >= 0 && position == regDateRow && userId != 0) {
+            showRegDateInfo(PengramRegDate.estimate(userId));
+            return true;
+        }
         if (position == idRow) {
             final long peerId = userId != 0 ? userId : chatId;
             if (peerId == 0 || !PengramConfig.copyIdOnTap) {
@@ -10684,6 +10688,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
+                if (PengramConfig.isRegDateVisible() && !PengramConfig.isIdSeparateRow()) {
+                    regDateRow = rowCount++;
+                }
                 bioRow = rowCount++;
 
                 settingsSectionRow = rowCount++;
@@ -10780,7 +10787,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
-                // дата регистрации теперь живёт в строке ID (иконка-календарик)
+                // обычно календарик живёт в строке ID; если её выключили — даём отдельную строку
+                if (user != null && PengramConfig.isRegDateVisible() && !PengramConfig.isIdSeparateRow()) {
+                    regDateRow = rowCount++;
+                }
                 if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
                     pengramHistoryRow = rowCount++;
                 }
@@ -13533,6 +13543,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
+                    boolean containsCalendar = false;
                     if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
@@ -13591,6 +13602,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 calendarDrawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                                 detailCell.setImage(calendarDrawable, LocaleController.getString(R.string.PengramRegDate));
                                 detailCell.setImageClickListener(v -> showRegDateInfo(regEstimate));
+                                containsCalendar = true;
                             }
                         } else {
                             detailCell.setImage(null);
@@ -13609,13 +13621,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 text = text + " \u2022 " + age;
                             }
                         }
-                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), false);
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
                         Drawable calendar = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
                         if (calendar != null) {
                             calendar.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                             detailCell.setImage(calendar, LocaleController.getString(R.string.PengramRegDate));
-                            detailCell.setImageClickListener(null);
+                            detailCell.setImageClickListener(v -> showRegDateInfo(estimate));
+                            containsCalendar = true;
                         }
                     } else if (position == phoneRow) {
                         String text;
@@ -13778,7 +13791,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
-                    } else if (position != regDateRow) {
+                    } else if (!containsCalendar) {
                         detailCell.setImage(null);
                         detailCell.setImageClickListener(null);
                     }
@@ -14439,7 +14452,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (notificationRow != -1) {
                 int position = holder.getAdapterPosition();
                 return position == notificationRow || position == numberRow || position == privacyRow ||
-                        position == languageRow || position == setUsernameRow || position == bioRow || position == idRow ||
+                        position == languageRow || position == setUsernameRow || position == bioRow || position == idRow || position == regDateRow ||
                         position == versionRow || position == dataRow || position == chatRow ||
                         position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                         position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
