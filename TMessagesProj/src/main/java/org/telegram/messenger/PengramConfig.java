@@ -865,10 +865,49 @@ public class PengramConfig {
     public static final int CHAT_ITEM_TO_BEGINNING = 2;
     public static final int CHAT_ITEM_COPY_ID = 3;
     public static final int CHAT_ITEM_SAVED_MEDIA = 4;
+    public static final int CHAT_ITEM_VIEW_DELETED = 5;
 
     private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
-            CHAT_ITEM_PENGRAM, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA
+            CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA
     };
+
+    /** где живёт пункт: в самом меню «три точки» или внутри острова Pengram */
+    public static final int CHAT_PLACE_MAIN = 0;
+    public static final int CHAT_PLACE_ISLAND = 1;
+
+    /** куда помещён пункт меню чата */
+    public static int getChatItemPlacement(int id) {
+        init();
+        final int def = id == CHAT_ITEM_VIEW_DELETED ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
+        final int value = prefs().getInt("chatItemPlace_" + id, def);
+        return value == CHAT_PLACE_ISLAND ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
+    }
+
+    public static void setChatItemPlacement(int id, int place) {
+        putInt("chatItemPlace_" + id, place == CHAT_PLACE_ISLAND ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN);
+    }
+
+    /** пункты, которые нужно показать в острове Pengram (в выбранном порядке) */
+    public static java.util.ArrayList<Integer> getChatIslandItems() {
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        for (int id : getChatItemsOrder()) {
+            if (!isChatItemHidden(id) && getChatItemPlacement(id) == CHAT_PLACE_ISLAND) {
+                result.add(id);
+            }
+        }
+        return result;
+    }
+
+    /** пункты, которые идут прямо в «три точки» чата */
+    public static java.util.ArrayList<Integer> getChatMainItems() {
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        for (int id : getChatItemsOrder()) {
+            if (!isChatItemHidden(id) && getChatItemPlacement(id) == CHAT_PLACE_MAIN) {
+                result.add(id);
+            }
+        }
+        return result;
+    }
 
     /** порядок наших пунктов в «трёх точках» чата */
     public static java.util.ArrayList<Integer> getChatItemsOrder() {
@@ -932,6 +971,7 @@ public class PengramConfig {
             case CHAT_ITEM_TO_BEGINNING: return org.telegram.messenger.R.string.PengramJumpToBeginning;
             case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.string.PengramCopyChatId;
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.string.PengramChatItemSavedMedia;
+            case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.string.PengramViewDeleted;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.string.PengramMenuTitle;
         }
@@ -942,6 +982,7 @@ public class PengramConfig {
             case CHAT_ITEM_TO_BEGINNING: return org.telegram.messenger.R.drawable.msg_go_up;
             case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.drawable.msg_copy;
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.drawable.msg_saved;
+            case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.drawable.msg_delete;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.drawable.msg_viewchats;
         }
@@ -1457,5 +1498,226 @@ public class PengramConfig {
 
     public static boolean isShowingDc() {
         return isIdVisible() && getIdStyle() == ID_STYLE_ROW_DC;
+    }
+
+    // ------------------------------- выделение и пересылка -------------------------------
+
+    /** варианты лимита выделения сообщений */
+    public static final int[] SELECTION_LIMITS = new int[]{100, 200, 300, 500, 1000, 1500, 2000, 3000};
+
+    /** сколько сообщений разрешаем выделить за раз (по умолчанию как в оригинале — 100) */
+    public static int getSelectionLimit() {
+        init();
+        final int value = prefs().getInt("selectionLimit", 100);
+        return value < 100 ? 100 : Math.min(value, 3000);
+    }
+
+    public static void setSelectionLimit(int value) {
+        putInt("selectionLimit", value < 100 ? 100 : Math.min(value, 3000));
+    }
+
+    /**
+     * Пачки по 100 сообщений уходят на сервер с небольшой задержкой друг за другом,
+     * иначе большие пересылки ловят флуд-вейт и подвешивают интерфейс.
+     */
+    public static int forwardChunkDelay(int chunkIndex) {
+        if (chunkIndex <= 0) {
+            return 0;
+        }
+        return Math.min(chunkIndex * 260, 30000);
+    }
+
+    // ------------------------------- аватарки авторов в чате -------------------------------
+
+    public static final int AVATAR_POS_LEFT = 0;
+    public static final int AVATAR_POS_RIGHT = 1;
+    public static final int AVATAR_POS_HIDE = 2;
+
+    public static int getGroupAvatarPos() {
+        init();
+        final int value = prefs().getInt("groupAvatarPos", AVATAR_POS_LEFT);
+        return value < 0 || value > AVATAR_POS_HIDE ? AVATAR_POS_LEFT : value;
+    }
+
+    public static void setGroupAvatarPos(int value) {
+        putInt("groupAvatarPos", value < 0 || value > AVATAR_POS_HIDE ? AVATAR_POS_LEFT : value);
+    }
+
+    public static int getGroupAvatarPosName(int value) {
+        switch (value) {
+            case AVATAR_POS_RIGHT: return org.telegram.messenger.R.string.PengramAvatarPosRight;
+            case AVATAR_POS_HIDE: return org.telegram.messenger.R.string.PengramAvatarPosHide;
+            case AVATAR_POS_LEFT:
+            default: return org.telegram.messenger.R.string.PengramAvatarPosLeft;
+        }
+    }
+
+    // ------------------------------- экран настроек -------------------------------
+
+    /** Pengram отдельной плашкой над всеми пунктами настроек */
+    public static boolean isPengramCardOnTop() {
+        return getBool(KEY_PENGRAM_CARD, true);
+    }
+
+    public static final String KEY_PENGRAM_CARD = "pengramCardOnTop";
+
+    // ------------------------------- музыкальный плеер -------------------------------
+
+    public static final String KEY_NEW_PLAYER = "newPlayer";
+    public static final String KEY_PLAYER_BLUR = "playerBlur";
+    public static final String KEY_PLAYER_ROTATE = "playerRotate";
+    public static final String KEY_PLAYER_WAVE = "playerWave";
+    public static final String KEY_LYRICS_AUTOSCROLL = "lyricsAutoScroll";
+    public static final String KEY_LYRICS_BOLD = "lyricsBold";
+    public static final String KEY_LYRICS_SHADOW = "lyricsShadow";
+
+    public static boolean isNewPlayer() {
+        return getBool(KEY_NEW_PLAYER, true);
+    }
+
+    /** анимации текста песни */
+    public static final int LYRICS_ANIM_KARAOKE = 0;
+    public static final int LYRICS_ANIM_LETTERS = 1;
+    public static final int LYRICS_ANIM_WAVE = 2;
+    public static final int LYRICS_ANIM_BOUNCE = 3;
+    public static final int LYRICS_ANIM_TYPEWRITER = 4;
+    public static final int LYRICS_ANIM_PULSE = 5;
+    public static final int LYRICS_ANIM_NEON = 6;
+    public static final int LYRICS_ANIM_RAINBOW = 7;
+    public static final int LYRICS_ANIM_BLUR = 8;
+    public static final int LYRICS_ANIM_NONE = 9;
+    public static final int LYRICS_ANIM_COUNT = 10;
+
+    public static int getLyricsAnim() {
+        init();
+        final int value = prefs().getInt("lyricsAnim", LYRICS_ANIM_KARAOKE);
+        return value < 0 || value >= LYRICS_ANIM_COUNT ? LYRICS_ANIM_KARAOKE : value;
+    }
+
+    public static void setLyricsAnim(int value) {
+        putInt("lyricsAnim", value < 0 || value >= LYRICS_ANIM_COUNT ? LYRICS_ANIM_KARAOKE : value);
+    }
+
+    public static int getLyricsAnimName(int value) {
+        switch (value) {
+            case LYRICS_ANIM_LETTERS: return org.telegram.messenger.R.string.PengramLyricsAnimLetters;
+            case LYRICS_ANIM_WAVE: return org.telegram.messenger.R.string.PengramLyricsAnimWave;
+            case LYRICS_ANIM_BOUNCE: return org.telegram.messenger.R.string.PengramLyricsAnimBounce;
+            case LYRICS_ANIM_TYPEWRITER: return org.telegram.messenger.R.string.PengramLyricsAnimTypewriter;
+            case LYRICS_ANIM_PULSE: return org.telegram.messenger.R.string.PengramLyricsAnimPulse;
+            case LYRICS_ANIM_NEON: return org.telegram.messenger.R.string.PengramLyricsAnimNeon;
+            case LYRICS_ANIM_RAINBOW: return org.telegram.messenger.R.string.PengramLyricsAnimRainbow;
+            case LYRICS_ANIM_BLUR: return org.telegram.messenger.R.string.PengramLyricsAnimBlur;
+            case LYRICS_ANIM_NONE: return org.telegram.messenger.R.string.PengramLyricsAnimNone;
+            case LYRICS_ANIM_KARAOKE:
+            default: return org.telegram.messenger.R.string.PengramLyricsAnimKaraoke;
+        }
+    }
+
+    /** выравнивание текста песни */
+    public static final int LYRICS_ALIGN_LEFT = 0;
+    public static final int LYRICS_ALIGN_CENTER = 1;
+    public static final int LYRICS_ALIGN_RIGHT = 2;
+
+    public static int getLyricsAlign() {
+        init();
+        final int value = prefs().getInt("lyricsAlign", LYRICS_ALIGN_LEFT);
+        return value < 0 || value > LYRICS_ALIGN_RIGHT ? LYRICS_ALIGN_LEFT : value;
+    }
+
+    public static void setLyricsAlign(int value) {
+        putInt("lyricsAlign", value < 0 || value > LYRICS_ALIGN_RIGHT ? LYRICS_ALIGN_LEFT : value);
+    }
+
+    public static int getLyricsAlignName(int value) {
+        switch (value) {
+            case LYRICS_ALIGN_CENTER: return org.telegram.messenger.R.string.PengramLyricsAlignCenter;
+            case LYRICS_ALIGN_RIGHT: return org.telegram.messenger.R.string.PengramLyricsAlignRight;
+            case LYRICS_ALIGN_LEFT:
+            default: return org.telegram.messenger.R.string.PengramLyricsAlignLeft;
+        }
+    }
+
+    /** размер текста песни, dp */
+    public static int getLyricsSize() {
+        init();
+        final int value = prefs().getInt("lyricsSize", 22);
+        return value < 14 ? 14 : Math.min(value, 40);
+    }
+
+    public static void setLyricsSize(int value) {
+        putInt("lyricsSize", value < 14 ? 14 : Math.min(value, 40));
+    }
+
+    /** прозрачность неактивных строк, % */
+    public static int getLyricsDim() {
+        init();
+        final int value = prefs().getInt("lyricsDim", 35);
+        return value < 5 ? 5 : Math.min(value, 100);
+    }
+
+    public static void setLyricsDim(int value) {
+        putInt("lyricsDim", value < 5 ? 5 : Math.min(value, 100));
+    }
+
+    /** скорость анимации текста, % от обычной */
+    public static int getLyricsSpeed() {
+        init();
+        final int value = prefs().getInt("lyricsSpeed", 100);
+        return value < 25 ? 25 : Math.min(value, 300);
+    }
+
+    public static void setLyricsSpeed(int value) {
+        putInt("lyricsSpeed", value < 25 ? 25 : Math.min(value, 300));
+    }
+
+    /** фон плеера */
+    public static final int PLAYER_BG_COVER = 0;
+    public static final int PLAYER_BG_GRADIENT = 1;
+    public static final int PLAYER_BG_DARK = 2;
+    public static final int PLAYER_BG_THEME = 3;
+
+    public static int getPlayerBg() {
+        init();
+        final int value = prefs().getInt("playerBg", PLAYER_BG_COVER);
+        return value < 0 || value > PLAYER_BG_THEME ? PLAYER_BG_COVER : value;
+    }
+
+    public static void setPlayerBg(int value) {
+        putInt("playerBg", value < 0 || value > PLAYER_BG_THEME ? PLAYER_BG_COVER : value);
+    }
+
+    public static int getPlayerBgName(int value) {
+        switch (value) {
+            case PLAYER_BG_GRADIENT: return org.telegram.messenger.R.string.PengramPlayerBgGradient;
+            case PLAYER_BG_DARK: return org.telegram.messenger.R.string.PengramPlayerBgDark;
+            case PLAYER_BG_THEME: return org.telegram.messenger.R.string.PengramPlayerBgTheme;
+            case PLAYER_BG_COVER:
+            default: return org.telegram.messenger.R.string.PengramPlayerBgCover;
+        }
+    }
+
+    /** форма обложки */
+    public static final int COVER_SHAPE_ROUNDED = 0;
+    public static final int COVER_SHAPE_CIRCLE = 1;
+    public static final int COVER_SHAPE_SQUARE = 2;
+
+    public static int getCoverShape() {
+        init();
+        final int value = prefs().getInt("coverShape", COVER_SHAPE_ROUNDED);
+        return value < 0 || value > COVER_SHAPE_SQUARE ? COVER_SHAPE_ROUNDED : value;
+    }
+
+    public static void setCoverShape(int value) {
+        putInt("coverShape", value < 0 || value > COVER_SHAPE_SQUARE ? COVER_SHAPE_ROUNDED : value);
+    }
+
+    public static int getCoverShapeName(int value) {
+        switch (value) {
+            case COVER_SHAPE_CIRCLE: return org.telegram.messenger.R.string.PengramCoverCircle;
+            case COVER_SHAPE_SQUARE: return org.telegram.messenger.R.string.PengramCoverSquare;
+            case COVER_SHAPE_ROUNDED:
+            default: return org.telegram.messenger.R.string.PengramCoverRounded;
+        }
     }
 }

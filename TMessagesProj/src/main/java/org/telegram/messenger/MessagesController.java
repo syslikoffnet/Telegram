@@ -9362,6 +9362,14 @@ public class MessagesController extends BaseController implements NotificationCe
         if ((messages == null || messages.isEmpty()) && taskId == 0) {
             return;
         }
+        // Pengram: сервер принимает максимум 100 id за раз — режем длинные выделения на пачки
+        if (taskId == 0 && taskRequest == null && messages != null && messages.size() > 100) {
+            for (int off = 0; off < messages.size(); off += 100) {
+                final ArrayList<Integer> part = new ArrayList<>(messages.subList(off, Math.min(off + 100, messages.size())));
+                deleteMessages(part, off == 0 ? randoms : null, encryptedChat, dialogId, forAll, mode, cacheOnly, 0, null, topicId, movedToScheduled, movedToScheduledMessageId);
+            }
+            return;
+        }
         ArrayList<Integer> toSend = null;
         long channelId;
         if (taskId == 0) {

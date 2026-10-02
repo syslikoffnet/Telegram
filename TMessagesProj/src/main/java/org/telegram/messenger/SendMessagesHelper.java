@@ -2157,6 +2157,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             long lastDialogId = 0;
             final boolean toMyself = peer == myId;
             long lastGroupedId;
+            int pengramChunkIndex = 0; // Pengram: номер пачки из 100 сообщений
             for (int a = 0; a < messages.size(); a++) {
                 MessageObject msgObj = messages.get(a);
                 if (msgObj.getId() <= 0 || msgObj.needDrawBluredPreview()) {
@@ -2772,7 +2773,14 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                     };
 
                     if (StarsController.getInstance(currentAccount).beforeSendingFinalRequest(req, newMsgArr, send2)) {
-                        send2.run();
+                        // Pengram: большие пересылки уходят пачками по 100 с небольшой паузой,
+                        // чтобы не словить флуд-вейт и не подвесить интерфейс
+                        final int pengramDelay = PengramConfig.forwardChunkDelay(pengramChunkIndex++);
+                        if (pengramDelay > 0) {
+                            AndroidUtilities.runOnUIThread(send2, pengramDelay);
+                        } else {
+                            send2.run();
+                        }
                     }
 
                     if (a != messages.size() - 1) {

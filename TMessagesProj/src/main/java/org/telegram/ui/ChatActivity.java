@@ -1704,56 +1704,63 @@ public class ChatActivity extends BaseFragment implements
             pengramMenuAdded = true;
             final long dialogId = getDialogId();
             boolean any = false;
-            for (int id : org.telegram.messenger.PengramConfig.getChatItemsOrder()) {
-                if (org.telegram.messenger.PengramConfig.isChatItemHidden(id)) {
+            final java.util.ArrayList<Integer> island = org.telegram.messenger.PengramConfig.getChatIslandItems();
+            if (!island.isEmpty()) {
+                final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
+                        getContext(),
+                        headerItem.getPopupLayout().getSwipeBack(),
+                        dialogId,
+                        island,
+                        themeDelegate,
+                        new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
+                            @Override
+                            public void dismiss() {
+                                if (headerItem != null) {
+                                    headerItem.toggleSubMenu();
+                                }
+                            }
+
+                            @Override
+                            public void onItem(int itemId) {
+                                pengramRunChatItem(itemId);
+                            }
+                        });
+                headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
+                any = true;
+            }
+            for (int id : org.telegram.messenger.PengramConfig.getChatMainItems()) {
+                final int actionId = pengramChatItemActionId(id);
+                if (actionId == 0) {
                     continue;
                 }
-                switch (id) {
-                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_PENGRAM: {
-                        final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
-                                getContext(),
-                                headerItem.getPopupLayout().getSwipeBack(),
-                                dialogId,
-                                themeDelegate,
-                                new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
-                                    @Override
-                                    public void dismiss() {
-                                        if (headerItem != null) {
-                                            headerItem.toggleSubMenu();
-                                        }
-                                    }
-
-                                    @Override
-                                    public void openAll() {
-                                        openPengramHistory();
-                                    }
-                                });
-                        headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
-                        any = true;
-                        break;
-                    }
-                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_TO_BEGINNING: {
-                        headerItem.lazilyAddSubItem(pengram_to_beginning, R.drawable.msg_go_up, LocaleController.getString(R.string.PengramJumpToBeginning));
-                        any = true;
-                        break;
-                    }
-                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_COPY_ID: {
-                        headerItem.lazilyAddSubItem(pengram_copy_chat_id, R.drawable.msg_copy, LocaleController.getString(R.string.PengramCopyChatId));
-                        any = true;
-                        break;
-                    }
-                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_SAVED_MEDIA: {
-                        headerItem.lazilyAddSubItem(pengram_saved_media, R.drawable.msg_saved, LocaleController.getString(R.string.PengramChatItemSavedMedia));
-                        any = true;
-                        break;
-                    }
-                }
+                headerItem.lazilyAddSubItem(actionId, org.telegram.messenger.PengramConfig.getChatItemIcon(id),
+                        LocaleController.getString(org.telegram.messenger.PengramConfig.getChatItemTitle(id)));
+                any = true;
             }
             if (any) {
                 headerItem.lazilyAddColoredGap();
             }
         } catch (Throwable e) {
             FileLog.e(e);
+        }
+    }
+
+    /** Pengram: id нашего пункта меню → id действия в onItemClick */
+    private int pengramChatItemActionId(int itemId) {
+        switch (itemId) {
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_VIEW_DELETED: return pengram_deleted;
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_TO_BEGINNING: return pengram_to_beginning;
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_COPY_ID: return pengram_copy_chat_id;
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_SAVED_MEDIA: return pengram_saved_media;
+        }
+        return 0;
+    }
+
+    /** Pengram: выполнить наш пункт меню по его id */
+    private void pengramRunChatItem(int itemId) {
+        final int actionId = pengramChatItemActionId(itemId);
+        if (actionId != 0 && actionBar != null && actionBar.getActionBarMenuOnItemClick() != null) {
+            actionBar.getActionBarMenuOnItemClick().onItemClick(actionId);
         }
     }
 
@@ -2288,7 +2295,7 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                     if (messageObject.contentType == 0) {
-                        if (selected && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() >= 100) {
+                        if (selected && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() >= org.telegram.messenger.PengramConfig.getSelectionLimit()) {
                             limitReached = true;
                         } else {
                             limitReached = false;
@@ -19768,7 +19775,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
             } else {
-                if (selectedMessagesIds[0].size() + selectedMessagesIds[1].size() >= 100) {
+                if (selectedMessagesIds[0].size() + selectedMessagesIds[1].size() >= org.telegram.messenger.PengramConfig.getSelectionLimit()) {
                     AndroidUtilities.shakeView(selectedMessagesCountTextView);
                     Vibrator vibrator = (Vibrator) ApplicationLoader.applicationContext.getSystemService(Context.VIBRATOR_SERVICE);
                     if (vibrator != null) {
@@ -37354,7 +37361,7 @@ public class ChatActivity extends BaseFragment implements
                     cell.resetPressedLink(-1);
                 }
                 if (!messageObject.isVoice()) {
-                    showDialog(new AudioPlayerAlert(getContext(), themeDelegate));
+                    showDialog(org.telegram.ui.Components.PengramMusicPlayerSheet.create(getContext(), themeDelegate));
                 }
             } else if (str.startsWith("card:")) {
                 didLongPressCard(cell, url, str.substring(5));

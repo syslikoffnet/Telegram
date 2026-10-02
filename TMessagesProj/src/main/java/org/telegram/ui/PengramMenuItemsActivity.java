@@ -2,9 +2,16 @@ package org.telegram.ui;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -24,15 +31,17 @@ import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
+import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Pengram: управление пунктами верхнего меню списка чатов.
- * Нажатие — скрыть/показать, удержание — перетащить и поменять порядок.
+ * Pengram: конструктор меню.
+ * Экран собран из нескольких «корзин»: пункты можно перетаскивать между ними
+ * (например, из «трёх точек» внутрь острова Pengram и обратно) или прятать совсем.
+ * Короткий тап перекидывает пункт в следующую корзину — всё с анимацией.
  */
 public class PengramMenuItemsActivity extends BaseFragment {
 
@@ -46,14 +55,27 @@ public class PengramMenuItemsActivity extends BaseFragment {
     private static final int VIEW_TYPE_INFO = 0;
     private static final int VIEW_TYPE_HEADER = 1;
     private static final int VIEW_TYPE_ITEM = 2;
-    private static final int VIEW_TYPE_SHADOW = 3;
+    private static final int VIEW_TYPE_PLACEHOLDER = 3;
+    private static final int VIEW_TYPE_SHADOW = 4;
 
     private RecyclerListView listView;
     private ListAdapter adapter;
     private ItemTouchHelper itemTouchHelper;
 
-    private final ArrayList<Integer> order = new ArrayList<>();
+    private final ArrayList<Row> rows = new ArrayList<>();
     private final int mode;
+
+    private static class Row {
+        final int type;
+        final int id;
+        int section;
+
+        Row(int type, int id, int section) {
+            this.type = type;
+            this.id = id;
+            this.section = section;
+        }
+    }
 
     public PengramMenuItemsActivity() {
         this(MODE_MENU);
@@ -64,19 +86,46 @@ public class PengramMenuItemsActivity extends BaseFragment {
         this.mode = mode;
     }
 
+    /** сколько «корзин» на экране */
+    private int sectionCount() {
+        return mode == MODE_CHAT ? 3 : 2;
+    }
+
+    private int hiddenSection() {
+        return sectionCount() - 1;
+    }
+
+    private CharSequence sectionTitle(int section) {
+        if (mode == MODE_CHAT) {
+            if (section == 0) {
+                return LocaleController.getString(R.string.PengramPlaceChatMenu);
+            } else if (section == 1) {
+                return LocaleController.getString(R.string.PengramPlaceIsland);
+            }
+            return LocaleController.getString(R.string.PengramPlaceHidden);
+        }
+        return section == 0
+                ? LocaleController.getString(R.string.PengramPlaceVisible)
+                : LocaleController.getString(R.string.PengramPlaceHidden);
+    }
+
     @Override
     public boolean onFragmentCreate() {
-        order.clear();
-        if (mode == MODE_SETTINGS) {
-            order.addAll(PengramConfig.getSettingsOrder());
-        } else if (mode == MODE_CHAT) {
-            order.addAll(PengramConfig.getChatItemsOrder());
-        } else {
-            for (int id : PengramConfig.getMenuOrder()) {
-                order.add(id);
-            }
-        }
+        buildRows();
         return super.onFragmentCreate();
+    }
+
+    private ArrayList<Integer> savedOrder() {
+        if (mode == MODE_SETTINGS) {
+            return PengramConfig.getSettingsOrder();
+        } else if (mode == MODE_CHAT) {
+            return PengramConfig.getChatItemsOrder();
+        }
+        final ArrayList<Integer> result = new ArrayList<>();
+        for (int id : PengramConfig.getMenuOrder()) {
+            result.add(id);
+        }
+        return result;
     }
 
     private boolean isHidden(int id) {
@@ -88,13 +137,71 @@ public class PengramMenuItemsActivity extends BaseFragment {
         return PengramConfig.isMenuItemHidden(id);
     }
 
-    private void setHidden(int id, boolean hidden) {
+    /** в какую корзину попадает пункт при открытии экрана */
+    private int sectionOf(int id) {
+        if (isHidden(id)) {
+            return hiddenSection();
+        }
+        if (mode == MODE_CHAT) {
+            return PengramConfig.getChatItemPlacement(id) == PengramConfig.CHAT_PLACE_ISLAND ? 1 : 0;
+        }
+        return 0;
+    }
+
+    private void buildRows() {
+        rows.clear();
+        rows.add(new Row(VIEW_TYPE_INFO, 0, -1));
+        final ArrayList<Integer> order = savedOrder();
+        for (int section = 0; section < sectionCount(); ++section) {
+            rows.add(new Row(VIEW_TYPE_HEADER, 0, section));
+            for (int id : order) {
+                if (sectionOf(id) == section) {
+                    rows.add(new Row(VIEW_TYPE_ITEM, id, section));
+                }
+            }
+            rows.add(new Row(VIEW_TYPE_PLACEHOLDER, 0, section));
+        }
+        rows.add(new Row(VIEW_TYPE_SHADOW, 0, -1));
+    }
+
+    /** пересчитать принадлежность строк к корзинам после перетаскивания */
+    private void resolveSections() {
+        int section = -1;
+        for (Row row : rows) {
+            if (row.type == VIEW_TYPE_HEADER) {
+                section = row.section;
+            } else if (row.type == VIEW_TYPE_ITEM || row.type == VIEW_TYPE_PLACEHOLDER) {
+                row.section = section;
+            }
+        }
+    }
+
+    private void save() {
+        final ArrayList<Integer> order = new ArrayList<>();
+        for (Row row : rows) {
+            if (row.type != VIEW_TYPE_ITEM) {
+                continue;
+            }
+            order.add(row.id);
+            final boolean hidden = row.section == hiddenSection();
+            if (mode == MODE_SETTINGS) {
+                PengramConfig.setSettingsItemHidden(row.id, hidden);
+            } else if (mode == MODE_CHAT) {
+                PengramConfig.setChatItemHidden(row.id, hidden);
+                if (!hidden) {
+                    PengramConfig.setChatItemPlacement(row.id, row.section == 1
+                            ? PengramConfig.CHAT_PLACE_ISLAND : PengramConfig.CHAT_PLACE_MAIN);
+                }
+            } else {
+                PengramConfig.setMenuItemHidden(row.id, hidden);
+            }
+        }
         if (mode == MODE_SETTINGS) {
-            PengramConfig.setSettingsItemHidden(id, hidden);
+            PengramConfig.setSettingsOrder(order);
         } else if (mode == MODE_CHAT) {
-            PengramConfig.setChatItemHidden(id, hidden);
+            PengramConfig.setChatItemsOrder(order);
         } else {
-            PengramConfig.setMenuItemHidden(id, hidden);
+            PengramConfig.setMenuOrder(order);
         }
     }
 
@@ -160,6 +267,11 @@ public class PengramMenuItemsActivity extends BaseFragment {
         listView.setVerticalScrollBarEnabled(false);
         final DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
         itemAnimator.setSupportsChangeAnimations(false);
+        itemAnimator.setDelayAnimations(false);
+        itemAnimator.setTranslationInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        itemAnimator.setMoveDuration(320);
+        itemAnimator.setRemoveDuration(260);
+        itemAnimator.setAddDuration(260);
         listView.setItemAnimator(itemAnimator);
         adapter = new ListAdapter(context);
         listView.setAdapter(adapter);
@@ -169,19 +281,14 @@ public class PengramMenuItemsActivity extends BaseFragment {
         itemTouchHelper.attachToRecyclerView(listView);
 
         listView.setOnItemClickListener((view, position) -> {
-            final int index = positionToIndex(position);
-            if (index < 0 || index >= order.size()) {
+            if (position < 0 || position >= rows.size()) {
                 return;
             }
-            final int id = order.get(index);
-            final boolean nowHidden = isHidden(id);
-            setHidden(id, !nowHidden);
-            if (view instanceof TextCell) {
-                ((TextCell) view).setChecked(nowHidden);
-                view.setAlpha(nowHidden ? 1f : 0.5f);
-            } else {
-                adapter.notifyItemChanged(position);
+            final Row row = rows.get(position);
+            if (row.type != VIEW_TYPE_ITEM) {
+                return;
             }
+            moveToNextSection(position);
             if (PengramConfig.isVibrationEnabled()) {
                 try {
                     view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
@@ -193,18 +300,54 @@ public class PengramMenuItemsActivity extends BaseFragment {
         return fragmentView;
     }
 
-    /** позиция в списке → индекс в order (учитываем «шапку») */
-    private int positionToIndex(int position) {
-        return position - 2;
+    /** тап по пункту — перекинуть его в следующую корзину (по кругу) */
+    private void moveToNextSection(int position) {
+        final Row row = rows.get(position);
+        final int next = (row.section + 1) % sectionCount();
+        int target = -1;
+        for (int a = 0; a < rows.size(); ++a) {
+            final Row candidate = rows.get(a);
+            if (candidate.type == VIEW_TYPE_PLACEHOLDER && candidate.section == next) {
+                target = a;
+                break;
+            }
+        }
+        if (target < 0) {
+            return;
+        }
+        if (target > position) {
+            target--;
+        }
+        rows.remove(position);
+        rows.add(target, row);
+        resolveSections();
+        adapter.notifyItemMoved(position, target);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (adapter != null) {
+                adapter.notifyItemRangeChanged(0, rows.size());
+            }
+        }, 340);
+        save();
     }
 
-    private void saveOrder() {
-        if (mode == MODE_SETTINGS) {
-            PengramConfig.setSettingsOrder(order);
-        } else if (mode == MODE_CHAT) {
-            PengramConfig.setChatItemsOrder(order);
-        } else {
-            PengramConfig.setMenuOrder(order);
+    private class PlaceholderCell extends FrameLayout {
+
+        final TextView textView;
+
+        PlaceholderCell(Context context) {
+            super(context);
+            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            textView = new TextView(context);
+            textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText3));
+            textView.setGravity(Gravity.CENTER);
+            textView.setText(LocaleController.getString(R.string.PengramDropHere));
+            addView(textView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(46), MeasureSpec.EXACTLY));
         }
     }
 
@@ -238,13 +381,17 @@ public class PengramMenuItemsActivity extends BaseFragment {
                     view = cell;
                     break;
                 }
+                case VIEW_TYPE_PLACEHOLDER: {
+                    view = new PlaceholderCell(context);
+                    break;
+                }
                 case VIEW_TYPE_SHADOW: {
                     view = new ShadowSectionCell(context);
                     break;
                 }
                 case VIEW_TYPE_ITEM:
                 default: {
-                    final TextCell cell = new TextCell(context, 23, false, true, null);
+                    final TextCell cell = new TextCell(context, 23, false, false, null);
                     cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     view = cell;
                     break;
@@ -256,29 +403,28 @@ public class PengramMenuItemsActivity extends BaseFragment {
 
         @Override
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+            if (position < 0 || position >= rows.size()) {
+                return;
+            }
+            final Row row = rows.get(position);
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_INFO: {
                     ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(infoRes()));
                     break;
                 }
                 case VIEW_TYPE_HEADER: {
-                    ((HeaderCell) holder.itemView).setText(LocaleController.getString(R.string.PengramMenuItemsHeader));
+                    ((HeaderCell) holder.itemView).setText(sectionTitle(row.section));
                     break;
                 }
                 case VIEW_TYPE_ITEM: {
-                    final int index = positionToIndex(position);
-                    if (index < 0 || index >= order.size()) {
-                        return;
-                    }
-                    final int id = order.get(index);
                     final TextCell cell = (TextCell) holder.itemView;
-                    final boolean hidden = isHidden(id);
-                    cell.setTextAndCheckAndIcon(
-                            itemTitle(id),
-                            !hidden,
-                            itemIcon(id),
-                            index != order.size() - 1
-                    );
+                    final boolean hidden = row.section == hiddenSection();
+                    final boolean last = position + 1 < rows.size() && rows.get(position + 1).type != VIEW_TYPE_ITEM;
+                    cell.setTextAndIcon(itemTitle(row.id), itemIcon(row.id), !last);
+                    final ImageView handle = cell.getValueImageView();
+                    handle.setVisibility(View.VISIBLE);
+                    handle.setImageResource(R.drawable.list_reorder);
+                    handle.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_stickers_menu), PorterDuff.Mode.SRC_IN));
                     cell.setAlpha(hidden ? 0.5f : 1f);
                     break;
                 }
@@ -287,33 +433,34 @@ public class PengramMenuItemsActivity extends BaseFragment {
 
         @Override
         public int getItemViewType(int position) {
-            if (position == 0) {
-                return VIEW_TYPE_INFO;
-            }
-            if (position == 1) {
-                return VIEW_TYPE_HEADER;
-            }
-            if (position == order.size() + 2) {
+            if (position < 0 || position >= rows.size()) {
                 return VIEW_TYPE_SHADOW;
             }
-            return VIEW_TYPE_ITEM;
+            return rows.get(position).type;
         }
 
         @Override
         public int getItemCount() {
-            return order.size() + 3;
+            return rows.size();
         }
 
-        void swapElements(int fromPosition, int toPosition) {
-            final int from = positionToIndex(fromPosition);
-            final int to = positionToIndex(toPosition);
-            if (from < 0 || to < 0 || from >= order.size() || to >= order.size()) {
-                return;
+        boolean moveRow(int from, int to) {
+            if (from < 0 || to < 0 || from >= rows.size() || to >= rows.size()) {
+                return false;
             }
-            final int id = order.remove(from);
-            order.add(to, id);
-            notifyItemMoved(fromPosition, toPosition);
-            saveOrder();
+            final Row row = rows.get(from);
+            if (row.type != VIEW_TYPE_ITEM) {
+                return false;
+            }
+            final Row target = rows.get(to);
+            if (target.type != VIEW_TYPE_ITEM && target.type != VIEW_TYPE_PLACEHOLDER) {
+                return false;
+            }
+            rows.remove(from);
+            rows.add(to, row);
+            resolveSections();
+            notifyItemMoved(from, to);
+            return true;
         }
     }
 
@@ -333,12 +480,14 @@ public class PengramMenuItemsActivity extends BaseFragment {
         }
 
         @Override
+        public boolean canDropOver(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder current, @NonNull RecyclerView.ViewHolder target) {
+            final int type = target.getItemViewType();
+            return type == VIEW_TYPE_ITEM || type == VIEW_TYPE_PLACEHOLDER;
+        }
+
+        @Override
         public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
-            if (source.getItemViewType() != target.getItemViewType()) {
-                return false;
-            }
-            adapter.swapElements(source.getAdapterPosition(), target.getAdapterPosition());
-            return true;
+            return adapter.moveRow(source.getAdapterPosition(), target.getAdapterPosition());
         }
 
         @Override
@@ -347,6 +496,7 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 listView.cancelClickRunnables(false);
                 if (viewHolder != null) {
                     viewHolder.itemView.setPressed(true);
+                    viewHolder.itemView.animate().scaleX(1.03f).scaleY(1.03f).setDuration(160).start();
                 }
             } else if (viewHolder != null) {
                 viewHolder.itemView.setPressed(false);
@@ -363,6 +513,13 @@ public class PengramMenuItemsActivity extends BaseFragment {
         public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
             super.clearView(recyclerView, viewHolder);
             viewHolder.itemView.setPressed(false);
+            viewHolder.itemView.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+            save();
+            AndroidUtilities.runOnUIThread(() -> {
+                if (adapter != null) {
+                    adapter.notifyItemRangeChanged(0, rows.size());
+                }
+            }, 60);
         }
 
         @Override

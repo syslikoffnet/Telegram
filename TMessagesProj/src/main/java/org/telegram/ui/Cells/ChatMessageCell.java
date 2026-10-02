@@ -6988,6 +6988,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             flipImage = false;
             isThreadPost = isThreadChat && messageObject.messageOwner.fwd_from != null && messageObject.messageOwner.fwd_from.channel_post != 0 && messageObject.messageOwner.reply_to == null;
             isAvatarVisible = needDrawAvatar() && (currentPosition == null || currentPosition.edge);
+            // Pengram: аватарки авторов в чате можно убрать совсем
+            if (isAvatarVisible && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_HIDE
+                    && !messageObject.isOutOwner() && !messageObject.isRepostPreview && !messageObject.forceAvatar) {
+                isAvatarVisible = false;
+            }
             boolean drawAvatar = needDrawAvatar();
             if (messageObject.customAvatarDrawable != null || messageObject.forceAvatar || messageObject.messageOwner.guestchat_via_from != null) {
                 isAvatarVisible = true;
@@ -13881,7 +13886,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
 
             if (isAvatarVisible) {
-                avatarImage.setImageCoords(dp(currentMessageObject.isRepostPreview ? 15 : 6), avatarImage.getImageY(), dp(currentMessageObject.isRepostPreview ? 36 : 42), dp(currentMessageObject.isRepostPreview ? 36 : 42));
+                final int pengramAvatarSize = dp(currentMessageObject.isRepostPreview ? 36 : 42);
+                int pengramAvatarX = dp(currentMessageObject.isRepostPreview ? 15 : 6);
+                // Pengram: аватарку автора можно поставить после сообщения, а не до него
+                if (!currentMessageObject.isRepostPreview
+                        && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_RIGHT) {
+                    pengramAvatarX = Math.max(pengramAvatarX, getMeasuredWidth() - pengramAvatarSize - dp(6));
+                }
+                avatarImage.setImageCoords(pengramAvatarX, avatarImage.getImageY(), pengramAvatarSize, pengramAvatarSize);
             }
 
             if (currentMessageObject.type == MessageObject.TYPE_EXTENDED_MEDIA_PREVIEW && currentUnlockString != null) {

@@ -126,6 +126,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_MEDIA = 7;
     public static final int SECTION_GENERAL = 8;
     public static final int SECTION_CUSTOM = 9;
+    public static final int SECTION_PENGUIN = 10;
+    public static final int SECTION_PLAYER = 11;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -136,6 +138,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_MEDIA = 1007;
     private static final int BTN_SECTION_GENERAL = 1008;
     private static final int BTN_SECTION_CUSTOM = 1009;
+    private static final int BTN_SECTION_PENGUIN = 1010;
+    private static final int BTN_SECTION_PLAYER = 1011;
 
     private static final int BTN_BOOST_OFF = 1300;
     private static final int BTN_BOOST_FAST = 1301;
@@ -186,6 +190,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHAT_ITEMS = 1418;
     private static final int BTN_PENGUIN_SKIN = 1422;
     private static final int BTN_FIND_BY_ID = 1423;
+    private static final int BTN_SELECTION_LIMIT = 1424;
+    private static final int BTN_AVATAR_POS = 1425;
+    private static final int BTN_LYRICS_ANIM = 1426;
+    private static final int BTN_LYRICS_ALIGN = 1427;
+    private static final int BTN_PLAYER_BG = 1428;
+    private static final int BTN_COVER_SHAPE = 1429;
+    private static final int BTN_LYRICS_CLEAR = 1430;
+    /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
+    private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
     private static final int BTN_EXTRA_BASE = 4000;
     private static final int BTN_GENERIC_BASE = 2000;
@@ -241,6 +254,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_MEDIA: return getString(R.string.PengramSectionMedia);
             case SECTION_GENERAL: return getString(R.string.PengramSectionGeneral);
             case SECTION_CUSTOM: return getString(R.string.PengramSectionCustom);
+            case SECTION_PENGUIN: return getString(R.string.PengramSectionPenguin);
+            case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
             default: return getString(R.string.PengramSettings);
         }
     }
@@ -258,6 +273,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_MEDIA: fillMedia(items); break;
             case SECTION_GENERAL: fillGeneral(items); break;
             case SECTION_CUSTOM: fillCustom(items, adapter); break;
+            case SECTION_PENGUIN: fillPenguin(items); break;
+            case SECTION_PLAYER: fillPlayer(items); break;
             default: fillRoot(items); break;
         }
     }
@@ -816,6 +833,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
         items.add(sectionRow(BTN_SECTION_HISTORY, IconBackgroundColors.RED, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), spySectionValue()));
         items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
+        items.add(sectionRow(BTN_SECTION_PLAYER, IconBackgroundColors.ORANGE_DEEP, R.drawable.msg_played, getString(R.string.PengramSectionPlayer), playerSectionValue()));
+        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph, getString(R.string.PengramSectionPenguin), getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features, getString(R.string.PengramSectionFreedom), null));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
@@ -1500,6 +1519,88 @@ public class PengramSettingsActivity extends UniversalFragment {
         return String.format(java.util.Locale.US, "%s%d st  \u00b7  \u00d7%.2f", semitones > 0 ? "+" : "", semitones, factor);
     }
 
+    private CharSequence playerSectionValue() {
+        return getString(PengramConfig.isNewPlayer() ? R.string.PengramPlayerNew : R.string.PengramPlayerOriginal);
+    }
+
+    /** Пингвин — скины, жесты и всё, что с ним связано */
+    private void fillPenguin(ArrayList<UItem> items) {
+        if (headerView == null) {
+            headerView = new PengramHeaderView(getContext());
+        }
+        items.add(UItem.asCustom(headerView));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSkinsHeader)));
+        final int skin = PengramConfig.getPenguinSkin();
+        for (int a = 0; a < PengramConfig.SKIN_COUNT; ++a) {
+            items.add(UItem.asRadio2(BTN_SKIN_BASE + a,
+                    getString(PengramConfig.getPenguinSkinName(a)),
+                    getString(skinDescription(a))).setChecked(skin == a));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramSkinsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinGesturesInfo)));
+    }
+
+    private int skinDescription(int skin) {
+        switch (skin) {
+            case PengramConfig.SKIN_SANTA: return R.string.PengramSkinSantaInfo;
+            case PengramConfig.SKIN_SCARF: return R.string.PengramSkinScarfInfo;
+            case PengramConfig.SKIN_CAP: return R.string.PengramSkinCapInfo;
+            case PengramConfig.SKIN_GLASSES: return R.string.PengramSkinGlassesInfo;
+            case PengramConfig.SKIN_CROWN: return R.string.PengramSkinCrownInfo;
+            case PengramConfig.SKIN_HEADPHONES: return R.string.PengramSkinHeadphonesInfo;
+            case PengramConfig.SKIN_BOWTIE: return R.string.PengramSkinBowtieInfo;
+            case PengramConfig.SKIN_WIZARD: return R.string.PengramSkinWizardInfo;
+            default: return R.string.PengramSkinNoneInfo;
+        }
+    }
+
+    /** Плеер — Spotify-режим и текст песни */
+    private void fillPlayer(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramPlayerHeader)));
+        items.add(checkInfo(PengramConfig.KEY_NEW_PLAYER, true, getString(R.string.PengramPlayerNew), getString(R.string.PengramPlayerNewInfo)));
+        if (PengramConfig.isNewPlayer()) {
+            items.add(UItem.asSettingsCell(BTN_PLAYER_BG, R.drawable.msg_theme, getString(R.string.PengramPlayerBg), getString(PengramConfig.getPlayerBgName(PengramConfig.getPlayerBg()))));
+            items.add(UItem.asSettingsCell(BTN_COVER_SHAPE, R.drawable.msg_photos, getString(R.string.PengramCoverShape), getString(PengramConfig.getCoverShapeName(PengramConfig.getCoverShape()))));
+            items.add(check(PengramConfig.KEY_PLAYER_BLUR, true, getString(R.string.PengramPlayerBlur)));
+        }
+        items.add(UItem.asShadow(null));
+
+        if (PengramConfig.isNewPlayer()) {
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsHeader)));
+            items.add(UItem.asSettingsCell(BTN_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramLyricsAnim), getString(PengramConfig.getLyricsAnimName(PengramConfig.getLyricsAnim()))));
+            items.add(UItem.asSettingsCell(BTN_LYRICS_ALIGN, R.drawable.msg_message, getString(R.string.PengramLyricsAlign), getString(PengramConfig.getLyricsAlignName(PengramConfig.getLyricsAlign()))));
+            items.add(check(PengramConfig.KEY_LYRICS_BOLD, true, getString(R.string.PengramLyricsBold)));
+            items.add(check(PengramConfig.KEY_LYRICS_SHADOW, true, getString(R.string.PengramLyricsShadow)));
+            items.add(check(PengramConfig.KEY_LYRICS_AUTOSCROLL, true, getString(R.string.PengramLyricsAutoScroll)));
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsAnimInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsSize)));
+            items.add(UItem.asIntSlideView(1, 14, PengramConfig.getLyricsSize(), 40,
+                    value -> value + " dp",
+                    value -> PengramConfig.setLyricsSize(value)));
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsDim)));
+            items.add(UItem.asIntSlideView(1, 5, PengramConfig.getLyricsDim(), 100,
+                    value -> value + "%",
+                    value -> PengramConfig.setLyricsDim(value)));
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsDimInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsSpeed)));
+            items.add(UItem.asIntSlideView(1, 25, PengramConfig.getLyricsSpeed(), 300,
+                    value -> value + "%",
+                    value -> PengramConfig.setLyricsSpeed(value)));
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asButton(BTN_LYRICS_CLEAR, R.drawable.msg_delete, LocaleController.formatString(R.string.PengramLyricsClear, org.telegram.messenger.PengramLyrics.savedCount())).red());
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsClearInfo)));
+        }
+    }
+
     private void fillChats(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
         items.add(checkInfo(PengramConfig.KEY_TAB_CONTACTS, false, getString(R.string.PengramHideTabContacts), tabStateText(PengramConfig.KEY_TAB_CONTACTS)));
@@ -1507,6 +1608,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_TAB_SETTINGS, false, getString(R.string.PengramHideTabSettings), tabStateText(PengramConfig.KEY_TAB_SETTINGS)));
         items.add(checkInfo(PengramConfig.KEY_TAB_PROFILE, false, getString(R.string.PengramHideTabProfile), tabStateText(PengramConfig.KEY_TAB_PROFILE)));
         items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
+        items.add(UItem.asSettingsCell(BTN_AVATAR_POS, R.drawable.msg_openprofile, getString(R.string.PengramAvatarPos), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
+        items.add(UItem.asShadow(getString(R.string.PengramAvatarPosInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
+        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> {
+            PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))]);
+        }));
+        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
@@ -1546,6 +1657,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
         items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
         items.add(UItem.asSettingsCell(BTN_CHAT_ITEMS, R.drawable.msg_message, getString(R.string.PengramChatItemsTitle), hiddenChatItemsValue()));
+        items.add(checkInfo(PengramConfig.KEY_PENGRAM_CARD, true, getString(R.string.PengramCardOnTop), getString(R.string.PengramCardOnTopInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
@@ -1561,6 +1673,24 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
+    }
+
+    private String[] selectionLimitNames() {
+        final String[] result = new String[PengramConfig.SELECTION_LIMITS.length];
+        for (int a = 0; a < result.length; ++a) {
+            result[a] = String.valueOf(PengramConfig.SELECTION_LIMITS[a]);
+        }
+        return result;
+    }
+
+    private int selectionLimitIndex() {
+        final int current = PengramConfig.getSelectionLimit();
+        for (int a = 0; a < PengramConfig.SELECTION_LIMITS.length; ++a) {
+            if (PengramConfig.SELECTION_LIMITS[a] == current) {
+                return a;
+            }
+        }
+        return 0;
     }
 
     private void toggleHideFlag(int id, View view) {
@@ -1588,6 +1718,17 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        // выбор скина пингвина — применяется мгновенно, прямо на превью сверху
+        if (item.id >= BTN_SKIN_BASE && item.id < BTN_SKIN_BASE + PengramConfig.SKIN_COUNT) {
+            PengramConfig.setPenguinSkin(item.id - BTN_SKIN_BASE);
+            if (headerView != null) {
+                headerView.applySkin();
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
         final Runnable extraToggle = extraToggles.get(item.id);
         if (extraToggle != null) {
             extraToggle.run();
@@ -1867,6 +2008,65 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_CUSTOM:
                 presentFragment(new PengramSettingsActivity(SECTION_CUSTOM));
                 return;
+            case BTN_SECTION_PENGUIN:
+                presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
+                return;
+            case BTN_SECTION_PLAYER:
+                presentFragment(new PengramSettingsActivity(SECTION_PLAYER));
+                return;
+            case BTN_AVATAR_POS: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramAvatarPosLeft),
+                        getString(R.string.PengramAvatarPosRight),
+                        getString(R.string.PengramAvatarPosHide)
+                };
+                showChoicePicker(getString(R.string.PengramAvatarPos), options, PengramConfig.getGroupAvatarPos(),
+                        value -> PengramConfig.setGroupAvatarPos(value));
+                return;
+            }
+            case BTN_PLAYER_BG: {
+                final CharSequence[] options = new CharSequence[4];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getPlayerBgName(a));
+                }
+                showChoicePicker(getString(R.string.PengramPlayerBg), options, PengramConfig.getPlayerBg(),
+                        value -> PengramConfig.setPlayerBg(value));
+                return;
+            }
+            case BTN_COVER_SHAPE: {
+                final CharSequence[] options = new CharSequence[3];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getCoverShapeName(a));
+                }
+                showChoicePicker(getString(R.string.PengramCoverShape), options, PengramConfig.getCoverShape(),
+                        value -> PengramConfig.setCoverShape(value));
+                return;
+            }
+            case BTN_LYRICS_ANIM: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_ANIM_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsAnimName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsAnim), options, PengramConfig.getLyricsAnim(),
+                        value -> PengramConfig.setLyricsAnim(value));
+                return;
+            }
+            case BTN_LYRICS_ALIGN: {
+                final CharSequence[] options = new CharSequence[3];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsAlignName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsAlign), options, PengramConfig.getLyricsAlign(),
+                        value -> PengramConfig.setLyricsAlign(value));
+                return;
+            }
+            case BTN_LYRICS_CLEAR: {
+                org.telegram.messenger.PengramLyrics.clearAll();
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                return;
+            }
             case BTN_LINK_CHANNEL:
                 openLink(LINK_CHANNEL);
                 return;
@@ -2223,6 +2423,14 @@ public class PengramSettingsActivity extends UniversalFragment {
                                     android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         }
                     } catch (Exception ignore) {}
+                });
+                penguinView.setOnSecretListener(() -> {
+                    // 10 быстрых тапов — все настройки пингвина
+                    try {
+                        if (section != SECTION_PENGUIN) {
+                            presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
+                        }
+                    } catch (Throwable ignore) {}
                 });
                 penguinView.whenReady(() -> {
                     if (fallbackLogo != null) {

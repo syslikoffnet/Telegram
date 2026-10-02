@@ -13,10 +13,12 @@ import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 import org.telegram.ui.ActionBar.Theme;
 
+import java.util.List;
+
 /**
- * Pengram: подменю в «трёх точках» чата.
- * Специально держим его пустым — тут живёт только просмотр удалёнок,
- * всё остальное вынесено в основное меню и настраивается в настройках Pengram.
+ * Pengram: остров в «трёх точках» чата.
+ * Что именно внутри — решает пользователь: любой наш пункт можно перетащить
+ * из основного меню в остров и обратно (Настройки → Pengram → Пункты меню чата).
  */
 public class PengramChatMenuWrapper {
 
@@ -24,10 +26,11 @@ public class PengramChatMenuWrapper {
 
     public interface Callback {
         void dismiss();
-        void openAll();
+        void onItem(int itemId);
     }
 
-    public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, long dialogId, Theme.ResourcesProvider resourcesProvider, Callback callback) {
+    public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, long dialogId,
+                                  List<Integer> items, Theme.ResourcesProvider resourcesProvider, Callback callback) {
         windowLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, 0, resourcesProvider);
         windowLayout.setFitItems(true);
 
@@ -36,17 +39,30 @@ public class PengramChatMenuWrapper {
             backItem.setOnClickListener(view -> swipeBackLayout.closeForeground());
         }
 
-        final int deletedIcon = PengramConfig.getMarkIcon(PengramConfig.MARK_TRASH);
-        final ActionBarMenuSubItem item = ActionBarMenuItem.addItem(windowLayout, deletedIcon != 0 ? deletedIcon : R.drawable.msg_delete,
-                LocaleController.getString(R.string.PengramViewDeleted), false, resourcesProvider);
-        final int count = PengramHistory.getCount(dialogId);
-        if (count > 0) {
-            item.setSubtext(LocaleController.formatPluralString("PengramSavedMessagesCount", count));
+        if (items != null) {
+            for (int a = 0; a < items.size(); ++a) {
+                final int id = items.get(a);
+                int icon = PengramConfig.getChatItemIcon(id);
+                if (id == PengramConfig.CHAT_ITEM_VIEW_DELETED) {
+                    final int markIcon = PengramConfig.getMarkIcon(PengramConfig.MARK_TRASH);
+                    if (markIcon != 0) {
+                        icon = markIcon;
+                    }
+                }
+                final ActionBarMenuSubItem item = ActionBarMenuItem.addItem(windowLayout, icon,
+                        LocaleController.getString(PengramConfig.getChatItemTitle(id)), false, resourcesProvider);
+                if (id == PengramConfig.CHAT_ITEM_VIEW_DELETED) {
+                    final int count = PengramHistory.getCount(dialogId);
+                    if (count > 0) {
+                        item.setSubtext(LocaleController.formatPluralString("PengramSavedMessagesCount", count));
+                    }
+                }
+                item.setOnClickListener(view -> {
+                    callback.dismiss();
+                    callback.onItem(id);
+                });
+            }
         }
-        item.setOnClickListener(view -> {
-            callback.dismiss();
-            callback.openAll();
-        });
 
         windowLayout.setMinimumWidth(AndroidUtilities.dp(220));
     }

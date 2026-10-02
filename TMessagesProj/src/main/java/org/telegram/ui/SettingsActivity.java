@@ -634,6 +634,16 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
 
+        // Pengram: отдельная плашка над всеми остальными пунктами
+        final boolean pengramCard = PengramConfig.isPengramCardOnTop() && !PengramConfig.isSettingsItemHidden(PengramConfig.SETTINGS_ITEM_PENGRAM);
+        if (pengramCard) {
+            final UItem pengramItem = pengramSettingRow(PengramConfig.SETTINGS_ITEM_PENGRAM);
+            if (pengramItem != null) {
+                items.add(pengramItem);
+                items.add(UItem.asShadow(null));
+            }
+        }
+
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             if (UserConfig.getInstance(a).isClientActivated() && currentAccount != a) {
@@ -703,6 +713,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         boolean anySettingRow = false;
         for (int pengramId : PengramConfig.getSettingsOrder()) {
             if (PengramConfig.isSettingsItemHidden(pengramId)) {
+                continue;
+            }
+            if (pengramCard && pengramId == PengramConfig.SETTINGS_ITEM_PENGRAM) {
                 continue;
             }
             final UItem settingItem = pengramSettingRow(pengramId);

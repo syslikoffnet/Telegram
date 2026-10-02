@@ -266,6 +266,23 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 if (isTap && !longPressFired) {
                     velocity = 0;
                     final long now = System.currentTimeMillis();
+                    // пасхалка: 10 быстрых тапов подряд открывают настройки пингвина
+                    if (now - lastAnyTapTime < 700) {
+                        tapStreak++;
+                    } else {
+                        tapStreak = 1;
+                    }
+                    lastAnyTapTime = now;
+                    if (tapStreak >= 10) {
+                        tapStreak = 0;
+                        lastTapTime = 0;
+                        doDance();
+                        doWave();
+                        if (onSecretListener != null) {
+                            onSecretListener.run();
+                        }
+                        return true;
+                    }
                     if (now - lastTapTime < 320) {
                         // двойной тап — сальто назад
                         lastTapTime = 0;
@@ -291,6 +308,14 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     private long lastMoveTime = System.currentTimeMillis();
     private long lastTapTime;
+    private long lastAnyTapTime;
+    private int tapStreak;
+    private Runnable onSecretListener;
+
+    /** что открыть, если быстро тапнуть по пингвину 10 раз подряд */
+    public void setOnSecretListener(Runnable listener) {
+        onSecretListener = listener;
+    }
     private boolean longPressFired;
     private Runnable longPressRunnable;
 
