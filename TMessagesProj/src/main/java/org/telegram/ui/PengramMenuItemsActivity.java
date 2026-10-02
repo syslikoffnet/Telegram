@@ -65,7 +65,13 @@ public class PengramMenuItemsActivity extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         order.clear();
-        order.addAll(mode == MODE_SETTINGS ? PengramConfig.getSettingsOrder() : PengramConfig.getMenuOrder());
+        if (mode == MODE_SETTINGS) {
+            order.addAll(PengramConfig.getSettingsOrder());
+        } else {
+            for (int id : PengramConfig.getMenuOrder()) {
+                order.add(id);
+            }
+        }
         return super.onFragmentCreate();
     }
 

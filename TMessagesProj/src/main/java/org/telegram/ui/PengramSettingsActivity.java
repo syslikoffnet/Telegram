@@ -172,7 +172,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TABBAR_SIZE = 1415;
     private static final int BTN_MENU_ITEMS = 1416;
     private static final int BTN_SETTINGS_ITEMS = 1417;
-    private static final int BTN_MEDIA_LIMIT = 1418;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
