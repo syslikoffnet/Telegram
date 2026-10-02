@@ -1357,7 +1357,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                     if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
                             !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
                             !TextUtils.isEmpty(lastName) && lastName.toLowerCase().startsWith(usernameString) ||
-                            hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString)) {
+                            hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString) ||
+                            org.telegram.messenger.PengramConfig.idMatches(id, usernameString)) {
                         newResult.add(object);
                         newMap.put(id, object);
                     }
@@ -1391,7 +1392,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                         if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
                                 !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
                                 !TextUtils.isEmpty(lastName) && lastName.toLowerCase().startsWith(usernameString) ||
-                                hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString)) {
+                                hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString) ||
+                                org.telegram.messenger.PengramConfig.idMatches(id, usernameString)) {
                             newResult.add(object);
                             newMap.put(id, object);
                         }
@@ -1409,7 +1411,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                         object = chat1;
                         id = chat1.id;
                         if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
-                                !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString)){
+                                !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
+                                org.telegram.messenger.PengramConfig.idMatches(id, usernameString)){
                             newResult.add(object);
                             newMap.put(id, object);
                         }

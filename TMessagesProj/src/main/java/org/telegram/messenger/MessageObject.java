@@ -7636,6 +7636,10 @@ public class MessageObject {
             captionSummarized = false;
             captionTranslated = false;
         }
+        if (PengramConfig.isZalgoFilter() && !TextUtils.isEmpty(text)) {
+            // Pengram: подписи чистим так же, как и тексты — длину не меняем, иначе поедут entity
+            text = PengramConfig.filterZalgoKeepLength(text.toString());
+        }
         if (!isMediaEmpty() && !(getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) && !TextUtils.isEmpty(text)) {
             caption = Emoji.replaceEmoji(text, Theme.chat_msgTextPaint.getFontMetricsInt(), false);
             caption = replaceAnimatedEmoji(caption, entities, Theme.chat_msgTextPaint.getFontMetricsInt(), false);

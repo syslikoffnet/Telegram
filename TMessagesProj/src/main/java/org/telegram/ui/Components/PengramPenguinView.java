@@ -58,7 +58,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private int aPosition, aNormal, aColor;
     private int uMvp, uModel, uAlpha, uLight;
 
-    private Mesh bodyMesh, eyesMesh;
+    private Mesh bodyMesh, eyesMesh, wingLeftMesh, wingRightMesh, accessoryMesh;
+
+    /** выбранный скин; перестраиваем сетку аксессуаров прямо в рендер-потоке */
+    private volatile int skin;
+    private volatile int builtSkin = -1;
 
     // ---------------------------------------------------------------- state
 
@@ -78,6 +82,12 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private float time;
     private float blinkTimer = 2.5f;
     private float blink;                  // 0 — глаза открыты, 1 — закрыты
+
+    private volatile float flip;          // 0..1 — сальто назад
+    private volatile boolean flipping;
+    private volatile float dance;         // сколько ещё секунд танцевать
+    private volatile float wave;          // сколько ещё секунд махать крылом
+    private float wingAngle;              // текущий угол крыльев, градусы
 
     private final float[] projection = new float[16];
     private final float[] view = new float[16];
@@ -103,6 +113,37 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     public void setOnTapListener(Runnable listener) {
         onTapListener = listener;
+    }
+
+    /** надеть скин: шапка, шарф, очки и так далее */
+    public void setSkin(int value) {
+        skin = value;
+        // маленький «переодевающийся» прыжок, чтобы обновка была заметна
+        doJump();
+        wave = 1.1f;
+    }
+
+    public int getSkin() {
+        return skin;
+    }
+
+    /** сальто назад */
+    public void doFlip() {
+        if (!flipping) {
+            flipping = true;
+            flip = 0f;
+            jumpVelocity = Math.max(jumpVelocity, 3.9f);
+        }
+    }
+
+    /** потанцевать несколько секунд */
+    public void doDance() {
+        dance = Math.max(dance, 2.8f);
+    }
+
+    /** помахать крылом */
+    public void doWave() {
+        wave = Math.max(wave, 1.6f);
     }
 
     /** вызовется на UI-потоке, когда первый кадр реально нарисован */
@@ -176,6 +217,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 downTime = System.currentTimeMillis();
                 movedFar = false;
                 horizontal = false;
+                scheduleLongPress();
                 return true;
             }
             case MotionEvent.ACTION_MOVE: {
@@ -186,6 +228,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 final float totalY = Math.abs(event.getY() - downY);
                 if (totalX > touchSlop || totalY > touchSlop) {
                     movedFar = true;
+                    cancelLongPress2();
                 }
                 if (!horizontal && totalX > touchSlop && totalX > totalY) {
                     // крутим пингвина — список скроллиться не должен
@@ -213,19 +256,29 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             case MotionEvent.ACTION_CANCEL: {
                 dragging = false;
                 horizontal = false;
+                cancelLongPress2();
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(false);
                 }
                 final boolean isTap = !movedFar
                         && System.currentTimeMillis() - downTime < 260
                         && action == MotionEvent.ACTION_UP;
-                if (isTap) {
+                if (isTap && !longPressFired) {
                     velocity = 0;
-                    doJump();
+                    final long now = System.currentTimeMillis();
+                    if (now - lastTapTime < 320) {
+                        // двойной тап — сальто назад
+                        lastTapTime = 0;
+                        doFlip();
+                    } else {
+                        lastTapTime = now;
+                        doJump();
+                    }
                     if (onTapListener != null) {
                         onTapListener.run();
                     }
                 }
+                longPressFired = false;
                 // куда долетим по инерции — туда и «примагничиваемся»
                 final float projected = angle + velocity * 0.14f;
                 targetAngle = Math.round(projected / 180f) * 180f;
@@ -237,6 +290,33 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     }
 
     private long lastMoveTime = System.currentTimeMillis();
+    private long lastTapTime;
+    private boolean longPressFired;
+    private Runnable longPressRunnable;
+
+    private void scheduleLongPress() {
+        cancelLongPress2();
+        longPressRunnable = () -> {
+            longPressRunnable = null;
+            if (!dragging || movedFar) {
+                return;
+            }
+            longPressFired = true;
+            doDance();
+            doWave();
+            if (onTapListener != null) {
+                onTapListener.run();
+            }
+        };
+        postDelayed(longPressRunnable, 420);
+    }
+
+    private void cancelLongPress2() {
+        if (longPressRunnable != null) {
+            removeCallbacks(longPressRunnable);
+            longPressRunnable = null;
+        }
+    }
 
     private void doJump() {
         if (jump <= 0.001f) {
@@ -292,6 +372,37 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         }
         squash = Math.max(0, squash - dt * 0.9f);
 
+        // сальто
+        if (flipping) {
+            flip += dt * 1.45f;
+            if (flip >= 1f) {
+                flip = 0f;
+                flipping = false;
+                squash = Math.max(squash, 0.16f);
+            }
+        }
+
+        // танец и приветствие крылом
+        if (dance > 0) {
+            dance = Math.max(0f, dance - dt);
+        }
+        if (wave > 0) {
+            wave = Math.max(0f, wave - dt);
+        }
+
+        // крылья: в покое чуть дышат, в прыжке расправлены, в танце машут
+        float targetWing;
+        if (dance > 0) {
+            targetWing = 34f + (float) Math.sin(time * 17f) * 30f;
+        } else if (wave > 0) {
+            targetWing = 52f + (float) Math.sin(time * 13f) * 26f;
+        } else if (jump > 0.02f) {
+            targetWing = 30f;
+        } else {
+            targetWing = 4f + (float) Math.sin(time * 1.7f) * 2.5f;
+        }
+        wingAngle += (targetWing - wingAngle) * Math.min(1f, dt * 14f);
+
         // моргание
         blinkTimer -= dt;
         if (blinkTimer <= 0) {
@@ -325,8 +436,21 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
         GLES20.glUseProgram(program);
 
-        final float idleBob = (float) Math.sin(time * 1.7f) * 0.022f;
+        if (builtSkin != skin) {
+            try {
+                buildAccessory(skin);
+                builtSkin = skin;
+            } catch (Throwable e) {
+                FileLog.e(e);
+                builtSkin = skin;
+                accessoryMesh = null;
+            }
+        }
+
+        final float dancing = Math.min(1f, dance);
+        final float idleBob = (float) Math.sin(time * 1.7f) * 0.022f + dancing * (float) Math.abs(Math.sin(time * 8.5f)) * 0.10f;
         final float idleTilt = settled && !dragging ? (float) Math.sin(time * 0.85f) * 2.4f : 0f;
+        final float danceTilt = dancing * (float) Math.sin(time * 8.5f) * 13f;
         final float breathe = 1f + (float) Math.sin(time * 1.7f) * 0.012f;
         final float jumpY = jump * 0.7f;
         final float sx = (1f + squash * 0.9f) * breathe;
@@ -334,9 +458,17 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
         Matrix.setIdentityM(model, 0);
         Matrix.translateM(model, 0, 0, idleBob + jumpY - 0.1f, 0);
+        if (flipping) {
+            // сальто крутим вокруг «пояса», иначе пингвин улетает за край
+            Matrix.translateM(model, 0, 0, 0.1f, 0);
+            Matrix.rotateM(model, 0, -flip * 360f, 1, 0, 0);
+            Matrix.translateM(model, 0, 0, -0.1f, 0);
+        }
         Matrix.rotateM(model, 0, angle + idleTilt, 0, 1, 0);
-        Matrix.rotateM(model, 0, Math.max(-14f, Math.min(14f, -velocity * 0.012f)), 0, 0, 1);
+        Matrix.rotateM(model, 0, Math.max(-14f, Math.min(14f, -velocity * 0.012f)) + danceTilt, 0, 0, 1);
         Matrix.scaleM(model, 0, sx, sy, sx);
+
+        System.arraycopy(model, 0, baseModel, 0, 16);
 
         Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
         Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
@@ -347,6 +479,19 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         GLES20.glUniform3f(uLight, 0.38f, 0.82f, 0.86f);
 
         drawMesh(bodyMesh);
+        if (accessoryMesh != null) {
+            drawMesh(accessoryMesh);
+        }
+
+        // крылья живут отдельно: их можно поднимать и махать
+        drawWing(wingLeftMesh, -WING_PIVOT_X, wingAngle);
+        drawWing(wingRightMesh, WING_PIVOT_X, -(wave > 0 ? wingAngle * 0.25f : wingAngle));
+
+        System.arraycopy(baseModel, 0, model, 0, 16);
+        Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
+        Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
+        GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
+        GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
 
         // глаза живут отдельной сеткой, чтобы их можно было «прикрыть» при моргании
         if (blink > 0.01f) {
@@ -360,6 +505,26 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
         }
         drawMesh(eyesMesh);
+    }
+
+    private static final float WING_PIVOT_X = 0.60f;
+    private static final float WING_PIVOT_Y = 0.16f;
+    private final float[] baseModel = new float[16];
+
+    /** крыло крутится вокруг «плеча» */
+    private void drawWing(Mesh mesh, float pivotX, float degrees) {
+        if (mesh == null) {
+            return;
+        }
+        System.arraycopy(baseModel, 0, model, 0, 16);
+        Matrix.translateM(model, 0, pivotX, WING_PIVOT_Y, 0);
+        Matrix.rotateM(model, 0, degrees, 0, 0, 1);
+        Matrix.translateM(model, 0, -pivotX, -WING_PIVOT_Y, 0);
+        Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
+        Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
+        GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
+        GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
+        drawMesh(mesh);
     }
 
     private void drawMesh(Mesh mesh) {
@@ -509,10 +674,6 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // клюв
         addCone(body, 0f, 0.655f, 0.40f, 0.145f, 0.30f, 20, ORANGE);
 
-        // крылья (чуть развёрнуты от тела)
-        addEllipsoid(body, -0.60f, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, 16f, 20, 14, (ux, uy, uz) -> BLACK);
-        addEllipsoid(body, 0.60f, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 20, 14, (ux, uy, uz) -> BLACK);
-
         // лапки
         addEllipsoid(body, -0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 18, 12, (ux, uy, uz) -> ORANGE);
         addEllipsoid(body, 0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 18, 12, (ux, uy, uz) -> ORANGE);
@@ -529,6 +690,163 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         addEllipsoid(eyes, -0.215f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
         addEllipsoid(eyes, 0.173f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
         eyesMesh = new Mesh(eyes);
+
+        // крылья — отдельными сетками, чтобы ими можно было махать
+        final ArrayList<Float> left = new ArrayList<>();
+        addEllipsoid(left, -WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, 16f, 20, 14, (ux, uy, uz) -> BLACK);
+        wingLeftMesh = new Mesh(left);
+
+        final ArrayList<Float> right = new ArrayList<>();
+        addEllipsoid(right, WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 20, 14, (ux, uy, uz) -> BLACK);
+        wingRightMesh = new Mesh(right);
+    }
+
+    // ---------------------------------------------------------------- скины
+
+    private static final float[] RED = {0.847f, 0.173f, 0.192f};
+    private static final float[] GOLD = {0.965f, 0.792f, 0.259f};
+    private static final float[] PURPLE = {0.439f, 0.282f, 0.780f};
+    private static final float[] BLUE = {0.231f, 0.525f, 0.925f};
+    private static final float[] GRAY = {0.188f, 0.204f, 0.239f};
+    private static final float[] CYAN = {0.329f, 0.800f, 0.871f};
+
+    /** собрать «одежду» пингвина — вызывается в рендер-потоке при смене скина */
+    private void buildAccessory(int value) {
+        if (value <= 0) {
+            accessoryMesh = null;
+            return;
+        }
+        final ArrayList<Float> out = new ArrayList<>();
+        switch (value) {
+            case 1: { // колпак Санты
+                addConeY(out, 0f, 1.03f, -0.02f, 0.40f, 0.62f, 0.10f, 0.30f, 24, RED);
+                addTorus(out, 0f, 1.02f, -0.02f, 0.395f, 0.085f, 1, 26, 10, WHITE);
+                addEllipsoid(out, 0.10f, 1.60f, 0.26f, 0.115f, 0.115f, 0.115f, 0f, 0f, 16, 12, (ux, uy, uz) -> WHITE);
+                break;
+            }
+            case 2: { // шарф
+                addTorus(out, 0f, 0.34f, 0f, 0.44f, 0.105f, 1, 30, 12, BLUE);
+                addEllipsoid(out, 0.17f, 0.06f, 0.37f, 0.095f, 0.26f, 0.065f, 14f, -8f, 14, 12, (ux, uy, uz) -> BLUE);
+                break;
+            }
+            case 3: { // кепка
+                addEllipsoid(out, 0f, 0.90f, 0.01f, 0.52f, 0.33f, 0.50f, 0f, 0f, 30, 20, (ux, uy, uz) -> RED);
+                addEllipsoid(out, 0f, 0.92f, 0.52f, 0.34f, 0.035f, 0.28f, -10f, 0f, 20, 8, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0f, 1.22f, 0.01f, 0.065f, 0.065f, 0.065f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+                break;
+            }
+            case 4: { // очки
+                addEllipsoid(out, -0.195f, 0.830f, 0.425f, 0.145f, 0.105f, 0.055f, 0f, 0f, 18, 12, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0.195f, 0.830f, 0.425f, 0.145f, 0.105f, 0.055f, 0f, 0f, 18, 12, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0f, 0.830f, 0.430f, 0.085f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, -0.40f, 0.845f, 0.21f, 0.135f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0.40f, 0.845f, 0.21f, 0.135f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+                break;
+            }
+            case 5: { // корона
+                addTorus(out, 0f, 1.035f, 0f, 0.345f, 0.065f, 1, 26, 10, GOLD);
+                for (int a = 0; a < 5; ++a) {
+                    final double angleRad = 2 * Math.PI * a / 5;
+                    addConeY(out, (float) Math.sin(angleRad) * 0.33f, 1.05f, (float) Math.cos(angleRad) * 0.33f,
+                            0.085f, 0.21f, 0f, 0f, 12, GOLD);
+                }
+                break;
+            }
+            case 6: { // наушники
+                addTorus(out, 0f, 0.80f, 0f, 0.56f, 0.055f, 2, 26, 10, GRAY);
+                addEllipsoid(out, -0.545f, 0.80f, 0f, 0.10f, 0.185f, 0.165f, 0f, 0f, 16, 12, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0.545f, 0.80f, 0f, 0.10f, 0.185f, 0.165f, 0f, 0f, 16, 12, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, -0.615f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
+                addEllipsoid(out, 0.615f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
+                break;
+            }
+            case 7: { // бабочка
+                addEllipsoid(out, -0.13f, 0.30f, 0.40f, 0.12f, 0.09f, 0.045f, 0f, 22f, 14, 10, (ux, uy, uz) -> RED);
+                addEllipsoid(out, 0.13f, 0.30f, 0.40f, 0.12f, 0.09f, 0.045f, 0f, -22f, 14, 10, (ux, uy, uz) -> RED);
+                addEllipsoid(out, 0f, 0.30f, 0.42f, 0.045f, 0.055f, 0.035f, 0f, 0f, 10, 8, (ux, uy, uz) -> GOLD);
+                break;
+            }
+            case 8: { // колпак волшебника
+                addConeY(out, 0f, 1.02f, 0f, 0.37f, 0.95f, 0.06f, 0.16f, 24, PURPLE);
+                addEllipsoid(out, 0f, 1.01f, 0f, 0.62f, 0.035f, 0.62f, 0f, 0f, 28, 8, (ux, uy, uz) -> PURPLE);
+                addTorus(out, 0f, 1.10f, 0f, 0.345f, 0.055f, 1, 24, 10, GOLD);
+                addEllipsoid(out, 0.11f, 1.78f, 0.28f, 0.075f, 0.075f, 0.075f, 0f, 0f, 12, 10, (ux, uy, uz) -> GOLD);
+                break;
+            }
+        }
+        accessoryMesh = out.isEmpty() ? null : new Mesh(out);
+    }
+
+    /** конус вдоль +Y с возможным наклоном вершины (dx, dz) — шапки и зубцы короны */
+    private void addConeY(ArrayList<Float> out, float cx, float cy, float cz,
+                          float radius, float height, float tipX, float tipZ,
+                          int slices, float[] color) {
+        final float[] apex = {cx + tipX, cy + height, cz + tipZ};
+        for (int i = 0; i < slices; ++i) {
+            final double a0 = 2 * Math.PI * i / slices;
+            final double a1 = 2 * Math.PI * (i + 1) / slices;
+            final float[] p0 = {cx + (float) Math.sin(a0) * radius, cy, cz + (float) Math.cos(a0) * radius};
+            final float[] p1 = {cx + (float) Math.sin(a1) * radius, cy, cz + (float) Math.cos(a1) * radius};
+            final float[] n0 = {(float) Math.sin(a0), radius / height, (float) Math.cos(a0)};
+            final float[] n1 = {(float) Math.sin(a1), radius / height, (float) Math.cos(a1)};
+            normalize(n0);
+            normalize(n1);
+            addVertex(out, p0, n0, color);
+            addVertex(out, p1, n1, color);
+            addVertex(out, apex, n0, color);
+
+            final float[] down = {0, -1, 0};
+            final float[] center = {cx, cy, cz};
+            addVertex(out, p1, down, color);
+            addVertex(out, p0, down, color);
+            addVertex(out, center, down, color);
+        }
+    }
+
+    /**
+     * Тор. axis: 0 — кольцо в плоскости YZ, 1 — в плоскости XZ (на голове),
+     * 2 — в плоскости XY (дужка наушников).
+     */
+    private void addTorus(ArrayList<Float> out, float cx, float cy, float cz,
+                          float bigRadius, float smallRadius, int axis,
+                          int slices, int rings, float[] color) {
+        for (int i = 0; i < slices; ++i) {
+            for (int j = 0; j < rings; ++j) {
+                final float[][] quad = new float[4][];
+                final float[][] quadN = new float[4][];
+                for (int k = 0; k < 4; ++k) {
+                    final int si = i + (k == 1 || k == 2 ? 1 : 0);
+                    final int rj = j + (k == 2 || k == 3 ? 1 : 0);
+                    final double u = 2 * Math.PI * si / slices;
+                    final double v = 2 * Math.PI * rj / rings;
+                    final float ringX = (float) Math.cos(u);
+                    final float ringY = (float) Math.sin(u);
+                    final float r = bigRadius + smallRadius * (float) Math.cos(v);
+                    final float h = smallRadius * (float) Math.sin(v);
+                    float px, py, pz, nx, ny, nz;
+                    if (axis == 1) {
+                        px = ringX * r; pz = ringY * r; py = h;
+                        nx = ringX * (float) Math.cos(v); nz = ringY * (float) Math.cos(v); ny = (float) Math.sin(v);
+                    } else if (axis == 2) {
+                        px = ringX * r; py = ringY * r; pz = h;
+                        nx = ringX * (float) Math.cos(v); ny = ringY * (float) Math.cos(v); nz = (float) Math.sin(v);
+                    } else {
+                        py = ringX * r; pz = ringY * r; px = h;
+                        ny = ringX * (float) Math.cos(v); nz = ringY * (float) Math.cos(v); nx = (float) Math.sin(v);
+                    }
+                    final float[] n = {nx, ny, nz};
+                    normalize(n);
+                    quad[k] = new float[]{px + cx, py + cy, pz + cz};
+                    quadN[k] = n;
+                }
+                addVertex(out, quad[0], quadN[0], color);
+                addVertex(out, quad[1], quadN[1], color);
+                addVertex(out, quad[2], quadN[2], color);
+                addVertex(out, quad[0], quadN[0], color);
+                addVertex(out, quad[2], quadN[2], color);
+                addVertex(out, quad[3], quadN[3], color);
+            }
+        }
     }
 
     private void addVertex(ArrayList<Float> out, float[] p, float[] n, float[] c) {

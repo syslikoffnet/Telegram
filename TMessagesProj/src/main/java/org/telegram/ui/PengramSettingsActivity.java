@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.graphics.Typeface;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
@@ -11,6 +12,7 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextPaint;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -181,6 +183,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_FONT_SIZE = 1419;
     private static final int BTN_BUBBLE_RADIUS = 1420;
     private static final int BTN_SWIPE_ACTION = 1421;
+    private static final int BTN_CHAT_ITEMS = 1418;
+    private static final int BTN_PENGUIN_SKIN = 1422;
+    private static final int BTN_FIND_BY_ID = 1423;
     /** переключатели «чужих» настроек Telegram и LiteMode */
     private static final int BTN_EXTRA_BASE = 4000;
     private static final int BTN_GENERIC_BASE = 2000;
@@ -648,12 +653,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         return (limitMb / 1024) + " GB";
     }
 
-    /** заголовок строки фильтра Zalgo: пока фильтр выключен — показываем «живой» пример */
+    /** заголовок строки фильтра — ровный, без «поломанного» текста */
     private CharSequence zalgoTitle() {
-        if (PengramConfig.getBool(PengramConfig.KEY_ZALGO, false)) {
-            return getString(R.string.PengramZalgo);
-        }
-        return LocaleController.formatString(R.string.PengramZalgoSample, PengramConfig.zalgoSample("Zalgo"));
+        return getString(R.string.PengramZalgo);
+    }
+
+    /** а вот в подписи слово «Zalgo» показываем именно зальго — чтобы было видно, о чём речь */
+    private CharSequence zalgoInfo() {
+        return PengramConfig.zalgoWord(getString(R.string.PengramZalgoInfo), "Zalgo");
+    }
+
+    /** сколько наших кнопок в меню чата скрыто */
+    private CharSequence hiddenChatItemsValue() {
+        final int count = PengramConfig.getHiddenChatItemsCount();
+        return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
     }
 
     /** сколько разделов настроек скрыто */
@@ -823,7 +836,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_NO_ROUNDING, false, getString(R.string.PengramNoRounding), getString(R.string.PengramNoRoundingInfo)));
         items.add(checkInfo(PengramConfig.KEY_TIME_SECONDS, false, getString(R.string.PengramTimeSeconds), getString(R.string.PengramTimeSecondsInfo)));
         items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
-        items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), getString(R.string.PengramZalgoInfo)));
+        items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), zalgoInfo()));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
@@ -836,7 +849,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramToolsHeader)));
         items.add(UItem.asButton(BTN_OPEN_BY_ID, R.drawable.msg_search, getString(R.string.PengramOpenById)));
-        items.add(UItem.asShadow(getString(R.string.PengramOpenByIdInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramIdSearchInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramBackupHeader)));
         items.add(UItem.asButton(BTN_CFG_EXPORT, R.drawable.msg_copy, getString(R.string.PengramBackupExport)));
@@ -1036,11 +1049,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         final long chatId = raw < 0 ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw) : raw;
         final long userId = raw > 0 ? raw : 0;
         if (userId != 0 && getMessagesController().getUser(userId) != null) {
-            presentFragment(ChatActivity.of(userId));
+            showPeerActions(userId);
             return;
         }
         if (getMessagesController().getChat(chatId) != null) {
-            presentFragment(ChatActivity.of(-chatId));
+            showPeerActions(-chatId);
             return;
         }
         final org.telegram.messenger.MessagesStorage storage = getMessagesStorage();
@@ -1051,15 +1064,49 @@ public class PengramSettingsActivity extends UniversalFragment {
             AndroidUtilities.runOnUIThread(() -> {
                 if (user != null) {
                     getMessagesController().putUser(user, true);
-                    presentFragment(ChatActivity.of(user.id));
+                    showPeerActions(user.id);
                 } else if (chat != null) {
                     getMessagesController().putChat(chat, true);
-                    presentFragment(ChatActivity.of(-chat.id));
+                    showPeerActions(-chat.id);
                 } else {
                     BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramOpenByIdNotFound)).show();
                 }
             });
         });
+    }
+
+    /** нашли человека или чат по ID — спрашиваем, куда идти: в переписку или в профиль */
+    private void showPeerActions(long dialogId) {
+        if (getParentActivity() == null) {
+            presentFragment(ChatActivity.of(dialogId));
+            return;
+        }
+        CharSequence name = null;
+        if (dialogId > 0) {
+            final TLRPC.User user = getMessagesController().getUser(dialogId);
+            if (user != null) {
+                name = UserObject.getUserName(user);
+            }
+        } else {
+            final TLRPC.Chat chat = getMessagesController().getChat(-dialogId);
+            if (chat != null) {
+                name = chat.title;
+            }
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+        builder.setTitle(TextUtils.isEmpty(name) ? getString(R.string.PengramOpenById) : name);
+        builder.setMessage(PengramConfig.formatId(Math.abs(dialogId), dialogId < 0, false));
+        builder.setPositiveButton(getString(R.string.PengramOpenChat), (d, w) -> presentFragment(ChatActivity.of(dialogId)));
+        builder.setNegativeButton(getString(R.string.PengramOpenProfile), (d, w) -> {
+            final Bundle args = new Bundle();
+            if (dialogId > 0) {
+                args.putLong("user_id", dialogId);
+            } else {
+                args.putLong("chat_id", -dialogId);
+            }
+            presentFragment(new ProfileActivity(args));
+        });
+        showDialog(builder.create());
     }
 
     /** Кастомизация — как выглядят сообщения */
@@ -1081,6 +1128,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
     }
 
+    /** ID для примеров в настройках — свой, если он уже известен */
+    private long sampleId() {
+        try {
+            final TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
+            if (user != null && user.id > 0) {
+                return user.id;
+            }
+        } catch (Throwable ignore) {
+        }
+        return 1234567890L;
+    }
+
     private void fillProfile(ArrayList<UItem> items) {
         if (previewView == null) {
             previewView = new ProfilePreviewView(getContext());
@@ -1089,22 +1148,33 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(previewView));
         items.add(UItem.asShadow(getString(R.string.PengramIdPreviewInfo)));
 
+        final long selfId = sampleId();
         items.add(UItem.asHeader(getString(R.string.PengramIdHeader)));
-        items.add(UItem.asRadio(BTN_ID_FORMAT_HIDE, getString(R.string.PengramIdFormatHide)).setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_HIDE));
-        items.add(UItem.asRadio(BTN_ID_FORMAT_TELEGRAM, getString(R.string.PengramIdFormatTelegram)).setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_TELEGRAM));
-        items.add(UItem.asRadio(BTN_ID_FORMAT_BOT, getString(R.string.PengramIdFormatBot)).setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT));
+        items.add(UItem.asRadio2(BTN_ID_FORMAT_HIDE, getString(R.string.PengramIdFormatHide), getString(R.string.PengramIdFormatHideInfo))
+                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_HIDE));
+        items.add(UItem.asRadio2(BTN_ID_FORMAT_TELEGRAM, getString(R.string.PengramIdFormatTelegram), String.valueOf(selfId))
+                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_TELEGRAM));
+        items.add(UItem.asRadio2(BTN_ID_FORMAT_BOT, getString(R.string.PengramIdFormatBot), "-100" + selfId)
+                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT));
         items.add(UItem.asShadow(getString(R.string.PengramIdFormatInfo)));
 
         if (PengramConfig.getIdFormat() != PengramConfig.ID_FORMAT_HIDE) {
             items.add(UItem.asHeader(getString(R.string.PengramIdStyleHeader)));
-            items.add(UItem.asRadio(BTN_ID_OFF, getString(R.string.PengramIdStyleOff)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
-            items.add(UItem.asRadio(BTN_ID_ROW, getString(R.string.PengramIdStyleRow)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
-            items.add(UItem.asRadio(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
-            items.add(UItem.asRadio(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
+            items.add(UItem.asRadio2(BTN_ID_OFF, getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleOffInfo))
+                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
+            items.add(UItem.asRadio2(BTN_ID_ROW, getString(R.string.PengramIdStyleRow), getString(R.string.PengramIdStyleRowInfo))
+                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
+            items.add(UItem.asRadio2(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleRowDcInfo))
+                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
+            items.add(UItem.asRadio2(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline), getString(R.string.PengramIdStyleInlineInfo))
+                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
             if (PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF) {
+                items.add(UItem.asShadow(null));
                 items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap));
+                items.add(UItem.asShadow(getString(R.string.PengramIdCopyOnTapInfo)));
+            } else {
+                items.add(UItem.asShadow(null));
             }
-            items.add(UItem.asShadow(null));
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
@@ -1114,6 +1184,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE) {
                 items.add(UItem.asSettingsCell(BTN_REG_ICON, PengramConfig.getRegDateIconRes() == 0 ? R.drawable.msg_info : PengramConfig.getRegDateIconRes(),
                         getString(R.string.PengramRegIcon), regIconName(PengramConfig.getRegDateIcon())));
+                items.add(checkInfo(PengramConfig.KEY_REG_TAP_TEXT, true, getString(R.string.PengramRegTapText), getString(R.string.PengramRegTapTextInfo)));
             }
         }
         items.add(UItem.asShadow(getString(R.string.PengramRegInfo)));
@@ -1280,6 +1351,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinHeader)));
+        items.add(UItem.asSettingsCell(BTN_PENGUIN_SKIN, R.drawable.msg_customize, getString(R.string.PengramPenguinSkin),
+                getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
@@ -1469,6 +1545,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
         items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
+        items.add(UItem.asSettingsCell(BTN_CHAT_ITEMS, R.drawable.msg_message, getString(R.string.PengramChatItemsTitle), hiddenChatItemsValue()));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
@@ -1543,6 +1620,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             if (item.id == boolId(PengramConfig.KEY_PREMIUM_STATUS)) {
                 getUserConfig().pengramApplyLocalPremiumStatus();
+            }
+            if (item.id == boolId(PengramConfig.KEY_ZALGO)) {
+                // чистим уже загруженные имена и названия, иначе эффект был бы виден только после перезапуска
+                getMessagesController().pengramApplyZalgoFilter();
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
             }
             if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());
@@ -1709,6 +1792,22 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SETTINGS_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS));
                 return;
+            case BTN_CHAT_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT));
+                return;
+            case BTN_PENGUIN_SKIN: {
+                final CharSequence[] options = new CharSequence[PengramConfig.SKIN_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getPenguinSkinName(a));
+                }
+                showChoicePicker(getString(R.string.PengramPenguinSkin), options, PengramConfig.getPenguinSkin(), value -> {
+                    PengramConfig.setPenguinSkin(value);
+                    if (headerView != null) {
+                        headerView.applySkin();
+                    }
+                });
+                return;
+            }
             case BTN_MEDIA_LIMIT: {
                 int selected = 0;
                 final CharSequence[] options = new CharSequence[MEDIA_LIMITS.length];
@@ -2116,6 +2215,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
             try {
                 penguinView = new PengramPenguinView(context);
+                penguinView.setSkin(PengramConfig.getPenguinSkin());
                 penguinView.setOnTapListener(() -> {
                     try {
                         if (PengramConfig.isVibrationEnabled()) {
@@ -2164,6 +2264,13 @@ public class PengramSettingsActivity extends UniversalFragment {
         public void setPaused(boolean paused) {
             if (penguinView != null) {
                 penguinView.setPaused(paused);
+            }
+        }
+
+        /** переодеть пингвина после выбора скина */
+        public void applySkin() {
+            if (penguinView != null) {
+                penguinView.setSkin(PengramConfig.getPenguinSkin());
             }
         }
     }
@@ -2296,8 +2403,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         private final BackupImageView avatarImage;
         private final AvatarDrawable avatarDrawable = new AvatarDrawable();
         private final TextView nameText;
+        private final TextView statusText;
         private final TextDetailCell usernameCell;
         private final TextDetailCell idCell;
+        private final TextDetailCell regCell;
 
         public ProfilePreviewView(Context context) {
             super(context);
@@ -2314,7 +2423,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             nameText.setTypeface(AndroidUtilities.bold());
             nameText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
             nameText.setSingleLine(true);
-            header.addView(nameText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 32, 20, 0));
+            header.addView(nameText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 26, 20, 0));
+
+            statusText = new TextView(context);
+            statusText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            statusText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
+            statusText.setSingleLine(true);
+            header.addView(statusText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 50, 20, 0));
+
             addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 92));
 
             usernameCell = new TextDetailCell(context, getResourceProvider(), false, true);
@@ -2322,11 +2438,25 @@ public class PengramSettingsActivity extends UniversalFragment {
 
             idCell = new TextDetailCell(context, getResourceProvider(), false, true);
             addView(idCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+            regCell = new TextDetailCell(context, getResourceProvider(), false, true);
+            addView(regCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+
+        /** превью — картинка, а не кнопка: нажатия не ловим, чтобы ничего не подсвечивалось */
+        @Override
+        public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
+            return true;
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent event) {
+            return false;
         }
 
         public void update() {
             final TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
-            long id = user != null ? user.id : 1234567890L;
+            final long id = user != null ? user.id : 1234567890L;
             String username = user != null ? UserObject.getPublicUsername(user) : null;
             if (username == null) {
                 username = "username";
@@ -2344,19 +2474,91 @@ public class PengramSettingsActivity extends UniversalFragment {
                 nameText.setText("Pengram");
             }
 
-            final int style = PengramConfig.getIdStyle();
+            final long estimate = org.telegram.messenger.PengramRegDate.estimate(id);
+            final CharSequence regText = regSampleText(estimate);
+            final boolean regVisible = PengramConfig.isRegDateVisible() && !TextUtils.isEmpty(regText);
+
+            CharSequence status = getString(R.string.Online);
+            if (regVisible && PengramConfig.isRegDateInSubtitle()) {
+                status = status + " \u2022 " + regText;
+            }
+            statusText.setText(status);
+
+            final int format = PengramConfig.getIdFormat();
+            final int style = format == PengramConfig.ID_FORMAT_HIDE ? PengramConfig.ID_STYLE_OFF : PengramConfig.getIdStyle();
+            final String formatted = PengramConfig.formatId(id, false, false);
+
             CharSequence usernameValue = getString(R.string.Username);
             if (style == PengramConfig.ID_STYLE_INLINE) {
-                usernameValue = usernameValue + " \u2022 ID: " + id;
+                usernameValue = usernameValue + " \u2022 ID: " + formatted;
             }
-            usernameCell.setTextAndValue("@" + username, usernameValue, style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC);
+            final boolean idRowVisible = style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC;
+            usernameCell.setTextAndValue("@" + username, usernameValue, idRowVisible || regVisible);
 
-            if (style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC) {
+            if (idRowVisible) {
                 idCell.setVisibility(VISIBLE);
-                idCell.setTextAndValue(String.valueOf(id), style == PengramConfig.ID_STYLE_ROW_DC ? ("ID \u2022 DC" + dcId) : "ID", false);
+                idCell.setTextAndValue(formatted, style == PengramConfig.ID_STYLE_ROW_DC ? ("ID \u2022 DC" + dcId) : "ID", regVisible);
+                idCell.setContentDescriptionValueFirst(true);
+                if (PengramConfig.isRegDateIconVisible() && PengramConfig.getRegDateIconRes() != 0) {
+                    idCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));
+                } else {
+                    idCell.setImage(null);
+                }
             } else {
                 idCell.setVisibility(GONE);
             }
+
+            final boolean regRowVisible = regVisible && PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE
+                    && (PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_ICON || !idRowVisible);
+            if (regRowVisible) {
+                regCell.setVisibility(VISIBLE);
+                regCell.setTextAndValue(regText, getString(R.string.PengramRegDate), false);
+                regCell.setContentDescriptionValueFirst(true);
+                if (PengramConfig.getRegDateIconRes() != 0) {
+                    regCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));
+                } else {
+                    regCell.setImage(null);
+                }
+            } else {
+                regCell.setVisibility(GONE);
+            }
+        }
+
+        /** значок даты регистрации, перекрашенный под тему (иначе чёрный пингвин тонет в тёмной) */
+        private android.graphics.drawable.Drawable tintedRegIcon() {
+            final int res = PengramConfig.getRegDateIconRes();
+            if (res == 0 || getContext() == null) {
+                return null;
+            }
+            final android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(getContext(), res);
+            if (drawable != null) {
+                drawable.mutate().setColorFilter(new android.graphics.PorterDuffColorFilter(
+                        Theme.getColor(Theme.key_switch2TrackChecked, getResourceProvider()), android.graphics.PorterDuff.Mode.SRC_IN));
+            }
+            return drawable;
+        }
+
+        /** текст даты регистрации в выбранном формате — тот же, что и в профиле */
+        private CharSequence regSampleText(long estimate) {
+            if (estimate <= 0) {
+                return "";
+            }
+            final int style = PengramConfig.getRegDateStyle();
+            final String age = org.telegram.messenger.PengramRegDate.formatAge(estimate);
+            if (style == PengramConfig.REG_STYLE_AGE) {
+                return age == null ? "" : age;
+            }
+            String date = style == PengramConfig.REG_STYLE_EXACT
+                    ? org.telegram.messenger.PengramRegDate.formatDate(estimate)
+                    : org.telegram.messenger.PengramRegDate.formatMonthYear(estimate);
+            if (date == null) {
+                return "";
+            }
+            String text = "\u2248 " + date;
+            if ((style == PengramConfig.REG_STYLE_DATE_AGE || style == PengramConfig.REG_STYLE_EXACT) && age != null) {
+                text = text + " \u2022 " + age;
+            }
+            return text;
         }
     }
 }

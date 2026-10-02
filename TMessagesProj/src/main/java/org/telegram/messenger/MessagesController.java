@@ -6854,6 +6854,31 @@ public class MessagesController extends BaseController implements NotificationCe
         return exportedChats.get(chatId);
     }
 
+    /**
+     * Pengram: прогнать фильтр Zalgo по всем уже закэшированным именам и названиям —
+     * вызывается, когда переключатель включили на лету.
+     */
+    public void pengramApplyZalgoFilter() {
+        if (!PengramConfig.isZalgoFilter()) {
+            return;
+        }
+        try {
+            for (TLRPC.User user : users.values()) {
+                if (user != null) {
+                    user.first_name = PengramConfig.filterZalgo(user.first_name);
+                    user.last_name = PengramConfig.filterZalgo(user.last_name);
+                }
+            }
+            for (TLRPC.Chat chat : chats.values()) {
+                if (chat != null) {
+                    chat.title = PengramConfig.filterZalgo(chat.title);
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     public boolean putUser(TLRPC.User user, boolean fromCache) {
         return putUser(user, fromCache, false);
     }

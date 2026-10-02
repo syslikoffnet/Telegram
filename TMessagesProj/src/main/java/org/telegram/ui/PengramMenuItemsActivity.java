@@ -40,6 +40,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
     public static final int MODE_MENU = 0;
     /** пункты экрана «Настройки» */
     public static final int MODE_SETTINGS = 1;
+    /** наши пункты в «трёх точках» чата */
+    public static final int MODE_CHAT = 2;
 
     private static final int VIEW_TYPE_INFO = 0;
     private static final int VIEW_TYPE_HEADER = 1;
@@ -67,6 +69,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
         order.clear();
         if (mode == MODE_SETTINGS) {
             order.addAll(PengramConfig.getSettingsOrder());
+        } else if (mode == MODE_CHAT) {
+            order.addAll(PengramConfig.getChatItemsOrder());
         } else {
             for (int id : PengramConfig.getMenuOrder()) {
                 order.add(id);
@@ -76,30 +80,68 @@ public class PengramMenuItemsActivity extends BaseFragment {
     }
 
     private boolean isHidden(int id) {
-        return mode == MODE_SETTINGS ? PengramConfig.isSettingsItemHidden(id) : PengramConfig.isMenuItemHidden(id);
+        if (mode == MODE_SETTINGS) {
+            return PengramConfig.isSettingsItemHidden(id);
+        } else if (mode == MODE_CHAT) {
+            return PengramConfig.isChatItemHidden(id);
+        }
+        return PengramConfig.isMenuItemHidden(id);
     }
 
     private void setHidden(int id, boolean hidden) {
         if (mode == MODE_SETTINGS) {
             PengramConfig.setSettingsItemHidden(id, hidden);
+        } else if (mode == MODE_CHAT) {
+            PengramConfig.setChatItemHidden(id, hidden);
         } else {
             PengramConfig.setMenuItemHidden(id, hidden);
         }
     }
 
     private CharSequence itemTitle(int id) {
-        return LocaleController.getString(mode == MODE_SETTINGS ? PengramConfig.getSettingsItemTitle(id) : PengramConfig.getMenuItemTitle(id));
+        final int res;
+        if (mode == MODE_SETTINGS) {
+            res = PengramConfig.getSettingsItemTitle(id);
+        } else if (mode == MODE_CHAT) {
+            res = PengramConfig.getChatItemTitle(id);
+        } else {
+            res = PengramConfig.getMenuItemTitle(id);
+        }
+        return LocaleController.getString(res);
     }
 
     private int itemIcon(int id) {
-        return mode == MODE_SETTINGS ? PengramConfig.getSettingsItemIcon(id) : PengramConfig.getMenuItemIcon(id);
+        if (mode == MODE_SETTINGS) {
+            return PengramConfig.getSettingsItemIcon(id);
+        } else if (mode == MODE_CHAT) {
+            return PengramConfig.getChatItemIcon(id);
+        }
+        return PengramConfig.getMenuItemIcon(id);
+    }
+
+    private int titleRes() {
+        if (mode == MODE_SETTINGS) {
+            return R.string.PengramSettingsItemsTitle;
+        } else if (mode == MODE_CHAT) {
+            return R.string.PengramChatItemsTitle;
+        }
+        return R.string.PengramMenuItemsTitle;
+    }
+
+    private int infoRes() {
+        if (mode == MODE_SETTINGS) {
+            return R.string.PengramSettingsItemsInfo;
+        } else if (mode == MODE_CHAT) {
+            return R.string.PengramChatItemsInfo;
+        }
+        return R.string.PengramMenuItemsInfo;
     }
 
     @Override
     public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(LocaleController.getString(mode == MODE_SETTINGS ? R.string.PengramSettingsItemsTitle : R.string.PengramMenuItemsTitle));
+        actionBar.setTitle(LocaleController.getString(titleRes()));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
@@ -159,6 +201,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
     private void saveOrder() {
         if (mode == MODE_SETTINGS) {
             PengramConfig.setSettingsOrder(order);
+        } else if (mode == MODE_CHAT) {
+            PengramConfig.setChatItemsOrder(order);
         } else {
             PengramConfig.setMenuOrder(order);
         }
@@ -214,7 +258,7 @@ public class PengramMenuItemsActivity extends BaseFragment {
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_INFO: {
-                    ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(mode == MODE_SETTINGS ? R.string.PengramSettingsItemsInfo : R.string.PengramMenuItemsInfo));
+                    ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(infoRes()));
                     break;
                 }
                 case VIEW_TYPE_HEADER: {

@@ -243,13 +243,16 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 addItem(entry, entry.text, LocaleController.formatString(R.string.PengramVersionNumber, i + 2));
             }
         } else {
+            // как в обычном чате: разделитель с датой, а статус удалено/изменено — значком у времени
+            int lastDay = Integer.MIN_VALUE;
             for (int i = 0; i < entries.size(); ++i) {
                 final PengramHistory.Entry entry = entries.get(i);
-                final CharSequence service;
-                if (entry.action == PengramHistory.ACTION_DELETED) {
-                    service = LocaleController.formatString(R.string.PengramServiceDeleted, formatDate(entry.savedAt));
-                } else {
-                    service = LocaleController.formatString(R.string.PengramServiceEdited, formatDate(entry.savedAt));
+                final int date = entry.date != 0 ? entry.date : entry.savedAt;
+                final int day = dayOf(date);
+                CharSequence service = null;
+                if (day != lastDay) {
+                    lastDay = day;
+                    service = LocaleController.formatDateChat(date);
                 }
                 addItem(entry, entry.text, service);
             }
@@ -276,10 +279,18 @@ public class PengramHistoryChatActivity extends BaseFragment {
         return LocaleController.formatDateTime(unixtime, true);
     }
 
+    /** номер дня (для разделителей дат) */
+    private static int dayOf(int unixtime) {
+        return unixtime / 86400;
+    }
+
     private void addItem(PengramHistory.Entry entry, String text, CharSequence service) {
         final MessageObject messageObject = buildMessage(entry, text);
         if (messageObject == null) {
             return;
+        }
+        if (entry.action == PengramHistory.ACTION_DELETED) {
+            messageObject.pengramDeleted = true;
         }
         Item item = new Item();
         item.message = messageObject;
@@ -308,12 +319,22 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 msg.unread = false;
                 msg.media = new TLRPC.TL_messageMediaEmpty();
                 msg.flags |= TLRPC.MESSAGE_FLAG_HAS_FROM_ID;
+                if (entry.action == PengramHistory.ACTION_EDITED) {
+                    msg.flags |= TLRPC.MESSAGE_FLAG_EDITED;
+                    msg.edit_date = entry.savedAt;
+                }
                 message = msg;
             } else {
                 if (!TextUtils.isEmpty(text) && !TextUtils.equals(message.message, text)) {
                     message.message = text;
                 }
                 message.dialog_id = entry.dialogId;
+                if (entry.action == PengramHistory.ACTION_EDITED) {
+                    message.flags |= TLRPC.MESSAGE_FLAG_EDITED;
+                    if (message.edit_date == 0) {
+                        message.edit_date = entry.savedAt;
+                    }
+                }
             }
             MessageObject messageObject = new MessageObject(currentAccount, message, true, true);
             messageObject.resetLayout();
@@ -382,6 +403,8 @@ public class PengramHistoryChatActivity extends BaseFragment {
             }
             if (cell != null) {
                 cell.setMessageObject(item.message, null, false, false, false);
+                cell.setAlpha(item.message != null && item.message.pengramDeleted
+                        && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f);
             }
         }
 

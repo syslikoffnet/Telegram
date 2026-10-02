@@ -127,6 +127,8 @@ public class PengramConfig {
     public static final String KEY_HIDE_TAIL = "hideBubbleTail";
     /** не писать «изменено» у времени (метка остаётся) */
     public static final String KEY_HIDE_EDITED_LABEL = "hideEditedLabel";
+    /** тап по календарику показывает текст вместо окна */
+    public static final String KEY_REG_TAP_TEXT = "regTapText";
     /** всегда идёт снег в шапке */
     public static final String KEY_FORCE_SNOW = "forceSnow";
     /** заголовок по центру */
@@ -650,10 +652,10 @@ public class PengramConfig {
     public static final int SETTINGS_ITEM_POWER = 9;
     public static final int SETTINGS_ITEM_LANGUAGE = 10;
 
-    /** порядок по умолчанию: уведомления, Pengram, дальше как в Telegram */
+    /** порядок по умолчанию: Pengram, уведомления, дальше как в Telegram */
     private static final int[] SETTINGS_ITEMS_DEFAULT = new int[]{
-            SETTINGS_ITEM_NOTIFICATIONS,
             SETTINGS_ITEM_PENGRAM,
+            SETTINGS_ITEM_NOTIFICATIONS,
             SETTINGS_ITEM_ACCOUNT,
             SETTINGS_ITEM_CHAT,
             SETTINGS_ITEM_PRIVACY,
@@ -665,9 +667,17 @@ public class PengramConfig {
     };
 
     /** сохранённый порядок пунктов экрана «Настройки» (всегда полный список) */
+    /** версия раскладки «Настроек»: растёт, когда меняется порядок по умолчанию */
+    private static final int SETTINGS_ORDER_VERSION = 2;
+
     public static java.util.ArrayList<Integer> getSettingsOrder() {
         init();
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        if (prefs().getInt("settingsOrderVersion", 1) < SETTINGS_ORDER_VERSION) {
+            // раскладка по умолчанию поменялась — старый сохранённый порядок больше не актуален
+            putString("settingsOrder", "");
+            putInt("settingsOrderVersion", SETTINGS_ORDER_VERSION);
+        }
         final String saved = prefs().getString("settingsOrder", "");
         if (saved != null && saved.length() > 0) {
             for (String part : saved.split(",")) {
@@ -705,6 +715,7 @@ public class PengramConfig {
             sb.append(id);
         }
         putString("settingsOrder", sb.toString());
+        putInt("settingsOrderVersion", SETTINGS_ORDER_VERSION);
     }
 
     private static String settingsItemKey(int id) {
@@ -780,6 +791,198 @@ public class PengramConfig {
             }
         }
         return sb.toString();
+    }
+
+    /** зальгофицировать только одно слово внутри строки (для подписей в настройках) */
+    public static CharSequence zalgoWord(CharSequence text, String word) {
+        if (text == null) {
+            return "";
+        }
+        if (word == null || word.length() == 0) {
+            return text;
+        }
+        final String src = text.toString();
+        final int index = src.indexOf(word);
+        if (index < 0) {
+            return text;
+        }
+        return src.substring(0, index) + zalgoSample(word) + src.substring(index + word.length());
+    }
+
+    /** подходит ли ID под поисковый запрос (для поиска людей и чатов по номеру) */
+    public static boolean idMatches(long id, String query) {
+        if (query == null) {
+            return false;
+        }
+        final String q = query.trim();
+        if (q.length() < 3) {
+            return false;
+        }
+        for (int a = 0; a < q.length(); ++a) {
+            final char c = q.charAt(a);
+            if (a == 0 && (c == '-' || c == '+')) {
+                continue;
+            }
+            if (c < '0' || c > '9') {
+                return false;
+            }
+        }
+        String needle = q;
+        if (needle.startsWith("-") || needle.startsWith("+")) {
+            needle = needle.substring(1);
+        }
+        if (needle.length() < 3) {
+            return false;
+        }
+        if (needle.startsWith("100") && needle.length() > 3) {
+            // Bot API id канала: -100xxxxxxxxxx
+            if (String.valueOf(Math.abs(id)).startsWith(needle.substring(3))) {
+                return true;
+            }
+        }
+        return String.valueOf(Math.abs(id)).startsWith(needle);
+    }
+
+    /** разобрать строку в peer id: принимаем 123, -100123, @name отбрасываем */
+    public static long parsePeerId(String query) {
+        if (query == null) {
+            return 0;
+        }
+        String q = query.trim();
+        if (q.isEmpty()) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(q);
+        } catch (Throwable ignore) {
+        }
+        return 0;
+    }
+
+    // ------------------------------- пункты меню чата -------------------------------
+
+    public static final int CHAT_ITEM_PENGRAM = 1;
+    public static final int CHAT_ITEM_TO_BEGINNING = 2;
+    public static final int CHAT_ITEM_COPY_ID = 3;
+    public static final int CHAT_ITEM_SAVED_MEDIA = 4;
+
+    private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
+            CHAT_ITEM_PENGRAM, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA
+    };
+
+    /** порядок наших пунктов в «трёх точках» чата */
+    public static java.util.ArrayList<Integer> getChatItemsOrder() {
+        init();
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        final String saved = prefs().getString("chatItemsOrder", "");
+        if (saved != null && !saved.isEmpty()) {
+            for (String part : saved.split(",")) {
+                try {
+                    final int id = Integer.parseInt(part.trim());
+                    for (int known : CHAT_ITEMS_DEFAULT) {
+                        if (known == id && !result.contains(id)) {
+                            result.add(id);
+                            break;
+                        }
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+        for (int known : CHAT_ITEMS_DEFAULT) {
+            if (!result.contains(known)) {
+                result.add(known);
+            }
+        }
+        return result;
+    }
+
+    public static void setChatItemsOrder(java.util.List<Integer> order) {
+        if (order == null) {
+            return;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int a = 0; a < order.size(); ++a) {
+            if (a > 0) sb.append(',');
+            sb.append(order.get(a));
+        }
+        putString("chatItemsOrder", sb.toString());
+    }
+
+    public static boolean isChatItemHidden(int id) {
+        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA);
+    }
+
+    public static void setChatItemHidden(int id, boolean hidden) {
+        setBool("chatItemHidden_" + id, hidden);
+    }
+
+    public static int getHiddenChatItemsCount() {
+        int count = 0;
+        for (int id : CHAT_ITEMS_DEFAULT) {
+            if (isChatItemHidden(id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public static int getChatItemTitle(int id) {
+        switch (id) {
+            case CHAT_ITEM_TO_BEGINNING: return org.telegram.messenger.R.string.PengramJumpToBeginning;
+            case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.string.PengramCopyChatId;
+            case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.string.PengramChatItemSavedMedia;
+            case CHAT_ITEM_PENGRAM:
+            default: return org.telegram.messenger.R.string.PengramMenuTitle;
+        }
+    }
+
+    public static int getChatItemIcon(int id) {
+        switch (id) {
+            case CHAT_ITEM_TO_BEGINNING: return org.telegram.messenger.R.drawable.msg_go_up;
+            case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.drawable.msg_copy;
+            case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.drawable.msg_saved;
+            case CHAT_ITEM_PENGRAM:
+            default: return org.telegram.messenger.R.drawable.msg_viewchats;
+        }
+    }
+
+    // ------------------------------- скины пингвина -------------------------------
+
+    public static final int SKIN_NONE = 0;
+    public static final int SKIN_SANTA = 1;
+    public static final int SKIN_SCARF = 2;
+    public static final int SKIN_CAP = 3;
+    public static final int SKIN_GLASSES = 4;
+    public static final int SKIN_CROWN = 5;
+    public static final int SKIN_HEADPHONES = 6;
+    public static final int SKIN_BOWTIE = 7;
+    public static final int SKIN_WIZARD = 8;
+    public static final int SKIN_COUNT = 9;
+
+    public static int getPenguinSkin() {
+        init();
+        final int skin = prefs().getInt("penguinSkin", SKIN_NONE);
+        return skin < 0 || skin >= SKIN_COUNT ? SKIN_NONE : skin;
+    }
+
+    public static void setPenguinSkin(int skin) {
+        putInt("penguinSkin", skin < 0 || skin >= SKIN_COUNT ? SKIN_NONE : skin);
+    }
+
+    public static int getPenguinSkinName(int skin) {
+        switch (skin) {
+            case SKIN_SANTA: return org.telegram.messenger.R.string.PengramSkinSanta;
+            case SKIN_SCARF: return org.telegram.messenger.R.string.PengramSkinScarf;
+            case SKIN_CAP: return org.telegram.messenger.R.string.PengramSkinCap;
+            case SKIN_GLASSES: return org.telegram.messenger.R.string.PengramSkinGlasses;
+            case SKIN_CROWN: return org.telegram.messenger.R.string.PengramSkinCrown;
+            case SKIN_HEADPHONES: return org.telegram.messenger.R.string.PengramSkinHeadphones;
+            case SKIN_BOWTIE: return org.telegram.messenger.R.string.PengramSkinBowtie;
+            case SKIN_WIZARD: return org.telegram.messenger.R.string.PengramSkinWizard;
+            case SKIN_NONE:
+            default: return org.telegram.messenger.R.string.PengramSkinNone;
+        }
     }
 
     // ------------------------------- пункты верхнего меню -------------------------------
@@ -956,6 +1159,13 @@ public class PengramConfig {
     public static boolean isMenuCopyMessageId() { return getBool(KEY_MENU_COPY_MESSAGE_ID, true); }
     public static boolean isMenuSaveToSaved() { return getBool(KEY_MENU_SAVE_TO_SAVED, true); }
     public static boolean isHidingEditedLabel() { return getBool(KEY_HIDE_EDITED_LABEL, false); }
+    /**
+     * Прятать слово «изменено» имеет смысл только когда вместо него рисуется значок.
+     * Если значок не выбран — ведём себя как обычный Telegram и пишем «изменено».
+     */
+    public static boolean shouldHideEditedLabel() { return isHidingEditedLabel() && getEditedMarkIconRes() != 0; }
+    /** по нажатию на календарик показывать текст, а не открывать окно */
+    public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }

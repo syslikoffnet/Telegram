@@ -1695,74 +1695,87 @@ public class ChatActivity extends BaseFragment implements
     private final static int chat_menu_topic_create = 73;
 
 
-    /** Pengram: один пункт «Pengram» в меню чата, внутри — свои инструменты */
+    /** Pengram: наши пункты в «трёх точках» чата — порядок и видимость настраиваются */
     private void addPengramMenuItems() {
         try {
-            if (headerItem == null || getDialogId() == 0 || getContext() == null) {
+            if (headerItem == null || getDialogId() == 0 || getContext() == null || pengramMenuAdded) {
                 return;
             }
+            pengramMenuAdded = true;
             final long dialogId = getDialogId();
-            final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
-                    getContext(),
-                    headerItem.getPopupLayout().getSwipeBack(),
-                    dialogId,
-                    themeDelegate,
-                    new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
-                        @Override
-                        public void dismiss() {
-                            if (headerItem != null) {
-                                headerItem.toggleSubMenu();
-                            }
-                        }
+            boolean any = false;
+            for (int id : org.telegram.messenger.PengramConfig.getChatItemsOrder()) {
+                if (org.telegram.messenger.PengramConfig.isChatItemHidden(id)) {
+                    continue;
+                }
+                switch (id) {
+                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_PENGRAM: {
+                        final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
+                                getContext(),
+                                headerItem.getPopupLayout().getSwipeBack(),
+                                dialogId,
+                                themeDelegate,
+                                new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
+                                    @Override
+                                    public void dismiss() {
+                                        if (headerItem != null) {
+                                            headerItem.toggleSubMenu();
+                                        }
+                                    }
 
-                        @Override
-                        public void openDeleted() {
-                            presentFragment(new PengramHistoryChatActivity(dialogId, PengramHistoryChatActivity.MODE_DELETED));
-                        }
+                                    @Override
+                                    public void openAll() {
+                                        openPengramHistory();
+                                    }
+                                });
+                        headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
+                        any = true;
+                        break;
+                    }
+                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_TO_BEGINNING: {
+                        headerItem.lazilyAddSubItem(pengram_to_beginning, R.drawable.msg_go_up, LocaleController.getString(R.string.PengramJumpToBeginning));
+                        any = true;
+                        break;
+                    }
+                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_COPY_ID: {
+                        headerItem.lazilyAddSubItem(pengram_copy_chat_id, R.drawable.msg_copy, LocaleController.getString(R.string.PengramCopyChatId));
+                        any = true;
+                        break;
+                    }
+                    case org.telegram.messenger.PengramConfig.CHAT_ITEM_SAVED_MEDIA: {
+                        headerItem.lazilyAddSubItem(pengram_saved_media, R.drawable.msg_saved, LocaleController.getString(R.string.PengramChatItemSavedMedia));
+                        any = true;
+                        break;
+                    }
+                }
+            }
+            if (any) {
+                headerItem.lazilyAddColoredGap();
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
 
-                        @Override
-                        public void openEdited() {
-                            presentFragment(new PengramHistoryChatActivity(dialogId, PengramHistoryChatActivity.MODE_EDITED));
-                        }
+    /** Pengram: наши пункты добавляем только один раз на одно создание меню */
+    private boolean pengramMenuAdded;
 
-                        @Override
-                        public void openAll() {
-                            openPengramHistory();
-                        }
+    /** Pengram: «в начало» — прыжок к самому первому сообщению переписки */
+    private void pengramJumpToBeginning() {
+        try {
+            scrollToMessageId(1, 0, false, 0, true, 0);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
 
-                        @Override
-                        public void clearHistory() {
-                            clearPengramHistory();
-                        }
-
-                        @Override
-                        public void openSettings() {
-                            presentFragment(new PengramSettingsActivity());
-                        }
-
-                        @Override
-                        public void jumpToBeginning() {
-                            try {
-                                scrollToMessageId(1, 0, false, 0, true, 0);
-                            } catch (Throwable e) {
-                                FileLog.e(e);
-                            }
-                        }
-
-                        @Override
-                        public void copyChatId() {
-                            try {
-                                AndroidUtilities.addToClipboard(String.valueOf(dialogId));
-                                BulletinFactory.of(ChatActivity.this)
-                                        .createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied))
-                                        .show();
-                            } catch (Throwable e) {
-                                FileLog.e(e);
-                            }
-                        }
-                    });
-            headerItem.addSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
-            headerItem.addColoredGap();
+    /** Pengram: скопировать ID собеседника или чата */
+    private void pengramCopyChatId() {
+        try {
+            AndroidUtilities.addToClipboard(String.valueOf(getDialogId()));
+            BulletinFactory.of(ChatActivity.this)
+                    .createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied))
+                    .show();
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -2199,6 +2212,9 @@ public class ChatActivity extends BaseFragment implements
 
     private final static int pengram_deleted = 900;
     private final static int pengram_clear_deleted = 901;
+    private final static int pengram_to_beginning = 902;
+    private final static int pengram_copy_chat_id = 903;
+    private final static int pengram_saved_media = 904;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -4219,6 +4235,15 @@ public class ChatActivity extends BaseFragment implements
                 } else if (id == pengram_clear_deleted) {
                     clearPengramHistory();
                     return;
+                } else if (id == pengram_to_beginning) {
+                    pengramJumpToBeginning();
+                    return;
+                } else if (id == pengram_copy_chat_id) {
+                    pengramCopyChatId();
+                    return;
+                } else if (id == pengram_saved_media) {
+                    presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+                    return;
                 }
                 if (id == -1) {
                     if (isInPollAddOptionMode()) {
@@ -4841,9 +4866,7 @@ public class ChatActivity extends BaseFragment implements
             otherIcon.addView(headerItem.getIconView());
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
-            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
-                addPengramMenuItems();
-            }
+            pengramMenuAdded = false;
 
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
                 savedChatsItem = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.SavedViewAsChats));
@@ -4923,6 +4946,10 @@ public class ChatActivity extends BaseFragment implements
                     }
                 });
                 muteItemGap = headerItem.lazilyAddColoredGap();
+            }
+            // Pengram: сразу после «Уведомлений» — так в меню получается 1. Уведомления, 2. Pengram
+            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
+                addPengramMenuItems();
             }
             if (currentChat != null) {
                 headerItem.lazilyAddSubItem(open_direct, R.drawable.msg_markunread, getString(R.string.ChannelOpenDirect));

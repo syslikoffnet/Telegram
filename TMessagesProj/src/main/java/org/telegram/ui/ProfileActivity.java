@@ -7359,7 +7359,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         final Drawable drawable = ContextCompat.getDrawable(context, res);
         if (drawable != null) {
-            drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+            // SRC_IN, а не MULTIPLY: иначе чёрный силуэт пингвина на тёмной теме просто пропадал
+            drawable.mutate().setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.SRC_IN));
         }
         return drawable;
     }
@@ -7396,6 +7397,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         String text = LocaleController.formatString(self ? R.string.PengramRegDateSelf : R.string.PengramRegDateOther, date);
         if (age != null && PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
             text = text + "\n\n" + LocaleController.formatString(R.string.PengramRegDateAge, age);
+        }
+        if (PengramConfig.isRegTapText()) {
+            // без модального окна: тот же текст, только «выезжает» подсказкой снизу
+            try {
+                BulletinFactory.of(this)
+                        .createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.PengramRegDate), text.replace("\n\n", " \u2022 "))
+                        .setDuration(Bulletin.DURATION_PROLONG)
+                        .show();
+                return;
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
         }
         new AlertDialog.Builder(getParentActivity(), resourcesProvider)
                 .setTitle(LocaleController.getString(R.string.PengramRegDate))

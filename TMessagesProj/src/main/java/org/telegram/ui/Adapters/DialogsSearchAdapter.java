@@ -960,6 +960,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             ArrayList<ContactsController.Contact> contacts = new ArrayList<>();
 
             MessagesStorage.getInstance(currentAccount).localSearch(dialogsType, q, resultArray, resultArrayNames, encUsers, filterDialogIds, -1);
+            pengramSearchById(q, resultArray, resultArrayNames);
             updateSearchResults(resultArray, resultArrayNames, encUsers, contacts, searchId);
             FiltersView.fillTipDates(q, localTipDates);
             localTipArchive = false;
@@ -974,6 +975,51 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         });
     }
 
+
+    /**
+     * Pengram: обычный поиск понимает ID. Пишем 1234567890 или -1001234567890 —
+     * и человек/чат оказывается первым в результатах, даже если по имени его не найти.
+     * Вызывается уже внутри очереди хранилища, поэтому читаем базу напрямую.
+     */
+    private void pengramSearchById(String query, ArrayList<Object> resultArray, ArrayList<CharSequence> resultArrayNames) {
+        try {
+            final long raw = org.telegram.messenger.PengramConfig.parsePeerId(query);
+            if (raw == 0) {
+                return;
+            }
+            final MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
+            TLRPC.User user = raw > 0 ? storage.getUser(raw) : null;
+            TLRPC.Chat chat = null;
+            if (user == null) {
+                final long chatId = raw < 0
+                        ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw)
+                        : raw;
+                if (chatId > 0) {
+                    chat = storage.getChat(chatId);
+                }
+            }
+            final long foundId = user != null ? user.id : (chat != null ? -chat.id : 0);
+            if (foundId == 0) {
+                return;
+            }
+            for (int a = 0; a < resultArray.size(); ++a) {
+                final Object obj = resultArray.get(a);
+                if (obj instanceof TLRPC.User && ((TLRPC.User) obj).id == foundId) {
+                    return;
+                }
+                if (obj instanceof TLRPC.Chat && -((TLRPC.Chat) obj).id == foundId) {
+                    return;
+                }
+            }
+            final String name = user != null ? UserObject.getUserName(user) : chat.title;
+            resultArray.add(0, user != null ? user : chat);
+            if (resultArrayNames.size() >= 0) {
+                resultArrayNames.add(0, name == null ? "" : name);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
 
     private void updateSearchResults(final ArrayList<Object> result, final ArrayList<CharSequence> names, final ArrayList<TLRPC.User> encUsers,  final ArrayList<ContactsController.Contact> contacts, final int searchId) {
         AndroidUtilities.runOnUIThread(() -> {

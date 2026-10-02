@@ -151,6 +151,17 @@ public class PengramMessagePreviewView extends LinearLayout {
         }
     }
 
+    /** превью не реагирует на нажатия: иначе пузырь подсвечивался синим «выделением» */
+    @Override
+    public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
+        return true;
+    }
+
+    @Override
+    public boolean onTouchEvent(android.view.MotionEvent event) {
+        return false;
+    }
+
     @Override
     public void invalidate() {
         super.invalidate();
