@@ -796,7 +796,13 @@ public class PengramHistory extends SQLiteOpenHelper {
             try {
                 final String folder = PengramConfig.getMediaFolder();
                 final String mime = mimeType != null ? mimeType : (isVideo ? "video/mp4" : isImage ? "image/jpeg" : "application/octet-stream");
-                if (Build.VERSION.SDK_INT >= 29) {
+                if (!PengramConfig.isMediaToGallery()) {
+                    // по умолчанию копии лежат только внутри Pengram и в галерею не попадают
+                    final File dest = savePrivateCopy(source, displayName, folder);
+                    if (dest != null) {
+                        trackSavedMedia(null, dest.getAbsolutePath(), dest.length());
+                    }
+                } else if (Build.VERSION.SDK_INT >= 29) {
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
                     cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
@@ -852,6 +858,64 @@ public class PengramHistory extends SQLiteOpenHelper {
                 FileLog.e(e);
             }
         });
+    }
+
+    /** папка внутри приложения: её не видит ни галерея, ни другие программы */
+    public static File privateMediaDir() {
+        try {
+            File base = ApplicationLoader.applicationContext.getExternalFilesDir(null);
+            if (base == null) {
+                base = ApplicationLoader.applicationContext.getFilesDir();
+            }
+            if (base == null) {
+                return null;
+            }
+            final File dir = new File(base, PengramConfig.getMediaFolder());
+            if (!dir.exists() && !dir.mkdirs()) {
+                return null;
+            }
+            final File noMedia = new File(dir, ".nomedia");
+            if (!noMedia.exists()) {
+                try {
+                    //noinspection ResultOfMethodCallIgnored
+                    noMedia.createNewFile();
+                } catch (Throwable ignore) {
+                }
+            }
+            return dir;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    private static File savePrivateCopy(File source, String displayName, String folder) {
+        final File dir = privateMediaDir();
+        if (dir == null) {
+            return null;
+        }
+        String name = displayName == null || displayName.isEmpty() ? ("media_" + System.currentTimeMillis()) : displayName;
+        name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        File dest = new File(dir, name);
+        int index = 1;
+        while (dest.exists() && index < 1000) {
+            final int dot = name.lastIndexOf('.');
+            final String base = dot > 0 ? name.substring(0, dot) : name;
+            final String ext = dot > 0 ? name.substring(dot) : "";
+            dest = new File(dir, base + "_" + index + ext);
+            index++;
+        }
+        try (FileInputStream in = new FileInputStream(source);
+             FileOutputStream out = new FileOutputStream(dest)) {
+            final byte[] buffer = new byte[64 * 1024];
+            int length;
+            while ((length = in.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+        return dest;
     }
 
     /** учёт сохранённого файла + контроль лимита папки (удаляем самые старые) */

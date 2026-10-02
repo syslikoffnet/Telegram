@@ -323,6 +323,82 @@ public class PengramConfig {
         }
     }
 
+    // ------------------------------------------------------------ тексты песен
+
+    public static final int LYRICS_SOURCE_AUTO = 0;
+    public static final int LYRICS_SOURCE_FILE = 1;
+    public static final int LYRICS_SOURCE_LRCLIB = 2;
+    public static final int LYRICS_SOURCE_MUSIXMATCH = 3;
+    public static final int LYRICS_SOURCE_GENIUS = 4;
+    public static final int LYRICS_SOURCE_COUNT = 5;
+
+    /** откуда брать текст песни */
+    public static int getLyricsSource() {
+        final int value = prefs().getInt("lyricsSource", LYRICS_SOURCE_AUTO);
+        return value < 0 || value >= LYRICS_SOURCE_COUNT ? LYRICS_SOURCE_AUTO : value;
+    }
+
+    public static void setLyricsSource(int value) {
+        putInt("lyricsSource", value < 0 || value >= LYRICS_SOURCE_COUNT ? LYRICS_SOURCE_AUTO : value);
+    }
+
+    public static int getLyricsSourceName(int value) {
+        switch (value) {
+            case LYRICS_SOURCE_FILE: return R.string.PengramLyricsSourceFile;
+            case LYRICS_SOURCE_LRCLIB: return R.string.PengramLyricsSourceLrclib;
+            case LYRICS_SOURCE_MUSIXMATCH: return R.string.PengramLyricsSourceMusixmatch;
+            case LYRICS_SOURCE_GENIUS: return R.string.PengramLyricsSourceGenius;
+            default: return R.string.PengramLyricsSourceAuto;
+        }
+    }
+
+    public static int getLyricsSourceInfo(int value) {
+        switch (value) {
+            case LYRICS_SOURCE_FILE: return R.string.PengramLyricsSourceFileInfo;
+            case LYRICS_SOURCE_LRCLIB: return R.string.PengramLyricsSourceLrclibInfo;
+            case LYRICS_SOURCE_MUSIXMATCH: return R.string.PengramLyricsSourceMusixmatchInfo;
+            case LYRICS_SOURCE_GENIUS: return R.string.PengramLyricsSourceGeniusInfo;
+            default: return R.string.PengramLyricsSourceAutoInfo;
+        }
+    }
+
+    /** общий сдвиг текста относительно звука, мс (−5000…5000) */
+    public static int getLyricsOffset() {
+        return Math.max(-5000, Math.min(5000, prefs().getInt("lyricsOffset", 0)));
+    }
+
+    public static void setLyricsOffset(int value) {
+        putInt("lyricsOffset", Math.max(-5000, Math.min(5000, value)));
+    }
+
+    /** подгонять таймкоды под реальную длительность трека (ускоренные версии) */
+    public static final String KEY_LYRICS_STRETCH = "lyricsStretch";
+    public static boolean isLyricsStretch() { return getBool(KEY_LYRICS_STRETCH, true); }
+
+    /** плавная подсветка между обновлениями прогресса плеера */
+    public static final String KEY_LYRICS_SMOOTH = "lyricsSmooth";
+    public static boolean isLyricsSmooth() { return getBool(KEY_LYRICS_SMOOTH, true); }
+
+    // ------------------------------------------------------------ бегущая строка
+
+    /** строка уезжает вбок, когда не помещается */
+    public static final String KEY_HEADER_LYRICS_MARQUEE = "headerLyricsMarquee";
+    public static final String KEY_HEADER_LYRICS_BOLD = "headerLyricsBold";
+    public static final String KEY_HEADER_LYRICS_WORDS = "headerLyricsWords";
+    public static final String KEY_HEADER_LYRICS_ARTIST = "headerLyricsArtist";
+
+    public static int getHeaderLyricsSpeed() {
+        return Math.max(40, Math.min(250, prefs().getInt("headerLyricsSpeed", 100)));
+    }
+
+    public static void setHeaderLyricsSpeed(int value) {
+        putInt("headerLyricsSpeed", Math.max(40, Math.min(250, value)));
+    }
+
+    /** класть сохранённые копии в системную галерею (по умолчанию нет) */
+    public static final String KEY_MEDIA_GALLERY = "mediaToGallery";
+    public static boolean isMediaToGallery() { return getBool(KEY_MEDIA_GALLERY, false); }
+
     public static final String KEY_HEADER_LYRICS = "headerLyrics";
 
     /** строка песни прямо в шапке чата, поверх мини-плеера */

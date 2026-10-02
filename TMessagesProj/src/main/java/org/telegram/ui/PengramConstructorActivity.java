@@ -75,6 +75,10 @@ public class PengramConstructorActivity extends BaseFragment {
         hint.setPadding(dp(20), dp(14), dp(20), dp(4));
         content.addView(hint);
 
+        // ——— главный редактор: целый экран Telegram, который можно перестраивать ———
+        addCard(content, KIND_CHAT_BUTTONS, R.string.PengramConstructorEditor, R.string.PengramConstructorEditorInfo,
+                () -> presentFragment(new PengramLayoutEditorActivity()));
+
         // ——— живая мастерская: всё меняется прямо на макете, без галочек ———
         addSectionTitle(content, getString(R.string.PengramConstructorLive));
 

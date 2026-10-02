@@ -1544,6 +1544,12 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             if (currentStyle == STYLE_CONNECTING_GROUP_CALL || currentStyle == STYLE_ACTIVE_GROUP_CALL || currentStyle == STYLE_INACTIVE_GROUP_CALL) {
                 checkCall(false);
             }
+            if (id == NotificationCenter.messagePlayingDidReset && pengramTicker != null) {
+                // Pengram: музыка кончилась — строка песни уходит, остаётся обычная шапка
+                pengramLyricsKey = null;
+                pengramTicker.clear();
+                pengramHideTicker();
+            }
             checkPlayer(false);
         } else if (id == NotificationCenter.didStartedCall || id == NotificationCenter.groupCallUpdated || id == NotificationCenter.groupCallVisibilityChanged) {
             checkCall(false);
@@ -2036,14 +2042,20 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         if (pengramTicker == null) {
             return;
         }
+        final String key = PengramLyrics.keyFor(messageObject);
+        if (key == null || !key.equals(pengramLyricsKey)) {
+            // другая песня — старый текст убираем сразу, чтобы он не бежал поверх новой
+            pengramLyricsKey = key;
+            pengramTicker.clear();
+            pengramHideTicker();
+        }
         if (messageObject == null || !isMusic || !PengramConfig.isHeaderLyrics()) {
             pengramHideTicker();
             return;
         }
         pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
         pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
-        final String key = PengramLyrics.keyFor(messageObject);
-        pengramLyricsKey = key;
+        pengramTicker.setOffsetKey(key);
         final long duration = (long) (messageObject.getDuration() * 1000);
         PengramLyrics.request(messageObject, (resultKey, raw, state) -> {
             if (pengramTicker == null || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
@@ -2054,6 +2066,10 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 if (pengramTicker.isEmpty()) {
                     pengramHideTicker();
                     return;
+                }
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (playing != null) {
+                    pengramTicker.setProgress(playing.audioProgress);
                 }
                 pengramShowTicker();
             } else if (state != PengramLyrics.STATE_LOADING) {

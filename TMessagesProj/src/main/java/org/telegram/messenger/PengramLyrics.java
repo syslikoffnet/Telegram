@@ -19,6 +19,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Pengram: тексты песен.
@@ -70,6 +75,17 @@ public class PengramLyrics {
 
     private static final HashMap<String, String> memory = new HashMap<>();
     private static final HashSet<String> loading = new HashSet<>();
+
+    /** источники опрашиваются одновременно — кто первый, того и текст */
+    private static final ExecutorService pool = Executors.newFixedThreadPool(4, runnable -> {
+        final Thread thread = new Thread(runnable, "PengramLyrics");
+        thread.setPriority(Thread.MIN_PRIORITY + 2);
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /** общий срок на весь поиск, мс */
+    private static final long SEARCH_DEADLINE = 9000;
 
     private static SharedPreferences prefs() {
         return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -325,12 +341,13 @@ public class PengramLyrics {
         }
         final int duration = durationSec;
         final String rawTitle = safe(messageObject.getMusicTitle());
-        Utilities.globalQueue.postRunnable(() -> {
+        final String path = pathOf(messageObject);
+        pool.execute(() -> {
             String found = null;
             try {
-                found = fetch(artist, title, duration);
+                found = fetch(artist, title, duration, path);
                 if (TextUtils.isEmpty(found) && !TextUtils.isEmpty(rawTitle) && !rawTitle.equalsIgnoreCase(title)) {
-                    found = fetch(artist, cleanTitle(rawTitle), duration);
+                    found = fetch(artist, cleanTitle(rawTitle), duration, null);
                 }
             } catch (Throwable ignore) {
             }
@@ -347,53 +364,399 @@ public class PengramLyrics {
         });
     }
 
+    /** заранее поискать текст для следующего трека, чтобы он открылся мгновенно */
+    public static void prefetch(MessageObject messageObject) {
+        final String key = keyFor(messageObject);
+        if (TextUtils.isEmpty(key) || has(key)) {
+            return;
+        }
+        synchronized (loading) {
+            if (loading.contains(key)) {
+                return;
+            }
+        }
+        final long failed = prefs().getLong("fail_" + key, 0);
+        if (failed > 0 && System.currentTimeMillis() - failed < RETRY_AFTER) {
+            return;
+        }
+        request(messageObject, false, null);
+    }
+
+    /** путь к скачанному файлу трека — из него читаются встроенные в теги тексты */
+    private static String pathOf(MessageObject messageObject) {
+        try {
+            if (messageObject == null || messageObject.messageOwner == null) {
+                return null;
+            }
+            final java.io.File file = FileLoader.getInstance(messageObject.currentAccount)
+                    .getPathToMessage(messageObject.messageOwner);
+            return file != null && file.exists() && file.length() > 0 ? file.getAbsolutePath() : null;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    // --------------------------------------------------------- сдвиг по трекам
+
+    /** личный сдвиг текста для конкретного трека, мс */
+    public static int getOffset(String key) {
+        if (TextUtils.isEmpty(key)) {
+            return PengramConfig.getLyricsOffset();
+        }
+        return prefs().getInt("off_" + key, 0) + PengramConfig.getLyricsOffset();
+    }
+
+    public static int getTrackOffset(String key) {
+        return TextUtils.isEmpty(key) ? 0 : prefs().getInt("off_" + key, 0);
+    }
+
+    public static void setTrackOffset(String key, int value) {
+        if (TextUtils.isEmpty(key)) {
+            return;
+        }
+        value = Math.max(-10000, Math.min(10000, value));
+        if (value == 0) {
+            prefs().edit().remove("off_" + key).apply();
+        } else {
+            prefs().edit().putInt("off_" + key, value).apply();
+        }
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value;
     }
 
-    /** несколько попыток подряд — от самой точной к самой широкой */
-    private static String fetch(String artist, String title, int duration) {
+    /** результат одного источника */
+    private static class Found {
+        final String raw;
+        final boolean synced;
+        final boolean words;
+        final int priority;
+
+        Found(String raw, int priority) {
+            this.raw = raw;
+            this.synced = raw != null && raw.contains("[") && raw.indexOf(':') > 0 && hasTimings(parse(raw));
+            this.words = raw != null && raw.contains("<");
+            this.priority = priority;
+        }
+
+        int score() {
+            return (words ? 0 : synced ? 10 : 100) + priority;
+        }
+    }
+
+    /**
+     * Опрашиваем все разрешённые источники сразу и забираем лучший ответ:
+     * пословный караоке-текст лучше обычного синхронного, тот — лучше простого текста.
+     * Встроенный в файл текст проверяется первым и возвращается мгновенно.
+     */
+    private static String fetch(String artist, String title, int duration, String path) {
         if (TextUtils.isEmpty(title)) {
             return null;
         }
+        final int source = PengramConfig.getLyricsSource();
+
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_FILE) {
+            final String embedded = fetchEmbedded(path);
+            if (!TextUtils.isEmpty(embedded)) {
+                final Found found = new Found(embedded, 0);
+                if (found.synced || source == PengramConfig.LYRICS_SOURCE_FILE) {
+                    return embedded;
+                }
+            }
+            if (source == PengramConfig.LYRICS_SOURCE_FILE) {
+                return null;
+            }
+        }
+
+        final ArrayList<Future<Found>> futures = new ArrayList<>();
+        final ArrayList<Callable<Found>> tasks = new ArrayList<>();
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_LRCLIB) {
+            tasks.add(() -> wrap(fetchLrclib(artist, title, duration), 1));
+        }
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_MUSIXMATCH) {
+            tasks.add(() -> wrap(fetchMusixmatch(artist, title, duration), 2));
+        }
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_GENIUS) {
+            tasks.add(() -> wrap(fetchGenius(artist, title), 3));
+        }
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO) {
+            tasks.add(() -> wrap(fetchTextyl(artist, title), 4));
+            tasks.add(() -> wrap(fetchLyricsOvh(artist, title), 5));
+        }
+        for (Callable<Found> task : tasks) {
+            try {
+                futures.add(pool.submit(task));
+            } catch (Throwable ignore) {
+            }
+        }
+
+        final long deadline = System.currentTimeMillis() + SEARCH_DEADLINE;
+        Found best = null;
+        for (Future<Found> future : futures) {
+            final long left = deadline - System.currentTimeMillis();
+            Found value = null;
+            try {
+                value = left > 0 ? future.get(left, TimeUnit.MILLISECONDS) : future.isDone() ? future.get() : null;
+            } catch (Throwable ignore) {
+            }
+            if (value == null) {
+                continue;
+            }
+            if (best == null || value.score() < best.score()) {
+                best = value;
+            }
+            if (best.words) {
+                break;   // пословный текст — лучше уже не будет
+            }
+        }
+        for (Future<Found> future : futures) {
+            try {
+                future.cancel(true);
+            } catch (Throwable ignore) {
+            }
+        }
+        if (best == null && (source == PengramConfig.LYRICS_SOURCE_AUTO)) {
+            final String embedded = fetchEmbedded(path);
+            if (!TextUtils.isEmpty(embedded)) {
+                return embedded;
+            }
+        }
+        return best == null ? null : best.raw;
+    }
+
+    private static Found wrap(String raw, int priority) {
+        return TextUtils.isEmpty(raw) ? null : new Found(raw, priority);
+    }
+
+    /** текст прямо из тегов файла — быстрее всех и всегда совпадает с версией трека */
+    private static String fetchEmbedded(String path) {
+        if (TextUtils.isEmpty(path)) {
+            return null;
+        }
+        try {
+            final java.io.File file = new java.io.File(path);
+            if (!file.exists() || file.length() <= 0) {
+                return null;
+            }
+            final org.telegram.messenger.audioinfo.AudioInfo info =
+                    org.telegram.messenger.audioinfo.AudioInfo.getAudioInfo(file);
+            if (info == null) {
+                return null;
+            }
+            final String lyrics = info.getLyrics();
+            if (TextUtils.isEmpty(lyrics) || lyrics.trim().length() < 20) {
+                return null;
+            }
+            return lyrics.replace("\r", "").trim();
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    // --------------------------------------------------------------- LRCLIB
+
+    /** несколько попыток подряд — от самой точной к самой широкой */
+    private static String fetchLrclib(String artist, String title, int duration) {
         String result;
         if (!TextUtils.isEmpty(artist)) {
-            // 1. точное совпадение с длительностью — самый качественный вариант
             result = parseRecord(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)
-                    + (duration > 0 ? "&duration=" + duration : "")));
+                    + (duration > 0 ? "&duration=" + duration : "")), duration);
             if (result != null) {
                 return result;
             }
-            // 2. то же самое, но без привязки к длительности
             if (duration > 0) {
-                result = parseRecord(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)));
+                result = parseRecord(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)), duration);
                 if (result != null) {
                     return result;
                 }
             }
-            // 3. поиск по полям — берём ближайшую по длительности запись
             result = parseList(get("/api/search?artist_name=" + enc(artist) + "&track_name=" + enc(title)), duration);
             if (result != null) {
                 return result;
             }
         }
-        // 4. общий поиск строкой
         result = parseList(get("/api/search?q=" + enc((TextUtils.isEmpty(artist) ? "" : artist + " ") + title)), duration);
         if (result != null) {
             return result;
         }
-        // 5. совсем широкий поиск только по названию
-        result = parseList(get("/api/search?track_name=" + enc(title)), duration);
-        if (result != null) {
-            return result;
+        return parseList(get("/api/search?track_name=" + enc(title)), duration);
+    }
+
+    // ------------------------------------------------------------ Musixmatch
+
+    private static final String MXM_APP = "web-desktop-app-v1.0";
+    private static String mxmToken;
+    private static long mxmTokenTime;
+
+    private static String musixmatchToken() {
+        final long now = System.currentTimeMillis();
+        if (!TextUtils.isEmpty(mxmToken) && now - mxmTokenTime < 12L * 60 * 60 * 1000) {
+            return mxmToken;
         }
-        // 6. запасной источник с таймкодами
-        result = fetchTextyl(artist, title);
-        if (result != null) {
-            return result;
+        final String saved = prefs().getString("mxm_token", null);
+        final long savedTime = prefs().getLong("mxm_token_time", 0);
+        if (!TextUtils.isEmpty(saved) && now - savedTime < 12L * 60 * 60 * 1000) {
+            mxmToken = saved;
+            mxmTokenTime = savedTime;
+            return mxmToken;
         }
-        // 7. последний шанс: обычный текст без таймкодов
-        return fetchLyricsOvh(artist, title);
+        try {
+            final String json = getUrl("https://apic-desktop.musixmatch.com/ws/1.1/token.get?app_id=" + MXM_APP + "&format=json");
+            if (TextUtils.isEmpty(json)) {
+                return null;
+            }
+            final JSONObject body = new JSONObject(json).optJSONObject("message");
+            final JSONObject inner = body == null ? null : body.optJSONObject("body");
+            final String token = inner == null ? null : inner.optString("user_token", null);
+            if (TextUtils.isEmpty(token) || "UpgradeOnlyUpgradeOnlyUpgradeOnlyUpgradeOnly".equals(token)) {
+                return null;
+            }
+            mxmToken = token;
+            mxmTokenTime = now;
+            prefs().edit().putString("mxm_token", token).putLong("mxm_token_time", now).apply();
+            return token;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** официальные синхронизированные тексты от лейблов */
+    private static String fetchMusixmatch(String artist, String title, int duration) {
+        try {
+            final String token = musixmatchToken();
+            if (TextUtils.isEmpty(token)) {
+                return null;
+            }
+            final StringBuilder url = new StringBuilder("https://apic-desktop.musixmatch.com/ws/1.1/macro.subtitles.get?format=json&namespace=lyrics_richsynched&subtitle_format=lrc&app_id=")
+                    .append(MXM_APP).append("&usertoken=").append(enc(token))
+                    .append("&q_track=").append(enc(title));
+            if (!TextUtils.isEmpty(artist)) {
+                url.append("&q_artist=").append(enc(artist));
+            }
+            if (duration > 0) {
+                url.append("&q_duration=").append(duration).append("&f_subtitle_length=").append(duration);
+            }
+            final String json = getUrl(url.toString());
+            if (TextUtils.isEmpty(json)) {
+                return null;
+            }
+            final JSONObject root = new JSONObject(json).optJSONObject("message");
+            final JSONObject body = root == null ? null : root.optJSONObject("body");
+            final JSONObject macro = body == null ? null : body.optJSONObject("macro_calls");
+            if (macro == null) {
+                return null;
+            }
+            final JSONObject subtitles = macro.optJSONObject("track.subtitles.get");
+            if (subtitles != null) {
+                final JSONObject message = subtitles.optJSONObject("message");
+                final JSONObject inner = message == null ? null : message.optJSONObject("body");
+                final JSONArray list = inner == null ? null : inner.optJSONArray("subtitle_list");
+                if (list != null && list.length() > 0) {
+                    final JSONObject item = list.optJSONObject(0);
+                    final JSONObject subtitle = item == null ? null : item.optJSONObject("subtitle");
+                    final String text = subtitle == null ? null : subtitle.optString("subtitle_body", null);
+                    if (!TextUtils.isEmpty(text) && text.trim().length() > 10) {
+                        final int length = subtitle.optInt("subtitle_length", 0);
+                        return withLength(text.replace("\r", "").trim(), length);
+                    }
+                }
+            }
+            final JSONObject plainCall = macro.optJSONObject("track.lyrics.get");
+            if (plainCall != null) {
+                final JSONObject message = plainCall.optJSONObject("message");
+                final JSONObject inner = message == null ? null : message.optJSONObject("body");
+                final JSONObject lyrics = inner == null ? null : inner.optJSONObject("lyrics");
+                final String text = lyrics == null ? null : lyrics.optString("lyrics_body", null);
+                if (!TextUtils.isEmpty(text) && text.trim().length() > 20) {
+                    return text.replace("\r", "").replace("******* This Lyrics is NOT for Commercial use *******", "").trim();
+                }
+            }
+            return null;
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    // ---------------------------------------------------------------- Genius
+
+    /** тексты от пользователей Genius: таймкодов нет, зато есть почти всё */
+    private static String fetchGenius(String artist, String title) {
+        try {
+            final String query = (TextUtils.isEmpty(artist) ? "" : artist + " ") + title;
+            final String json = getUrl("https://genius.com/api/search/multi?q=" + enc(query));
+            if (TextUtils.isEmpty(json)) {
+                return null;
+            }
+            final JSONObject response = new JSONObject(json).optJSONObject("response");
+            final JSONArray sections = response == null ? null : response.optJSONArray("sections");
+            if (sections == null) {
+                return null;
+            }
+            String path = null;
+            for (int a = 0; a < sections.length() && path == null; ++a) {
+                final JSONObject section = sections.optJSONObject(a);
+                if (section == null || !"song".equals(section.optString("type"))) {
+                    continue;
+                }
+                final JSONArray hits = section.optJSONArray("hits");
+                for (int b = 0; hits != null && b < hits.length() && b < 3; ++b) {
+                    final JSONObject hit = hits.optJSONObject(b);
+                    final JSONObject result = hit == null ? null : hit.optJSONObject("result");
+                    if (result == null) {
+                        continue;
+                    }
+                    final String url = result.optString("url", null);
+                    if (!TextUtils.isEmpty(url)) {
+                        path = url;
+                        break;
+                    }
+                }
+            }
+            if (path == null) {
+                return null;
+            }
+            final String html = getUrl(path);
+            return html == null ? null : geniusLyrics(html);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** выдираем текст из блоков data-lyrics-container страницы Genius */
+    private static String geniusLyrics(String html) {
+        try {
+            final StringBuilder out = new StringBuilder();
+            int from = 0;
+            while (true) {
+                final int start = html.indexOf("data-lyrics-container=\"true\"", from);
+                if (start < 0) {
+                    break;
+                }
+                final int open = html.indexOf('>', start);
+                if (open < 0) {
+                    break;
+                }
+                final int close = html.indexOf("</div>", open);
+                if (close < 0) {
+                    break;
+                }
+                out.append(html, open + 1, close).append('\n');
+                from = close + 6;
+            }
+            if (out.length() == 0) {
+                return null;
+            }
+            String text = out.toString();
+            text = text.replaceAll("(?i)<br\\s*/?>", "\n");
+            text = text.replaceAll("(?s)<[^>]+>", "");
+            text = text.replace("&amp;", "&").replace("&quot;", "\"").replace("&#x27;", "'")
+                    .replace("&#039;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ");
+            text = text.replaceAll("\\n{3,}", "\n\n").trim();
+            return text.length() < 30 ? null : text;
+        } catch (Throwable e) {
+            return null;
+        }
     }
 
     /** api.textyl.co отдаёт готовый список строк с секундами */
@@ -471,10 +834,23 @@ public class PengramLyrics {
             final URL url = new URL(address);
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
-            connection.setRequestProperty("User-Agent", UA);
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setConnectTimeout(8000);
-            connection.setReadTimeout(12000);
+            final String host = url.getHost() == null ? "" : url.getHost();
+            if (host.contains("musixmatch") || host.contains("genius")) {
+                // этим сайтам нужен обычный браузерный агент, иначе они молчат
+                connection.setRequestProperty("User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36");
+                connection.setRequestProperty("Accept", "application/json, text/html;q=0.9,*/*;q=0.8");
+                if (host.contains("musixmatch")) {
+                    connection.setRequestProperty("Cookie", "x-mxm-token-guid=");
+                }
+            } else {
+                connection.setRequestProperty("User-Agent", UA);
+                connection.setRequestProperty("Accept", "application/json");
+            }
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            connection.setInstanceFollowRedirects(true);
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(7000);
             final int code = connection.getResponseCode();
             if (code != 200) {
                 return null;
@@ -484,7 +860,7 @@ public class PengramLyrics {
             final StringBuilder builder = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
-                builder.append(line);
+                builder.append(line).append('\n');
                 if (builder.length() > 2_000_000) {
                     break;
                 }
@@ -503,15 +879,28 @@ public class PengramLyrics {
         }
     }
 
-    private static String parseRecord(String json) {
+    private static String parseRecord(String json, int duration) {
         if (TextUtils.isEmpty(json)) {
             return null;
         }
         try {
-            return lyricsOf(new JSONObject(json));
+            final JSONObject record = new JSONObject(json);
+            final String lyrics = lyricsOf(record);
+            return lyrics == null ? null : withLength(lyrics, record.optInt("duration", 0));
         } catch (Throwable e) {
             return null;
         }
+    }
+
+    /**
+     * Запоминаем, под какую длительность написаны таймкоды.
+     * Для ускоренных и замедленных версий это единственный способ попасть в такт.
+     */
+    private static String withLength(String raw, int seconds) {
+        if (TextUtils.isEmpty(raw) || seconds <= 0 || raw.contains("[length:")) {
+            return raw;
+        }
+        return String.format(Locale.US, "[length:%02d:%02d.00]%n", seconds / 60, seconds % 60) + raw;
     }
 
     private static String parseList(String json, int duration) {
@@ -540,7 +929,11 @@ public class PengramLyrics {
                     best = item;
                 }
             }
-            return best == null ? null : lyricsOf(best);
+            if (best == null) {
+                return null;
+            }
+            final String lyrics = lyricsOf(best);
+            return lyrics == null ? null : withLength(lyrics, best.optInt("duration", 0));
         } catch (Throwable e) {
             return null;
         }
@@ -569,9 +962,13 @@ public class PengramLyrics {
         if (TextUtils.isEmpty(raw)) {
             return result;
         }
+        final long tagOffset = offsetOf(raw);
         final String[] parts = raw.replace("\r", "").split("\n");
         for (String part : parts) {
             String line = part;
+            if (isMetaLine(line)) {
+                continue;
+            }
             final ArrayList<Long> times = new ArrayList<>();
             while (true) {
                 final String trimmed = line.trim();
@@ -645,6 +1042,23 @@ public class PengramLyrics {
                 break;
             }
         }
+        if (timed && tagOffset != 0) {
+            // [offset:] в самом файле — смещение всех строк
+            for (int a = 0; a < result.size(); ++a) {
+                final Line line = result.get(a);
+                if (line.time < 0) {
+                    continue;
+                }
+                long[] shifted = null;
+                if (line.wordTimes != null) {
+                    shifted = new long[line.wordTimes.length];
+                    for (int b = 0; b < shifted.length; ++b) {
+                        shifted[b] = Math.max(0, line.wordTimes[b] - tagOffset);
+                    }
+                }
+                result.set(a, new Line(Math.max(0, line.time - tagOffset), line.text, shifted, line.wordChars));
+            }
+        }
         if (timed) {
             Collections.sort(result, (a, b) -> Long.compare(a.time, b.time));
             // пустые строки в конце только мешают
@@ -674,6 +1088,67 @@ public class PengramLyrics {
             return (long) (minutes * 60_000L + seconds * 1000.0);
         } catch (Throwable e) {
             return -1;
+        }
+    }
+
+    /** служебные строки LRC: [ar:], [ti:], [length:], [offset:] и прочее */
+    private static boolean isMetaLine(String line) {
+        final String trimmed = line == null ? "" : line.trim();
+        if (trimmed.length() < 4 || trimmed.charAt(0) != '[') {
+            return false;
+        }
+        final int close = trimmed.indexOf(']');
+        if (close < 0 || close != trimmed.length() - 1) {
+            return false;
+        }
+        final int colon = trimmed.indexOf(':');
+        if (colon <= 1 || colon > close) {
+            return false;
+        }
+        final String name = trimmed.substring(1, colon).toLowerCase(Locale.ROOT);
+        switch (name) {
+            case "ar": case "ti": case "al": case "au": case "by": case "re": case "ve":
+            case "length": case "offset": case "tool": case "id": case "#":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** длительность, под которую написаны таймкоды, мс (0 — неизвестно) */
+    public static long lengthOf(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return 0;
+        }
+        final int start = raw.indexOf("[length:");
+        if (start < 0) {
+            return 0;
+        }
+        final int end = raw.indexOf(']', start);
+        if (end < 0) {
+            return 0;
+        }
+        final long value = parseTime(raw.substring(start + 8, end));
+        return value < 0 ? 0 : value;
+    }
+
+    /** [offset:+250] — сдвиг в миллисекундах прямо из файла */
+    public static long offsetOf(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return 0;
+        }
+        final int start = raw.indexOf("[offset:");
+        if (start < 0) {
+            return 0;
+        }
+        final int end = raw.indexOf(']', start);
+        if (end < 0) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(raw.substring(start + 8, end).trim().replace("+", ""));
+        } catch (Throwable e) {
+            return 0;
         }
     }
 

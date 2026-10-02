@@ -3208,6 +3208,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void setTitleOverlayText(String title, int titleId, Runnable action) {
         super.setTitleOverlayText(title, titleId, action);
+        if (title == null) {
+            // Pengram: когда «Соединение…» уходит, возвращаем свой заголовок, а не «Telegram»
+            AndroidUtilities.runOnUIThread(this::pengramUpdateTitle, 50);
+        }
         if (actionBar != null && selectAnimatedEmojiDialog != null && selectAnimatedEmojiDialog.getContentView() instanceof SelectAnimatedEmojiDialog) {
             SimpleTextView textView = actionBar.getTitleTextView();
             ((SelectAnimatedEmojiDialog) selectAnimatedEmojiDialog.getContentView()).setScrimDrawable(textView != null && textView.getRightDrawable() == statusDrawable ? statusDrawable : null, textView);
@@ -10707,6 +10711,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (currentConnectionState != state) {
                 currentConnectionState = state;
                 updateProxyButton(true, false);
+                pengramUpdateTitle();   // Pengram: заголовок не должен сползать обратно на «Telegram»
             }
         } else if (id == NotificationCenter.onDownloadingFilesChanged) {
             updateProxyButton(true, false);

@@ -29,6 +29,7 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
@@ -85,6 +86,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private final TextView retryButton;
     private final RadialProgressView lyricsProgress;
 
+    private TextView syncMinusButton;
+    private TextView syncPlusButton;
     private boolean lyricsShown;
     private int lastTime = -1;
     private String lyricsKey;
@@ -111,7 +114,35 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         };
         containerView = rootLayout;
 
-        cardLayout = new FrameLayout(context);
+        cardLayout = new FrameLayout(context) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                if (!compact) {
+                    super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                    return;
+                }
+                // в компактных стилях высоту задаёт только содержимое,
+                // иначе фон во весь экран растягивал карточку и всё уезжало вверх
+                final int width = MeasureSpec.getSize(widthMeasureSpec);
+                final int available = MeasureSpec.getSize(heightMeasureSpec);
+                int height = 0;
+                for (int a = 0; a < getChildCount(); ++a) {
+                    final View child = getChildAt(a);
+                    if (child == null || child == backgroundView || child.getVisibility() == GONE) {
+                        continue;
+                    }
+                    child.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(available, MeasureSpec.AT_MOST));
+                    height = Math.max(height, child.getMeasuredHeight());
+                }
+                height = Math.max(dp(120), Math.min(height, available));
+                if (backgroundView != null) {
+                    backgroundView.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
+                }
+                setMeasuredDimension(width, height);
+            }
+        };
         if (compact) {
             cardLayout.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
@@ -134,7 +165,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         final LinearLayout content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, compact ? dp(6) : AndroidUtilities.statusBarHeight + dp(6), 0, dp(12));
+        content.setPadding(0, compact ? dp(6) : AndroidUtilities.statusBarHeight + dp(6), 0,
+                dp(12) + (compact ? Math.max(0, AndroidUtilities.navigationBarHeight) : 0));
         cardLayout.addView(content, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
                 compact ? LayoutHelper.WRAP_CONTENT : LayoutHelper.MATCH_PARENT));
 
@@ -254,6 +286,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         retryButton.setVisibility(View.GONE);
         retryButton.setOnClickListener(v -> loadLyrics(true));
         lyricsContainer.addView(retryButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 36, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 8));
+
+        // подстройка синхронизации: если текст спешит или отстаёт, его двигают прямо здесь
+        syncMinusButton = createSyncChip(context, "−0,5", v -> shiftLyrics(-500));
+        syncPlusButton = createSyncChip(context, "+0,5", v -> shiftLyrics(500));
+        lyricsContainer.addView(syncMinusButton, LayoutHelper.createFrame(52, 28, Gravity.LEFT | Gravity.BOTTOM, 6, 0, 0, 8));
+        lyricsContainer.addView(syncPlusButton, LayoutHelper.createFrame(52, 28, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 6, 8));
 
         // ---------- название ----------
         final LinearLayout titleRow = new LinearLayout(context);
@@ -739,7 +777,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         if (playing == null) {
             return;
         }
-        lyricsKey = PengramLyrics.keyFor(playing);
+        final String newKey = PengramLyrics.keyFor(playing);
+        if (!TextUtils.equals(newKey, lyricsKey)) {
+            lyricsView.clear();   // новая песня — старый текст убираем сразу
+        }
+        lyricsKey = newKey;
+        lyricsView.setOffsetKey(lyricsKey);
         final long duration = (long) (playing.getDuration() * 1000);
         lyricsView.setColors(accentColor, 0xFFFFFFFF);
         if (prevTrackButton != null) {
@@ -754,6 +797,75 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         });
     }
 
+    private TextView createSyncChip(Context context, String text, View.OnClickListener listener) {
+        final TextView view = new TextView(context);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        view.setTextColor(0xCCFFFFFF);
+        view.setGravity(Gravity.CENTER);
+        view.setText(text);
+        view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(14), 0x33000000, 0x44FFFFFF));
+        view.setOnClickListener(listener);
+        view.setVisibility(View.GONE);
+        return view;
+    }
+
+    private void updateSyncChips(boolean visible) {
+        final int visibility = visible && PengramConfig.getBool("lyricsSyncButtons", true) ? View.VISIBLE : View.GONE;
+        if (syncMinusButton != null) {
+            syncMinusButton.setVisibility(visibility);
+        }
+        if (syncPlusButton != null) {
+            syncPlusButton.setVisibility(visibility);
+        }
+    }
+
+    /** пока играет этот трек, текст и обложка следующего уже готовятся */
+    private void pengramPrefetchNext() {
+        try {
+            final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaylist();
+            if (playlist == null || playlist.isEmpty()) {
+                return;
+            }
+            final int index = MediaController.getInstance().getPlayingMessageObjectNum();
+            for (int a = 1; a <= 2; ++a) {
+                final int next = index + a;
+                if (next < 0 || next >= playlist.size()) {
+                    break;
+                }
+                final MessageObject object = playlist.get(next);
+                PengramLyrics.prefetch(object);
+                org.telegram.messenger.PengramCovers.prefetch(object);
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** сдвинуть текст этого трека на полсекунды вперёд или назад */
+    private void shiftLyrics(int deltaMs) {
+        if (TextUtils.isEmpty(lyricsKey)) {
+            return;
+        }
+        final int value = PengramLyrics.getTrackOffset(lyricsKey) + deltaMs;
+        PengramLyrics.setTrackOffset(lyricsKey, value);
+        lyricsView.invalidate();
+        if (lyricsStatusView != null) {
+            final int now = PengramLyrics.getTrackOffset(lyricsKey);
+            lyricsStatusView.setVisibility(View.VISIBLE);
+            lyricsStatusView.setTranslationY(dp(54));
+            lyricsStatusView.setText(LocaleController.formatString(R.string.PengramLyricsShifted,
+                    (now > 0 ? "+" : "") + String.format(java.util.Locale.US, "%.1f", now / 1000f)));
+            AndroidUtilities.cancelRunOnUIThread(hideShiftHint);
+            AndroidUtilities.runOnUIThread(hideShiftHint, 1200);
+        }
+    }
+
+    private final Runnable hideShiftHint = () -> {
+        if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+            lyricsStatusView.setVisibility(View.GONE);
+            lyricsStatusView.setTranslationY(0);
+        }
+    };
+
     private void applyLyricsState(String raw, int state, long duration, MessageObject playing) {
         if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {
             lyricsView.setLyrics(raw, duration);
@@ -761,6 +873,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             lyricsProgress.setVisibility(View.GONE);
             lyricsStatusView.setVisibility(View.GONE);
             retryButton.setVisibility(View.GONE);
+            updateSyncChips(true);
             final MessageObject current = MediaController.getInstance().getPlayingMessageObject();
             if (current != null) {
                 lyricsView.setProgress(current.audioProgress);
@@ -769,6 +882,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         lyricsView.setLyrics(null, duration);
         lyricsView.setVisibility(View.INVISIBLE);
+        updateSyncChips(false);
         if (state == PengramLyrics.STATE_LOADING) {
             lyricsProgress.setVisibility(View.VISIBLE);
             lyricsStatusView.setVisibility(View.VISIBLE);
@@ -912,11 +1026,22 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
         applyCoverShape();
         if (audioInfo != null && audioInfo.getCover() != null) {
-            coverView.setImageBitmap(audioInfo.getCover());
-            smallCoverView.setImageBitmap(audioInfo.getCover());
-            backgroundView.setCover(audioInfo.getCover());
+            applyCoverBitmap(audioInfo.getCover());
             return;
         }
+        final android.graphics.Bitmap cached = org.telegram.messenger.PengramCovers.getCached(messageObject);
+        if (cached != null) {
+            applyCoverBitmap(cached);
+            return;
+        }
+        // обложка может лежать в тегах файла — достаём её в фоне и показываем, как только готова
+        org.telegram.messenger.PengramCovers.request(messageObject, (key, bitmap) -> {
+            final MessageObject now = MediaController.getInstance().getPlayingMessageObject();
+            if (bitmap == null || key == null || !key.equals(org.telegram.messenger.PengramCovers.keyFor(now))) {
+                return;
+            }
+            applyCoverBitmap(bitmap);
+        });
         final TLRPC.Document document = messageObject.getDocument();
         TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 360) : null;
         if (!(thumb instanceof TLRPC.TL_photoSize) && !(thumb instanceof TLRPC.TL_photoSizeProgressive)) {
@@ -935,6 +1060,15 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             smallCoverView.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(10), 0x33FFFFFF, 0x33FFFFFF));
         }
         backgroundView.setCover(null);
+    }
+
+    private void applyCoverBitmap(android.graphics.Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            return;
+        }
+        coverView.setImageBitmap(bitmap);
+        smallCoverView.setImageBitmap(bitmap);
+        backgroundView.setCover(bitmap);
     }
 
     private void updateProgress(MessageObject messageObject) {
@@ -964,6 +1098,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         } else if (id == NotificationCenter.messagePlayingDidStart) {
             lastTime = -1;
             updateTitle();
+            pengramPrefetchNext();
             if (queueShown) {
                 updateQueue();
             }

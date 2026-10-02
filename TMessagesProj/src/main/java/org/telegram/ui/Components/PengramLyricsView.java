@@ -60,6 +60,13 @@ public class PengramLyricsView extends View {
     private boolean builtBold;
     private boolean tickerMode;
     private int animOverride = -1;
+    private String offsetKey;
+    private long lyricsLength;
+    private float timeScale = 1f;
+    private long progressMs;
+    private long progressTime;
+    private float tickerScrollX;
+    private float tickerTargetX;
     private float[] charFractions;
     private int fractionsLine = -1;
     private int builtAlign;
@@ -113,12 +120,47 @@ public class PengramLyricsView extends View {
         lines.addAll(PengramLyrics.parse(raw));
         timed = PengramLyrics.hasTimings(lines);
         this.durationMs = durationMs;
+        lyricsLength = PengramLyrics.lengthOf(raw);
+        // ускоренная или замедленная версия трека: подгоняем таймкоды под реальную длину
+        timeScale = 1f;
+        if (PengramConfig.isLyricsStretch() && lyricsLength > 30000 && durationMs > 30000) {
+            final float ratio = durationMs / (float) lyricsLength;
+            if (ratio > 1.02f || ratio < 0.98f) {
+                timeScale = Math.max(0.5f, Math.min(2f, ratio));
+            }
+        }
         activeLine = -1;
         scrollY = targetScrollY = 0;
+        tickerScrollX = tickerTargetX = 0;
         enterAnim = 0;
+        progressMs = 0;
+        progressTime = 0;
         builtWidth = 0;
         buildLayouts();
         invalidate();
+    }
+
+    /** мгновенно забыть предыдущую песню — чтобы старый текст не «бежал» поверх новой */
+    public void clear() {
+        lines.clear();
+        layouts.clear();
+        tops.clear();
+        timed = false;
+        activeLine = -1;
+        progress = 0;
+        progressMs = 0;
+        progressTime = 0;
+        scrollY = targetScrollY = 0;
+        tickerScrollX = tickerTargetX = 0;
+        charFractions = null;
+        fractionsLine = -1;
+        builtWidth = 0;
+        invalidate();
+    }
+
+    /** ключ трека: по нему хранится личный сдвиг текста */
+    public void setOffsetKey(String key) {
+        offsetKey = key;
     }
 
     public boolean isEmpty() {
@@ -131,7 +173,40 @@ public class PengramLyricsView extends View {
 
     public void setProgress(float progress) {
         this.progress = progress;
+        this.progressMs = (long) (progress * durationMs);
+        this.progressTime = android.os.SystemClock.elapsedRealtime();
         invalidate();
+    }
+
+    /**
+     * Текущая позиция в тексте. Плеер присылает прогресс редко — между обновлениями
+     * мы досчитываем время сами, поэтому подсветка идёт ровно по голосу, а не рывками.
+     */
+    private long positionMs() {
+        if (previewMode) {
+            return (long) (progress * durationMs);
+        }
+        long value = progressMs;
+        if (PengramConfig.isLyricsSmooth() && progressTime > 0) {
+            boolean playing = true;
+            try {
+                playing = !org.telegram.messenger.MediaController.getInstance().isMessagePaused();
+            } catch (Throwable ignore) {
+            }
+            if (playing) {
+                final long elapsed = android.os.SystemClock.elapsedRealtime() - progressTime;
+                if (elapsed > 0 && elapsed < 3000) {
+                    value += elapsed;
+                }
+            }
+        }
+        if (durationMs > 0) {
+            value = Math.max(0, Math.min(durationMs, value));
+        }
+        if (timeScale != 1f && timeScale > 0) {
+            value = (long) (value / timeScale);
+        }
+        return value - PengramLyrics.getOffset(offsetKey);
     }
 
     /** перестроить разметку, если поменялись настройки или ширина */
@@ -141,8 +216,10 @@ public class PengramLyricsView extends View {
             return;
         }
         final int size = (previewMode || tickerMode) && previewSize > 0 ? previewSize : PengramConfig.getLyricsSize();
-        final boolean bold = PengramConfig.getBool(PengramConfig.KEY_LYRICS_BOLD, true);
-        final int align = PengramConfig.getLyricsAlign();
+        final boolean bold = tickerMode
+                ? PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_BOLD, false)
+                : PengramConfig.getBool(PengramConfig.KEY_LYRICS_BOLD, true);
+        final int align = tickerMode ? PengramConfig.LYRICS_ALIGN_LEFT : PengramConfig.getLyricsAlign();
         if (builtWidth == width && builtSize == size && builtBold == bold && builtAlign == align && !layouts.isEmpty()) {
             return;
         }
@@ -158,10 +235,21 @@ public class PengramLyricsView extends View {
         final Layout.Alignment alignment = align == PengramConfig.LYRICS_ALIGN_CENTER
                 ? Layout.Alignment.ALIGN_CENTER
                 : align == PengramConfig.LYRICS_ALIGN_RIGHT ? Layout.Alignment.ALIGN_OPPOSITE : Layout.Alignment.ALIGN_NORMAL;
+        final boolean marquee = tickerMode && PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_MARQUEE, true);
         for (PengramLyrics.Line line : lines) {
+            CharSequence text = TextUtils.isEmpty(line.text) ? " " : line.text;
+            int lineWidth = width;
+            if (tickerMode) {
+                if (marquee) {
+                    // строка живёт одной строкой во всю длину — наружу её вывозит бегущая прокрутка
+                    lineWidth = (int) Math.ceil(textPaint.measureText(text, 0, text.length())) + AndroidUtilities.dp(4);
+                    lineWidth = Math.max(lineWidth, width);
+                } else {
+                    text = TextUtils.ellipsize(text, textPaint, width, TextUtils.TruncateAt.END);
+                }
+            }
             final StaticLayout layout = new StaticLayout(
-                    TextUtils.isEmpty(line.text) ? " " : line.text,
-                    textPaint, width, alignment, 1.05f, 0, false);
+                    text, textPaint, Math.max(1, lineWidth), alignment, 1.05f, 0, false);
             layouts.add(layout);
             tops.add(y);
             y += layout.getHeight() + AndroidUtilities.dp(14);
@@ -241,7 +329,7 @@ public class PengramLyricsView extends View {
             if (end <= start) {
                 end = start + 2500;
             }
-            final long now = (long) (progress * durationMs);
+            final long now = positionMs();
             return Utilities.clamp((now - start) / (float) (end - start), 1f, 0f);
         }
         final float per = 1f / Math.max(1, lines.size());
@@ -253,7 +341,7 @@ public class PengramLyricsView extends View {
             return -1;
         }
         if (timed) {
-            final long now = (long) (progress * durationMs);
+            final long now = positionMs();
             int result = 0;
             for (int a = 0; a < lines.size(); ++a) {
                 if (lines.get(a).time >= 0 && lines.get(a).time <= now) {
@@ -310,7 +398,20 @@ public class PengramLyricsView extends View {
 
         canvas.save();
         if (tickerMode && activeLine >= 0 && activeLine < layouts.size()) {
-            canvas.translate(0, Math.max(0, (getMeasuredHeight() - layouts.get(activeLine).getHeight()) / 2f) - tops.get(activeLine));
+            final StaticLayout layout = layouts.get(activeLine);
+            final float visible = Math.max(1, getMeasuredWidth() - AndroidUtilities.dp(8));
+            final float over = layout.getWidth() - visible;
+            if (over > 0) {
+                // строка не помещается: едем за поющимся словом, оставляя его слева по центру
+                final float at = Utilities.clamp(lineProgress(activeLine), 1f, 0f) * layout.getWidth();
+                tickerTargetX = Utilities.clamp(at - visible * 0.45f, over, 0);
+            } else {
+                tickerTargetX = 0;
+            }
+            final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
+            tickerScrollX = AndroidUtilities.lerp(tickerScrollX, tickerTargetX, Math.min(1f, dt * 4.5f * speed));
+            canvas.translate(-tickerScrollX,
+                    Math.max(0, (getMeasuredHeight() - layout.getHeight()) / 2f) - tops.get(activeLine));
         } else if (previewMode && !layouts.isEmpty()) {
             canvas.translate(AndroidUtilities.dp(16), Math.max(0, (getMeasuredHeight() - layouts.get(0).getHeight()) / 2f));
         } else {
@@ -328,7 +429,10 @@ public class PengramLyricsView extends View {
             canvas.save();
             canvas.translate(0, top);
             if (a == activeLine) {
-                drawActiveLine(canvas, layout, lineProgress(a), anim, now, shadow);
+                // в шапке подсветку слов можно выключить — тогда строка горит целиком
+                final float fraction = tickerMode && !PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_WORDS, true)
+                        ? 1f : lineProgress(a);
+                drawActiveLine(canvas, layout, fraction, anim, now, shadow);
             } else {
                 final float distance = Math.abs(a - activeLine);
                 final float alpha = Math.max(0.12f, dim / 100f * (1f - Math.min(0.6f, distance * 0.12f)));
@@ -340,7 +444,30 @@ public class PengramLyricsView extends View {
         }
         canvas.restore();
 
-        invalidate();
+        boolean playing = true;
+        if (!previewMode) {
+            try {
+                playing = !org.telegram.messenger.MediaController.getInstance().isMessagePaused();
+            } catch (Throwable ignore) {
+            }
+        }
+        final boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
+                || Math.abs(tickerScrollX - tickerTargetX) > 0.5f
+                || enterAnim < 1f || previewMode
+                || (playing && (timed || animated(anim)));
+        if (moving) {
+            invalidate();
+        }
+    }
+
+    /** анимации, которым нужна постоянная перерисовка даже на паузе */
+    private static boolean animated(int anim) {
+        return anim == PengramConfig.LYRICS_ANIM_WAVE
+                || anim == PengramConfig.LYRICS_ANIM_NEON
+                || anim == PengramConfig.LYRICS_ANIM_PULSE
+                || anim == PengramConfig.LYRICS_ANIM_SHAKE
+                || anim == PengramConfig.LYRICS_ANIM_SWEEP
+                || anim == PengramConfig.LYRICS_ANIM_RAINBOW;
     }
 
     /** активная строка — здесь и живут все побуквенные эффекты */
