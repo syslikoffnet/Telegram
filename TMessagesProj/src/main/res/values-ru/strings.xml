@@ -648,4 +648,9 @@
     <string name="PengramMenuThemeItem">Тема: день / ночь</string>
     <string name="PengramMenuMyProfile">Мой профиль</string>
     <string name="PengramMenuCloseApp">Закрыть приложение</string>
+    <string name="PengramSettingsItemsTitle">Разделы настроек</string>
+    <string name="PengramSettingsItemsInfo">Нажмите, чтобы скрыть или показать разделы, удерживайте для изменения порядка. Изменения применяются к экрану «Настройки».</string>
+    <string name="PengramSettingsItemsHide">Скрыть этот раздел</string>
+    <string name="PengramZalgoSample">Фильтр %1$s</string>
+    <string name="PengramMediaLimitValue">Лимит размера папки</string>
 </resources>

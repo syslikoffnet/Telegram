@@ -21,6 +21,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
@@ -170,6 +171,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TITLE_CUSTOM = 1414;
     private static final int BTN_TABBAR_SIZE = 1415;
     private static final int BTN_MENU_ITEMS = 1416;
+    private static final int BTN_SETTINGS_ITEMS = 1417;
+    private static final int BTN_MEDIA_LIMIT = 1418;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
@@ -179,7 +182,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_MENU_CHAT = 3;
     private static final int GROUP_HISTORY_MEDIA = 4;
 
-    private final java.util.HashSet<Integer> expandedGroups = new java.util.HashSet<>();
+    /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
+    private static String expandedKey(int group) {
+        return "uiExpandedGroup_" + group;
+    }
 
     private final java.util.HashMap<String, Integer> boolIds = new java.util.HashMap<>();
     private final ArrayList<String> boolKeys = new ArrayList<>();
@@ -199,7 +205,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
     private PengramHeaderView headerView;
-    private boolean ghostExpanded = true;
+    /** раскрыт ли список подпунктов режима призрака (помним между заходами) */
+    private static boolean isGhostExpanded() {
+        return PengramConfig.getBool("uiGhostExpanded", true);
+    }
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
     private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
@@ -281,7 +290,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** раскрыт ли блок */
     private boolean expanded(int group) {
-        return expandedGroups.contains(group);
+        return PengramConfig.getBool(expandedKey(group), false);
     }
 
     /** строка-переключатель «Показать ещё ▾» / «Свернуть ▴» под блоком */
@@ -532,6 +541,31 @@ public class PengramSettingsActivity extends UniversalFragment {
         });
     }
 
+    /** название лимита размера папки */
+    private CharSequence mediaLimitName(int limitMb) {
+        if (limitMb <= 0) {
+            return getString(R.string.PengramMediaLimitOff);
+        }
+        return (limitMb / 1024) + " GB";
+    }
+
+    /** заголовок строки фильтра Zalgo: пока фильтр выключен — показываем «живой» пример */
+    private CharSequence zalgoTitle() {
+        if (PengramConfig.getBool(PengramConfig.KEY_ZALGO, false)) {
+            return getString(R.string.PengramZalgo);
+        }
+        return LocaleController.formatString(R.string.PengramZalgoSample, PengramConfig.zalgoSample("Zalgo"));
+    }
+
+    /** сколько разделов настроек скрыто */
+    private CharSequence hiddenSettingsValue() {
+        final int hidden = PengramConfig.getHiddenSettingsItemsCount();
+        if (hidden <= 0) {
+            return getString(R.string.PengramMenuItemsAll);
+        }
+        return LocaleController.formatString(R.string.PengramMenuItemsHidden, hidden);
+    }
+
     /** сколько пунктов меню скрыто */
     private CharSequence hiddenMenuValue() {
         final int hidden = PengramConfig.getHiddenMenuItemsCount();
@@ -684,7 +718,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_NO_ROUNDING, false, getString(R.string.PengramNoRounding), getString(R.string.PengramNoRoundingInfo)));
         items.add(checkInfo(PengramConfig.KEY_TIME_SECONDS, false, getString(R.string.PengramTimeSeconds), getString(R.string.PengramTimeSecondsInfo)));
         items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
-        items.add(checkInfo(PengramConfig.KEY_ZALGO, false, getString(R.string.PengramZalgo), getString(R.string.PengramZalgoInfo)));
+        items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), getString(R.string.PengramZalgoInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
@@ -1003,11 +1037,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
-        items.add(UItem.asButton(BTN_OPEN_DELETED_CHAT, R.drawable.msg_delete, getString(R.string.PengramOpenDeletedChat),
-                String.valueOf(PengramHistory.getCount(0, PengramHistory.ACTION_DELETED))));
-        items.add(UItem.asButton(BTN_OPEN_EDITED_CHAT, R.drawable.msg_edit, getString(R.string.PengramOpenEditedChat),
-                String.valueOf(PengramHistory.getCount(0, PengramHistory.ACTION_EDITED))));
-        items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen)));
         items.add(UItem.asSettingsCell(BTN_KEEP_DAYS, R.drawable.msg_autodelete, getString(R.string.PengramKeepDays), keepDaysName(PengramConfig.getHistoryKeepDays())));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
         items.add(UItem.asShadow(historyStatsText()));
@@ -1022,18 +1051,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
 
                     items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
-                    int chosen = 0;
-                    final String[] titles = new String[MEDIA_LIMITS.length];
-                    for (int i = 0; i < MEDIA_LIMITS.length; ++i) {
-                        if (MEDIA_LIMITS[i] == PengramConfig.getMediaMaxSizeMb()) {
-                            chosen = i;
-                        }
-                        titles[i] = MEDIA_LIMITS[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (MEDIA_LIMITS[i] / 1024) + " GB";
-                    }
-                    items.add(UItem.asSlideView(titles, chosen, index -> {
-                        PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
-                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
-                    }));
+                    items.add(UItem.asSettingsCell(BTN_MEDIA_LIMIT, R.drawable.msg_download, getString(R.string.PengramMediaLimitValue), mediaLimitName(PengramConfig.getMediaMaxSizeMb())));
                     items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
                 }
                 items.add(moreButton(GROUP_HISTORY_MEDIA));
@@ -1060,7 +1078,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(
             UItem.asExpandableSwitch(BTN_GHOST, getString(R.string.PengramGhostMode), enabled + "/7")
                 .setChecked(PengramConfig.ghostMode)
-                .setCollapsed(!ghostExpanded)
+                .setCollapsed(!isGhostExpanded())
                 .setClickCallback(v -> {
                     PengramConfig.toggleGhostMode();
                     if (v instanceof TextCheckCell2) {
@@ -1071,7 +1089,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
                 })
         );
-        if (ghostExpanded) {
+        if (isGhostExpanded()) {
             items.add(UItem.asRoundCheckbox(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead).setPad(1));
             items.add(UItem.asRoundCheckbox(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews).setPad(1));
             items.add(UItem.asRoundCheckbox(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline).setPad(1));
@@ -1278,6 +1296,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
+        items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
@@ -1322,9 +1341,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         boolean updateAll = false;
         if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
             final int group = item.id - BTN_COLLAPSE_BASE;
-            if (!expandedGroups.remove(group)) {
-                expandedGroups.add(group);
-            }
+            PengramConfig.setBool(expandedKey(group), !expanded(group));
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
             }
@@ -1449,8 +1466,25 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             }
             case BTN_MENU_ITEMS:
-                presentFragment(new PengramMenuItemsActivity());
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU));
                 return;
+            case BTN_SETTINGS_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS));
+                return;
+            case BTN_MEDIA_LIMIT: {
+                int selected = 0;
+                final CharSequence[] options = new CharSequence[MEDIA_LIMITS.length];
+                for (int a = 0; a < MEDIA_LIMITS.length; ++a) {
+                    options[a] = mediaLimitName(MEDIA_LIMITS[a]);
+                    if (MEDIA_LIMITS[a] == PengramConfig.getMediaMaxSizeMb()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramMediaLimitHeader), options, selected, value -> {
+                    PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[value]);
+                });
+                return;
+            }
             case BTN_OPEN_BY_ID:
                 showOpenByIdDialog();
                 return;
@@ -1561,7 +1595,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 toggleHideFlag(item.id, view);
                 break;
             case BTN_GHOST:
-                ghostExpanded = !ghostExpanded;
+                PengramConfig.setBool("uiGhostExpanded", !isGhostExpanded());
                 if (view instanceof TextCheckCell2) {
                     ((TextCheckCell2) view).setChecked(PengramConfig.ghostMode);
                 }
@@ -1780,16 +1814,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         Browser.openUrl(getContext(), "https://t.me/" + username);
     }
 
+    /** поделиться ссылкой через выбор чата внутри Telegram */
     private void shareLink(String url) {
-        if (getParentActivity() == null) {
+        if (getContext() == null) {
             return;
         }
         try {
-            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
-            intent.setType("text/plain");
-            intent.putExtra(android.content.Intent.EXTRA_TEXT, url);
-            getParentActivity().startActivityForResult(android.content.Intent.createChooser(intent, getString(R.string.ShareFile)), 500);
-        } catch (Exception ignore) {}
+            showDialog(new org.telegram.ui.Components.ShareAlert(getContext(), null, url, false, url, false));
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 
     private void showTextDialog(String title, String current, String hint, Utilities.Callback<String> onDone) {

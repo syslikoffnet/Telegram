@@ -7044,6 +7044,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        pengramUpdateTitle();
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
             updateStoriesVisibility(false);
@@ -12767,6 +12768,29 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return filterTabsView.isFirstTab();
         }
         return true;
+    }
+
+    /** Pengram: перечитать заголовок после смены настройки — без перезапуска приложения */
+    public void pengramUpdateTitle() {
+        if (actionBar == null || onlySelect || folderId != 0 || communityId != 0 || searchString != null) {
+            return;
+        }
+        if (initialDialogsType != DIALOGS_TYPE_DEFAULT) {
+            return;
+        }
+        try {
+            final CharSequence pengramTitle = pengramTitleText();
+            if (pengramTitle != null) {
+                actionBar.setTitle(pengramTitle, statusDrawable);
+            } else if (logoDrawable != null) {
+                final SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                actionBar.setTitle(ssb, statusDrawable);
+            }
+            actionBar.requestLayout();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
     }
 
     /** Pengram: свой текст заголовка списка чатов (null — как в Telegram) */

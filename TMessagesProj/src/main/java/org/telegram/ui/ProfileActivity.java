@@ -5036,6 +5036,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         participant = visibleChatParticipants.get(position - membersStartRow);
                     }
                     return onMemberClick(participant, true, view);
+                } else if (position == idRow) {
+                    final long peerId = userId != 0 ? userId : chatId;
+                    if (peerId == 0) {
+                        return false;
+                    }
+                    try {
+                        AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
+                        BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                    return true;
                 } else if (position == birthdayRow) {
                     if (editRow(view, position)) return true;
                     if (userInfo == null) return false;
@@ -7399,6 +7411,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return PengramConfig.formatId(peerId, true, chat != null && ChatObject.isChannel(chat));
         }
         return PengramConfig.formatId(peerId, false, false);
+    }
+
+    /** Pengram: внутренняя tg-ссылка на профиль по ID */
+    private String pengramPeerLink(long peerId) {
+        if (userId != 0) {
+            return "tg://user?id=" + peerId;
+        }
+        final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+        final String username = chat == null ? null : ChatObject.getPublicUsername(chat);
+        if (!TextUtils.isEmpty(username)) {
+            return "tg://resolve?domain=" + username;
+        }
+        return "tg://openmessage?chat_id=" + peerId;
     }
 
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
@@ -14791,7 +14816,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9014, getString(R.string.PengramSaveLastOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9020, getString(R.string.PengramHistorySaveDeleted), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9021, getString(R.string.PengramHistorySaveEdited), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
-                    new SearchResult(9022, getString(R.string.PengramHistoryOpen), getString(R.string.PengramSettings), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramHistoryActivity(0))),
                     new SearchResult(9023, getString(R.string.PengramMediaSave), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9024, getString(R.string.PengramMediaFolder), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9030, getString(R.string.PengramVoiceHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),

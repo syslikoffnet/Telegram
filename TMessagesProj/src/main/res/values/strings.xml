@@ -11620,4 +11620,9 @@
     <string name="PengramMenuThemeItem">Day / night theme</string>
     <string name="PengramMenuMyProfile">My profile</string>
     <string name="PengramMenuCloseApp">Close the app</string>
+    <string name="PengramSettingsItemsTitle">Settings sections</string>
+    <string name="PengramSettingsItemsInfo">Tap to hide or show sections, hold to change the order. Changes apply to the Settings screen.</string>
+    <string name="PengramSettingsItemsHide">Hide this section</string>
+    <string name="PengramZalgoSample">%1$s filter</string>
+    <string name="PengramMediaLimitValue">Folder size limit</string>
 </resources>

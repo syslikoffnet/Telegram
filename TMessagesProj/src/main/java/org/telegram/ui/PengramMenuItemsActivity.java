@@ -36,6 +36,11 @@ import java.util.List;
  */
 public class PengramMenuItemsActivity extends BaseFragment {
 
+    /** пункты верхнего меню списка чатов */
+    public static final int MODE_MENU = 0;
+    /** пункты экрана «Настройки» */
+    public static final int MODE_SETTINGS = 1;
+
     private static final int VIEW_TYPE_INFO = 0;
     private static final int VIEW_TYPE_HEADER = 1;
     private static final int VIEW_TYPE_ITEM = 2;
@@ -46,21 +51,49 @@ public class PengramMenuItemsActivity extends BaseFragment {
     private ItemTouchHelper itemTouchHelper;
 
     private final ArrayList<Integer> order = new ArrayList<>();
+    private final int mode;
+
+    public PengramMenuItemsActivity() {
+        this(MODE_MENU);
+    }
+
+    public PengramMenuItemsActivity(int mode) {
+        super();
+        this.mode = mode;
+    }
 
     @Override
     public boolean onFragmentCreate() {
         order.clear();
-        for (int id : PengramConfig.getMenuOrder()) {
-            order.add(id);
-        }
+        order.addAll(mode == MODE_SETTINGS ? PengramConfig.getSettingsOrder() : PengramConfig.getMenuOrder());
         return super.onFragmentCreate();
+    }
+
+    private boolean isHidden(int id) {
+        return mode == MODE_SETTINGS ? PengramConfig.isSettingsItemHidden(id) : PengramConfig.isMenuItemHidden(id);
+    }
+
+    private void setHidden(int id, boolean hidden) {
+        if (mode == MODE_SETTINGS) {
+            PengramConfig.setSettingsItemHidden(id, hidden);
+        } else {
+            PengramConfig.setMenuItemHidden(id, hidden);
+        }
+    }
+
+    private CharSequence itemTitle(int id) {
+        return LocaleController.getString(mode == MODE_SETTINGS ? PengramConfig.getSettingsItemTitle(id) : PengramConfig.getMenuItemTitle(id));
+    }
+
+    private int itemIcon(int id) {
+        return mode == MODE_SETTINGS ? PengramConfig.getSettingsItemIcon(id) : PengramConfig.getMenuItemIcon(id);
     }
 
     @Override
     public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
-        actionBar.setTitle(LocaleController.getString(R.string.PengramMenuItemsTitle));
+        actionBar.setTitle(LocaleController.getString(mode == MODE_SETTINGS ? R.string.PengramSettingsItemsTitle : R.string.PengramMenuItemsTitle));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
@@ -93,8 +126,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 return;
             }
             final int id = order.get(index);
-            final boolean nowHidden = PengramConfig.isMenuItemHidden(id);
-            PengramConfig.setMenuItemHidden(id, !nowHidden);
+            final boolean nowHidden = isHidden(id);
+            setHidden(id, !nowHidden);
             if (view instanceof TextCell) {
                 ((TextCell) view).setChecked(nowHidden);
                 view.setAlpha(nowHidden ? 1f : 0.5f);
@@ -118,7 +151,11 @@ public class PengramMenuItemsActivity extends BaseFragment {
     }
 
     private void saveOrder() {
-        PengramConfig.setMenuOrder(order);
+        if (mode == MODE_SETTINGS) {
+            PengramConfig.setSettingsOrder(order);
+        } else {
+            PengramConfig.setMenuOrder(order);
+        }
     }
 
     private class ListAdapter extends RecyclerListView.SelectionAdapter {
@@ -171,7 +208,7 @@ public class PengramMenuItemsActivity extends BaseFragment {
         public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_INFO: {
-                    ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(R.string.PengramMenuItemsInfo));
+                    ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(mode == MODE_SETTINGS ? R.string.PengramSettingsItemsInfo : R.string.PengramMenuItemsInfo));
                     break;
                 }
                 case VIEW_TYPE_HEADER: {
@@ -185,11 +222,11 @@ public class PengramMenuItemsActivity extends BaseFragment {
                     }
                     final int id = order.get(index);
                     final TextCell cell = (TextCell) holder.itemView;
-                    final boolean hidden = PengramConfig.isMenuItemHidden(id);
+                    final boolean hidden = isHidden(id);
                     cell.setTextAndCheckAndIcon(
-                            LocaleController.getString(PengramConfig.getMenuItemTitle(id)),
+                            itemTitle(id),
                             !hidden,
-                            PengramConfig.getMenuItemIcon(id),
+                            itemIcon(id),
                             index != order.size() - 1
                     );
                     cell.setAlpha(hidden ? 0.5f : 1f);

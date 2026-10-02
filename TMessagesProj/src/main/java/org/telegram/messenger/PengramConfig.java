@@ -612,7 +612,7 @@ public class PengramConfig {
             case REG_ICON_CAKE: return org.telegram.messenger.R.drawable.menu_birthday;
             case REG_ICON_STAR: return org.telegram.messenger.R.drawable.msg_premium_liststar;
             case REG_ICON_INFO: return org.telegram.messenger.R.drawable.msg_info;
-            case REG_ICON_PENGUIN: return org.telegram.messenger.R.drawable.pengram_penguin_dark;
+            case REG_ICON_PENGUIN: return org.telegram.messenger.R.drawable.pengram_penguin_glyph;
             case REG_ICON_NONE: return 0;
             case REG_ICON_CALENDAR:
             default: return org.telegram.messenger.R.drawable.msg_calendar2;
@@ -629,6 +629,151 @@ public class PengramConfig {
     public static void setTabBarSize(int percent) { init(); tabBarSize = Math.max(70, Math.min(130, percent)); putInt("tabBarSize", tabBarSize); }
     /** множитель размеров нижней панели */
     public static float getTabBarScale() { return getTabBarSize() / 100f; }
+
+    // ------------------------------- пункты экрана «Настройки» -------------------------------
+
+    public static final int SETTINGS_ITEM_NOTIFICATIONS = 1;
+    public static final int SETTINGS_ITEM_PENGRAM = 2;
+    public static final int SETTINGS_ITEM_ACCOUNT = 3;
+    public static final int SETTINGS_ITEM_CHAT = 4;
+    public static final int SETTINGS_ITEM_PRIVACY = 5;
+    public static final int SETTINGS_ITEM_DATA = 6;
+    public static final int SETTINGS_ITEM_FOLDERS = 7;
+    public static final int SETTINGS_ITEM_DEVICES = 8;
+    public static final int SETTINGS_ITEM_POWER = 9;
+    public static final int SETTINGS_ITEM_LANGUAGE = 10;
+
+    /** порядок по умолчанию: уведомления, Pengram, дальше как в Telegram */
+    private static final int[] SETTINGS_ITEMS_DEFAULT = new int[]{
+            SETTINGS_ITEM_NOTIFICATIONS,
+            SETTINGS_ITEM_PENGRAM,
+            SETTINGS_ITEM_ACCOUNT,
+            SETTINGS_ITEM_CHAT,
+            SETTINGS_ITEM_PRIVACY,
+            SETTINGS_ITEM_DATA,
+            SETTINGS_ITEM_FOLDERS,
+            SETTINGS_ITEM_DEVICES,
+            SETTINGS_ITEM_POWER,
+            SETTINGS_ITEM_LANGUAGE
+    };
+
+    /** сохранённый порядок пунктов экрана «Настройки» (всегда полный список) */
+    public static java.util.ArrayList<Integer> getSettingsOrder() {
+        init();
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        final String saved = prefs().getString("settingsOrder", "");
+        if (saved != null && saved.length() > 0) {
+            for (String part : saved.split(",")) {
+                try {
+                    final int id = Integer.parseInt(part.trim());
+                    boolean known = false;
+                    for (int def : SETTINGS_ITEMS_DEFAULT) {
+                        if (def == id) {
+                            known = true;
+                            break;
+                        }
+                    }
+                    if (known && !result.contains(id)) {
+                        result.add(id);
+                    }
+                } catch (Exception ignore) {
+                }
+            }
+        }
+        for (int def : SETTINGS_ITEMS_DEFAULT) {
+            if (!result.contains(def)) {
+                result.add(def);
+            }
+        }
+        return result;
+    }
+
+    public static void setSettingsOrder(java.util.List<Integer> order) {
+        init();
+        final StringBuilder sb = new StringBuilder();
+        for (int id : order) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(id);
+        }
+        putString("settingsOrder", sb.toString());
+    }
+
+    private static String settingsItemKey(int id) {
+        return "settingsHidden_" + id;
+    }
+
+    public static boolean isSettingsItemHidden(int id) {
+        return getBool(settingsItemKey(id), false);
+    }
+
+    public static void setSettingsItemHidden(int id, boolean hidden) {
+        setBool(settingsItemKey(id), hidden);
+    }
+
+    public static int getHiddenSettingsItemsCount() {
+        int count = 0;
+        for (int id : SETTINGS_ITEMS_DEFAULT) {
+            if (isSettingsItemHidden(id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** строка-название пункта экрана «Настройки» */
+    public static int getSettingsItemTitle(int id) {
+        switch (id) {
+            case SETTINGS_ITEM_NOTIFICATIONS: return org.telegram.messenger.R.string.SettingsNotifications;
+            case SETTINGS_ITEM_PENGRAM: return org.telegram.messenger.R.string.PengramSettings;
+            case SETTINGS_ITEM_ACCOUNT: return org.telegram.messenger.R.string.SettingsAccount;
+            case SETTINGS_ITEM_CHAT: return org.telegram.messenger.R.string.SettingsChat;
+            case SETTINGS_ITEM_PRIVACY: return org.telegram.messenger.R.string.SettingsPrivacySecurity;
+            case SETTINGS_ITEM_DATA: return org.telegram.messenger.R.string.SettingsData;
+            case SETTINGS_ITEM_FOLDERS: return org.telegram.messenger.R.string.SettingsFolders;
+            case SETTINGS_ITEM_DEVICES: return org.telegram.messenger.R.string.SettingsDevices;
+            case SETTINGS_ITEM_POWER: return org.telegram.messenger.R.string.SettingsPowerSaving;
+            case SETTINGS_ITEM_LANGUAGE:
+            default: return org.telegram.messenger.R.string.SettingsLanguage;
+        }
+    }
+
+    public static int getSettingsItemIcon(int id) {
+        switch (id) {
+            case SETTINGS_ITEM_NOTIFICATIONS: return org.telegram.messenger.R.drawable.settings_sounds;
+            case SETTINGS_ITEM_PENGRAM: return org.telegram.messenger.R.drawable.settings_features;
+            case SETTINGS_ITEM_ACCOUNT: return org.telegram.messenger.R.drawable.settings_account;
+            case SETTINGS_ITEM_CHAT: return org.telegram.messenger.R.drawable.settings_chat;
+            case SETTINGS_ITEM_PRIVACY: return org.telegram.messenger.R.drawable.settings_privacy;
+            case SETTINGS_ITEM_DATA: return org.telegram.messenger.R.drawable.settings_data;
+            case SETTINGS_ITEM_FOLDERS: return org.telegram.messenger.R.drawable.settings_folders;
+            case SETTINGS_ITEM_DEVICES: return org.telegram.messenger.R.drawable.settings_devices;
+            case SETTINGS_ITEM_POWER: return org.telegram.messenger.R.drawable.settings_power;
+            case SETTINGS_ITEM_LANGUAGE:
+            default: return org.telegram.messenger.R.drawable.settings_language;
+        }
+    }
+
+    /** «зальгофицированный» пример текста — чтобы было видно, что именно вырезает фильтр */
+    public static CharSequence zalgoSample(CharSequence text) {
+        if (text == null) {
+            return "";
+        }
+        final char[] above = new char[]{'\u0301', '\u0308', '\u030A', '\u0352', '\u0360'};
+        final char[] below = new char[]{'\u0323', '\u0330', '\u032C'};
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length(); ++i) {
+            final char c = text.charAt(i);
+            sb.append(c);
+            if (Character.isLetterOrDigit(c)) {
+                sb.append(above[i % above.length]);
+                sb.append(above[(i + 2) % above.length]);
+                sb.append(below[i % below.length]);
+            }
+        }
+        return sb.toString();
+    }
 
     // ------------------------------- пункты верхнего меню -------------------------------
 
