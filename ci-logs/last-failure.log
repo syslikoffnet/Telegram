@@ -1,181 +1,124 @@
-R.raw.timer_3 (0x7f0e0161) — fps=60, frames=66, mono=false
-R.raw.msg_emoji_food (0x7f0e009a) — fps=60, frames=60, mono=false
-R.raw.e_hand_2 (0x7f0e0046) — fps=60, frames=180, mono=false
-R.raw.sun_outline (0x7f0e012e) — fps=60, frames=36, mono=false
-R.raw.double_icon (0x7f0e0041) — fps=60, frames=120, mono=false
-R.raw.copy (0x7f0e0039) — fps=60, frames=61, mono=false
-R.raw.profile_unmuting (0x7f0e00e4) — fps=60, frames=57, mono=false
-R.raw.tab_article (0x7f0e0139) — fps=60, frames=16, mono=false
-R.raw.stories_intro_go_forward (0x7f0e0126) — fps=60, frames=38, mono=false
-R.raw.fire_on (0x7f0e0054) — fps=60, frames=120, mono=false
-R.raw.stars_send (0x7f0e011f) — fps=60, frames=140, mono=false
-R.raw.speed_1to15 (0x7f0e010d) — fps=60, frames=75, mono=false
-R.raw.saved_messages (0x7f0e00fc) — fps=60, frames=56, mono=false
-R.raw.tsv_monkey_close (0x7f0e016b) — fps=60, frames=98, mono=false
-R.raw.tab_article_reverse (0x7f0e013a) — fps=60, frames=5, mono=false
-R.raw.permission_request_microphone (0x7f0e00b7) — fps=60, frames=60, mono=false
-R.raw.gif_to_keyboard (0x7f0e005d) — fps=60, frames=12, mono=false
-R.raw.contact_check (0x7f0e0035) — fps=60, frames=45, mono=false
-R.raw.gift_broken (0x7f0e0060) — fps=60, frames=180, mono=false
-R.raw.biz_map (0x7f0e0005) — fps=60, frames=180, mono=false
-R.raw.fire_once (0x7f0e0055) — fps=60, frames=120, mono=false
-R.raw.statistic_preload (0x7f0e0122) — fps=60, frames=180, mono=false
-R.raw.gift (0x7f0e005f) — fps=60, frames=180, mono=false
-R.raw.swipe_mute (0x7f0e0133) — fps=60, frames=35, mono=false
-R.raw.emoji_stars (0x7f0e004a) — fps=60, frames=180, mono=false
-R.raw.download_arrow (0x7f0e0042) — fps=60, frames=30, mono=false
-R.raw.tsv_setup_monkey_tracking (0x7f0e0175) — fps=60, frames=180, mono=false
-R.raw.filter_new (0x7f0e004f) — fps=60, frames=120, mono=false
-R.raw.folder_share (0x7f0e0059) — fps=60, frames=91, mono=false
-R.raw.giveaway_results (0x7f0e0065) — fps=60, frames=180, mono=false
-R.raw.tsv_setup_mail (0x7f0e016f) — fps=60, frames=160, mono=false
-R.raw.name_hide (0x7f0e00a4) — fps=60, frames=20, mono=false
-R.raw.tsv_setup_monkey_peek (0x7f0e0174) — fps=60, frames=33, mono=false
-R.raw.hand_1 (0x7f0e0067) — fps=60, frames=720, mono=false
-R.raw.passcode_lock_close (0x7f0e00ab) — fps=60, frames=39, mono=false
-R.raw.chats_hide (0x7f0e002c) — fps=60, frames=50, mono=false
-R.raw.msg_emoji_other (0x7f0e009c) — fps=60, frames=60, mono=false
-R.raw.tab_chats (0x7f0e013c) — fps=60, frames=6, mono=false
-R.raw.tab_emoji_reverse (0x7f0e0143) — fps=60, frames=5, mono=false
-R.raw.smile_to_sticker (0x7f0e0103) — fps=60, frames=12, mono=false
-R.raw.star_reaction_effect5 (0x7f0e011d) — fps=60, frames=90, mono=false
-R.raw.info (0x7f0e007f) — fps=60, frames=45, mono=false
-R.raw.folder_in (0x7f0e0057) — fps=60, frames=57, mono=false
-R.raw.sms_incoming_info (0x7f0e0104) — fps=60, frames=90, mono=false
-R.raw.not_available (0x7f0e00a6) — fps=60, frames=180, mono=false
-R.raw.topics (0x7f0e0164) — fps=60, frames=180, mono=false
-R.raw.email_check_inbox (0x7f0e0048) — fps=60, frames=141, mono=false
-R.raw.ic_ban (0x7f0e006d) — fps=60, frames=120, mono=false
-R.raw.utyan_private (0x7f0e0182) — fps=60, frames=180, mono=false
-R.raw.linkbroken (0x7f0e008b) — fps=60, frames=120, mono=false
-R.raw.voip_record_saved (0x7f0e0199) — fps=60, frames=56, mono=false
-R.raw.tab_colors (0x7f0e013f) — fps=60, frames=17, mono=false
-R.raw.phone_dots (0x7f0e00b8) — fps=60, frames=60, mono=false
-R.raw.topics_tabs (0x7f0e0166) — fps=60, frames=100, mono=false
-R.raw.voip_muted (0x7f0e0197) — fps=60, frames=120, mono=false
-R.raw.firefox_30 (0x7f0e0056) — fps=60, frames=180, mono=false
-R.raw.tab_wallet (0x7f0e0159) — fps=60, frames=17, mono=false
-R.raw.tab_poll_reverse (0x7f0e0151) — fps=60, frames=5, mono=false
-R.raw.profile_muting (0x7f0e00e3) — fps=60, frames=37, mono=false
-R.raw.msg_emoji_smiles (0x7f0e009d) — fps=60, frames=60, mono=false
-R.raw.payment_success (0x7f0e00ad) — fps=60, frames=63, mono=false
-R.raw.photo_suggest_icon (0x7f0e00c3) — fps=60, frames=85, mono=false
-R.raw.media_shrink (0x7f0e0094) — fps=60, frames=20, mono=false
-R.raw.db_migration_placeholder (0x7f0e003c) — fps=60, frames=180, mono=false
-R.raw.contacts_sync_off (0x7f0e0036) — fps=60, frames=120, mono=false
-R.raw.star_reaction_effect3 (0x7f0e011b) — fps=60, frames=85, mono=false
-R.raw.chats_archiveavatar (0x7f0e002a) — fps=60, frames=50, mono=false
-R.raw.permission_request_folder (0x7f0e00b5) — fps=60, frames=240, mono=false
-R.raw.convert_video (0x7f0e0038) — fps=60, frames=38, mono=false
-R.raw.roundcamera_flash_off (0x7f0e00f7) — fps=60, frames=30, mono=false
-R.raw.large_lastseen (0x7f0e0088) — fps=60, frames=180, mono=false
-R.raw.name_show (0x7f0e00a5) — fps=60, frames=20, mono=false
-R.raw.tsv_setup_email_sent (0x7f0e016c) — fps=60, frames=180, mono=false
-R.raw.seek_speed_hint (0x7f0e00fd) — fps=60, frames=42, mono=false
-R.raw.voice_outlined (0x7f0e018a) — fps=60, frames=24, mono=false
-R.raw.large_message_lock (0x7f0e0089) — fps=60, frames=180, mono=false
-R.raw.msg_translate (0x7f0e00a2) — fps=60, frames=180, mono=false
-R.raw.voip_invite (0x7f0e0196) — fps=60, frames=120, mono=false
-R.raw.caption_down (0x7f0e0020) — fps=60, frames=35, mono=false
-R.raw.tsv_setup_hint (0x7f0e016d) — fps=60, frames=180, mono=false
-R.raw.tab_emoji (0x7f0e0142) — fps=60, frames=18, mono=false
-R.raw.sound_off (0x7f0e0107) — fps=60, frames=61, mono=false
-R.raw.keyboard_to_sticker (0x7f0e0087) — fps=60, frames=12, mono=false
-R.raw.gift_crafting (0x7f0e0061) — fps=60, frames=47, mono=false
-R.raw.filter_reorder (0x7f0e0051) — fps=60, frames=61, mono=false
-R.raw.transcribe_in (0x7f0e0169) — fps=60, frames=20, mono=false
-R.raw.boosts (0x7f0e0008) — fps=60, frames=49, mono=false
-R.raw.tab_models (0x7f0e014c) — fps=60, frames=17, mono=false
-R.raw.silent_unmute (0x7f0e0100) — fps=60, frames=58, mono=false
-R.raw.calls_log (0x7f0e0016) — fps=60, frames=120, mono=false
-R.raw.notify_toggle (0x7f0e00a7) — fps=60, frames=80, mono=false
-R.raw.profile_voicechat (0x7f0e00e5) — fps=60, frames=48, mono=false
-R.raw.raised_hand (0x7f0e00eb) — fps=60, frames=90, mono=false
-R.raw.sun (0x7f0e012d) — fps=60, frames=36, mono=false
-R.raw.voice_outlined2 (0x7f0e018b) — fps=60, frames=84, mono=false
-R.raw.diceloop (0x7f0e003e) — fps=60, frames=60, mono=false
-R.raw.group_pip_delete_icon (0x7f0e0066) — fps=60, frames=66, mono=false
-R.raw.msg_antispam (0x7f0e0096) — fps=60, frames=62, mono=false
-R.raw.speaker_to_bt (0x7f0e010b) — fps=60, frames=60, mono=false
-R.raw.chat_audio_record_delete_2 (0x7f0e0027) — fps=60, frames=52, mono=false
-R.raw.call_mute (0x7f0e0015) — fps=60, frames=60, mono=false
-R.raw.media_forbidden (0x7f0e0092) — fps=60, frames=180, mono=false
-R.raw.incoming_calls (0x7f0e007e) — fps=60, frames=90, mono=false
-R.raw.photo_marker (0x7f0e00bf) — fps=60, frames=30, mono=false
-R.raw.swipe_pin (0x7f0e0134) — fps=60, frames=31, mono=false
-R.raw.chat_audio_record_delete_3 (0x7f0e0028) — fps=60, frames=40, mono=false
-R.raw.tab_music (0x7f0e014e) — fps=60, frames=17, mono=false
-R.raw.tab_gift_reverse (0x7f0e0149) — fps=60, frames=5, mono=false
-R.raw.wallet_allset (0x7f0e019e) — fps=60, frames=180, mono=false
-R.raw.filters (0x7f0e0052) — fps=60, frames=180, mono=false
-R.raw.roundcamera_flash_on (0x7f0e00f8) — fps=60, frames=30, mono=false
-R.raw.tab_location_reverse (0x7f0e014b) — fps=60, frames=5, mono=false
-R.raw.photo_pen (0x7f0e00c1) — fps=60, frames=30, mono=false
-R.raw.import_check (0x7f0e0079) — fps=60, frames=13, mono=false
-R.raw.gigagroup_convert (0x7f0e0064) — fps=60, frames=120, mono=false
-R.raw.photo_blur (0x7f0e00bd) — fps=60, frames=30, mono=false
-R.raw.star_reaction_click (0x7f0e0118) — fps=60, frames=125, mono=false
-R.raw.bt_to_speaker (0x7f0e000a) — fps=60, frames=60, mono=false
-R.raw.chat_audio_record_delete (0x7f0e0026) — fps=60, frames=52, mono=false
-R.raw.phone_stars_to_dots (0x7f0e00bb) — fps=60, frames=10, mono=false
-R.raw.swipe_read (0x7f0e0135) — fps=60, frames=35, mono=false
-R.raw.ic_pin (0x7f0e0072) — fps=60, frames=120, mono=false
-R.raw.tab_reply_reverse (0x7f0e0153) — fps=60, frames=5, mono=false
-R.raw.addone_icon (0x7f0e0000) — fps=60, frames=120, mono=false
-R.raw.ic_mute (0x7f0e0071) — fps=60, frames=66, mono=false
-R.raw.rate (0x7f0e00ec) — fps=60, frames=90, mono=false
-R.raw.sound_on (0x7f0e0108) — fps=60, frames=61, mono=false
-R.raw.ic_delete (0x7f0e006f) — fps=60, frames=66, mono=false
-R.raw.tab_sticker_reverse (0x7f0e0156) — fps=60, frames=5, mono=false
-R.raw.player_prev (0x7f0e00c8) — fps=60, frames=25, mono=false
-R.raw.tag_icon_3 (0x7f0e015b) — fps=60, frames=57, mono=false
-R.raw.keyboard_to_gif (0x7f0e0085) — fps=60, frames=12, mono=false
-R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
-R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.ProblemsTaskPathTrackingTaskExecuter.execute(ProblemsTaskPathTrackingTaskExecuter.java:40)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64857813.,Can not extract resource from com.android.aaptcompiler.ParsedResource@1a708411.). Check logs for more details.
+	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:129)
+	at com.android.build.gradle.internal.res.ResourceCompilerRunnable$Companion.compileSingleResource(ResourceCompilerRunnable.kt:34)
+	at com.android.build.gradle.internal.res.ResourceCompilerRunnable.run(ResourceCompilerRunnable.kt:15)
+	at com.android.build.gradle.internal.profile.ProfileAwareWorkAction.execute(ProfileAwareWorkAction.kt:74)
+	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
+	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
+	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
+	... 2 more
+Caused by: com.android.aaptcompiler.ResourceCompilationException: Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml
+	at com.android.aaptcompiler.ResourceCompiler.compileTable(ResourceCompiler.kt:192)
+	at com.android.aaptcompiler.ResourceCompiler.access$compileTable(ResourceCompiler.kt:1)
+	at com.android.aaptcompiler.ResourceCompiler$getCompileMethod$1.invoke(ResourceCompiler.kt:138)
+	at com.android.aaptcompiler.ResourceCompiler$getCompileMethod$1.invoke(ResourceCompiler.kt:138)
+	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:123)
+	... 31 more
+Caused by: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64857813.,Can not extract resource from com.android.aaptcompiler.ParsedResource@1a708411.
+	at com.android.aaptcompiler.TableExtractor.extractResourceValues(TableExtractor.kt:270)
+	at com.android.aaptcompiler.TableExtractor.extract(TableExtractor.kt:181)
+	at com.android.aaptcompiler.ResourceCompiler.compileTable(ResourceCompiler.kt:188)
+	... 35 more
 
-> Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
-Generated 11894 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 95156 bytes
+==============================================================================
 
-> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
-> Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
-
-> Task :TMessagesProj:compileStandaloneJavaWithJavac
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:546: error: cannot find symbol
-        final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
-              ^
-  symbol:   class AudioInfo
-  location: class PengramMusicPlayerSheet
-Note: Some input files use or override a deprecated API.
-Note: Recompile with -Xlint:deprecation for details.
-Note: Some input files use unchecked or unsafe operations.
-Note: Recompile with -Xlint:unchecked for details.
-2 errors
-
-> Task :TMessagesProj:compileStandaloneJavaWithJavac FAILED
-
-[Incubating] Problems report is available at: file:///home/runner/work/Telegram/Telegram/build/reports/problems/problems-report.html
-
-FAILURE: Build failed with an exception.
-
+2: Task failed with an exception.
+-----------
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:30: error: cannot find symbol
-  import org.telegram.messenger.AudioInfo;
-                               ^
-    symbol:   class AudioInfo
-    location: package org.telegram.messenger
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:546: error: cannot find symbol
-          final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
-                ^
-    symbol:   class AudioInfo
-    location: class PengramMusicPlayerSheet
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramLyricsView.java:411: error: variable speed is already defined in method onDraw(Canvas)
+              final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
+                          ^
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
-  2 errors
+  1 error
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -213,24 +156,51 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:30: error: cannot find symbol
-import org.telegram.messenger.AudioInfo;
-                             ^
-  symbol:   class AudioInfo
-  location: package org.telegram.messenger
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:546: error: cannot find symbol
-        final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
-              ^
-  symbol:   class AudioInfo
-  location: class PengramMusicPlayerSheet
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramLyricsView.java:411: error: variable speed is already defined in method onDraw(Canvas)
+            final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
+                        ^
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-2 errors
+1 error
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -386,9 +356,39 @@ Note: Recompile with -Xlint:unchecked for details.
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 
+==============================================================================
 
 Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
 
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 12m 4s
-321 actionable tasks: 259 executed, 62 from cache
+BUILD FAILED in 11m 51s
+312 actionable tasks: 250 executed, 62 from cache
