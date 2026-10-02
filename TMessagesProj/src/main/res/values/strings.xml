@@ -11852,7 +11852,7 @@
     <string name="PengramLyricsSourceAuto">Auto</string>
     <string name="PengramLyricsSourceAutoInfo">Pengram asks every source at once and keeps the best lyrics</string>
     <string name="PengramLyricsSourceFile">From the file</string>
-    <string name="PengramLyricsSourceFileInfo">Lyrics written into the track's own tags</string>
+    <string name="PengramLyricsSourceFileInfo">Lyrics written into the track\'s own tags</string>
     <string name="PengramLyricsSourceLrclib">LrcLib</string>
     <string name="PengramLyricsSourceLrclibInfo">Synced lyrics from the community database</string>
     <string name="PengramLyricsSourceMusixmatch">Musixmatch</string>
@@ -11864,7 +11864,7 @@
     <string name="PengramLyricsStretch">Fit sped up and slowed versions</string>
     <string name="PengramLyricsStretchInfo">If the track is shorter or longer than the original, the timings are stretched to match it.</string>
     <string name="PengramLyricsSmooth">Smooth highlight</string>
-    <string name="PengramLyricsSmoothInfo">The words light up continuously instead of jumping with the player's updates.</string>
+    <string name="PengramLyricsSmoothInfo">The words light up continuously instead of jumping with the player\'s updates.</string>
     <string name="PengramLyricsSyncButtons">Shift buttons in the player</string>
     <string name="PengramLyricsOffset">Shift for all tracks</string>
     <string name="PengramLyricsOffsetInfo">Minus — the lyrics come earlier, plus — later. A single track can be shifted in the player itself.</string>
