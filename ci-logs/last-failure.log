@@ -1,9 +1,3 @@
-	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
-	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
-	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
-	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
 	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
 	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
 	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
@@ -59,7 +53,7 @@
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64857813.,Can not extract resource from com.android.aaptcompiler.ParsedResource@1a708411.). Check logs for more details.
+Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64e142b8.,Can not extract resource from com.android.aaptcompiler.ParsedResource@506fdd0f.). Check logs for more details.
 	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:129)
 	at com.android.build.gradle.internal.res.ResourceCompilerRunnable$Companion.compileSingleResource(ResourceCompilerRunnable.kt:34)
 	at com.android.build.gradle.internal.res.ResourceCompilerRunnable.run(ResourceCompilerRunnable.kt:15)
@@ -98,7 +92,7 @@ Caused by: com.android.aaptcompiler.ResourceCompilationException: Failed to comp
 	at com.android.aaptcompiler.ResourceCompiler$getCompileMethod$1.invoke(ResourceCompiler.kt:138)
 	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:123)
 	... 31 more
-Caused by: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64857813.,Can not extract resource from com.android.aaptcompiler.ParsedResource@1a708411.
+Caused by: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@64e142b8.,Can not extract resource from com.android.aaptcompiler.ParsedResource@506fdd0f.
 	at com.android.aaptcompiler.TableExtractor.extractResourceValues(TableExtractor.kt:270)
 	at com.android.aaptcompiler.TableExtractor.extract(TableExtractor.kt:181)
 	at com.android.aaptcompiler.ResourceCompiler.compileTable(ResourceCompiler.kt:188)
@@ -111,14 +105,17 @@ Caused by: java.lang.IllegalStateException: Can not extract resource from com.an
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramLyricsView.java:411: error: variable speed is already defined in method onDraw(Canvas)
-              final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
-                          ^
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:863: error: variable lyricsStatusView might not have been initialized
+          if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+              ^
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:863: error: variable lyricsView might not have been initialized
+          if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+                                           ^
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
-  1 error
+  2 errors
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -193,14 +190,17 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
 	at java.base/java.lang.Thread.run(Thread.java:840)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramLyricsView.java:411: error: variable speed is already defined in method onDraw(Canvas)
-            final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
-                        ^
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:863: error: variable lyricsStatusView might not have been initialized
+        if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+            ^
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:863: error: variable lyricsView might not have been initialized
+        if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+                                         ^
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-1 error
+2 errors
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 11m 51s
-312 actionable tasks: 250 executed, 62 from cache
+BUILD FAILED in 16m 58s
+312 actionable tasks: 251 executed, 61 from cache
