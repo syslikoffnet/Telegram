@@ -57,6 +57,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
     private final FrameLayout rootLayout;
     private final FrameLayout cardLayout;
+    private FrameLayout queueContainer;
+    private LinearLayout queueList;
+    private android.widget.ScrollView queueScroll;
+    private ImageView queueButton;
+    private boolean queueShown;
     private final BackgroundView backgroundView;
     private final BackupImageView coverView;
     private final BackupImageView smallCoverView;
@@ -165,6 +170,15 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
         });
         topBar.addView(settingsButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
+
+        queueButton = new ImageView(context);
+        queueButton.setScaleType(ImageView.ScaleType.CENTER);
+        queueButton.setImageResource(R.drawable.msg_list);
+        queueButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+        queueButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(20)));
+        queueButton.setOnClickListener(v -> toggleQueue(!queueShown));
+        queueButton.setVisibility(compact ? View.GONE : View.VISIBLE);
+        topBar.addView(queueButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 54, 0));
 
         // ---------- обложка и текст песни ----------
         final LinearLayout centerLayout = new LinearLayout(context);
@@ -390,6 +404,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         controls.addView(speedButton, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.CENTER_VERTICAL,
                 0, 0, lyricsSupported && !lyricsAlways ? 48 : 6, 0));
 
+        if (!compact) {
+            buildQueuePanel(context);
+        }
+
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
@@ -398,6 +416,167 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         updateTitle();
         updateRepeatButton();
         updateSpeedButton();
+    }
+
+    /** панель «Очередь»: что играет сейчас и что будет дальше */
+    private void buildQueuePanel(Context context) {
+        queueContainer = new FrameLayout(context);
+        queueContainer.setVisibility(View.GONE);
+        queueContainer.setAlpha(0f);
+        queueContainer.setBackgroundColor(0xB3000000);
+        queueContainer.setOnClickListener(v -> toggleQueue(false));
+
+        final FrameLayout panel = new FrameLayout(context);
+        panel.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0xF21A1A1E, 0xF21A1A1E));
+        panel.setOnClickListener(v -> {
+        });
+        queueContainer.addView(panel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT,
+                Gravity.FILL, 10, AndroidUtilities.statusBarHeight + 54, 10, 12));
+
+        final TextView title = new TextView(context);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        title.setTypeface(AndroidUtilities.bold());
+        title.setTextColor(0xFFFFFFFF);
+        title.setText(getString(R.string.PengramPlayerQueue));
+        panel.addView(title, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.LEFT | Gravity.TOP, 18, 16, 18, 0));
+
+        queueScroll = new android.widget.ScrollView(context);
+        queueList = new LinearLayout(context);
+        queueList.setOrientation(LinearLayout.VERTICAL);
+        queueList.setPadding(0, 0, 0, dp(10));
+        queueScroll.addView(queueList, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        panel.addView(queueScroll, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT,
+                Gravity.FILL, 0, 44, 0, 0));
+
+        cardLayout.addView(queueContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+    }
+
+    private void toggleQueue(boolean show) {
+        if (queueContainer == null || queueShown == show) {
+            return;
+        }
+        queueShown = show;
+        if (show) {
+            updateQueue();
+            queueContainer.setVisibility(View.VISIBLE);
+            queueContainer.setTranslationY(dp(28));
+            queueContainer.animate().alpha(1f).translationY(0).setDuration(220)
+                    .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
+        } else {
+            queueContainer.animate().alpha(0f).translationY(dp(20)).setDuration(180)
+                    .setInterpolator(CubicBezierInterpolator.DEFAULT)
+                    .withEndAction(() -> queueContainer.setVisibility(View.GONE)).start();
+        }
+        if (queueButton != null) {
+            queueButton.setColorFilter(new PorterDuffColorFilter(show ? accentColor : 0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+        }
+    }
+
+    private void updateQueue() {
+        if (queueList == null) {
+            return;
+        }
+        queueList.removeAllViews();
+        final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaylist();
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playlist == null || playlist.isEmpty()) {
+            final TextView empty = new TextView(getContext());
+            empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            empty.setTextColor(0x99FFFFFF);
+            empty.setGravity(Gravity.CENTER);
+            empty.setText(getString(R.string.PengramPlayerQueueEmpty));
+            queueList.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 80));
+            return;
+        }
+        int current = 0;
+        for (int a = 0; a < playlist.size(); ++a) {
+            if (playing != null && playlist.get(a).getId() == playing.getId()) {
+                current = a;
+            }
+        }
+        // очень длинные плейлисты не строим целиком — берём окно вокруг текущего трека
+        final int max = 120;
+        int from = 0, to = playlist.size();
+        if (playlist.size() > max) {
+            from = Math.max(0, current - max / 3);
+            to = Math.min(playlist.size(), from + max);
+            from = Math.max(0, to - max);
+        }
+        int currentRow = 0;
+        for (int a = from; a < to; ++a) {
+            final MessageObject messageObject = playlist.get(a);
+            final boolean active = playing != null && messageObject.getId() == playing.getId();
+            if (active) {
+                currentRow = a - from;
+            }
+            queueList.addView(createQueueRow(messageObject, active), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 56));
+        }
+        final int scrollTo = Math.max(0, dp(56) * currentRow - dp(120));
+        if (queueScroll != null) {
+            queueScroll.post(() -> queueScroll.scrollTo(0, scrollTo));
+        }
+    }
+
+    private View createQueueRow(MessageObject messageObject, boolean active) {
+        final Context context = getContext();
+        final FrameLayout row = new FrameLayout(context);
+        row.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 2));
+
+        final BackupImageView cover = new BackupImageView(context);
+        cover.setRoundRadius(dp(8));
+        final TLRPC.Document document = messageObject.getDocument();
+        final TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 90) : null;
+        final ImageLocation thumbLocation = thumb instanceof TLRPC.TL_photoSize || thumb instanceof TLRPC.TL_photoSizeProgressive
+                ? ImageLocation.getForDocument(thumb, document) : null;
+        final String artworkUrl = messageObject.getArtworkUrl(true);
+        if (!TextUtils.isEmpty(artworkUrl)) {
+            cover.setImage(ImageLocation.getForPath(artworkUrl), "40_40", thumbLocation, null, null, 0, 1, messageObject);
+        } else if (thumbLocation != null) {
+            cover.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
+        } else {
+            cover.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(8), 0x33FFFFFF, 0x33FFFFFF));
+        }
+        row.addView(cover, LayoutHelper.createFrame(40, 40, Gravity.LEFT | Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
+
+        final LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        row.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.LEFT | Gravity.CENTER_VERTICAL, 64, 0, 64, 0));
+
+        final TextView title = new TextView(context);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setTextColor(active ? accentColor : 0xFFFFFFFF);
+        if (active) {
+            title.setTypeface(AndroidUtilities.bold());
+        }
+        title.setText(messageObject.getMusicTitle(false));
+        column.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        final TextView author = new TextView(context);
+        author.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        author.setMaxLines(1);
+        author.setEllipsize(TextUtils.TruncateAt.END);
+        author.setTextColor(0x99FFFFFF);
+        author.setText(messageObject.getMusicAuthor(false));
+        column.addView(author, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
+
+        final TextView duration = new TextView(context);
+        duration.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        duration.setTextColor(0x80FFFFFF);
+        duration.setText(AndroidUtilities.formatShortDuration((int) messageObject.getDuration()));
+        row.addView(duration, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+
+        row.setOnClickListener(v -> {
+            if (!active) {
+                MediaController.getInstance().playMessage(messageObject);
+            }
+            updateQueue();
+        });
+        return row;
     }
 
     private void applyCoverShape() {
@@ -667,6 +846,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         } else if (id == NotificationCenter.messagePlayingDidStart) {
             lastTime = -1;
             updateTitle();
+            if (queueShown) {
+                updateQueue();
+            }
         } else if (id == NotificationCenter.messagePlayingPlayStateChanged) {
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
         } else if (id == NotificationCenter.messagePlayingDidReset) {
@@ -675,6 +857,15 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 dismiss();
             }
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (queueShown) {
+            toggleQueue(false);
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override

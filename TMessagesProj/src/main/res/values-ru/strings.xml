@@ -825,4 +825,6 @@
     <string name="PengramChatLook">Вид сообщений</string>
     <string name="PengramChatLookInfo">Живое превью: двигаете аватарку — сразу видно результат.</string>
     <string name="PengramChatLookMore">Все настройки чатов</string>
+    <string name="PengramPlayerQueue">Очередь</string>
+    <string name="PengramPlayerQueueEmpty">В очереди пока пусто.</string>
 </resources>

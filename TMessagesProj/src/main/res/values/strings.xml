@@ -11797,4 +11797,6 @@
     <string name="PengramChatLook">Message look</string>
     <string name="PengramChatLookInfo">Live preview: move the avatar and see the result at once.</string>
     <string name="PengramChatLookMore">All chat settings</string>
+    <string name="PengramPlayerQueue">Queue</string>
+    <string name="PengramPlayerQueueEmpty">Nothing in the queue yet.</string>
 </resources>
