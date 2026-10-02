@@ -408,8 +408,8 @@ public class PengramLyricsView extends View {
             } else {
                 tickerTargetX = 0;
             }
-            final float speed = PengramConfig.getHeaderLyricsSpeed() / 100f;
-            tickerScrollX = AndroidUtilities.lerp(tickerScrollX, tickerTargetX, Math.min(1f, dt * 4.5f * speed));
+            final float tickerSpeed = PengramConfig.getHeaderLyricsSpeed() / 100f;
+            tickerScrollX = AndroidUtilities.lerp(tickerScrollX, tickerTargetX, Math.min(1f, dt * 4.5f * tickerSpeed));
             canvas.translate(-tickerScrollX,
                     Math.max(0, (getMeasuredHeight() - layout.getHeight()) / 2f) - tops.get(activeLine));
         } else if (previewMode && !layouts.isEmpty()) {
