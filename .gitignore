@@ -17,3 +17,6 @@ TMessagesProj/jni/ffmpeg/build_android
 
 # локальный превью-рендер пингвина (не часть сборки)
 pengram-penguin-preview.png
+
+# локальный превью-рендер иконок приложения (не часть сборки)
+pengram-icons-preview.png
