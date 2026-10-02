@@ -10,6 +10,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.widget.LinearLayout;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.PengramConfig;
@@ -112,11 +113,41 @@ public class PengramMessagePreviewView extends LinearLayout {
                 messageObject.forceAvatar = true;
                 TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
                 messageObject.customName = self != null ? UserObject.getUserName(self) : LocaleController.getString(R.string.AppName);
+                if (self == null) {
+                    // запасной вариант: рисуем хотя бы цветную «заглушку» с инициалами
+                    final AvatarDrawable avatarDrawable = new AvatarDrawable();
+                    avatarDrawable.setInfo(selfId, messageObject.customName, null);
+                    messageObject.customAvatarDrawable = avatarDrawable;
+                }
             }
             messageObject.resetLayout();
             return messageObject;
         } catch (Throwable e) {
             return null;
+        }
+    }
+
+    /**
+     * В реальном чате аватарку рисует не сама ячейка, а список сообщений — поэтому
+     * в превью её тоже рисуем мы, ровно по той же геометрии (слева, 42dp, по низу пузыря).
+     */
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        for (int a = 0; a < cells.length; a++) {
+            final ChatMessageCell cell = cells[a];
+            if (cell == null || !cell.isAvatarVisible) {
+                continue;
+            }
+            final ImageReceiver avatarImage = cell.getAvatarImage();
+            if (avatarImage == null) {
+                continue;
+            }
+            final float y = cell.getY() + cell.getPaddingTop() + cell.getLayoutHeight() - AndroidUtilities.dp(44);
+            avatarImage.setImageCoords(AndroidUtilities.dp(6), y, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+            avatarImage.setAlpha(cell.getAlpha());
+            avatarImage.setVisible(true, false);
+            avatarImage.draw(canvas);
         }
     }
 

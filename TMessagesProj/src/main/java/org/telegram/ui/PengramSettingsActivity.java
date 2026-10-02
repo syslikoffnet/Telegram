@@ -20,6 +20,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
@@ -154,6 +155,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_DELETED_MARK = 1400;
     private static final int BTN_OPEN_DELETED_CHAT = 1401;
     private static final int BTN_OPEN_EDITED_CHAT = 1402;
+    private static final int BTN_EDITED_MARK = 1403;
     private static final int BTN_GENERIC_BASE = 2000;
 
     private final java.util.HashMap<String, Integer> boolIds = new java.util.HashMap<>();
@@ -328,36 +330,74 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private CharSequence markName(int mark) {
+        final String text;
         switch (mark) {
-            case PengramConfig.MARK_TRASH: return getString(R.string.PengramMarkTrash) + "  \uD83D\uDDD1";
-            case PengramConfig.MARK_CROSS: return getString(R.string.PengramMarkCross) + "  \u2715";
-            case PengramConfig.MARK_EYE: return getString(R.string.PengramMarkEye) + "  \uD83D\uDC41";
+            case PengramConfig.MARK_TRASH: text = getString(R.string.PengramMarkTrash); break;
+            case PengramConfig.MARK_CROSS: text = getString(R.string.PengramMarkCross); break;
+            case PengramConfig.MARK_EYE: text = getString(R.string.PengramMarkEye); break;
+            case PengramConfig.MARK_FIRE: text = getString(R.string.PengramMarkFire); break;
             default: return getString(R.string.PengramMarkNone);
         }
+        return withMarkIcon(text, PengramConfig.getMarkIcon(mark));
+    }
+
+    private CharSequence editedMarkName(int mark) {
+        final String text;
+        switch (mark) {
+            case PengramConfig.MARK_EDIT_PENCIL: text = getString(R.string.PengramMarkPencil); break;
+            case PengramConfig.MARK_EDIT_CLOCK: text = getString(R.string.PengramMarkClock); break;
+            case PengramConfig.MARK_EDIT_DOT: text = getString(R.string.PengramMarkDot); break;
+            default: return getString(R.string.PengramMarkNone);
+        }
+        return withMarkIcon(text, PengramConfig.getEditedMarkIcon(mark));
+    }
+
+    /** дорисовываем к названию сам значок — чтобы выбор был наглядным */
+    private CharSequence withMarkIcon(CharSequence text, int icon) {
+        final Context context = getContext();
+        if (icon == 0 || context == null) {
+            return text;
+        }
+        final android.text.SpannableStringBuilder builder = new android.text.SpannableStringBuilder(text);
+        builder.append("  \u200B");
+        builder.setSpan(
+                new org.telegram.ui.Components.PengramMarkSpan(context, icon, 1.05f, 0f),
+                builder.length() - 1, builder.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        return builder;
     }
 
     /** красивое меню выбора значка — как родное телеграмовское */
-    private void showMarkPicker() {
+    private void showMarkPicker(boolean edited) {
         final Context context = getContext();
         if (context == null) {
             return;
         }
         final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
                 new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
-        builder.setTitle(getString(R.string.PengramDeletedMarkTitle), true);
+        builder.setTitle(getString(edited ? R.string.PengramEditedMarkTitle : R.string.PengramDeletedMarkTitle), true);
 
         final LinearLayout linearLayout = new LinearLayout(context);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[4];
+        final int count = edited ? 4 : 5;
+        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[count];
         for (int a = 0; a < cells.length; ++a) {
             final int mark = a;
             cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
             cells[a].setPadding(dp(4), 0, dp(4), 0);
             cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
-            cells[a].setTextAndValue(markName(mark), PengramConfig.getDeletedMark() == mark);
+            cells[a].setTextAndValue(edited ? editedMarkName(mark) : markName(mark),
+                    (edited ? PengramConfig.getEditedMark() : PengramConfig.getDeletedMark()) == mark);
             cells[a].setBackground(Theme.getSelectorDrawable(false));
             cells[a].setOnClickListener(v -> {
-                PengramConfig.setDeletedMark(mark);
+                if (edited) {
+                    PengramConfig.setEditedMark(mark);
+                    if (mark != PengramConfig.MARK_EDIT_NONE && !PengramConfig.isMarkingEdited()) {
+                        PengramConfig.setBool(PengramConfig.KEY_MARK_EDITED, true);
+                    }
+                } else {
+                    PengramConfig.setDeletedMark(mark);
+                }
                 for (int b = 0; b < cells.length; ++b) {
                     cells[b].setChecked(b == mark, true);
                 }
@@ -428,6 +468,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
         items.add(UItem.asSettingsCell(BTN_DELETED_MARK, R.drawable.msg_delete, getString(R.string.PengramDeletedMark), markName(PengramConfig.getDeletedMark())));
         items.add(check(PengramConfig.KEY_MARK_EDITED, false, getString(R.string.PengramMarkEditedOption)));
+        if (PengramConfig.isMarkingEdited()) {
+            items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
     }
 
@@ -763,7 +806,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         switch (item.id) {
             case BTN_DELETED_MARK:
-                showMarkPicker();
+                showMarkPicker(false);
+                return;
+            case BTN_EDITED_MARK:
+                showMarkPicker(true);
                 return;
             case BTN_OPEN_DELETED_CHAT:
                 presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_DELETED));
@@ -1171,13 +1217,20 @@ public class PengramSettingsActivity extends UniversalFragment {
             title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
             addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
 
+            final String versionText = getAppVersion();
             final TextView subtitle = new TextView(context);
-            subtitle.setText(getString(R.string.PengramHeaderSubtitle));
+            subtitle.setText(versionText);
             subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             subtitle.setGravity(Gravity.CENTER_HORIZONTAL);
             subtitle.setLineSpacing(dp(2), 1f);
             subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
-            addView(subtitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 6, 24, 0));
+            subtitle.setPadding(dp(10), dp(4), dp(10), dp(4));
+            subtitle.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, getResourceProvider()), 8, 8));
+            subtitle.setOnClickListener(v -> {
+                AndroidUtilities.addToClipboard(versionText);
+                BulletinFactory.of(PengramSettingsActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
+            });
+            addView(subtitle, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 4, 24, 0));
         }
 
         public void setPaused(boolean paused) {
@@ -1185,6 +1238,29 @@ public class PengramSettingsActivity extends UniversalFragment {
                 penguinView.setPaused(paused);
             }
         }
+    }
+
+    /** версия приложения — показывается под пингвином */
+    private static String getAppVersion() {
+        String version = org.telegram.messenger.BuildVars.BUILD_VERSION_STRING;
+        int code = 0;
+        try {
+            final android.content.pm.PackageInfo info = ApplicationLoader.applicationContext
+                    .getPackageManager()
+                    .getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
+            if (info != null) {
+                if (info.versionName != null) {
+                    version = info.versionName;
+                }
+                if (info.versionCode > 0) {
+                    code = info.versionCode;
+                }
+            }
+        } catch (Throwable ignore) {}
+        if (code > 0) {
+            return LocaleController.formatString(R.string.PengramHeaderVersion, version, code);
+        }
+        return LocaleController.formatString(R.string.PengramHeaderVersionShort, version);
     }
 
     /**

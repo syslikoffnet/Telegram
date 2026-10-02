@@ -4181,7 +4181,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     /* Pengram */
+    private static final float PENGRAM_MARK_SCALE = 0.95f;
     public boolean pengramMarkDrawn;
+    private int pengramMarkWidth;
     private boolean pengramMarkPressed;
 
     private boolean checkPengramMarkMotionEvent(MotionEvent event) {
@@ -18537,15 +18539,22 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             currentTimeString = timeString;
         }
         pengramMarkDrawn = false;
+        pengramMarkWidth = 0;
+        int pengramMarkRes = 0;
         if (currentMessageObject.pengramDeleted) {
-            final String mark = org.telegram.messenger.PengramConfig.getDeletedMarkGlyph();
-            if (mark != null) {
-                currentTimeString = TextUtils.concat(mark, " ", currentTimeString);
-                pengramMarkDrawn = true;
-            }
-        } else if (edited && org.telegram.messenger.PengramConfig.isMarkingEdited()) {
-            currentTimeString = TextUtils.concat("\u270E ", currentTimeString);
+            pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();
+        } else if (edited) {
+            pengramMarkRes = org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
+        }
+        if (pengramMarkRes != 0) {
+            final android.text.SpannableStringBuilder markBuilder = new android.text.SpannableStringBuilder("\u200B");
+            markBuilder.setSpan(
+                    new org.telegram.ui.Components.PengramMarkSpan(getContext(), pengramMarkRes, PENGRAM_MARK_SCALE, 0f),
+                    0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+            currentTimeString = TextUtils.concat(markBuilder, " ", currentTimeString);
             pengramMarkDrawn = true;
+            pengramMarkWidth = org.telegram.ui.Components.PengramMarkSpan.widthFor(Theme.chat_timePaint, PENGRAM_MARK_SCALE);
         }
         if (currentMessageObject.isStakedDice()) {
             currentTimeString = TextUtils.concat("💎", StarsIntroActivity.formatTON(currentMessageObject.getStakedDiceAmount()), "  ", currentTimeString);
@@ -18577,6 +18586,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
         timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        if (pengramMarkDrawn) {
+            // measureText не умеет считать значок-спан, добавляем его ширину руками
+            timeTextWidth += pengramMarkWidth;
+            timeWidth += pengramMarkWidth;
+        }
         if (currentMessageObject.scheduled && currentMessageObject.messageOwner.date == 0x7FFFFFFE || currentMessageObject.notime) {
             timeWidth -= dp(8);
         }

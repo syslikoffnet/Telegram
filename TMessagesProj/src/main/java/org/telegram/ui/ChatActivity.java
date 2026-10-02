@@ -1720,10 +1720,84 @@ public class ChatActivity extends BaseFragment implements
         } catch (Throwable ignore) {}
         message.pengramDeleted = deleted;
         if (cell != null) {
-            final float alpha = deleted && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+            final float alpha = pengramAlphaFor(message);
             if (cell.getAlpha() != alpha) {
+                cell.animate().cancel();
                 cell.setAlpha(alpha);
             }
+        }
+    }
+
+    private int pengramMarksSignature = -1;
+
+    /** Pengram: сигнатура настроек меток — чтобы ловить их изменение на лету */
+    private static int pengramMarksSignatureNow() {
+        int v = org.telegram.messenger.PengramConfig.getDeletedMark();
+        v = v * 31 + org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
+        v = v * 31 + (org.telegram.messenger.PengramConfig.isFadingDeleted() ? 1 : 0);
+        v = v * 31 + (org.telegram.messenger.PengramConfig.isKeepingDeletedInChat() ? 1 : 0);
+        v = v * 31 + (org.telegram.messenger.PengramConfig.isSavingDeleted() ? 1 : 0);
+        return v;
+    }
+
+    /** Pengram: если настройки меток поменяли, пока чат был открыт — перерисовываем сообщения сразу */
+    private void pengramCheckMarksSettings() {
+        final int signature = pengramMarksSignatureNow();
+        if (pengramMarksSignature == signature) {
+            return;
+        }
+        final boolean first = pengramMarksSignature == -1;
+        pengramMarksSignature = signature;
+        if (first || chatListView == null) {
+            return;
+        }
+        for (int i = 0; i < chatListView.getChildCount(); i++) {
+            final View child = chatListView.getChildAt(i);
+            if (!(child instanceof ChatMessageCell)) {
+                continue;
+            }
+            final ChatMessageCell cell = (ChatMessageCell) child;
+            final MessageObject message = cell.getMessageObject();
+            if (message == null) {
+                continue;
+            }
+            pengramApplyDeletedState(message, cell);
+            cell.forceResetMessageObject();
+            cell.invalidate();
+        }
+    }
+
+    /** Pengram: прозрачность ячейки для текущего состояния сообщения */
+    private float pengramAlphaFor(MessageObject message) {
+        return message != null && message.pengramDeleted && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+    }
+
+    /**
+     * Pengram: мгновенно перерисовать сообщение, у которого изменился статус
+     * (удалено / изменено) — без выхода и повторного входа в чат.
+     */
+    private void pengramRefreshMessage(MessageObject message, boolean animated) {
+        if (message == null || chatAdapter == null) {
+            return;
+        }
+        try {
+            // без forceUpdate ячейка считает, что ничего не поменялось, и строку времени не пересобирает
+            message.forceUpdate = true;
+            final View view = chatAdapter.updateRowWithMessageObject(message, true, false);
+            message.forceUpdate = false;
+            final float alpha = pengramAlphaFor(message);
+            if (view != null) {
+                view.animate().cancel();
+                if (animated && view.getAlpha() != alpha) {
+                    view.animate().alpha(alpha).setDuration(220).start();
+                } else {
+                    view.setAlpha(alpha);
+                }
+                view.invalidate();
+            }
+            // если ячейки на экране нет, updateRowWithMessageObject уже пометил строку изменённой
+        } catch (Throwable e) {
+            FileLog.e(e);
         }
     }
 
@@ -1756,9 +1830,7 @@ public class ChatActivity extends BaseFragment implements
             if (obj != null) {
                 obj.pengramDeleted = true;
                 any = true;
-                if (chatAdapter != null) {
-                    chatAdapter.updateRowWithMessageObject(obj, false, false);
-                }
+                pengramRefreshMessage(obj, true);
             }
         }
         if (!any && chatListView != null) {
@@ -15693,8 +15765,46 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /**
+     * Pengram: одноразовое медиа не должно сгорать само — ни у меня, ни у отправителя.
+     * Сгорает только по явному нажатию кнопки «Сжечь».
+     */
+    private boolean pengramKeepsOnceMedia(MessageObject messageObject) {
+        return messageObject != null
+                && currentEncryptedChat == null
+                && !messageObject.isOutOwner()
+                && org.telegram.messenger.PengramConfig.isKeepingOnceMedia();
+    }
+
+    /** Pengram: действие кнопки «Сжечь» — удалить медиа у отправителя, себе оставить */
+    private Runnable pengramBurnOnceMedia(MessageObject messageObject) {
+        if (messageObject == null || !pengramKeepsOnceMedia(messageObject) || !messageObject.isSecretMedia()) {
+            return null;
+        }
+        return () -> {
+            try {
+                final int id = messageObject.getId();
+                final ArrayList<Integer> ids = new ArrayList<>();
+                ids.add(id);
+                // если отправитель следом снесёт сообщение — копия останется у нас
+                org.telegram.messenger.PengramHistory.guardSaveForMyself(ids);
+                // серверу сообщаем о просмотре: у отправителя медиа «сгорает»
+                getMessagesController().markMessageAsRead2(dialog_id, id, null, 0, 0, false);
+                // локально ничего не чистим — emptyMessagesMedia специально не вызываем
+                BulletinFactory.of(ChatActivity.this)
+                        .createSimpleBulletin(R.raw.fire_on, LocaleController.getString(R.string.PengramBurnedDone))
+                        .show();
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        };
+    }
+
     private Runnable sendSecretMessageRead(MessageObject messageObject, boolean readNow) {
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.destroyTime != 0 || messageObject.messageOwner.ttl <= 0) {
+            return null;
+        }
+        if (pengramKeepsOnceMedia(messageObject)) {
             return null;
         }
         if (readNow) {
@@ -15724,6 +15834,9 @@ public class ChatActivity extends BaseFragment implements
 
     private Runnable sendSecretMediaDelete(MessageObject messageObject) {
         if (messageObject == null || messageObject.isOut() || !messageObject.isSecretMedia() || messageObject.messageOwner.ttl != 0x7FFFFFFF) {
+            return null;
+        }
+        if (pengramKeepsOnceMedia(messageObject)) {
             return null;
         }
         final long taskId = getMessagesController().createDeleteShowOnceTask(dialog_id, messageObject.getId());
@@ -26810,6 +26923,10 @@ public class ChatActivity extends BaseFragment implements
             }
 
             addToPolls(messageObject, old);
+            // Pengram: статус «удалено» не должен теряться при замене объекта сообщения (правка и т.п.)
+            final boolean pengramWasDeleted = old.pengramDeleted;
+            pengramApplyDeletedState(messageObject, null);
+            messageObject.pengramDeleted |= pengramWasDeleted;
             if (old.richCheckboxEcho && messageObject.type == MessageObject.TYPE_ARTICLE && old.richLayout != null && messageObject.messageOwner != null) {
                 messageObject.richLayout = old.richLayout;
                 messageObject.messageOwner.rich_message = old.messageOwner.rich_message;
@@ -29906,6 +30023,7 @@ public class ChatActivity extends BaseFragment implements
     public void onResume() {
         super.onResume();
         checkShowBlur(false);
+        pengramCheckMarksSettings();
         activityResumeTime = System.currentTimeMillis();
         if (openImport && getSendMessagesHelper().getImportingHistory(dialog_id) != null) {
             ImportingAlert alert = new ImportingAlert(getParentActivity(), null, this, themeDelegate);
@@ -41646,6 +41764,7 @@ public class ChatActivity extends BaseFragment implements
                 Runnable closeAction = sendSecretMediaDelete(message);
                 cell.invalidate();
                 SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
+                SecretMediaViewer.getInstance().setBurnAction(pengramBurnOnceMedia(message));
                 SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
             } else if (MessageObject.isAnimatedEmoji(message.getDocument()) && MessageObject.getInputStickerSet(message.getDocument()) != null) {
                 final ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);

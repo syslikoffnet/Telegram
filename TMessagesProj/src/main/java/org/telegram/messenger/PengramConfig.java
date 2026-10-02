@@ -104,6 +104,13 @@ public class PengramConfig {
     public static final int MARK_TRASH = 1;
     public static final int MARK_CROSS = 2;
     public static final int MARK_EYE = 3;
+    public static final int MARK_FIRE = 4;
+
+    // --- метка изменённых сообщений ---
+    public static final int MARK_EDIT_NONE = 0;
+    public static final int MARK_EDIT_PENCIL = 1;
+    public static final int MARK_EDIT_CLOCK = 2;
+    public static final int MARK_EDIT_DOT = 3;
 
     /** оставлять удалённые сообщения в чате (помечать, а не удалять) */
     public static final String KEY_KEEP_DELETED = "keepDeletedInChat";
@@ -149,6 +156,7 @@ public class PengramConfig {
     public static final String KEY_MENU_PENGRAM = "hideMenuPengram";
 
     public static int deletedMark = MARK_TRASH;
+    public static int editedMark = MARK_EDIT_PENCIL;
 
     private static final java.util.HashMap<String, Boolean> boolCache = new java.util.HashMap<>();
 
@@ -264,18 +272,49 @@ public class PengramConfig {
         putInt("deletedMark", mark);
     }
 
-    /** символ-метка, который дорисовывается рядом со временем */
-    public static String getMarkGlyph(int mark) {
+    public static int getEditedMark() {
+        init();
+        return editedMark;
+    }
+
+    public static void setEditedMark(int mark) {
+        init();
+        editedMark = mark;
+        putInt("editedMark", mark);
+    }
+
+    /** ресурс значка для метки удалённого сообщения */
+    public static int getMarkIcon(int mark) {
         switch (mark) {
-            case MARK_TRASH: return "\uD83D\uDDD1";
-            case MARK_CROSS: return "\u2715";
-            case MARK_EYE: return "\uD83D\uDC41";
-            default: return null;
+            case MARK_TRASH: return R.drawable.pengram_mark_trash;
+            case MARK_CROSS: return R.drawable.pengram_mark_cross;
+            case MARK_EYE: return R.drawable.pengram_mark_eye;
+            case MARK_FIRE: return R.drawable.pengram_mark_fire;
+            default: return 0;
         }
     }
 
-    public static String getDeletedMarkGlyph() {
-        return getMarkGlyph(getDeletedMark());
+    /** ресурс значка для метки изменённого сообщения */
+    public static int getEditedMarkIcon(int mark) {
+        switch (mark) {
+            case MARK_EDIT_PENCIL: return R.drawable.pengram_mark_pencil;
+            case MARK_EDIT_CLOCK: return R.drawable.pengram_mark_clock;
+            case MARK_EDIT_DOT: return R.drawable.pengram_mark_dot;
+            default: return 0;
+        }
+    }
+
+    /** значок удалённого сообщения с учётом настроек (0 — метки нет) */
+    public static int getDeletedMarkIcon() {
+        return getMarkIcon(getDeletedMark());
+    }
+
+    /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
+    public static int getEditedMarkIconRes() {
+        if (!isMarkingEdited()) {
+            return 0;
+        }
+        return getEditedMarkIcon(getEditedMark());
     }
 
     private static boolean loaded;
@@ -332,6 +371,7 @@ public class PengramConfig {
             hideChatCall = p.getBoolean("hideChatCall", false);
             hideChatAutoDelete = p.getBoolean("hideChatAutoDelete", false);
             deletedMark = p.getInt("deletedMark", MARK_TRASH);
+            editedMark = p.getInt("editedMark", MARK_EDIT_PENCIL);
             loaded = true;
         }
     }
