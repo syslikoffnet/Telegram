@@ -1,3 +1,49 @@
+R.raw.double_icon (0x7f0e0041) — fps=60, frames=120, mono=false
+R.raw.copy (0x7f0e0039) — fps=60, frames=61, mono=false
+R.raw.profile_unmuting (0x7f0e00e4) — fps=60, frames=57, mono=false
+R.raw.tab_article (0x7f0e0139) — fps=60, frames=16, mono=false
+R.raw.stories_intro_go_forward (0x7f0e0126) — fps=60, frames=38, mono=false
+R.raw.fire_on (0x7f0e0054) — fps=60, frames=120, mono=false
+R.raw.stars_send (0x7f0e011f) — fps=60, frames=140, mono=false
+R.raw.speed_1to15 (0x7f0e010d) — fps=60, frames=75, mono=false
+R.raw.saved_messages (0x7f0e00fc) — fps=60, frames=56, mono=false
+R.raw.tsv_monkey_close (0x7f0e016b) — fps=60, frames=98, mono=false
+R.raw.tab_article_reverse (0x7f0e013a) — fps=60, frames=5, mono=false
+R.raw.permission_request_microphone (0x7f0e00b7) — fps=60, frames=60, mono=false
+R.raw.gif_to_keyboard (0x7f0e005d) — fps=60, frames=12, mono=false
+R.raw.contact_check (0x7f0e0035) — fps=60, frames=45, mono=false
+R.raw.gift_broken (0x7f0e0060) — fps=60, frames=180, mono=false
+R.raw.biz_map (0x7f0e0005) — fps=60, frames=180, mono=false
+R.raw.fire_once (0x7f0e0055) — fps=60, frames=120, mono=false
+R.raw.statistic_preload (0x7f0e0122) — fps=60, frames=180, mono=false
+R.raw.gift (0x7f0e005f) — fps=60, frames=180, mono=false
+R.raw.swipe_mute (0x7f0e0133) — fps=60, frames=35, mono=false
+R.raw.emoji_stars (0x7f0e004a) — fps=60, frames=180, mono=false
+R.raw.download_arrow (0x7f0e0042) — fps=60, frames=30, mono=false
+R.raw.tsv_setup_monkey_tracking (0x7f0e0175) — fps=60, frames=180, mono=false
+R.raw.filter_new (0x7f0e004f) — fps=60, frames=120, mono=false
+R.raw.folder_share (0x7f0e0059) — fps=60, frames=91, mono=false
+R.raw.giveaway_results (0x7f0e0065) — fps=60, frames=180, mono=false
+R.raw.tsv_setup_mail (0x7f0e016f) — fps=60, frames=160, mono=false
+R.raw.name_hide (0x7f0e00a4) — fps=60, frames=20, mono=false
+R.raw.tsv_setup_monkey_peek (0x7f0e0174) — fps=60, frames=33, mono=false
+R.raw.hand_1 (0x7f0e0067) — fps=60, frames=720, mono=false
+R.raw.passcode_lock_close (0x7f0e00ab) — fps=60, frames=39, mono=false
+R.raw.chats_hide (0x7f0e002c) — fps=60, frames=50, mono=false
+R.raw.msg_emoji_other (0x7f0e009c) — fps=60, frames=60, mono=false
+R.raw.tab_chats (0x7f0e013c) — fps=60, frames=6, mono=false
+R.raw.tab_emoji_reverse (0x7f0e0143) — fps=60, frames=5, mono=false
+R.raw.smile_to_sticker (0x7f0e0103) — fps=60, frames=12, mono=false
+R.raw.star_reaction_effect5 (0x7f0e011d) — fps=60, frames=90, mono=false
+R.raw.info (0x7f0e007f) — fps=60, frames=45, mono=false
+R.raw.folder_in (0x7f0e0057) — fps=60, frames=57, mono=false
+R.raw.sms_incoming_info (0x7f0e0104) — fps=60, frames=90, mono=false
+R.raw.not_available (0x7f0e00a6) — fps=60, frames=180, mono=false
+R.raw.topics (0x7f0e0164) — fps=60, frames=180, mono=false
+R.raw.email_check_inbox (0x7f0e0048) — fps=60, frames=141, mono=false
+R.raw.ic_ban (0x7f0e006d) — fps=60, frames=120, mono=false
+R.raw.utyan_private (0x7f0e0182) — fps=60, frames=180, mono=false
+R.raw.linkbroken (0x7f0e008b) — fps=60, frames=120, mono=false
 R.raw.voip_record_saved (0x7f0e0199) — fps=60, frames=56, mono=false
 R.raw.tab_colors (0x7f0e013f) — fps=60, frames=17, mono=false
 R.raw.phone_dots (0x7f0e00b8) — fps=60, frames=60, mono=false
@@ -84,43 +130,29 @@ R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
 R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
 
 > Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
-Generated 11578 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 92628 bytes
+Generated 11689 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
+Size: 93516 bytes
 
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
+> Task :TMessagesProj:compileStandaloneJavaWithJavac
 > Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
+> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneNativeDebugMetadata
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:391: error: cannot find symbol
-        builder.setTitle(LocaleController.getString(R.string.PengramGhostStoriesWarn));
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12843: error: local variables referenced from an inner class must be final or effectively final
+                    if (!newVisibility) {
                          ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:392: error: cannot find symbol
-        builder.setMessage(LocaleController.getString(R.string.PengramGhostStoriesAlert));
-                           ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:393: error: cannot find symbol
-        builder.setPositiveButton(LocaleController.getString(R.string.PengramGhostStoriesEnable), (dialog, which) -> {
-                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:397: error: cannot find symbol
-        builder.setNegativeButton(LocaleController.getString(R.string.PengramGhostStoriesOpen), (dialog, which) -> proceed.run());
-                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:398: error: cannot find symbol
-        builder.setNeutralButton(LocaleController.getString(R.string.Cancel), null);
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12859: error: local variables referenced from an inner class must be final or effectively final
+                    hasStories = newVisibility;
                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12863: error: local variables referenced from an inner class must be final or effectively final
+                    if (!newVisibility) {
+                         ^
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-5 errors
+3 errors
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac FAILED
 
@@ -131,36 +163,20 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:391: error: cannot find symbol
-          builder.setTitle(LocaleController.getString(R.string.PengramGhostStoriesWarn));
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12843: error: local variables referenced from an inner class must be final or effectively final
+                      if (!newVisibility) {
                            ^
-    symbol:   variable LocaleController
-    location: class StoryViewer
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:392: error: cannot find symbol
-          builder.setMessage(LocaleController.getString(R.string.PengramGhostStoriesAlert));
-                             ^
-    symbol:   variable LocaleController
-    location: class StoryViewer
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:393: error: cannot find symbol
-          builder.setPositiveButton(LocaleController.getString(R.string.PengramGhostStoriesEnable), (dialog, which) -> {
-                                    ^
-    symbol:   variable LocaleController
-    location: class StoryViewer
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:397: error: cannot find symbol
-          builder.setNegativeButton(LocaleController.getString(R.string.PengramGhostStoriesOpen), (dialog, which) -> proceed.run());
-                                    ^
-    symbol:   variable LocaleController
-    location: class StoryViewer
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:398: error: cannot find symbol
-          builder.setNeutralButton(LocaleController.getString(R.string.Cancel), null);
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12859: error: local variables referenced from an inner class must be final or effectively final
+                      hasStories = newVisibility;
                                    ^
-    symbol:   variable LocaleController
-    location: class StoryViewer
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12863: error: local variables referenced from an inner class must be final or effectively final
+                      if (!newVisibility) {
+                           ^
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
-  5 errors
+  3 errors
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -201,36 +217,20 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:391: error: cannot find symbol
-        builder.setTitle(LocaleController.getString(R.string.PengramGhostStoriesWarn));
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12843: error: local variables referenced from an inner class must be final or effectively final
+                    if (!newVisibility) {
                          ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:392: error: cannot find symbol
-        builder.setMessage(LocaleController.getString(R.string.PengramGhostStoriesAlert));
-                           ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:393: error: cannot find symbol
-        builder.setPositiveButton(LocaleController.getString(R.string.PengramGhostStoriesEnable), (dialog, which) -> {
-                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:397: error: cannot find symbol
-        builder.setNegativeButton(LocaleController.getString(R.string.PengramGhostStoriesOpen), (dialog, which) -> proceed.run());
-                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java:398: error: cannot find symbol
-        builder.setNeutralButton(LocaleController.getString(R.string.Cancel), null);
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12859: error: local variables referenced from an inner class must be final or effectively final
+                    hasStories = newVisibility;
                                  ^
-  symbol:   variable LocaleController
-  location: class StoryViewer
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java:12863: error: local variables referenced from an inner class must be final or effectively final
+                    if (!newVisibility) {
+                         ^
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-5 errors
+3 errors
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 16m 12s
-321 actionable tasks: 260 executed, 61 from cache
+BUILD FAILED in 16m 4s
+321 actionable tasks: 259 executed, 62 from cache
