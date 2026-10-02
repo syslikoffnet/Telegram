@@ -587,7 +587,81 @@ public class PengramHistory extends SQLiteOpenHelper {
         return 0;
     }
 
+    /** сколько сохранено записей нужного типа (ACTION_DELETED / ACTION_EDITED) */
+    public static int getCount(long dialogId, int action) {
+        final PengramHistory history = getInstance();
+        if (history == null) return 0;
+        Cursor c = null;
+        try {
+            if (dialogId != 0) {
+                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE dialog_id = ? AND action = ?",
+                        new String[]{String.valueOf(dialogId), String.valueOf(action)});
+            } else {
+                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE action = ?",
+                        new String[]{String.valueOf(action)});
+            }
+            if (c.moveToFirst()) {
+                return c.getInt(0);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        return 0;
+    }
+
+    /** сколько файлов лежит в сохранённых медиа */
+    public static int getSavedMediaCount() {
+        final PengramHistory history = getInstance();
+        if (history == null) return 0;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM saved_media", null);
+            if (c.moveToFirst()) {
+                return c.getInt(0);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        return 0;
+    }
+
     // ------------------------------------------------------------------ очистка
+
+    /** удаляет записи старше указанного числа дней; 0 — ничего не трогаем */
+    public static int deleteOlderThan(final int days) {
+        if (days <= 0) {
+            return 0;
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) return 0;
+        final int edge = (int) (System.currentTimeMillis() / 1000L) - days * 86400;
+        int removed = 0;
+        try {
+            removed = history.getWritableDatabase().delete(TABLE, "saved_at > 0 AND saved_at < ?", new String[]{String.valueOf(edge)});
+            history.getWritableDatabase().delete(TABLE_MARKS, "date > 0 AND date < ?", new String[]{String.valueOf(edge)});
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        return removed;
+    }
+
+    /** фоновая автоочистка по сроку хранения из настроек */
+    public static void autoCleanup() {
+        final int days = PengramConfig.getHistoryKeepDays();
+        if (days <= 0) {
+            return;
+        }
+        executor.execute(() -> {
+            final int removed = deleteOlderThan(days);
+            if (BuildVars.LOGS_ENABLED && removed > 0) {
+                FileLog.d("pengram: автоочистка истории — удалено " + removed + " записей старше " + days + " дней");
+            }
+        });
+    }
 
     public static void clear(final long dialogId) {
         final PengramHistory history = getInstance();

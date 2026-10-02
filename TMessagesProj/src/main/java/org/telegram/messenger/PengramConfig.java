@@ -84,6 +84,7 @@ public class PengramConfig {
     public static int voiceChangerPitch;
     public static int speedBoost = 1; // BOOST_FAST
     public static int mediaMaxSizeMb = 2048;   // 0 = без лимита
+    public static int historyKeepDays = 0;      // 0 = хранить всегда
 
     // --- скрытие кнопок ---
     public static boolean hideMenuNewGroup = false;
@@ -355,6 +356,7 @@ public class PengramConfig {
             saveReadDate = p.getBoolean("saveReadDate", true);
             saveLastOnline = p.getBoolean("saveLastOnline", true);
             mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 2048);
+            historyKeepDays = p.getInt("historyKeepDays", 0);
             voiceChangerMode = p.getInt("voiceChangerMode", 0);
             voiceChangerPitch = p.getInt("voiceChangerPitch", 0);
             speedBoost = p.getInt("speedBoost", BOOST_FAST);
@@ -554,6 +556,107 @@ public class PengramConfig {
     public static void toggleSaveReadDate() { init(); saveReadDate = !saveReadDate; putBoolean("saveReadDate", saveReadDate); }
     public static void toggleSaveLastOnline() { init(); saveLastOnline = !saveLastOnline; putBoolean("saveLastOnline", saveLastOnline); }
     public static void setMediaMaxSizeMb(int mb) { init(); mediaMaxSizeMb = mb; putInt("mediaMaxSizeMb", mb); }
+
+    // ------------------------------------------------------- срок хранения истории
+
+    /** сколько дней держать сохранённые удалённые/изменённые; 0 — бессрочно */
+    public static int getHistoryKeepDays() { init(); return historyKeepDays; }
+
+    public static void setHistoryKeepDays(int days) {
+        init();
+        historyKeepDays = days;
+        putInt("historyKeepDays", days);
+    }
+
+    // ------------------------------------------------------- резервная копия настроек
+
+    /** все настройки Pengram одним JSON — чтобы перенести на другое устройство */
+    public static String exportToJson() {
+        init();
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return null;
+        }
+        try {
+            final org.json.JSONObject root = new org.json.JSONObject();
+            root.put("pengram", 1);
+            root.put("version", BuildVars.BUILD_VERSION_STRING);
+            final org.json.JSONObject values = new org.json.JSONObject();
+            for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
+                final Object v = entry.getValue();
+                if (v instanceof Boolean || v instanceof Integer || v instanceof Long || v instanceof String) {
+                    values.put(entry.getKey(), v);
+                }
+            }
+            root.put("values", values);
+            return root.toString(1);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
+    /** принимает JSON из exportToJson(); false — если это не наши настройки */
+    public static boolean importFromJson(String json) {
+        if (json == null) {
+            return false;
+        }
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return false;
+        }
+        try {
+            final org.json.JSONObject root = new org.json.JSONObject(json.trim());
+            if (!root.has("pengram") || !root.has("values")) {
+                return false;
+            }
+            final org.json.JSONObject values = root.getJSONObject("values");
+            final SharedPreferences.Editor editor = p.edit();
+            editor.clear();
+            final java.util.Iterator<String> keys = values.keys();
+            while (keys.hasNext()) {
+                final String key = keys.next();
+                final Object v = values.get(key);
+                if (v instanceof Boolean) {
+                    editor.putBoolean(key, (Boolean) v);
+                } else if (v instanceof Integer) {
+                    editor.putInt(key, (Integer) v);
+                } else if (v instanceof Long) {
+                    editor.putInt(key, (int) (long) (Long) v);
+                } else if (v instanceof Double) {
+                    editor.putInt(key, (int) Math.round((Double) v));
+                } else if (v instanceof String) {
+                    editor.putString(key, (String) v);
+                }
+            }
+            editor.apply();
+            reload();
+            return true;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
+    /** вернуть всё к заводским значениям форка */
+    public static void resetAll() {
+        final SharedPreferences p = prefs();
+        if (p != null) {
+            p.edit().clear().apply();
+        }
+        reload();
+    }
+
+    /** перечитать настройки из хранилища (после импорта/сброса) */
+    private static void reload() {
+        synchronized (PengramConfig.class) {
+            loaded = false;
+        }
+        synchronized (boolCache) {
+            boolCache.clear();
+        }
+        init();
+    }
 
     public static boolean toggleBoolean(String key) {
         init();

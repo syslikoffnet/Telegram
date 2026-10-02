@@ -156,6 +156,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_OPEN_DELETED_CHAT = 1401;
     private static final int BTN_OPEN_EDITED_CHAT = 1402;
     private static final int BTN_EDITED_MARK = 1403;
+    private static final int BTN_KEEP_DAYS = 1404;
+    private static final int BTN_OPEN_BY_ID = 1405;
+    private static final int BTN_CFG_EXPORT = 1406;
+    private static final int BTN_CFG_IMPORT = 1407;
+    private static final int BTN_CFG_RESET = 1408;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
@@ -189,6 +194,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
     private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
+    private org.telegram.ui.Cells.AppIconsSelectorCell appIconsCell;
 
     @Override
     protected CharSequence getTitle() {
@@ -345,6 +351,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
     }
 
+    /** «Вкл · 128» — сколько всего сохранено */
+    private CharSequence spySectionValue() {
+        final boolean on = PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited();
+        if (!on) {
+            return onOff(false);
+        }
+        final int count = PengramHistory.getCount(0);
+        return count > 0 ? (getString(R.string.PengramValueOn) + " \u00b7 " + count) : onOff(true);
+    }
+
     /** Коротко о скорости и голосе */
     private CharSequence mediaSectionValue() {
         final int voice = PengramConfig.getVoiceChangerMode();
@@ -463,7 +479,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(BTN_SECTION_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
         items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats), hiddenCountValue()));
         items.add(UItem.asButton(BTN_SECTION_GHOST, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
-        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), onOff(PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited())));
+        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), spySectionValue()));
         items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
         items.add(UItem.asButton(BTN_SECTION_FREEDOM, R.drawable.settings_features, getString(R.string.PengramSectionFreedom)));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
@@ -482,6 +498,233 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
         items.add(checkInfo(PengramConfig.KEY_ZALGO, false, getString(R.string.PengramZalgo), getString(R.string.PengramZalgoInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramToolsHeader)));
+        items.add(UItem.asButton(BTN_OPEN_BY_ID, R.drawable.msg_search, getString(R.string.PengramOpenById)));
+        items.add(UItem.asShadow(getString(R.string.PengramOpenByIdInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramBackupHeader)));
+        items.add(UItem.asButton(BTN_CFG_EXPORT, R.drawable.msg_copy, getString(R.string.PengramBackupExport)));
+        items.add(UItem.asButton(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport)));
+        items.add(UItem.asButton(BTN_CFG_RESET, R.drawable.msg_delete, getString(R.string.PengramBackupReset)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramBackupInfo)));
+    }
+
+    /** короткая статистика под блоком хранилища */
+    private CharSequence historyStatsText() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize())));
+        final int mediaCount = PengramHistory.getSavedMediaCount();
+        if (mediaCount > 0) {
+            sb.append('\n');
+            sb.append(LocaleController.formatString(R.string.PengramHistoryMediaStats, mediaCount,
+                    AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize())));
+        }
+        return sb.toString();
+    }
+
+    /** срок хранения сохранённых сообщений */
+    private CharSequence keepDaysName(int days) {
+        switch (days) {
+            case 7: return getString(R.string.PengramKeepDays7);
+            case 30: return getString(R.string.PengramKeepDays30);
+            case 90: return getString(R.string.PengramKeepDays90);
+            case 365: return getString(R.string.PengramKeepDays365);
+            default: return getString(R.string.PengramKeepDaysForever);
+        }
+    }
+
+    private static final int[] KEEP_DAYS = new int[]{0, 7, 30, 90, 365};
+
+    /** универсальный выбор одного значения из списка — как родные диалоги Telegram */
+    private void showChoicePicker(CharSequence title, CharSequence[] options, int selected, Utilities.Callback<Integer> onSelected) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(title, true);
+
+        final LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[options.length];
+        for (int a = 0; a < options.length; ++a) {
+            final int index = a;
+            cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
+            cells[a].setPadding(dp(4), 0, dp(4), 0);
+            cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
+            cells[a].setTextAndValue(options[a], selected == a);
+            cells[a].setBackground(Theme.getSelectorDrawable(false));
+            cells[a].setOnClickListener(v -> {
+                for (int b = 0; b < cells.length; ++b) {
+                    cells[b].setChecked(b == index, true);
+                }
+                onSelected.run(index);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    try {
+                        if (visibleDialog != null) {
+                            visibleDialog.dismiss();
+                        }
+                    } catch (Throwable ignore) {}
+                }, 180);
+            });
+            linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        builder.setCustomView(linearLayout);
+        showDialog(builder.create());
+    }
+
+    private void showKeepDaysPicker() {
+        final CharSequence[] options = new CharSequence[KEEP_DAYS.length];
+        int selected = 0;
+        for (int a = 0; a < KEEP_DAYS.length; ++a) {
+            options[a] = keepDaysName(KEEP_DAYS[a]);
+            if (KEEP_DAYS[a] == PengramConfig.getHistoryKeepDays()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramKeepDaysTitle), options, selected, index -> {
+            PengramConfig.setHistoryKeepDays(KEEP_DAYS[index]);
+            PengramHistory.autoCleanup();
+        });
+    }
+
+    // ------------------------------------------------- резервная копия настроек
+
+    private void exportSettings() {
+        final String json = PengramConfig.exportToJson();
+        if (json == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            return;
+        }
+        AndroidUtilities.addToClipboard(json);
+        BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramBackupCopied)).show();
+    }
+
+    private void importSettings() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        String clip = null;
+        try {
+            final android.content.ClipboardManager cm = (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.getPrimaryClip() != null && cm.getPrimaryClip().getItemCount() > 0) {
+                final CharSequence text = cm.getPrimaryClip().getItemAt(0).coerceToText(context);
+                clip = text == null ? null : text.toString();
+            }
+        } catch (Throwable ignore) {}
+        if (clip == null || !clip.contains("pengram")) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupNothing)).show();
+            return;
+        }
+        final String json = clip;
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupImport));
+        builder.setMessage(getString(R.string.PengramBackupImportConfirm));
+        builder.setPositiveButton(getString(R.string.PengramBackupApply), (d, w) -> {
+            if (PengramConfig.importFromJson(json)) {
+                afterSettingsReplaced(getString(R.string.PengramBackupImported));
+            } else {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void resetSettings() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupReset));
+        builder.setMessage(getString(R.string.PengramBackupResetConfirm));
+        builder.setPositiveButton(getString(R.string.Reset), (d, w) -> {
+            PengramConfig.resetAll();
+            afterSettingsReplaced(getString(R.string.PengramBackupResetDone));
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** после импорта/сброса: подтянуть всё, что кэшируется в других местах */
+    private void afterSettingsReplaced(CharSequence text) {
+        try {
+            getUserConfig().pengramApplyLocalPremiumStatus();
+            PengramVoiceChanger.reset();
+            org.telegram.messenger.PengramBackgroundService.update(getContext());
+        } catch (Throwable ignore) {}
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, text).show();
+    }
+
+    // ------------------------------------------------- быстрый переход по ID / @имени
+
+    private void showOpenByIdDialog() {
+        showTextDialog(getString(R.string.PengramOpenById), "", getString(R.string.PengramOpenByIdHint), getString(R.string.Open), this::openByQuery);
+    }
+
+    private void openByQuery(String query) {
+        if (query == null) {
+            return;
+        }
+        String q = query.trim();
+        if (q.isEmpty()) {
+            return;
+        }
+        final int slash = q.lastIndexOf('/');
+        if (q.startsWith("http") && slash >= 0) {
+            q = q.substring(slash + 1);
+        }
+        if (q.startsWith("@")) {
+            q = q.substring(1);
+        }
+        long id = 0;
+        try {
+            id = Long.parseLong(q);
+        } catch (Exception ignore) {}
+        if (id == 0) {
+            getMessagesController().openByUserName(q, this, 0);
+            return;
+        }
+        final long raw = id;
+        final long chatId = raw < 0 ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw) : raw;
+        final long userId = raw > 0 ? raw : 0;
+        if (userId != 0 && getMessagesController().getUser(userId) != null) {
+            presentFragment(ChatActivity.of(userId));
+            return;
+        }
+        if (getMessagesController().getChat(chatId) != null) {
+            presentFragment(ChatActivity.of(-chatId));
+            return;
+        }
+        final org.telegram.messenger.MessagesStorage storage = getMessagesStorage();
+        storage.getStorageQueue().postRunnable(() -> {
+            // уже внутри очереди хранилища, поэтому читаем напрямую (без *Sync, иначе дедлок)
+            final TLRPC.User user = userId != 0 ? storage.getUser(userId) : null;
+            final TLRPC.Chat chat = user == null ? storage.getChat(chatId) : null;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (user != null) {
+                    getMessagesController().putUser(user, true);
+                    presentFragment(ChatActivity.of(user.id));
+                } else if (chat != null) {
+                    getMessagesController().putChat(chat, true);
+                    presentFragment(ChatActivity.of(-chat.id));
+                } else {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramOpenByIdNotFound)).show();
+                }
+            });
+        });
     }
 
     /** Кастомизация — как выглядят сообщения */
@@ -560,11 +803,13 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
         items.add(UItem.asButton(BTN_OPEN_DELETED_CHAT, R.drawable.msg_delete, getString(R.string.PengramOpenDeletedChat),
-                String.valueOf(PengramHistory.getCount(0))));
-        items.add(UItem.asButton(BTN_OPEN_EDITED_CHAT, R.drawable.msg_edit, getString(R.string.PengramOpenEditedChat)));
+                String.valueOf(PengramHistory.getCount(0, PengramHistory.ACTION_DELETED))));
+        items.add(UItem.asButton(BTN_OPEN_EDITED_CHAT, R.drawable.msg_edit, getString(R.string.PengramOpenEditedChat),
+                String.valueOf(PengramHistory.getCount(0, PengramHistory.ACTION_EDITED))));
         items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen)));
+        items.add(UItem.asSettingsCell(BTN_KEEP_DAYS, R.drawable.msg_autodelete, getString(R.string.PengramKeepDays), keepDaysName(PengramConfig.getHistoryKeepDays())));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
-        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
+        items.add(UItem.asShadow(historyStatsText()));
 
         if (PengramConfig.saveDeleted) {
             items.add(UItem.asHeader(getString(R.string.PengramMediaHeader)));
@@ -677,6 +922,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillAppearance(ArrayList<UItem> items) {
+        if (appIconsCell == null && getContext() != null) {
+            appIconsCell = new org.telegram.ui.Cells.AppIconsSelectorCell(getContext(), this, currentAccount);
+        }
+        if (appIconsCell != null) {
+            items.add(UItem.asHeader(getString(R.string.AppIcon)));
+            items.add(UItem.asCustom(appIconsCell, 104));
+            items.add(UItem.asShadow(getString(R.string.PengramAppIconInfo)));
+        }
+
         items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
         items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
         items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
@@ -875,6 +1129,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_EDITED_MARK:
                 showMarkPicker(true);
+                return;
+            case BTN_KEEP_DAYS:
+                showKeepDaysPicker();
+                return;
+            case BTN_OPEN_BY_ID:
+                showOpenByIdDialog();
+                return;
+            case BTN_CFG_EXPORT:
+                exportSettings();
+                return;
+            case BTN_CFG_IMPORT:
+                importSettings();
+                return;
+            case BTN_CFG_RESET:
+                resetSettings();
                 return;
             case BTN_OPEN_DELETED_CHAT:
                 presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_DELETED));
@@ -1206,6 +1475,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void showTextDialog(String title, String current, String hint, Utilities.Callback<String> onDone) {
+        showTextDialog(title, current, hint, getString(R.string.Save), onDone);
+    }
+
+    private void showTextDialog(String title, String current, String hint, String button, Utilities.Callback<String> onDone) {
         final Context context = getContext();
         if (context == null) {
             return;
@@ -1227,7 +1500,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(title);
         builder.setView(editText);
-        builder.setPositiveButton(getString(R.string.Save), (d, w) -> onDone.run(editText.getText().toString()));
+        builder.setPositiveButton(button, (d, w) -> onDone.run(editText.getText().toString()));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
     }
