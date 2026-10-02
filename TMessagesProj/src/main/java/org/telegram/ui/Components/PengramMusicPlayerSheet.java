@@ -859,12 +859,14 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
     }
 
-    private final Runnable hideShiftHint = () -> {
-        if (lyricsStatusView != null && !lyricsView.isEmpty()) {
+    private final Runnable hideShiftHint = this::hideShiftHintNow;
+
+    private void hideShiftHintNow() {
+        if (lyricsStatusView != null && lyricsView != null && !lyricsView.isEmpty()) {
             lyricsStatusView.setVisibility(View.GONE);
             lyricsStatusView.setTranslationY(0);
         }
-    };
+    }
 
     private void applyLyricsState(String raw, int state, long duration, MessageObject playing) {
         if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {
