@@ -158,6 +158,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_EDITED_MARK = 1403;
     private static final int BTN_GENERIC_BASE = 2000;
 
+    /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
+    private static final int BTN_COLLAPSE_BASE = 3000;
+    private static final int GROUP_VOICE = 1;
+    private static final int GROUP_MENU_MAIN = 2;
+    private static final int GROUP_MENU_CHAT = 3;
+    private static final int GROUP_HISTORY_MEDIA = 4;
+
+    private final java.util.HashSet<Integer> expandedGroups = new java.util.HashSet<>();
+
     private final java.util.HashMap<String, Integer> boolIds = new java.util.HashMap<>();
     private final ArrayList<String> boolKeys = new ArrayList<>();
     private final ArrayList<Boolean> boolDefaults = new ArrayList<>();
@@ -255,6 +264,23 @@ public class PengramSettingsActivity extends UniversalFragment {
         return id == null ? -1 : id;
     }
 
+    /** раскрыт ли блок */
+    private boolean expanded(int group) {
+        return expandedGroups.contains(group);
+    }
+
+    /** строка-переключатель «Показать ещё ▾» / «Свернуть ▴» под блоком */
+    private UItem moreButton(int group, CharSequence moreText) {
+        final boolean open = expanded(group);
+        return UItem.asShadowCollapseButton(BTN_COLLAPSE_BASE + group, open ? getString(R.string.PengramShowLess) : moreText)
+                .setCollapsed(!open)
+                .accent();
+    }
+
+    private UItem moreButton(int group) {
+        return moreButton(group, getString(R.string.PengramShowMore));
+    }
+
     private boolean onGenericClick(UItem item, View view) {
         final int index = item.id - BTN_GENERIC_BASE;
         if (index < 0 || index >= boolKeys.size()) {
@@ -268,7 +294,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(value, true);
         } else if (view instanceof org.telegram.ui.Cells.NotificationsCheckCell) {
             ((org.telegram.ui.Cells.NotificationsCheckCell) view).setChecked(value);
-        } else if (listView != null && listView.adapter != null) {
+        }
+        // список перестраиваем всегда и с анимацией: зависимые пункты
+        // должны выезжать/сворачиваться прямо при переключении
+        if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
         if (previewMessages != null) {
@@ -543,22 +572,25 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (PengramConfig.saveDeletedMedia) {
                 items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()));
                 items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()));
-                items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
+                if (expanded(GROUP_HISTORY_MEDIA)) {
+                    items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
 
-                items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
-                int chosen = 0;
-                final String[] titles = new String[MEDIA_LIMITS.length];
-                for (int i = 0; i < MEDIA_LIMITS.length; ++i) {
-                    if (MEDIA_LIMITS[i] == PengramConfig.getMediaMaxSizeMb()) {
-                        chosen = i;
+                    items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
+                    int chosen = 0;
+                    final String[] titles = new String[MEDIA_LIMITS.length];
+                    for (int i = 0; i < MEDIA_LIMITS.length; ++i) {
+                        if (MEDIA_LIMITS[i] == PengramConfig.getMediaMaxSizeMb()) {
+                            chosen = i;
+                        }
+                        titles[i] = MEDIA_LIMITS[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (MEDIA_LIMITS[i] / 1024) + " GB";
                     }
-                    titles[i] = MEDIA_LIMITS[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (MEDIA_LIMITS[i] / 1024) + " GB";
+                    items.add(UItem.asSlideView(titles, chosen, index -> {
+                        PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    }));
+                    items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
                 }
-                items.add(UItem.asSlideView(titles, chosen, index -> {
-                    PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
-                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
-                }));
-                items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
+                items.add(moreButton(GROUP_HISTORY_MEDIA));
                 items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo, AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize()))));
             } else {
                 items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
@@ -676,12 +708,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
+        final boolean voiceExpanded = expanded(GROUP_VOICE);
+        int voiceHidden = 0;
         for (int a = 0; a < PengramVoiceChanger.MODES.length; ++a) {
             final int m = PengramVoiceChanger.MODES[a];
+            if (!voiceExpanded && !isPrimaryVoiceMode(m) && m != mode) {
+                voiceHidden++;
+                continue;
+            }
             items.add(UItem.asRadio2(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m), voiceModeDescription(m)).setChecked(mode == m));
         }
+        if (voiceHidden > 0 || voiceExpanded) {
+            items.add(moreButton(GROUP_VOICE, LocaleController.formatString(R.string.PengramVoiceMore, voiceHidden)));
+        }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
-            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramVoicePitch)));
             items.add(UItem.asIntSlideView(
                     1,
@@ -701,6 +741,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
         }
+    }
+
+    /** эффекты, которые всегда видны в свёрнутом списке */
+    private static boolean isPrimaryVoiceMode(int mode) {
+        return mode == PengramVoiceChanger.MODE_OFF
+                || mode == PengramVoiceChanger.MODE_ANONYMOUS
+                || mode == PengramVoiceChanger.MODE_FEMALE
+                || mode == PengramVoiceChanger.MODE_MALE
+                || mode == PengramVoiceChanger.MODE_CHILD;
     }
 
     private CharSequence voiceModeDescription(int mode) {
@@ -736,21 +785,27 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(check(PengramConfig.KEY_MENU_PENGRAM, false, getString(R.string.PengramHideMenuPengram)));
         items.add(check(PengramConfig.KEY_MENU_GHOST, false, getString(R.string.PengramHideMenuGhost)));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_SAVED, getString(R.string.PengramHideMenuSaved)).setChecked(PengramConfig.hideMenuSavedMessages));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_SETTINGS, getString(R.string.PengramHideMenuSettings)).setChecked(PengramConfig.hideMenuSettings));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_THEME, getString(R.string.PengramHideMenuTheme)).setChecked(PengramConfig.hideMenuTheme));
+        if (expanded(GROUP_MENU_MAIN)) {
+            items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
+            items.add(UItem.asCheck(BTN_HIDE_MENU_SAVED, getString(R.string.PengramHideMenuSaved)).setChecked(PengramConfig.hideMenuSavedMessages));
+            items.add(UItem.asCheck(BTN_HIDE_MENU_SETTINGS, getString(R.string.PengramHideMenuSettings)).setChecked(PengramConfig.hideMenuSettings));
+            items.add(UItem.asCheck(BTN_HIDE_MENU_THEME, getString(R.string.PengramHideMenuTheme)).setChecked(PengramConfig.hideMenuTheme));
+        }
+        items.add(moreButton(GROUP_MENU_MAIN));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_SEARCH, getString(R.string.PengramHideChatSearch)).setChecked(PengramConfig.hideChatSearch));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_TRANSLATE, getString(R.string.PengramHideChatTranslate)).setChecked(PengramConfig.hideChatTranslate));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_CLEAR, getString(R.string.PengramHideChatClear)).setChecked(PengramConfig.hideChatClearHistory));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_WALLPAPER, getString(R.string.PengramHideChatWallpaper)).setChecked(PengramConfig.hideChatWallpaper));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_SHORTCUT, getString(R.string.PengramHideChatShortcut)).setChecked(PengramConfig.hideChatShortcut));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_REPORT, getString(R.string.PengramHideChatReport)).setChecked(PengramConfig.hideChatReport));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_CALL, getString(R.string.PengramHideChatCall)).setChecked(PengramConfig.hideChatCall));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_AUTODELETE, getString(R.string.PengramHideChatAutoDelete)).setChecked(PengramConfig.hideChatAutoDelete));
+        if (expanded(GROUP_MENU_CHAT)) {
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_WALLPAPER, getString(R.string.PengramHideChatWallpaper)).setChecked(PengramConfig.hideChatWallpaper));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_SHORTCUT, getString(R.string.PengramHideChatShortcut)).setChecked(PengramConfig.hideChatShortcut));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_REPORT, getString(R.string.PengramHideChatReport)).setChecked(PengramConfig.hideChatReport));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_CALL, getString(R.string.PengramHideChatCall)).setChecked(PengramConfig.hideChatCall));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_AUTODELETE, getString(R.string.PengramHideChatAutoDelete)).setChecked(PengramConfig.hideChatAutoDelete));
+        }
+        items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
     }
 
@@ -779,6 +834,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
+            final int group = item.id - BTN_COLLAPSE_BASE;
+            if (!expandedGroups.remove(group)) {
+                expandedGroups.add(group);
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
         if (item.id >= BTN_GENERIC_BASE && onGenericClick(item, view)) {
             if (item.id == boolId(PengramConfig.KEY_PREMIUM_STATUS)) {
                 getUserConfig().pengramApplyLocalPremiumStatus();

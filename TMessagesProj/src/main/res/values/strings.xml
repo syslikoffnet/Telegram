@@ -5766,6 +5766,12 @@
     <string name="BioLimitSubtitle">Add more symbols and use links in your bio.</string>
     <string name="AppIcon">App Icon</string>
     <string name="AppIconDefault">Default</string>
+    <string name="AppIconPengram">Penguin</string>
+    <string name="AppIconPengramNight">Night</string>
+    <string name="AppIconPengramIce">Ice</string>
+    <string name="AppIconPengramSunset">Sunset</string>
+    <string name="AppIconPengramNeon">Neon</string>
+    <string name="AppIconPengramGold">Gold</string>
     <string name="AppIconVintage">Vintage</string>
     <string name="AppIconAqua">Aqua</string>
     <string name="AppIconPremium">Premium</string>
@@ -11347,6 +11353,9 @@
     <string name="PengramBoostFast">Fast (2x streams)</string>
     <string name="PengramBoostExtreme">Extreme (4x streams)</string>
     <string name="PengramBoostInfo">Increases the number of parallel chunks for downloads and uploads and forces big 512 KB chunks. Extreme mode is best on fast Wi-Fi; on weak mobile networks use Default.</string>
+    <string name="PengramShowMore">Show more</string>
+    <string name="PengramShowLess">Show less</string>
+    <string name="PengramVoiceMore">%1$d more effects</string>
     <string name="PengramVoiceHeader">Voice changer for voice messages</string>
     <string name="PengramVoiceOff">Off</string>
     <string name="PengramVoiceHelium">Helium</string>

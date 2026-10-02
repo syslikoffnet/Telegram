@@ -35,6 +35,12 @@ public class LauncherIconController {
 
     public enum LauncherIcon {
         DEFAULT("DefaultIcon", R.drawable.icon_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconDefault),
+        PENGRAM("PengramIcon", R.drawable.pengram_icon_1_background, R.drawable.pengram_penguin_dark, R.string.AppIconPengram),
+        PENGRAM_NIGHT("PengramNightIcon", R.drawable.pengram_icon_2_background, R.drawable.pengram_penguin_light, R.string.AppIconPengramNight),
+        PENGRAM_ICE("PengramIceIcon", R.drawable.pengram_icon_3_background, R.drawable.pengram_penguin_dark, R.string.AppIconPengramIce),
+        PENGRAM_SUNSET("PengramSunsetIcon", R.drawable.pengram_icon_4_background, R.drawable.pengram_penguin_light, R.string.AppIconPengramSunset),
+        PENGRAM_NEON("PengramNeonIcon", R.drawable.pengram_icon_5_background, R.drawable.pengram_penguin_light, R.string.AppIconPengramNeon),
+        PENGRAM_GOLD("PengramGoldIcon", R.drawable.pengram_icon_6_background, R.drawable.pengram_penguin_gold, R.string.AppIconPengramGold),
         VINTAGE("VintageIcon", R.drawable.icon_6_background_sa, R.mipmap.icon_6_foreground_sa, R.string.AppIconVintage),
         AQUA("AquaIcon", R.drawable.icon_4_background_sa, R.mipmap.icon_foreground_sa, R.string.AppIconAqua),
         PREMIUM("PremiumIcon", R.drawable.icon_3_background_sa, R.mipmap.icon_3_foreground_sa, R.string.AppIconPremium, true),

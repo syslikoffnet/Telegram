@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="AppName">Telegram</string>
+    <string name="AppIconPengram">Пингвин</string>
+    <string name="AppIconPengramNight">Ночь</string>
+    <string name="AppIconPengramIce">Лёд</string>
+    <string name="AppIconPengramSunset">Закат</string>
+    <string name="AppIconPengramNeon">Неон</string>
+    <string name="AppIconPengramGold">Золото</string>
     <string name="AppNameBeta">Telegram Beta</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
@@ -375,6 +381,9 @@
     <string name="PengramBoostFast">Быстро (2x потоков)</string>
     <string name="PengramBoostExtreme">Максимум (4x потоков)</string>
     <string name="PengramBoostInfo">Увеличивает число параллельных частей при скачивании и отправке и включает большие куски по 512 КБ. «Максимум» лучше всего на быстром Wi-Fi; на слабой мобильной сети выбирайте «Как в оригинале».</string>
+    <string name="PengramShowMore">Показать ещё</string>
+    <string name="PengramShowLess">Свернуть</string>
+    <string name="PengramVoiceMore">Ещё %1$d эффектов</string>
     <string name="PengramVoiceHeader">Изменение голоса в голосовых</string>
     <string name="PengramVoiceOff">Выключено</string>
     <string name="PengramVoiceHelium">Гелий</string>
