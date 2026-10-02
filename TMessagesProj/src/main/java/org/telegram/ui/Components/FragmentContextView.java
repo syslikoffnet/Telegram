@@ -67,6 +67,8 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LocationController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramLyrics;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -129,6 +131,8 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private final CapsuleBlobDrawable capsuleBlobDrawable = new CapsuleBlobDrawable();
     private ImageView playButton;
     private PlayPauseDrawable playPauseDrawable;
+    private PengramLyricsView pengramTicker;   // Pengram: строка песни прямо в шапке
+    private String pengramLyricsKey;
     private AudioPlayerAlert.ClippingTextViewSwitcher titleTextView;
     private AudioPlayerAlert.ClippingTextViewSwitcher subtitleTextView;
     private AnimatorSet animatorSet;
@@ -474,6 +478,13 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         };
         addView(subtitleTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 35, 10, 36 + (isSideMenued ? 64 : 0), 0));
+
+        // Pengram: та же строка, что звучит сейчас, с подсветкой слов
+        pengramTicker = new PengramLyricsView(context);
+        pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
+        pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
+        pengramTicker.setVisibility(GONE);
+        addView(pengramTicker, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 37, 0, 36 + (isSideMenued ? 64 : 0) + 44, 0));
 
         joinButtonFlicker = new CellFlickerDrawable();
         joinButtonFlicker.setProgress(1);
@@ -1172,6 +1183,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
         currentStyle = style;
+        if (style != STYLE_AUDIO_PLAYER) {
+            pengramHideTicker();   // Pengram: строка песни живёт только в музыкальной шапке
+        }
         frameLayout.setWillNotDraw(currentStyle != STYLE_INACTIVE_GROUP_CALL);
         if (style != STYLE_INACTIVE_GROUP_CALL) {
             notifyButtonEnabled = false;
@@ -1600,6 +1614,10 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         } else if (id == NotificationCenter.messagePlayingProgressDidChanged) {
             if (currentStyle == STYLE_AUDIO_PLAYER) {
                 invalidate();
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
+                    pengramTicker.setProgress(playing.audioProgress);
+                }
             }
         }
     }
@@ -2008,7 +2026,66 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 TypefaceSpan span = new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer));
                 stringBuilder.setSpan(span, 0, messageObject.getMusicAuthor().length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 titleTextView.setText(stringBuilder, !create && wasVisible && isMusic);
+                pengramCheckTicker(messageObject);
             }
+        }
+    }
+
+    /** Pengram: строка песни в шапке — ищем текст и показываем ту строку, что звучит */
+    private void pengramCheckTicker(MessageObject messageObject) {
+        if (pengramTicker == null) {
+            return;
+        }
+        if (messageObject == null || !isMusic || !PengramConfig.isHeaderLyrics()) {
+            pengramHideTicker();
+            return;
+        }
+        pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
+        pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
+        final String key = PengramLyrics.keyFor(messageObject);
+        pengramLyricsKey = key;
+        final long duration = (long) (messageObject.getDuration() * 1000);
+        PengramLyrics.request(messageObject, (resultKey, raw, state) -> {
+            if (pengramTicker == null || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
+                return;
+            }
+            if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {
+                pengramTicker.setLyrics(raw, duration);
+                if (pengramTicker.isEmpty()) {
+                    pengramHideTicker();
+                    return;
+                }
+                pengramShowTicker();
+            } else if (state != PengramLyrics.STATE_LOADING) {
+                pengramHideTicker();
+            }
+        });
+    }
+
+    private void pengramShowTicker() {
+        if (pengramTicker == null || pengramTicker.getVisibility() == VISIBLE) {
+            return;
+        }
+        pengramTicker.setVisibility(VISIBLE);
+        pengramTicker.setAlpha(0f);
+        pengramTicker.setTranslationY(dp(6));
+        pengramTicker.animate().alpha(1f).translationY(0).setDuration(220).start();
+        if (titleTextView != null) {
+            titleTextView.animate().alpha(0f).setDuration(220).start();
+        }
+    }
+
+    private void pengramHideTicker() {
+        if (pengramTicker == null || pengramTicker.getVisibility() != VISIBLE) {
+            if (titleTextView != null) {
+                titleTextView.setAlpha(1f);
+            }
+            return;
+        }
+        pengramTicker.animate().alpha(0f).setDuration(180)
+                .withEndAction(() -> pengramTicker.setVisibility(GONE)).start();
+        if (titleTextView != null) {
+            titleTextView.animate().alpha(1f).setDuration(220).start();
         }
     }
 

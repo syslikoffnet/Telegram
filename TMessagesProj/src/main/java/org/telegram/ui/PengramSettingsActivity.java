@@ -200,6 +200,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_PLAYER_STYLE = 1431;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
+    private static final int BTN_HEADER_LYRICS_ANIM = 1434;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -787,6 +788,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     /** Pengram: мгновенно применяем скрытие вкладок к главному экрану */
+    private org.telegram.ui.Components.PengramTabsMockView tabsMockView;
+    private org.telegram.ui.Components.PengramFontPreviewView fontPreview;
+
     private void applyTabsNow() {
         try {
             if (getParentLayout() == null) {
@@ -1350,6 +1354,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
+        if (fontPreview == null && getContext() != null) {
+            fontPreview = new org.telegram.ui.Components.PengramFontPreviewView(getContext());
+            fontPreview.setOnChanged(() -> {
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        if (fontPreview != null) {
+            fontPreview.update();
+            items.add(UItem.asCustom(fontPreview));
+        }
         items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
         items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
         items.add(UItem.asRadio(BTN_FONT_SERIF, getString(R.string.PengramFontSerif)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SERIF));
@@ -1600,6 +1616,20 @@ public class PengramSettingsActivity extends UniversalFragment {
                     value -> PengramConfig.setLyricsSpeed(value)));
             items.add(UItem.asShadow(null));
 
+            items.add(UItem.asHeader(getString(R.string.PengramHeaderLyrics)));
+            items.add(checkInfo(PengramConfig.KEY_HEADER_LYRICS, true, getString(R.string.PengramHeaderLyricsOn), getString(R.string.PengramHeaderLyricsInfo)));
+            if (PengramConfig.isHeaderLyrics()) {
+                items.add(UItem.asSettingsCell(BTN_HEADER_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramHeaderLyricsAnim),
+                        PengramConfig.getHeaderLyricsAnim() < 0
+                                ? getString(R.string.PengramHeaderLyricsAnimSame)
+                                : getString(PengramConfig.getLyricsAnimName(PengramConfig.getHeaderLyricsAnim()))));
+                items.add(UItem.asHeader(getString(R.string.PengramHeaderLyricsSize)));
+                items.add(UItem.asIntSlideView(1, 11, PengramConfig.getHeaderLyricsSize(), 20,
+                        value -> value + " dp",
+                        value -> PengramConfig.setHeaderLyricsSize(value)));
+            }
+            items.add(UItem.asShadow(null));
+
             items.add(UItem.asButton(BTN_LYRICS_CLEAR, R.drawable.msg_delete, LocaleController.formatString(R.string.PengramLyricsClear, org.telegram.messenger.PengramLyrics.savedCount())).red());
             items.add(UItem.asShadow(getString(R.string.PengramLyricsClearInfo)));
         }
@@ -1607,10 +1637,14 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private void fillChats(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
-        items.add(checkInfo(PengramConfig.KEY_TAB_CONTACTS, false, getString(R.string.PengramHideTabContacts), tabStateText(PengramConfig.KEY_TAB_CONTACTS)));
-        items.add(checkInfo(PengramConfig.KEY_TAB_CALLS, false, getString(R.string.PengramHideTabCalls), tabStateText(PengramConfig.KEY_TAB_CALLS)));
-        items.add(checkInfo(PengramConfig.KEY_TAB_SETTINGS, false, getString(R.string.PengramHideTabSettings), tabStateText(PengramConfig.KEY_TAB_SETTINGS)));
-        items.add(checkInfo(PengramConfig.KEY_TAB_PROFILE, false, getString(R.string.PengramHideTabProfile), tabStateText(PengramConfig.KEY_TAB_PROFILE)));
+        if (tabsMockView == null && getContext() != null) {
+            tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext());
+            tabsMockView.setOnChanged(this::applyTabsNow);
+        }
+        if (tabsMockView != null) {
+            tabsMockView.sync();
+            items.add(UItem.asCustom(tabsMockView, 140));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
 
         items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
@@ -2029,6 +2063,16 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_CONSTRUCTOR:
                 presentFragment(new PengramConstructorActivity());
                 return;
+            case BTN_HEADER_LYRICS_ANIM: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_ANIM_COUNT + 1];
+                options[0] = getString(R.string.PengramHeaderLyricsAnimSame);
+                for (int a = 0; a < PengramConfig.LYRICS_ANIM_COUNT; ++a) {
+                    options[a + 1] = getString(PengramConfig.getLyricsAnimName(a));
+                }
+                showChoicePicker(getString(R.string.PengramHeaderLyricsAnim), options, PengramConfig.getHeaderLyricsAnim() + 1,
+                        value -> PengramConfig.setHeaderLyricsAnim(value - 1));
+                return;
+            }
             case BTN_PLAYER_BG: {
                 final CharSequence[] options = new CharSequence[4];
                 for (int a = 0; a < options.length; ++a) {

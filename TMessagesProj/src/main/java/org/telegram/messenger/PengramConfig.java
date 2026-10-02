@@ -323,6 +323,29 @@ public class PengramConfig {
         }
     }
 
+    public static final String KEY_HEADER_LYRICS = "headerLyrics";
+
+    /** строка песни прямо в шапке чата, поверх мини-плеера */
+    public static boolean isHeaderLyrics() { return getBool(KEY_HEADER_LYRICS, true); }
+
+    /** анимация строки в шапке: -1 — как в плеере */
+    public static int getHeaderLyricsAnim() {
+        final int value = prefs().getInt("headerLyricsAnim", -1);
+        return value < -1 || value >= LYRICS_ANIM_COUNT ? -1 : value;
+    }
+
+    public static void setHeaderLyricsAnim(int value) {
+        putInt("headerLyricsAnim", value < -1 || value >= LYRICS_ANIM_COUNT ? -1 : value);
+    }
+
+    public static int getHeaderLyricsSize() {
+        return Math.max(11, Math.min(20, prefs().getInt("headerLyricsSize", 14)));
+    }
+
+    public static void setHeaderLyricsSize(int value) {
+        putInt("headerLyricsSize", Math.max(11, Math.min(20, value)));
+    }
+
     public static final String KEY_KEEP_FORMATTING = "keepFormatting";
 
     /** продолжать оформление (жирный, курсив…) при наборе и при правке сообщения */

@@ -25,6 +25,11 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.PengramDialogPreviewView;
+import org.telegram.ui.Components.PengramFontPreviewView;
+import org.telegram.ui.Components.PengramLyricsView;
+import org.telegram.ui.Components.PengramPlayerMockView;
+import org.telegram.ui.Components.PengramTabsMockView;
 
 /**
  * Pengram: «Конструктор» — одно место, где собирается весь внешний вид.
@@ -70,6 +75,61 @@ public class PengramConstructorActivity extends BaseFragment {
         hint.setPadding(dp(20), dp(14), dp(20), dp(4));
         content.addView(hint);
 
+        // ——— живая мастерская: всё меняется прямо на макете, без галочек ———
+        addSectionTitle(content, getString(R.string.PengramConstructorLive));
+
+        final PengramTabsMockView tabsMock = new PengramTabsMockView(context);
+        addLiveCard(content, getString(R.string.PengramConstructorLiveTabs), tabsMock, null);
+
+        final PengramFontPreviewView fontPreview = new PengramFontPreviewView(context);
+        final TextView fontValue = addLiveCard(content, getString(R.string.PengramConstructorLiveFont), fontPreview,
+                () -> fontName(PengramConfig.appFont));
+        fontPreview.setOnChanged(() -> {
+            if (fontValue != null) {
+                fontValue.setText(fontName(PengramConfig.appFont));
+            }
+        });
+
+        final PengramDialogPreviewView dialogPreview = new PengramDialogPreviewView(context);
+        final TextView dialogValue = addLiveCard(content, getString(R.string.PengramConstructorLiveDialogs), dialogPreview,
+                () -> getString(PengramConfig.getDialogAvatarShapeName(PengramConfig.getDialogAvatarShape())));
+        dialogPreview.setOnClickListener(v -> {
+            PengramConfig.setDialogAvatarShape((PengramConfig.getDialogAvatarShape() + 1) % PengramConfig.DIALOG_AVATAR_COUNT);
+            dialogPreview.invalidate();
+            if (dialogValue != null) {
+                dialogValue.setText(getString(PengramConfig.getDialogAvatarShapeName(PengramConfig.getDialogAvatarShape())));
+            }
+        });
+
+        final PengramPlayerMockView playerMock = new PengramPlayerMockView(context, PengramConfig.getPlayerStyle());
+        playerMock.setAccent(Theme.getColor(Theme.key_featuredStickers_addButton));
+        final TextView playerValue = addLiveCard(content, getString(R.string.PengramConstructorLivePlayer), playerMock,
+                () -> getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle())), 86, 130, Gravity.CENTER_HORIZONTAL);
+        playerMock.setOnClickListener(v -> {
+            final int next = (PengramConfig.getPlayerStyle() + 1) % PengramConfig.PLAYER_STYLE_COUNT;
+            PengramConfig.setPlayerStyle(next);
+            playerMock.setStyle(next);
+            if (playerValue != null) {
+                playerValue.setText(getString(PengramConfig.getPlayerStyleName(next)));
+            }
+        });
+
+        final PengramLyricsView lyricsPreview = new PengramLyricsView(context);
+        lyricsPreview.setColors(Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        lyricsPreview.setPreview(getString(R.string.PengramLyricsSample), PengramConfig.getLyricsAnim(), 18);
+        final TextView lyricsValue = addLiveCard(content, getString(R.string.PengramConstructorLiveLyrics), lyricsPreview,
+                () -> getString(PengramConfig.getLyricsAnimName(PengramConfig.getLyricsAnim())), LayoutHelper.MATCH_PARENT, 56, Gravity.LEFT);
+        lyricsPreview.setOnClickListener(v -> {
+            final int next = (PengramConfig.getLyricsAnim() + 1) % PengramConfig.LYRICS_ANIM_COUNT;
+            PengramConfig.setLyricsAnim(next);
+            lyricsPreview.setPreview(getString(R.string.PengramLyricsSample), next, 18);
+            if (lyricsValue != null) {
+                lyricsValue.setText(getString(PengramConfig.getLyricsAnimName(next)));
+            }
+        });
+
+        addSectionTitle(content, getString(R.string.PengramConstructorEditors));
+
         addCard(content, KIND_DIALOGS, R.string.PengramConstructorDialogs, R.string.PengramConstructorDialogsInfo,
                 () -> presentFragment(new PengramChatLookActivity()));
         addCard(content, KIND_CHAT_MENU, R.string.PengramConstructorChatMenu, R.string.PengramConstructorChatMenuInfo,
@@ -85,6 +145,74 @@ public class PengramConstructorActivity extends BaseFragment {
 
         fragmentView = scrollView;
         return fragmentView;
+    }
+
+    private static CharSequence fontName(int font) {
+        switch (font) {
+            case PengramConfig.FONT_SYSTEM: return getString(R.string.PengramFontSystem);
+            case PengramConfig.FONT_SERIF: return getString(R.string.PengramFontSerif);
+            case PengramConfig.FONT_MONOSPACE: return getString(R.string.PengramFontMono);
+            default: return getString(R.string.PengramFontDefault);
+        }
+    }
+
+    private void addSectionTitle(LinearLayout parent, CharSequence text) {
+        final TextView title = new TextView(getContext());
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        title.setTypeface(AndroidUtilities.bold());
+        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader));
+        title.setText(text);
+        title.setPadding(dp(20), dp(16), dp(20), dp(6));
+        parent.addView(title);
+    }
+
+    /** карточка с настоящим макетом внутри: трогаешь макет — настройка меняется */
+    private TextView addLiveCard(LinearLayout parent, CharSequence title, View mock, java.util.concurrent.Callable<CharSequence> valueProvider) {
+        return addLiveCard(parent, title, mock, valueProvider, LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT);
+    }
+
+    private TextView addLiveCard(LinearLayout parent, CharSequence title, View mock, java.util.concurrent.Callable<CharSequence> valueProvider,
+                                 int widthDp, int heightDp, int gravity) {
+        final Context context = getContext();
+        final LinearLayout card = new LinearLayout(context) {
+            private final RectF rect = new RectF();
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                rect.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
+                paint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                canvas.drawRoundRect(rect, dp(14), dp(14), paint);
+            }
+        };
+        card.setWillNotDraw(false);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(0, dp(10), 0, dp(10));
+
+        final TextView caption = new TextView(context);
+        caption.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        caption.setTypeface(AndroidUtilities.bold());
+        caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        caption.setText(title);
+        caption.setPadding(dp(16), 0, dp(16), 0);
+        card.addView(caption);
+
+        TextView value = null;
+        if (valueProvider != null) {
+            value = new TextView(context);
+            value.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            value.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            value.setPadding(dp(16), dp(2), dp(16), 0);
+            try {
+                value.setText(valueProvider.call());
+            } catch (Exception ignore) {
+            }
+            card.addView(value);
+        }
+
+        card.addView(mock, LayoutHelper.createLinear(widthDp, heightDp, gravity, 0, 8, 0, 0));
+        parent.addView(card, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 12, 6, 12, 0));
+        return value;
     }
 
     private void addCard(LinearLayout parent, int kind, int titleRes, int descRes, Runnable action) {

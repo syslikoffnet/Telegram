@@ -441,7 +441,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         title.setTypeface(AndroidUtilities.bold());
         title.setTextColor(0xFFFFFFFF);
-        title.setText(getString(R.string.PengramPlayerQueue));
+        title.setText(getString(R.string.PengramPlayerTracks));
         panel.addView(title, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
                 Gravity.LEFT | Gravity.TOP, 18, 16, 18, 0));
 
@@ -489,7 +489,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             empty.setTextColor(0x99FFFFFF);
             empty.setGravity(Gravity.CENTER);
-            empty.setText(getString(R.string.PengramPlayerQueueEmpty));
+            empty.setText(getString(R.string.PengramPlayerTracksEmpty));
             queueList.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 80));
             return;
         }
@@ -514,7 +514,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (active) {
                 currentRow = a - from;
             }
-            queueList.addView(createQueueRow(messageObject, active), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 56));
+            queueList.addView(createQueueRow(messageObject, active), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 58, 8, 2, 8, 0));
         }
         final int scrollTo = Math.max(0, dp(56) * currentRow - dp(120));
         if (queueScroll != null) {
@@ -525,7 +525,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private View createQueueRow(MessageObject messageObject, boolean active) {
         final Context context = getContext();
         final FrameLayout row = new FrameLayout(context);
-        row.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 2));
+        row.setBackground(active
+                ? Theme.createSimpleSelectorRoundRectDrawable(dp(12), ColorUtils.setAlphaComponent(accentColor, 38), 0x22FFFFFF)
+                : Theme.createSimpleSelectorRoundRectDrawable(dp(12), 0x00000000, 0x22FFFFFF));
 
         final BackupImageView cover = new BackupImageView(context);
         cover.setRoundRadius(dp(8));
@@ -573,6 +575,34 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         duration.setText(AndroidUtilities.formatShortDuration((int) messageObject.getDuration()));
         row.addView(duration, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
                 Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+
+        if (active) {
+            // живой эквалайзер у того трека, что сейчас играет
+            final View equalizer = new View(context) {
+                private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                @Override
+                protected void onDraw(Canvas canvas) {
+                    final float time = System.currentTimeMillis() % 100000L / 1000f;
+                    final boolean playing = !MediaController.getInstance().isMessagePaused();
+                    barPaint.setColor(accentColor);
+                    final float barWidth = dp(2.5f);
+                    for (int a = 0; a < 3; ++a) {
+                        final float energy = playing
+                                ? 0.35f + 0.65f * (0.5f + 0.5f * (float) Math.sin(time * 6f + a * 1.7f))
+                                : 0.35f;
+                        final float height = getMeasuredHeight() * energy;
+                        final float x = a * dp(5);
+                        canvas.drawRoundRect(x, getMeasuredHeight() - height, x + barWidth, getMeasuredHeight(),
+                                barWidth / 2f, barWidth / 2f, barPaint);
+                    }
+                    if (playing) {
+                        invalidate();
+                    }
+                }
+            };
+            row.addView(equalizer, LayoutHelper.createFrame(13, 14, Gravity.LEFT | Gravity.CENTER_VERTICAL, 46, 0, 0, 0));
+        }
 
         row.setOnClickListener(v -> {
             if (!active) {
