@@ -23,7 +23,11 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.PengramTextStyle;
 import org.telegram.messenger.PengramVoiceChanger;
@@ -37,7 +41,9 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextCheckCell2;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.IconBackgroundColors;
 import org.telegram.ui.Components.ItemOptions;
+import org.telegram.ui.Components.SwipeGestureSettingsView;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Cells.TextDetailCell;
@@ -172,6 +178,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TABBAR_SIZE = 1415;
     private static final int BTN_MENU_ITEMS = 1416;
     private static final int BTN_SETTINGS_ITEMS = 1417;
+    private static final int BTN_FONT_SIZE = 1419;
+    private static final int BTN_BUBBLE_RADIUS = 1420;
+    private static final int BTN_SWIPE_ACTION = 1421;
+    /** переключатели «чужих» настроек Telegram и LiteMode */
+    private static final int BTN_EXTRA_BASE = 4000;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
@@ -243,6 +254,95 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_GENERAL: fillGeneral(items); break;
             case SECTION_CUSTOM: fillCustom(items, adapter); break;
             default: fillRoot(items); break;
+        }
+    }
+
+    /** читалка состояния для переключателей чужих настроек */
+    private interface BoolGetter {
+        boolean get();
+    }
+
+    private final android.util.SparseArray<BoolGetter> extraGetters = new android.util.SparseArray<>();
+    private final android.util.SparseArray<Runnable> extraToggles = new android.util.SparseArray<>();
+
+    /** переключатель настройки Telegram (не Pengram) */
+    private UItem tgCheck(int id, CharSequence text, BoolGetter getter, Runnable toggle) {
+        extraGetters.put(id, getter);
+        extraToggles.put(id, toggle);
+        return UItem.asCheck(id, text).setChecked(getter.get());
+    }
+
+    /** переключатель настройки Telegram с подписью */
+    private UItem tgCheckInfo(int id, CharSequence text, CharSequence subtext, BoolGetter getter, Runnable toggle) {
+        extraGetters.put(id, getter);
+        extraToggles.put(id, toggle);
+        return UItem.asButtonCheck(id, text, subtext).setChecked(getter.get());
+    }
+
+    /** переключатель флага «экономии» LiteMode */
+    private UItem liteCheck(int id, int flag, CharSequence text) {
+        return tgCheck(id, text, () -> LiteMode.isEnabled(flag), () -> LiteMode.toggleFlag(flag));
+    }
+
+    /** системные эмодзи вместо телеграмных */
+    private void toggleSystemEmoji() {
+        SharedConfig.useSystemEmoji = !SharedConfig.useSystemEmoji;
+        try {
+            ApplicationLoader.applicationContext
+                    .getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
+                    .edit().putBoolean("useSystemEmoji", SharedConfig.useSystemEmoji).apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** плавные анимации интерфейса */
+    private void toggleInterfaceAnimations() {
+        final boolean enabled = SharedConfig.animationsEnabled();
+        SharedConfig.setAnimationsEnabled(!enabled);
+        try {
+            MessagesController.getGlobalMainSettings().edit().putBoolean("view_animations", !enabled).apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** применить размер шрифта сообщений */
+    private void applyFontSize(int size) {
+        SharedConfig.fontSize = size;
+        SharedConfig.fontSizeIsDefault = false;
+        try {
+            ApplicationLoader.applicationContext
+                    .getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
+                    .edit().putInt("fons_size", size).commit();
+            Theme.createCommonMessageResources();
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** применить радиус углов пузырей */
+    private void applyBubbleRadius(int radius) {
+        SharedConfig.bubbleRadius = radius;
+        try {
+            MessagesController.getGlobalMainSettings().edit().putInt("bubbleRadius", radius).commit();
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** название действия свайпа в списке чатов */
+    private CharSequence swipeActionName(int action) {
+        switch (action) {
+            case SwipeGestureSettingsView.SWIPE_GESTURE_PIN: return getString(R.string.SwipeSettingsPin);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_READ: return getString(R.string.SwipeSettingsRead);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_MUTE: return getString(R.string.SwipeSettingsMute);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_DELETE: return getString(R.string.SwipeSettingsDelete);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS: return getString(R.string.SwipeSettingsFolders);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE:
+            default: return getString(R.string.SwipeSettingsArchive);
         }
     }
 
@@ -693,22 +793,28 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
 
-        items.add(UItem.asButton(BTN_SECTION_GENERAL, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
+        // крупные цветные строки разделов — как на экране «Настройки»
+        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
-        items.add(UItem.asButton(BTN_SECTION_PROFILE, R.drawable.settings_account, getString(R.string.PengramSectionProfile)));
-        items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
-        items.add(UItem.asButton(BTN_SECTION_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
-        items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats), hiddenCountValue()));
-        items.add(UItem.asButton(BTN_SECTION_GHOST, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
-        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), spySectionValue()));
-        items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
-        items.add(UItem.asButton(BTN_SECTION_FREEDOM, R.drawable.settings_features, getString(R.string.PengramSectionFreedom)));
+        items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account, getString(R.string.PengramSectionProfile), null));
+        items.add(sectionRow(BTN_SECTION_APPEARANCE, IconBackgroundColors.PURPLE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
+        items.add(sectionRow(BTN_SECTION_CUSTOM, IconBackgroundColors.ORANGE, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
+        items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat, getString(R.string.PengramSectionChats), hiddenCountValue()));
+        items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
+        items.add(sectionRow(BTN_SECTION_HISTORY, IconBackgroundColors.RED, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), spySectionValue()));
+        items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
+        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features, getString(R.string.PengramSectionFreedom), null));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramLinksHeader)));
         items.add(UItem.asSettingsCell(BTN_LINK_CHANNEL, R.drawable.msg_channel, getString(R.string.PengramLinkChannel), "@" + LINK_CHANNEL));
         items.add(UItem.asSettingsCell(BTN_LINK_AUTHOR, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor), "@" + LINK_AUTHOR));
         items.add(UItem.asShadow(getString(R.string.PengramLinksInfo)));
+    }
+
+    /** строка раздела с цветной иконкой */
+    private UItem sectionRow(int id, IconBackgroundColors colors, int icon, CharSequence title, CharSequence value) {
+        return SettingsActivity.SettingCell.Factory.of(id, colors.top, colors.bottom, icon, title, null, value);
     }
 
     /** Основное — мелочи, которые влияют на весь клиент */
@@ -1178,6 +1284,33 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
+        items.add(UItem.asSettingsCell(BTN_FONT_SIZE, R.drawable.msg_customize, getString(R.string.TextSizeHeader), String.valueOf(SharedConfig.fontSize)));
+        items.add(UItem.asSettingsCell(BTN_BUBBLE_RADIUS, R.drawable.msg_message, getString(R.string.BubbleRadius), String.valueOf(SharedConfig.bubbleRadius)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 1, getString(R.string.LargeEmoji), () -> SharedConfig.allowBigEmoji, SharedConfig::toggleBigEmoji));
+        items.add(tgCheck(BTN_EXTRA_BASE + 2, getString(R.string.PengramSystemEmoji), () -> SharedConfig.useSystemEmoji, this::toggleSystemEmoji));
+        items.add(tgCheck(BTN_EXTRA_BASE + 3, getString(R.string.LoopAnimatedStickers), SharedConfig::loopStickers, SharedConfig::toggleLoopStickers));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramEffectsHeader)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 15, LiteMode.FLAG_PARTICLES, getString(R.string.LiteOptionsParticles)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 16, LiteMode.FLAG_CALLS_ANIMATIONS, getString(R.string.LiteOptionsCalls)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 17, LiteMode.FLAG_CHAT_BACKGROUND, getString(R.string.PengramChatBackgroundAnim)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
+        items.add(UItem.asShadow(getString(R.string.PengramEffectsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramInterfaceHeader)));
+        items.add(check(PengramConfig.KEY_HIDE_WRITE_BUTTON, false, getString(R.string.PengramHideWriteButton)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 20, getString(R.string.PengramThreeLines), () -> SharedConfig.useThreeLinesLayout, () -> SharedConfig.setUseThreeLinesLayout(!SharedConfig.useThreeLinesLayout)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 21, getString(R.string.PengramHideArchive), () -> SharedConfig.archiveHidden, SharedConfig::toggleArchiveHidden));
+        items.add(tgCheck(BTN_EXTRA_BASE + 22, getString(R.string.PengramNoTabletMode), () -> SharedConfig.forceDisableTabletMode, SharedConfig::toggleForceDisableTabletMode));
+        items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
     }
 
     private void fillMedia(ArrayList<UItem> items) {
@@ -1230,6 +1363,34 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
         }
+
+        items.add(UItem.asHeader(getString(R.string.PengramStreamHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 40, getString(R.string.EnableStreaming), () -> SharedConfig.streamMedia, SharedConfig::toggleStreamMedia));
+        items.add(tgCheck(BTN_EXTRA_BASE + 41, getString(R.string.PengramStreamAllVideo), () -> SharedConfig.streamAllVideo, SharedConfig::toggleStreamAllVideo));
+        items.add(tgCheck(BTN_EXTRA_BASE + 42, getString(R.string.PengramStreamMkv), () -> SharedConfig.streamMkv, SharedConfig::toggleStreamMkv));
+        items.add(tgCheck(BTN_EXTRA_BASE + 43, getString(R.string.PengramSaveStream), () -> SharedConfig.saveStreamMedia, SharedConfig::toggleSaveStreamMedia));
+        items.add(UItem.asShadow(getString(R.string.PengramStreamInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAutoplayHeader)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 44, LiteMode.FLAG_AUTOPLAY_GIFS, getString(R.string.LiteOptionsAutoplayGifs)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 45, LiteMode.FLAG_AUTOPLAY_VIDEOS, getString(R.string.LiteOptionsAutoplayVideo)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 46, getString(R.string.NextMediaTap), () -> SharedConfig.nextMediaTap, SharedConfig::toggleNextMediaTap));
+        items.add(tgCheck(BTN_EXTRA_BASE + 47, getString(R.string.PengramSortFilesByName), () -> SharedConfig.sortFilesByName, SharedConfig::toggleSortFilesByName));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramCameraHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 50, getString(R.string.PengramInAppCamera), () -> SharedConfig.inappCamera, SharedConfig::toggleInappCamera));
+        items.add(tgCheck(BTN_EXTRA_BASE + 51, getString(R.string.PengramBigCameraRound), () -> SharedConfig.bigCameraForRound, SharedConfig::toggleRoundCamera));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAudioHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 60, getString(R.string.RaiseToSpeak), () -> SharedConfig.raiseToSpeak, SharedConfig::toggleRaiseToSpeak));
+        items.add(tgCheck(BTN_EXTRA_BASE + 61, getString(R.string.RaiseToListen), () -> SharedConfig.raiseToListen, SharedConfig::toggleRaiseToListen));
+        items.add(tgCheck(BTN_EXTRA_BASE + 62, getString(R.string.PengramPauseOnRecord), () -> SharedConfig.pauseMusicOnRecord, SharedConfig::togglePauseMusicOnRecord));
+        items.add(tgCheck(BTN_EXTRA_BASE + 63, getString(R.string.PengramNoiseSuppression), () -> SharedConfig.noiseSupression, SharedConfig::toggleNoiseSupression));
+        items.add(tgCheck(BTN_EXTRA_BASE + 64, getString(R.string.PengramVoiceEffectsOff), () -> SharedConfig.disableVoiceAudioEffects, SharedConfig::toggleDisableVoiceAudioEffects));
+        items.add(UItem.asShadow(getString(R.string.PengramAudioInfo)));
+
     }
 
     /** эффекты, которые всегда видны в свёрнутом списке */
@@ -1293,6 +1454,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
+        items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.ChatListSwipeGesture), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
+        items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
+        items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
+        items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
+        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
+        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
+        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
         items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
@@ -1338,6 +1511,23 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        final Runnable extraToggle = extraToggles.get(item.id);
+        if (extraToggle != null) {
+            extraToggle.run();
+            final BoolGetter getter = extraGetters.get(item.id);
+            if (view instanceof TextCheckCell && getter != null) {
+                ((TextCheckCell) view).setChecked(getter.get());
+            } else if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            if (PengramConfig.isVibrationEnabled() && view != null) {
+                try {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                } catch (Throwable ignore) {
+                }
+            }
+            return;
+        }
         if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
             final int group = item.id - BTN_COLLAPSE_BASE;
             PengramConfig.setBool(expandedKey(group), !expanded(group));
@@ -1467,6 +1657,55 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_MENU_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU));
                 return;
+            case BTN_FONT_SIZE: {
+                final int[] sizes = new int[]{12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28, 30};
+                final CharSequence[] options = new CharSequence[sizes.length];
+                int selected = 4;
+                for (int a = 0; a < sizes.length; ++a) {
+                    options[a] = String.valueOf(sizes[a]);
+                    if (sizes[a] == SharedConfig.fontSize) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.TextSizeHeader), options, selected, value -> applyFontSize(sizes[value]));
+                return;
+            }
+            case BTN_BUBBLE_RADIUS: {
+                final int[] radii = new int[]{0, 2, 4, 6, 8, 10, 12, 14, 15, 16, 17};
+                final CharSequence[] options = new CharSequence[radii.length];
+                int selected = radii.length - 1;
+                for (int a = 0; a < radii.length; ++a) {
+                    options[a] = String.valueOf(radii[a]);
+                    if (radii[a] == SharedConfig.bubbleRadius) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.BubbleRadius), options, selected, value -> applyBubbleRadius(radii[value]));
+                return;
+            }
+            case BTN_SWIPE_ACTION: {
+                final int[] actions = new int[]{
+                        SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_READ,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_PIN,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_MUTE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_DELETE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS
+                };
+                final CharSequence[] options = new CharSequence[actions.length];
+                int selected = 0;
+                final int current = SharedConfig.getChatSwipeAction(currentAccount);
+                for (int a = 0; a < actions.length; ++a) {
+                    options[a] = swipeActionName(actions[a]);
+                    if (actions[a] == current) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.ChatListSwipeGesture), options, selected, value -> {
+                    SharedConfig.updateChatListSwipeSetting(actions[value]);
+                });
+                return;
+            }
             case BTN_SETTINGS_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS));
                 return;

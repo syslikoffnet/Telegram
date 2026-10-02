@@ -29,6 +29,8 @@ public class PengramChatMenuWrapper {
         void openAll();
         void clearHistory();
         void openSettings();
+        void jumpToBeginning();
+        void copyChatId();
     }
 
     public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, long dialogId, Theme.ResourcesProvider resourcesProvider, Callback callback) {
@@ -65,6 +67,21 @@ public class PengramChatMenuWrapper {
         item.setOnClickListener(view -> {
             callback.dismiss();
             callback.openAll();
+        });
+
+        item = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_go_up,
+                LocaleController.getString(R.string.PengramJumpToBeginning), false, resourcesProvider);
+        item.setOnClickListener(view -> {
+            callback.dismiss();
+            callback.jumpToBeginning();
+        });
+
+        item = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_copy,
+                LocaleController.getString(R.string.PengramCopyChatId), false, resourcesProvider);
+        item.setSubtext(String.valueOf(dialogId));
+        item.setOnClickListener(view -> {
+            callback.dismiss();
+            callback.copyChatId();
         });
 
         item = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_settings,

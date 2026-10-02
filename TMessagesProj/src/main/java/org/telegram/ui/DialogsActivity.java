@@ -7045,6 +7045,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public void onResume() {
         super.onResume();
         pengramUpdateTitle();
+        updateFloatingButtonVisibility(false);
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
             updateStoriesVisibility(false);
@@ -8872,7 +8873,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void updateFloatingButtonVisibility(boolean animated) {
-        final boolean isVisible = !(onlySelect && initialDialogsType != 10 || folderId != 0 || communityId != 0 || inPreviewMode || (searching && !onlySelect) || floatingButtonHidden);
+        final boolean isVisible = !(onlySelect && initialDialogsType != 10 || folderId != 0 || communityId != 0 || inPreviewMode || (searching && !onlySelect) || floatingButtonHidden)
+                && !(org.telegram.messenger.PengramConfig.isHidingWriteButton() && !onlySelect);
 
         if (floatingButton3 != null) {
             floatingButton3.setButtonVisible(isVisible, animated);
@@ -12770,6 +12772,31 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         return true;
     }
 
+    /** Pengram: отметить все чаты текущей папки прочитанными */
+    private void pengramMarkAllAsRead() {
+        try {
+            final ArrayList<TLRPC.Dialog> all = new ArrayList<>(getMessagesController().getDialogs(folderId));
+            final ArrayList<TLRPC.Dialog> unread = new ArrayList<>();
+            for (int a = 0; a < all.size(); ++a) {
+                final TLRPC.Dialog dialog = all.get(a);
+                if (dialog == null) {
+                    continue;
+                }
+                if (dialog.unread_count > 0 || dialog.unread_mark) {
+                    unread.add(dialog);
+                }
+            }
+            if (unread.isEmpty()) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.PengramReadAllNothing)).show();
+                return;
+            }
+            markDialogsAsRead(unread);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.PengramReadAllDone)).show();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     /** Pengram: перечитать заголовок после смены настройки — без перезапуска приложения */
     public void pengramUpdateTitle() {
         if (actionBar == null || onlySelect || folderId != 0 || communityId != 0 || searchString != null) {
@@ -13881,6 +13908,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 case PengramConfig.MENU_ITEM_SETTINGS:
                     io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
                         presentFragment(new SettingsActivity());
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_READ_ALL:
+                    io.add(R.drawable.msg_markread, getString(R.string.MarkAllAsRead), () -> pengramMarkAllAsRead());
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_ARCHIVE:
+                    io.add(R.drawable.msg_archive, getString(R.string.ArchivedChats), () -> {
+                        final Bundle archiveArgs = new Bundle();
+                        archiveArgs.putInt("folderId", 1);
+                        presentFragment(new DialogsActivity(archiveArgs));
                     });
                     pengramAnyItem = true;
                     break;

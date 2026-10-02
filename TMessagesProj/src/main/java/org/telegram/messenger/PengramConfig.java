@@ -117,6 +117,13 @@ public class PengramConfig {
     public static final String KEY_HIDE_STORIES = "hideStories";
 
     /** убрать «хвостик» у пузырей сообщений */
+    /** скрыть круглую кнопку «Написать» в списке чатов */
+    public static final String KEY_HIDE_WRITE_BUTTON = "hideWriteButton";
+    /** пункт «Копировать ID сообщения» в меню сообщения */
+    public static final String KEY_MENU_COPY_MESSAGE_ID = "menuCopyMessageId";
+    /** пункт «Сохранить в Избранное» в меню сообщения */
+    public static final String KEY_MENU_SAVE_TO_SAVED = "menuSaveToSaved";
+
     public static final String KEY_HIDE_TAIL = "hideBubbleTail";
     /** не писать «изменено» у времени (метка остаётся) */
     public static final String KEY_HIDE_EDITED_LABEL = "hideEditedLabel";
@@ -788,10 +795,13 @@ public class PengramConfig {
     public static final int MENU_ITEM_PROFILE = 9;
     public static final int MENU_ITEM_SETTINGS = 10;
     public static final int MENU_ITEM_CLOSE_APP = 11;
+    public static final int MENU_ITEM_READ_ALL = 12;
+    public static final int MENU_ITEM_ARCHIVE = 13;
 
     public static final int[] MENU_ITEMS_DEFAULT = new int[]{
-            MENU_ITEM_PENGRAM, MENU_ITEM_GHOST, MENU_ITEM_THEME, MENU_ITEM_NEW_GROUP,
-            MENU_ITEM_NEW_CHANNEL, MENU_ITEM_SAVED, MENU_ITEM_CONTACTS, MENU_ITEM_CALLS,
+            MENU_ITEM_PENGRAM, MENU_ITEM_GHOST, MENU_ITEM_THEME, MENU_ITEM_READ_ALL,
+            MENU_ITEM_NEW_GROUP, MENU_ITEM_NEW_CHANNEL, MENU_ITEM_SAVED, MENU_ITEM_ARCHIVE,
+            MENU_ITEM_CONTACTS, MENU_ITEM_CALLS,
             MENU_ITEM_PROFILE, MENU_ITEM_SETTINGS, MENU_ITEM_CLOSE_APP
     };
 
@@ -863,6 +873,7 @@ public class PengramConfig {
             case MENU_ITEM_CALLS:
             case MENU_ITEM_PROFILE:
             case MENU_ITEM_CLOSE_APP:
+            case MENU_ITEM_ARCHIVE:
                 return true;
             default:
                 return false;
@@ -904,6 +915,8 @@ public class PengramConfig {
             case MENU_ITEM_PROFILE: return org.telegram.messenger.R.string.PengramMenuMyProfile;
             case MENU_ITEM_SETTINGS: return org.telegram.messenger.R.string.Settings;
             case MENU_ITEM_CLOSE_APP: return org.telegram.messenger.R.string.PengramMenuCloseApp;
+            case MENU_ITEM_READ_ALL: return org.telegram.messenger.R.string.MarkAllAsRead;
+            case MENU_ITEM_ARCHIVE: return org.telegram.messenger.R.string.ArchivedChats;
             default: return org.telegram.messenger.R.string.AppName;
         }
     }
@@ -921,6 +934,8 @@ public class PengramConfig {
             case MENU_ITEM_PROFILE: return org.telegram.messenger.R.drawable.settings_account;
             case MENU_ITEM_SETTINGS: return org.telegram.messenger.R.drawable.msg_settings_old;
             case MENU_ITEM_CLOSE_APP: return org.telegram.messenger.R.drawable.msg_leave;
+            case MENU_ITEM_READ_ALL: return org.telegram.messenger.R.drawable.msg_markread;
+            case MENU_ITEM_ARCHIVE: return org.telegram.messenger.R.drawable.msg_archive;
             default: return org.telegram.messenger.R.drawable.msg_settings_old;
         }
     }
@@ -937,6 +952,9 @@ public class PengramConfig {
     }
 
     public static boolean isHidingBubbleTail() { return getBool(KEY_HIDE_TAIL, false); }
+    public static boolean isHidingWriteButton() { return getBool(KEY_HIDE_WRITE_BUTTON, false); }
+    public static boolean isMenuCopyMessageId() { return getBool(KEY_MENU_COPY_MESSAGE_ID, true); }
+    public static boolean isMenuSaveToSaved() { return getBool(KEY_MENU_SAVE_TO_SAVED, true); }
     public static boolean isHidingEditedLabel() { return getBool(KEY_HIDE_EDITED_LABEL, false); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }

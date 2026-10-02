@@ -1252,6 +1252,8 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_RESEND = 920;
     /** Pengram: отправить удалёнку/одноразку от своего лица в другой чат */
     public final static int OPTION_PENGRAM_RESEND_TO = 921;
+    public final static int OPTION_PENGRAM_COPY_ID = 922;
+    public final static int OPTION_PENGRAM_SAVE = 923;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -1736,6 +1738,27 @@ public class ChatActivity extends BaseFragment implements
                         @Override
                         public void openSettings() {
                             presentFragment(new PengramSettingsActivity());
+                        }
+
+                        @Override
+                        public void jumpToBeginning() {
+                            try {
+                                scrollToMessageId(1, 0, false, 0, true, 0);
+                            } catch (Throwable e) {
+                                FileLog.e(e);
+                            }
+                        }
+
+                        @Override
+                        public void copyChatId() {
+                            try {
+                                AndroidUtilities.addToClipboard(String.valueOf(dialogId));
+                                BulletinFactory.of(ChatActivity.this)
+                                        .createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied))
+                                        .show();
+                            } catch (Throwable e) {
+                                FileLog.e(e);
+                            }
                         }
                     });
             headerItem.addSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
@@ -33977,6 +34000,24 @@ public class ChatActivity extends BaseFragment implements
                 pengramResend(selectedObject, dialog_id);
                 break;
             }
+            case OPTION_PENGRAM_SAVE: {
+                pengramResend(selectedObject, getUserConfig().getClientUserId());
+                BulletinFactory.of(this)
+                        .createSimpleBulletin(R.raw.saved_messages, LocaleController.getString(R.string.PengramSavedToSaved))
+                        .show();
+                break;
+            }
+            case OPTION_PENGRAM_COPY_ID: {
+                try {
+                    AndroidUtilities.addToClipboard(String.valueOf(selectedObject.getId()));
+                    BulletinFactory.of(this)
+                            .createCopyBulletin(LocaleController.getString(R.string.PengramIdCopiedMessage))
+                            .show();
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+                break;
+            }
             case OPTION_PENGRAM_RESEND_TO: {
                 pengramResendToChat(selectedObject);
                 break;
@@ -46432,6 +46473,18 @@ public class ChatActivity extends BaseFragment implements
                 options.add(OPTION_REMOVE_ADS);
                 icons.add(R.drawable.msg_cancel);
             }
+        }
+
+        // Pengram: быстрые действия над сообщением
+        if (org.telegram.messenger.PengramConfig.isMenuSaveToSaved() && !message.isSponsored() && getUserConfig().getClientUserId() != dialog_id) {
+            items.add(LocaleController.getString(R.string.PengramMenuSaveToSaved));
+            options.add(OPTION_PENGRAM_SAVE);
+            icons.add(R.drawable.msg_saved);
+        }
+        if (org.telegram.messenger.PengramConfig.isMenuCopyMessageId() && !message.isSponsored() && message.getId() != 0) {
+            items.add(LocaleController.getString(R.string.PengramMenuCopyMessageId));
+            options.add(OPTION_PENGRAM_COPY_ID);
+            icons.add(R.drawable.msg_copy);
         }
 
         // Pengram: удалёнки и одноразки отправляем копией от своего лица
