@@ -144,7 +144,10 @@ public class PengramMessagePreviewView extends LinearLayout {
                 continue;
             }
             final float y = cell.getY() + cell.getPaddingTop() + cell.getLayoutHeight() - AndroidUtilities.dp(44);
-            avatarImage.setImageCoords(AndroidUtilities.dp(6), y, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+            final float x = PengramConfig.getGroupAvatarPos() == PengramConfig.AVATAR_POS_RIGHT
+                    ? getMeasuredWidth() - AndroidUtilities.dp(48)
+                    : AndroidUtilities.dp(6);
+            avatarImage.setImageCoords(x, y, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
             avatarImage.setAlpha(cell.getAlpha());
             avatarImage.setVisible(true, false);
             avatarImage.draw(canvas);

@@ -197,6 +197,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_PLAYER_BG = 1428;
     private static final int BTN_COVER_SHAPE = 1429;
     private static final int BTN_LYRICS_CLEAR = 1430;
+    private static final int BTN_PLAYER_STYLE = 1431;
+    private static final int BTN_CHAT_LOOK = 1432;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -1520,7 +1522,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private CharSequence playerSectionValue() {
-        return getString(PengramConfig.isNewPlayer() ? R.string.PengramPlayerNew : R.string.PengramPlayerOriginal);
+        return getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()));
     }
 
     /** Пингвин — скины, жесты и всё, что с ним связано */
@@ -1561,7 +1563,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** Плеер — Spotify-режим и текст песни */
     private void fillPlayer(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramPlayerHeader)));
-        items.add(checkInfo(PengramConfig.KEY_NEW_PLAYER, true, getString(R.string.PengramPlayerNew), getString(R.string.PengramPlayerNewInfo)));
+        items.add(UItem.asSettingsCell(BTN_PLAYER_STYLE, R.drawable.msg_played, getString(R.string.PengramPlayerLook), getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()))));
         if (PengramConfig.isNewPlayer()) {
             items.add(UItem.asSettingsCell(BTN_PLAYER_BG, R.drawable.msg_theme, getString(R.string.PengramPlayerBg), getString(PengramConfig.getPlayerBgName(PengramConfig.getPlayerBg()))));
             items.add(UItem.asSettingsCell(BTN_COVER_SHAPE, R.drawable.msg_photos, getString(R.string.PengramCoverShape), getString(PengramConfig.getCoverShapeName(PengramConfig.getCoverShape()))));
@@ -1610,8 +1612,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
 
         items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
-        items.add(UItem.asSettingsCell(BTN_AVATAR_POS, R.drawable.msg_openprofile, getString(R.string.PengramAvatarPos), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
-        items.add(UItem.asShadow(getString(R.string.PengramAvatarPosInfo)));
+        items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
+        items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
         items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> {
@@ -2012,18 +2014,13 @@ public class PengramSettingsActivity extends UniversalFragment {
                 presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
                 return;
             case BTN_SECTION_PLAYER:
-                presentFragment(new PengramSettingsActivity(SECTION_PLAYER));
+            case BTN_PLAYER_STYLE:
+                presentFragment(new PengramPlayerStyleActivity());
                 return;
-            case BTN_AVATAR_POS: {
-                final CharSequence[] options = new CharSequence[]{
-                        getString(R.string.PengramAvatarPosLeft),
-                        getString(R.string.PengramAvatarPosRight),
-                        getString(R.string.PengramAvatarPosHide)
-                };
-                showChoicePicker(getString(R.string.PengramAvatarPos), options, PengramConfig.getGroupAvatarPos(),
-                        value -> PengramConfig.setGroupAvatarPos(value));
+            case BTN_CHAT_LOOK:
+            case BTN_AVATAR_POS:
+                presentFragment(new PengramChatLookActivity());
                 return;
-            }
             case BTN_PLAYER_BG: {
                 final CharSequence[] options = new CharSequence[4];
                 for (int a = 0; a < options.length; ++a) {

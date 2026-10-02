@@ -3,22 +3,22 @@ package org.telegram.ui.Components;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.LinearGradient;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.RectF;
 import android.graphics.Shader;
-import android.text.Editable;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.EditText;
+import android.view.ViewOutlineProvider;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -27,10 +27,8 @@ import android.widget.TextView;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
-import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
@@ -39,23 +37,29 @@ import org.telegram.messenger.PengramLyrics;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;
-import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.PengramSettingsActivity;
 import org.telegram.ui.LaunchActivity;
+import org.telegram.ui.PengramPlayerStyleActivity;
 
 /**
  * Pengram: музыкальный плеер в духе Spotify.
- * Большая обложка, фон из самой обложки, крупные контролы и экран с текстом песни,
- * который анимируется побуквенно. Всё настраивается в Настройки → Pengram → Плеер.
+ * Большая обложка, фон из самой обложки, крупные контролы и текст песни, который
+ * находится сам и анимируется побуквенно. Вид выбирается в «Настройки → Pengram → Плеер»,
+ * там же — живые превью всех вариантов.
  */
 public class PengramMusicPlayerSheet extends BottomSheet implements NotificationCenter.NotificationCenterDelegate {
 
+    private final int style;
+    private final boolean compact;
+
     private final FrameLayout rootLayout;
+    private final FrameLayout cardLayout;
     private final BackgroundView backgroundView;
     private final BackupImageView coverView;
+    private final BackupImageView smallCoverView;
     private final TextView titleView;
     private final TextView artistView;
     private final SeekBarView seekBarView;
@@ -70,8 +74,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private final ImageView speedButton;
     private final FrameLayout lyricsContainer;
     private final PengramLyricsView lyricsView;
-    private final TextView lyricsEmptyView;
-    private final TextView addLyricsButton;
+    private final TextView lyricsStatusView;
+    private final TextView retryButton;
+    private final RadialProgressView lyricsProgress;
 
     private boolean lyricsShown;
     private int lastTime = -1;
@@ -84,6 +89,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         setApplyTopPadding(false);
         setUseLightStatusBar(false);
 
+        style = PengramConfig.getPlayerStyle();
+        compact = style == PengramConfig.PLAYER_STYLE_COMPACT || style == PengramConfig.PLAYER_STYLE_MINI_LYRICS;
+        final boolean lyricsAlways = style == PengramConfig.PLAYER_STYLE_LYRICS || style == PengramConfig.PLAYER_STYLE_MINI_LYRICS;
+        final boolean lyricsSupported = PengramConfig.playerStyleHasLyrics(style);
+
         rootLayout = new FrameLayout(context) {
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -94,17 +104,36 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         };
         containerView = rootLayout;
 
+        cardLayout = new FrameLayout(context);
+        if (compact) {
+            cardLayout.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight() + dp(20), dp(20));
+                }
+            });
+            cardLayout.setClipToOutline(true);
+            rootLayout.addView(cardLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
+            // в компактных видах карточка занимает не весь экран: тап по пустому месту закрывает плеер
+            rootLayout.setOnClickListener(v -> dismiss());
+            cardLayout.setOnClickListener(v -> {
+            });
+        } else {
+            rootLayout.addView(cardLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
+
         backgroundView = new BackgroundView(context);
-        rootLayout.addView(backgroundView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        cardLayout.addView(backgroundView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         final LinearLayout content = new LinearLayout(context);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, AndroidUtilities.statusBarHeight + dp(6), 0, dp(10));
-        rootLayout.addView(content, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        content.setPadding(0, compact ? dp(6) : AndroidUtilities.statusBarHeight + dp(6), 0, dp(12));
+        cardLayout.addView(content, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
+                compact ? LayoutHelper.WRAP_CONTENT : LayoutHelper.MATCH_PARENT));
 
         // ---------- верхняя строка ----------
         final FrameLayout topBar = new FrameLayout(context);
-        content.addView(topBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        content.addView(topBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44));
 
         final ImageView closeButton = new ImageView(context);
         closeButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -112,7 +141,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         closeButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         closeButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(20)));
         closeButton.setOnClickListener(v -> dismiss());
-        topBar.addView(closeButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 8, 0, 0, 0));
+        topBar.addView(closeButton, LayoutHelper.createFrame(42, 42, Gravity.LEFT | Gravity.CENTER_VERTICAL, 8, 0, 0, 0));
 
         final TextView headerView = new TextView(context);
         headerView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
@@ -129,26 +158,51 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         settingsButton.setOnClickListener(v -> {
             dismiss();
             try {
-                if (LaunchActivity.instance != null && LaunchActivity.instance.getActionBarLayout() != null) {
-                    LaunchActivity.instance.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PLAYER));
+                if (LaunchActivity.instance != null) {
+                    LaunchActivity.instance.presentFragment(new PengramPlayerStyleActivity());
                 }
             } catch (Throwable ignore) {
             }
         });
-        topBar.addView(settingsButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
+        topBar.addView(settingsButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
 
         // ---------- обложка и текст песни ----------
-        final FrameLayout centerLayout = new FrameLayout(context);
-        content.addView(centerLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f, 20, 10, 20, 10));
+        final LinearLayout centerLayout = new LinearLayout(context);
+        centerLayout.setOrientation(style == PengramConfig.PLAYER_STYLE_MINI_LYRICS
+                ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        if (compact) {
+            content.addView(centerLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
+                    style == PengramConfig.PLAYER_STYLE_MINI_LYRICS ? 132 : 190, 20, 4, 20, 6));
+        } else {
+            content.addView(centerLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f, 20, 8, 20, 8));
+        }
 
         coverView = new BackupImageView(context);
         applyCoverShape();
-        centerLayout.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
-
         lyricsContainer = new FrameLayout(context);
-        lyricsContainer.setVisibility(View.GONE);
-        lyricsContainer.setAlpha(0f);
-        centerLayout.addView(lyricsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+
+        if (style == PengramConfig.PLAYER_STYLE_MINI_LYRICS) {
+            // мини-режим: слева обложка, справа текст
+            centerLayout.addView(coverView, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+            centerLayout.addView(lyricsContainer, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
+        } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
+            // текст на весь экран, обложка маленькая у названия
+            centerLayout.addView(lyricsContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        } else {
+            // обложка во весь блок, текст открывается поверх неё
+            final FrameLayout overlay = new FrameLayout(context);
+            overlay.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            overlay.addView(lyricsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            centerLayout.addView(overlay, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        }
+        if (!lyricsSupported) {
+            lyricsContainer.setVisibility(View.GONE);
+        } else if (lyricsAlways) {
+            lyricsShown = true;
+        } else {
+            lyricsContainer.setVisibility(View.GONE);
+            lyricsContainer.setAlpha(0f);
+        }
 
         lyricsView = new PengramLyricsView(context);
         lyricsView.setSeekCallback(progress -> {
@@ -159,39 +213,60 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         });
         lyricsContainer.addView(lyricsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        lyricsEmptyView = new TextView(context);
-        lyricsEmptyView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        lyricsEmptyView.setTextColor(0xB3FFFFFF);
-        lyricsEmptyView.setGravity(Gravity.CENTER);
-        lyricsEmptyView.setText(getString(R.string.PengramLyricsEmpty));
-        lyricsContainer.addView(lyricsEmptyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 24, 0, 24, 40));
+        lyricsProgress = new RadialProgressView(context);
+        lyricsProgress.setSize(dp(28));
+        lyricsProgress.setStrokeWidth(2.5f);
+        lyricsProgress.setProgressColor(0xFFFFFFFF);
+        lyricsProgress.setVisibility(View.GONE);
+        lyricsContainer.addView(lyricsProgress, LayoutHelper.createFrame(40, 40, Gravity.CENTER, 0, 0, 0, 40));
 
-        addLyricsButton = new TextView(context);
-        addLyricsButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        addLyricsButton.setTextColor(0xFF000000);
-        addLyricsButton.setTypeface(AndroidUtilities.bold());
-        addLyricsButton.setGravity(Gravity.CENTER);
-        addLyricsButton.setPadding(dp(20), 0, dp(20), 0);
-        addLyricsButton.setText(getString(R.string.PengramLyricsAdd));
-        addLyricsButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(22), 0xFFFFFFFF, 0x33000000));
-        addLyricsButton.setOnClickListener(v -> showLyricsEditor());
-        lyricsContainer.addView(addLyricsButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 10));
+        lyricsStatusView = new TextView(context);
+        lyricsStatusView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        lyricsStatusView.setTextColor(0xB3FFFFFF);
+        lyricsStatusView.setGravity(Gravity.CENTER);
+        lyricsStatusView.setVisibility(View.GONE);
+        lyricsContainer.addView(lyricsStatusView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 24, 0, 24, 0));
+
+        retryButton = new TextView(context);
+        retryButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        retryButton.setTextColor(0xFF000000);
+        retryButton.setTypeface(AndroidUtilities.bold());
+        retryButton.setGravity(Gravity.CENTER);
+        retryButton.setPadding(dp(18), 0, dp(18), 0);
+        retryButton.setText(getString(R.string.PengramLyricsRetry));
+        retryButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0xFFFFFFFF, 0x33000000));
+        retryButton.setVisibility(View.GONE);
+        retryButton.setOnClickListener(v -> loadLyrics(true));
+        lyricsContainer.addView(retryButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 36, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 8));
 
         // ---------- название ----------
+        final LinearLayout titleRow = new LinearLayout(context);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        content.addView(titleRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, compact ? 4 : 12, 22, 0));
+
+        smallCoverView = new BackupImageView(context);
+        smallCoverView.setRoundRadius(dp(10));
+        smallCoverView.setVisibility(style == PengramConfig.PLAYER_STYLE_LYRICS ? View.VISIBLE : View.GONE);
+        titleRow.addView(smallCoverView, LayoutHelper.createLinear(44, 44, Gravity.CENTER_VERTICAL, 0, 0, 12, 0));
+
+        final LinearLayout titleColumn = new LinearLayout(context);
+        titleColumn.setOrientation(LinearLayout.VERTICAL);
+        titleRow.addView(titleColumn, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL));
+
         titleView = new TextView(context);
-        titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compact ? 18 : 22);
         titleView.setTextColor(0xFFFFFFFF);
         titleView.setTypeface(AndroidUtilities.bold());
         titleView.setSingleLine();
         titleView.setEllipsize(TextUtils.TruncateAt.END);
-        content.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 14, 22, 0));
+        titleColumn.addView(titleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         artistView = new TextView(context);
-        artistView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        artistView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         artistView.setTextColor(0x99FFFFFF);
         artistView.setSingleLine();
         artistView.setEllipsize(TextUtils.TruncateAt.END);
-        content.addView(artistView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 4, 22, 0));
+        titleColumn.addView(artistView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
 
         // ---------- прогресс ----------
         seekBarView = new SeekBarView(context, resourcesProvider);
@@ -214,7 +289,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             public void onSeekBarPressed(boolean pressed) {
             }
         });
-        content.addView(seekBarView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 38, 17, 10, 17, 0));
+        content.addView(seekBarView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 34, 17, 8, 17, 0));
 
         final FrameLayout timeLayout = new FrameLayout(context);
         content.addView(timeLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 0, 22, 0));
@@ -233,7 +308,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         // ---------- кнопки ----------
         final FrameLayout controls = new FrameLayout(context);
-        content.addView(controls, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 76, 12, 6, 12, 0));
+        content.addView(controls, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, compact ? 70 : 76, 12, 4, 12, 0));
 
         repeatButton = new ImageView(context);
         repeatButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -251,7 +326,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
             updateRepeatButton();
         });
-        controls.addView(repeatButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 4, 0, 0, 0));
+        controls.addView(repeatButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 2, 0, 0, 0));
 
         prevButton = new ImageView(context);
         prevButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -260,7 +335,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         prevButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         prevButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
         prevButton.setOnClickListener(v -> MediaController.getInstance().playPreviousMessage());
-        controls.addView(prevButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, -92, 0, 0, 0));
+        controls.addView(prevButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, -88, 0, 0, 0));
 
         playButton = new ImageView(context);
         playButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -268,7 +343,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), false);
         playButton.setImageDrawable(playPauseDrawable);
         playButton.setColorFilter(new PorterDuffColorFilter(0xFF000000, PorterDuff.Mode.SRC_IN));
-        playButton.setBackground(Theme.createSimpleSelectorCircleDrawable(dp(66), 0xFFFFFFFF, 0x22000000));
+        playButton.setBackground(Theme.createSimpleSelectorCircleDrawable(dp(62), 0xFFFFFFFF, 0x22000000));
         playButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing == null) {
@@ -281,7 +356,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
         });
-        controls.addView(playButton, LayoutHelper.createFrame(66, 66, Gravity.CENTER));
+        controls.addView(playButton, LayoutHelper.createFrame(62, 62, Gravity.CENTER));
 
         nextButton = new ImageView(context);
         nextButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -290,7 +365,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         nextButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         nextButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(26)));
         nextButton.setOnClickListener(v -> MediaController.getInstance().playNextMessage());
-        controls.addView(nextButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, 92, 0, 0, 0));
+        controls.addView(nextButton, LayoutHelper.createFrame(52, 52, Gravity.CENTER, 88, 0, 0, 0));
 
         lyricsButton = new ImageView(context);
         lyricsButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -298,7 +373,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         lyricsButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         lyricsButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(22)));
         lyricsButton.setOnClickListener(v -> toggleLyrics(!lyricsShown));
-        controls.addView(lyricsButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 4, 0));
+        lyricsButton.setVisibility(lyricsSupported && !lyricsAlways ? View.VISIBLE : View.GONE);
+        controls.addView(lyricsButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 2, 0));
 
         speedButton = new ImageView(context);
         speedButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -311,7 +387,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             MediaController.getInstance().setPlaybackSpeed(true, next);
             updateSpeedButton();
         });
-        controls.addView(speedButton, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 52, 0));
+        controls.addView(speedButton, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.CENTER_VERTICAL,
+                0, 0, lyricsSupported && !lyricsAlways ? 48 : 6, 0));
 
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
@@ -339,6 +416,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint overlay = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
         private Bitmap blurred;
         private LinearGradient gradient;
         private int gradientHeight;
@@ -349,16 +427,18 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         void setCover(Bitmap bitmap) {
             blurred = null;
-            if (bitmap != null && PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER) {
+            if (bitmap != null) {
                 try {
                     final Bitmap small = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
-                    Utilities.stackBlurBitmap(small, 6);
-                    blurred = small;
                     accentColor = pickAccent(small);
-                    lyricsView.setColors(0xFFFFFFFF, 0xFFFFFFFF);
+                    if (PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER) {
+                        Utilities.stackBlurBitmap(small, 6);
+                        blurred = small;
+                    }
                 } catch (Throwable ignore) {
                 }
             }
+            gradient = null;
             invalidate();
         }
 
@@ -394,7 +474,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             final int w = getMeasuredWidth();
             final int h = getMeasuredHeight();
             if (bg == PengramConfig.PLAYER_BG_THEME) {
-                canvas.drawColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+                canvas.drawColor(ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), 0xFF000000, 0.55f));
                 return;
             }
             if (bg == PengramConfig.PLAYER_BG_DARK) {
@@ -412,12 +492,13 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
             if (gradient == null || gradientHeight != h) {
                 gradientHeight = h;
-                gradient = new LinearGradient(0, 0, 0, h,
+                gradient = new LinearGradient(0, 0, 0, Math.max(1, h),
                         new int[]{ColorUtils.blendARGB(accentColor, 0xFF000000, 0.35f), 0xFF0E0E12},
                         null, Shader.TileMode.CLAMP);
             }
             overlay.setShader(gradient);
-            canvas.drawRect(0, 0, w, h, overlay);
+            rect.set(0, 0, w, h);
+            canvas.drawRect(rect, overlay);
         }
     }
 
@@ -427,7 +508,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         lyricsShown = show;
         if (show) {
-            reloadLyrics();
+            loadLyrics(false);
             lyricsContainer.setVisibility(View.VISIBLE);
             lyricsContainer.setTranslationY(dp(28));
             lyricsContainer.animate().alpha(1f).translationY(0).setDuration(260).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
@@ -439,65 +520,51 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         lyricsButton.setColorFilter(new PorterDuffColorFilter(show ? accentColor : 0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
     }
 
-    private void reloadLyrics() {
-        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-        lyricsKey = PengramLyrics.keyFor(playing);
-        final String raw = PengramLyrics.getRaw(lyricsKey);
-        final long duration = playing == null ? 0 : (long) (playing.getDuration() * 1000);
-        lyricsView.setColors(accentColor, 0xFFFFFFFF);
-        lyricsView.setLyrics(raw, duration);
-        final boolean empty = lyricsView.isEmpty();
-        lyricsEmptyView.setVisibility(empty ? View.VISIBLE : View.GONE);
-        addLyricsButton.setText(getString(empty ? R.string.PengramLyricsAdd : R.string.PengramLyricsEdit));
-        if (playing != null) {
-            lyricsView.setProgress(playing.audioProgress);
-        }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private void showLyricsEditor() {
-        final Context context = getContext();
+    /** текст ищется сам: кэш → сеть; руками ничего вводить не нужно */
+    private void loadLyrics(boolean force) {
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (playing == null) {
             return;
         }
         lyricsKey = PengramLyrics.keyFor(playing);
-        final AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
-        builder.setTitle(getString(R.string.PengramLyricsAdd));
-
-        final LinearLayout layout = new LinearLayout(context);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(dp(22), dp(4), dp(22), 0);
-
-        final TextView hint = new TextView(context);
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        hint.setTextColor(Theme.getColor(Theme.key_dialogTextGray2, resourcesProvider));
-        hint.setText(getString(R.string.PengramLyricsHint));
-        layout.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
-
-        final EditText editText = new EditText(context);
-        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        editText.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
-        editText.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, resourcesProvider));
-        editText.setBackground(null);
-        editText.setMaxLines(10);
-        editText.setMinLines(5);
-        editText.setGravity(Gravity.TOP | Gravity.LEFT);
-        editText.setHint(getString(R.string.PengramLyricsPlaceholder));
-        final String existing = PengramLyrics.getRaw(lyricsKey);
-        if (!TextUtils.isEmpty(existing)) {
-            editText.setText(existing);
-        }
-        layout.addView(editText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 180));
-
-        builder.setView(layout);
-        builder.setPositiveButton(getString(R.string.Save), (dialog, which) -> {
-            final Editable value = editText.getText();
-            PengramLyrics.setRaw(lyricsKey, value == null ? null : value.toString());
-            reloadLyrics();
+        final long duration = (long) (playing.getDuration() * 1000);
+        lyricsView.setColors(accentColor, 0xFFFFFFFF);
+        PengramLyrics.request(playing, force, (key, raw, state) -> {
+            if (!TextUtils.equals(key, lyricsKey)) {
+                return;
+            }
+            applyLyricsState(raw, state, duration, playing);
         });
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        builder.show();
+    }
+
+    private void applyLyricsState(String raw, int state, long duration, MessageObject playing) {
+        if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {
+            lyricsView.setLyrics(raw, duration);
+            lyricsView.setVisibility(View.VISIBLE);
+            lyricsProgress.setVisibility(View.GONE);
+            lyricsStatusView.setVisibility(View.GONE);
+            retryButton.setVisibility(View.GONE);
+            final MessageObject current = MediaController.getInstance().getPlayingMessageObject();
+            if (current != null) {
+                lyricsView.setProgress(current.audioProgress);
+            }
+            return;
+        }
+        lyricsView.setLyrics(null, duration);
+        lyricsView.setVisibility(View.INVISIBLE);
+        if (state == PengramLyrics.STATE_LOADING) {
+            lyricsProgress.setVisibility(View.VISIBLE);
+            lyricsStatusView.setVisibility(View.VISIBLE);
+            lyricsStatusView.setText(getString(R.string.PengramLyricsSearching));
+            lyricsStatusView.setTranslationY(-dp(34));
+            retryButton.setVisibility(View.GONE);
+        } else {
+            lyricsProgress.setVisibility(View.GONE);
+            lyricsStatusView.setVisibility(View.VISIBLE);
+            lyricsStatusView.setText(getString(R.string.PengramLyricsNotFound));
+            lyricsStatusView.setTranslationY(0);
+            retryButton.setVisibility(View.VISIBLE);
+        }
     }
 
     private void updateSpeedButton() {
@@ -528,7 +595,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private void updateTitle() {
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (playing == null || !playing.isMusic()) {
-            dismiss();
+            if (isShowing()) {
+                dismiss();
+            }
             return;
         }
         titleView.setText(playing.getMusicTitle());
@@ -537,8 +606,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         updateCover(playing);
         playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), false);
         updateProgress(playing);
-        if (lyricsShown) {
-            reloadLyrics();
+        if (PengramConfig.playerStyleHasLyrics(style)) {
+            loadLyrics(false);
         }
     }
 
@@ -547,6 +616,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         applyCoverShape();
         if (audioInfo != null && audioInfo.getCover() != null) {
             coverView.setImageBitmap(audioInfo.getCover());
+            smallCoverView.setImageBitmap(audioInfo.getCover());
             backgroundView.setCover(audioInfo.getCover());
             return;
         }
@@ -559,10 +629,13 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final ImageLocation thumbLocation = thumb != null ? ImageLocation.getForDocument(thumb, document) : null;
         if (!TextUtils.isEmpty(artworkUrl)) {
             coverView.setImage(ImageLocation.getForPath(artworkUrl), null, thumbLocation, null, null, 0, 1, messageObject);
+            smallCoverView.setImage(ImageLocation.getForPath(artworkUrl), "44_44", thumbLocation, null, null, 0, 1, messageObject);
         } else if (thumbLocation != null) {
             coverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
+            smallCoverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
             coverView.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0x33FFFFFF, 0x33FFFFFF));
+            smallCoverView.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(10), 0x33FFFFFF, 0x33FFFFFF));
         }
         backgroundView.setCover(null);
     }

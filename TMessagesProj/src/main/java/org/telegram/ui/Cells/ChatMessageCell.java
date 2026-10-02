@@ -333,11 +333,40 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    /** Pengram: рисуем маленькую аватарку рядом с ником вместо столбика слева */
+    private boolean pengramInlineAvatar() {
+        if (currentMessageObject == null || currentMessageObject.isOutOwner() || currentMessageObject.isRepostPreview) {
+            return false;
+        }
+        if (!isChat && !currentMessageObject.forceAvatar) {
+            return false;
+        }
+        return org.telegram.messenger.PengramConfig.isInlineAvatar();
+    }
+
+    /** Pengram: аватарка после ника — сдвигаем её за текст имени */
+    private float pengramNameAvatarOffset() {
+        if (currentMessageObject != null && !currentMessageObject.isOutOwner()
+                && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME) {
+            return nameLayoutWidth + dp(6);
+        }
+        return 0;
+    }
+
+    /** Pengram: если аватарка после ника, имя двигать не нужно */
+    private float pengramNameAvatarShift() {
+        if (currentMessageObject != null && !currentMessageObject.isOutOwner()
+                && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME) {
+            return 0f;
+        }
+        return 1f;
+    }
+
     public void setAvatar(MessageObject messageObject) {
         if (messageObject == null) {
             return;
         }
-        if (isAvatarVisible) {
+        if (isAvatarVisible || pengramInlineAvatar()) {
             if (messageObject.customAvatarDrawable != null) {
                 avatarImage.setImageBitmap(messageObject.customAvatarDrawable);
             } else if (currentUser != null) {
@@ -6289,7 +6318,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         updateCurrentUserAndChat();
         TLRPC.FileLocation newPhoto = null;
 
-        if (isAvatarVisible) {
+        if (isAvatarVisible || pengramInlineAvatar()) {
             if (currentUser != null && currentUser.photo != null) {
                 newPhoto = currentUser.photo.photo_small;
             } else if (currentChat != null && currentChat.photo != null) {
@@ -6989,8 +7018,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             isThreadPost = isThreadChat && messageObject.messageOwner.fwd_from != null && messageObject.messageOwner.fwd_from.channel_post != 0 && messageObject.messageOwner.reply_to == null;
             isAvatarVisible = needDrawAvatar() && (currentPosition == null || currentPosition.edge);
             // Pengram: аватарки авторов в чате можно убрать совсем
-            if (isAvatarVisible && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_HIDE
-                    && !messageObject.isOutOwner() && !messageObject.isRepostPreview && !messageObject.forceAvatar) {
+            final int pengramAvatarPos = org.telegram.messenger.PengramConfig.getGroupAvatarPos();
+            if (isAvatarVisible && !messageObject.isOutOwner() && !messageObject.isRepostPreview && !messageObject.forceAvatar
+                    && (pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_HIDE
+                        || pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_BEFORE_NAME
+                        || pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME)) {
                 isAvatarVisible = false;
             }
             boolean drawAvatar = needDrawAvatar();
@@ -18921,7 +18953,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         boolean viaGuestBot = messageObject.messageOwner.guestchat_via_from != null;
         if (!hasPsaHint && (needAuthorName || viaBot || viaGuestBot)) {
             drawNameLayout = true;
-            drawNameAvatar = !messageObject.isOutOwner() && (isForum || isMonoForum) && isSideMenuEnabled && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
+            drawNameAvatar = !messageObject.isOutOwner() && ((isForum || isMonoForum) && isSideMenuEnabled || pengramInlineAvatar()) && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
             nameWidth = getMaxNameWidth();
             if (nameWidth < 0) {
                 nameWidth = dp(100);
@@ -21400,7 +21432,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 avatarAlpha = drawNameAvatar ? 1.0f : 0.0f;
             }
-            nx += dp(32.33f) * avatarAlpha;
+            nx += dp(32.33f) * avatarAlpha * pengramNameAvatarShift();
             final float avatarY = ny;
             if (adminLayout == null) {
                 ny += dp(5) * avatarAlpha;
@@ -22218,7 +22250,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarAlpha = drawNameAvatar ? 1.0f : 0.0f;
             }
             if (avatarAlpha > 0.0f) {
-                float avatarX = nx;
+                float avatarX = nx + pengramNameAvatarOffset();
                 if (currentNameBotVerificationId != 0) {
                     avatarX -= dp(20);
                 }
@@ -22237,7 +22269,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarImage.setAlpha(wasAlpha);
                 avatarImage.setVisible(wasVisible, false);
             }
-            nx += dp(32.33f) * avatarAlpha;
+            nx += dp(32.33f) * avatarAlpha * pengramNameAvatarShift();
             if (adminLayout == null) {
                 ny += dp(5) * avatarAlpha;
             } else {

@@ -1532,21 +1532,39 @@ public class PengramConfig {
     public static final int AVATAR_POS_LEFT = 0;
     public static final int AVATAR_POS_RIGHT = 1;
     public static final int AVATAR_POS_HIDE = 2;
+    /** маленькая аватарка прямо перед ником внутри сообщения */
+    public static final int AVATAR_POS_BEFORE_NAME = 3;
+    /** маленькая аватарка сразу после ника */
+    public static final int AVATAR_POS_AFTER_NAME = 4;
+    public static final int AVATAR_POS_COUNT = 5;
+
+    /** порядок, в котором позиции показываются в визуальном редакторе */
+    public static final int[] AVATAR_POS_ORDER = new int[]{
+            AVATAR_POS_LEFT, AVATAR_POS_BEFORE_NAME, AVATAR_POS_AFTER_NAME, AVATAR_POS_RIGHT, AVATAR_POS_HIDE
+    };
 
     public static int getGroupAvatarPos() {
         init();
         final int value = prefs().getInt("groupAvatarPos", AVATAR_POS_LEFT);
-        return value < 0 || value > AVATAR_POS_HIDE ? AVATAR_POS_LEFT : value;
+        return value < 0 || value >= AVATAR_POS_COUNT ? AVATAR_POS_LEFT : value;
     }
 
     public static void setGroupAvatarPos(int value) {
-        putInt("groupAvatarPos", value < 0 || value > AVATAR_POS_HIDE ? AVATAR_POS_LEFT : value);
+        putInt("groupAvatarPos", value < 0 || value >= AVATAR_POS_COUNT ? AVATAR_POS_LEFT : value);
+    }
+
+    /** рисуем ли маленькую аватарку рядом с ником */
+    public static boolean isInlineAvatar() {
+        final int pos = getGroupAvatarPos();
+        return pos == AVATAR_POS_BEFORE_NAME || pos == AVATAR_POS_AFTER_NAME;
     }
 
     public static int getGroupAvatarPosName(int value) {
         switch (value) {
             case AVATAR_POS_RIGHT: return org.telegram.messenger.R.string.PengramAvatarPosRight;
             case AVATAR_POS_HIDE: return org.telegram.messenger.R.string.PengramAvatarPosHide;
+            case AVATAR_POS_BEFORE_NAME: return org.telegram.messenger.R.string.PengramAvatarPosBeforeName;
+            case AVATAR_POS_AFTER_NAME: return org.telegram.messenger.R.string.PengramAvatarPosAfterName;
             case AVATAR_POS_LEFT:
             default: return org.telegram.messenger.R.string.PengramAvatarPosLeft;
         }
@@ -1571,8 +1589,53 @@ public class PengramConfig {
     public static final String KEY_LYRICS_BOLD = "lyricsBold";
     public static final String KEY_LYRICS_SHADOW = "lyricsShadow";
 
+    /** стили плеера */
+    public static final int PLAYER_STYLE_ORIGINAL = 0;
+    public static final int PLAYER_STYLE_FULL = 1;
+    public static final int PLAYER_STYLE_LYRICS = 2;
+    public static final int PLAYER_STYLE_COMPACT = 3;
+    public static final int PLAYER_STYLE_MINI_LYRICS = 4;
+    public static final int PLAYER_STYLE_COUNT = 5;
+
+    public static int getPlayerStyle() {
+        init();
+        final int value = prefs().getInt("playerStyle", PLAYER_STYLE_FULL);
+        return value < 0 || value >= PLAYER_STYLE_COUNT ? PLAYER_STYLE_FULL : value;
+    }
+
+    public static void setPlayerStyle(int value) {
+        putInt("playerStyle", value < 0 || value >= PLAYER_STYLE_COUNT ? PLAYER_STYLE_FULL : value);
+    }
+
+    public static int getPlayerStyleName(int value) {
+        switch (value) {
+            case PLAYER_STYLE_ORIGINAL: return org.telegram.messenger.R.string.PengramPlayerStyleOriginal;
+            case PLAYER_STYLE_LYRICS: return org.telegram.messenger.R.string.PengramPlayerStyleLyrics;
+            case PLAYER_STYLE_COMPACT: return org.telegram.messenger.R.string.PengramPlayerStyleCompact;
+            case PLAYER_STYLE_MINI_LYRICS: return org.telegram.messenger.R.string.PengramPlayerStyleMini;
+            case PLAYER_STYLE_FULL:
+            default: return org.telegram.messenger.R.string.PengramPlayerStyleFull;
+        }
+    }
+
+    public static int getPlayerStyleInfo(int value) {
+        switch (value) {
+            case PLAYER_STYLE_ORIGINAL: return org.telegram.messenger.R.string.PengramPlayerStyleOriginalInfo;
+            case PLAYER_STYLE_LYRICS: return org.telegram.messenger.R.string.PengramPlayerStyleLyricsInfo;
+            case PLAYER_STYLE_COMPACT: return org.telegram.messenger.R.string.PengramPlayerStyleCompactInfo;
+            case PLAYER_STYLE_MINI_LYRICS: return org.telegram.messenger.R.string.PengramPlayerStyleMiniInfo;
+            case PLAYER_STYLE_FULL:
+            default: return org.telegram.messenger.R.string.PengramPlayerStyleFullInfo;
+        }
+    }
+
+    /** показывает ли выбранный стиль текст песни */
+    public static boolean playerStyleHasLyrics(int style) {
+        return style == PLAYER_STYLE_FULL || style == PLAYER_STYLE_LYRICS || style == PLAYER_STYLE_MINI_LYRICS;
+    }
+
     public static boolean isNewPlayer() {
-        return getBool(KEY_NEW_PLAYER, true);
+        return getPlayerStyle() != PLAYER_STYLE_ORIGINAL;
     }
 
     /** анимации текста песни */

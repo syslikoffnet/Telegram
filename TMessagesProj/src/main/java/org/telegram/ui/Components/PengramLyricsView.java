@@ -53,6 +53,9 @@ public class PengramLyricsView extends View {
     private int baseColor = 0xFFFFFFFF;
     private SeekCallback seekCallback;
     private int builtWidth;
+    private int previewAnim = -1;
+    private boolean previewMode;
+    private int previewSize;
     private int builtSize;
     private boolean builtBold;
     private int builtAlign;
@@ -60,6 +63,22 @@ public class PengramLyricsView extends View {
     public PengramLyricsView(Context context) {
         super(context);
         textPaint.setTextSize(AndroidUtilities.dp(PengramConfig.getLyricsSize()));
+    }
+
+    /** витрина анимации: одна строка, которая бесконечно проигрывается заново */
+    public void setPreview(String text, int anim, int textSize) {
+        previewMode = true;
+        previewAnim = anim;
+        previewSize = textSize;
+        timed = false;
+        durationMs = 4000;
+        lines.clear();
+        lines.add(new PengramLyrics.Line(-1, text));
+        activeLine = -1;
+        enterAnim = 0;
+        builtWidth = 0;
+        buildLayouts();
+        invalidate();
     }
 
     public void setColors(int accent, int base) {
@@ -104,7 +123,7 @@ public class PengramLyricsView extends View {
         if (width <= 0) {
             return;
         }
-        final int size = PengramConfig.getLyricsSize();
+        final int size = previewMode && previewSize > 0 ? previewSize : PengramConfig.getLyricsSize();
         final boolean bold = PengramConfig.getBool(PengramConfig.KEY_LYRICS_BOLD, true);
         final int align = PengramConfig.getLyricsAlign();
         if (builtWidth == width && builtSize == size && builtBold == bold && builtAlign == align && !layouts.isEmpty()) {
@@ -189,6 +208,14 @@ public class PengramLyricsView extends View {
         lastFrame = now;
         final float speed = PengramConfig.getLyricsSpeed() / 100f;
 
+        if (previewMode) {
+            final float loop = (now % 4200L) / 3200f;
+            if (loop < progress) {
+                enterAnim = 0;
+            }
+            progress = Math.min(1f, loop);
+        }
+
         final int line = currentLine();
         if (line != activeLine) {
             activeLine = line;
@@ -199,17 +226,24 @@ public class PengramLyricsView extends View {
         if (activeLine >= 0 && activeLine < layouts.size()) {
             targetScrollY = tops.get(activeLine) - getMeasuredHeight() * 0.42f + layouts.get(activeLine).getHeight() * 0.5f;
         }
+        if (previewMode) {
+            targetScrollY = scrollY = 0;
+        }
         if (!PengramConfig.getBool(PengramConfig.KEY_LYRICS_AUTOSCROLL, true)) {
             targetScrollY = Math.max(0, targetScrollY);
         }
         scrollY = AndroidUtilities.lerp(scrollY, targetScrollY, Math.min(1f, dt * 7f));
 
         final int dim = PengramConfig.getLyricsDim();
-        final int anim = PengramConfig.getLyricsAnim();
+        final int anim = previewAnim >= 0 ? previewAnim : PengramConfig.getLyricsAnim();
         final boolean shadow = PengramConfig.getBool(PengramConfig.KEY_LYRICS_SHADOW, true);
 
         canvas.save();
-        canvas.translate(AndroidUtilities.dp(16), -scrollY);
+        if (previewMode && !layouts.isEmpty()) {
+            canvas.translate(AndroidUtilities.dp(16), Math.max(0, (getMeasuredHeight() - layouts.get(0).getHeight()) / 2f));
+        } else {
+            canvas.translate(AndroidUtilities.dp(16), -scrollY);
+        }
         for (int a = 0; a < layouts.size(); ++a) {
             final StaticLayout layout = layouts.get(a);
             final int top = tops.get(a);
@@ -386,7 +420,7 @@ public class PengramLyricsView extends View {
                 }
             }
         }
-        return true;
+        return !previewMode;
     }
 
     public CharSequence emptyText() {
