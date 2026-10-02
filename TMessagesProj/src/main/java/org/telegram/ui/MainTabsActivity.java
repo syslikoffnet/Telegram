@@ -377,6 +377,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
+    /** Pengram: применяем новый размер панели — нужна полная пересборка вью */
+    public void pengramRebuildTabs() {
+        DialogsActivity.pengramApplyTabsSize();
+        AndroidUtilities.runOnUIThread(() -> {
+            if (getParentLayout() != null) {
+                getParentLayout().rebuildAllFragmentViews(true, true);
+            }
+        });
+    }
+
     /** Pengram: применяем скрытие/возврат вкладок без перезапуска приложения */
     public void checkPengramTabs() {
         final int[] oldKinds = getPageKinds();
@@ -453,11 +463,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public View createView(Context context) {
         super.createView(context);
         tabletLayout = false;
+        // Pengram: размер нижней панели мог измениться в настройках
+        DialogsActivity.pengramApplyTabsSize();
 
         tabsView = new MainTabsLayout(context, resourceProvider);
         tabsView.setClipChildren(false);
         tabsView.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4));
-        tabsView.setMaxWidth(dp(328 + DialogsActivity.MAIN_TABS_MARGIN * 2));
+        tabsView.setMaxWidth((int) (dp(328 + DialogsActivity.MAIN_TABS_MARGIN * 2) * org.telegram.messenger.PengramConfig.getTabBarScale()));
 
         tabs = new GlassTabView[5];
         tabs[INDEX_CHATS] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.CHATS, R.string.MainTabsChats);

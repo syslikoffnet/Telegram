@@ -381,10 +381,16 @@ public class PengramHistory extends SQLiteOpenHelper {
     // ------------------------------- «я удалил сам»: такие сообщения реально удаляем
 
     private static final java.util.HashMap<Integer, Long> userDeletedGuard = new java.util.HashMap<>();
-    private static final java.util.HashSet<Integer> saveForMyself = new java.util.HashSet<>();
+    private static final java.util.HashMap<Integer, Long> saveForMyself = new java.util.HashMap<>();
     private static final long GUARD_TTL = 120_000L;
+    /** «сохранить у себя» живёт дольше: сервер может прислать апдейт об удалении с задержкой */
+    private static final long SAVE_TTL = 15 * 60_000L;
 
-    /** пользователь сам удалил эти сообщения — удаляем по-настоящему */
+    /**
+     * Пользователь сам удалил эти сообщения — удаляем по-настоящему.
+     * Важно: это снимает прошлую пометку «сохранить у себя», иначе
+     * повторное удаление уже сохранённой «удалёнки» ничего бы не сделало.
+     */
     public static void guardUserDeleted(java.util.Collection<Integer> ids) {
         if (ids == null) return;
         final long now = System.currentTimeMillis();
@@ -393,6 +399,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             for (Integer id : ids) {
                 if (id != null) {
                     userDeletedGuard.put(id, now);
+                    saveForMyself.remove(id);
                 }
             }
         }
@@ -406,8 +413,21 @@ public class PengramHistory extends SQLiteOpenHelper {
             cleanupGuard(now);
             for (Integer id : ids) {
                 if (id != null) {
-                    saveForMyself.add(id);
+                    saveForMyself.put(id, now);
                     userDeletedGuard.remove(id);
+                }
+            }
+        }
+    }
+
+    /** снять любые пометки (например, сообщение больше не существует) */
+    public static void forgetGuard(java.util.Collection<Integer> ids) {
+        if (ids == null) return;
+        synchronized (userDeletedGuard) {
+            for (Integer id : ids) {
+                if (id != null) {
+                    userDeletedGuard.remove(id);
+                    saveForMyself.remove(id);
                 }
             }
         }
@@ -418,12 +438,15 @@ public class PengramHistory extends SQLiteOpenHelper {
         while (it.hasNext()) {
             java.util.Map.Entry<Integer, Long> e = it.next();
             if (now - e.getValue() > GUARD_TTL) {
-                saveForMyself.remove(e.getKey());
                 it.remove();
             }
         }
-        if (userDeletedGuard.isEmpty() && saveForMyself.size() > 512) {
-            saveForMyself.clear();
+        java.util.Iterator<java.util.Map.Entry<Integer, Long>> it2 = saveForMyself.entrySet().iterator();
+        while (it2.hasNext()) {
+            java.util.Map.Entry<Integer, Long> e = it2.next();
+            if (now - e.getValue() > SAVE_TTL) {
+                it2.remove();
+            }
         }
     }
 
@@ -435,7 +458,7 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     public static boolean isSaveForMyself(int messageId) {
         synchronized (userDeletedGuard) {
-            return saveForMyself.contains(messageId);
+            return saveForMyself.containsKey(messageId);
         }
     }
 
@@ -447,17 +470,19 @@ public class PengramHistory extends SQLiteOpenHelper {
         boolean anySaveForMyself = false;
         boolean anyUserDeleted = false;
         synchronized (userDeletedGuard) {
+            cleanupGuard(System.currentTimeMillis());
             for (Integer id : ids) {
                 if (id == null) continue;
-                if (saveForMyself.contains(id)) anySaveForMyself = true;
+                if (saveForMyself.containsKey(id)) anySaveForMyself = true;
                 if (userDeletedGuard.containsKey(id)) anyUserDeleted = true;
             }
         }
-        if (anySaveForMyself) {
-            return true;
-        }
+        // явное «удалить» всегда сильнее, чем прошлое «сохранить у себя»
         if (anyUserDeleted) {
             return false;
+        }
+        if (anySaveForMyself) {
+            return true;
         }
         return PengramConfig.isKeepingDeletedInChat();
     }

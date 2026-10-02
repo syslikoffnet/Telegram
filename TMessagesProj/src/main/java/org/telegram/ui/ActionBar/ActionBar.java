@@ -334,6 +334,36 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    /** Pengram: на этом экране разрешено центрировать заголовок */
+    private boolean pengramCenterAllowed;
+
+    public void setPengramCenterTitle(boolean value) {
+        pengramCenterAllowed = value;
+        requestLayout();
+    }
+
+    /** Pengram: нужно ли сейчас центрировать заголовок */
+    private boolean pengramCentered() {
+        return pengramCenterAllowed
+                && org.telegram.messenger.PengramConfig.isTitleCentered()
+                && (menu == null || !menu.searchFieldVisible())
+                && !isActionModeShowed();
+    }
+
+    /** Pengram: левый край центрированного текста (с оглядкой на кнопки) */
+    private int pengramCenterLeft(int defaultLeft, int measuredWidth) {
+        if (measuredWidth <= 0) {
+            return defaultLeft;
+        }
+        final int menuWidth = menu != null && menu.getVisibility() != GONE ? menu.getMeasuredWidth() : 0;
+        final int maxLeft = getMeasuredWidth() - menuWidth - measuredWidth;
+        final int centered = (getMeasuredWidth() - measuredWidth) / 2;
+        if (maxLeft <= defaultLeft) {
+            return defaultLeft;
+        }
+        return Math.max(defaultLeft, Math.min(centered, maxLeft));
+    }
+
     public void setSupportsHolidayImage(boolean value) {
         supportsHolidayImage = value;
         if (supportsHolidayImage) {
@@ -424,7 +454,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                     if (snowflakesEffect == null) {
                         snowflakesEffect = new SnowflakesEffect(0);
                     }
-                } else if (!manualStart) {
+                } else if (!manualStart && !org.telegram.messenger.PengramConfig.isForcedSnow()) {
                     if (snowflakesEffect != null) {
                         snowflakesEffect = null;
                     }
@@ -434,6 +464,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 } else if (fireworksEffect != null) {
                     fireworksEffect.onDraw(this, canvas);
                 }
+            } else if (org.telegram.messenger.PengramConfig.isForcedSnow()) {
+                // Pengram: снег включён принудительно, праздничной картинки нет
+                if (snowflakesEffect == null) {
+                    snowflakesEffect = new SnowflakesEffect(0);
+                }
+                snowflakesEffect.onDraw(this, canvas);
             }
         }
         if (clip) {
@@ -1543,7 +1579,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         textTop = (getCurrentActionBarHeight() - titleTextView[i].getTextHeight()) / 2;
                     }
                 }
-                titleTextView[i].layout(textLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), textLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
+                int titleLeft = textLeft;
+                if (pengramCentered()) {
+                    titleLeft = pengramCenterLeft(textLeft, titleTextView[i].getMeasuredWidth());
+                }
+                titleTextView[i].layout(titleLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), titleLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
         }
         if (additionalSubTitleOverlayContainer != null) {
@@ -1552,7 +1592,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
             int textTop = getCurrentActionBarHeight() / 2 + (getCurrentActionBarHeight() / 2 - subtitleTextView.getTextHeight()) / 2 - dp(2);
-            subtitleTextView.layout(textLeft, additionalTop + textTop, textLeft + subtitleTextView.getMeasuredWidth(), additionalTop + textTop + subtitleTextView.getTextHeight());
+            int subtitleLeft = pengramCentered() ? pengramCenterLeft(textLeft, subtitleTextView.getMeasuredWidth()) : textLeft;
+            subtitleTextView.layout(subtitleLeft, additionalTop + textTop, subtitleLeft + subtitleTextView.getMeasuredWidth(), additionalTop + textTop + subtitleTextView.getTextHeight());
         }
 
         if (additionalSubtitleTextView != null && additionalSubtitleTextView.getVisibility() != GONE) {

@@ -7300,6 +7300,77 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     /** «Вы создали свой аккаунт примерно …» по тапу на календарик в строке ID */
+    /** Pengram: нужна ли отдельная строка «дата регистрации» */
+    private static boolean pengramRegRowNeeded() {
+        if (!PengramConfig.isRegDateVisible()) {
+            return false;
+        }
+        final int place = PengramConfig.getRegDatePlace();
+        if (place == PengramConfig.REG_PLACE_SUBTITLE) {
+            return false;
+        }
+        if (place == PengramConfig.REG_PLACE_ROW || place == PengramConfig.REG_PLACE_BOTH) {
+            return true;
+        }
+        // режим «только значок»: без строки ID значок вешать некуда
+        return !PengramConfig.isIdSeparateRow();
+    }
+
+    /** Pengram: текст даты регистрации в выбранном формате */
+    private static String pengramRegDateText(long estimate) {
+        if (estimate <= 0) {
+            return "—";
+        }
+        final int style = PengramConfig.getRegDateStyle();
+        final String age = PengramRegDate.formatAge(estimate);
+        if (style == PengramConfig.REG_STYLE_AGE) {
+            return age == null ? "—" : age;
+        }
+        String date = style == PengramConfig.REG_STYLE_EXACT
+                ? PengramRegDate.formatDate(estimate)
+                : PengramRegDate.formatMonthYear(estimate);
+        if (date == null) {
+            date = "—";
+        }
+        String text = "\u2248 " + date;
+        if ((style == PengramConfig.REG_STYLE_DATE_AGE || style == PengramConfig.REG_STYLE_EXACT) && age != null) {
+            text = text + " \u2022 " + age;
+        }
+        return text;
+    }
+
+    /** Pengram: значок даты регистрации нужного вида */
+    private Drawable pengramRegDateDrawable(Context context) {
+        final int res = PengramConfig.getRegDateIconRes();
+        if (res == 0 || context == null) {
+            return null;
+        }
+        final Drawable drawable = ContextCompat.getDrawable(context, res);
+        if (drawable != null) {
+            drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
+        }
+        return drawable;
+    }
+
+    /** Pengram: дописать дату регистрации к подписи под именем */
+    private CharSequence pengramWithRegDate(CharSequence status) {
+        if (userId == 0 || !PengramConfig.isRegDateInSubtitle()) {
+            return status;
+        }
+        final long estimate = PengramRegDate.estimate(userId);
+        if (estimate <= 0) {
+            return status;
+        }
+        final String reg = pengramRegDateText(estimate);
+        if (TextUtils.isEmpty(reg) || "—".equals(reg)) {
+            return status;
+        }
+        if (TextUtils.isEmpty(status)) {
+            return reg;
+        }
+        return TextUtils.concat(status, " \u2022 ", reg);
+    }
+
     private void showRegDateInfo(long estimate) {
         if (getParentActivity() == null) {
             return;
@@ -10688,7 +10759,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
-                if (PengramConfig.isRegDateVisible() && !PengramConfig.isIdSeparateRow()) {
+                if (pengramRegRowNeeded()) {
                     regDateRow = rowCount++;
                 }
                 bioRow = rowCount++;
@@ -10787,8 +10858,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
-                // обычно календарик живёт в строке ID; если её выключили — даём отдельную строку
-                if (user != null && PengramConfig.isRegDateVisible() && !PengramConfig.isIdSeparateRow()) {
+                // значок живёт в строке ID, строка — по настройке «где показывать»
+                if (user != null && pengramRegRowNeeded()) {
                     regDateRow = rowCount++;
                 }
                 if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
@@ -11523,7 +11594,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         onlineTextView[a].setText(textView.getText());
                     }
                 } else {
-                    onlineTextView[a].setText(newString2);
+                    onlineTextView[a].setText(a == 1 ? pengramWithRegDate(newString2) : newString2);
                 }
                 onlineTextView[a].setDrawablePadding(dp(9));
                 onlineTextView[a].setRightDrawableInside(true);
@@ -13595,11 +13666,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, regDateRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
                         // календарик с приблизительной датой регистрации — прямо в строке ID
-                        final long regEstimate = userId != 0 && PengramConfig.isRegDateVisible() ? PengramRegDate.estimate(userId) : 0;
+                        final long regEstimate = userId != 0 && PengramConfig.isRegDateIconVisible() ? PengramRegDate.estimate(userId) : 0;
                         if (regEstimate > 0) {
-                            Drawable calendarDrawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                            Drawable calendarDrawable = pengramRegDateDrawable(detailCell.getContext());
                             if (calendarDrawable != null) {
-                                calendarDrawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                                 detailCell.setImage(calendarDrawable, LocaleController.getString(R.string.PengramRegDate));
                                 detailCell.setImageClickListener(v -> showRegDateInfo(regEstimate));
                                 containsCalendar = true;
@@ -13610,25 +13680,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (position == regDateRow) {
                         final long estimate = PengramRegDate.estimate(userId);
-                        String text = PengramRegDate.formatMonthYear(estimate);
-                        if (text == null) {
-                            text = "—";
-                        }
-                        text = "\u2248 " + text;
-                        if (PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
-                            final String age = PengramRegDate.formatAge(estimate);
-                            if (age != null) {
-                                text = text + " \u2022 " + age;
-                            }
-                        }
+                        final String text = pengramRegDateText(estimate);
                         detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
-                        Drawable calendar = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                        Drawable calendar = pengramRegDateDrawable(detailCell.getContext());
                         if (calendar != null) {
-                            calendar.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                             detailCell.setImage(calendar, LocaleController.getString(R.string.PengramRegDate));
                             detailCell.setImageClickListener(v -> showRegDateInfo(estimate));
                             containsCalendar = true;
+                        } else {
+                            detailCell.setImage(null);
+                            detailCell.setImageClickListener(null);
                         }
                     } else if (position == phoneRow) {
                         String text;

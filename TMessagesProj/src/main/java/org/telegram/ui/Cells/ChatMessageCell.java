@@ -6956,6 +6956,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 drawPinnedTop = pinnedTop && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0);
                 drawPinnedBottom = pinnedBottom && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0);
             }
+            if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {
+                // Pengram: пузырь без «хвостика» — рисуем его как продолжение серии
+                drawPinnedBottom = true;
+            }
 
             boolean wasPlayingRound = isPlayingRound;
             isPlayingRound = isRoundVideo && MediaController.getInstance().isPlayingMessage(currentMessageObject) && delegate != null && !delegate.keyboardIsOpened() && !delegate.isLandscape();
@@ -18508,6 +18512,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             timeString = LocaleController.formatSmallDateChat(currentMessageObject.realDate) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (currentMessageObject.realDate) * 1000);
         } else if (currentMessageObject.isRepostPreview) {
             timeString = LocaleController.formatSmallDateChat(messageObject.messageOwner.date) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
+        } else if (edited && org.telegram.messenger.PengramConfig.isHidingEditedLabel()) {
+            // Pengram: надпись «изменено» убрана, остаётся только метка
+            timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         } else if (edited) {
             if (AppGlobalConfig.getInstance(currentAccount).messagePrimaryEditedDate.get()) {
                 int editDate = currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date;

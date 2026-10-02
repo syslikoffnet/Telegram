@@ -163,6 +163,13 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CFG_IMPORT = 1407;
     private static final int BTN_CFG_RESET = 1408;
     private static final int BTN_SEND_STYLE = 1409;
+    private static final int BTN_REG_STYLE_PICK = 1410;
+    private static final int BTN_REG_PLACE = 1411;
+    private static final int BTN_REG_ICON = 1412;
+    private static final int BTN_TITLE_MODE = 1413;
+    private static final int BTN_TITLE_CUSTOM = 1414;
+    private static final int BTN_TABBAR_SIZE = 1415;
+    private static final int BTN_MENU_ITEMS = 1416;
     private static final int BTN_GENERIC_BASE = 2000;
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
@@ -469,6 +476,71 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     /** «Кнопка скрыта» / «Кнопка видна» — чтобы было сразу понятно, что делает галочка */
+    /** название формата даты регистрации */
+    private CharSequence regStyleName(int style) {
+        switch (style) {
+            case PengramConfig.REG_STYLE_DATE: return getString(R.string.PengramRegStyleDate);
+            case PengramConfig.REG_STYLE_DATE_AGE: return getString(R.string.PengramRegStyleDateAge);
+            case PengramConfig.REG_STYLE_AGE: return getString(R.string.PengramRegStyleAge);
+            case PengramConfig.REG_STYLE_EXACT: return getString(R.string.PengramRegStyleExact);
+            default: return getString(R.string.PengramRegStyleOff);
+        }
+    }
+
+    /** где показывать дату регистрации */
+    private CharSequence regPlaceName(int place) {
+        switch (place) {
+            case PengramConfig.REG_PLACE_ICON: return getString(R.string.PengramRegPlaceIcon);
+            case PengramConfig.REG_PLACE_SUBTITLE: return getString(R.string.PengramRegPlaceSubtitle);
+            case PengramConfig.REG_PLACE_ROW: return getString(R.string.PengramRegPlaceRow);
+            default: return getString(R.string.PengramRegPlaceBoth);
+        }
+    }
+
+    /** какой значок у даты регистрации */
+    private CharSequence regIconName(int icon) {
+        switch (icon) {
+            case PengramConfig.REG_ICON_CLOCK: return getString(R.string.PengramRegIconClock);
+            case PengramConfig.REG_ICON_CAKE: return getString(R.string.PengramRegIconCake);
+            case PengramConfig.REG_ICON_STAR: return getString(R.string.PengramRegIconStar);
+            case PengramConfig.REG_ICON_INFO: return getString(R.string.PengramRegIconInfo);
+            case PengramConfig.REG_ICON_PENGUIN: return getString(R.string.PengramRegIconPenguin);
+            case PengramConfig.REG_ICON_NONE: return getString(R.string.PengramRegIconNone);
+            default: return getString(R.string.PengramRegIconCalendar);
+        }
+    }
+
+    /** название режима заголовка */
+    private CharSequence titleModeName(int mode) {
+        switch (mode) {
+            case PengramConfig.TITLE_MODE_PENGRAM: return "Pengram";
+            case PengramConfig.TITLE_MODE_CHATS: return getString(R.string.PengramTitleChats);
+            case PengramConfig.TITLE_MODE_NAME: return getString(R.string.PengramTitleModeName);
+            case PengramConfig.TITLE_MODE_USERNAME: return getString(R.string.PengramTitleModeUsername);
+            case PengramConfig.TITLE_MODE_CUSTOM: return getString(R.string.PengramTitleModeCustom);
+            default: return getString(R.string.PengramTitleModeDefault);
+        }
+    }
+
+    /** свой текст заголовка */
+    private void showTitleCustomDialog() {
+        showTextDialog(getString(R.string.PengramTitleCustom), PengramConfig.getTitleCustom(), "Pengram", value -> {
+            PengramConfig.setTitleCustom(value == null ? "" : value.trim());
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    /** сколько пунктов меню скрыто */
+    private CharSequence hiddenMenuValue() {
+        final int hidden = PengramConfig.getHiddenMenuItemsCount();
+        if (hidden <= 0) {
+            return getString(R.string.PengramMenuItemsAll);
+        }
+        return LocaleController.formatString(R.string.PengramMenuItemsHidden, hidden);
+    }
+
     private CharSequence tabStateText(String key) {
         return getString(PengramConfig.getBool(key, false) ? R.string.PengramTabHidden : R.string.PengramTabVisible);
     }
@@ -559,6 +631,23 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final org.telegram.ui.ActionBar.BaseFragment fragment = stack.get(a);
                 if (fragment instanceof MainTabsActivity) {
                     ((MainTabsActivity) fragment).checkPengramTabsVisibility();
+                }
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    /** Pengram: размер панели поменялся — пересобираем экран целиком */
+    private void applyTabsSizeNow() {
+        try {
+            DialogsActivity.pengramApplyTabsSize();
+            if (getParentLayout() == null) {
+                return;
+            }
+            final java.util.List<org.telegram.ui.ActionBar.BaseFragment> stack = getParentLayout().getFragmentStack();
+            for (int a = 0; a < stack.size(); ++a) {
+                final org.telegram.ui.ActionBar.BaseFragment fragment = stack.get(a);
+                if (fragment instanceof MainTabsActivity) {
+                    ((MainTabsActivity) fragment).pengramRebuildTabs();
                 }
             }
         } catch (Throwable ignore) {}
@@ -880,9 +969,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
-        items.add(UItem.asRadio(BTN_REG_OFF, getString(R.string.PengramRegStyleOff)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_OFF));
-        items.add(UItem.asRadio(BTN_REG_DATE, getString(R.string.PengramRegStyleDate)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE));
-        items.add(UItem.asRadio(BTN_REG_DATE_AGE, getString(R.string.PengramRegStyleDateAge)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE_AGE));
+        items.add(UItem.asSettingsCell(BTN_REG_STYLE_PICK, R.drawable.msg_calendar2, getString(R.string.PengramRegStyle), regStyleName(PengramConfig.getRegDateStyle())));
+        if (PengramConfig.isRegDateVisible()) {
+            items.add(UItem.asSettingsCell(BTN_REG_PLACE, R.drawable.msg_customize, getString(R.string.PengramRegPlace), regPlaceName(PengramConfig.getRegDatePlace())));
+            if (PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE) {
+                items.add(UItem.asSettingsCell(BTN_REG_ICON, PengramConfig.getRegDateIconRes() == 0 ? R.drawable.msg_info : PengramConfig.getRegDateIconRes(),
+                        getString(R.string.PengramRegIcon), regIconName(PengramConfig.getRegDateIcon())));
+            }
+        }
         items.add(UItem.asShadow(getString(R.string.PengramRegInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramPrivacyHeader)));
@@ -1050,6 +1144,23 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
         }
         items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramTitleHeader)));
+        items.add(UItem.asSettingsCell(BTN_TITLE_MODE, R.drawable.msg_edit, getString(R.string.PengramTitleText), titleModeName(PengramConfig.getTitleMode())));
+        if (PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM) {
+            items.add(UItem.asSettingsCell(BTN_TITLE_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramTitleCustom),
+                    PengramConfig.getTitleCustom().isEmpty() ? "Pengram" : PengramConfig.getTitleCustom()));
+        }
+        items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
+        items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
+        items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
+        items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo)));
     }
 
     private void fillMedia(ArrayList<UItem> items) {
@@ -1145,6 +1256,17 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
+        items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
+        items.add(checkInfo(PengramConfig.KEY_RESEND_AS_MINE, true, getString(R.string.PengramResendAsMine), getString(R.string.PengramResendAsMineInfo)));
+        items.add(check(PengramConfig.KEY_RESEND_MENU, true, getString(R.string.PengramResendMenu)));
+        if (PengramConfig.isResendMenuVisible()) {
+            items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
+            items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
+        }
+        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
@@ -1155,15 +1277,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
-        items.add(check(PengramConfig.KEY_MENU_PENGRAM, false, getString(R.string.PengramHideMenuPengram)));
-        items.add(check(PengramConfig.KEY_MENU_GHOST, false, getString(R.string.PengramHideMenuGhost)));
-        if (expanded(GROUP_MENU_MAIN)) {
-            items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
-            items.add(UItem.asCheck(BTN_HIDE_MENU_SAVED, getString(R.string.PengramHideMenuSaved)).setChecked(PengramConfig.hideMenuSavedMessages));
-            items.add(UItem.asCheck(BTN_HIDE_MENU_SETTINGS, getString(R.string.PengramHideMenuSettings)).setChecked(PengramConfig.hideMenuSettings));
-            items.add(UItem.asCheck(BTN_HIDE_MENU_THEME, getString(R.string.PengramHideMenuTheme)).setChecked(PengramConfig.hideMenuTheme));
-        }
-        items.add(moreButton(GROUP_MENU_MAIN));
+        items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
@@ -1257,6 +1371,85 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SEND_STYLE:
                 showSendStylePicker();
+                return;
+            case BTN_REG_STYLE_PICK: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegStyleOff),
+                        getString(R.string.PengramRegStyleDate),
+                        getString(R.string.PengramRegStyleDateAge),
+                        getString(R.string.PengramRegStyleAge),
+                        getString(R.string.PengramRegStyleExact)
+                };
+                showChoicePicker(getString(R.string.PengramRegStyle), options, PengramConfig.getRegDateStyle(), value -> {
+                    PengramConfig.setRegDateStyle(value);
+                });
+                return;
+            }
+            case BTN_REG_PLACE: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegPlaceRow),
+                        getString(R.string.PengramRegPlaceIcon),
+                        getString(R.string.PengramRegPlaceBoth),
+                        getString(R.string.PengramRegPlaceSubtitle)
+                };
+                showChoicePicker(getString(R.string.PengramRegPlace), options, PengramConfig.getRegDatePlace(), value -> {
+                    PengramConfig.setRegDatePlace(value);
+                });
+                return;
+            }
+            case BTN_REG_ICON: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegIconCalendar),
+                        getString(R.string.PengramRegIconClock),
+                        getString(R.string.PengramRegIconCake),
+                        getString(R.string.PengramRegIconStar),
+                        getString(R.string.PengramRegIconInfo),
+                        getString(R.string.PengramRegIconPenguin),
+                        getString(R.string.PengramRegIconNone)
+                };
+                showChoicePicker(getString(R.string.PengramRegIcon), options, PengramConfig.getRegDateIcon(), value -> {
+                    PengramConfig.setRegDateIcon(value);
+                });
+                return;
+            }
+            case BTN_TITLE_MODE: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramTitleModeDefault),
+                        "Pengram",
+                        getString(R.string.PengramTitleChats),
+                        getString(R.string.PengramTitleModeName),
+                        getString(R.string.PengramTitleModeUsername),
+                        getString(R.string.PengramTitleModeCustom)
+                };
+                showChoicePicker(getString(R.string.PengramTitleText), options, PengramConfig.getTitleMode(), value -> {
+                    PengramConfig.setTitleMode(value);
+                    if (value == PengramConfig.TITLE_MODE_CUSTOM && PengramConfig.getTitleCustom().isEmpty()) {
+                        AndroidUtilities.runOnUIThread(this::showTitleCustomDialog, 220);
+                    }
+                });
+                return;
+            }
+            case BTN_TITLE_CUSTOM:
+                showTitleCustomDialog();
+                return;
+            case BTN_TABBAR_SIZE: {
+                final int[] sizes = new int[]{80, 90, 100, 110, 120, 130};
+                final CharSequence[] options = new CharSequence[sizes.length];
+                int selected = 2;
+                for (int a = 0; a < sizes.length; ++a) {
+                    options[a] = sizes[a] + "%" + (sizes[a] == 100 ? " \u2014 " + getString(R.string.PengramTabBarDefault) : "");
+                    if (sizes[a] == PengramConfig.getTabBarSize()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramTabBarSize), options, selected, value -> {
+                    PengramConfig.setTabBarSize(sizes[value]);
+                    applyTabsSizeNow();
+                });
+                return;
+            }
+            case BTN_MENU_ITEMS:
+                presentFragment(new PengramMenuItemsActivity());
                 return;
             case BTN_OPEN_BY_ID:
                 showOpenByIdDialog();

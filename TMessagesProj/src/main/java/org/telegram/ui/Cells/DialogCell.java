@@ -5676,6 +5676,62 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 }
             }
         }
+        if (thumbsCount == 0) {
+            pengramSetSenderAvatarThumb();
+        }
+    }
+
+    /** Pengram: мини-аватарка отправителя перед текстом сообщения в списке чатов */
+    private void pengramSetSenderAvatarThumb() {
+        try {
+            if (!org.telegram.messenger.PengramConfig.isDialogSenderAvatars()) {
+                return;
+            }
+            if (message == null || message.messageOwner == null || currentDialogFolderId != 0) {
+                return;
+            }
+            if (encryptedChat != null || isDialogFolder() || isForumCell() || useFromUserAsAvatar || isSavedDialog) {
+                return;
+            }
+            // только групповые чаты: в личке и канале аватарка отправителя дублирует основную
+            final TLRPC.Chat dialogChat = chat;
+            if (dialogChat == null || ChatObject.isChannelAndNotMegaGroup(dialogChat)) {
+                return;
+            }
+            final long fromId = message.getFromChatId();
+            if (fromId == 0 || fromId == -dialogChat.id) {
+                return;
+            }
+            final AvatarDrawable avatarDrawable = new AvatarDrawable();
+            avatarDrawable.setRoundRadius(dp(thumbSize));
+            ImageLocation location = null;
+            Object parent = null;
+            if (fromId > 0) {
+                final TLRPC.User fromUser = MessagesController.getInstance(currentAccount).getUser(fromId);
+                if (fromUser == null) {
+                    return;
+                }
+                avatarDrawable.setInfo(currentAccount, fromUser);
+                location = ImageLocation.getForUser(fromUser, ImageLocation.TYPE_SMALL);
+                parent = fromUser;
+            } else {
+                final TLRPC.Chat fromChat = MessagesController.getInstance(currentAccount).getChat(-fromId);
+                if (fromChat == null) {
+                    return;
+                }
+                avatarDrawable.setInfo(currentAccount, fromChat);
+                location = ImageLocation.getForChat(fromChat, ImageLocation.TYPE_SMALL);
+                parent = fromChat;
+            }
+            thumbsCount = 1;
+            hasVideoThumb = false;
+            drawPlay[0] = false;
+            drawSpoiler[0] = false;
+            thumbImage[0].setImage(location, "20_20", avatarDrawable, null, parent, 0);
+            thumbImage[0].setRoundRadius(dp(thumbSize / 2f + 1));
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
     }
 
     private void setThumb(int index, MessageObject message) {

@@ -288,9 +288,29 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private static final boolean TMP_DISABLE_TOPICS_TWO_COLUMNS = false;
 
-    public static final int MAIN_TABS_HEIGHT = 56;
-    public static final int MAIN_TABS_MARGIN = 8;
-    public static final int MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+    // Pengram: размеры нижней панели настраиваются (см. PengramConfig.getTabBarScale)
+    public static final int MAIN_TABS_HEIGHT_DEFAULT = 56;
+    public static final int MAIN_TABS_MARGIN_DEFAULT = 8;
+    public static int MAIN_TABS_HEIGHT = MAIN_TABS_HEIGHT_DEFAULT;
+    public static int MAIN_TABS_MARGIN = MAIN_TABS_MARGIN_DEFAULT;
+    public static int MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+
+    /** Pengram: пересчитать размеры нижней панели по настройке */
+    public static void pengramApplyTabsSize() {
+        float k = 1f;
+        try {
+            k = org.telegram.messenger.PengramConfig.getTabBarScale();
+        } catch (Throwable ignore) {
+        }
+        k = Math.max(0.8f, Math.min(1.3f, k));
+        MAIN_TABS_HEIGHT = Math.round(MAIN_TABS_HEIGHT_DEFAULT * k);
+        MAIN_TABS_MARGIN = Math.round(MAIN_TABS_MARGIN_DEFAULT * Math.max(0.75f, Math.min(1.2f, k)));
+        MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+    }
+
+    static {
+        pengramApplyTabsSize();
+    }
     public static final int FILTER_TABS_HEIGHT = 36;
     public static final int SEARCH_TABS_HEIGHT = 36 + 7 + 7;
     public static final int SEARCH_FIELD_HEIGHT = 48;
@@ -3515,13 +3535,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo_2).mutate();
                 logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
                 logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
-                SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
-                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                actionBar.setTitle(ssb, statusDrawable);
+                final CharSequence pengramTitle = pengramTitleText();
+                if (pengramTitle != null) {
+                    actionBar.setTitle(pengramTitle, statusDrawable);
+                } else {
+                    SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+                    ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    actionBar.setTitle(ssb, statusDrawable);
+                }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
                 actionBar.setSupportsHolidayImage(true);
+                actionBar.setPengramCenterTitle(!onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT);
             }
         }
         //if (!onlySelect || initialDialogsType == DIALOGS_TYPE_FORWARD) {
@@ -12743,6 +12769,38 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         return true;
     }
 
+    /** Pengram: свой текст заголовка списка чатов (null — как в Telegram) */
+    private CharSequence pengramTitleText() {
+        try {
+            final int mode = org.telegram.messenger.PengramConfig.getTitleMode();
+            switch (mode) {
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_PENGRAM:
+                    return "Pengram";
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_CHATS:
+                    return LocaleController.getString(R.string.PengramTitleChats);
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_NAME: {
+                    final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+                    final String name = self == null ? null : ContactsController.formatName(self.first_name, self.last_name);
+                    return TextUtils.isEmpty(name) ? "Pengram" : name;
+                }
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_USERNAME: {
+                    final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+                    final String username = self == null ? null : UserObject.getPublicUsername(self);
+                    return TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
+                }
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_CUSTOM: {
+                    final String custom = org.telegram.messenger.PengramConfig.getTitleCustom();
+                    return TextUtils.isEmpty(custom) ? "Pengram" : custom;
+                }
+                default:
+                    return null;
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
     public void updateStoriesVisibility(boolean animated) {
         if (dialogStoriesCell == null || storiesVisibilityAnimator != null || rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment() || searchIsShowed || actionBar == null || actionBar.isActionModeShowed() || onlySelect) {
             return;
@@ -13691,21 +13749,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             isCurrentThemeDark = Theme.isCurrentThemeDark();
         }
-        if (!PengramConfig.getBool(PengramConfig.KEY_MENU_PENGRAM, false))
-        io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
-        if (!PengramConfig.getBool(PengramConfig.KEY_MENU_GHOST, false))
-        io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
-            PengramConfig.toggleGhostMode();
-            BulletinFactory.of(this).createSimpleBulletin(
-                    PengramConfig.ghostMode ? R.raw.ic_ban : R.raw.ic_unban,
-                    getString(R.string.PengramGhostToggle),
-                    getString(PengramConfig.ghostMode ? R.string.PengramGhostOn : R.string.PengramGhostOff)
-            ).show();
-        });
-        io.addGap();
-        if (!PengramConfig.hideMenuTheme)
-        io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
-                getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
+        // Pengram: порядок и состав пунктов задаются в настройках
+        final Runnable pengramThemeAction = () -> {
             if (switchingTheme) {
                 return;
             }
@@ -13738,19 +13783,97 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             Theme.turnOffAutoNight(BulletinFactory.of(this), () -> {
                 presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
             });
-        });
-        io.addGap();
-        if (!PengramConfig.hideMenuNewGroup)
-        io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
-            Bundle args = new Bundle();
-            presentFragment(new GroupCreateActivity(args));
-        });
-        if (!PengramConfig.hideMenuSavedMessages)
-        io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
-            Bundle args = new Bundle();
-            args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
-            presentFragment(new ChatActivity(args));
-        });
+        };
+
+        boolean pengramAnyItem = false;
+        for (int menuItemId : PengramConfig.getMenuOrder()) {
+            if (PengramConfig.isMenuItemHidden(menuItemId)) {
+                continue;
+            }
+            switch (menuItemId) {
+                case PengramConfig.MENU_ITEM_PENGRAM:
+                    io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_GHOST:
+                    io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
+                        PengramConfig.toggleGhostMode();
+                        BulletinFactory.of(this).createSimpleBulletin(
+                                PengramConfig.ghostMode ? R.raw.ic_ban : R.raw.ic_unban,
+                                getString(R.string.PengramGhostToggle),
+                                getString(PengramConfig.ghostMode ? R.string.PengramGhostOn : R.string.PengramGhostOff)
+                        ).show();
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_THEME:
+                    io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
+                            getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), pengramThemeAction);
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_NEW_GROUP:
+                    io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
+                        presentFragment(new GroupCreateActivity(new Bundle()));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_NEW_CHANNEL:
+                    io.add(R.drawable.msg_channel, getString(R.string.NewChannel), () -> {
+                        final Bundle channelArgs = new Bundle();
+                        channelArgs.putInt("step", 0);
+                        presentFragment(new ChannelCreateActivity(channelArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_SAVED:
+                    io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
+                        final Bundle savedArgs = new Bundle();
+                        savedArgs.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        presentFragment(new ChatActivity(savedArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CONTACTS:
+                    io.add(R.drawable.msg_contacts, getString(R.string.Contacts), () -> {
+                        presentFragment(new ContactsActivity(new Bundle()));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CALLS:
+                    io.add(R.drawable.msg_calls, getString(R.string.Calls), () -> {
+                        presentFragment(new CallLogActivity());
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_PROFILE:
+                    io.add(R.drawable.settings_account, getString(R.string.PengramMenuMyProfile), () -> {
+                        final Bundle profileArgs = new Bundle();
+                        profileArgs.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        profileArgs.putBoolean("my_profile", true);
+                        presentFragment(new ProfileActivity(profileArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_SETTINGS:
+                    io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
+                        presentFragment(new SettingsActivity());
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CLOSE_APP:
+                    io.add(R.drawable.msg_leave, getString(R.string.PengramMenuCloseApp), () -> {
+                        final Activity parentActivity = getParentActivity();
+                        if (parentActivity != null) {
+                            parentActivity.finishAndRemoveTask();
+                        }
+                    });
+                    pengramAnyItem = true;
+                    break;
+            }
+        }
+        if (pengramAnyItem) {
+            io.addGap();
+        }
         if (ApplicationLoader.applicationLoaderInstance != null) {
             ApplicationLoader.applicationLoaderInstance.addItemOptions(io);
         }
@@ -13778,12 +13901,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         }
-        if (getUserConfig().showCallsTab && !PengramConfig.hideMenuSettings) {
-            io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
-                presentFragment(new SettingsActivity());
-            });
-        }
-
         if (proxyMenuSubItem != null) {
             proxyMenuSubItem.subtextView.setTextColor(getThemedColor(Theme.key_groupcreate_sectionText));
             proxyMenuSubItem.setOnClickListener(v -> {

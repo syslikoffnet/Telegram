@@ -8138,6 +8138,28 @@ public class AlertsCreator {
             });
             pengramOptionsLayout.addView(saveFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
         }
+        // Pengram: если Telegram спрятал «Удалить у всех» — возвращаем галочку принудительно
+        if (!hasDeleteForAllCheck && !scheduled && !isSavedMessages && !quickReplies && encryptedChat == null
+                && org.telegram.messenger.PengramConfig.isForceDeleteForAll()
+                && (user != null && user.id != UserConfig.getInstance(currentAccount).getClientUserId()
+                    || chat != null && !ChatObject.isChannel(chat)
+                    || chat != null && chat.megagroup)) {
+            final FrameLayout forAllFrame = new FrameLayout(activity);
+            final CheckBoxCell forAllCell = new CheckBoxCell(activity, 1, resourcesProvider);
+            forAllCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            final String forAllText = user != null
+                    ? LocaleController.formatString("DeleteMessagesOptionAlso", R.string.DeleteMessagesOptionAlso, UserObject.getFirstName(user))
+                    : LocaleController.getString(R.string.DeleteForAll);
+            forAllCell.setText(forAllText, "", deleteForAll[0], false);
+            forAllCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0, LocaleController.isRTL ? dp(8) : dp(16), 0);
+            forAllFrame.addView(forAllCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 0, 0, 0));
+            forAllCell.setOnClickListener(v -> {
+                deleteForAll[0] = !deleteForAll[0];
+                ((CheckBoxCell) v).setChecked(deleteForAll[0], true);
+            });
+            pengramOptionsLayout.addView(forAllFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        }
+
         if (pengramOptionsLayout.getChildCount() > 0) {
             builder.setView(pengramOptionsLayout);
             builder.setCustomViewOffset(9);

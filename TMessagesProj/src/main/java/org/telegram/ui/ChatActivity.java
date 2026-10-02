@@ -1248,6 +1248,10 @@ public class ChatActivity extends BaseFragment implements
 
     public final static int OPTION_VIEW_STATISTICS = 115;
     public final static int OPTION_WELCOME_REVERT = 116;
+    /** Pengram: отправить удалёнку/одноразку от своего лица в этот же чат */
+    public final static int OPTION_PENGRAM_RESEND = 920;
+    /** Pengram: отправить удалёнку/одноразку от своего лица в другой чат */
+    public final static int OPTION_PENGRAM_RESEND_TO = 921;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -2020,7 +2024,139 @@ public class ChatActivity extends BaseFragment implements
         if (!any && chatListView != null) {
             chatListView.invalidateViews();
         }
+        pengramUnselect(ids);
         return true;
+    }
+
+    /**
+     * Pengram: сообщение осталось в чате, но пользователь его только что удалил —
+     * снимаем с него выделение, иначе оно «залипает» выделенным.
+     */
+    private void pengramUnselect(ArrayList<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        boolean changed = false;
+        for (int a = 0; a < 2; a++) {
+            for (int i = 0; i < ids.size(); i++) {
+                final Integer mid = ids.get(i);
+                if (mid == null) continue;
+                if (selectedMessagesIds[a].indexOfKey(mid) >= 0) {
+                    selectedMessagesIds[a].remove(mid);
+                    changed = true;
+                }
+                selectedMessagesCanCopyIds[a].remove(mid);
+                selectedMessagesCanStarIds[a].remove(mid);
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        if (selectedMessagesIds[0].size() + selectedMessagesIds[1].size() == 0) {
+            clearSelectionMode();
+        } else {
+            updateActionModeTitle();
+            updateVisibleRows();
+        }
+    }
+
+    // ================= Pengram: отправка удалёнок от своего лица =================
+
+    /** можно ли переотправить это сообщение от своего лица */
+    private boolean pengramCanResend(MessageObject message) {
+        if (message == null || message.messageOwner == null) {
+            return false;
+        }
+        if (!org.telegram.messenger.PengramConfig.isResendMenuVisible()) {
+            return false;
+        }
+        if (currentEncryptedChat != null || message.getId() <= 0 || message.isSending() || message.isSendError()) {
+            return false;
+        }
+        if (message.messageOwner.action != null && !(message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty)) {
+            return false;
+        }
+        if (message.isSponsored() || message.scheduled) {
+            return false;
+        }
+        final boolean once = message.isSecretMedia() && org.telegram.messenger.PengramConfig.isResendOnceMedia();
+        return message.pengramDeleted || once;
+    }
+
+    /** отправляем копию сообщения от своего лица (без «переслано от») */
+    private void pengramResend(MessageObject message, long targetDialogId) {
+        if (message == null) {
+            return;
+        }
+        final ArrayList<MessageObject> list = new ArrayList<>();
+        if (selectedObjectGroup != null && selectedObjectGroup.messages != null && selectedObjectGroup.messages.size() > 1) {
+            list.addAll(selectedObjectGroup.messages);
+        } else {
+            list.add(message);
+        }
+        try {
+            getSendMessagesHelper().sendMessage(list, targetDialogId, true, false, true, 0, 0);
+            if (targetDialogId != dialog_id) {
+                BulletinFactory.of(this)
+                        .createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramResendSent))
+                        .show();
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** Pengram: удалёнку/одноразку пересылаем копией от своего лица */
+    private boolean pengramForwardAsMine(ArrayList<MessageObject> messages) {
+        if (messages == null || !org.telegram.messenger.PengramConfig.isResendDeletedAsMine()) {
+            return false;
+        }
+        for (int a = 0; a < messages.size(); a++) {
+            final MessageObject m = messages.get(a);
+            if (m != null && (m.pengramDeleted || m.isSecretMedia())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** спросить чат и отправить туда копию */
+    private void pengramResendToChat(MessageObject message) {
+        if (message == null) {
+            return;
+        }
+        final ArrayList<MessageObject> list = new ArrayList<>();
+        if (selectedObjectGroup != null && selectedObjectGroup.messages != null && selectedObjectGroup.messages.size() > 1) {
+            list.addAll(selectedObjectGroup.messages);
+        } else {
+            list.add(message);
+        }
+        final Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        args.putBoolean("canSelectTopics", true);
+        final DialogsActivity fragment = new DialogsActivity(args);
+        fragment.setDelegate((dialogsFragment, dids, message1, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            for (int a = 0; a < dids.size(); a++) {
+                final long did = dids.get(a).dialogId;
+                try {
+                    getSendMessagesHelper().sendMessage(new ArrayList<>(list), did, true, false, true, 0, 0);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+            }
+            dialogsFragment.finishFragment();
+            AndroidUtilities.runOnUIThread(() -> {
+                try {
+                    BulletinFactory.of(ChatActivity.this)
+                            .createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramResendSent))
+                            .show();
+                } catch (Throwable ignore) {
+                }
+            }, 150);
+            return true;
+        });
+        presentFragment(fragment);
     }
 
     private void clearPengramHistory() {
@@ -14796,7 +14932,18 @@ public class ChatActivity extends BaseFragment implements
                 chatAdapter.checkRemoveBotForumRowsStartThreadRow(true);
             }
         }
-        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, fromMyName, hideCaption, notify, scheduleDate, 0, getThreadMessage(), -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+        boolean pengramFromMyName = fromMyName;
+        if (!pengramFromMyName && org.telegram.messenger.PengramConfig.isResendDeletedAsMine()) {
+            // Pengram: удалённое сообщение сервер переслать не даст — отправляем копию от себя
+            for (int a = 0; a < arrayList.size(); a++) {
+                final MessageObject m = arrayList.get(a);
+                if (m != null && (m.pengramDeleted || m.isSecretMedia())) {
+                    pengramFromMyName = true;
+                    break;
+                }
+            }
+        }
+        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, pengramFromMyName, hideCaption, notify, scheduleDate, 0, getThreadMessage(), -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
         AlertsCreator.showSendMediaAlert(result, this, themeDelegate);
         if (result != 0) {
             AndroidUtilities.runOnUIThread(() -> {
@@ -33826,6 +33973,14 @@ public class ChatActivity extends BaseFragment implements
                 createDeleteMessagesAlert(selectedObject, selectedObjectGroup, true);
                 break;
             }
+            case OPTION_PENGRAM_RESEND: {
+                pengramResend(selectedObject, dialog_id);
+                break;
+            }
+            case OPTION_PENGRAM_RESEND_TO: {
+                pengramResendToChat(selectedObject);
+                break;
+            }
             case OPTION_FORWARD: {
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
@@ -34921,7 +35076,7 @@ public class ChatActivity extends BaseFragment implements
                         params.suggestionParams = messageSuggestionParams;
                         getSendMessagesHelper().sendMessage(params);
                     }
-                    getSendMessagesHelper().sendMessage(fmessages, did, false, false, notify, scheduleDate, scheduleRepeatPeriod, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                    getSendMessagesHelper().sendMessage(fmessages, did, pengramForwardAsMine(fmessages), false, notify, scheduleDate, scheduleRepeatPeriod, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 }
                 fragment.finishFragment();
                 createUndoView();
@@ -46276,6 +46431,19 @@ public class ChatActivity extends BaseFragment implements
                 items.add(getString(R.string.RemoveAds));
                 options.add(OPTION_REMOVE_ADS);
                 icons.add(R.drawable.msg_cancel);
+            }
+        }
+
+        // Pengram: удалёнки и одноразки отправляем копией от своего лица
+        if (pengramCanResend(message)) {
+            items.add(LocaleController.getString(R.string.PengramResendHere));
+            options.add(OPTION_PENGRAM_RESEND);
+            icons.add(R.drawable.msg_send);
+
+            if (org.telegram.messenger.PengramConfig.isResendAskChat() || message.pengramDeleted) {
+                items.add(LocaleController.getString(R.string.PengramResendTo));
+                options.add(OPTION_PENGRAM_RESEND_TO);
+                icons.add(R.drawable.msg_forward);
             }
         }
 

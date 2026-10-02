@@ -38,7 +38,39 @@ public class PengramConfig {
     public static final int REG_STYLE_OFF = 0;
     public static final int REG_STYLE_DATE = 1;      // «≈ март 2021»
     public static final int REG_STYLE_DATE_AGE = 2;  // «≈ март 2021 • 4 года»
+    public static final int REG_STYLE_AGE = 3;       // «4 года»
+    public static final int REG_STYLE_EXACT = 4;     // «≈ 12 марта 2021»
     public static int regDateStyle = REG_STYLE_DATE_AGE;
+
+    // где и чем показывать дату регистрации
+    public static final int REG_PLACE_ROW = 0;       // отдельная строка в профиле
+    public static final int REG_PLACE_ICON = 1;      // только значок рядом с ID
+    public static final int REG_PLACE_BOTH = 2;      // строка + значок
+    public static final int REG_PLACE_SUBTITLE = 3;  // в подписи под именем
+    public static int regDatePlace = REG_PLACE_BOTH;
+
+    // значок даты регистрации
+    public static final int REG_ICON_CALENDAR = 0;
+    public static final int REG_ICON_CLOCK = 1;
+    public static final int REG_ICON_CAKE = 2;
+    public static final int REG_ICON_STAR = 3;
+    public static final int REG_ICON_INFO = 4;
+    public static final int REG_ICON_PENGUIN = 5;
+    public static final int REG_ICON_NONE = 6;
+    public static int regDateIcon = REG_ICON_CALENDAR;
+
+    // заголовок списка чатов
+    public static final int TITLE_MODE_DEFAULT = 0;   // как в Telegram
+    public static final int TITLE_MODE_PENGRAM = 1;   // «Pengram»
+    public static final int TITLE_MODE_CHATS = 2;     // «Чаты»
+    public static final int TITLE_MODE_NAME = 3;      // имя аккаунта
+    public static final int TITLE_MODE_USERNAME = 4;  // @username
+    public static final int TITLE_MODE_CUSTOM = 5;    // свой текст
+    public static int titleMode = TITLE_MODE_DEFAULT;
+    public static String titleCustom = "";
+
+    // размер нижней панели вкладок, % (70..130)
+    public static int tabBarSize = 100;
 
     // --- история удалённых/изменённых ---
     public static boolean saveDeleted = true;
@@ -83,6 +115,27 @@ public class PengramConfig {
     // --- пересылка ---
     /** прятать ленту историй в списке чатов */
     public static final String KEY_HIDE_STORIES = "hideStories";
+
+    /** убрать «хвостик» у пузырей сообщений */
+    public static final String KEY_HIDE_TAIL = "hideBubbleTail";
+    /** не писать «изменено» у времени (метка остаётся) */
+    public static final String KEY_HIDE_EDITED_LABEL = "hideEditedLabel";
+    /** всегда идёт снег в шапке */
+    public static final String KEY_FORCE_SNOW = "forceSnow";
+    /** заголовок по центру */
+    public static final String KEY_TITLE_CENTER = "titleCenter";
+    /** мини-аватарки отправителей в списке чатов */
+    public static final String KEY_DIALOG_SENDER_AVATARS = "dialogSenderAvatars";
+    /** всегда показывать галочку «Удалить у всех» */
+    public static final String KEY_FORCE_DELETE_FOR_ALL = "forceDeleteForAll";
+    /** удалённые пересылать от своего лица, без «переслано от» */
+    public static final String KEY_RESEND_AS_MINE = "resendDeletedAsMine";
+    /** пункты «отправить удалёнку» в меню сообщения */
+    public static final String KEY_RESEND_MENU = "resendDeletedMenu";
+    /** одноразовые медиа тоже можно переслать от своего лица */
+    public static final String KEY_RESEND_ONCE = "resendOnceMedia";
+    /** спрашивать чат перед отправкой удалёнки */
+    public static final String KEY_RESEND_ASK_CHAT = "resendAskChat";
 
     /** блокировать поле ввода, пока в чат идёт пересылка */
     public static final String KEY_FORWARD_LOCK = "forwardLockInput";
@@ -358,6 +411,11 @@ public class PengramConfig {
             idFormat = p.getInt("idFormat", ID_FORMAT_TELEGRAM);
             copyIdOnTap = p.getBoolean("copyIdOnTap", true);
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
+            regDatePlace = p.getInt("regDatePlace", REG_PLACE_BOTH);
+            regDateIcon = p.getInt("regDateIcon", REG_ICON_CALENDAR);
+            titleMode = p.getInt("titleMode", TITLE_MODE_DEFAULT);
+            titleCustom = p.getString("titleCustom", "");
+            tabBarSize = p.getInt("tabBarSize", 100);
             saveDeleted = p.getBoolean("saveDeleted", true);
             saveEdited = p.getBoolean("saveEdited", true);
             saveOutgoing = p.getBoolean("saveOutgoing2", true);
@@ -524,6 +582,224 @@ public class PengramConfig {
     public static boolean isRegDateVisible() {
         return getRegDateStyle() != REG_STYLE_OFF;
     }
+
+    public static int getRegDatePlace() { init(); return regDatePlace; }
+    public static void setRegDatePlace(int place) { init(); regDatePlace = place; putInt("regDatePlace", place); }
+    /** нужна ли отдельная строка «дата регистрации» в профиле */
+    public static boolean isRegDateRowVisible() {
+        if (!isRegDateVisible()) return false;
+        final int place = getRegDatePlace();
+        return place == REG_PLACE_ROW || place == REG_PLACE_BOTH;
+    }
+    /** нужен ли значок рядом со строкой ID */
+    public static boolean isRegDateIconVisible() {
+        if (!isRegDateVisible()) return false;
+        if (getRegDateIcon() == REG_ICON_NONE) return false;
+        final int place = getRegDatePlace();
+        return place == REG_PLACE_ICON || place == REG_PLACE_BOTH;
+    }
+    /** дописывать ли дату регистрации в подпись под именем */
+    public static boolean isRegDateInSubtitle() {
+        return isRegDateVisible() && getRegDatePlace() == REG_PLACE_SUBTITLE;
+    }
+
+    public static int getRegDateIcon() { init(); return regDateIcon; }
+    public static void setRegDateIcon(int icon) { init(); regDateIcon = icon; putInt("regDateIcon", icon); }
+    /** ресурс значка даты регистрации (0 — без значка) */
+    public static int getRegDateIconRes() {
+        switch (getRegDateIcon()) {
+            case REG_ICON_CLOCK: return org.telegram.messenger.R.drawable.menu_premium_clock;
+            case REG_ICON_CAKE: return org.telegram.messenger.R.drawable.menu_birthday;
+            case REG_ICON_STAR: return org.telegram.messenger.R.drawable.msg_premium_liststar;
+            case REG_ICON_INFO: return org.telegram.messenger.R.drawable.msg_info;
+            case REG_ICON_PENGUIN: return org.telegram.messenger.R.drawable.pengram_penguin_dark;
+            case REG_ICON_NONE: return 0;
+            case REG_ICON_CALENDAR:
+            default: return org.telegram.messenger.R.drawable.msg_calendar2;
+        }
+    }
+
+    public static int getTitleMode() { init(); return titleMode; }
+    public static void setTitleMode(int mode) { init(); titleMode = mode; putInt("titleMode", mode); }
+    public static String getTitleCustom() { init(); return titleCustom == null ? "" : titleCustom; }
+    public static void setTitleCustom(String text) { init(); titleCustom = text == null ? "" : text; putString("titleCustom", titleCustom); }
+    public static boolean isTitleCentered() { return getBool(KEY_TITLE_CENTER, false); }
+
+    public static int getTabBarSize() { init(); return Math.max(70, Math.min(130, tabBarSize)); }
+    public static void setTabBarSize(int percent) { init(); tabBarSize = Math.max(70, Math.min(130, percent)); putInt("tabBarSize", tabBarSize); }
+    /** множитель размеров нижней панели */
+    public static float getTabBarScale() { return getTabBarSize() / 100f; }
+
+    // ------------------------------- пункты верхнего меню -------------------------------
+
+    public static final int MENU_ITEM_PENGRAM = 1;
+    public static final int MENU_ITEM_GHOST = 2;
+    public static final int MENU_ITEM_THEME = 3;
+    public static final int MENU_ITEM_NEW_GROUP = 4;
+    public static final int MENU_ITEM_NEW_CHANNEL = 5;
+    public static final int MENU_ITEM_SAVED = 6;
+    public static final int MENU_ITEM_CONTACTS = 7;
+    public static final int MENU_ITEM_CALLS = 8;
+    public static final int MENU_ITEM_PROFILE = 9;
+    public static final int MENU_ITEM_SETTINGS = 10;
+    public static final int MENU_ITEM_CLOSE_APP = 11;
+
+    public static final int[] MENU_ITEMS_DEFAULT = new int[]{
+            MENU_ITEM_PENGRAM, MENU_ITEM_GHOST, MENU_ITEM_THEME, MENU_ITEM_NEW_GROUP,
+            MENU_ITEM_NEW_CHANNEL, MENU_ITEM_SAVED, MENU_ITEM_CONTACTS, MENU_ITEM_CALLS,
+            MENU_ITEM_PROFILE, MENU_ITEM_SETTINGS, MENU_ITEM_CLOSE_APP
+    };
+
+    /** порядок пунктов меню, с добавлением новых в конец */
+    public static int[] getMenuOrder() {
+        init();
+        final String saved = prefs() == null ? "" : prefs().getString("menuOrder", "");
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        if (saved != null && !saved.isEmpty()) {
+            for (String part : saved.split(",")) {
+                try {
+                    final int id = Integer.parseInt(part.trim());
+                    for (int known : MENU_ITEMS_DEFAULT) {
+                        if (known == id && !result.contains(id)) {
+                            result.add(id);
+                            break;
+                        }
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+        for (int known : MENU_ITEMS_DEFAULT) {
+            if (!result.contains(known)) {
+                result.add(known);
+            }
+        }
+        final int[] out = new int[result.size()];
+        for (int a = 0; a < out.length; a++) {
+            out[a] = result.get(a);
+        }
+        return out;
+    }
+
+    public static void setMenuOrder(java.util.List<Integer> order) {
+        if (order == null) {
+            return;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int a = 0; a < order.size(); a++) {
+            if (a > 0) sb.append(',');
+            sb.append(order.get(a));
+        }
+        putString("menuOrder", sb.toString());
+    }
+
+    private static String menuItemKey(int id) {
+        switch (id) {
+            case MENU_ITEM_PENGRAM: return KEY_MENU_PENGRAM;
+            case MENU_ITEM_GHOST: return KEY_MENU_GHOST;
+            case MENU_ITEM_THEME: return "hideMenuTheme";
+            case MENU_ITEM_NEW_GROUP: return "hideMenuNewGroup";
+            case MENU_ITEM_NEW_CHANNEL: return "hideMenuChannel";
+            case MENU_ITEM_SAVED: return "hideMenuSavedMessages";
+            case MENU_ITEM_CONTACTS: return KEY_MENU_CONTACTS;
+            case MENU_ITEM_CALLS: return KEY_MENU_CALLS;
+            case MENU_ITEM_PROFILE: return "hideMenuProfile";
+            case MENU_ITEM_SETTINGS: return "hideMenuSettings";
+            case MENU_ITEM_CLOSE_APP: return "hideMenuCloseApp";
+            default: return "hideMenuUnknown" + id;
+        }
+    }
+
+    /** по умолчанию прячем «дополнительные» пункты, чтобы меню не разрасталось */
+    private static boolean menuItemHiddenDefault(int id) {
+        switch (id) {
+            case MENU_ITEM_NEW_CHANNEL:
+            case MENU_ITEM_CONTACTS:
+            case MENU_ITEM_CALLS:
+            case MENU_ITEM_PROFILE:
+            case MENU_ITEM_CLOSE_APP:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static boolean isMenuItemHidden(int id) {
+        final String key = menuItemKey(id);
+        final boolean def = menuItemHiddenDefault(id);
+        switch (id) {
+            case MENU_ITEM_THEME: init(); return hideMenuTheme;
+            case MENU_ITEM_NEW_GROUP: init(); return hideMenuNewGroup;
+            case MENU_ITEM_SAVED: init(); return hideMenuSavedMessages;
+            case MENU_ITEM_SETTINGS: init(); return hideMenuSettings;
+            default: return getBool(key, def);
+        }
+    }
+
+    public static void setMenuItemHidden(int id, boolean hidden) {
+        switch (id) {
+            case MENU_ITEM_THEME: init(); hideMenuTheme = hidden; putBoolean("hideMenuTheme", hidden); break;
+            case MENU_ITEM_NEW_GROUP: init(); hideMenuNewGroup = hidden; putBoolean("hideMenuNewGroup", hidden); break;
+            case MENU_ITEM_SAVED: init(); hideMenuSavedMessages = hidden; putBoolean("hideMenuSavedMessages", hidden); break;
+            case MENU_ITEM_SETTINGS: init(); hideMenuSettings = hidden; putBoolean("hideMenuSettings", hidden); break;
+            default: setBool(menuItemKey(id), hidden); break;
+        }
+    }
+
+    public static int getMenuItemTitle(int id) {
+        switch (id) {
+            case MENU_ITEM_PENGRAM: return org.telegram.messenger.R.string.PengramSettings;
+            case MENU_ITEM_GHOST: return org.telegram.messenger.R.string.PengramGhostToggle;
+            case MENU_ITEM_THEME: return org.telegram.messenger.R.string.PengramMenuThemeItem;
+            case MENU_ITEM_NEW_GROUP: return org.telegram.messenger.R.string.NewGroup;
+            case MENU_ITEM_NEW_CHANNEL: return org.telegram.messenger.R.string.NewChannel;
+            case MENU_ITEM_SAVED: return org.telegram.messenger.R.string.SavedMessages;
+            case MENU_ITEM_CONTACTS: return org.telegram.messenger.R.string.Contacts;
+            case MENU_ITEM_CALLS: return org.telegram.messenger.R.string.Calls;
+            case MENU_ITEM_PROFILE: return org.telegram.messenger.R.string.PengramMenuMyProfile;
+            case MENU_ITEM_SETTINGS: return org.telegram.messenger.R.string.Settings;
+            case MENU_ITEM_CLOSE_APP: return org.telegram.messenger.R.string.PengramMenuCloseApp;
+            default: return org.telegram.messenger.R.string.AppName;
+        }
+    }
+
+    public static int getMenuItemIcon(int id) {
+        switch (id) {
+            case MENU_ITEM_PENGRAM: return org.telegram.messenger.R.drawable.settings_features;
+            case MENU_ITEM_GHOST: return org.telegram.messenger.R.drawable.msg_secret;
+            case MENU_ITEM_THEME: return org.telegram.messenger.R.drawable.menu_night_mode_24;
+            case MENU_ITEM_NEW_GROUP: return org.telegram.messenger.R.drawable.outline_groups_24;
+            case MENU_ITEM_NEW_CHANNEL: return org.telegram.messenger.R.drawable.msg_channel;
+            case MENU_ITEM_SAVED: return org.telegram.messenger.R.drawable.outline_saved_24;
+            case MENU_ITEM_CONTACTS: return org.telegram.messenger.R.drawable.msg_contacts;
+            case MENU_ITEM_CALLS: return org.telegram.messenger.R.drawable.msg_calls;
+            case MENU_ITEM_PROFILE: return org.telegram.messenger.R.drawable.settings_account;
+            case MENU_ITEM_SETTINGS: return org.telegram.messenger.R.drawable.msg_settings_old;
+            case MENU_ITEM_CLOSE_APP: return org.telegram.messenger.R.drawable.msg_leave;
+            default: return org.telegram.messenger.R.drawable.msg_settings_old;
+        }
+    }
+
+    /** сколько пунктов меню сейчас скрыто */
+    public static int getHiddenMenuItemsCount() {
+        int count = 0;
+        for (int id : MENU_ITEMS_DEFAULT) {
+            if (isMenuItemHidden(id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public static boolean isHidingBubbleTail() { return getBool(KEY_HIDE_TAIL, false); }
+    public static boolean isHidingEditedLabel() { return getBool(KEY_HIDE_EDITED_LABEL, false); }
+    public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
+    public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
+    public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
+    public static boolean isResendDeletedAsMine() { return getBool(KEY_RESEND_AS_MINE, true); }
+    public static boolean isResendMenuVisible() { return getBool(KEY_RESEND_MENU, true); }
+    public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
+    public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
 
     public static void toggleAllowScreenshots() { init(); allowScreenshots = !allowScreenshots; putBoolean("allowScreenshots", allowScreenshots); }
     public static void toggleNoScreenshotNotify() { init(); noScreenshotNotify = !noScreenshotNotify; putBoolean("noScreenshotNotify", noScreenshotNotify); }

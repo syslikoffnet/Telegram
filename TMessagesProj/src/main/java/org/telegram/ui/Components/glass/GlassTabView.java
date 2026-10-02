@@ -397,13 +397,39 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         }
     }
 
+    /** Pengram: масштаб нижней панели (80..130%) */
+    private static float pengramScale() {
+        try {
+            return Math.max(0.8f, Math.min(1.3f, org.telegram.messenger.PengramConfig.getTabBarScale()));
+        } catch (Throwable e) {
+            return 1f;
+        }
+    }
+
+    /** Pengram: подогнать иконку и подпись под выбранный размер панели */
+    private static void pengramApplyScale(GlassTabView tab, float iconSize, float iconTop) {
+        final float k = pengramScale();
+        if (Math.abs(k - 1f) < 0.01f) {
+            return;
+        }
+        tab.textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f * k);
+        tab.defaultTextPaint.setTextSize(dp(12f * k));
+        final FrameLayout.LayoutParams textParams = (FrameLayout.LayoutParams) tab.textView.getLayoutParams();
+        if (textParams != null) {
+            textParams.topMargin = (int) dp(28.33f * k);
+            tab.textView.setLayoutParams(textParams);
+        }
+    }
+
     public static GlassTabView createMainTab(Context context, Theme.ResourcesProvider resourcesProvider, TabAnimation tabAnimation, @StringRes int stringRes) {
         GlassTabView tab = new GlassTabView(context);
         tab.resourcesProvider = resourcesProvider;
         tab.tabAnimation = tabAnimation;
         tab.textView.setText(LocaleController.getString(stringRes));
         tab.checkPlayAnimation(false);
-        tab.imageView.setLayoutParams(LayoutHelper.createFrame(24, 24, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 4, 0, 0));
+        final float k = pengramScale();
+        tab.imageView.setLayoutParams(LayoutHelper.createFrame(24 * k, 24 * k, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 4 * k, 0, 0));
+        pengramApplyScale(tab, 24 * k, 4 * k);
         tab.colorDefault = Theme.getColor(Theme.key_glass_tabUnselected, resourcesProvider);
         tab.colorSelected = Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider);
         tab.colorSelectedText = Theme.getColor(Theme.key_glass_tabSelectedText, resourcesProvider);
@@ -421,10 +447,12 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
 
         BackupImageView backupImageView = new BackupImageView(context);
         backupImageView.setForUserOrChat(user, avatarDrawable);
-        backupImageView.setRoundRadius(dp(11));
+        backupImageView.setRoundRadius(dp(11 * pengramScale()));
         tab.backupImageView = backupImageView;
 
-        tab.addView(backupImageView, LayoutHelper.createFrame(22, 22, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 5, 0, 0));
+        final float ka = pengramScale();
+        tab.addView(backupImageView, LayoutHelper.createFrame(22 * ka, 22 * ka, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 5 * ka, 0, 0));
+        pengramApplyScale(tab, 22 * ka, 5 * ka);
         tab.colorDefault = Theme.getColor(Theme.key_glass_tabUnselected, resourcesProvider);
         tab.colorSelected = Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider);
         tab.colorSelectedText = Theme.getColor(Theme.key_glass_tabSelectedText, resourcesProvider);
