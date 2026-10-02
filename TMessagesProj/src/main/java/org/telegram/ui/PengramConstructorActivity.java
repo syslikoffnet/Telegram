@@ -79,6 +79,9 @@ public class PengramConstructorActivity extends BaseFragment {
         addCard(content, KIND_CHAT_BUTTONS, R.string.PengramConstructorEditor, R.string.PengramConstructorEditorInfo,
                 () -> presentFragment(new PengramLayoutEditorActivity()));
 
+        addCard(content, KIND_CHAT_BUTTONS, R.string.PengramDeleteEffectHeader, R.string.PengramDeleteEffectPreview,
+                () -> presentFragment(new PengramDeleteEffectActivity()));
+
         // ——— живая мастерская: всё меняется прямо на макете, без галочек ———
         addSectionTitle(content, getString(R.string.PengramConstructorLive));
 

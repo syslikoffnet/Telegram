@@ -26921,6 +26921,9 @@ public class ChatActivity extends BaseFragment implements
         if (!sent && pengramKeepDeletedMessages(markAsDeletedMessages)) {
             return;
         }
+        if (!sent) {
+            pengramPlayDeleteEffect(markAsDeletedMessages);
+        }
         ArrayList<Integer> removedIndexes = new ArrayList<>();
         ArrayList<Integer> thanosMessagesIndexes = new ArrayList<>();
         final int currentTime = getConnectionsManager().getCurrentTime();
@@ -45088,7 +45091,46 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /**
+     * Pengram: красиво проводить удаляемые сообщения.
+     * Телеграмовская «пыль» остаётся как отдельный эффект, остальные рисуем сами.
+     */
+    private void pengramPlayDeleteEffect(ArrayList<Integer> ids) {
+        final int effect = org.telegram.messenger.PengramConfig.getDeleteEffect();
+        if (effect == org.telegram.messenger.PengramConfig.DELETE_EFFECT_NONE
+                || effect == org.telegram.messenger.PengramConfig.DELETE_EFFECT_DUST
+                || ids == null || ids.isEmpty() || chatListView == null || contentView == null) {
+            return;
+        }
+        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS)) {
+            return;   // пользователь выключил тяжёлые эффекты в чате — уважаем
+        }
+        int played = 0;
+        for (int a = 0; a < chatListView.getChildCount() && played < 6; ++a) {
+            final View child = chatListView.getChildAt(a);
+            MessageObject object = null;
+            if (child instanceof ChatMessageCell) {
+                object = ((ChatMessageCell) child).getMessageObject();
+            } else if (child instanceof ChatActionCell) {
+                object = ((ChatActionCell) child).getMessageObject();
+            }
+            if (object == null || !ids.contains(object.getId())) {
+                continue;
+            }
+            if (!object.isOutOwner() && !org.telegram.messenger.PengramConfig.isDeleteEffectIncoming()) {
+                continue;
+            }
+            if (org.telegram.ui.Components.PengramDeleteEffectView.play(contentView, child, effect)) {
+                played++;
+            }
+        }
+    }
+
     public boolean supportsThanosEffect() {
+        // свой эффект удаления рисуем сами, телеграмовскую пыль в этом случае не зовём
+        if (org.telegram.messenger.PengramConfig.getDeleteEffect() != org.telegram.messenger.PengramConfig.DELETE_EFFECT_DUST) {
+            return false;
+        }
         return ThanosEffect.supports() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS);
     }
 

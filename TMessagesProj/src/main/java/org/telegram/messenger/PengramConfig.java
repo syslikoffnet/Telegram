@@ -245,6 +245,25 @@ public class PengramConfig {
     public static int editedMark = MARK_EDIT_PENCIL;
 
     private static final java.util.HashMap<String, Boolean> boolCache = new java.util.HashMap<>();
+    private static final java.util.HashMap<String, Integer> intCache = new java.util.HashMap<>();
+
+    /**
+     * Чтение числовой настройки без похода в SharedPreferences.
+     * Настройки читаются в анимациях по многу раз за кадр, поэтому держим их в памяти.
+     */
+    public static int getIntCached(String key, int def) {
+        init();
+        synchronized (intCache) {
+            Integer cached = intCache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            SharedPreferences p = prefs();
+            final int value = p != null ? p.getInt(key, def) : def;
+            intCache.put(key, value);
+            return value;
+        }
+    }
 
     public static boolean getBool(String key, boolean def) {
         init();
@@ -297,7 +316,7 @@ public class PengramConfig {
 
     /** форма миниатюр в списке чатов */
     public static int getDialogAvatarShape() {
-        final int value = prefs().getInt("dialogAvatarShape", DIALOG_AVATAR_CIRCLE);
+        final int value = getIntCached("dialogAvatarShape", DIALOG_AVATAR_CIRCLE);
         return value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value;
     }
 
@@ -334,7 +353,16 @@ public class PengramConfig {
 
     /** откуда брать текст песни */
     public static int getLyricsSource() {
-        final int value = prefs().getInt("lyricsSource", LYRICS_SOURCE_AUTO);
+        if (isLyricsAuto()) {
+            return LYRICS_SOURCE_AUTO;   // в авто-режиме спрашиваем сразу всех
+        }
+        final int value = getIntCached("lyricsSource", LYRICS_SOURCE_AUTO);
+        return value < 0 || value >= LYRICS_SOURCE_COUNT ? LYRICS_SOURCE_AUTO : value;
+    }
+
+    /** выбранный вручную источник (для экрана настроек) */
+    public static int getLyricsSourceRaw() {
+        final int value = getIntCached("lyricsSource", LYRICS_SOURCE_AUTO);
         return value < 0 || value >= LYRICS_SOURCE_COUNT ? LYRICS_SOURCE_AUTO : value;
     }
 
@@ -364,7 +392,7 @@ public class PengramConfig {
 
     /** общий сдвиг текста относительно звука, мс (−5000…5000) */
     public static int getLyricsOffset() {
-        return Math.max(-5000, Math.min(5000, prefs().getInt("lyricsOffset", 0)));
+        return Math.max(-5000, Math.min(5000, getIntCached("lyricsOffset", 0)));
     }
 
     public static void setLyricsOffset(int value) {
@@ -372,12 +400,72 @@ public class PengramConfig {
     }
 
     /** подгонять таймкоды под реальную длительность трека (ускоренные версии) */
+    // ------------------------------------------------------- эффекты удаления
+
+    public static final int DELETE_EFFECT_NONE = 0;
+    public static final int DELETE_EFFECT_DUST = 1;
+    public static final int DELETE_EFFECT_BURN = 2;
+    public static final int DELETE_EFFECT_SHATTER = 3;
+    public static final int DELETE_EFFECT_COLLAPSE = 4;
+    public static final int DELETE_EFFECT_DISSOLVE = 5;
+    public static final int DELETE_EFFECT_SLIDE = 6;
+    public static final int DELETE_EFFECT_IMPLODE = 7;
+    public static final int DELETE_EFFECT_PIXELATE = 8;
+    public static final int DELETE_EFFECT_COUNT = 9;
+
+    public static int getDeleteEffect() {
+        final int value = getIntCached("deleteEffect", DELETE_EFFECT_DUST);
+        return value < 0 || value >= DELETE_EFFECT_COUNT ? DELETE_EFFECT_DUST : value;
+    }
+
+    public static void setDeleteEffect(int value) {
+        putInt("deleteEffect", value < 0 || value >= DELETE_EFFECT_COUNT ? DELETE_EFFECT_DUST : value);
+    }
+
+    /** играть эффект и когда сообщение удалил собеседник */
+    public static final String KEY_DELETE_EFFECT_INCOMING = "deleteEffectIncoming";
+
+    public static boolean isDeleteEffectIncoming() { return getBool(KEY_DELETE_EFFECT_INCOMING, true); }
+
+    public static int getDeleteEffectName(int value) {
+        switch (value) {
+            case DELETE_EFFECT_DUST: return org.telegram.messenger.R.string.PengramDeleteEffectDust;
+            case DELETE_EFFECT_BURN: return org.telegram.messenger.R.string.PengramDeleteEffectBurn;
+            case DELETE_EFFECT_SHATTER: return org.telegram.messenger.R.string.PengramDeleteEffectShatter;
+            case DELETE_EFFECT_COLLAPSE: return org.telegram.messenger.R.string.PengramDeleteEffectCollapse;
+            case DELETE_EFFECT_DISSOLVE: return org.telegram.messenger.R.string.PengramDeleteEffectDissolve;
+            case DELETE_EFFECT_SLIDE: return org.telegram.messenger.R.string.PengramDeleteEffectSlide;
+            case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplode;
+            case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelate;
+            default: return org.telegram.messenger.R.string.PengramDeleteEffectNone;
+        }
+    }
+
+    public static int getDeleteEffectInfo(int value) {
+        switch (value) {
+            case DELETE_EFFECT_DUST: return org.telegram.messenger.R.string.PengramDeleteEffectDustInfo;
+            case DELETE_EFFECT_BURN: return org.telegram.messenger.R.string.PengramDeleteEffectBurnInfo;
+            case DELETE_EFFECT_SHATTER: return org.telegram.messenger.R.string.PengramDeleteEffectShatterInfo;
+            case DELETE_EFFECT_COLLAPSE: return org.telegram.messenger.R.string.PengramDeleteEffectCollapseInfo;
+            case DELETE_EFFECT_DISSOLVE: return org.telegram.messenger.R.string.PengramDeleteEffectDissolveInfo;
+            case DELETE_EFFECT_SLIDE: return org.telegram.messenger.R.string.PengramDeleteEffectSlideInfo;
+            case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplodeInfo;
+            case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelateInfo;
+            default: return org.telegram.messenger.R.string.PengramDeleteEffectNoneInfo;
+        }
+    }
+
+    /** всё, что связано с текстами, приложение делает само */
+    public static final String KEY_LYRICS_AUTO = "lyricsAuto";
+
+    public static boolean isLyricsAuto() { return getBool(KEY_LYRICS_AUTO, true); }
+
     public static final String KEY_LYRICS_STRETCH = "lyricsStretch";
-    public static boolean isLyricsStretch() { return getBool(KEY_LYRICS_STRETCH, true); }
+    public static boolean isLyricsStretch() { return isLyricsAuto() || getBool(KEY_LYRICS_STRETCH, true); }
 
     /** плавная подсветка между обновлениями прогресса плеера */
     public static final String KEY_LYRICS_SMOOTH = "lyricsSmooth";
-    public static boolean isLyricsSmooth() { return getBool(KEY_LYRICS_SMOOTH, true); }
+    public static boolean isLyricsSmooth() { return isLyricsAuto() || getBool(KEY_LYRICS_SMOOTH, true); }
 
     // ------------------------------------------------------------ бегущая строка
 
@@ -388,7 +476,7 @@ public class PengramConfig {
     public static final String KEY_HEADER_LYRICS_ARTIST = "headerLyricsArtist";
 
     public static int getHeaderLyricsSpeed() {
-        return Math.max(40, Math.min(250, prefs().getInt("headerLyricsSpeed", 100)));
+        return Math.max(40, Math.min(250, getIntCached("headerLyricsSpeed", 100)));
     }
 
     public static void setHeaderLyricsSpeed(int value) {
@@ -406,7 +494,7 @@ public class PengramConfig {
 
     /** анимация строки в шапке: -1 — как в плеере */
     public static int getHeaderLyricsAnim() {
-        final int value = prefs().getInt("headerLyricsAnim", -1);
+        final int value = getIntCached("headerLyricsAnim", -1);
         return value < -1 || value >= LYRICS_ANIM_COUNT ? -1 : value;
     }
 
@@ -415,7 +503,7 @@ public class PengramConfig {
     }
 
     public static int getHeaderLyricsSize() {
-        return Math.max(11, Math.min(20, prefs().getInt("headerLyricsSize", 14)));
+        return Math.max(11, Math.min(20, getIntCached("headerLyricsSize", 14)));
     }
 
     public static void setHeaderLyricsSize(int value) {
@@ -622,6 +710,9 @@ public class PengramConfig {
     }
 
     private static void putInt(String key, int value) {
+        synchronized (intCache) {
+            intCache.put(key, value);
+        }
         SharedPreferences p = prefs();
         if (p != null) p.edit().putInt(key, value).apply();
     }
@@ -810,7 +901,7 @@ public class PengramConfig {
     public static java.util.ArrayList<Integer> getSettingsOrder() {
         init();
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
-        if (prefs().getInt("settingsOrderVersion", 1) < SETTINGS_ORDER_VERSION) {
+        if (getIntCached("settingsOrderVersion", 1) < SETTINGS_ORDER_VERSION) {
             // раскладка по умолчанию поменялась — старый сохранённый порядок больше не актуален
             putString("settingsOrder", "");
             putInt("settingsOrderVersion", SETTINGS_ORDER_VERSION);
@@ -1016,7 +1107,7 @@ public class PengramConfig {
     public static int getChatItemPlacement(int id) {
         init();
         final int def = id == CHAT_ITEM_VIEW_DELETED ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
-        final int value = prefs().getInt("chatItemPlace_" + id, def);
+        final int value = getIntCached("chatItemPlace_" + id, def);
         return value == CHAT_PLACE_ISLAND ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
     }
 
@@ -1140,7 +1231,7 @@ public class PengramConfig {
 
     public static int getPenguinSkin() {
         init();
-        final int skin = prefs().getInt("penguinSkin", SKIN_NONE);
+        final int skin = getIntCached("penguinSkin", SKIN_NONE);
         return skin < 0 || skin >= SKIN_COUNT ? SKIN_NONE : skin;
     }
 
@@ -1509,6 +1600,9 @@ public class PengramConfig {
         synchronized (PengramConfig.class) {
             loaded = false;
         }
+        synchronized (intCache) {
+            intCache.clear();
+        }
         synchronized (boolCache) {
             boolCache.clear();
         }
@@ -1645,7 +1739,7 @@ public class PengramConfig {
     /** сколько сообщений разрешаем выделить за раз (по умолчанию как в оригинале — 100) */
     public static int getSelectionLimit() {
         init();
-        final int value = prefs().getInt("selectionLimit", 100);
+        final int value = getIntCached("selectionLimit", 100);
         return value < 100 ? 100 : Math.min(value, 3000);
     }
 
@@ -1682,7 +1776,7 @@ public class PengramConfig {
 
     public static int getGroupAvatarPos() {
         init();
-        final int value = prefs().getInt("groupAvatarPos", AVATAR_POS_LEFT);
+        final int value = getIntCached("groupAvatarPos", AVATAR_POS_LEFT);
         return value < 0 || value >= AVATAR_POS_COUNT ? AVATAR_POS_LEFT : value;
     }
 
@@ -1737,7 +1831,7 @@ public class PengramConfig {
     public static int getPlayerStyle() {
         init();
         // по умолчанию — наш вариант с текстом песни: караоке «буква в букву»
-        final int value = prefs().getInt("playerStyle", PLAYER_STYLE_LYRICS);
+        final int value = getIntCached("playerStyle", PLAYER_STYLE_LYRICS);
         return value < 0 || value >= PLAYER_STYLE_COUNT ? PLAYER_STYLE_FULL : value;
     }
 
@@ -1797,7 +1891,7 @@ public class PengramConfig {
 
     public static int getLyricsAnim() {
         init();
-        final int value = prefs().getInt("lyricsAnim", LYRICS_ANIM_KARAOKE);
+        final int value = getIntCached("lyricsAnim", LYRICS_ANIM_KARAOKE);
         return value < 0 || value >= LYRICS_ANIM_COUNT ? LYRICS_ANIM_KARAOKE : value;
     }
 
@@ -1834,7 +1928,7 @@ public class PengramConfig {
 
     public static int getLyricsAlign() {
         init();
-        final int value = prefs().getInt("lyricsAlign", LYRICS_ALIGN_LEFT);
+        final int value = getIntCached("lyricsAlign", LYRICS_ALIGN_LEFT);
         return value < 0 || value > LYRICS_ALIGN_RIGHT ? LYRICS_ALIGN_LEFT : value;
     }
 
@@ -1854,7 +1948,7 @@ public class PengramConfig {
     /** размер текста песни, dp */
     public static int getLyricsSize() {
         init();
-        final int value = prefs().getInt("lyricsSize", 22);
+        final int value = getIntCached("lyricsSize", 22);
         return value < 14 ? 14 : Math.min(value, 40);
     }
 
@@ -1865,7 +1959,7 @@ public class PengramConfig {
     /** прозрачность неактивных строк, % */
     public static int getLyricsDim() {
         init();
-        final int value = prefs().getInt("lyricsDim", 35);
+        final int value = getIntCached("lyricsDim", 35);
         return value < 5 ? 5 : Math.min(value, 100);
     }
 
@@ -1876,7 +1970,7 @@ public class PengramConfig {
     /** скорость анимации текста, % от обычной */
     public static int getLyricsSpeed() {
         init();
-        final int value = prefs().getInt("lyricsSpeed", 100);
+        final int value = getIntCached("lyricsSpeed", 100);
         return value < 25 ? 25 : Math.min(value, 300);
     }
 
@@ -1892,7 +1986,7 @@ public class PengramConfig {
 
     public static int getPlayerBg() {
         init();
-        final int value = prefs().getInt("playerBg", PLAYER_BG_COVER);
+        final int value = getIntCached("playerBg", PLAYER_BG_COVER);
         return value < 0 || value > PLAYER_BG_THEME ? PLAYER_BG_COVER : value;
     }
 
@@ -1917,7 +2011,7 @@ public class PengramConfig {
 
     public static int getCoverShape() {
         init();
-        final int value = prefs().getInt("coverShape", COVER_SHAPE_ROUNDED);
+        final int value = getIntCached("coverShape", COVER_SHAPE_ROUNDED);
         return value < 0 || value > COVER_SHAPE_SQUARE ? COVER_SHAPE_ROUNDED : value;
     }
 

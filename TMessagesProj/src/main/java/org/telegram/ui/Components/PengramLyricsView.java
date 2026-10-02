@@ -71,6 +71,22 @@ public class PengramLyricsView extends View {
     private int fractionsLine = -1;
     private int builtAlign;
 
+    // --- всё ниже нужно, чтобы кадр стоил как можно дешевле ---
+    /** снимок настроек: читаем их не по сто раз за кадр, а раз в 400 мс */
+    private long configTime;
+    private int cfgDim = 35;
+    private int cfgSpeed = 100;
+    private int cfgAnim;
+    private boolean cfgShadow = true;
+    private boolean cfgAutoscroll = true;
+    private boolean cfgWords = true;
+    private int cfgTickerSpeed = 100;
+    /** ширины символов каждой строки считаются один раз на разметку */
+    private float[][] lineWidths;
+    private final float[] hsv = new float[3];
+    private float lastDrawnCut = -1f;
+    private int lastDrawnLine = -2;
+
     public PengramLyricsView(Context context) {
         super(context);
         textPaint.setTextSize(AndroidUtilities.dp(PengramConfig.getLyricsSize()));
@@ -209,6 +225,38 @@ public class PengramLyricsView extends View {
         return value - PengramLyrics.getOffset(offsetKey);
     }
 
+    /** перечитать настройки раз в 400 мс — в кадре они не меняются */
+    private void refreshConfig(long now) {
+        if (!previewMode && configTime != 0 && now - configTime < 400) {
+            return;
+        }
+        configTime = now;
+        cfgDim = PengramConfig.getLyricsDim();
+        cfgSpeed = PengramConfig.getLyricsSpeed();
+        cfgAnim = previewAnim >= 0 ? previewAnim
+                : animOverride >= 0 ? animOverride : PengramConfig.getLyricsAnim();
+        cfgShadow = !tickerMode && PengramConfig.getBool(PengramConfig.KEY_LYRICS_SHADOW, true);
+        cfgAutoscroll = PengramConfig.getBool(PengramConfig.KEY_LYRICS_AUTOSCROLL, true);
+        cfgWords = !tickerMode || PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_WORDS, true);
+        cfgTickerSpeed = PengramConfig.getHeaderLyricsSpeed();
+    }
+
+    /** ширины символов строки: считаем один раз, а не каждый кадр */
+    private float[] widthsFor(int index) {
+        if (lineWidths == null || index < 0 || index >= lineWidths.length) {
+            return null;
+        }
+        if (lineWidths[index] == null) {
+            final CharSequence text = layouts.get(index).getText();
+            final float[] result = new float[text.length()];
+            if (result.length > 0) {
+                textPaint.getTextWidths(text, 0, result.length, result);
+            }
+            lineWidths[index] = result;
+        }
+        return lineWidths[index];
+    }
+
     /** перестроить разметку, если поменялись настройки или ширина */
     private void buildLayouts() {
         final int width = getMeasuredWidth() - AndroidUtilities.dp(32);
@@ -231,6 +279,7 @@ public class PengramLyricsView extends View {
         textPaint.setTypeface(bold ? AndroidUtilities.bold() : null);
         layouts.clear();
         tops.clear();
+        lineWidths = null;
         int y = 0;
         final Layout.Alignment alignment = align == PengramConfig.LYRICS_ALIGN_CENTER
                 ? Layout.Alignment.ALIGN_CENTER
@@ -254,6 +303,7 @@ public class PengramLyricsView extends View {
             tops.add(y);
             y += layout.getHeight() + AndroidUtilities.dp(14);
         }
+        lineWidths = new float[layouts.size()][];
     }
 
     @Override
@@ -355,13 +405,14 @@ public class PengramLyricsView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        if (layouts.isEmpty()) {
+        if (layouts.isEmpty() || getVisibility() != VISIBLE || getAlpha() < 0.01f) {
             return;
         }
         final long now = System.currentTimeMillis();
         final float dt = lastFrame == 0 ? 0.016f : Math.min(0.064f, (now - lastFrame) / 1000f);
         lastFrame = now;
-        final float speed = PengramConfig.getLyricsSpeed() / 100f;
+        refreshConfig(now);
+        final float speed = cfgSpeed / 100f;
 
         if (previewMode) {
             final float loop = (now % 4200L) / 3200f;
@@ -386,15 +437,14 @@ public class PengramLyricsView extends View {
         if (previewMode) {
             targetScrollY = scrollY = 0;
         }
-        if (!PengramConfig.getBool(PengramConfig.KEY_LYRICS_AUTOSCROLL, true)) {
+        if (!cfgAutoscroll) {
             targetScrollY = Math.max(0, targetScrollY);
         }
         scrollY = AndroidUtilities.lerp(scrollY, targetScrollY, Math.min(1f, dt * 7f));
 
-        final int dim = PengramConfig.getLyricsDim();
-        final int anim = previewAnim >= 0 ? previewAnim
-                : animOverride >= 0 ? animOverride : PengramConfig.getLyricsAnim();
-        final boolean shadow = PengramConfig.getBool(PengramConfig.KEY_LYRICS_SHADOW, true);
+        final int dim = cfgDim;
+        final int anim = cfgAnim;
+        final boolean shadow = cfgShadow;
 
         canvas.save();
         if (tickerMode && activeLine >= 0 && activeLine < layouts.size()) {
@@ -408,7 +458,7 @@ public class PengramLyricsView extends View {
             } else {
                 tickerTargetX = 0;
             }
-            final float tickerSpeed = PengramConfig.getHeaderLyricsSpeed() / 100f;
+            final float tickerSpeed = cfgTickerSpeed / 100f;
             tickerScrollX = AndroidUtilities.lerp(tickerScrollX, tickerTargetX, Math.min(1f, dt * 4.5f * tickerSpeed));
             canvas.translate(-tickerScrollX,
                     Math.max(0, (getMeasuredHeight() - layout.getHeight()) / 2f) - tops.get(activeLine));
@@ -430,8 +480,7 @@ public class PengramLyricsView extends View {
             canvas.translate(0, top);
             if (a == activeLine) {
                 // в шапке подсветку слов можно выключить — тогда строка горит целиком
-                final float fraction = tickerMode && !PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_WORDS, true)
-                        ? 1f : lineProgress(a);
+                final float fraction = cfgWords ? lineProgress(a) : 1f;
                 drawActiveLine(canvas, layout, fraction, anim, now, shadow);
             } else {
                 final float distance = Math.abs(a - activeLine);
@@ -451,12 +500,26 @@ public class PengramLyricsView extends View {
             } catch (Throwable ignore) {
             }
         }
-        final boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
+        boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
                 || Math.abs(tickerScrollX - tickerTargetX) > 0.5f
                 || enterAnim < 1f || previewMode
                 || (playing && (timed || animated(anim)));
+        if (moving && playing && !previewMode && !animated(anim)
+                && Math.abs(scrollY - targetScrollY) <= 0.5f
+                && Math.abs(tickerScrollX - tickerTargetX) <= 0.5f
+                && enterAnim >= 1f) {
+            // ничего не движется, кроме подсветки: если она не сдвинулась даже на полпикселя,
+            // кадр рисовать незачем — именно это съедало плавность чата
+            final float cut = activeLine >= 0 && activeLine < layouts.size()
+                    ? lineProgress(activeLine) * layouts.get(activeLine).getWidth() : 0;
+            if (activeLine == lastDrawnLine && Math.abs(cut - lastDrawnCut) < 0.5f) {
+                moving = false;
+            }
+            lastDrawnCut = cut;
+            lastDrawnLine = activeLine;
+        }
         if (moving) {
-            invalidate();
+            postInvalidateOnAnimation();
         }
     }
 
@@ -470,13 +533,80 @@ public class PengramLyricsView extends View {
                 || anim == PengramConfig.LYRICS_ANIM_RAINBOW;
     }
 
+    /**
+     * Быстрый путь: вся строка приглушённая + яркая часть, отсечённая ровно по спетой букве.
+     * Возвращает false, если ширины символов ещё не посчитаны и нужен обычный путь.
+     */
+    private boolean drawClipped(Canvas canvas, StaticLayout layout, float lineProgress, int anim, boolean shadow, float dimAlpha) {
+        final float[] charWidths = widthsFor(activeLine);
+        if (charWidths == null) {
+            return false;
+        }
+        final CharSequence text = layout.getText();
+        final int total = text.length();
+        int idx = 0;
+        while (idx < total && charFraction(idx + 1, total) <= lineProgress) {
+            idx++;
+        }
+        final float from = charFraction(idx, total);
+        final float to = charFraction(idx + 1, total);
+        final float inner = to > from ? Utilities.clamp((lineProgress - from) / (to - from), 1f, 0f) : 1f;
+
+        if (anim != PengramConfig.LYRICS_ANIM_TYPEWRITER) {
+            textPaint.setColor(ColorUtils.setAlphaComponent(baseColor, (int) (255 * Math.max(0.15f, dimAlpha))));
+            textPaint.clearShadowLayer();
+            layout.draw(canvas);
+        }
+        if (lineProgress <= 0) {
+            return true;
+        }
+        textPaint.setColor(accentColor);
+        if (shadow) {
+            textPaint.setShadowLayer(AndroidUtilities.dp(8), 0, 0, ColorUtils.setAlphaComponent(accentColor, 70));
+        } else {
+            textPaint.clearShadowLayer();
+        }
+        for (int l = 0; l < layout.getLineCount(); ++l) {
+            final int start = layout.getLineStart(l);
+            final int end = layout.getLineEnd(l);
+            if (start > idx) {
+                break;
+            }
+            final float left = layout.getLineLeft(l);
+            float right;
+            if (end <= idx) {
+                right = layout.getLineRight(l) + AndroidUtilities.dp(1);
+            } else {
+                float x = left;
+                for (int c = start; c < Math.min(end, idx); ++c) {
+                    if (c < charWidths.length) {
+                        x += charWidths[c];
+                    }
+                }
+                if (idx < charWidths.length && idx < end) {
+                    x += charWidths[idx] * inner;
+                }
+                right = x;
+            }
+            if (right <= left) {
+                continue;
+            }
+            canvas.save();
+            canvas.clipRect(left - AndroidUtilities.dp(2), layout.getLineTop(l), right, layout.getLineBottom(l));
+            layout.draw(canvas);
+            canvas.restore();
+        }
+        textPaint.clearShadowLayer();
+        return true;
+    }
+
     /** активная строка — здесь и живут все побуквенные эффекты */
     private void drawActiveLine(Canvas canvas, StaticLayout layout, float lineProgress, int anim, long now, boolean shadow) {
         final CharSequence text = layout.getText();
         final int total = Math.max(1, text.length());
         final float time = now / 1000f;
-        final float speed = PengramConfig.getLyricsSpeed() / 100f;
-        final float dimAlpha = Math.max(0.15f, PengramConfig.getLyricsDim() / 100f);
+        final float speed = cfgSpeed / 100f;
+        final float dimAlpha = Math.max(0.15f, cfgDim / 100f);
 
         if (anim == PengramConfig.LYRICS_ANIM_NONE) {
             textPaint.setColor(accentColor);
@@ -504,6 +634,13 @@ public class PengramLyricsView extends View {
             buildCharFractions(activeLine, text);
         }
 
+        // Караоке и печатная машинка рисуются отсечением: два вызова вместо сотни по буквам.
+        // Подсветка остаётся буква в букву, но кадр стоит в десятки раз дешевле.
+        if ((anim == PengramConfig.LYRICS_ANIM_KARAOKE || anim == PengramConfig.LYRICS_ANIM_TYPEWRITER)
+                && drawClipped(canvas, layout, lineProgress, anim, shadow, dimAlpha)) {
+            return;
+        }
+
         int charIndex = 0;
         for (int l = 0; l < layout.getLineCount(); ++l) {
             final int start = layout.getLineStart(l);
@@ -512,7 +649,12 @@ public class PengramLyricsView extends View {
             if (count <= 0) {
                 continue;
             }
-            textPaint.getTextWidths(text, start, start + count, widths);
+            final float[] cached = widthsFor(activeLine);
+            if (cached != null && cached.length >= start + count) {
+                System.arraycopy(cached, start, widths, 0, count);
+            } else {
+                textPaint.getTextWidths(text, start, start + count, widths);
+            }
             float x = layout.getLineLeft(l);
             final float baseline = layout.getLineBaseline(l);
             for (int c = 0; c < count; ++c) {
@@ -574,7 +716,10 @@ public class PengramLyricsView extends View {
                     }
                     case PengramConfig.LYRICS_ANIM_RAINBOW: {
                         final float hue = ((charIndex * 14f + time * 80f * speed) % 360f);
-                        color = Color.HSVToColor(new float[]{hue, 0.65f, 1f});
+                        hsv[0] = hue;
+                        hsv[1] = 0.65f;
+                        hsv[2] = 1f;
+                        color = Color.HSVToColor(hsv);
                         alpha = Math.max(dimAlpha, p);
                         break;
                     }

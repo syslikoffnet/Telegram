@@ -37,7 +37,7 @@ public class PengramLyrics {
     private static final String UA = "Pengram for Android (https://github.com/syslikoffnet/Telegram)";
 
     /** сколько ждать до следующей попытки, если текст не нашёлся */
-    private static final long RETRY_AFTER = 6L * 60 * 60 * 1000;
+    private static final long RETRY_AFTER = 30L * 60 * 1000;
 
     public static final int STATE_NONE = 0;
     public static final int STATE_LOADING = 1;
@@ -257,7 +257,16 @@ public class PengramLyrics {
         }
         final SharedPreferences.Editor editor = prefs().edit();
         if (TextUtils.isEmpty(raw)) {
-            editor.remove(key).putLong("fail_" + key, System.currentTimeMillis());
+            editor.remove(key);
+            // без сети запоминать неудачу нельзя: появится интернет — ищем снова сами
+            boolean online = true;
+            try {
+                online = ApplicationLoader.isNetworkOnline();
+            } catch (Throwable ignore) {
+            }
+            if (online) {
+                editor.putLong("fail_" + key, System.currentTimeMillis());
+            }
             memory.remove(key);
         } else {
             editor.putString(key, raw).remove("fail_" + key);
@@ -399,15 +408,49 @@ public class PengramLyrics {
     // --------------------------------------------------------- сдвиг по трекам
 
     /** личный сдвиг текста для конкретного трека, мс */
+    /** личный сдвиг текущего трека держим в памяти: его спрашивают по нескольку раз за кадр */
+    private static String offsetCacheKey;
+    private static int offsetCacheValue;
+
     public static int getOffset(String key) {
         if (TextUtils.isEmpty(key)) {
-            return PengramConfig.getLyricsOffset();
+            return PengramConfig.getLyricsOffset() + learnedOffset();
         }
-        return prefs().getInt("off_" + key, 0) + PengramConfig.getLyricsOffset();
+        final int personal = getTrackOffset(key);
+        // у трека нет личного сдвига — берём тот, который приложение выучило на прошлых песнях
+        return (personal != 0 ? personal : learnedOffset()) + PengramConfig.getLyricsOffset();
+    }
+
+    /**
+     * Средний сдвиг, который пользователь задавал руками. Пока он ничего не двигал — ноль,
+     * а дальше новые треки сразу идут с его поправкой, и трогать кнопки больше не нужно.
+     */
+    public static int learnedOffset() {
+        if (!PengramConfig.isLyricsAuto()) {
+            return 0;
+        }
+        return prefs().getInt("learned_offset", 0);
+    }
+
+    /** запомнить поправку пользователя (скользящее среднее — одна случайность ничего не ломает) */
+    private static void learnOffset(int value) {
+        final int learned = prefs().getInt("learned_offset", 0);
+        final int count = Math.min(10, prefs().getInt("learned_count", 0)) + 1;
+        final int updated = Math.max(-3000, Math.min(3000, learned + (value - learned) / count));
+        prefs().edit().putInt("learned_offset", updated).putInt("learned_count", count).apply();
     }
 
     public static int getTrackOffset(String key) {
-        return TextUtils.isEmpty(key) ? 0 : prefs().getInt("off_" + key, 0);
+        if (TextUtils.isEmpty(key)) {
+            return 0;
+        }
+        if (key.equals(offsetCacheKey)) {
+            return offsetCacheValue;
+        }
+        final int value = prefs().getInt("off_" + key, 0);
+        offsetCacheKey = key;
+        offsetCacheValue = value;
+        return value;
     }
 
     public static void setTrackOffset(String key, int value) {
@@ -415,6 +458,9 @@ public class PengramLyrics {
             return;
         }
         value = Math.max(-10000, Math.min(10000, value));
+        learnOffset(value);
+        offsetCacheKey = key;
+        offsetCacheValue = value;
         if (value == 0) {
             prefs().edit().remove("off_" + key).apply();
         } else {

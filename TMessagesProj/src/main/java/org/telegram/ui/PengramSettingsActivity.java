@@ -29,6 +29,7 @@ import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramLyrics;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.PengramTextStyle;
@@ -202,6 +203,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
     private static final int BTN_LYRICS_SOURCE = 1435;
+    /** экран выбора анимации удаления */
+    private static final int BTN_DELETE_EFFECT = 1490;
+    /** экран обхода блокировок */
+    private static final int BTN_BYPASS = 1491;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -1154,6 +1159,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
         }
         items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeleteEffectHeader)));
+        items.add(UItem.asSettingsCell(BTN_DELETE_EFFECT, R.drawable.msg_delete,
+                getString(R.string.PengramDeleteEffect),
+                getString(PengramConfig.getDeleteEffectName(PengramConfig.getDeleteEffect()))));
+        if (PengramConfig.getDeleteEffect() != PengramConfig.DELETE_EFFECT_NONE) {
+            items.add(check(PengramConfig.KEY_DELETE_EFFECT_INCOMING, true, getString(R.string.PengramDeleteEffectIncoming)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramDeleteEffectIncomingInfo)));
     }
 
     /** ID для примеров в настройках — свой, если он уже известен */
@@ -1316,7 +1330,23 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
     }
 
+    /** короткое состояние обхода для строки настроек */
+    private CharSequence bypassStateName() {
+        switch (org.telegram.messenger.PengramBypass.getStatus()) {
+            case org.telegram.messenger.PengramBypass.STATUS_PROXY: return getString(R.string.PengramBypassStateProxy);
+            case org.telegram.messenger.PengramBypass.STATUS_SEARCHING: return getString(R.string.PengramBypassStateSearching);
+            case org.telegram.messenger.PengramBypass.STATUS_FAILED: return getString(R.string.PengramBypassStateFailed);
+            case org.telegram.messenger.PengramBypass.STATUS_DIRECT: return getString(R.string.PengramBypassStateDirect);
+            default: return getString(R.string.PengramBypassStateOff);
+        }
+    }
+
     private void fillFreedom(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramBypass)));
+        items.add(UItem.asSettingsCell(BTN_BYPASS, R.drawable.msg_language,
+                getString(R.string.PengramBypass), bypassStateName()));
+        items.add(UItem.asShadow(getString(R.string.PengramBypassInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramFreedomHeader)));
         items.add(UItem.asCheck(BTN_SCREENSHOTS, getString(R.string.PengramAllowScreenshots)).setChecked(PengramConfig.allowScreenshots));
         if (PengramConfig.allowScreenshots) {
@@ -1592,27 +1622,28 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         if (PengramConfig.isNewPlayer()) {
-            items.add(UItem.asHeader(getString(R.string.PengramLyricsSourceHeader)));
-            for (int source = 0; source < PengramConfig.LYRICS_SOURCE_COUNT; ++source) {
-                items.add(UItem.asRadio2(BTN_LYRICS_SOURCE + source * 10,
-                                getString(PengramConfig.getLyricsSourceName(source)),
-                                getString(PengramConfig.getLyricsSourceInfo(source)))
-                        .setChecked(PengramConfig.getLyricsSource() == source));
-            }
-            items.add(UItem.asShadow(getString(R.string.PengramLyricsSourceInfo)));
-
             items.add(UItem.asHeader(getString(R.string.PengramLyricsSyncHeader)));
-            items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true, getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
-            items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true, getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
-            items.add(check("lyricsSyncButtons", true, getString(R.string.PengramLyricsSyncButtons)));
-            items.add(UItem.asShadow(null));
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_AUTO, true,
+                    getString(R.string.PengramLyricsAuto), getString(R.string.PengramLyricsAutoInfo)));
+            if (!PengramConfig.isLyricsAuto()) {
+                // ручной режим: тут всё то же самое, но руками
+                items.add(UItem.asSettingsCell(BTN_LYRICS_SOURCE, R.drawable.msg_download,
+                        getString(R.string.PengramLyricsSourceHeader),
+                        getString(PengramConfig.getLyricsSourceName(PengramConfig.getLyricsSourceRaw()))));
+                items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true, getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
+                items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true, getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
+                items.add(check("lyricsSyncButtons", true, getString(R.string.PengramLyricsSyncButtons)));
+                items.add(UItem.asShadow(null));
 
-            items.add(UItem.asHeader(getString(R.string.PengramLyricsOffset)));
-            items.add(UItem.asIntSlideView(1, 0,
-                    Math.max(0, Math.min(40, Math.round(PengramConfig.getLyricsOffset() / 100f) + 20)), 40,
-                    value -> String.format(java.util.Locale.US, "%+.1f c", (value - 20) * 0.1f),
-                    value -> PengramConfig.setLyricsOffset((value - 20) * 100)));
-            items.add(UItem.asShadow(getString(R.string.PengramLyricsOffsetInfo)));
+                items.add(UItem.asHeader(getString(R.string.PengramLyricsOffset)));
+                items.add(UItem.asIntSlideView(1, 0,
+                        Math.max(0, Math.min(40, Math.round(PengramConfig.getLyricsOffset() / 100f) + 20)), 40,
+                        value -> String.format(java.util.Locale.US, "%+.1f c", (value - 20) * 0.1f),
+                        value -> PengramConfig.setLyricsOffset((value - 20) * 100)));
+                items.add(UItem.asShadow(getString(R.string.PengramLyricsOffsetInfo)));
+            } else {
+                items.add(UItem.asShadow(getString(R.string.PengramLyricsAutoDetails)));
+            }
 
             items.add(UItem.asHeader(getString(R.string.PengramLyricsHeader)));
             items.add(UItem.asSettingsCell(BTN_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramLyricsAnim), getString(PengramConfig.getLyricsAnimName(PengramConfig.getLyricsAnim()))));
@@ -2099,14 +2130,25 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_CONSTRUCTOR:
                 presentFragment(new PengramConstructorActivity());
                 return;
-            case BTN_LYRICS_SOURCE:
-            case BTN_LYRICS_SOURCE + 10:
-            case BTN_LYRICS_SOURCE + 20:
-            case BTN_LYRICS_SOURCE + 30:
-            case BTN_LYRICS_SOURCE + 40:
-                PengramConfig.setLyricsSource((item.id - BTN_LYRICS_SOURCE) / 10);
-                listView.adapter.update(true);
+            case BTN_BYPASS:
+                presentFragment(new PengramBypassActivity());
                 return;
+            case BTN_DELETE_EFFECT:
+                presentFragment(new PengramDeleteEffectActivity());
+                return;
+            case BTN_LYRICS_SOURCE: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_SOURCE_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsSourceName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsSourceHeader), options,
+                        PengramConfig.getLyricsSourceRaw(), value -> {
+                            PengramConfig.setLyricsSource(value);
+                            PengramLyrics.clearAll();
+                            listView.adapter.update(true);
+                        });
+                return;
+            }
             case BTN_HEADER_LYRICS_ANIM: {
                 final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_ANIM_COUNT + 1];
                 options[0] = getString(R.string.PengramHeaderLyricsAnimSame);
