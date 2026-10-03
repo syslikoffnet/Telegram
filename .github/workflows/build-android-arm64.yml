@@ -23,8 +23,6 @@ on:
           - armeabi-v7a,arm64-v8a
           - armeabi-v7a,arm64-v8a,x86,x86_64
   push:
-    branches:
-      - "arena/01a10249-telegram"
     tags:
       - "build-*"
 

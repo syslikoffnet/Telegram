@@ -1,0 +1,28 @@
+name: Android Java preflight
+on:
+  push:
+    branches:
+      - "arena/01a10249-telegram"
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Configure Android SDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$SDK" > local.properties
+      - name: Compile Java
+        run: |
+          chmod +x gradlew
+          ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g"
