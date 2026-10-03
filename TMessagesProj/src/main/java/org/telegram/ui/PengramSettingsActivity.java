@@ -138,6 +138,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_CUSTOM = 9;
     public static final int SECTION_PENGUIN = 10;
     public static final int SECTION_PLAYER = 11;
+    public static final int SECTION_CHAT_ACTIONS = 12;
+    public static final int SECTION_CHAT_MESSAGES = 13;
+    public static final int SECTION_CHAT_INTERFACE = 14;
+    public static final int SECTION_CHAT_MENUS = 15;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -150,6 +154,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_CUSTOM = 1009;
     private static final int BTN_SECTION_PENGUIN = 1010;
     private static final int BTN_SECTION_PLAYER = 1011;
+    private static final int BTN_SECTION_CHAT_ACTIONS = 1012;
+    private static final int BTN_SECTION_CHAT_MESSAGES = 1013;
+    private static final int BTN_SECTION_CHAT_INTERFACE = 1014;
+    private static final int BTN_SECTION_CHAT_MENUS = 1015;
 
     private static final int BTN_BOOST_OFF = 1300;
     private static final int BTN_BOOST_FAST = 1301;
@@ -271,6 +279,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_HISTORY: return getString(R.string.PengramSectionSpy);
             case SECTION_APPEARANCE: return getString(R.string.PengramSectionAppearance);
             case SECTION_CHATS: return getString(R.string.PengramSectionChats);
+            case SECTION_CHAT_ACTIONS: return getString(R.string.PengramSubsectionActions);
+            case SECTION_CHAT_MESSAGES: return getString(R.string.PengramSubsectionMessages);
+            case SECTION_CHAT_INTERFACE: return getString(R.string.PengramSubsectionInterface);
+            case SECTION_CHAT_MENUS: return getString(R.string.PengramSubsectionMenus);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
             case SECTION_MEDIA: return getString(R.string.PengramSectionMedia);
             case SECTION_GENERAL: return getString(R.string.PengramSectionGeneral);
@@ -290,6 +302,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_HISTORY: fillHistory(items); break;
             case SECTION_APPEARANCE: fillAppearance(items); break;
             case SECTION_CHATS: fillChats(items); break;
+            case SECTION_CHAT_ACTIONS: fillChatActions(items); break;
+            case SECTION_CHAT_MESSAGES: fillChatMessages(items); break;
+            case SECTION_CHAT_INTERFACE: fillChatInterface(items); break;
+            case SECTION_CHAT_MENUS: fillChatMenus(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
             case SECTION_MEDIA: fillMedia(items); break;
             case SECTION_GENERAL: fillGeneral(items); break;
@@ -1538,12 +1554,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asRadio(BTN_FONT_SERIF, getString(R.string.PengramFontSerif)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SERIF));
         items.add(UItem.asRadio(BTN_FONT_MONO, getString(R.string.PengramFontMono)).setChecked(PengramConfig.appFont == PengramConfig.FONT_MONOSPACE));
         items.add(UItem.asShadow(null));
-        items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
-        if (PengramConfig.chatMenuEnabled) {
-            items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP));
-            items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
-        }
-        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramTitleHeader)));
         items.add(UItem.asSettingsCell(BTN_TITLE_MODE, R.drawable.msg_edit, getString(R.string.PengramTitleText), titleModeName(PengramConfig.getTitleMode())));
@@ -1837,6 +1847,18 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillChats(ArrayList<UItem> items) {
+        items.add(sectionRow(BTN_SECTION_CHAT_ACTIONS, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
+                getString(R.string.PengramSubsectionActions), getString(R.string.PengramSubsectionActionsInfo)));
+        items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
+                getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSubsectionMessagesInfo)));
+        items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
+                getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSubsectionInterfaceInfo)));
+        items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
+                getString(R.string.PengramSubsectionMenus), hiddenChatItemsValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramChatsHubInfo)));
+    }
+
+    private void fillChatActions(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramQuickButton1Header)));
         items.add(UItem.asSettingsCell(BTN_QUICK_NAME_1, R.drawable.msg_edit, getString(R.string.PengramQuickName1), PengramConfig.getQuickName(1)));
         items.add(UItem.asSettingsCell(BTN_QUICK_URL_1, R.drawable.msg_link, getString(R.string.PengramQuickUrl1), PengramConfig.getQuickUrl(1)));
@@ -1846,35 +1868,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_QUICK_URL_2, R.drawable.msg_link, getString(R.string.PengramQuickUrl2), PengramConfig.getQuickUrl(2)));
         items.add(UItem.asShadow(getString(R.string.PengramQuickUrlInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
-        if (tabsMockView == null && getContext() != null) {
-            tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext());
-            tabsMockView.setOnChanged(this::applyTabsNow);
-        }
-        if (tabsMockView != null) {
-            tabsMockView.sync();
-            items.add(UItem.asCustom(tabsMockView, 140));
-        }
-        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
-
-        items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
-        items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
-        items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
-
-        items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
-        items.add(UItem.asShadow(null));
-
-        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
-        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> {
-            PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))]);
-        }));
-        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
-
-        items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
-        items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
-        items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
-        items.add(UItem.asShadow(null));
-
         items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
         items.add(checkInfo(PengramConfig.KEY_RESEND_AS_MINE, true, getString(R.string.PengramResendAsMine), getString(R.string.PengramResendAsMineInfo)));
         items.add(check(PengramConfig.KEY_RESEND_MENU, true, getString(R.string.PengramResendMenu)));
@@ -1882,27 +1875,54 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
             items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
         }
-        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
         items.add(UItem.asShadow(null));
-
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
-        if (PengramConfig.isForwardLockEnabled()) {
-            items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
-        }
+        if (PengramConfig.isForwardLockEnabled()) items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
+    }
 
+    private void fillChatMessages(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
+        items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
+        items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
+        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
+        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
+        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
+        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
+        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
+        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+    }
+
+    private void fillChatInterface(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
+        if (tabsMockView == null && getContext() != null) { tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext()); tabsMockView.setOnChanged(this::applyTabsNow); }
+        if (tabsMockView != null) { tabsMockView.sync(); items.add(UItem.asCustom(tabsMockView, 140)); }
+        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
+        items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
+        items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
+        items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
         items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.ChatListSwipeGesture), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
         items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
         items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
         items.add(UItem.asShadow(null));
+    }
 
-        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
-        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
-        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
-        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+    private void fillChatMenus(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramChatMenu)));
+        items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
+        if (PengramConfig.chatMenuEnabled) {
+            items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP));
+            items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
+        }
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
@@ -1910,7 +1930,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_CHAT_ITEMS, R.drawable.msg_message, getString(R.string.PengramChatItemsTitle), hiddenChatItemsValue()));
         items.add(checkInfo(PengramConfig.KEY_PENGRAM_CARD, true, getString(R.string.PengramCardOnTop), getString(R.string.PengramCardOnTopInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
-
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_SEARCH, getString(R.string.PengramHideChatSearch)).setChecked(PengramConfig.hideChatSearch));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_TRANSLATE, getString(R.string.PengramHideChatTranslate)).setChecked(PengramConfig.hideChatTranslate));
@@ -2273,6 +2292,18 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_CHATS:
                 presentFragment(new PengramSettingsActivity(SECTION_CHATS));
+                return;
+            case BTN_SECTION_CHAT_ACTIONS:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_ACTIONS));
+                return;
+            case BTN_SECTION_CHAT_MESSAGES:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_MESSAGES));
+                return;
+            case BTN_SECTION_CHAT_INTERFACE:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_INTERFACE));
+                return;
+            case BTN_SECTION_CHAT_MENUS:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_MENUS));
                 return;
             case BTN_SECTION_FREEDOM:
                 presentFragment(new PengramSettingsActivity(SECTION_FREEDOM));

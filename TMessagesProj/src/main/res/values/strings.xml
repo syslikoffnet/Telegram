@@ -12017,4 +12017,12 @@
     <string name="PengramDeleteMyMessages">Delete all my messages</string>
     <string name="PengramDeleteMyMessagesConfirm">Search the entire available history and permanently delete all messages sent by you in this chat? This cannot be undone.</string>
     <string name="PengramDeleteMyMessagesDone">Deleted messages: %1$d</string>
+    <string name="PengramSubsectionActions">Quick actions and forwarding</string>
+    <string name="PengramSubsectionActionsInfo">Buttons, forwarding and sending copies</string>
+    <string name="PengramSubsectionMessages">Messages and selection</string>
+    <string name="PengramSubsectionMessagesInfo">Appearance, selection and message menu</string>
+    <string name="PengramSubsectionInterface">Chat list and gestures</string>
+    <string name="PengramSubsectionInterfaceInfo">Tabs, dialogs and swipe actions</string>
+    <string name="PengramSubsectionMenus">Menus and visibility</string>
+    <string name="PengramChatsHubInfo">Related settings are grouped into smaller screens so the section remains easy to navigate as Pengram grows.</string>
 </resources>
