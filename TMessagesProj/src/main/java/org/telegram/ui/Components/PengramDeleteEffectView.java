@@ -57,6 +57,23 @@ public class PengramDeleteEffectView extends View {
     private final RectF bounds = new RectF();
     private boolean hasBounds;
 
+    // ----- «пазл»: куски с замками, собранные один раз при создании -----
+    private android.graphics.Path[] piecePaths;
+    private float[] pieceX;
+    private float[] pieceY;
+    private float[] pieceCx;
+    private float[] pieceCy;
+    private float[] pieceDelay;
+    private float[] pieceVx;
+    private float[] pieceVy;
+    private float[] pieceSpin;
+    private int pieceCols;
+    private int pieceRows;
+
+    /** если список едет во время эффекта, картинка едет вместе с ним */
+    private androidx.recyclerview.widget.RecyclerView followList;
+    private androidx.recyclerview.widget.RecyclerView.OnScrollListener scrollListener;
+
     public PengramDeleteEffectView(Context context, Bitmap bitmap, int effect) {
         super(context);
         this.bitmap = bitmap;
@@ -94,7 +111,119 @@ public class PengramDeleteEffectView extends View {
                     break;
             }
         }
+        if (effect == PengramConfig.DELETE_EFFECT_PUZZLE) {
+            buildPuzzle();
+        }
         setLayerType(LAYER_TYPE_HARDWARE, null);
+    }
+
+    /**
+     * Режем снимок на крупные куски с замками «выступ — впадина».
+     * Пути строятся один раз: в кадре никаких новых объектов не появляется.
+     */
+    private void buildPuzzle() {
+        if (bmpW <= 0 || bmpH <= 0) {
+            return;
+        }
+        pieceCols = Math.max(3, Math.min(6, Math.round(bmpW / (float) AndroidUtilities.dp(72))));
+        pieceRows = Math.max(2, Math.min(5, Math.round(bmpH / (float) AndroidUtilities.dp(54))));
+        final int count = pieceCols * pieceRows;
+        piecePaths = new android.graphics.Path[count];
+        pieceX = new float[count];
+        pieceY = new float[count];
+        pieceCx = new float[count];
+        pieceCy = new float[count];
+        pieceDelay = new float[count];
+        pieceVx = new float[count];
+        pieceVy = new float[count];
+        pieceSpin = new float[count];
+
+        final float pw = bmpW / (float) pieceCols;
+        final float ph = bmpH / (float) pieceRows;
+        final float knob = Math.min(pw, ph) * 0.17f;
+        final int startCol = random.nextInt(pieceCols);
+        final int startRow = random.nextInt(pieceRows);
+        final float maxDistance = (float) Math.hypot(pieceCols, pieceRows);
+        final RectF rect = new RectF();
+        final android.graphics.Path bump = new android.graphics.Path();
+
+        for (int a = 0; a < count; ++a) {
+            final int col = a % pieceCols;
+            final int row = a / pieceCols;
+            final float left = col * pw;
+            final float top = row * ph;
+            pieceX[a] = left;
+            pieceY[a] = top;
+            pieceCx[a] = left + pw / 2f;
+            pieceCy[a] = top + ph / 2f;
+
+            if (isPieceEmpty(left, top, pw, ph)) {
+                piecePaths[a] = null;   // прозрачные места кусков не дают
+                continue;
+            }
+
+            final android.graphics.Path path = new android.graphics.Path();
+            rect.set(left, top, left + pw, top + ph);
+            path.addRoundRect(rect, knob * 0.35f, knob * 0.35f, android.graphics.Path.Direction.CW);
+
+            // правое ребро
+            if (col < pieceCols - 1) {
+                bump.reset();
+                bump.addCircle(left + pw, top + ph / 2f, knob, android.graphics.Path.Direction.CW);
+                path.op(bump, ((col + row) % 2 == 0)
+                        ? android.graphics.Path.Op.UNION : android.graphics.Path.Op.DIFFERENCE);
+            }
+            // левое ребро — зеркально соседу
+            if (col > 0) {
+                bump.reset();
+                bump.addCircle(left, top + ph / 2f, knob, android.graphics.Path.Direction.CW);
+                path.op(bump, ((col - 1 + row) % 2 == 0)
+                        ? android.graphics.Path.Op.DIFFERENCE : android.graphics.Path.Op.UNION);
+            }
+            // нижнее ребро
+            if (row < pieceRows - 1) {
+                bump.reset();
+                bump.addCircle(left + pw / 2f, top + ph, knob, android.graphics.Path.Direction.CW);
+                path.op(bump, ((col + row) % 2 == 0)
+                        ? android.graphics.Path.Op.DIFFERENCE : android.graphics.Path.Op.UNION);
+            }
+            // верхнее ребро
+            if (row > 0) {
+                bump.reset();
+                bump.addCircle(left + pw / 2f, top, knob, android.graphics.Path.Direction.CW);
+                path.op(bump, ((col + row - 1) % 2 == 0)
+                        ? android.graphics.Path.Op.UNION : android.graphics.Path.Op.DIFFERENCE);
+            }
+            piecePaths[a] = path;
+
+            final float distance = (float) Math.hypot(col - startCol, row - startRow);
+            pieceDelay[a] = Math.min(0.5f, distance / Math.max(1f, maxDistance) * 0.5f);
+            final float dirX = (col + 0.5f) / pieceCols - 0.5f;
+            pieceVx[a] = dirX * AndroidUtilities.dp(70) + (random.nextFloat() - 0.5f) * AndroidUtilities.dp(16);
+            pieceVy[a] = AndroidUtilities.dp(26) + random.nextFloat() * AndroidUtilities.dp(18);
+            pieceSpin[a] = (random.nextFloat() - 0.5f) * 50f;
+        }
+    }
+
+    /** кусок целиком прозрачный? тогда он не нужен */
+    private boolean isPieceEmpty(float left, float top, float pw, float ph) {
+        try {
+            for (int x = 0; x < 5; ++x) {
+                for (int y = 0; y < 5; ++y) {
+                    final int px = (int) Math.min(bmpW - 1, left + pw * (x + 0.5f) / 5f);
+                    final int py = (int) Math.min(bmpH - 1, top + ph * (y + 0.5f) / 5f);
+                    if (px < 0 || py < 0) {
+                        continue;
+                    }
+                    if (Color.alpha(bitmap.getPixel(px, py)) > 8) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Throwable e) {
+            return false;
+        }
     }
 
     private static long durationOf(int effect) {
@@ -105,13 +234,14 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_SLIDE: return 480;
             case PengramConfig.DELETE_EFFECT_IMPLODE: return 620;
             case PengramConfig.DELETE_EFFECT_PIXELATE: return 700;
+            case PengramConfig.DELETE_EFFECT_PUZZLE: return 950;
             default: return 800;
         }
     }
 
     public void start(Runnable whenDone) {
         this.whenDone = whenDone;
-        startTime = System.currentTimeMillis();
+        startTime = android.os.SystemClock.elapsedRealtime();
         invalidate();
     }
 
@@ -122,9 +252,9 @@ public class PengramDeleteEffectView extends View {
             return;
         }
         if (startTime == 0) {
-            startTime = System.currentTimeMillis();
+            startTime = android.os.SystemClock.elapsedRealtime();
         }
-        final float t = Math.min(1f, (System.currentTimeMillis() - startTime) / (float) duration);
+        final float t = Math.min(1f, (android.os.SystemClock.elapsedRealtime() - startTime) / (float) duration);
 
         canvas.save();
         if (hasBounds) {
@@ -136,6 +266,7 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_COLLAPSE: drawCollapse(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_SLIDE: drawSlide(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_IMPLODE: drawImplode(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_PUZZLE: drawPuzzle(canvas, t); break;
             default: drawCells(canvas, t); break;
         }
 
@@ -179,6 +310,39 @@ public class PengramDeleteEffectView extends View {
         paint.setAlpha((int) (255 * (1f - e * e)));
         canvas.drawBitmap(bitmap, 0, 0, paint);
         canvas.restore();
+    }
+
+    /** каскад кусочков пазла: импульс наружу-вниз, лёгкое вращение и падение */
+    private void drawPuzzle(Canvas canvas, float t) {
+        if (piecePaths == null) {
+            drawCells(canvas, t);
+            return;
+        }
+        for (int a = 0; a < piecePaths.length; ++a) {
+            final android.graphics.Path path = piecePaths[a];
+            if (path == null) {
+                continue;
+            }
+            final float delay = pieceDelay[a];
+            final float local = delay >= 1f ? 0f : Math.max(0f, Math.min(1f, (t - delay) / (1f - delay)));
+            float alpha = local >= 0.7f ? 1f - (local - 0.7f) / 0.3f : 1f;
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            final float dx = pieceVx[a] * local;
+            final float dy = pieceVy[a] * local + AndroidUtilities.dp(130) * local * local;
+            alpha *= edgeFade(pieceX[a] + dx, pieceY[a] + dy, bmpW / (float) pieceCols, bmpH / (float) pieceRows);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            canvas.save();
+            canvas.translate(dx, dy);
+            canvas.rotate(pieceSpin[a] * local, pieceCx[a], pieceCy[a]);
+            canvas.clipPath(path);
+            paint.setAlpha((int) (255 * alpha));
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+        }
     }
 
     // ------------------------------------------------------- клеточные эффекты
@@ -327,11 +491,37 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    /** подписаться на прокрутку списка, чтобы эффект ехал вместе с сообщениями */
+    private void followScroll(androidx.recyclerview.widget.RecyclerView list) {
+        followList = list;
+        scrollListener = new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(androidx.recyclerview.widget.RecyclerView recyclerView, int dx, int dy) {
+                originX -= dx;
+                originY -= dy;
+                invalidate();
+            }
+        };
+        list.addOnScrollListener(scrollListener);
+    }
+
+    private void stopFollowing() {
+        if (followList != null && scrollListener != null) {
+            try {
+                followList.removeOnScrollListener(scrollListener);
+            } catch (Throwable ignore) {
+            }
+        }
+        followList = null;
+        scrollListener = null;
+    }
+
     private void finish() {
         if (finished) {
             return;
         }
         finished = true;
+        stopFollowing();
         final Runnable done = whenDone;
         whenDone = null;
         AndroidUtilities.runOnUIThread(() -> {
@@ -369,6 +559,14 @@ public class PengramDeleteEffectView extends View {
      * Сам вид после этого может исчезнуть — анимация уже живёт отдельно.
      */
     public static boolean play(ViewGroup container, View view, int effect) {
+        return play(container, view, effect, null);
+    }
+
+    /**
+     * То же самое, но с явной областью, за которую выходить нельзя
+     * (чат отдаёт сюда полосу между шапкой и полем ввода).
+     */
+    public static boolean play(ViewGroup container, View view, int effect, RectF clipInContainer) {
         if (container == null || view == null || effect == PengramConfig.DELETE_EFFECT_NONE) {
             return false;
         }
@@ -381,7 +579,7 @@ public class PengramDeleteEffectView extends View {
         view.getLocationInWindow(from);
         container.getLocationInWindow(to);
 
-        // область списка сообщений: за неё эффект не выйдет ни на пиксель
+        // область, за которую эффект не выйдет ни на пиксель
         final RectF clip = new RectF(0, 0, container.getWidth(), container.getHeight());
         final ViewParent parent = view.getParent();
         if (parent instanceof View) {
@@ -390,6 +588,17 @@ public class PengramDeleteEffectView extends View {
             list.getLocationInWindow(listAt);
             clip.set(listAt[0] - to[0], listAt[1] - to[1],
                     listAt[0] - to[0] + list.getWidth(), listAt[1] - to[1] + list.getHeight());
+        }
+        if (clipInContainer != null && clipInContainer.width() > 0 && clipInContainer.height() > 0) {
+            // пересечение: ни под поле ввода, ни под шапку ничего не заедет
+            clip.set(Math.max(clip.left, clipInContainer.left),
+                    Math.max(clip.top, clipInContainer.top),
+                    Math.min(clip.right, clipInContainer.right),
+                    Math.min(clip.bottom, clipInContainer.bottom));
+        }
+        if (clip.width() <= 0 || clip.height() <= 0) {
+            bitmap.recycle();
+            return false;
         }
 
         final PengramDeleteEffectView effectView = new PengramDeleteEffectView(container.getContext(), bitmap, effect);
@@ -401,6 +610,9 @@ public class PengramDeleteEffectView extends View {
         } catch (Throwable e) {
             bitmap.recycle();
             return false;
+        }
+        if (parent instanceof androidx.recyclerview.widget.RecyclerView) {
+            effectView.followScroll((androidx.recyclerview.widget.RecyclerView) parent);
         }
         effectView.start(null);
         return true;

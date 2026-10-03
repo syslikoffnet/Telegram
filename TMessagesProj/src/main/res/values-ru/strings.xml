@@ -818,6 +818,8 @@
     <string name="PengramLyricsHurries">Текст спешит</string>
     <string name="PengramLyricsLags">Текст отстаёт</string>
     <string name="PengramLyricsSearchingOther">Ищу другой текст…</string>
+    <string name="PengramLyricsDebug">Журнал подбора</string>
+    <string name="PengramLyricsDebugEmpty">Пока пусто — включите трек</string>
     <string name="PengramLyricsRetry">Попробовать ещё раз</string>
     <string name="PengramAvatarPosBeforeName">До ника</string>
     <string name="PengramAvatarPosAfterName">После ника</string>
@@ -961,6 +963,8 @@
     <string name="PengramDeleteEffectImplodeInfo">Сообщение закручивается в точку</string>
     <string name="PengramDeleteEffectPixelate">Пиксели</string>
     <string name="PengramDeleteEffectPixelateInfo">Сообщение распадается на растущие пиксели</string>
+    <string name="PengramDeleteEffectPuzzle">Пазл</string>
+    <string name="PengramDeleteEffectPuzzleInfo">Сообщение распадается на кусочки пазла, и они по очереди осыпаются</string>
     <string name="PengramDeleteEffectIncoming">И когда удаляют вам</string>
     <string name="PengramDeleteEffectIncomingInfo">Проигрывать анимацию и для сообщений, удалённых собеседником.</string>
     <string name="PengramDeleteEffectPreview">Нажмите на эффект, чтобы посмотреть</string>

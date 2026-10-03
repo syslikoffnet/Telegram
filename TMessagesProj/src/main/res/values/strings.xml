@@ -11790,6 +11790,8 @@
     <string name="PengramLyricsHurries">The lyrics run ahead</string>
     <string name="PengramLyricsLags">The lyrics lag behind</string>
     <string name="PengramLyricsSearchingOther">Looking for other lyrics…</string>
+    <string name="PengramLyricsDebug">Matching log</string>
+    <string name="PengramLyricsDebugEmpty">Nothing yet — play a track</string>
     <string name="PengramLyricsRetry">Try again</string>
     <string name="PengramAvatarPosBeforeName">Before the name</string>
     <string name="PengramAvatarPosAfterName">After the name</string>
@@ -11933,6 +11935,8 @@
     <string name="PengramDeleteEffectImplodeInfo">The message spins into a point</string>
     <string name="PengramDeleteEffectPixelate">Pixels</string>
     <string name="PengramDeleteEffectPixelateInfo">The message breaks into growing pixels</string>
+    <string name="PengramDeleteEffectPuzzle">Puzzle</string>
+    <string name="PengramDeleteEffectPuzzleInfo">The message breaks into jigsaw pieces that tumble away one after another</string>
     <string name="PengramDeleteEffectIncoming">Also when others delete</string>
     <string name="PengramDeleteEffectIncomingInfo">Play the animation for messages deleted by the other side too.</string>
     <string name="PengramDeleteEffectPreview">Tap an effect to see it</string>

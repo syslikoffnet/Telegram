@@ -45120,10 +45120,38 @@ public class ChatActivity extends BaseFragment implements
             if (!object.isOutOwner() && !org.telegram.messenger.PengramConfig.isDeleteEffectIncoming()) {
                 continue;
             }
-            if (org.telegram.ui.Components.PengramDeleteEffectView.play(contentView, child, effect)) {
+            if (org.telegram.ui.Components.PengramDeleteEffectView.play(contentView, child, effect, pengramEffectBounds())) {
                 played++;
             }
         }
+    }
+
+    /**
+     * Полоса, в которой живёт эффект удаления: от низа шапки до верха поля ввода.
+     * Благодаря ей частицы не заезжают ни под панель ввода, ни под шапку чата.
+     */
+    private android.graphics.RectF pengramEffectBounds() {
+        if (contentView == null) {
+            return null;
+        }
+        float top = 0;
+        float bottom = contentView.getMeasuredHeight();
+        try {
+            if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
+                top = Math.max(top, actionBar.getY() + actionBar.getMeasuredHeight());
+            }
+            if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                bottom = Math.min(bottom, chatActivityEnterView.getY());
+            }
+            if (bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE) {
+                bottom = Math.min(bottom, bottomOverlay.getY());
+            }
+        } catch (Throwable ignore) {
+        }
+        if (bottom <= top) {
+            return null;
+        }
+        return new android.graphics.RectF(0, top, contentView.getMeasuredWidth(), bottom);
     }
 
     public boolean supportsThanosEffect() {

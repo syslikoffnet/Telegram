@@ -411,7 +411,8 @@ public class PengramConfig {
     public static final int DELETE_EFFECT_SLIDE = 6;
     public static final int DELETE_EFFECT_IMPLODE = 7;
     public static final int DELETE_EFFECT_PIXELATE = 8;
-    public static final int DELETE_EFFECT_COUNT = 9;
+    public static final int DELETE_EFFECT_PUZZLE = 9;
+    public static final int DELETE_EFFECT_COUNT = 10;
 
     public static int getDeleteEffect() {
         final int value = getIntCached("deleteEffect", DELETE_EFFECT_DUST);
@@ -437,6 +438,7 @@ public class PengramConfig {
             case DELETE_EFFECT_SLIDE: return org.telegram.messenger.R.string.PengramDeleteEffectSlide;
             case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplode;
             case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelate;
+            case DELETE_EFFECT_PUZZLE: return org.telegram.messenger.R.string.PengramDeleteEffectPuzzle;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNone;
         }
     }
@@ -451,6 +453,7 @@ public class PengramConfig {
             case DELETE_EFFECT_SLIDE: return org.telegram.messenger.R.string.PengramDeleteEffectSlideInfo;
             case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplodeInfo;
             case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelateInfo;
+            case DELETE_EFFECT_PUZZLE: return org.telegram.messenger.R.string.PengramDeleteEffectPuzzleInfo;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNoneInfo;
         }
     }
