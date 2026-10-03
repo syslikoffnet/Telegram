@@ -2656,7 +2656,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         private String title = "";
         private String subtitle = "";
         private float pitch = 1f;
-        private long startTime = System.currentTimeMillis();
+        private long startTime = android.os.SystemClock.elapsedRealtime();
+        /** градиент карточки пересобирается только при смене размера или цвета */
+        private LinearGradient cardShader;
+        private int shaderWidth;
+        private int shaderHeight;
+        private int shaderAccent;
 
         public VoicePreviewView(Context context) {
             super(context);
@@ -2680,7 +2685,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 subtitle = LocaleController.formatString(R.string.PengramVoicePreviewOn,
                         (semitones > 0 ? "+" : "") + semitones);
             }
-            startTime = System.currentTimeMillis();
+            startTime = android.os.SystemClock.elapsedRealtime();
+            cardShader = null;
             invalidate();
         }
 
@@ -2700,11 +2706,17 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int accent = Theme.getColor(enabled ? Theme.key_switch2TrackChecked : Theme.key_windowBackgroundWhiteGrayText, getResourceProvider());
 
             rect.set(dp(14), dp(10), width - dp(14), height - dp(10));
-            cardPaint.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                    new int[]{
-                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.14f)),
-                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.04f))
-                    }, null, Shader.TileMode.CLAMP));
+            if (cardShader == null || shaderWidth != width || shaderHeight != height || shaderAccent != accent) {
+                cardShader = new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
+                        new int[]{
+                                Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.14f)),
+                                Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.04f))
+                        }, null, Shader.TileMode.CLAMP);
+                shaderWidth = width;
+                shaderHeight = height;
+                shaderAccent = accent;
+                cardPaint.setShader(cardShader);
+            }
             canvas.drawRoundRect(rect, dp(16), dp(16), cardPaint);
 
             titlePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
@@ -2713,7 +2725,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             canvas.drawText(subtitle, rect.left + dp(16), rect.top + dp(46), subtitlePaint);
 
             // волна: чем выше питч — тем чаще и «звонче» столбики
-            final float time = (System.currentTimeMillis() - startTime) / 1000f;
+            final float time = (android.os.SystemClock.elapsedRealtime() - startTime) / 1000f;
             final float left = rect.left + dp(16);
             final float right = rect.right - dp(16);
             final float centerY = rect.bottom - dp(30);
@@ -2734,8 +2746,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 barPaint.setAlpha((int) (255 * (enabled ? 0.9f : 0.45f)));
                 canvas.drawRoundRect(rect, barWidth / 2f, barWidth / 2f, barPaint);
             }
-            if (isAttachedToWindow()) {
-                invalidate();
+            // крутим волну только когда эффект включён и экран виден —
+            // иначе вьюшка жгла бы батарею вхолостую
+            if (enabled && isAttachedToWindow() && getVisibility() == VISIBLE) {
+                postInvalidateOnAnimation();
             }
         }
     }

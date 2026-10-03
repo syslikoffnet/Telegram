@@ -985,10 +985,13 @@ public class PengramHistory extends SQLiteOpenHelper {
                 } catch (Throwable e) {
                     FileLog.e(e);
                 }
-                history.getWritableDatabase().delete("saved_media", "id = ?", new String[]{String.valueOf(id)});
-                if (removed || uri != null || path != null) {
-                    total -= size;
+                if (!removed) {
+                    // файл удалить не вышло — строку оставляем, иначе он навсегда
+                    // выпадет из учёта и лимит папки станет фикцией
+                    continue;
                 }
+                history.getWritableDatabase().delete("saved_media", "id = ?", new String[]{String.valueOf(id)});
+                total -= size;
             }
         } catch (Throwable e) {
             FileLog.e(e);

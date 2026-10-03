@@ -62,7 +62,8 @@ public class PengramVoiceChanger {
             MODE_CUSTOM
     };
 
-    private static final int SAMPLE_RATE = 48000;
+    /** реальная частота записи: приходит из MediaController, по умолчанию 48 кГц */
+    private static int sampleRate = 48000;
 
     private static final int DELAY_SIZE = 8192;   // ~170 мс при 48 кГц
     private static final int WINDOW = DELAY_SIZE / 2;
@@ -163,16 +164,16 @@ public class PengramVoiceChanger {
 
         // микро-таймварп: две несинхронные медленные волны
         anonJitterPhase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitterSpeed = 2.0 * Math.PI * (0.18 + secureRandom.nextFloat() * 0.22) / SAMPLE_RATE;
+        anonJitterSpeed = 2.0 * Math.PI * (0.18 + secureRandom.nextFloat() * 0.22) / sampleRate;
         anonJitter2Phase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitter2Speed = 2.0 * Math.PI * (0.55 + secureRandom.nextFloat() * 0.5) / SAMPLE_RATE;
+        anonJitter2Speed = 2.0 * Math.PI * (0.55 + secureRandom.nextFloat() * 0.5) / sampleRate;
 
         anonNoise = 0.0016f + secureRandom.nextFloat() * 0.0016f;
         anonAllpassMix = 0.35f + secureRandom.nextFloat() * 0.3f;
         noiseSeed = secureRandom.nextLong() | 1L;
 
-        formant1.setPeaking(SAMPLE_RATE, anonFormant1Freq, 1.1f, anonFormant1Gain);
-        formant2.setPeaking(SAMPLE_RATE, anonFormant2Freq, 1.3f, anonFormant2Gain);
+        formant1.setPeaking(sampleRate, anonFormant1Freq, 1.1f, anonFormant1Gain);
+        formant2.setPeaking(sampleRate, anonFormant2Freq, 1.3f, anonFormant2Gain);
     }
 
     public static boolean isEnabled() {
@@ -217,6 +218,18 @@ public class PengramVoiceChanger {
      * @param len    количество валидных байт
      */
     public static synchronized void process(ByteBuffer buffer, int len) {
+        process(buffer, len, 48000);
+    }
+
+    /**
+     * @param rate реальная частота записи: на Bluetooth-гарнитурах это 16 кГц,
+     *             и без неё робот звучал втрое выше задуманного
+     */
+    public static synchronized void process(ByteBuffer buffer, int len, int rate) {
+        if (rate >= 8000 && rate <= 96000 && rate != sampleRate) {
+            sampleRate = rate;
+            initialized = false;   // фильтры пересчитываем под новую частоту
+        }
         final int mode = PengramConfig.getVoiceChangerMode();
         if (mode == MODE_OFF || buffer == null || len < 2) {
             return;
@@ -308,7 +321,7 @@ public class PengramVoiceChanger {
     private static float anonymousPitch() {
         if (--anonDriftLeft <= 0) {
             // новая цель каждые 120…320 мс, отклонение до ±0.7 полутона от базы
-            anonDriftLeft = (int) (SAMPLE_RATE * (0.12f + secureRandom.nextFloat() * 0.2f));
+            anonDriftLeft = (int) (sampleRate * (0.12f + secureRandom.nextFloat() * 0.2f));
             final float deviation = (secureRandom.nextFloat() - 0.5f) * 1.4f;
             anonPitchTarget = anonPitch * (float) Math.pow(2.0, deviation / 12.0);
         }
@@ -338,18 +351,18 @@ public class PengramVoiceChanger {
                 return x * anonMakeup;
             }
             case MODE_ROBOT: {
-                lfoPhase += 2.0 * Math.PI * 75.0 / SAMPLE_RATE;
+                lfoPhase += 2.0 * Math.PI * 75.0 / sampleRate;
                 final float mod = (float) (0.55 + 0.45 * Math.cos(lfoPhase));
                 return x * mod;
             }
             case MODE_MONSTER: {
-                lfoPhase += 2.0 * Math.PI * 32.0 / SAMPLE_RATE;
+                lfoPhase += 2.0 * Math.PI * 32.0 / sampleRate;
                 final float mod = (float) (0.6 + 0.4 * Math.cos(lfoPhase));
                 return clip(x * mod * 1.25f, 26000f);
             }
             case MODE_DEMON: {
-                lfoPhase += 2.0 * Math.PI * 24.0 / SAMPLE_RATE;
-                lfo2Phase += 2.0 * Math.PI * 7.0 / SAMPLE_RATE;
+                lfoPhase += 2.0 * Math.PI * 24.0 / sampleRate;
+                lfo2Phase += 2.0 * Math.PI * 7.0 / sampleRate;
                 final float growl = (float) (0.62 + 0.38 * Math.cos(lfoPhase)) * (float) (0.85 + 0.15 * Math.cos(lfo2Phase));
                 final float distorted = (float) Math.tanh(x * growl / 9000f) * 9000f;
                 final float demonEcho = echoRead(2600);
@@ -357,7 +370,7 @@ public class PengramVoiceChanger {
                 return distorted + demonEcho * 0.45f;
             }
             case MODE_ALIEN: {
-                lfoPhase += 2.0 * Math.PI * 180.0 / SAMPLE_RATE;
+                lfoPhase += 2.0 * Math.PI * 180.0 / sampleRate;
                 final float ring = (float) Math.cos(lfoPhase);
                 final float mixed = x * 0.55f + x * ring * 0.45f;
                 final float alienEcho = echoRead(1100);
@@ -380,7 +393,7 @@ public class PengramVoiceChanger {
                 return x * 0.72f + (tap1 * 0.5f + tap2 * 0.32f);
             }
             case MODE_UNDERWATER: {
-                lfoPhase += 2.0 * Math.PI * 1.6 / SAMPLE_RATE;
+                lfoPhase += 2.0 * Math.PI * 1.6 / sampleRate;
                 final float wobble = (float) (0.88 + 0.12 * Math.cos(lfoPhase));
                 final float muffled = lowpass(x, 950f);
                 final float waterEcho = echoRead(2200);
@@ -434,14 +447,14 @@ public class PengramVoiceChanger {
     }
 
     private static float lowpass(float x, float cutoff) {
-        final float a = (float) (1.0 - Math.exp(-2.0 * Math.PI * cutoff / SAMPLE_RATE));
+        final float a = (float) (1.0 - Math.exp(-2.0 * Math.PI * cutoff / sampleRate));
         lowpassState += a * (x - lowpassState);
         return lowpassState;
     }
 
     private static float highpass(float x, float cutoff) {
         final float rc = 1f / (2f * (float) Math.PI * cutoff);
-        final float dt = 1f / SAMPLE_RATE;
+        final float dt = 1f / sampleRate;
         final float a = rc / (rc + dt);
         highpassState = a * (highpassState + x - highpassPrev);
         highpassPrev = x;

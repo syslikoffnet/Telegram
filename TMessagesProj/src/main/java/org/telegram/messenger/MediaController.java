@@ -1126,7 +1126,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (len > 0) {
                     buffer.limit(len);
                     if (PengramVoiceChanger.isEnabled()) {
-                        PengramVoiceChanger.process(buffer, len);
+                        PengramVoiceChanger.process(buffer, len, sampleRate);
                         buffer.position(0);
                         buffer.limit(len);
                     }
@@ -4679,7 +4679,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         }
                     };
                     // Pengram: каждая запись начинается с чистого состояния эффекта
-                    PengramVoiceChanger.reset();
+                    if (PengramVoiceChanger.isEnabled()) {
+                        PengramVoiceChanger.reset();
+                    }
                     if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                         AndroidUtilities.runOnUIThread(() -> {
                             recordStartRunnable = null;
@@ -4760,7 +4762,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             }
             AutoDeleteMediaTask.lockFile(recordingAudioFile);
             // Pengram: каждая запись начинается с чистого состояния эффекта
-            PengramVoiceChanger.reset();
+            if (PengramVoiceChanger.isEnabled()) {
+                PengramVoiceChanger.reset();
+            }
             try {
                 if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                     AndroidUtilities.runOnUIThread(() -> {

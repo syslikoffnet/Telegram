@@ -2389,21 +2389,47 @@ public class AndroidUtilities {
         return result;
     }
 
+    /** шрифты Pengram кэшируются: getTypeface зовут тысячи раз при создании вьюх */
+    private static final HashMap<String, Typeface> pengramTypefaceCache = new HashMap<>();
+
     public static Typeface getTypeface(String assetPath) {
         final int pengramFont = PengramConfig.getAppFont();
         if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")) {
-            final boolean bold = assetPath.contains("bold") || assetPath.contains("medium");
-            final boolean italic = assetPath.contains("italic");
-            final int style = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : Typeface.NORMAL;
-            switch (pengramFont) {
-                case PengramConfig.FONT_SYSTEM:
-                    return Typeface.create(Typeface.DEFAULT, style);
-                case PengramConfig.FONT_SERIF:
-                    return Typeface.create(Typeface.SERIF, style);
-                case PengramConfig.FONT_MONOSPACE:
-                    return Typeface.create(Typeface.MONOSPACE, style);
+            final String cacheKey = pengramFont + "#" + assetPath;
+            synchronized (pengramTypefaceCache) {
+                final Typeface cached = pengramTypefaceCache.get(cacheKey);
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            final Typeface created = pengramTypeface(pengramFont, assetPath);
+            if (created != null) {
+                synchronized (pengramTypefaceCache) {
+                    pengramTypefaceCache.put(cacheKey, created);
+                }
+                return created;
             }
         }
+        return getTypefaceOriginal(assetPath);
+    }
+
+    private static Typeface pengramTypeface(int pengramFont, String assetPath) {
+        final boolean bold = assetPath.contains("bold") || assetPath.contains("medium");
+        final boolean italic = assetPath.contains("italic");
+        final int style = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : Typeface.NORMAL;
+        switch (pengramFont) {
+            case PengramConfig.FONT_SYSTEM:
+                return Typeface.create(Typeface.DEFAULT, style);
+            case PengramConfig.FONT_SERIF:
+                return Typeface.create(Typeface.SERIF, style);
+            case PengramConfig.FONT_MONOSPACE:
+                return Typeface.create(Typeface.MONOSPACE, style);
+        }
+        return null;
+    }
+
+    /** родной путь Telegram: шрифты из assets со своим кэшем */
+    private static Typeface getTypefaceOriginal(String assetPath) {
         synchronized (typefaceCache) {
             if (!typefaceCache.containsKey(assetPath)) {
                 try {

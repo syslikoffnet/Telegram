@@ -1481,10 +1481,38 @@ public class PengramConfig {
 
     public static void setMediaFolder(String folder) {
         init();
-        if (folder == null || folder.trim().isEmpty()) folder = DEFAULT_MEDIA_FOLDER;
-        folder = folder.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+        folder = sanitizeFolder(folder);
         mediaFolder = folder;
         putString("mediaFolder", folder);
+    }
+
+    /**
+     * Папка для сохранённых медиа уходит в MediaStore как RELATIVE_PATH:
+     * «..», двоеточия и прочие спецсимволы там роняют запись, причём молча.
+     * Поэтому чистим каждый сегмент и оставляем только безопасные символы.
+     */
+    public static String sanitizeFolder(String folder) {
+        if (folder == null) {
+            return DEFAULT_MEDIA_FOLDER;
+        }
+        final StringBuilder out = new StringBuilder();
+        for (String part : folder.split("/")) {
+            final String cleaned = part.trim()
+                    .replaceAll("[^\\p{L}\\p{N} ._()\\-]", "")
+                    .replaceAll("^\\.+", "")
+                    .trim();
+            if (cleaned.isEmpty()) {
+                continue;
+            }
+            if (out.length() > 0) {
+                out.append('/');
+            }
+            out.append(cleaned.length() > 48 ? cleaned.substring(0, 48) : cleaned);
+            if (out.length() > 120) {
+                break;
+            }
+        }
+        return out.length() == 0 ? DEFAULT_MEDIA_FOLDER : out.toString();
     }
 
     public static void setMediaPattern(String pattern) {
