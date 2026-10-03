@@ -12001,4 +12001,14 @@
     <string name="PengramBypassFound">Alive: %1$d of %2$d</string>
     <string name="PengramBypassNoEntries">Entry points are collected on the first need</string>
     <string name="PengramBypassLimits">Messages, media and channels go through the tunnel. Voice and video calls use a separate channel and are not covered yet.</string>
+    <string name="PengramQuickButton1Header">Quick button 1</string>
+    <string name="PengramQuickButton2Header">Quick button 2</string>
+    <string name="PengramQuickName1">Button name 1</string>
+    <string name="PengramQuickUrl1">Message link 1</string>
+    <string name="PengramQuickName2">Button name 2</string>
+    <string name="PengramQuickUrl2">Message link 2</string>
+    <string name="PengramQuickEmptyInfo">An empty field is reset to its default value.</string>
+    <string name="PengramQuickUrlInfo">Only public message links in https://t.me/name/id or t.me/name/id format are accepted.</string>
+    <string name="PengramQuickInvalidUrl">Invalid link. Use https://t.me/name/id or t.me/name/id.</string>
+    <string name="PengramQuickForwardFailed">Could not load and forward this message.</string>
 </resources>

@@ -111,6 +111,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
+    private static final int BTN_QUICK_NAME_1 = 543;
+    private static final int BTN_QUICK_URL_1 = 544;
+    private static final int BTN_QUICK_NAME_2 = 545;
+    private static final int BTN_QUICK_URL_2 = 546;
 
     private static final int BTN_ID_FORMAT_HIDE = 220;
     private static final int BTN_ID_FORMAT_TELEGRAM = 221;
@@ -1826,6 +1830,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillChats(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramQuickButton1Header)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_NAME_1, R.drawable.msg_edit, getString(R.string.PengramQuickName1), PengramConfig.getQuickName(1)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_URL_1, R.drawable.msg_link, getString(R.string.PengramQuickUrl1), PengramConfig.getQuickUrl(1)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuickEmptyInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramQuickButton2Header)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_NAME_2, R.drawable.msg_edit, getString(R.string.PengramQuickName2), PengramConfig.getQuickName(2)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_URL_2, R.drawable.msg_link, getString(R.string.PengramQuickUrl2), PengramConfig.getQuickUrl(2)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuickUrlInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
         if (tabsMockView == null && getContext() != null) {
             tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext());
@@ -2021,6 +2034,30 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_QUICK_NAME_1:
+            case BTN_QUICK_NAME_2: {
+                final int index = item.id == BTN_QUICK_NAME_1 ? 1 : 2;
+                showTextDialog(index == 1 ? getString(R.string.PengramQuickName1) : getString(R.string.PengramQuickName2),
+                        PengramConfig.getQuickName(index), index == 1 ? PengramConfig.DEFAULT_QUICK_NAME_1 : PengramConfig.DEFAULT_QUICK_NAME_2, value -> {
+                            PengramConfig.setQuickName(index, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            }
+            case BTN_QUICK_URL_1:
+            case BTN_QUICK_URL_2: {
+                final int index = item.id == BTN_QUICK_URL_1 ? 1 : 2;
+                showTextDialog(index == 1 ? getString(R.string.PengramQuickUrl1) : getString(R.string.PengramQuickUrl2),
+                        PengramConfig.getQuickUrl(index), index == 1 ? PengramConfig.DEFAULT_QUICK_URL_1 : PengramConfig.DEFAULT_QUICK_URL_2, value -> {
+                            if (value != null && !value.trim().isEmpty() && !PengramConfig.isValidQuickUrl(value)) {
+                                new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName)).setMessage(getString(R.string.PengramQuickInvalidUrl)).setPositiveButton(getString(R.string.OK), null).show();
+                                return;
+                            }
+                            PengramConfig.setQuickUrl(index, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            }
             case BTN_DELETED_MARK:
                 showMarkPicker(false);
                 return;

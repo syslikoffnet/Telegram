@@ -91,6 +91,14 @@ public class PengramConfig {
     public static final int MENU_POS_BOTTOM = 1;
     public static int chatMenuPosition = MENU_POS_TOP;  // где остров Pengram в меню чата
     public static boolean chatMenuEnabled = true;
+    public static final String DEFAULT_QUICK_NAME_1 = "PC";
+    public static final String DEFAULT_QUICK_URL_1 = "https://t.me/xieworld_vf2/7";
+    public static final String DEFAULT_QUICK_NAME_2 = "Android/iOS";
+    public static final String DEFAULT_QUICK_URL_2 = "https://t.me/xieworld_vf2/5";
+    private static String quickName1 = DEFAULT_QUICK_NAME_1;
+    private static String quickUrl1 = DEFAULT_QUICK_URL_1;
+    private static String quickName2 = DEFAULT_QUICK_NAME_2;
+    private static String quickUrl2 = DEFAULT_QUICK_URL_2;
 
     public static final int FONT_DEFAULT = 0;
     public static final int FONT_SYSTEM = 1;
@@ -705,6 +713,10 @@ public class PengramConfig {
             localPremium = p.getBoolean("localPremium", false);
             chatMenuPosition = p.getInt("chatMenuPosition", MENU_POS_TOP);
             chatMenuEnabled = p.getBoolean("chatMenuEnabled", true);
+            quickName1 = p.getString("quickName1", DEFAULT_QUICK_NAME_1);
+            quickUrl1 = p.getString("quickUrl1", DEFAULT_QUICK_URL_1);
+            quickName2 = p.getString("quickName2", DEFAULT_QUICK_NAME_2);
+            quickUrl2 = p.getString("quickUrl2", DEFAULT_QUICK_URL_2);
             appFont = p.getInt("appFont", FONT_DEFAULT);
             sendTextStyle = p.getInt("sendTextStyle", SEND_STYLE_OFF);
             saveDeletedMedia = p.getBoolean("saveDeletedMedia", false);
@@ -1515,6 +1527,11 @@ public class PengramConfig {
     public static boolean isLocalPremium() { init(); return localPremium; }
     public static int getChatMenuPosition() { init(); return chatMenuPosition; }
     public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
+    public static String getQuickName(int index) { init(); String v = index == 1 ? quickName1 : quickName2; return v == null || v.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_NAME_1 : DEFAULT_QUICK_NAME_2) : v.trim(); }
+    public static String getQuickUrl(int index) { init(); String v = index == 1 ? quickUrl1 : quickUrl2; return v == null || v.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_URL_1 : DEFAULT_QUICK_URL_2) : v.trim(); }
+    public static void setQuickName(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_NAME_1 : DEFAULT_QUICK_NAME_2) : value.trim(); if (index == 1) quickName1 = value; else quickName2 = value; putString(index == 1 ? "quickName1" : "quickName2", value); }
+    public static void setQuickUrl(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_URL_1 : DEFAULT_QUICK_URL_2) : value.trim(); if (index == 1) quickUrl1 = value; else quickUrl2 = value; putString(index == 1 ? "quickUrl1" : "quickUrl2", value); }
+    public static boolean isValidQuickUrl(String value) { return value != null && value.trim().matches("(?i)^(?:https://)?t\\.me/[A-Za-z0-9_]+/[0-9]+/?(?:\\?.*)?$"); }
     public static int getAppFont() { init(); return appFont; }
 
     public static void toggleSaveDeletedMedia() { init(); saveDeletedMedia = !saveDeletedMedia; putBoolean("saveDeletedMedia", saveDeletedMedia); }

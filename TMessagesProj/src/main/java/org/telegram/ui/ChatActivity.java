@@ -1705,7 +1705,7 @@ public class ChatActivity extends BaseFragment implements
             final long dialogId = getDialogId();
             boolean any = false;
             final java.util.ArrayList<Integer> island = org.telegram.messenger.PengramConfig.getChatIslandItems();
-            if (!island.isEmpty()) {
+            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled()) {
                 final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
                         getContext(),
                         headerItem.getPopupLayout().getSwipeBack(),
@@ -1722,7 +1722,11 @@ public class ChatActivity extends BaseFragment implements
 
                             @Override
                             public void onItem(int itemId) {
-                                pengramRunChatItem(itemId);
+                                if (itemId == -101 || itemId == -102) {
+                                    pengramForwardQuickMessage(itemId == -101 ? 1 : 2);
+                                } else {
+                                    pengramRunChatItem(itemId);
+                                }
                             }
                         });
                 headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
@@ -1742,6 +1746,56 @@ public class ChatActivity extends BaseFragment implements
             }
         } catch (Throwable e) {
             FileLog.e(e);
+        }
+    }
+
+    /** Загружает публичное сообщение из настроенной t.me-ссылки и сразу пересылает в текущий чат. */
+    private void pengramForwardQuickMessage(int index) {
+        final String url = org.telegram.messenger.PengramConfig.getQuickUrl(index);
+        final java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(?i)^(?:https://)?t\\.me/([A-Za-z0-9_]+)/([0-9]+)/?(?:\\?.*)?$").matcher(url.trim());
+        if (!matcher.matches()) {
+            pengramQuickForwardError();
+            return;
+        }
+        final String username = matcher.group(1);
+        final int messageId;
+        try { messageId = Integer.parseInt(matcher.group(2)); } catch (Exception e) { pengramQuickForwardError(); return; }
+        final TLRPC.TL_contacts_resolveUsername resolve = new TLRPC.TL_contacts_resolveUsername();
+        resolve.username = username;
+        getConnectionsManager().sendRequest(resolve, (response, error) -> {
+            if (!(response instanceof TLRPC.TL_contacts_resolvedPeer)) {
+                AndroidUtilities.runOnUIThread(this::pengramQuickForwardError);
+                return;
+            }
+            final TLRPC.TL_contacts_resolvedPeer resolved = (TLRPC.TL_contacts_resolvedPeer) response;
+            getMessagesController().putUsers(resolved.users, false);
+            getMessagesController().putChats(resolved.chats, false);
+            final long sourceDid = org.telegram.messenger.DialogObject.getPeerDialogId(resolved.peer);
+            if (sourceDid >= 0) {
+                AndroidUtilities.runOnUIThread(this::pengramQuickForwardError);
+                return;
+            }
+            final TLRPC.TL_channels_getMessages request = new TLRPC.TL_channels_getMessages();
+            request.channel = getMessagesController().getInputChannel(-sourceDid);
+            request.id.add(messageId);
+            getConnectionsManager().sendRequest(request, (messagesResponse, messagesError) -> AndroidUtilities.runOnUIThread(() -> {
+                if (!(messagesResponse instanceof TLRPC.messages_Messages) || ((TLRPC.messages_Messages) messagesResponse).messages.isEmpty()) {
+                    pengramQuickForwardError();
+                    return;
+                }
+                final TLRPC.messages_Messages result = (TLRPC.messages_Messages) messagesResponse;
+                getMessagesController().putUsers(result.users, false);
+                getMessagesController().putChats(result.chats, false);
+                final ArrayList<MessageObject> messages = new ArrayList<>();
+                messages.add(new MessageObject(currentAccount, result.messages.get(0), false, true));
+                getSendMessagesHelper().sendMessage(messages, getDialogId(), false, false, true, 0, 0, getThreadMessage(), -1, 0, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+            }));
+        });
+    }
+
+    private void pengramQuickForwardError() {
+        if (getContext() != null) {
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.PengramQuickForwardFailed)).show();
         }
     }
 

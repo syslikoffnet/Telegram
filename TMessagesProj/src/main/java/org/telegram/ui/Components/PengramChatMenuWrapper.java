@@ -64,6 +64,14 @@ public class PengramChatMenuWrapper {
             }
         }
 
+
+        final ActionBarMenuSubItem quick1 = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_forward,
+                PengramConfig.getQuickName(1), false, resourcesProvider);
+        quick1.setOnClickListener(view -> { callback.dismiss(); callback.onItem(-101); });
+        final ActionBarMenuSubItem quick2 = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_forward,
+                PengramConfig.getQuickName(2), false, resourcesProvider);
+        quick2.setOnClickListener(view -> { callback.dismiss(); callback.onItem(-102); });
+
         windowLayout.setMinimumWidth(AndroidUtilities.dp(220));
     }
 }
