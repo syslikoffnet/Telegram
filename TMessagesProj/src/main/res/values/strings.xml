@@ -12025,4 +12025,8 @@
     <string name="PengramSubsectionInterfaceInfo">Tabs, dialogs and swipe actions</string>
     <string name="PengramSubsectionMenus">Menus and visibility</string>
     <string name="PengramChatsHubInfo">Related settings are grouped into smaller screens so the section remains easy to navigate as Pengram grows.</string>
+    <string name="PengramSenderAvatarPosition">Mini-avatar position</string>
+    <string name="PengramSenderAvatarInline">Before message text</string>
+    <string name="PengramSenderAvatarBottom">On the bottom corner of the chat avatar</string>
+    <string name="PengramSenderAvatarTop">On the top corner of the chat avatar</string>
 </resources>

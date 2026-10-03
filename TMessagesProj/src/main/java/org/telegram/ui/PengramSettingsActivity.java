@@ -111,6 +111,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
+    private static final int BTN_SENDER_AVATAR_POSITION = 547;
     private static final int BTN_QUICK_NAME_1 = 543;
     private static final int BTN_QUICK_URL_1 = 544;
     private static final int BTN_QUICK_NAME_2 = 545;
@@ -1906,6 +1907,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
         items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
+        if (PengramConfig.isDialogSenderAvatars()) {
+            items.add(UItem.asSettingsCell(BTN_SENDER_AVATAR_POSITION, R.drawable.msg_customize,
+                    getString(R.string.PengramSenderAvatarPosition), senderAvatarPositionName()));
+        }
         items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
         items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.ChatListSwipeGesture), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
@@ -1943,6 +1948,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
+    }
+
+    private CharSequence senderAvatarPositionName() {
+        switch (PengramConfig.getDialogSenderAvatarPosition()) {
+            case PengramConfig.SENDER_AVATAR_BOTTOM: return getString(R.string.PengramSenderAvatarBottom);
+            case PengramConfig.SENDER_AVATAR_TOP: return getString(R.string.PengramSenderAvatarTop);
+            default: return getString(R.string.PengramSenderAvatarInline);
+        }
     }
 
     private String[] selectionLimitNames() {
@@ -2038,8 +2051,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
             }
-            if (item.id == boolId(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION) || item.id == boolId(PengramConfig.KEY_ANTICRASH_JOURNAL)) {
+            if (item.id == boolId(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION) || item.id == boolId(PengramConfig.KEY_ANTICRASH_JOURNAL) || item.id == boolId(PengramConfig.KEY_DIALOG_SENDER_AVATARS)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                if (item.id == boolId(PengramConfig.KEY_DIALOG_SENDER_AVATARS)) {
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                }
             }
             if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());
@@ -2063,6 +2079,19 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_SENDER_AVATAR_POSITION: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramSenderAvatarInline),
+                        getString(R.string.PengramSenderAvatarBottom),
+                        getString(R.string.PengramSenderAvatarTop)
+                };
+                showChoicePicker(getString(R.string.PengramSenderAvatarPosition), options,
+                        PengramConfig.getDialogSenderAvatarPosition(), value -> {
+                            PengramConfig.setDialogSenderAvatarPosition(value);
+                            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                        });
+                return;
+            }
             case BTN_QUICK_NAME_1:
             case BTN_QUICK_NAME_2: {
                 final int index = item.id == BTN_QUICK_NAME_1 ? 1 : 2;
