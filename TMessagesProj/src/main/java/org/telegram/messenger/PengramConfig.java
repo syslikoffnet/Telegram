@@ -492,7 +492,7 @@ public class PengramConfig {
 
     public static int getAntiCrashBlocked() { return getIntCached("antiCrashBlocked", 0); }
 
-    public static String getAntiCrashJournal() { init(); return preferences.getString("antiCrashJournal", ""); }
+    public static String getAntiCrashJournal() { SharedPreferences p = prefs(); return p == null ? "" : p.getString("antiCrashJournal", ""); }
 
     public static void setAntiCrashJournal(String value) { putString("antiCrashJournal", value == null ? "" : value); }
 
