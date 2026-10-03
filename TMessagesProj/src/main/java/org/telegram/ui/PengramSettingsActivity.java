@@ -1849,11 +1849,11 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private void fillChats(ArrayList<UItem> items) {
         items.add(sectionRow(BTN_SECTION_CHAT_ACTIONS, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
-                getString(R.string.PengramSubsectionActions), getString(R.string.PengramSubsectionActionsInfo)));
+                getString(R.string.PengramSubsectionActions), null));
         items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
-                getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSubsectionMessagesInfo)));
+                getString(R.string.PengramSubsectionMessages), null));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
-                getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSubsectionInterfaceInfo)));
+                getString(R.string.PengramSubsectionInterface), null));
         items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
                 getString(R.string.PengramSubsectionMenus), hiddenChatItemsValue()));
         items.add(UItem.asShadow(getString(R.string.PengramChatsHubInfo)));

@@ -428,7 +428,9 @@ public class PengramLyricsView extends View {
             }
             return result;
         }
-        return Math.min(lines.size() - 1, (int) (progress * lines.size()));
+        // Без реальных таймкодов нельзя угадывать, какая строка звучит:
+        // в полном экране оставляем обычный читаемый текст, в компактной шапке — первую строку.
+        return tickerMode ? 0 : -1;
     }
 
     @Override
@@ -453,7 +455,11 @@ public class PengramLyricsView extends View {
         final int line = currentLine();
         if (line != activeLine) {
             activeLine = line;
-            enterAnim = 0;
+            enterAnim = timed ? 0 : 1;
+            if (tickerMode) {
+                // Новая строка всегда начинает показываться с первого символа.
+                tickerScrollX = tickerTargetX = 0;
+            }
             charFractions = null;
             fractionsLine = -1;
         }
@@ -479,7 +485,7 @@ public class PengramLyricsView extends View {
             final StaticLayout layout = layouts.get(activeLine);
             final float visible = Math.max(1, getMeasuredWidth() - AndroidUtilities.dp(8));
             final float over = layout.getWidth() - visible;
-            if (over > 0) {
+            if (over > 0 && timed) {
                 // строка не помещается: едем за поющимся словом, оставляя его слева по центру
                 final float at = Utilities.clamp(lineProgress(activeLine), 1f, 0f) * layout.getWidth();
                 tickerTargetX = Utilities.clamp(at - visible * 0.45f, over, 0);
@@ -506,7 +512,11 @@ public class PengramLyricsView extends View {
             }
             canvas.save();
             canvas.translate(0, top);
-            if (a == activeLine) {
+            if (!timed) {
+                textPaint.setColor(baseColor);
+                textPaint.clearShadowLayer();
+                layout.draw(canvas);
+            } else if (a == activeLine) {
                 // в шапке подсветку слов можно выключить — тогда строка горит целиком
                 final float fraction = cfgWords ? lineProgress(a) : 1f;
                 drawActiveLine(canvas, layout, fraction, anim, now, shadow);
