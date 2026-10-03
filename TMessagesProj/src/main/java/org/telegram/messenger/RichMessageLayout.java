@@ -826,7 +826,44 @@ public class RichMessageLayout {
         return index > 0 && blocks.get(index - 1) instanceof TL_iv.pageBlockParagraph;
     }
 
+    /**
+     * Pengram: вёрстка одного блока под ловушкой. Сломанный блок не должен
+     * уносить с собой всё сообщение и тем более приложение — на его месте
+     * остаётся плашка, остальные блоки верстаются как обычно.
+     */
     private RichBlock emitBlock(TL_iv.PageBlock pageBlock, int level, Rect padding, int textFlags, boolean previousSiblingParagraph) {
+        if (!PengramAntiCrash.isEnabled()) {
+            return emitBlockInner(pageBlock, level, padding, textFlags, previousSiblingParagraph);
+        }
+        if (level > PengramAntiCrash.MAX_BLOCK_LEVEL || blocks.size() > PengramAntiCrash.MAX_BLOCKS) {
+            PengramAntiCrash.report("rich blocks " + blocks.size() + ", level " + level);
+            return null;
+        }
+        final int mark = blocks.size();
+        try {
+            return emitBlockInner(pageBlock, level, padding, textFlags, previousSiblingParagraph);
+        } catch (Throwable e) {
+            PengramAntiCrash.report("rich block "
+                    + (pageBlock == null ? "null" : pageBlock.getClass().getSimpleName())
+                    + ": " + e.getClass().getSimpleName());
+            while (blocks.size() > mark) {
+                blocks.remove(blocks.size() - 1);
+            }
+            if (!PengramAntiCrash.isMarking()) {
+                return null;
+            }
+            try {
+                final RichTextBlock stub = new RichTextBlock(this, padding, maxWidth,
+                        LocaleController.getString(R.string.PengramAntiCrashBlocked));
+                blocks.add(stub);
+                return stub;
+            } catch (Throwable ignore) {
+                return null;
+            }
+        }
+    }
+
+    private RichBlock emitBlockInner(TL_iv.PageBlock pageBlock, int level, Rect padding, int textFlags, boolean previousSiblingParagraph) {
         if (padding.left + padding.right >= maxWidth) return null;
         if (pageBlock instanceof TL_iv.pageBlockThinking) {
             final RichThinkingBlock block = new RichThinkingBlock(this, new Rect(), maxWidth, formatText(pageBlock.text));

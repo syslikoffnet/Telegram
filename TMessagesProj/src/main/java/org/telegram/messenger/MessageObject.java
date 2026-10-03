@@ -8658,15 +8658,32 @@ public class MessageObject {
             final int maxWidth = getMaxMessageTextWidth();
             if (richLayout == null || messageOwner != null && richLayout.needsUpdate(getDisplayRichMessage(), maxWidth)) {
                 final RichMessageLayout old = richLayout;
-                richLayout = new RichMessageLayout(this, maxWidth, old);
-                if (old != null && old.view != null) {
-                    old.detach(old.view);
+                RichMessageLayout created = null;
+                if (PengramAntiCrash.isEnabled()) {
+                    // последний рубеж: если вёрстка всё-таки упала, остаётся
+                    // прежний вариант сообщения, а не падение клиента
+                    try {
+                        created = new RichMessageLayout(this, maxWidth, old);
+                    } catch (Throwable e) {
+                        PengramAntiCrash.report("rich layout: " + e.getClass().getSimpleName());
+                    }
+                } else {
+                    created = new RichMessageLayout(this, maxWidth, old);
+                }
+                if (created != null) {
+                    richLayout = created;
+                    if (old != null && old.view != null) {
+                        old.detach(old.view);
+                    }
                 }
             }
             return;
         }
         if (type != TYPE_TEXT && type != TYPE_EMOJIS && type != TYPE_STORY_MENTION || messageOwner.peer_id == null || TextUtils.isEmpty(messageText) && !isBotPendingDraft) {
             return;
+        }
+        if (PengramAntiCrash.isEnabled()) {
+            PengramAntiCrash.sanitizeEntities(messageOwner);
         }
         boolean hasUrls = applyEntities();
         boolean noforwards = messageOwner != null && messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions();

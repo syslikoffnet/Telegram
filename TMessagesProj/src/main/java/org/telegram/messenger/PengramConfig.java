@@ -476,6 +476,21 @@ public class PengramConfig {
         }
     }
 
+    // ------------------------------------------------------------ антикраш
+
+    /** защита от сообщений, собранных специально чтобы уронить клиент */
+    public static final String KEY_ANTICRASH = "antiCrash";
+    /** показывать плашку на месте обезвреженного куска */
+    public static final String KEY_ANTICRASH_MARK = "antiCrashMark";
+
+    public static boolean isAntiCrash() { return getBool(KEY_ANTICRASH, true); }
+
+    public static boolean isAntiCrashMark() { return getBool(KEY_ANTICRASH_MARK, true); }
+
+    public static int getAntiCrashBlocked() { return getIntCached("antiCrashBlocked", 0); }
+
+    public static void setAntiCrashBlocked(int value) { putInt("antiCrashBlocked", Math.max(0, value)); }
+
     /** всё, что связано с текстами, приложение делает само */
     public static final String KEY_LYRICS_AUTO = "lyricsAuto";
 

@@ -25,6 +25,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.PengramAntiCrash;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -207,6 +208,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_DELETE_EFFECT = 1490;
     /** экран обхода блокировок */
     private static final int BTN_BYPASS = 1491;
+    private static final int BTN_ANTICRASH_STATS = 1492;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -379,6 +381,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     /** чекбокс, завязанный на ключ в PengramConfig — чтобы не плодить константы */
+    /** «12» или «12 · Последняя: table measure» — коротко о работе антикраша */
+    private String antiCrashStats() {
+        final int total = PengramAntiCrash.totalBlocked();
+        final String last = PengramAntiCrash.lastReason();
+        if (last == null) {
+            return String.valueOf(total);
+        }
+        return total + " · " + LocaleController.formatString(R.string.PengramAntiCrashLast, last);
+    }
+
     private UItem check(String key, boolean def, CharSequence text) {
         Integer id = boolIds.get(key);
         if (id == null) {
@@ -1356,6 +1368,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_KEEP_ONCE, getString(R.string.PengramKeepOnce)).setChecked(PengramConfig.keepOnceMedia));
         items.add(UItem.asShadow(getString(R.string.PengramFreedomInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramAntiCrashHeader)));
+        items.add(check(PengramConfig.KEY_ANTICRASH, true, getString(R.string.PengramAntiCrash)));
+        if (PengramConfig.isAntiCrash()) {
+            items.add(check(PengramConfig.KEY_ANTICRASH_MARK, true, getString(R.string.PengramAntiCrashMark)));
+            items.add(UItem.asSettingsCell(BTN_ANTICRASH_STATS, R.drawable.msg_policy,
+                    getString(R.string.PengramAntiCrashStats), antiCrashStats()));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramAntiCrashInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramAdsHeader)));
         items.add(UItem.asCheck(BTN_ADS, getString(R.string.PengramHideAds)).setChecked(PengramConfig.hideAds));
         items.add(UItem.asShadow(getString(R.string.PengramAdsInfo)));
@@ -2131,6 +2152,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_BYPASS:
                 presentFragment(new PengramBypassActivity());
+                return;
+            case BTN_ANTICRASH_STATS:
+                PengramAntiCrash.resetStats();
+                adapter.update(true);
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        getString(R.string.PengramAntiCrashStatsReset)).show();
                 return;
             case BTN_DELETE_EFFECT:
                 presentFragment(new PengramDeleteEffectActivity());

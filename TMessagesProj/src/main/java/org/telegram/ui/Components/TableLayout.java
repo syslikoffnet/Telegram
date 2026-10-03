@@ -20,6 +20,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.customview.widget.ExploreByTouchHelper;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.PengramAntiCrash;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.tgnet.tl.TL_iv;
 import org.telegram.ui.ArticleViewer;
@@ -413,10 +414,20 @@ public class TableLayout extends View {
     private ArrayList<Child> childrens = new ArrayList<>();
 
     public void addChild(int x, int y, int colspan, int rowspan) {
+        // Pengram: ячейка с colspan в миллиард переполняет int и роняет замер
+        if (PengramAntiCrash.isEnabled()) {
+            if (PengramAntiCrash.tooManyCells(childrens.size())) {
+                return;
+            }
+            x = PengramAntiCrash.clampIndex(x);
+            y = PengramAntiCrash.clampIndex(y);
+            colspan = PengramAntiCrash.clampSpan(colspan);
+            rowspan = PengramAntiCrash.clampSpan(rowspan);
+        }
         Child child = new Child(childrens.size());
         LayoutParams layoutParams = new LayoutParams();
-        layoutParams.rowSpec = new Spec(false, new Interval(y, y + rowspan), FILL, 0.0f);
-        layoutParams.columnSpec = new Spec(false, new Interval(x, x + colspan), FILL, 0.0f);
+        layoutParams.rowSpec = new Spec(false, new Interval(y, pengramEnd(y, rowspan)), FILL, 0.0f);
+        layoutParams.columnSpec = new Spec(false, new Interval(x, pengramEnd(x, colspan)), FILL, 0.0f);
         child.layoutParams = layoutParams;
         child.rowspan = y;
         childrens.add(child);
@@ -427,17 +438,27 @@ public class TableLayout extends View {
         if (colspan == 0) {
             colspan = 1;
         }
+        int rowspan = cell.rowspan != 0 ? cell.rowspan : 1;
+        if (PengramAntiCrash.isEnabled()) {
+            if (PengramAntiCrash.tooManyCells(childrens.size())) {
+                return;
+            }
+            x = PengramAntiCrash.clampIndex(x);
+            y = PengramAntiCrash.clampIndex(y);
+            colspan = PengramAntiCrash.clampSpan(colspan);
+            rowspan = PengramAntiCrash.clampSpan(rowspan);
+        }
         Child child = new Child(childrens.size());
         child.cell = cell;
         LayoutParams layoutParams = new LayoutParams();
-        layoutParams.rowSpec = new Spec(false, new Interval(y, y + (cell.rowspan != 0 ? cell.rowspan : 1)), FILL, 0.0f);
-        layoutParams.columnSpec = new Spec(false, new Interval(x, x + colspan), FILL, 1.0f);
+        layoutParams.rowSpec = new Spec(false, new Interval(y, pengramEnd(y, rowspan)), FILL, 0.0f);
+        layoutParams.columnSpec = new Spec(false, new Interval(x, pengramEnd(x, colspan)), FILL, 1.0f);
         child.layoutParams = layoutParams;
         child.rowspan = y;
         childrens.add(child);
-        if (cell.rowspan > 1) {
+        if (rowspan > 1) {
             float x1 = y;
-            float y1 = y + cell.rowspan;
+            float y1 = y + rowspan;
             rowSpans.add(new PointF(x1, y1));
         }
         invalidateStructure();
@@ -673,7 +694,18 @@ public class TableLayout extends View {
         return mVerticalAxis.getCount();
     }
 
+    /** конец интервала без переполнения int (см. PengramAntiCrash) */
+    private static int pengramEnd(int start, int size) {
+        if (!PengramAntiCrash.isEnabled()) {
+            return start + size;
+        }
+        return PengramAntiCrash.spanEnd(start, size);
+    }
+
     public void setRowCount(int rowCount) {
+        if (PengramAntiCrash.isEnabled()) {
+            rowCount = PengramAntiCrash.clampIndex(rowCount);
+        }
         mVerticalAxis.setCount(rowCount);
         invalidateStructure();
         requestLayout();
@@ -684,6 +716,9 @@ public class TableLayout extends View {
     }
 
     public void setColumnCount(int columnCount) {
+        if (PengramAntiCrash.isEnabled()) {
+            columnCount = PengramAntiCrash.clampIndex(columnCount);
+        }
         mHorizontalAxis.setCount(columnCount);
         invalidateStructure();
         requestLayout();
@@ -937,6 +972,18 @@ public class TableLayout extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (PengramAntiCrash.isEnabled()) {
+            try {
+                pengramDraw(canvas);
+            } catch (Throwable e) {
+                PengramAntiCrash.report("table draw: " + e.getClass().getSimpleName());
+            }
+            return;
+        }
+        pengramDraw(canvas);
+    }
+
+    private void pengramDraw(Canvas canvas) {
         for (int i = 0, N = getChildCount(); i < N; i++) {
             Child c = getChildAt(i);
             c.draw(canvas, this);
@@ -1029,6 +1076,22 @@ public class TableLayout extends View {
 
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
+        if (PengramAntiCrash.isEnabled()) {
+            // даже после всех ограничений замер не должен уметь уронить клиент
+            try {
+                pengramMeasure(widthSpec, heightSpec);
+            } catch (Throwable e) {
+                PengramAntiCrash.report("table measure: " + e.getClass().getSimpleName());
+                setMeasuredDimension(
+                        MeasureSpec.getSize(widthSpec),
+                        Math.max(getSuggestedMinimumHeight(), AndroidUtilities.dp(24)));
+            }
+            return;
+        }
+        pengramMeasure(widthSpec, heightSpec);
+    }
+
+    private void pengramMeasure(int widthSpec, int heightSpec) {
         consistencyCheck();
 
         invalidateValues();

@@ -977,6 +977,14 @@
     <string name="PengramDeleteEffectGlitchInfo">Сообщение рвётся на полосы с цветным развалом, будто пропал сигнал</string>
     <string name="PengramDeleteEffectSweep">Шторка</string>
     <string name="PengramDeleteEffectSweepInfo">Светящаяся кромка проходит по пузырю и стирает его</string>
+    <string name="PengramAntiCrashHeader">Антикраш</string>
+    <string name="PengramAntiCrash">Защита от краш-сообщений</string>
+    <string name="PengramAntiCrashMark">Отмечать обезвреженное</string>
+    <string name="PengramAntiCrashBlocked">Заблокировано антикрашем</string>
+    <string name="PengramAntiCrashStats">Обезврежено попыток</string>
+    <string name="PengramAntiCrashStatsReset">Счётчик сброшен</string>
+    <string name="PengramAntiCrashLast">Последняя: %1$s</string>
+    <string name="PengramAntiCrashInfo">Сообщения, собранные специально чтобы уронить приложение — огромные таблицы, пролёты ячеек, переполняющие расчёт вёрстки, бесконечная вложенность блоков — приводятся к вменяемым пределам, а рискованные участки вёрстки выполняются под ловушкой. Само сообщение при этом открывается, и видно всё, что можно показать; плашка появляется только там, где сверстать физически нечего. На обычную переписку это не влияет: пределы заданы намного выше всего, что встречается в реальных сообщениях. Нажмите на счётчик, чтобы обнулить его.</string>
     <string name="PengramDeleteEffectIncoming">И когда удаляют вам</string>
     <string name="PengramDeleteEffectIncomingInfo">Проигрывать анимацию и для сообщений, удалённых собеседником.</string>
     <string name="PengramDeleteEffectPreview">Нажмите на эффект, чтобы посмотреть</string>
