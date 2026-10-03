@@ -23,6 +23,8 @@ on:
           - armeabi-v7a,arm64-v8a
           - armeabi-v7a,arm64-v8a,x86,x86_64
   push:
+    branches:
+      - "arena/01a10249-telegram"
     tags:
       - "build-*"
 
@@ -220,7 +222,7 @@ jobs:
       - name: Publish failure log to repo
         if: failure()
         env:
-          LOG_BRANCH: arena/01a0f8b4-telegram
+          LOG_BRANCH: arena/01a10249-telegram
         run: |
           set -eux
           # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
