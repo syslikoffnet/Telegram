@@ -107,10 +107,18 @@ public class PengramAntiCrash {
      * ста попыток — время и тип, его показывает настройка «Журнал атак».
      */
     public static void report(String reason) {
-        session.incrementAndGet();
+        final long eventNow = android.os.SystemClock.elapsedRealtime();
+        // Один вредоносный MessageObject может упасть в layout/draw несколько раз.
+        // Считаем весь короткий каскад одной атакой, а не накручиваем счётчик.
+        final boolean newAttack;
+        synchronized (PengramAntiCrash.class) {
+            newAttack = eventNow - lastAttackReport >= 2000;
+            if (newAttack) lastAttackReport = eventNow;
+        }
+        if (newAttack) session.incrementAndGet();
         lastReason = reason;
         lastTime = System.currentTimeMillis();
-        journalAdd(reason);
+        if (newAttack && PengramConfig.isAntiCrashJournalEnabled()) journalAdd(reason);
         try {
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.e("pengram anticrash: " + reason);
@@ -144,6 +152,7 @@ public class PengramAntiCrash {
     /** записи вида timeMillis\treason, свежие в конце */
     private static java.util.ArrayList<String> journal;
     private static long lastJournalAdd;
+    private static long lastAttackReport;
 
     private static synchronized void journalLoad() {
         if (journal != null) {
@@ -194,6 +203,7 @@ public class PengramAntiCrash {
     }
 
     public static synchronized int journalSize() {
+        if (!PengramConfig.isAntiCrashJournalEnabled()) return 0;
         journalLoad();
         return journal.size();
     }

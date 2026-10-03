@@ -1350,6 +1350,10 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramPrivacyHeader)));
         items.add(UItem.asCheck(BTN_HIDE_PHONE, getString(R.string.PengramHidePhone)).setChecked(PengramConfig.hidePhoneNumber));
+        items.add(check(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION, false, getString(R.string.PengramHideSharePhoneOption)));
+        if (!PengramConfig.isSharePhoneOptionHidden()) {
+            items.add(check(PengramConfig.KEY_SHARE_PHONE_DEFAULT, false, getString(R.string.PengramSharePhoneDefault)));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramHidePhoneInfo)));
     }
 
@@ -1477,10 +1481,13 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_ANTICRASH, true, getString(R.string.PengramAntiCrash)));
         if (PengramConfig.isAntiCrash()) {
             items.add(check(PengramConfig.KEY_ANTICRASH_MARK, true, getString(R.string.PengramAntiCrashMark)));
+            items.add(check(PengramConfig.KEY_ANTICRASH_JOURNAL, false, getString(R.string.PengramAntiCrashJournalEnabled)));
             items.add(UItem.asSettingsCell(BTN_ANTICRASH_STATS, R.drawable.msg_policy,
                     getString(R.string.PengramAntiCrashStats), antiCrashStats()));
-            items.add(UItem.asSettingsCell(BTN_ANTICRASH_LOG, R.drawable.msg_secret,
-                    getString(R.string.PengramAntiCrashLog), String.valueOf(PengramAntiCrash.journalSize())));
+            if (PengramConfig.isAntiCrashJournalEnabled()) {
+                items.add(UItem.asSettingsCell(BTN_ANTICRASH_LOG, R.drawable.msg_secret,
+                        getString(R.string.PengramAntiCrashLog), String.valueOf(PengramAntiCrash.journalSize())));
+            }
         }
         items.add(UItem.asShadow(getString(R.string.PengramAntiCrashInfo)));
 
@@ -2011,6 +2018,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getMessagesController().pengramApplyZalgoFilter();
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
+            }
+            if (item.id == boolId(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION) || item.id == boolId(PengramConfig.KEY_ANTICRASH_JOURNAL)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
             }
             if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());

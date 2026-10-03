@@ -12011,4 +12011,10 @@
     <string name="PengramQuickUrlInfo">Only public message links in https://t.me/name/id or t.me/name/id format are accepted.</string>
     <string name="PengramQuickInvalidUrl">Invalid link. Use https://t.me/name/id or t.me/name/id.</string>
     <string name="PengramQuickForwardFailed">Could not load and forward this message.</string>
+    <string name="PengramHideSharePhoneOption">Hide “Share my phone number” option</string>
+    <string name="PengramSharePhoneDefault">Share my phone number by default</string>
+    <string name="PengramAntiCrashJournalEnabled">Keep attack journal</string>
+    <string name="PengramDeleteMyMessages">Delete all my messages</string>
+    <string name="PengramDeleteMyMessagesConfirm">Search the entire available history and permanently delete all messages sent by you in this chat? This cannot be undone.</string>
+    <string name="PengramDeleteMyMessagesDone">Deleted messages: %1$d</string>
 </resources>

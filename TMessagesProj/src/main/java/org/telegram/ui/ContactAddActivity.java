@@ -41,6 +41,7 @@ import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -513,7 +514,7 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
         actionBar.setAdaptiveBackground(listView);
 
         if (addContact && needAddException) {
-            checkShare = true;
+            checkShare = !PengramConfig.isSharePhoneOptionHidden() && PengramConfig.isSharePhoneDefault();
         }
         listView.adapter.update(false);
 
@@ -540,7 +541,7 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
             }
         }
 
-        if (addContact && needAddException) {
+        if (addContact && needAddException && !PengramConfig.isSharePhoneOptionHidden()) {
             items.add(UItem.asCheck(2, getString(R.string.AddContactShareNumber)).setChecked(checkShare));
             items.add(UItem.asShadow(formatString(R.string.AddContactShareNumberInfo, UserObject.getFirstName(user))));
         }

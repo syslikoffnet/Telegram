@@ -1806,6 +1806,7 @@ public class ChatActivity extends BaseFragment implements
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_TO_BEGINNING: return pengram_to_beginning;
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_COPY_ID: return pengram_copy_chat_id;
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_SAVED_MEDIA: return pengram_saved_media;
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_DELETE_MY_MESSAGES: return pengram_delete_my_messages;
         }
         return 0;
     }
@@ -2271,11 +2272,58 @@ public class ChatActivity extends BaseFragment implements
         showDialog(builder.create());
     }
 
+    private void pengramConfirmDeleteMyMessages() {
+        if (getContext() == null) return;
+        new AlertDialog.Builder(getContext(), themeDelegate)
+                .setTitle(LocaleController.getString(R.string.PengramDeleteMyMessages))
+                .setMessage(LocaleController.getString(R.string.PengramDeleteMyMessagesConfirm))
+                .setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> pengramDeleteMyMessagesPage(0, 0))
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                .show();
+    }
+
+    private void pengramDeleteMyMessagesPage(int offsetId, int deleted) {
+        final TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
+        req.peer = getMessagesController().getInputPeer(getDialogId());
+        req.q = "";
+        req.filter = new TLRPC.TL_inputMessagesFilterEmpty();
+        req.offset_id = offsetId;
+        req.limit = 100;
+        req.from_id = getMessagesController().getInputPeer(getUserConfig().getClientUserId());
+        req.flags |= 1;
+        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (!(response instanceof TLRPC.messages_Messages)) {
+                BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.UnknownError)).show();
+                return;
+            }
+            final TLRPC.messages_Messages result = (TLRPC.messages_Messages) response;
+            final ArrayList<Integer> ids = new ArrayList<>();
+            int nextOffset = 0;
+            for (TLRPC.Message message : result.messages) {
+                if (message != null && message.id > 0) {
+                    ids.add(message.id);
+                    if (nextOffset == 0 || message.id < nextOffset) nextOffset = message.id;
+                }
+            }
+            if (!ids.isEmpty()) {
+                getMessagesController().deleteMessages(ids, null, null, getDialogId(), 0, true, 0);
+            }
+            final int total = deleted + ids.size();
+            if (result.messages.size() >= req.limit && nextOffset > 0) {
+                pengramDeleteMyMessagesPage(nextOffset, total);
+            } else {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                        LocaleController.formatString(R.string.PengramDeleteMyMessagesDone, total)).show();
+            }
+        }));
+    }
+
     private final static int pengram_deleted = 900;
     private final static int pengram_clear_deleted = 901;
     private final static int pengram_to_beginning = 902;
     private final static int pengram_copy_chat_id = 903;
     private final static int pengram_saved_media = 904;
+    private final static int pengram_delete_my_messages = 905;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -4304,6 +4352,9 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 } else if (id == pengram_saved_media) {
                     presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+                    return;
+                } else if (id == pengram_delete_my_messages) {
+                    pengramConfirmDeleteMyMessages();
                     return;
                 }
                 if (id == -1) {

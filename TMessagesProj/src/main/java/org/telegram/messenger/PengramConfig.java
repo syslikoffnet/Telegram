@@ -490,6 +490,10 @@ public class PengramConfig {
     // ------------------------------------------------------------ антикраш
 
     /** защита от сообщений, собранных специально чтобы уронить клиент */
+    public static final String KEY_HIDE_SHARE_PHONE_OPTION = "hideSharePhoneOption";
+    public static final String KEY_SHARE_PHONE_DEFAULT = "sharePhoneDefault";
+    public static final String KEY_ANTICRASH_JOURNAL = "antiCrashJournalEnabled";
+
     public static final String KEY_ANTICRASH = "antiCrash";
     /** показывать плашку на месте обезвреженного куска */
     public static final String KEY_ANTICRASH_MARK = "antiCrashMark";
@@ -497,6 +501,9 @@ public class PengramConfig {
     public static boolean isAntiCrash() { return getBool(KEY_ANTICRASH, true); }
 
     public static boolean isAntiCrashMark() { return getBool(KEY_ANTICRASH_MARK, true); }
+    public static boolean isAntiCrashJournalEnabled() { return getBool(KEY_ANTICRASH_JOURNAL, false); }
+    public static boolean isSharePhoneOptionHidden() { return getBool(KEY_HIDE_SHARE_PHONE_OPTION, false); }
+    public static boolean isSharePhoneDefault() { return getBool(KEY_SHARE_PHONE_DEFAULT, false); }
 
     public static int getAntiCrashBlocked() { return getIntCached("antiCrashBlocked", 0); }
 
@@ -1149,9 +1156,10 @@ public class PengramConfig {
     public static final int CHAT_ITEM_COPY_ID = 3;
     public static final int CHAT_ITEM_SAVED_MEDIA = 4;
     public static final int CHAT_ITEM_VIEW_DELETED = 5;
+    public static final int CHAT_ITEM_DELETE_MY_MESSAGES = 6;
 
     private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
-            CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA
+            CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA, CHAT_ITEM_DELETE_MY_MESSAGES
     };
 
     /** где живёт пункт: в самом меню «три точки» или внутри острова Pengram */
@@ -1232,7 +1240,7 @@ public class PengramConfig {
     }
 
     public static boolean isChatItemHidden(int id) {
-        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA);
+        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA || id == CHAT_ITEM_DELETE_MY_MESSAGES);
     }
 
     public static void setChatItemHidden(int id, boolean hidden) {
@@ -1255,6 +1263,7 @@ public class PengramConfig {
             case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.string.PengramCopyChatId;
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.string.PengramChatItemSavedMedia;
             case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.string.PengramViewDeleted;
+            case CHAT_ITEM_DELETE_MY_MESSAGES: return org.telegram.messenger.R.string.PengramDeleteMyMessages;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.string.PengramMenuTitle;
         }
@@ -1266,6 +1275,7 @@ public class PengramConfig {
             case CHAT_ITEM_COPY_ID: return org.telegram.messenger.R.drawable.msg_copy;
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.drawable.msg_saved;
             case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.drawable.msg_delete;
+            case CHAT_ITEM_DELETE_MY_MESSAGES: return org.telegram.messenger.R.drawable.msg_delete;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.drawable.msg_viewchats;
         }
