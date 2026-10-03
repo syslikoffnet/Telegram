@@ -583,15 +583,57 @@ public class PengramDeleteEffectView extends View {
 
     /** снять вид в картинку: дальше анимация живёт сама, исходник можно убирать */
     public static Bitmap snapshot(View view) {
+        return snapshot(view, null);
+    }
+
+    /**
+     * Снимок именно сообщения, а не всей строки списка.
+     * У ячейки чата спрашиваем точные границы пузыря — ровно так же, как это
+     * делает телеграмовский «танос». В offset возвращается сдвиг снимка
+     * относительно левого верхнего угла вида.
+     */
+    public static Bitmap snapshot(View view, int[] offset) {
         if (view == null || view.getWidth() <= 0 || view.getHeight() <= 0) {
             return null;
         }
+        if (offset != null) {
+            offset[0] = 0;
+            offset[1] = 0;
+        }
         try {
-            final int w = Math.min(view.getWidth(), AndroidUtilities.displaySize.x);
-            final int h = Math.min(view.getHeight(), AndroidUtilities.displaySize.y);
+            int left = 0;
+            int top = 0;
+            int right = view.getWidth();
+            int bottom = view.getHeight();
+            if (view instanceof org.telegram.ui.Cells.ChatMessageCell) {
+                final org.telegram.ui.Cells.ChatMessageCell cell = (org.telegram.ui.Cells.ChatMessageCell) view;
+                final int pad = AndroidUtilities.dp(2);
+                final int bl = cell.getBackgroundDrawableLeft() - pad;
+                final int br = cell.getBackgroundDrawableRight() + pad;
+                final int bt = cell.getBackgroundDrawableTop() - pad;
+                final int bb = cell.getBackgroundDrawableBottom() + pad;
+                if (br - bl > AndroidUtilities.dp(16) && bb - bt > AndroidUtilities.dp(12)) {
+                    left = Math.max(0, bl);
+                    top = Math.max(0, bt);
+                    right = Math.min(view.getWidth(), br);
+                    bottom = Math.min(view.getHeight(), bb);
+                }
+            }
+            final int w = Math.min(right - left, AndroidUtilities.displaySize.x);
+            final int h = Math.min(bottom - top, (int) (AndroidUtilities.displaySize.y * 1.2f));
+            if (w <= 0 || h <= 0) {
+                return null;
+            }
             final Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             final Canvas canvas = new Canvas(bitmap);
+            if (left != 0 || top != 0) {
+                canvas.translate(-left, -top);
+            }
             view.draw(canvas);
+            if (offset != null) {
+                offset[0] = left;
+                offset[1] = top;
+            }
             return bitmap;
         } catch (Throwable e) {
             return null;
@@ -681,8 +723,9 @@ public class PengramDeleteEffectView extends View {
         if (container == null || view == null || effect == PengramConfig.DELETE_EFFECT_NONE) {
             return false;
         }
+        final int[] shot = new int[2];
         final int[] crop = new int[2];
-        final Bitmap bitmap = cropToContent(snapshot(view), crop);
+        final Bitmap bitmap = cropToContent(snapshot(view, shot), crop);
         if (bitmap == null || bitmap.isRecycled() || bitmap.getWidth() <= 1 || bitmap.getHeight() <= 1) {
             if (bitmap != null && !bitmap.isRecycled()) {
                 bitmap.recycle();
@@ -694,8 +737,8 @@ public class PengramDeleteEffectView extends View {
         // куда бы контейнер ни положил саму накладку
         final int[] from = new int[2];
         view.getLocationInWindow(from);
-        final float winX = from[0] + crop[0];
-        final float winY = from[1] + crop[1];
+        final float winX = from[0] + shot[0] + crop[0];
+        final float winY = from[1] + shot[1] + crop[1];
 
         final RectF clip = new RectF();
         final ViewParent parent = view.getParent();

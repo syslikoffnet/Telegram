@@ -354,7 +354,7 @@ public class PengramLyrics {
         checkedCache = true;
         try {
             final SharedPreferences p = prefs();
-            if (p.getInt("cache_version", 1) >= 5) {
+            if (p.getInt("cache_version", 1) >= 6) {
                 return;
             }
             final SharedPreferences.Editor editor = p.edit();
@@ -364,7 +364,7 @@ public class PengramLyrics {
                 }
                 editor.remove(name);
             }
-            editor.putInt("cache_version", 5).apply();
+            editor.putInt("cache_version", 6).apply();
             memory.clear();
         } catch (Throwable ignore) {
         }
@@ -387,8 +387,7 @@ public class PengramLyrics {
         final String cached = getCached(key);
         if (!force && !TextUtils.isEmpty(cached)) {
             // старая запись могла быть мусором: проверяем её теми же воротами
-            if (coverageGate(cached, cachedDuration)
-                    && sameLanguage(artistOf(messageObject), titleOf(messageObject), cached)) {
+            if (coverageGate(cached, cachedDuration)) {
                 if (callback != null) {
                     callback.onLyrics(key, cached, STATE_FOUND);
                 }
@@ -819,11 +818,14 @@ public class PengramLyrics {
     }
 
     /** окончательный фильтр: пустое, слишком короткое и чужое по языку не пропускаем */
-    private static String accept(String raw, String artist, String title, int duration, String rejected, String source) {
+    private static String accept(String raw, String artist, String title, int duration,
+                                 String rejected, String source, boolean verified) {
         if (TextUtils.isEmpty(raw) || raw.trim().length() < 24) {
             return null;
         }
-        if (!sameLanguage(artist, title, raw)) {
+        // язык проверяем только у источников, которые не сверяли сам трек:
+        // у русских исполнителей сплошь и рядом английские названия
+        if (!verified && !sameLanguage(artist, title, raw)) {
             log(source + ": отсев — язык текста не совпал с названием");
             return null;
         }
@@ -913,18 +915,18 @@ public class PengramLyrics {
         final ArrayList<Future<Found>> futures = new ArrayList<>();
         final ArrayList<Callable<Found>> tasks = new ArrayList<>();
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_LRCLIB) {
-            tasks.add(() -> wrap(accept(fetchLrclib(artist, title, duration), artist, title, duration, rejected, "lrclib"), 1));
+            tasks.add(() -> wrap(accept(fetchLrclib(artist, title, duration), artist, title, duration, rejected, "lrclib", true), 1));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_MUSIXMATCH) {
-            tasks.add(() -> wrap(accept(fetchMusixmatch(artist, title, duration), artist, title, duration, rejected, "musixmatch"), 2));
+            tasks.add(() -> wrap(accept(fetchMusixmatch(artist, title, duration), artist, title, duration, rejected, "musixmatch", true), 2));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_GENIUS) {
-            tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, duration, rejected, "genius"), 3));
+            tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, duration, rejected, "genius", true), 3));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO && !TextUtils.isEmpty(artist)) {
             // lyrics.ovh ищет строго по паре «исполнитель/название», поэтому чужую
             // песню отдать не может; поиск «по строке запроса» мы больше не зовём вовсе
-            tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh"), 5));
+            tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh", false), 5));
         }
         for (Callable<Found> task : tasks) {
             try {
@@ -1061,6 +1063,29 @@ public class PengramLyrics {
                     || candidate.delta < best.delta
                     || (candidate.delta == best.delta && candidate.synced && !best.synced)) {
                 best = candidate;
+            }
+        }
+        if (best == null) {
+            // длительность в Telegram бывает неточной; если всё остальное совпало —
+            // берём кандидата с самой близкой длительностью, но честно пишем об этом
+            for (int a = 0; a < candidates.size(); ++a) {
+                final Candidate candidate = candidates.get(a);
+                if (TextUtils.isEmpty(candidate.lyrics)
+                        || !titleGate(title, candidate.title)
+                        || !artistGate(artist, candidate.artist)
+                        || !coverageGate(candidate.lyrics, 0)) {
+                    continue;
+                }
+                candidate.delta = duration > 0 && candidate.duration > 0
+                        ? Math.abs(duration - candidate.duration) : 0;
+                if (best == null || candidate.delta < best.delta
+                        || (candidate.delta == best.delta && candidate.synced && !best.synced)) {
+                    best = candidate;
+                }
+            }
+            if (best != null) {
+                log("lrclib: взят по названию и исполнителю, длительность расходится на "
+                        + best.delta + " с");
             }
         }
         if (best == null) {
@@ -1323,8 +1348,8 @@ public class PengramLyrics {
                 return false;
             }
             if (!durationGate(duration, gotLength)) {
-                log("musixmatch: отсев — длительность " + gotLength + " с вместо " + duration + " с");
-                return false;
+                log("musixmatch: длительность расходится (" + gotLength + " с вместо " + duration
+                        + " с), но название и исполнитель совпали — берём");
             }
             log("musixmatch: подходит «" + gotArtist + " — " + gotTitle + "»");
             return true;
