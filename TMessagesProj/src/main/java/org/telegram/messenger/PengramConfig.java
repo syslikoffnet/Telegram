@@ -412,7 +412,13 @@ public class PengramConfig {
     public static final int DELETE_EFFECT_IMPLODE = 7;
     public static final int DELETE_EFFECT_PIXELATE = 8;
     public static final int DELETE_EFFECT_PUZZLE = 9;
-    public static final int DELETE_EFFECT_COUNT = 10;
+    public static final int DELETE_EFFECT_SHARDS = 10;
+    public static final int DELETE_EFFECT_TNT = 11;
+    public static final int DELETE_EFFECT_PORTAL = 12;
+    public static final int DELETE_EFFECT_GHOST = 13;
+    public static final int DELETE_EFFECT_GLITCH = 14;
+    public static final int DELETE_EFFECT_SWEEP = 15;
+    public static final int DELETE_EFFECT_COUNT = 16;
 
     public static int getDeleteEffect() {
         final int value = getIntCached("deleteEffect", DELETE_EFFECT_DUST);
@@ -439,6 +445,12 @@ public class PengramConfig {
             case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplode;
             case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelate;
             case DELETE_EFFECT_PUZZLE: return org.telegram.messenger.R.string.PengramDeleteEffectPuzzle;
+            case DELETE_EFFECT_SHARDS: return org.telegram.messenger.R.string.PengramDeleteEffectShards;
+            case DELETE_EFFECT_TNT: return org.telegram.messenger.R.string.PengramDeleteEffectTnt;
+            case DELETE_EFFECT_PORTAL: return org.telegram.messenger.R.string.PengramDeleteEffectPortal;
+            case DELETE_EFFECT_GHOST: return org.telegram.messenger.R.string.PengramDeleteEffectGhost;
+            case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitch;
+            case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweep;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNone;
         }
     }
@@ -454,6 +466,12 @@ public class PengramConfig {
             case DELETE_EFFECT_IMPLODE: return org.telegram.messenger.R.string.PengramDeleteEffectImplodeInfo;
             case DELETE_EFFECT_PIXELATE: return org.telegram.messenger.R.string.PengramDeleteEffectPixelateInfo;
             case DELETE_EFFECT_PUZZLE: return org.telegram.messenger.R.string.PengramDeleteEffectPuzzleInfo;
+            case DELETE_EFFECT_SHARDS: return org.telegram.messenger.R.string.PengramDeleteEffectShardsInfo;
+            case DELETE_EFFECT_TNT: return org.telegram.messenger.R.string.PengramDeleteEffectTntInfo;
+            case DELETE_EFFECT_PORTAL: return org.telegram.messenger.R.string.PengramDeleteEffectPortalInfo;
+            case DELETE_EFFECT_GHOST: return org.telegram.messenger.R.string.PengramDeleteEffectGhostInfo;
+            case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitchInfo;
+            case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweepInfo;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNoneInfo;
         }
     }

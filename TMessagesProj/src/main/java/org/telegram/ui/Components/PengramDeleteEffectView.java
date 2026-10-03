@@ -46,6 +46,17 @@ public class PengramDeleteEffectView extends View {
             new float[]{0f, 0.28f, 0.6f, 1f},
             android.graphics.Shader.TileMode.CLAMP);
 
+    /** кромка «шторки» и цветовой развал «помех» — создаются один раз */
+    private final android.graphics.Matrix sweepMatrix = new android.graphics.Matrix();
+    private final android.graphics.LinearGradient sweepShader = new android.graphics.LinearGradient(
+            0, 0, AndroidUtilities.dp(26), 0,
+            new int[]{0x00FFFFFF, 0x55FFD9A0, 0xFFFFF0D0},
+            new float[]{0f, 0.65f, 1f}, android.graphics.Shader.TileMode.CLAMP);
+    private final android.graphics.ColorFilter glitchRed =
+            new android.graphics.PorterDuffColorFilter(0xFFFF4D4D, android.graphics.PorterDuff.Mode.MULTIPLY);
+    private final android.graphics.ColorFilter glitchCyan =
+            new android.graphics.PorterDuffColorFilter(0xFF4DF2FF, android.graphics.PorterDuff.Mode.MULTIPLY);
+
     private final float[] cellSeed;
     private final float[] cellAngle;
     private final float[] cellSpeed;
@@ -119,6 +130,16 @@ public class PengramDeleteEffectView extends View {
                 case PengramConfig.DELETE_EFFECT_SHATTER:
                     cellDelay[a] = cellSeed[a] * 0.12f;
                     break;
+                case PengramConfig.DELETE_EFFECT_TNT: {
+                    // волна идёт от центра: ближние куски срывает первыми
+                    final float dx = (cx + 0.5f) / GRID_X - 0.5f;
+                    final float dy = (cy + 0.5f) / GRID_Y - 0.5f;
+                    cellDelay[a] = 0.04f + Math.min(0.26f, (float) Math.hypot(dx, dy) * 0.42f);
+                    break;
+                }
+                case PengramConfig.DELETE_EFFECT_PORTAL:
+                    cellDelay[a] = cellSeed[a] * 0.16f;
+                    break;
                 default:
                     cellDelay[a] = 0;
                     break;
@@ -126,6 +147,8 @@ public class PengramDeleteEffectView extends View {
         }
         if (effect == PengramConfig.DELETE_EFFECT_PUZZLE) {
             buildPuzzle();
+        } else if (effect == PengramConfig.DELETE_EFFECT_SHARDS) {
+            buildShards();
         }
         setLayerType(LAYER_TYPE_HARDWARE, null);
     }
@@ -218,6 +241,89 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    /**
+     * «Осколки»: сетка режется по диагоналям на треугольники, вершины немного
+     * сдвинуты — получается рваная мозаика, а не аккуратная шахматка.
+     * Как и у пазла, все пути строятся один раз.
+     */
+    private void buildShards() {
+        if (bmpW <= 0 || bmpH <= 0) {
+            return;
+        }
+        pieceCols = Math.max(3, Math.min(7, Math.round(bmpW / (float) AndroidUtilities.dp(56))));
+        pieceRows = Math.max(2, Math.min(6, Math.round(bmpH / (float) AndroidUtilities.dp(44))));
+        final int cells = pieceCols * pieceRows;
+        final int count = cells * 2;
+        piecePaths = new android.graphics.Path[count];
+        pieceX = new float[count];
+        pieceY = new float[count];
+        pieceCx = new float[count];
+        pieceCy = new float[count];
+        pieceDelay = new float[count];
+        pieceVx = new float[count];
+        pieceVy = new float[count];
+        pieceSpin = new float[count];
+
+        final float pw = bmpW / (float) pieceCols;
+        final float ph = bmpH / (float) pieceRows;
+        final float jitter = Math.min(pw, ph) * 0.18f;
+        final float centerX = bmpW / 2f;
+        final float centerY = bmpH / 2f;
+
+        for (int cell = 0; cell < cells; ++cell) {
+            final int col = cell % pieceCols;
+            final int row = cell / pieceCols;
+            final float left = col * pw;
+            final float top = row * ph;
+            final boolean flip = ((col + row) % 2) == 0;
+
+            if (isPieceEmpty(left, top, pw, ph)) {
+                continue;   // прозрачный участок осколков не даёт
+            }
+
+            // углы ячейки с лёгким смещением — сколы выглядят неровными
+            final float jx = (random.nextFloat() - 0.5f) * jitter;
+            final float jy = (random.nextFloat() - 0.5f) * jitter;
+            final float x0 = left, y0 = top;
+            final float x1 = left + pw, y1 = top;
+            final float x2 = left + pw, y2 = top + ph;
+            final float x3 = left, y3 = top + ph;
+            final float mx = left + pw / 2f + jx;
+            final float my = top + ph / 2f + jy;
+
+            for (int half = 0; half < 2; ++half) {
+                final int a = cell * 2 + half;
+                final android.graphics.Path path = new android.graphics.Path();
+                final float ax, ay, bx, by;
+                if (flip == (half == 0)) {
+                    ax = x0; ay = y0; bx = x1; by = y1;
+                } else {
+                    ax = x2; ay = y2; bx = x3; by = y3;
+                }
+                final float cx2 = half == 0 ? x2 : x0;
+                final float cy2 = half == 0 ? y2 : y0;
+                path.moveTo(ax, ay);
+                path.lineTo(bx, by);
+                path.lineTo(mx, my);
+                path.lineTo(cx2, cy2);
+                path.close();
+                piecePaths[a] = path;
+
+                pieceX[a] = left;
+                pieceY[a] = top;
+                pieceCx[a] = (ax + bx + mx + cx2) / 4f;
+                pieceCy[a] = (ay + by + my + cy2) / 4f;
+                pieceDelay[a] = random.nextFloat() * 0.1f;
+
+                final float dirX = (pieceCx[a] - centerX) / Math.max(1f, bmpW / 2f);
+                final float dirY = (pieceCy[a] - centerY) / Math.max(1f, bmpH / 2f);
+                pieceVx[a] = dirX * AndroidUtilities.dp(90) * (0.7f + random.nextFloat() * 0.6f);
+                pieceVy[a] = dirY * AndroidUtilities.dp(45) - AndroidUtilities.dp(20) * random.nextFloat();
+                pieceSpin[a] = (random.nextFloat() - 0.5f) * 220f;
+            }
+        }
+    }
+
     /** кусок целиком прозрачный? тогда он не нужен */
     private boolean isPieceEmpty(float left, float top, float pw, float ph) {
         try {
@@ -248,6 +354,12 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_IMPLODE: return 620;
             case PengramConfig.DELETE_EFFECT_PIXELATE: return 700;
             case PengramConfig.DELETE_EFFECT_PUZZLE: return 950;
+            case PengramConfig.DELETE_EFFECT_SHARDS: return 900;
+            case PengramConfig.DELETE_EFFECT_TNT: return 1050;
+            case PengramConfig.DELETE_EFFECT_PORTAL: return 1000;
+            case PengramConfig.DELETE_EFFECT_GHOST: return 920;
+            case PengramConfig.DELETE_EFFECT_GLITCH: return 700;
+            case PengramConfig.DELETE_EFFECT_SWEEP: return 760;
             default: return 800;
         }
     }
@@ -281,6 +393,10 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_SLIDE: drawSlide(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_IMPLODE: drawImplode(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_PUZZLE: drawPuzzle(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_SHARDS: drawShards(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_GHOST: drawGhost(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_GLITCH: drawGlitch(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_SWEEP: drawSweep(canvas, t); break;
             default: drawCells(canvas, t); break;
         }
 
@@ -359,6 +475,144 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    /** осколки: разлёт от центра, вращение и гравитация */
+    private void drawShards(Canvas canvas, float t) {
+        if (piecePaths == null) {
+            drawCells(canvas, t);
+            return;
+        }
+        final float gravity = AndroidUtilities.dp(90);
+        for (int a = 0; a < piecePaths.length; ++a) {
+            final android.graphics.Path path = piecePaths[a];
+            if (path == null) {
+                continue;
+            }
+            final float delay = pieceDelay[a];
+            final float local = delay >= 1f ? 0f : clamp01((t - delay) / (1f - delay));
+            if (local <= 0f) {
+                continue;
+            }
+            float alpha = local >= 0.72f ? 1f - (local - 0.72f) / 0.28f : 1f;
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            final float dx = pieceVx[a] * local;
+            final float dy = pieceVy[a] * local + gravity * local * local;
+            alpha *= edgeFade(pieceX[a] + dx, pieceY[a] + dy, bmpW / (float) pieceCols, bmpH / (float) pieceRows);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            canvas.save();
+            canvas.translate(dx, dy);
+            canvas.rotate(pieceSpin[a] * local, pieceCx[a], pieceCy[a]);
+            canvas.clipPath(path);
+            paint.setAlpha((int) (255 * alpha));
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+        }
+    }
+
+    /** призрак: копия сообщения всплывает, покачиваясь, и тает */
+    private void drawGhost(Canvas canvas, float t) {
+        final float e = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(t);
+        final float lift = -bmpH * 0.85f * e;
+        final float sway = (float) Math.sin(t * 6.5f) * AndroidUtilities.dp(7) * (0.25f + e);
+        canvas.save();
+        canvas.translate(sway, lift);
+        canvas.scale(1f + 0.05f * e, 1f + 0.1f * e, bmpW / 2f, bmpH);
+        canvas.skew((float) Math.sin(t * 5.2f) * 0.05f * (0.3f + e), 0);
+        paint.setAlpha((int) (255 * (1f - e) * (1f - 0.25f * t)));
+        canvas.drawBitmap(bitmap, 0, 0, paint);
+        canvas.restore();
+    }
+
+    /** помехи: сообщение рвётся на полосы с цветным развалом */
+    private void drawGlitch(Canvas canvas, float t) {
+        final int bands = GRID_Y + 3;
+        final float bh = bmpH / (float) bands;
+        final float srcBh = bitmap.getHeight() / (float) bands;
+        final float split = AndroidUtilities.dp(3);
+        for (int i = 0; i < bands; ++i) {
+            final float seed = cellSeed[(i * GRID_X + i) % cellSeed.length];
+            float shift = (float) Math.sin(t * 24f + i * 1.7f) * AndroidUtilities.dp(13) * (0.25f + t) * (0.4f + seed);
+            if ((((int) (t * 16f)) + i) % 5 == 0) {
+                shift *= 1.8f;   // редкие сильные срывы строки
+            }
+            float alpha = clamp01(1f - (t - seed * 0.22f) / 0.78f);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            final float top = i * bh;
+            alpha *= edgeFade(shift, top, bmpW, bh);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            src.set(0, (int) (i * srcBh), bitmap.getWidth(), (int) Math.ceil((i + 1) * srcBh));
+            dst.set(shift, top, bmpW + shift, top + bh);
+
+            paint.setAlpha((int) (110 * alpha));
+            paint.setColorFilter(glitchRed);
+            dst.offset(-split, 0);
+            canvas.drawBitmap(bitmap, src, dst, paint);
+            paint.setColorFilter(glitchCyan);
+            dst.offset(split * 2f, 0);
+            canvas.drawBitmap(bitmap, src, dst, paint);
+
+            paint.setColorFilter(null);
+            paint.setAlpha((int) (255 * alpha));
+            dst.offset(-split, 0);
+            canvas.drawBitmap(bitmap, src, dst, paint);
+        }
+        paint.setColorFilter(null);
+    }
+
+    /** шторка: светящаяся кромка идёт слева направо и стирает пузырь */
+    private void drawSweep(Canvas canvas, float t) {
+        final float e = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(t);
+        final float edge = bmpW * e * 1.08f;
+        if (edge < bmpW) {
+            canvas.save();
+            canvas.clipRect(edge, 0, bmpW, bmpH);
+            paint.setAlpha((int) (255 * (1f - 0.35f * t)));
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+
+            final float band = AndroidUtilities.dp(26);
+            sweepMatrix.setTranslate(edge - band, 0);
+            sweepShader.setLocalMatrix(sweepMatrix);
+            glow.setShader(sweepShader);
+            glow.setAlpha((int) (255 * clamp01(1.15f - t)));
+            canvas.drawRect(edge - band, 0, edge + AndroidUtilities.dp(2), bmpH, glow);
+            glow.setShader(null);
+            glow.setAlpha(255);
+        }
+    }
+
+    /** динамит: вспышка в центре и расходящаяся ударная волна */
+    private void drawBlast(Canvas canvas, float t) {
+        final float cx = bmpW / 2f;
+        final float cy = bmpH / 2f;
+        glow.setShader(null);
+        if (t < 0.24f) {
+            final float f = 1f - t / 0.24f;
+            glow.setStyle(Paint.Style.FILL);
+            glow.setColor(0xFFFFF4D6);
+            glow.setAlpha((int) (225 * f));
+            canvas.drawCircle(cx, cy, AndroidUtilities.dp(22) + (1f - f) * AndroidUtilities.dp(64), glow);
+        }
+        final float ring = clamp01(1f - t * 1.35f);
+        if (ring > 0.01f) {
+            final float radius = AndroidUtilities.dp(16) + t * Math.max(bmpW, bmpH) * 0.95f;
+            glow.setStyle(Paint.Style.STROKE);
+            glow.setStrokeWidth(AndroidUtilities.dp(5) * ring + AndroidUtilities.dp(1));
+            glow.setColor(0xFFFFB457);
+            glow.setAlpha((int) (210 * ring));
+            canvas.drawCircle(cx, cy, radius, glow);
+            glow.setStyle(Paint.Style.FILL);
+        }
+        glow.setAlpha(255);
+    }
+
     // ------------------------------------------------------- клеточные эффекты
 
     private void drawCells(Canvas canvas, float t) {
@@ -409,6 +663,34 @@ public class PengramDeleteEffectView extends View {
                     alpha = 1f - e;
                     break;
                 }
+                case PengramConfig.DELETE_EFFECT_TNT: {
+                    final float e = local;
+                    final float dirX = (cx + 0.5f) / GRID_X - 0.5f;
+                    final float dirY = (cy + 0.5f) / GRID_Y - 0.5f;
+                    // ближе к эпицентру — сильнее импульс
+                    final float push = 0.22f / ((float) Math.hypot(dirX, dirY) + 0.1f) * cellSpeed[a];
+                    x += dirX * AndroidUtilities.dp(110) * push * e;
+                    y += dirY * AndroidUtilities.dp(80) * push * e + AndroidUtilities.dp(70) * e * e;
+                    rotate = cellAngle[a] * 70f * e;
+                    scale = 1f - 0.3f * e;
+                    alpha = 1f - e * e;
+                    break;
+                }
+                case PengramConfig.DELETE_EFFECT_PORTAL: {
+                    final float e = CubicBezierInterpolator.EASE_IN.getInterpolation(local);
+                    final float centerX = bmpW / 2f;
+                    final float centerY = bmpH / 2f;
+                    final float px = x + w / 2f - centerX;
+                    final float py = y + h / 2f - centerY;
+                    final float radius = (float) Math.hypot(px, py) * (1f - e);
+                    final float angle = (float) Math.atan2(py, px) + 4.4f * e * (0.6f + cellSeed[a] * 0.6f);
+                    x = centerX + (float) Math.cos(angle) * radius - w / 2f;
+                    y = centerY + (float) Math.sin(angle) * radius - h / 2f;
+                    scale = 1f - 0.8f * e;
+                    rotate = angle * 12f;
+                    alpha = 1f - e * e;
+                    break;
+                }
                 case PengramConfig.DELETE_EFFECT_DISSOLVE: {
                     scale = 1f - 0.2f * local;
                     alpha = 1f - local;
@@ -444,6 +726,8 @@ public class PengramDeleteEffectView extends View {
 
         if (effect == PengramConfig.DELETE_EFFECT_BURN) {
             drawFireLine(canvas, t);
+        } else if (effect == PengramConfig.DELETE_EFFECT_TNT) {
+            drawBlast(canvas, t);
         }
     }
 
