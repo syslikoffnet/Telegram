@@ -813,6 +813,11 @@
     <string name="PengramLyricsSample">и буквы оживают</string>
     <string name="PengramLyricsSearching">Ищем текст песни…</string>
     <string name="PengramLyricsNotFound">Текст для этой песни не нашёлся.</string>
+    <string name="PengramLyricsMenuTitle">Текст песни</string>
+    <string name="PengramLyricsWrong">Текст не тот — найти другой</string>
+    <string name="PengramLyricsHurries">Текст спешит</string>
+    <string name="PengramLyricsLags">Текст отстаёт</string>
+    <string name="PengramLyricsSearchingOther">Ищу другой текст…</string>
     <string name="PengramLyricsRetry">Попробовать ещё раз</string>
     <string name="PengramAvatarPosBeforeName">До ника</string>
     <string name="PengramAvatarPosAfterName">После ника</string>

@@ -1398,6 +1398,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        PengramLyrics.removeListener(pengramLyricsReady);
         if (animatorSet != null) {
             animatorSet.cancel();
             animatorSet = null;
@@ -1444,9 +1445,21 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
 
+    /** Pengram: текст нашёлся где-то ещё — проверяем, не наш ли это трек */
+    private final Runnable pengramLyricsReady = () -> {
+        if (pengramTicker == null || !isMusic || !PengramConfig.isHeaderLyrics()) {
+            return;
+        }
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            pengramCheckTicker(playing);
+        }
+    };
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        PengramLyrics.addListener(pengramLyricsReady);
         removeObservers();
 
         if (isLocation) {
@@ -1623,6 +1636,11 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
                 if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
                     pengramTicker.setProgress(playing.audioProgress);
+                } else if (playing != null && pengramTicker != null && PengramConfig.isHeaderLyrics()) {
+                    // текст мог найтись, пока строка была скрыта: показываем сами, без перезахода в чат
+                    if (PengramLyrics.has(PengramLyrics.keyFor(playing))) {
+                        pengramCheckTicker(playing);
+                    }
                 }
             }
         }

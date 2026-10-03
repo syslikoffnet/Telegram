@@ -11785,6 +11785,11 @@
     <string name="PengramLyricsSample">and the letters come alive</string>
     <string name="PengramLyricsSearching">Looking for lyrics…</string>
     <string name="PengramLyricsNotFound">No lyrics found for this track.</string>
+    <string name="PengramLyricsMenuTitle">Lyrics</string>
+    <string name="PengramLyricsWrong">Wrong lyrics — find another</string>
+    <string name="PengramLyricsHurries">The lyrics run ahead</string>
+    <string name="PengramLyricsLags">The lyrics lag behind</string>
+    <string name="PengramLyricsSearchingOther">Looking for other lyrics…</string>
     <string name="PengramLyricsRetry">Try again</string>
     <string name="PengramAvatarPosBeforeName">Before the name</string>
     <string name="PengramAvatarPosAfterName">After the name</string>

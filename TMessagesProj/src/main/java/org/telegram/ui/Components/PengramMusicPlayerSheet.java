@@ -86,8 +86,6 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private final TextView retryButton;
     private final RadialProgressView lyricsProgress;
 
-    private TextView syncMinusButton;
-    private TextView syncPlusButton;
     private boolean lyricsShown;
     private int lastTime = -1;
     private String lyricsKey;
@@ -287,11 +285,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         retryButton.setOnClickListener(v -> loadLyrics(true));
         lyricsContainer.addView(retryButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 36, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 8));
 
-        // подстройка синхронизации: если текст спешит или отстаёт, его двигают прямо здесь
-        syncMinusButton = createSyncChip(context, "−0,5", v -> shiftLyrics(-500));
-        syncPlusButton = createSyncChip(context, "+0,5", v -> shiftLyrics(500));
-        lyricsContainer.addView(syncMinusButton, LayoutHelper.createFrame(52, 28, Gravity.LEFT | Gravity.BOTTOM, 6, 0, 0, 8));
-        lyricsContainer.addView(syncPlusButton, LayoutHelper.createFrame(52, 28, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 6, 8));
+        // никаких кнопок поверх текста: всё нужное живёт в долгом нажатии
+        lyricsContainer.setOnLongClickListener(v -> {
+            showLyricsMenu();
+            return true;
+        });
 
         // ---------- название ----------
         final LinearLayout titleRow = new LinearLayout(context);
@@ -797,26 +795,33 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         });
     }
 
-    private TextView createSyncChip(Context context, String text, View.OnClickListener listener) {
-        final TextView view = new TextView(context);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-        view.setTextColor(0xCCFFFFFF);
-        view.setGravity(Gravity.CENTER);
-        view.setText(text);
-        view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(14), 0x33000000, 0x44FFFFFF));
-        view.setOnClickListener(listener);
-        view.setVisibility(View.GONE);
-        return view;
-    }
-
-    private void updateSyncChips(boolean visible) {
-        final int visibility = visible && PengramConfig.getBool("lyricsSyncButtons", true) ? View.VISIBLE : View.GONE;
-        if (syncMinusButton != null) {
-            syncMinusButton.setVisibility(visibility);
+    /** долгое нажатие по тексту: подвинуть его или поискать другой */
+    private void showLyricsMenu() {
+        if (getContext() == null || TextUtils.isEmpty(lyricsKey) || lyricsView == null || lyricsView.isEmpty()) {
+            return;
         }
-        if (syncPlusButton != null) {
-            syncPlusButton.setVisibility(visibility);
-        }
+        final CharSequence[] items = new CharSequence[]{
+                getString(R.string.PengramLyricsWrong),
+                getString(R.string.PengramLyricsHurries),
+                getString(R.string.PengramLyricsLags),
+        };
+        final org.telegram.ui.ActionBar.AlertDialog.Builder builder =
+                new org.telegram.ui.ActionBar.AlertDialog.Builder(getContext(), resourcesProvider);
+        builder.setTitle(getString(R.string.PengramLyricsMenuTitle));
+        builder.setItems(items, (dialog, which) -> {
+            if (which == 0) {
+                PengramLyrics.reject(lyricsKey);
+                lyricsView.clear();
+                if (lyricsStatusView != null) {
+                    lyricsStatusView.setVisibility(View.VISIBLE);
+                    lyricsStatusView.setText(getString(R.string.PengramLyricsSearchingOther));
+                }
+                loadLyrics(true);
+            } else {
+                shiftLyrics(which == 1 ? 500 : -500);
+            }
+        });
+        builder.show();
     }
 
     /** пока играет этот трек, текст и обложка следующего уже готовятся */
@@ -875,7 +880,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             lyricsProgress.setVisibility(View.GONE);
             lyricsStatusView.setVisibility(View.GONE);
             retryButton.setVisibility(View.GONE);
-            updateSyncChips(true);
+
             final MessageObject current = MediaController.getInstance().getPlayingMessageObject();
             if (current != null) {
                 lyricsView.setProgress(current.audioProgress);
@@ -884,7 +889,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         lyricsView.setLyrics(null, duration);
         lyricsView.setVisibility(View.INVISIBLE);
-        updateSyncChips(false);
+
         if (state == PengramLyrics.STATE_LOADING) {
             lyricsProgress.setVisibility(View.VISIBLE);
             lyricsStatusView.setVisibility(View.VISIBLE);

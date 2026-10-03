@@ -1632,7 +1632,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                         getString(PengramConfig.getLyricsSourceName(PengramConfig.getLyricsSourceRaw()))));
                 items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true, getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
                 items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true, getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
-                items.add(check("lyricsSyncButtons", true, getString(R.string.PengramLyricsSyncButtons)));
                 items.add(UItem.asShadow(null));
 
                 items.add(UItem.asHeader(getString(R.string.PengramLyricsOffset)));
