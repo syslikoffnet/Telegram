@@ -122,7 +122,7 @@ public class PengramAvatarPlacementView extends View {
         if (w <= 0) {
             return;
         }
-        final long now = System.currentTimeMillis();
+        final long now = android.os.SystemClock.elapsedRealtime();
         final float dt = lastFrame == 0 ? 0.016f : Math.min(0.05f, (now - lastFrame) / 1000f);
         lastFrame = now;
 

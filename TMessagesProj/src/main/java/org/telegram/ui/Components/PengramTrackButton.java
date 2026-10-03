@@ -56,7 +56,7 @@ public class PengramTrackButton extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        final long now = System.currentTimeMillis();
+        final long now = android.os.SystemClock.elapsedRealtime();
         final float dt = lastFrame == 0 ? 0.016f : Math.min(0.05f, (now - lastFrame) / 1000f);
         lastFrame = now;
         final float target = pressed ? 1f : 0f;

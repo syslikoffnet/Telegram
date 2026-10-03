@@ -133,6 +133,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private PlayPauseDrawable playPauseDrawable;
     private PengramLyricsView pengramTicker;   // Pengram: строка песни прямо в шапке
     private String pengramLyricsKey;
+    private int pengramLyricsToken;
     private AudioPlayerAlert.ClippingTextViewSwitcher titleTextView;
     private AudioPlayerAlert.ClippingTextViewSwitcher subtitleTextView;
     private AnimatorSet animatorSet;
@@ -2074,9 +2075,13 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
         pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
         pengramTicker.setOffsetKey(key);
+        pengramTicker.setTrackIdentity(messageObject);
         final long duration = (long) (messageObject.getDuration() * 1000);
+        final int token = ++pengramLyricsToken;
         PengramLyrics.request(messageObject, (resultKey, raw, state) -> {
-            if (pengramTicker == null || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
+            // поздний ответ от прошлого трека молча выбрасываем
+            if (pengramTicker == null || token != pengramLyricsToken
+                    || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
                 return;
             }
             if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {

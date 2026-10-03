@@ -43,6 +43,8 @@ public class PengramLyricsView extends View {
     private boolean timed;
     private long durationMs;
     private float progress;
+    private int boundMessageId = Integer.MIN_VALUE;
+    private long boundDialogId;
     private int activeLine = -1;
     private float scrollY;
     private float targetScrollY;
@@ -187,6 +189,17 @@ public class PengramLyricsView extends View {
         this.durationMs = durationMs;
     }
 
+    /** к какому именно сообщению привязан текст: сверяем по id и чату, а не по названию */
+    public void setTrackIdentity(org.telegram.messenger.MessageObject messageObject) {
+        if (messageObject == null) {
+            boundMessageId = Integer.MIN_VALUE;
+            boundDialogId = 0;
+            return;
+        }
+        boundMessageId = messageObject.getId();
+        boundDialogId = messageObject.getDialogId();
+    }
+
     public void setProgress(float progress) {
         this.progress = progress;
         this.progressMs = (long) (progress * durationMs);
@@ -203,6 +216,21 @@ public class PengramLyricsView extends View {
             return (long) (progress * durationMs);
         }
         long value = progressMs;
+        // единственный источник правды — сам плеер: если события перестали приходить,
+        // позиция всё равно останется верной
+        if (durationMs > 0) {
+            final org.telegram.messenger.MessageObject playing =
+                    org.telegram.messenger.MediaController.getInstance().getPlayingMessageObject();
+            if (playing != null && (boundMessageId == Integer.MIN_VALUE
+                    || (playing.getId() == boundMessageId && playing.getDialogId() == boundDialogId))) {
+                final long live = (long) (playing.audioProgress * durationMs);
+                if (Math.abs(live - value) > 350) {
+                    value = live;
+                    progressMs = live;
+                    progressTime = android.os.SystemClock.elapsedRealtime();
+                }
+            }
+        }
         if (PengramConfig.isLyricsSmooth() && progressTime > 0) {
             boolean playing = true;
             try {
@@ -408,7 +436,7 @@ public class PengramLyricsView extends View {
         if (layouts.isEmpty() || getVisibility() != VISIBLE || getAlpha() < 0.01f) {
             return;
         }
-        final long now = System.currentTimeMillis();
+        final long now = android.os.SystemClock.elapsedRealtime();
         final float dt = lastFrame == 0 ? 0.016f : Math.min(0.064f, (now - lastFrame) / 1000f);
         lastFrame = now;
         refreshConfig(now);

@@ -214,7 +214,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 lastTouchX = event.getX();
                 downX = event.getX();
                 downY = event.getY();
-                downTime = System.currentTimeMillis();
+                downTime = android.os.SystemClock.elapsedRealtime();
                 movedFar = false;
                 horizontal = false;
                 scheduleLongPress();
@@ -245,7 +245,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 // полный свайп по ширине вьюхи ≈ 290°, палец «приклеен» к пингвину
                 final float delta = dx / width * 290f;
                 angle += delta;
-                final long now = System.currentTimeMillis();
+                final long now = android.os.SystemClock.elapsedRealtime();
                 final float dt = Math.max(0.008f, (now - lastMoveTime) / 1000f);
                 lastMoveTime = now;
                 final float instant = delta / dt;
@@ -261,11 +261,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     getParent().requestDisallowInterceptTouchEvent(false);
                 }
                 final boolean isTap = !movedFar
-                        && System.currentTimeMillis() - downTime < 260
+                        && android.os.SystemClock.elapsedRealtime() - downTime < 260
                         && action == MotionEvent.ACTION_UP;
                 if (isTap && !longPressFired) {
                     velocity = 0;
-                    final long now = System.currentTimeMillis();
+                    final long now = android.os.SystemClock.elapsedRealtime();
                     // пасхалка: 10 быстрых тапов подряд открывают настройки пингвина
                     if (now - lastAnyTapTime < 700) {
                         tapStreak++;
@@ -306,7 +306,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         return super.onTouchEvent(event);
     }
 
-    private long lastMoveTime = System.currentTimeMillis();
+    private long lastMoveTime = android.os.SystemClock.elapsedRealtime();
     private long lastTapTime;
     private long lastAnyTapTime;
     private int tapStreak;
@@ -994,10 +994,10 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
             final int targetFps = Math.max(30, (int) AndroidUtilities.screenRefreshRate);
             final long frameTime = Math.max(1, 1000L / targetFps);
-            long last = System.currentTimeMillis();
+            long last = android.os.SystemClock.elapsedRealtime();
 
             while (running) {
-                final long now = System.currentTimeMillis();
+                final long now = android.os.SystemClock.elapsedRealtime();
                 final float dt = Math.max(0.001f, (now - last) / 1000f);
                 last = now;
                 try {
@@ -1018,7 +1018,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     break;
                 }
                 try {
-                    final long spent = System.currentTimeMillis() - now;
+                    final long spent = android.os.SystemClock.elapsedRealtime() - now;
                     if (paused) {
                         Thread.sleep(120);
                     } else if (spent < frameTime) {

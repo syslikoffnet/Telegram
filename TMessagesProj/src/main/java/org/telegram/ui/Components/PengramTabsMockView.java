@@ -102,7 +102,7 @@ public class PengramTabsMockView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        final long now = System.currentTimeMillis();
+        final long now = android.os.SystemClock.elapsedRealtime();
         final float delta = lastFrame == 0 ? 16 : Math.min(32, now - lastFrame);
         lastFrame = now;
         boolean animating = false;

@@ -104,7 +104,7 @@ public class PengramFontPreviewView extends View {
         if (incoming == null || outgoing == null) {
             return;
         }
-        final long now = System.currentTimeMillis();
+        final long now = android.os.SystemClock.elapsedRealtime();
         final float delta = lastFrame == 0 ? 16 : Math.min(32, now - lastFrame);
         lastFrame = now;
         if (appear < 1f) {

@@ -89,6 +89,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private boolean lyricsShown;
     private int lastTime = -1;
     private String lyricsKey;
+    private int lyricsToken;
     private int accentColor = 0xFF5FD0A0;
 
     public PengramMusicPlayerSheet(Context context, Theme.ResourcesProvider resourcesProvider) {
@@ -619,7 +620,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
                 @Override
                 protected void onDraw(Canvas canvas) {
-                    final float time = System.currentTimeMillis() % 100000L / 1000f;
+                    final float time = android.os.SystemClock.elapsedRealtime() % 100000L / 1000f;
                     final boolean playing = !MediaController.getInstance().isMessagePaused();
                     barPaint.setColor(accentColor);
                     final float barWidth = dp(2.5f);
@@ -781,18 +782,39 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         lyricsKey = newKey;
         lyricsView.setOffsetKey(lyricsKey);
+        lyricsView.setTrackIdentity(playing);
         final long duration = (long) (playing.getDuration() * 1000);
         lyricsView.setColors(accentColor, 0xFFFFFFFF);
         if (prevTrackButton != null) {
             prevTrackButton.setColor(0xFFFFFFFF);
             nextTrackButton.setColor(0xFFFFFFFF);
         }
+        final int token = ++lyricsToken;
         PengramLyrics.request(playing, force, (key, raw, state) -> {
-            if (!TextUtils.equals(key, lyricsKey)) {
+            // ответ прошлого трека не должен подменять текущий
+            if (token != lyricsToken || !TextUtils.equals(key, lyricsKey)) {
                 return;
             }
             applyLyricsState(raw, state, duration, playing);
         });
+    }
+
+    /** журнал подбора: видно, какие кандидаты были и почему их отсеяли */
+    private void showLyricsDebug() {
+        final java.util.ArrayList<String> log = PengramLyrics.debugLog();
+        final StringBuilder text = new StringBuilder();
+        for (int a = Math.max(0, log.size() - 40); a < log.size(); ++a) {
+            text.append(log.get(a)).append('\n');
+        }
+        if (text.length() == 0) {
+            text.append(getString(R.string.PengramLyricsDebugEmpty));
+        }
+        final org.telegram.ui.ActionBar.AlertDialog.Builder builder =
+                new org.telegram.ui.ActionBar.AlertDialog.Builder(getContext(), resourcesProvider);
+        builder.setTitle(getString(R.string.PengramLyricsDebug));
+        builder.setMessage(text.toString());
+        builder.setPositiveButton(getString(R.string.OK), null);
+        builder.show();
     }
 
     /** долгое нажатие по тексту: подвинуть его или поискать другой */
@@ -804,6 +826,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 getString(R.string.PengramLyricsWrong),
                 getString(R.string.PengramLyricsHurries),
                 getString(R.string.PengramLyricsLags),
+                getString(R.string.PengramLyricsDebug),
         };
         final org.telegram.ui.ActionBar.AlertDialog.Builder builder =
                 new org.telegram.ui.ActionBar.AlertDialog.Builder(getContext(), resourcesProvider);
@@ -817,6 +840,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                     lyricsStatusView.setText(getString(R.string.PengramLyricsSearchingOther));
                 }
                 loadLyrics(true);
+            } else if (which == 3) {
+                showLyricsDebug();
             } else {
                 shiftLyrics(which == 1 ? 500 : -500);
             }

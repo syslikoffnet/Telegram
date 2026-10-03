@@ -64,7 +64,7 @@ public class PengramMessagePreviewView extends LinearLayout {
     }
 
     public void update() {
-        final int date = (int) (System.currentTimeMillis() / 1000) - 60 * 60;
+        final int date = (int) (android.os.SystemClock.elapsedRealtime() / 1000) - 60 * 60;
 
         final MessageObject incoming = createMessage(LocaleController.getString(R.string.PengramPreviewIncoming), false, date, 1, false, false);
         final MessageObject deleted = createMessage(LocaleController.getString(R.string.PengramPreviewDeleted), false, date + 120, 2, true, false);
