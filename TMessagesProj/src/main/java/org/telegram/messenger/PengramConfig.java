@@ -285,6 +285,9 @@ public class PengramConfig {
             boolCache.put(key, value);
         }
         putBoolean(key, value);
+        if (KEY_ANTICRASH.equals(key)) {
+            PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
+        }
     }
 
     public static boolean toggle(String key, boolean def) {

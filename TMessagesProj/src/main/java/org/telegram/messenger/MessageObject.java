@@ -8653,7 +8653,29 @@ public class MessageObject {
         return messageOwner.rich_message;
     }
 
+    /**
+     * Pengram: вёрстка текста сообщения целиком под ловушкой.
+     *
+     * <p>Сообщения, собранные ради падения, прилетают с сетевого потока и
+     * убивают приложение ещё до показа чата. Любой отказ здесь должен стоить
+     * максимум одного кривого сообщения, а не всего клиента.
+     */
     public void generateLayout(TLRPC.User fromUser) {
+        if (!PengramAntiCrash.isEnabled()) {
+            pengramGenerateLayout(fromUser);
+            return;
+        }
+        try {
+            pengramGenerateLayout(fromUser);
+        } catch (Throwable e) {
+            PengramAntiCrash.report("message layout: " + e.getClass().getSimpleName());
+            if (textLayoutBlocks == null) {
+                textLayoutBlocks = new ArrayList<>();
+            }
+        }
+    }
+
+    private void pengramGenerateLayout(TLRPC.User fromUser) {
         if (type == TYPE_ARTICLE) {
             final int maxWidth = getMaxMessageTextWidth();
             if (richLayout == null || messageOwner != null && richLayout.needsUpdate(getDisplayRichMessage(), maxWidth)) {

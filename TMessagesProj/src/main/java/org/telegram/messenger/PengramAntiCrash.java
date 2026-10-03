@@ -42,8 +42,24 @@ public class PengramAntiCrash {
     private static volatile long lastTime;
     private static long lastStore;
 
+    /** 0 — выключено, 1 — включено, -1 — ещё не читали */
+    private static volatile int enabledCache = -1;
+
+    /**
+     * Читается на каждом замере и отрисовке ячейки, поэтому ответ держим в
+     * обычном поле, а не лезем каждый раз в настройки.
+     */
     public static boolean isEnabled() {
-        return PengramConfig.isAntiCrash();
+        int value = enabledCache;
+        if (value < 0) {
+            value = PengramConfig.isAntiCrash() ? 1 : 0;
+            enabledCache = value;
+        }
+        return value == 1;
+    }
+
+    public static void invalidateEnabled() {
+        enabledCache = -1;
     }
 
     /** показывать ли плашку на месте обезвреженного блока */

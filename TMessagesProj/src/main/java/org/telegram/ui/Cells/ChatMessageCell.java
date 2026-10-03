@@ -125,6 +125,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramAntiCrash;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -13756,6 +13757,20 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (!PengramAntiCrash.isEnabled()) {
+            pengramMeasure(widthMeasureSpec, heightMeasureSpec);
+            return;
+        }
+        try {
+            pengramMeasure(widthMeasureSpec, heightMeasureSpec);
+        } catch (Throwable e) {
+            // сломанное сообщение занимает пустую строку, остальной чат цел
+            PengramAntiCrash.report("cell measure: " + e.getClass().getSimpleName());
+            setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(32));
+        }
+    }
+
+    private void pengramMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (currentMessageObject != null && (currentMessageObject.checkLayout() || lastHeight != AndroidUtilities.displaySize.y)) {
             inLayout = true;
             MessageObject messageObject = currentMessageObject;
@@ -20246,7 +20261,23 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     @SuppressLint("WrongCall")
     @Override
     protected void onDraw(Canvas canvas) {
-        drawInternal(canvas);
+        if (!PengramAntiCrash.isEnabled()) {
+            drawInternal(canvas);
+            return;
+        }
+        // отрисовка может упасть посреди save() — счётчик холста возвращаем сами,
+        // иначе поедут все соседние сообщения
+        final int restoreTo = canvas.save();
+        try {
+            drawInternal(canvas);
+        } catch (Throwable e) {
+            PengramAntiCrash.report("cell draw: " + e.getClass().getSimpleName());
+        } finally {
+            try {
+                canvas.restoreToCount(restoreTo);
+            } catch (Throwable ignore) {
+            }
+        }
     }
     public void drawInternal(Canvas canvas) {
         if (currentMessageObject == null) {
