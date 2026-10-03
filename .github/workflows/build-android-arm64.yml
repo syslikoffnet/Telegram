@@ -32,7 +32,7 @@ permissions:
   contents: write
 
 env:
-  ABI: ${{ github.event.inputs.abi || 'x86_64' }}
+  ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
   BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
   NDK_VERSION: "27.2.12479018"
   CMAKE_VERSION: "3.22.1"
