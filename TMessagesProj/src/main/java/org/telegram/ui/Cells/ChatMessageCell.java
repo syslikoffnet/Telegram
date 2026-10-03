@@ -13755,6 +13755,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         super.requestLayout();
     }
 
+    /** антикраш: ячейку нельзя ни сверстать, ни нарисовать — рисуем плашку */
+    private boolean pengramBlockedStub;
+    private long pengramLastStubReport;
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (!PengramAntiCrash.isEnabled()) {
@@ -13764,13 +13768,23 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         try {
             pengramMeasure(widthMeasureSpec, heightMeasureSpec);
         } catch (Throwable e) {
-            // сломанное сообщение занимает пустую строку, остальной чат цел
-            PengramAntiCrash.report("cell measure: " + e.getClass().getSimpleName());
-            setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(32));
+            // сломанное сообщение заменяется системной плашкой, остальной чат цел
+            pengramBlockedStub = true;
+            pengramReportStub("cell measure", e);
+            setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(62));
+        }
+    }
+
+    private void pengramReportStub(String where, Throwable e) {
+        final long now = System.currentTimeMillis();
+        if (now - pengramLastStubReport > 10000) {
+            pengramLastStubReport = now;
+            PengramAntiCrash.report(where + ": " + e.getClass().getSimpleName());
         }
     }
 
     private void pengramMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        pengramBlockedStub = false;
         if (currentMessageObject != null && (currentMessageObject.checkLayout() || lastHeight != AndroidUtilities.displaySize.y)) {
             inLayout = true;
             MessageObject messageObject = currentMessageObject;
@@ -20265,13 +20279,19 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             drawInternal(canvas);
             return;
         }
+        if (pengramBlockedStub) {
+            PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());
+            return;
+        }
         // отрисовка может упасть посреди save() — счётчик холста возвращаем сами,
         // иначе поедут все соседние сообщения
         final int restoreTo = canvas.save();
         try {
             drawInternal(canvas);
         } catch (Throwable e) {
-            PengramAntiCrash.report("cell draw: " + e.getClass().getSimpleName());
+            pengramBlockedStub = true;
+            pengramReportStub("cell draw", e);
+            PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());
         } finally {
             try {
                 canvas.restoreToCount(restoreTo);

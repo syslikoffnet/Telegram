@@ -1,6 +1,19 @@
 package org.telegram.messenger;
 
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.RectF;
+import android.graphics.drawable.Drawable;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
+
+import androidx.core.content.ContextCompat;
+
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -193,6 +206,99 @@ public class PengramAntiCrash {
         }
         if (changed) {
             report("entities");
+        }
+    }
+
+    /* ------ плашка-замена на месте ячейки, которую нельзя нарисовать вообще ------ */
+
+    private static Paint stubFill;
+    private static Paint stubStroke;
+    private static int stubTextWidth = -1;
+    private static StaticLayout stubTitle;
+    private static StaticLayout stubMessage;
+    private static Drawable stubShield;
+    private static int stubShieldColor = Integer.MIN_VALUE;
+    private static final RectF stubRect = new RectF();
+
+    /**
+     * Нарисовать системную плашку «обезврежено» поверх области ячейки.
+     *
+     * <p>Используется, когда сообщение нельзя ни сверстать, ни нарисовать
+     * штатно. Выглядит как служебное сообщение: такую пластину нельзя
+     * подделать обычным текстом чужого сообщения. Любой сбой внутри самой
+     * плашки проглатывается — она последний рубеж, дальше падать некуда.
+     */
+    public static void drawStub(Canvas canvas, Theme.ResourcesProvider provider, int width, int height) {
+        try {
+            if (canvas == null || width <= 0 || height <= 0) {
+                return;
+            }
+            if (stubFill == null) {
+                stubFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+                stubStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+                stubStroke.setStyle(Paint.Style.STROKE);
+            }
+            final int serviceBg = Theme.getColor(Theme.key_chat_serviceBackground, provider);
+            final int serviceText = Theme.getColor(Theme.key_chat_serviceText, provider);
+
+            final int iconSize = AndroidUtilities.dp(22);
+            final int padH = AndroidUtilities.dp(12);
+            final int padV = AndroidUtilities.dp(9);
+            final int gap = AndroidUtilities.dp(9);
+            final float margin = AndroidUtilities.dp(4);
+            final float plateWidth = Math.max(0, width - margin * 2);
+            final int textWidth = (int) Math.max(1, plateWidth - padH * 2 - iconSize - gap);
+            if (textWidth != stubTextWidth || stubTitle == null) {
+                stubTextWidth = textWidth;
+                final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                titlePaint.setTypeface(AndroidUtilities.bold());
+                titlePaint.setTextSize(AndroidUtilities.dp(13.5f));
+                stubTitle = new StaticLayout(
+                        LocaleController.getString(R.string.PengramAntiCrashStubTitle),
+                        titlePaint, textWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+                final TextPaint messagePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+                messagePaint.setTextSize(AndroidUtilities.dp(12));
+                stubMessage = new StaticLayout(
+                        LocaleController.getString(R.string.PengramAntiCrashBlocked),
+                        messagePaint, textWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+            }
+            stubTitle.getPaint().setColor(serviceText);
+            stubMessage.getPaint().setColor(Theme.multAlpha(serviceText, 0.78f));
+
+            if (stubShield == null) {
+                stubShield = ContextCompat.getDrawable(ApplicationLoader.applicationContext, R.drawable.outline_shield_check);
+            }
+            if (stubShield != null && stubShieldColor != serviceText) {
+                stubShieldColor = serviceText;
+                stubShield.setColorFilter(new PorterDuffColorFilter(serviceText, PorterDuff.Mode.SRC_IN));
+            }
+
+            final int contentH = Math.max(iconSize, stubTitle.getHeight() + AndroidUtilities.dp(2) + stubMessage.getHeight());
+            final int plateHeight = contentH + padV * 2;
+            final float top = Math.max(0, (height - plateHeight) / 2f);
+            stubRect.set(margin, top, margin + plateWidth, top + plateHeight);
+            stubFill.setColor(serviceBg);
+            stubStroke.setStrokeWidth(AndroidUtilities.dpf2(1));
+            stubStroke.setColor(Theme.multAlpha(serviceText, 0.4f));
+            final float radius = AndroidUtilities.dpf2(10);
+            canvas.drawRoundRect(stubRect, radius, radius, stubFill);
+            canvas.drawRoundRect(stubRect, radius, radius, stubStroke);
+
+            final int contentTop = (int) (top + padV);
+            if (stubShield != null) {
+                final int iconTop = contentTop + (contentH - iconSize) / 2;
+                stubShield.setBounds((int) margin + padH, iconTop, (int) margin + padH + iconSize, iconTop + iconSize);
+                stubShield.draw(canvas);
+            }
+            final int textH = stubTitle.getHeight() + AndroidUtilities.dp(2) + stubMessage.getHeight();
+            final float textTop = contentTop + (contentH - textH) / 2f;
+            canvas.save();
+            canvas.translate(margin + padH + iconSize + gap, textTop);
+            stubTitle.draw(canvas);
+            canvas.translate(0, stubTitle.getHeight() + AndroidUtilities.dp(2));
+            stubMessage.draw(canvas);
+            canvas.restore();
+        } catch (Throwable ignore) {
         }
     }
 

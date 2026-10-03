@@ -11952,11 +11952,12 @@
     <string name="PengramAntiCrashHeader">Anti-crash</string>
     <string name="PengramAntiCrash">Protection from crash messages</string>
     <string name="PengramAntiCrashMark">Mark what was neutralised</string>
-    <string name="PengramAntiCrashBlocked">Blocked by anti-crash</string>
+    <string name="PengramAntiCrashStubTitle">Pengram Anti-crash</string>
+    <string name="PengramAntiCrashBlocked">This part of the message tried to crash your client. The threat has been neutralised.</string>
     <string name="PengramAntiCrashStats">Attempts neutralised</string>
     <string name="PengramAntiCrashStatsReset">Counter reset</string>
     <string name="PengramAntiCrashLast">Last: %1$s</string>
-    <string name="PengramAntiCrashInfo">Messages crafted to crash the app — oversized tables, spans that overflow the layout maths, endlessly nested blocks — are brought back to sane limits, and risky layout code runs under a trap. The message itself still opens and everything that can be shown is shown; only the part that physically cannot be laid out is replaced by a marker. Normal messages are not affected: the limits are far above anything a real message uses. Tap the counter to reset it.</string>
+    <string name="PengramAntiCrashInfo">Messages crafted to crash the app — oversized tables, spans that overflow the layout maths, endlessly nested blocks — are brought back to sane limits, and risky layout code runs under a trap. The message itself still opens and everything that can be shown is shown; the part that physically cannot be laid out is replaced by a system plate with a shield, which cannot be faked by sending the same words as plain text. Turned off, the client behaves exactly like stock Telegram. Normal messages are not affected: the limits are far above anything a real message uses. Tap the counter to reset it.</string>
     <string name="PengramDeleteEffectIncoming">Also when others delete</string>
     <string name="PengramDeleteEffectIncomingInfo">Play the animation for messages deleted by the other side too.</string>
     <string name="PengramDeleteEffectPreview">Tap an effect to see it</string>

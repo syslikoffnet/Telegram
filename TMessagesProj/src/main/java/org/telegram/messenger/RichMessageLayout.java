@@ -853,8 +853,7 @@ public class RichMessageLayout {
                 return null;
             }
             try {
-                final RichTextBlock stub = new RichTextBlock(this, padding, maxWidth,
-                        LocaleController.getString(R.string.PengramAntiCrashBlocked));
+                final RichBlock stub = new RichCrashStubBlock(this, padding, maxWidth);
                 blocks.add(stub);
                 return stub;
             } catch (Throwable ignore) {
@@ -3411,6 +3410,104 @@ public class RichMessageLayout {
         @Override
         protected void onDetachedFromWindow() {
             text.detach(view);
+        }
+    }
+
+    /**
+     * Pengram: плашка на месте блока, который был собран чтобы уронить клиент.
+     *
+     * <p>Нарисована как служебное системное сообщение: пластина со щитом и
+     * подписью. Снаружи её нельзя подделать обычным текстом — отправитель
+     * может написать похожие слова, но нарисовать плашку он не способен, а в
+     * статистике антикраша подделка не засчитывается.
+     */
+    public static class RichCrashStubBlock extends RichBlock {
+
+        private final int plateWidth;
+        private final StaticLayout titleLayout;
+        private final StaticLayout messageLayout;
+        private final Drawable shield;
+        private final int plateHeight;
+
+        private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF plateRect = new RectF();
+
+        public RichCrashStubBlock(RichMessageLayout root, Rect padding, int maxWidth) {
+            super(root, padding, maxWidth);
+            this.plateWidth = this.maxWidth;
+
+            final int iconSize = dp(22);
+            final int padH = dp(12);
+            final int padV = dp(9);
+            final int gap = dp(9);
+            final int textWidth = Math.max(1, plateWidth - padH * 2 - iconSize - gap);
+
+            final int serviceText = root.getThemedColor(Theme.key_chat_serviceText);
+
+            final TextPaint titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            titlePaint.setTypeface(AndroidUtilities.bold());
+            titlePaint.setTextSize(dp(13.5f));
+            titlePaint.setColor(serviceText);
+            titleLayout = new StaticLayout(
+                LocaleController.getString(R.string.PengramAntiCrashStubTitle),
+                titlePaint, textWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+
+            final TextPaint messagePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            messagePaint.setTextSize(dp(12));
+            messagePaint.setColor(Theme.multAlpha(serviceText, 0.78f));
+            messageLayout = new StaticLayout(
+                LocaleController.getString(R.string.PengramAntiCrashBlocked),
+                messagePaint, textWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+
+            final int contentHeight = Math.max(iconSize, titleLayout.getHeight() + dp(2) + messageLayout.getHeight());
+            plateHeight = contentHeight + padV * 2;
+
+            shield = ContextCompat.getDrawable(ApplicationLoader.applicationContext, R.drawable.outline_shield_check);
+            if (shield != null) {
+                shield.setColorFilter(new PorterDuffColorFilter(serviceText, PorterDuff.Mode.SRC_IN));
+            }
+        }
+
+        @Override
+        public int getHeight() {
+            return padding.top + plateHeight + padding.bottom;
+        }
+
+        @Override
+        public void draw(Canvas canvas) {
+            final int iconSize = dp(22);
+            final int padH = dp(12);
+            final int padV = dp(9);
+            final int gap = dp(9);
+            final float top = padding.top;
+
+            bgPaint.setColor(root.getThemedColor(Theme.key_chat_serviceBackground));
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(dpf2(1));
+            strokePaint.setColor(Theme.multAlpha(root.getThemedColor(Theme.key_chat_serviceText), 0.4f));
+
+            plateRect.set(padding.left, top, padding.left + plateWidth, top + plateHeight);
+            final float radius = dpf2(10);
+            canvas.drawRoundRect(plateRect, radius, radius, bgPaint);
+            canvas.drawRoundRect(plateRect, radius, radius, strokePaint);
+
+            final int contentH = plateHeight - padV * 2;
+            if (shield != null) {
+                final int iconTop = (int) (top + padV + (contentH - iconSize) / 2f);
+                shield.setBounds(padding.left + padH, iconTop, padding.left + padH + iconSize, iconTop + iconSize);
+                shield.draw(canvas);
+            }
+
+            final float textLeft = padding.left + padH + iconSize + gap;
+            final int textH = titleLayout.getHeight() + dp(2) + messageLayout.getHeight();
+            final float textTop = top + padV + (contentH - textH) / 2f;
+            canvas.save();
+            canvas.translate(textLeft, textTop);
+            titleLayout.draw(canvas);
+            canvas.translate(0, titleLayout.getHeight() + dp(2));
+            messageLayout.draw(canvas);
+            canvas.restore();
         }
     }
 
