@@ -37,6 +37,14 @@ public class PengramDeleteEffectView extends View {
     private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect src = new Rect();
     private final RectF dst = new RectF();
+    /** огонь: путь и градиент готовятся один раз, в кадре ничего не создаётся */
+    private final android.graphics.Path firePath = new android.graphics.Path();
+    private final android.graphics.Matrix fireMatrix = new android.graphics.Matrix();
+    private final android.graphics.LinearGradient fireShader = new android.graphics.LinearGradient(
+            0, -AndroidUtilities.dp(10), 0, AndroidUtilities.dp(22),
+            new int[]{0x00FFC46B, 0xFFFFE9A8, 0xFFFF8A1F, 0x00FF5A00},
+            new float[]{0f, 0.28f, 0.6f, 1f},
+            android.graphics.Shader.TileMode.CLAMP);
 
     private final float[] cellSeed;
     private final float[] cellAngle;
@@ -51,6 +59,11 @@ public class PengramDeleteEffectView extends View {
     /** где внутри себя рисуем снимок — сам вид растянут на весь экран чата */
     private float originX;
     private float originY;
+    /** то же самое, но в координатах окна: не зависит от того, куда контейнер положил накладку */
+    private float windowX;
+    private float windowY;
+    private final RectF windowClip = new RectF();
+    private final int[] selfAt = new int[2];
     private final int bmpW;
     private final int bmpH;
     /** за пределы списка сообщений эффект не выходит никогда */
@@ -255,6 +268,7 @@ public class PengramDeleteEffectView extends View {
             startTime = android.os.SystemClock.elapsedRealtime();
         }
         final float t = Math.min(1f, (android.os.SystemClock.elapsedRealtime() - startTime) / (float) duration);
+        syncGeometry();
 
         canvas.save();
         if (hasBounds) {
@@ -439,21 +453,25 @@ public class PengramDeleteEffectView extends View {
         if (edge <= 0 || t >= 0.92f) {
             return;
         }
-        final float thickness = AndroidUtilities.dp(14);
-        for (int a = 0; a < GRID_X; ++a) {
-            final float cw = bmpW / (float) GRID_X;
-            final float wobble = (float) Math.sin(t * 16f + a * 0.9f) * AndroidUtilities.dp(4);
-            glow.setColor(ColorUtils.blendARGB(0xFFFF7A18, 0xFFFFD66B, (a % 3) / 2f));
-            glow.setAlpha(190);
-            canvas.drawRoundRect(a * cw, edge + wobble - thickness * 0.5f,
-                    (a + 1) * cw, edge + wobble + thickness * 0.35f,
-                    thickness * 0.5f, thickness * 0.5f, glow);
-            glow.setColor(Color.WHITE);
-            glow.setAlpha(80);
-            canvas.drawRoundRect(a * cw + cw * 0.2f, edge + wobble - thickness * 0.2f,
-                    (a + 1) * cw - cw * 0.2f, edge + wobble + thickness * 0.12f,
-                    thickness * 0.3f, thickness * 0.3f, glow);
+        final float band = AndroidUtilities.dp(22);
+        firePath.reset();
+        firePath.moveTo(0, edge + band);
+        final int steps = 16;
+        for (int a = 0; a <= steps; ++a) {
+            final float x = bmpW * a / (float) steps;
+            final float wobble = (float) Math.sin(t * 9f + a * 1.3f) * AndroidUtilities.dp(3)
+                    + (float) Math.sin(t * 17f + a * 0.7f) * AndroidUtilities.dp(2);
+            firePath.lineTo(x, edge + wobble);
         }
+        firePath.lineTo(bmpW, edge + band);
+        firePath.close();
+
+        fireMatrix.setTranslate(0, edge);
+        fireShader.setLocalMatrix(fireMatrix);
+        glow.setShader(fireShader);
+        glow.setAlpha(255);
+        canvas.drawPath(firePath, glow);
+        glow.setShader(null);
     }
 
     /**
@@ -481,13 +499,34 @@ public class PengramDeleteEffectView extends View {
         return value < 0f ? 0f : value > 1f ? 1f : value;
     }
 
-    /** куда внутри экрана чата лечь снимку и где проходит граница списка */
-    public void setGeometry(float x, float y, RectF clip) {
-        originX = x;
-        originY = y;
-        if (clip != null && clip.width() > 0 && clip.height() > 0) {
-            bounds.set(clip);
+    /**
+     * Куда лечь снимку и где проходит граница — всё в координатах окна.
+     * Перед каждым кадром пересчитываем на свои координаты, поэтому неважно,
+     * куда именно контейнер положил саму накладку.
+     */
+    public void setGeometryInWindow(float x, float y, RectF clipInWindow) {
+        windowX = x;
+        windowY = y;
+        if (clipInWindow != null && clipInWindow.width() > 0 && clipInWindow.height() > 0) {
+            windowClip.set(clipInWindow);
             hasBounds = true;
+        }
+        syncGeometry();
+    }
+
+    /** перевод координат окна в свои: вызывается каждый кадр */
+    private void syncGeometry() {
+        try {
+            getLocationInWindow(selfAt);
+        } catch (Throwable e) {
+            selfAt[0] = 0;
+            selfAt[1] = 0;
+        }
+        originX = windowX - selfAt[0];
+        originY = windowY - selfAt[1];
+        if (hasBounds) {
+            bounds.set(windowClip.left - selfAt[0], windowClip.top - selfAt[1],
+                    windowClip.right - selfAt[0], windowClip.bottom - selfAt[1]);
         }
     }
 
@@ -497,8 +536,13 @@ public class PengramDeleteEffectView extends View {
         scrollListener = new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(androidx.recyclerview.widget.RecyclerView recyclerView, int dx, int dy) {
-                originX -= dx;
-                originY -= dy;
+                // следуем только за живой прокруткой; служебные сдвиги списка
+                // после удаления сообщения эффект двигать не должны
+                if (recyclerView.getScrollState() == androidx.recyclerview.widget.RecyclerView.SCROLL_STATE_IDLE) {
+                    return;
+                }
+                windowX -= dx;
+                windowY -= dy;
                 invalidate();
             }
         };
@@ -555,6 +599,73 @@ public class PengramDeleteEffectView extends View {
     }
 
     /**
+     * Ячейка списка занимает всю ширину экрана, а само сообщение — только пузырь
+     * где-то внутри. Поэтому снимок обрезаем по непрозрачному содержимому:
+     * иначе эффект рисуется по всей строке и выглядит «мимо сообщения».
+     * В offset возвращается сдвиг обрезки относительно левого верхнего угла вида.
+     */
+    private static Bitmap cropToContent(Bitmap bitmap, int[] offset) {
+        offset[0] = 0;
+        offset[1] = 0;
+        if (bitmap == null) {
+            return null;
+        }
+        try {
+            final int w = bitmap.getWidth();
+            final int h = bitmap.getHeight();
+            if (w <= 2 || h <= 2) {
+                return bitmap;
+            }
+            final int step = h > 400 ? 3 : 2;
+            final int[] row = new int[w];
+            int left = w, top = -1, right = -1, bottom = -1;
+            for (int y = 0; y < h; y += step) {
+                bitmap.getPixels(row, 0, w, 0, y, w, 1);
+                int rowLeft = -1, rowRight = -1;
+                for (int x = 0; x < w; ++x) {
+                    if ((row[x] >>> 24) > 8) {
+                        if (rowLeft < 0) {
+                            rowLeft = x;
+                        }
+                        rowRight = x;
+                    }
+                }
+                if (rowLeft < 0) {
+                    continue;
+                }
+                if (top < 0) {
+                    top = y;
+                }
+                bottom = y;
+                left = Math.min(left, rowLeft);
+                right = Math.max(right, rowRight);
+            }
+            if (top < 0 || right < 0) {
+                return bitmap;   // пустой снимок — пусть решает вызывающий
+            }
+            final int pad = AndroidUtilities.dp(2);
+            left = Math.max(0, left - pad);
+            top = Math.max(0, top - step - pad);
+            right = Math.min(w - 1, right + pad);
+            bottom = Math.min(h - 1, bottom + step + pad);
+            final int cw = right - left + 1;
+            final int ch = bottom - top + 1;
+            if (cw <= 0 || ch <= 0 || (cw == w && ch == h)) {
+                return bitmap;
+            }
+            final Bitmap cropped = Bitmap.createBitmap(bitmap, left, top, cw, ch);
+            if (cropped != bitmap) {
+                bitmap.recycle();
+            }
+            offset[0] = left;
+            offset[1] = top;
+            return cropped;
+        } catch (Throwable e) {
+            return bitmap;
+        }
+    }
+
+    /**
      * Проиграть эффект поверх контейнера на месте указанного вида.
      * Сам вид после этого может исчезнуть — анимация уже живёт отдельно.
      */
@@ -566,35 +677,37 @@ public class PengramDeleteEffectView extends View {
      * То же самое, но с явной областью, за которую выходить нельзя
      * (чат отдаёт сюда полосу между шапкой и полем ввода).
      */
-    public static boolean play(ViewGroup container, View view, int effect, RectF clipInContainer) {
+    public static boolean play(ViewGroup container, View view, int effect, RectF clipInWindow) {
         if (container == null || view == null || effect == PengramConfig.DELETE_EFFECT_NONE) {
             return false;
         }
-        final Bitmap bitmap = snapshot(view);
-        if (bitmap == null) {
+        final int[] crop = new int[2];
+        final Bitmap bitmap = cropToContent(snapshot(view), crop);
+        if (bitmap == null || bitmap.isRecycled() || bitmap.getWidth() <= 1 || bitmap.getHeight() <= 1) {
+            if (bitmap != null && !bitmap.isRecycled()) {
+                bitmap.recycle();
+            }
             return false;
         }
-        final int[] from = new int[2];
-        final int[] to = new int[2];
-        view.getLocationInWindow(from);
-        container.getLocationInWindow(to);
 
-        // область, за которую эффект не выйдет ни на пиксель
-        final RectF clip = new RectF(0, 0, container.getWidth(), container.getHeight());
+        // всё считаем в координатах окна: так эффект ложится ровно на сообщение,
+        // куда бы контейнер ни положил саму накладку
+        final int[] from = new int[2];
+        view.getLocationInWindow(from);
+        final float winX = from[0] + crop[0];
+        final float winY = from[1] + crop[1];
+
+        final RectF clip = new RectF();
         final ViewParent parent = view.getParent();
-        if (parent instanceof View) {
-            final View list = (View) parent;
-            final int[] listAt = new int[2];
-            list.getLocationInWindow(listAt);
-            clip.set(listAt[0] - to[0], listAt[1] - to[1],
-                    listAt[0] - to[0] + list.getWidth(), listAt[1] - to[1] + list.getHeight());
-        }
-        if (clipInContainer != null && clipInContainer.width() > 0 && clipInContainer.height() > 0) {
-            // пересечение: ни под поле ввода, ни под шапку ничего не заедет
-            clip.set(Math.max(clip.left, clipInContainer.left),
-                    Math.max(clip.top, clipInContainer.top),
-                    Math.min(clip.right, clipInContainer.right),
-                    Math.min(clip.bottom, clipInContainer.bottom));
+        final View frame = parent instanceof View ? (View) parent : container;
+        final int[] frameAt = new int[2];
+        frame.getLocationInWindow(frameAt);
+        clip.set(frameAt[0], frameAt[1], frameAt[0] + frame.getWidth(), frameAt[1] + frame.getHeight());
+        if (clipInWindow != null && clipInWindow.width() > 0 && clipInWindow.height() > 0) {
+            clip.set(Math.max(clip.left, clipInWindow.left),
+                    Math.max(clip.top, clipInWindow.top),
+                    Math.min(clip.right, clipInWindow.right),
+                    Math.min(clip.bottom, clipInWindow.bottom));
         }
         if (clip.width() <= 0 || clip.height() <= 0) {
             bitmap.recycle();
@@ -602,7 +715,6 @@ public class PengramDeleteEffectView extends View {
         }
 
         final PengramDeleteEffectView effectView = new PengramDeleteEffectView(container.getContext(), bitmap, effect);
-        effectView.setGeometry(from[0] - to[0], from[1] - to[1], clip);
         final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         try {
@@ -611,6 +723,7 @@ public class PengramDeleteEffectView extends View {
             bitmap.recycle();
             return false;
         }
+        effectView.setGeometryInWindow(winX, winY, clip);
         if (parent instanceof androidx.recyclerview.widget.RecyclerView) {
             effectView.followScroll((androidx.recyclerview.widget.RecyclerView) parent);
         }

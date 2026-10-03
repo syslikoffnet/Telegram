@@ -4678,8 +4678,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             return super.delete();
                         }
                     };
+                    // Pengram: каждая запись начинается с чистого состояния эффекта
                     PengramVoiceChanger.reset();
-                if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
+                    if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                         AndroidUtilities.runOnUIThread(() -> {
                             recordStartRunnable = null;
                             NotificationCenter.getInstance(recordingCurrentAccount).postNotificationName(NotificationCenter.recordStartError, recordingGuid);

@@ -45135,36 +45135,35 @@ public class ChatActivity extends BaseFragment implements
         if (contentView == null) {
             return null;
         }
-        final int[] base = new int[2];
-        contentView.getLocationInWindow(base);
-        float top = 0;
-        float bottom = contentView.getMeasuredHeight();
+        // границы считаем в координатах окна — ровно в них работает сам эффект
+        final int[] at = new int[2];
+        contentView.getLocationInWindow(at);
+        float top = at[1];
+        float bottom = at[1] + contentView.getMeasuredHeight();
         try {
             if (actionBar != null && actionBar.getVisibility() == View.VISIBLE && actionBar.getHeight() > 0) {
-                final int[] at = new int[2];
                 actionBar.getLocationInWindow(at);
-                top = Math.max(top, at[1] - base[1] + actionBar.getHeight());
+                top = Math.max(top, at[1] + actionBar.getHeight());
             }
-            // поле ввода лежит внутри своих контейнеров, поэтому считаем по экрану,
-            // иначе граница получается нулевой и эффект заезжает под панель
+            // поле ввода лежит внутри своих контейнеров, поэтому его положение
+            // тоже берём по экрану, иначе граница получается нулевой
             final View input = chatInputViewsContainer != null ? chatInputViewsContainer
                     : (chatActivityEnterView != null ? chatActivityEnterView : null);
             if (input != null && input.getVisibility() == View.VISIBLE && input.getHeight() > 0) {
-                final int[] at = new int[2];
                 input.getLocationInWindow(at);
-                bottom = Math.min(bottom, at[1] - base[1]);
+                bottom = Math.min(bottom, at[1]);
             }
             if (bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE && bottomOverlay.getHeight() > 0) {
-                final int[] at = new int[2];
                 bottomOverlay.getLocationInWindow(at);
-                bottom = Math.min(bottom, at[1] - base[1]);
+                bottom = Math.min(bottom, at[1]);
             }
         } catch (Throwable ignore) {
         }
         if (bottom - top < AndroidUtilities.dp(48)) {
             return null;   // что-то посчиталось странно — лучше не ограничивать вовсе
         }
-        return new android.graphics.RectF(0, top, contentView.getMeasuredWidth(), bottom);
+        contentView.getLocationInWindow(at);
+        return new android.graphics.RectF(at[0], top, at[0] + contentView.getMeasuredWidth(), bottom);
     }
 
     public boolean supportsThanosEffect() {
