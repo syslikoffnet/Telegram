@@ -12,13 +12,17 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextPaint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -209,6 +213,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** экран обхода блокировок */
     private static final int BTN_BYPASS = 1491;
     private static final int BTN_ANTICRASH_STATS = 1492;
+    private static final int BTN_ANTICRASH_LOG = 1493;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -378,6 +383,102 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE:
             default: return getString(R.string.SwipeSettingsArchive);
         }
+    }
+
+    private int crashKindTitle(int kind) {
+        switch (kind) {
+            case PengramAntiCrash.KIND_TABLE: return R.string.PengramCrashKindTable;
+            case PengramAntiCrash.KIND_LAYOUT: return R.string.PengramCrashKindLayout;
+            case PengramAntiCrash.KIND_ENTITIES: return R.string.PengramCrashKindEntities;
+            case PengramAntiCrash.KIND_MESSAGE: return R.string.PengramCrashKindMessage;
+            case PengramAntiCrash.KIND_DRAW: return R.string.PengramCrashKindDraw;
+            default: return R.string.PengramCrashKindOther;
+        }
+    }
+
+    private int crashKindIcon(int kind) {
+        switch (kind) {
+            case PengramAntiCrash.KIND_TABLE: return R.drawable.msg_block;
+            case PengramAntiCrash.KIND_LAYOUT: return R.drawable.msg_policy;
+            case PengramAntiCrash.KIND_ENTITIES: return R.drawable.msg_language;
+            case PengramAntiCrash.KIND_MESSAGE: return R.drawable.msg_secret;
+            case PengramAntiCrash.KIND_DRAW: return R.drawable.msg_info;
+            default: return R.drawable.msg_retry;
+        }
+    }
+
+    /** журнал атак: кто когда пытался уронить клиент и чем именно */
+    private void showAntiCrashLog() {
+        final int count = PengramAntiCrash.journalSize();
+        if (count == 0) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramAntiCrashLogEmpty)).show();
+            return;
+        }
+        final android.content.Context context = getContext();
+        final LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        final int padH = AndroidUtilities.dp(20);
+        final int padV = AndroidUtilities.dp(10);
+        final int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+        final int textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
+        final int subColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
+        final java.text.SimpleDateFormat fmt =
+                new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault());
+        // свежие сверху
+        for (int a = count - 1; a >= 0; --a) {
+            final String entry = PengramAntiCrash.journalEntry(a);
+            if (entry == null) {
+                continue;
+            }
+            final int tab = entry.indexOf('\t');
+            final String reason = tab >= 0 ? entry.substring(tab + 1) : entry;
+            long when = 0;
+            if (tab > 0) {
+                try {
+                    when = Long.parseLong(entry.substring(0, tab));
+                } catch (Throwable ignore) {
+                }
+            }
+            final int kind = PengramAntiCrash.kindOf(reason);
+
+            final LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(padH, padV, padH, padV);
+            final ImageView icon = new ImageView(context);
+            icon.setImageResource(crashKindIcon(kind));
+            icon.setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
+            row.addView(icon, LayoutHelper.createLinear(22, 22));
+            final LinearLayout texts = new LinearLayout(context);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            final TextView title = new TextView(context);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            title.setTypeface(AndroidUtilities.bold());
+            title.setTextColor(textColor);
+            title.setText(getString(crashKindTitle(kind)));
+            texts.addView(title);
+            final TextView sub = new TextView(context);
+            sub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            sub.setTextColor(subColor);
+            sub.setSingleLine(true);
+            sub.setEllipsize(TextUtils.TruncateAt.END);
+            sub.setText((when > 0 ? fmt.format(new java.util.Date(when)) + "  ·  " : "") + reason);
+            texts.addView(sub);
+            row.addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL, 14, 0, 0, 0));
+            list.addView(row);
+        }
+        final ScrollView scroll = new ScrollView(context);
+        scroll.addView(list, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.PengramAntiCrashLog))
+                .setView(scroll)
+                .setNegativeButton(getString(R.string.PengramAntiCrashLogClear), (dialog, which) -> {
+                    PengramAntiCrash.clearJournal();
+                    listView.adapter.update(true);
+                })
+                .setPositiveButton(getString(R.string.Close), null)
+                .show();
     }
 
     /** чекбокс, завязанный на ключ в PengramConfig — чтобы не плодить константы */
@@ -1374,6 +1475,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(check(PengramConfig.KEY_ANTICRASH_MARK, true, getString(R.string.PengramAntiCrashMark)));
             items.add(UItem.asSettingsCell(BTN_ANTICRASH_STATS, R.drawable.msg_policy,
                     getString(R.string.PengramAntiCrashStats), antiCrashStats()));
+            items.add(UItem.asSettingsCell(BTN_ANTICRASH_LOG, R.drawable.msg_secret,
+                    getString(R.string.PengramAntiCrashLog), String.valueOf(PengramAntiCrash.journalSize())));
         }
         items.add(UItem.asShadow(getString(R.string.PengramAntiCrashInfo)));
 
@@ -2158,6 +2261,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 listView.adapter.update(true);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                         getString(R.string.PengramAntiCrashStatsReset)).show();
+                return;
+            case BTN_ANTICRASH_LOG:
+                showAntiCrashLog();
                 return;
             case BTN_DELETE_EFFECT:
                 presentFragment(new PengramDeleteEffectActivity());

@@ -981,6 +981,15 @@
     <string name="PengramAntiCrash">Защита от краш-сообщений</string>
     <string name="PengramAntiCrashMark">Отмечать обезвреженное</string>
     <string name="PengramAntiCrashStubTitle">Антикраш Pengram</string>
+    <string name="PengramAntiCrashLog">Журнал атак</string>
+    <string name="PengramAntiCrashLogEmpty">Пока пусто: попыток уронить ваш клиент ещё не было.</string>
+    <string name="PengramAntiCrashLogClear">Очистить</string>
+    <string name="PengramCrashKindTable">Табличная бомба</string>
+    <string name="PengramCrashKindLayout">Битая вёрстка</string>
+    <string name="PengramCrashKindEntities">Битое форматирование</string>
+    <string name="PengramCrashKindMessage">Разметка сообщения</string>
+    <string name="PengramCrashKindDraw">Битая отрисовка</string>
+    <string name="PengramCrashKindOther">Другое</string>
     <string name="PengramAntiCrashBlocked">Эта часть сообщения пыталась уронить ваш клиент. Угроза обезврежена.</string>
     <string name="PengramAntiCrashStats">Обезврежено попыток</string>
     <string name="PengramAntiCrashStatsReset">Счётчик сброшен</string>

@@ -11953,6 +11953,15 @@
     <string name="PengramAntiCrash">Protection from crash messages</string>
     <string name="PengramAntiCrashMark">Mark what was neutralised</string>
     <string name="PengramAntiCrashStubTitle">Pengram Anti-crash</string>
+    <string name="PengramAntiCrashLog">Attack log</string>
+    <string name="PengramAntiCrashLogEmpty">Empty so far — nobody has tried to crash your client yet.</string>
+    <string name="PengramAntiCrashLogClear">Clear</string>
+    <string name="PengramCrashKindTable">Table bomb</string>
+    <string name="PengramCrashKindLayout">Broken layout</string>
+    <string name="PengramCrashKindEntities">Broken formatting</string>
+    <string name="PengramCrashKindMessage">Message markup</string>
+    <string name="PengramCrashKindDraw">Broken drawing</string>
+    <string name="PengramCrashKindOther">Other</string>
     <string name="PengramAntiCrashBlocked">This part of the message tried to crash your client. The threat has been neutralised.</string>
     <string name="PengramAntiCrashStats">Attempts neutralised</string>
     <string name="PengramAntiCrashStatsReset">Counter reset</string>

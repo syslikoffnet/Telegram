@@ -103,12 +103,14 @@ public class PengramAntiCrash {
     /**
      * Зафиксировать обезвреженную попытку. Счётчик в памяти обновляется сразу,
      * на диск пишем не чаще раза в пять секунд: при потоке битых сообщений
-     * иначе получим шторм записей в prefs.
+     * иначе получим шторм записей в prefs. Параллельно ведём журнал последних
+     * ста попыток — время и тип, его показывает настройка «Журнал атак».
      */
     public static void report(String reason) {
         session.incrementAndGet();
         lastReason = reason;
         lastTime = System.currentTimeMillis();
+        journalAdd(reason);
         try {
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.e("pengram anticrash: " + reason);
@@ -122,8 +124,116 @@ public class PengramAntiCrash {
         lastStore = now;
         try {
             PengramConfig.setAntiCrashBlocked(PengramConfig.getAntiCrashBlocked() + session.getAndSet(0));
+            journalStore();
         } catch (Throwable ignore) {
         }
+    }
+
+    /* ------------------- журнал атак ------------------- */
+
+    /** сколько записей храним: старые вытесняются новыми */
+    public static final int JOURNAL_LIMIT = 100;
+
+    public static final int KIND_TABLE = 0;
+    public static final int KIND_LAYOUT = 1;
+    public static final int KIND_ENTITIES = 2;
+    public static final int KIND_MESSAGE = 3;
+    public static final int KIND_DRAW = 4;
+    public static final int KIND_OTHER = 5;
+
+    /** записи вида timeMillis\treason, свежие в конце */
+    private static java.util.ArrayList<String> journal;
+    private static long lastJournalAdd;
+
+    private static synchronized void journalLoad() {
+        if (journal != null) {
+            return;
+        }
+        journal = new java.util.ArrayList<>();
+        try {
+            final String stored = PengramConfig.getAntiCrashJournal();
+            if (stored != null && !stored.isEmpty()) {
+                final String[] rows = stored.split("\\n");
+                final int from = Math.max(0, rows.length - JOURNAL_LIMIT);
+                for (int a = from; a < rows.length; ++a) {
+                    if (rows[a] != null && !rows[a].isEmpty()) {
+                        journal.add(rows[a]);
+                    }
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static synchronized void journalAdd(String reason) {
+        // море одинаковых блоков подряд не должно замусорить журнал
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastJournalAdd < 1500) {
+            return;
+        }
+        lastJournalAdd = now;
+        journalLoad();
+        journal.add(System.currentTimeMillis() + "\t" + reason);
+        while (journal.size() > JOURNAL_LIMIT) {
+            journal.remove(0);
+        }
+    }
+
+    private static synchronized void journalStore() {
+        if (journal == null) {
+            return;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int a = 0; a < journal.size(); ++a) {
+            if (a > 0) {
+                sb.append('\n');
+            }
+            sb.append(journal.get(a));
+        }
+        PengramConfig.setAntiCrashJournal(sb.toString());
+    }
+
+    public static synchronized int journalSize() {
+        journalLoad();
+        return journal.size();
+    }
+
+    /** индексация от старой записи к новой */
+    public static synchronized String journalEntry(int index) {
+        journalLoad();
+        if (index < 0 || index >= journal.size()) {
+            return null;
+        }
+        return journal.get(index);
+    }
+
+    public static synchronized void clearJournal() {
+        journalLoad();
+        journal.clear();
+        PengramConfig.setAntiCrashJournal("");
+    }
+
+    /** семейство атаки по причине — для значка и короткого названия в журнале */
+    public static int kindOf(String reason) {
+        if (reason == null) {
+            return KIND_OTHER;
+        }
+        if (reason.startsWith("table")) {
+            return KIND_TABLE;
+        }
+        if (reason.startsWith("rich block") || reason.startsWith("rich blocks") || reason.startsWith("rich layout")) {
+            return KIND_LAYOUT;
+        }
+        if (reason.startsWith("entities")) {
+            return KIND_ENTITIES;
+        }
+        if (reason.startsWith("message layout")) {
+            return KIND_MESSAGE;
+        }
+        if (reason.startsWith("cell measure") || reason.startsWith("cell draw")) {
+            return KIND_DRAW;
+        }
+        return KIND_OTHER;
     }
 
     /** colspan/rowspan — в разумные рамки */

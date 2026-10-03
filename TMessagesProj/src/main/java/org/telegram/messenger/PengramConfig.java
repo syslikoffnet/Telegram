@@ -492,6 +492,10 @@ public class PengramConfig {
 
     public static int getAntiCrashBlocked() { return getIntCached("antiCrashBlocked", 0); }
 
+    public static String getAntiCrashJournal() { init(); return preferences.getString("antiCrashJournal", ""); }
+
+    public static void setAntiCrashJournal(String value) { putString("antiCrashJournal", value == null ? "" : value); }
+
     public static void setAntiCrashBlocked(int value) { putInt("antiCrashBlocked", Math.max(0, value)); }
 
     /** всё, что связано с текстами, приложение делает само */
