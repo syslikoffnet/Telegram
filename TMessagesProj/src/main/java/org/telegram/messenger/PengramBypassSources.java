@@ -381,18 +381,22 @@ public final class PengramBypassSources {
                         found.add(manual);
                     }
                 }
+                final CountDownLatch downloads = new CountDownLatch(WS_SOURCES.length + MT_SOURCES.length);
                 for (String source : WS_SOURCES) {
-                    if (countOfKind(found, "ws") >= 120) {
-                        break;
-                    }
-                    collectWs(download(source), found, seen);
+                    pool().execute(() -> {
+                        try {
+                            synchronized (found) { collectWs(download(source), found, seen); }
+                        } finally { downloads.countDown(); }
+                    });
                 }
                 for (String source : MT_SOURCES) {
-                    if (countOfKind(found, "mt") >= 40) {
-                        break;
-                    }
-                    collectMt(download(source), found, seen);
+                    pool().execute(() -> {
+                        try {
+                            synchronized (found) { collectMt(download(source), found, seen); }
+                        } finally { downloads.countDown(); }
+                    });
                 }
+                downloads.await(18, TimeUnit.SECONDS);
                 total = found.size();
                 alive = benchmark(found);
             } catch (Throwable e) {
@@ -426,7 +430,7 @@ public final class PengramBypassSources {
             text = maybeBase64(text);
         }
         final Matcher m = VLESS_PATTERN.matcher(text);
-        while (m.find() && countOfKind(out, "ws") < 120) {
+        while (m.find() && countOfKind(out, "ws") < 48) {
             final Node n = parseVless(m.group());
             if (n != null && n.valid() && seen.add(n.id())) {
                 out.add(n);
@@ -439,7 +443,7 @@ public final class PengramBypassSources {
             return;
         }
         final Matcher link = MT_LINK_PATTERN.matcher(body);
-        while (link.find() && countOfKind(out, "mt") < 40) {
+        while (link.find() && countOfKind(out, "mt") < 24) {
             final Node n = new Node();
             n.kind = "mt";
             n.host = link.group(1);
@@ -457,7 +461,7 @@ public final class PengramBypassSources {
         final Matcher hosts = MT_HOST_PATTERN.matcher(body);
         final Matcher ports = MT_PORT_PATTERN.matcher(body);
         final Matcher secrets = MT_SECRET_PATTERN.matcher(body);
-        while (hosts.find() && ports.find() && secrets.find() && countOfKind(out, "mt") < 40) {
+        while (hosts.find() && ports.find() && secrets.find() && countOfKind(out, "mt") < 24) {
             final Node n = new Node();
             n.kind = "mt";
             n.host = hosts.group(1);
@@ -548,7 +552,7 @@ public final class PengramBypassSources {
             });
         }
         try {
-            latch.await(60, TimeUnit.SECONDS);
+            latch.await(22, TimeUnit.SECONDS);
         } catch (Throwable ignore) {
         }
         synchronized (alive) {

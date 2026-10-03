@@ -1862,11 +1862,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private void fillChatActions(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramQuickButton1Header)));
         items.add(UItem.asSettingsCell(BTN_QUICK_NAME_1, R.drawable.msg_edit, getString(R.string.PengramQuickName1), PengramConfig.getQuickName(1)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_URL_1, R.drawable.msg_link, getString(R.string.PengramQuickUrl1), PengramConfig.getQuickUrl(1)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_URL_1, R.drawable.msg_link, getString(R.string.PengramQuickUrl1), quickUrlPreview(PengramConfig.getQuickUrl(1))));
         items.add(UItem.asShadow(getString(R.string.PengramQuickEmptyInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramQuickButton2Header)));
         items.add(UItem.asSettingsCell(BTN_QUICK_NAME_2, R.drawable.msg_edit, getString(R.string.PengramQuickName2), PengramConfig.getQuickName(2)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_URL_2, R.drawable.msg_link, getString(R.string.PengramQuickUrl2), PengramConfig.getQuickUrl(2)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_URL_2, R.drawable.msg_link, getString(R.string.PengramQuickUrl2), quickUrlPreview(PengramConfig.getQuickUrl(2))));
         items.add(UItem.asShadow(getString(R.string.PengramQuickUrlInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
@@ -1948,6 +1948,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
+    }
+
+    private CharSequence quickUrlPreview(String value) {
+        if (value == null) return "";
+        String text = value.replaceFirst("(?i)^https?://", "");
+        if (text.length() <= 26) return text;
+        final int slash = text.lastIndexOf('/');
+        final String tail = slash >= 0 ? text.substring(slash) : "";
+        return text.substring(0, Math.min(18, text.length())) + "…" + tail;
     }
 
     private CharSequence senderAvatarPositionName() {

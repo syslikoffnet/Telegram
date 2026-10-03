@@ -47,9 +47,9 @@ public final class PengramBypass {
     /** как часто смотрим на состояние связи (одно сравнение числа) */
     private static final long WATCH_INTERVAL = 8000;
     /** столько ждём прямое соединение, прежде чем включать обход */
-    private static final long DIRECT_PATIENCE = 12000;
+    private static final long DIRECT_PATIENCE = 7000;
     /** столько ждём, пока ядро подключится через выбранный способ */
-    private static final long MODE_PATIENCE = 14000;
+    private static final long MODE_PATIENCE = 10000;
     /** пауза после полной неудачи */
     private static final long RETRY_AFTER_FAIL = 90000;
     /** как часто проверяем, не отпустила ли блокировка */
@@ -148,7 +148,11 @@ public final class PengramBypass {
             return;
         }
         watching = true;
-        AndroidUtilities.runOnUIThread(PengramBypass::tick, 3000);
+        if (isEnabled() && PengramBypassSources.needRefresh() && ApplicationLoader.isNetworkOnline()) {
+            // Каталоги загружаются заранее параллельно ожиданию прямого соединения.
+            PengramBypassSources.refresh(false, null);
+        }
+        AndroidUtilities.runOnUIThread(PengramBypass::tick, isEnabled() ? 500 : 3000);
     }
 
     private static void tick() {
@@ -276,7 +280,7 @@ public final class PengramBypass {
         if (remembered != MODE_NONE) {
             order.add(remembered);
         }
-        for (int candidate : new int[]{MODE_SPLIT, MODE_WS, MODE_MT}) {
+        for (int candidate : new int[]{MODE_SPLIT, MODE_MT, MODE_WS}) {
             if (!order.contains(candidate)) {
                 order.add(candidate);
             }
@@ -352,9 +356,16 @@ public final class PengramBypass {
 
     private static void refreshBlocking() {
         final CountDownLatch latch = new CountDownLatch(1);
+        if (PengramBypassSources.isBusy()) {
+            final long deadline = System.currentTimeMillis() + 30000;
+            while (PengramBypassSources.isBusy() && System.currentTimeMillis() < deadline && isEnabled()) {
+                try { Thread.sleep(250); } catch (Throwable ignore) { return; }
+            }
+            return;
+        }
         PengramBypassSources.refresh(true, (alive, total) -> latch.countDown());
         try {
-            latch.await(80, TimeUnit.SECONDS);
+            latch.await(35, TimeUnit.SECONDS);
         } catch (Throwable ignore) {
         }
     }

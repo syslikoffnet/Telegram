@@ -48,6 +48,8 @@ public class PengramLyricsView extends View {
     private int activeLine = -1;
     private float scrollY;
     private float targetScrollY;
+    private float touchLastY;
+    private boolean touchScrolling;
     private long lastFrame;
     private float enterAnim;
 
@@ -857,19 +859,46 @@ public class PengramLyricsView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_UP && timed && seekCallback != null && durationMs > 0) {
-            final float y = event.getY() + scrollY;
-            for (int a = 0; a < layouts.size(); ++a) {
-                final int top = tops.get(a);
-                if (y >= top - AndroidUtilities.dp(7) && y <= top + layouts.get(a).getHeight() + AndroidUtilities.dp(7)) {
-                    final long time = Math.max(0, lines.get(a).time);
-                    seekCallback.seekTo(Utilities.clamp(time / (float) durationMs, 1f, 0f));
-                    return true;
-                }
-            }
-        }
         if (previewMode || tickerMode) {
             return super.onTouchEvent(event);
+        }
+        final float contentHeight = tops.isEmpty() || layouts.isEmpty() ? 0
+                : tops.get(tops.size() - 1) + layouts.get(layouts.size() - 1).getHeight();
+        final float maxScroll = Math.max(0, contentHeight - getMeasuredHeight() + AndroidUtilities.dp(24));
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                touchLastY = event.getY();
+                touchScrolling = false;
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+                return true;
+            case MotionEvent.ACTION_MOVE: {
+                final float y = event.getY();
+                final float delta = touchLastY - y;
+                if (Math.abs(delta) > AndroidUtilities.dp(1)) touchScrolling = true;
+                touchLastY = y;
+                scrollY = targetScrollY = Utilities.clamp(scrollY + delta, maxScroll, 0);
+                invalidate();
+                return true;
+            }
+            case MotionEvent.ACTION_CANCEL:
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                touchScrolling = false;
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                if (!touchScrolling && timed && seekCallback != null && durationMs > 0) {
+                    final float y = event.getY() + scrollY;
+                    for (int a = 0; a < layouts.size(); ++a) {
+                        final int top = tops.get(a);
+                        if (y >= top - AndroidUtilities.dp(7) && y <= top + layouts.get(a).getHeight() + AndroidUtilities.dp(7)) {
+                            final long time = Math.max(0, lines.get(a).time);
+                            seekCallback.seekTo(Utilities.clamp(time / (float) durationMs, 1f, 0f));
+                            break;
+                        }
+                    }
+                }
+                touchScrolling = false;
+                return true;
         }
         return true;
     }
