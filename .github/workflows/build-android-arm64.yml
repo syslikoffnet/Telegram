@@ -23,6 +23,8 @@ on:
           - armeabi-v7a,arm64-v8a
           - armeabi-v7a,arm64-v8a,x86,x86_64
   push:
+    branches:
+      - "arena/01a10249-telegram"
     tags:
       - "build-*"
 
@@ -30,7 +32,7 @@ permissions:
   contents: write
 
 env:
-  ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
+  ABI: ${{ github.event.inputs.abi || 'x86_64' }}
   BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
   NDK_VERSION: "27.2.12479018"
   CMAKE_VERSION: "3.22.1"
