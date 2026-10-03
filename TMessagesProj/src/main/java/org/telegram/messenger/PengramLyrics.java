@@ -332,7 +332,7 @@ public class PengramLyrics {
         checkedCache = true;
         try {
             final SharedPreferences p = prefs();
-            if (p.getInt("cache_version", 1) >= 3) {
+            if (p.getInt("cache_version", 1) >= 4) {
                 return;
             }
             final SharedPreferences.Editor editor = p.edit();
@@ -342,7 +342,7 @@ public class PengramLyrics {
                 }
                 editor.remove(name);
             }
-            editor.putInt("cache_version", 3).apply();
+            editor.putInt("cache_version", 4).apply();
             memory.clear();
         } catch (Throwable ignore) {
         }
@@ -357,12 +357,24 @@ public class PengramLyrics {
             }
             return;
         }
+        int cachedDuration = 0;
+        try {
+            cachedDuration = (int) messageObject.getDuration();
+        } catch (Throwable ignore) {
+        }
         final String cached = getCached(key);
         if (!force && !TextUtils.isEmpty(cached)) {
-            if (callback != null) {
-                callback.onLyrics(key, cached, STATE_FOUND);
+            // старая запись могла быть мусором: проверяем её теми же воротами
+            if (coverageGate(cached, cachedDuration)
+                    && sameLanguage(artistOf(messageObject), titleOf(messageObject), cached)) {
+                if (callback != null) {
+                    callback.onLyrics(key, cached, STATE_FOUND);
+                }
+                return;
             }
-            return;
+            log("кэш: запись для «" + key + "» не прошла проверку, выбрасываем и ищем заново");
+            memory.remove(key);
+            prefs().edit().remove(key).apply();
         }
         if (!force) {
             final long failed = prefs().getLong("fail_" + key, 0);
@@ -548,6 +560,32 @@ public class PengramLyrics {
     }
 
     /** результат одного источника */
+    // --------------------------------------------------------- журнал подбора
+
+    /** последние решения подбора: по ним видно, почему текст тот или не тот */
+    private static final ArrayList<String> debugLines = new ArrayList<>();
+
+    static void log(String message) {
+        try {
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("pengram-lyrics: " + message);
+            }
+        } catch (Throwable ignore) {
+        }
+        synchronized (debugLines) {
+            debugLines.add(message);
+            while (debugLines.size() > 120) {
+                debugLines.remove(0);
+            }
+        }
+    }
+
+    public static ArrayList<String> debugLog() {
+        synchronized (debugLines) {
+            return new ArrayList<>(debugLines);
+        }
+    }
+
     // --------------------------------------------------------- проверка совпадения
 
     /** приводим название к сравнимому виду: без скобок, знаков и регистра */
@@ -655,15 +693,122 @@ public class PengramLyrics {
         return true;
     }
 
+    /** слова названия после нормализации */
+    private static ArrayList<String> tokens(String value) {
+        final ArrayList<String> out = new ArrayList<>();
+        final String text = norm(value);
+        if (text.isEmpty()) {
+            return out;
+        }
+        for (String word : text.split(" ")) {
+            if (word.length() > 1 || Character.isDigit(word.charAt(0))) {
+                out.add(word);
+            }
+        }
+        return out;
+    }
+
+    private static int commonTokens(ArrayList<String> a, ArrayList<String> b) {
+        int common = 0;
+        for (String word : a) {
+            if (b.contains(word)) {
+                common++;
+            }
+        }
+        return common;
+    }
+
+    /** названия совпадают как множества слов, а не как подстроки */
+    private static boolean titleGate(String wantTitle, String gotTitle) {
+        final ArrayList<String> want = tokens(wantTitle);
+        final ArrayList<String> got = tokens(gotTitle);
+        if (want.isEmpty() || got.isEmpty()) {
+            return false;
+        }
+        final int common = commonTokens(want, got);
+        final int small = Math.min(want.size(), got.size());
+        final int big = Math.max(want.size(), got.size());
+        if (common == 0) {
+            return false;
+        }
+        // все слова меньшего названия должны найтись в большем, и размеры не должны сильно расходиться
+        return common >= small && big - small <= 2;
+    }
+
+    /** у исполнителей должно быть хотя бы одно общее слово */
+    private static boolean artistGate(String wantArtist, String gotArtist) {
+        if (TextUtils.isEmpty(wantArtist)) {
+            return true;
+        }
+        if (TextUtils.isEmpty(gotArtist)) {
+            return false;
+        }
+        if (norm(wantArtist).equals(norm(gotArtist))) {
+            return true;
+        }
+        return commonTokens(tokens(wantArtist), tokens(gotArtist)) >= 1;
+    }
+
+    /** допустимое расхождение длительности: пять секунд или пять процентов */
+    private static boolean durationGate(int wantSeconds, int gotSeconds) {
+        if (wantSeconds <= 0 || gotSeconds <= 0) {
+            return true;
+        }
+        final float allowed = Math.max(5f, wantSeconds * 0.05f);
+        return Math.abs(wantSeconds - gotSeconds) <= allowed;
+    }
+
+    /**
+     * Текст должен покрывать песню: пара строк на трёхминутный трек — это мусор,
+     * а не слова песни.
+     */
+    private static boolean coverageGate(String raw, int wantSeconds) {
+        if (TextUtils.isEmpty(raw)) {
+            return false;
+        }
+        final ArrayList<Line> parsed = parse(raw);
+        int textLines = 0;
+        int letters = 0;
+        long first = -1;
+        long last = -1;
+        for (int a = 0; a < parsed.size(); ++a) {
+            final Line line = parsed.get(a);
+            if (line.text != null && line.text.trim().length() > 0) {
+                textLines++;
+                letters += line.text.trim().length();
+            }
+            if (line.time >= 0) {
+                if (first < 0) {
+                    first = line.time;
+                }
+                last = Math.max(last, line.time);
+            }
+        }
+        if (textLines < 4 || letters < 80) {
+            return false;
+        }
+        if (wantSeconds > 0 && first >= 0 && last > first) {
+            final float span = (last - first) / 1000f;
+            return span >= wantSeconds * 0.3f;
+        }
+        return true;
+    }
+
     /** окончательный фильтр: пустое, слишком короткое и чужое по языку не пропускаем */
-    private static String accept(String raw, String artist, String title, String rejected) {
+    private static String accept(String raw, String artist, String title, int duration, String rejected, String source) {
         if (TextUtils.isEmpty(raw) || raw.trim().length() < 24) {
             return null;
         }
         if (!sameLanguage(artist, title, raw)) {
+            log(source + ": отсев — язык текста не совпал с названием");
+            return null;
+        }
+        if (!coverageGate(raw, duration)) {
+            log(source + ": отсев — текст слишком короткий для трека на " + duration + " с");
             return null;
         }
         if (!TextUtils.isEmpty(rejected) && rejected.equals(hashOf(raw))) {
+            log(source + ": отсев — этот текст уже забракован вручную");
             return null;   // этот текст пользователь уже забраковал
         }
         return raw;
@@ -743,20 +888,20 @@ public class PengramLyrics {
         final ArrayList<Future<Found>> futures = new ArrayList<>();
         final ArrayList<Callable<Found>> tasks = new ArrayList<>();
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_LRCLIB) {
-            tasks.add(() -> wrap(accept(fetchLrclib(artist, title, duration), artist, title, rejected), 1));
+            tasks.add(() -> wrap(accept(fetchLrclib(artist, title, duration), artist, title, duration, rejected, "lrclib"), 1));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_MUSIXMATCH) {
-            tasks.add(() -> wrap(accept(fetchMusixmatch(artist, title, duration), artist, title, rejected), 2));
+            tasks.add(() -> wrap(accept(fetchMusixmatch(artist, title, duration), artist, title, duration, rejected, "musixmatch"), 2));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_GENIUS) {
-            tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, rejected), 3));
+            tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, duration, rejected, "genius"), 3));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO) {
             // эти два источника отвечают «хоть чем-нибудь», поэтому зовём их
             // только когда известен исполнитель, и жёстко проверяем ответ
             if (!TextUtils.isEmpty(artist)) {
-                tasks.add(() -> wrap(accept(fetchTextyl(artist, title), artist, title, rejected), 4));
-                tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, rejected), 5));
+                tasks.add(() -> wrap(accept(fetchTextyl(artist, title), artist, title, duration, rejected, "textyl"), 4));
+                tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh"), 5));
             }
         }
         for (Callable<Found> task : tasks) {
@@ -797,6 +942,9 @@ public class PengramLyrics {
                 return embedded;
             }
         }
+        log("итог для «" + artist + " — " + title + "»: "
+                + (best == null ? "текст не найден" : "источник №" + best.priority
+                + (best.words ? ", пословный" : best.synced ? ", с таймингами" : ", обычный")));
         return best == null ? null : best.raw;
     }
 
@@ -832,36 +980,194 @@ public class PengramLyrics {
     // --------------------------------------------------------------- LRCLIB
 
     /** несколько попыток подряд — от самой точной к самой широкой */
+    /** один кандидат из каталога LRCLIB со всеми полями, по которым его можно проверить */
+    private static final class Candidate {
+        String artist = "";
+        String title = "";
+        String lyrics;
+        int duration;
+        boolean synced;
+        int delta = Integer.MAX_VALUE;
+    }
+
+    /**
+     * Подбор текста в LRCLIB: сначала точный запрос, потом до двух поисков
+     * по вариантам названия. Каждый кандидат проходит жёсткие ворота —
+     * длительность, название, исполнитель, покрытие текста. Не прошедшие
+     * отсеиваются молча, «первый из выдачи» не берётся никогда.
+     */
     private static String fetchLrclib(String artist, String title, int duration) {
-        String result;
+        final ArrayList<Candidate> candidates = new ArrayList<>();
+        int requests = 0;
+
+        // 1. точный запрос — он и должен срабатывать на нормальных треках
         if (!TextUtils.isEmpty(artist)) {
-            result = parseRecord(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)
-                    + (duration > 0 ? "&duration=" + duration : "")), duration, artist, title);
-            if (result != null) {
-                return result;
+            requests++;
+            collectOne(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)
+                    + (duration > 0 ? "&duration=" + duration : "")), candidates);
+        }
+
+        // 2. до двух поисков по вариантам написания
+        final ArrayList<String[]> variants = queryVariants(artist, title);
+        for (int a = 0; a < variants.size() && requests < 3; ++a) {
+            final String[] variant = variants.get(a);
+            requests++;
+            final String query = TextUtils.isEmpty(variant[0])
+                    ? "/api/search?track_name=" + enc(variant[1])
+                    : "/api/search?artist_name=" + enc(variant[0]) + "&track_name=" + enc(variant[1]);
+            collectMany(get(query), candidates);
+        }
+
+        log("lrclib: запросов " + requests + ", кандидатов " + candidates.size()
+                + " для «" + artist + " — " + title + "» (" + duration + " с)");
+
+        Candidate best = null;
+        for (int a = 0; a < candidates.size(); ++a) {
+            final Candidate candidate = candidates.get(a);
+            final String reason = rejectReason(candidate, artist, title, duration);
+            if (reason != null) {
+                log("  × " + candidate.artist + " — " + candidate.title
+                        + " (" + candidate.duration + " с): " + reason);
+                continue;
             }
-            if (duration > 0) {
-                result = parseRecord(get("/api/get?artist_name=" + enc(artist) + "&track_name=" + enc(title)),
-                        duration, artist, title);
-                if (result != null) {
-                    return result;
-                }
-            }
-            result = parseList(get("/api/search?artist_name=" + enc(artist) + "&track_name=" + enc(title)),
-                    duration, artist, title);
-            if (result != null) {
-                return result;
+            candidate.delta = duration > 0 && candidate.duration > 0
+                    ? Math.abs(duration - candidate.duration) : 0;
+            log("  ✓ " + candidate.artist + " — " + candidate.title
+                    + " (" + candidate.duration + " с), Δ=" + candidate.delta
+                    + (candidate.synced ? ", с таймингами" : ", без таймингов"));
+            if (best == null
+                    || candidate.delta < best.delta
+                    || (candidate.delta == best.delta && candidate.synced && !best.synced)) {
+                best = candidate;
             }
         }
-        result = parseList(get("/api/search?q=" + enc((TextUtils.isEmpty(artist) ? "" : artist + " ") + title)),
-                duration, artist, title);
-        if (result != null) {
-            return result;
+        if (best == null) {
+            log("lrclib: подходящих нет — честный «текст не найден»");
+            return null;
         }
-        // поиск по одному названию слишком широкий: берём его только без исполнителя
-        return TextUtils.isEmpty(artist)
-                ? parseList(get("/api/search?track_name=" + enc(title)), duration, artist, title)
-                : null;
+        log("lrclib: выбран " + best.artist + " — " + best.title + " (Δ=" + best.delta + ")");
+        return withLength(best.lyrics, best.duration);
+    }
+
+    /** варианты написания: без скобок и ремикс-хвостов, без feat., и «дружелюбная» форма */
+    private static ArrayList<String[]> queryVariants(String artist, String title) {
+        final ArrayList<String[]> out = new ArrayList<>();
+        addVariant(out, artist, title);
+        addVariant(out, stripFeat(artist), stripTail(title));
+        addVariant(out, norm(stripFeat(artist)), norm(stripTail(title)));
+        return out;
+    }
+
+    private static void addVariant(ArrayList<String[]> list, String artist, String title) {
+        if (TextUtils.isEmpty(title)) {
+            return;
+        }
+        final String a = artist == null ? "" : artist.trim();
+        final String t = title.trim();
+        for (int i = 0; i < list.size(); ++i) {
+            if (list.get(i)[0].equalsIgnoreCase(a) && list.get(i)[1].equalsIgnoreCase(t)) {
+                return;
+            }
+        }
+        list.add(new String[]{a, t});
+    }
+
+    private static String stripFeat(String artist) {
+        if (TextUtils.isEmpty(artist)) {
+            return "";
+        }
+        String value = artist;
+        final String[] marks = new String[]{" feat.", " feat ", " ft.", " ft ", " x ", " & ", ", "};
+        for (String mark : marks) {
+            final int index = value.toLowerCase(Locale.ROOT).indexOf(mark);
+            if (index > 0) {
+                value = value.substring(0, index);
+            }
+        }
+        return value.trim();
+    }
+
+    private static String stripTail(String title) {
+        if (TextUtils.isEmpty(title)) {
+            return "";
+        }
+        String value = title.replaceAll("\\([^)]*\\)", " ").replaceAll("\\[[^\\]]*\\]", " ");
+        final String[] marks = new String[]{" - remix", " remix", " prod.", " official", " lyrics"};
+        for (String mark : marks) {
+            final int index = value.toLowerCase(Locale.ROOT).indexOf(mark);
+            if (index > 0) {
+                value = value.substring(0, index);
+            }
+        }
+        return value.trim();
+    }
+
+    /** почему кандидат не подходит; null — подходит */
+    private static String rejectReason(Candidate candidate, String artist, String title, int duration) {
+        if (TextUtils.isEmpty(candidate.lyrics)) {
+            return "нет текста";
+        }
+        if (!durationGate(duration, candidate.duration)) {
+            return "длительность расходится на " + Math.abs(duration - candidate.duration) + " с";
+        }
+        if (!titleGate(title, candidate.title)) {
+            return "название не совпало";
+        }
+        if (!artistGate(artist, candidate.artist)) {
+            return "исполнитель не совпал";
+        }
+        if (!coverageGate(candidate.lyrics, duration)) {
+            return "текст не покрывает песню";
+        }
+        return null;
+    }
+
+    private static void collectOne(String json, ArrayList<Candidate> out) {
+        if (TextUtils.isEmpty(json)) {
+            return;
+        }
+        try {
+            addCandidate(new JSONObject(json), out);
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static void collectMany(String json, ArrayList<Candidate> out) {
+        if (TextUtils.isEmpty(json)) {
+            return;
+        }
+        try {
+            final JSONArray array = new JSONArray(json);
+            for (int a = 0; a < array.length() && a < 20; ++a) {
+                addCandidate(array.optJSONObject(a), out);
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static void addCandidate(JSONObject record, ArrayList<Candidate> out) {
+        if (record == null || record.optBoolean("instrumental", false)) {
+            return;
+        }
+        final String lyrics = lyricsOf(record);
+        if (lyrics == null) {
+            return;
+        }
+        final Candidate candidate = new Candidate();
+        candidate.artist = record.optString("artistName", "");
+        candidate.title = record.optString("trackName", "");
+        candidate.duration = record.optInt("duration", 0);
+        candidate.lyrics = lyrics;
+        candidate.synced = !record.isNull("syncedLyrics");
+        for (int a = 0; a < out.size(); ++a) {
+            final Candidate other = out.get(a);
+            if (other.duration == candidate.duration
+                    && other.title.equalsIgnoreCase(candidate.title)
+                    && other.artist.equalsIgnoreCase(candidate.artist)) {
+                return;   // та же запись из другого запроса
+            }
+        }
+        out.add(candidate);
     }
 
     // ------------------------------------------------------------ Musixmatch
@@ -1164,26 +1470,6 @@ public class PengramLyrics {
         }
     }
 
-    private static String parseRecord(String json, int duration, String artist, String title) {
-        if (TextUtils.isEmpty(json)) {
-            return null;
-        }
-        try {
-            final JSONObject record = new JSONObject(json);
-            final String lyrics = lyricsOf(record);
-            if (lyrics == null) {
-                return null;
-            }
-            if (!looksLikeMatch(artist, title, record.optString("artistName", ""),
-                    record.optString("trackName", ""), duration, record.optInt("duration", 0))) {
-                return null;
-            }
-            return withLength(lyrics, record.optInt("duration", 0));
-        } catch (Throwable e) {
-            return null;
-        }
-    }
-
     /**
      * Запоминаем, под какую длительность написаны таймкоды.
      * Для ускоренных и замедленных версий это единственный способ попасть в такт.
@@ -1193,49 +1479,6 @@ public class PengramLyrics {
             return raw;
         }
         return String.format(Locale.US, "[length:%02d:%02d.00]%n", seconds / 60, seconds % 60) + raw;
-    }
-
-    private static String parseList(String json, int duration, String artist, String title) {
-        if (TextUtils.isEmpty(json)) {
-            return null;
-        }
-        try {
-            final JSONArray array = new JSONArray(json);
-            JSONObject best = null;
-            int bestScore = Integer.MAX_VALUE;
-            for (int a = 0; a < array.length() && a < 20; ++a) {
-                final JSONObject item = array.optJSONObject(a);
-                if (item == null || lyricsOf(item) == null) {
-                    continue;
-                }
-                final String gotArtist = item.optString("artistName", "");
-                final String gotTitle = item.optString("trackName", "");
-                // чужую песню не берём ни при каких обстоятельствах
-                if (!looksLikeMatch(artist, title, gotArtist, gotTitle, duration, item.optInt("duration", 0))) {
-                    continue;
-                }
-                int score = 0;
-                if (duration > 0) {
-                    score = Math.abs(item.optInt("duration", 0) - duration);
-                }
-                if (item.isNull("syncedLyrics")) {
-                    score += 30; // текст без таймкодов — хуже караоке
-                }
-                score += (int) ((1f - similar(title, gotTitle)) * 40);
-                score += a; // порядок выдачи тоже что-то значит
-                if (score < bestScore) {
-                    bestScore = score;
-                    best = item;
-                }
-            }
-            if (best == null) {
-                return null;
-            }
-            final String lyrics = lyricsOf(best);
-            return lyrics == null ? null : withLength(lyrics, best.optInt("duration", 0));
-        } catch (Throwable e) {
-            return null;
-        }
     }
 
     private static String lyricsOf(JSONObject record) {
