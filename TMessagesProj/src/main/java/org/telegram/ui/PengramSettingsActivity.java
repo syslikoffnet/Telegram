@@ -2155,7 +2155,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_ANTICRASH_STATS:
                 PengramAntiCrash.resetStats();
-                adapter.update(true);
+                listView.adapter.update(true);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                         getString(R.string.PengramAntiCrashStatsReset)).show();
                 return;
