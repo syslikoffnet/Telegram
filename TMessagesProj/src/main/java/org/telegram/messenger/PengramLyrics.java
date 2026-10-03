@@ -266,6 +266,28 @@ public class PengramLyrics {
         return failed > 0 && System.currentTimeMillis() - failed < RETRY_AFTER ? STATE_NOT_FOUND : STATE_NONE;
     }
 
+    /**
+     * Один и тот же текст не может принадлежать двум разным трекам.
+     * Если источник уже отдавал эти же слова для другой песни — это чужой текст,
+     * и показывать его нельзя (именно так «одна и та же песня» налипала на всё подряд).
+     */
+    private static String guardDuplicate(String key, String raw) {
+        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(raw)) {
+            return raw;
+        }
+        try {
+            final String hash = "txt_" + hashOf(raw);
+            final String owner = prefs().getString(hash, null);
+            if (!TextUtils.isEmpty(owner) && !owner.equals(key)) {
+                log("отсев — такой же текст уже принадлежит треку «" + owner + "»");
+                return null;
+            }
+            prefs().edit().putString(hash, key).apply();
+        } catch (Throwable ignore) {
+        }
+        return raw;
+    }
+
     private static void store(String key, String raw) {
         if (TextUtils.isEmpty(key)) {
             return;
@@ -332,7 +354,7 @@ public class PengramLyrics {
         checkedCache = true;
         try {
             final SharedPreferences p = prefs();
-            if (p.getInt("cache_version", 1) >= 4) {
+            if (p.getInt("cache_version", 1) >= 5) {
                 return;
             }
             final SharedPreferences.Editor editor = p.edit();
@@ -342,7 +364,7 @@ public class PengramLyrics {
                 }
                 editor.remove(name);
             }
-            editor.putInt("cache_version", 4).apply();
+            editor.putInt("cache_version", 5).apply();
             memory.clear();
         } catch (Throwable ignore) {
         }
@@ -433,7 +455,7 @@ public class PengramLyrics {
                 }
             } catch (Throwable ignore) {
             }
-            final String result = found;
+            final String result = guardDuplicate(key, found);
             AndroidUtilities.runOnUIThread(() -> {
                 final ArrayList<Callback> list;
                 synchronized (loading) {
@@ -666,7 +688,9 @@ public class PengramLyrics {
      * что нашли чужую песню. Такой ответ лучше выбросить, чем показать.
      */
     private static boolean sameLanguage(String artist, String title, String lyrics) {
-        final float wanted = cyrillicRatio(artist + " " + title);
+        // язык берём по названию: у русского исполнителя песня вполне может быть
+        // на английском, и отбрасывать её из-за имени артиста нельзя
+        final float wanted = cyrillicRatio(title);
         final float got = cyrillicRatio(lyrics);
         if (wanted > 0.5f && got < 0.2f) {
             return false;
@@ -838,6 +862,7 @@ public class PengramLyrics {
         final SharedPreferences.Editor editor = prefs().edit();
         if (!TextUtils.isEmpty(cached)) {
             editor.putString("rej_" + key, hashOf(cached));
+            editor.remove("txt_" + hashOf(cached));
         }
         editor.remove(key).remove("fail_" + key).apply();
         memory.remove(key);
@@ -896,13 +921,10 @@ public class PengramLyrics {
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_GENIUS) {
             tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, duration, rejected, "genius"), 3));
         }
-        if (source == PengramConfig.LYRICS_SOURCE_AUTO) {
-            // эти два источника отвечают «хоть чем-нибудь», поэтому зовём их
-            // только когда известен исполнитель, и жёстко проверяем ответ
-            if (!TextUtils.isEmpty(artist)) {
-                tasks.add(() -> wrap(accept(fetchTextyl(artist, title), artist, title, duration, rejected, "textyl"), 4));
-                tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh"), 5));
-            }
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO && !TextUtils.isEmpty(artist)) {
+            // lyrics.ovh ищет строго по паре «исполнитель/название», поэтому чужую
+            // песню отдать не может; поиск «по строке запроса» мы больше не зовём вовсе
+            tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh"), 5));
         }
         for (Callable<Found> task : tasks) {
             try {
@@ -1234,6 +1256,9 @@ public class PengramLyrics {
             if (macro == null) {
                 return null;
             }
+            if (!musixmatchMatches(macro, artist, title, duration)) {
+                return null;
+            }
             final JSONObject subtitles = macro.optJSONObject("track.subtitles.get");
             if (subtitles != null) {
                 final JSONObject message = subtitles.optJSONObject("message");
@@ -1262,6 +1287,49 @@ public class PengramLyrics {
             return null;
         } catch (Throwable e) {
             return null;
+        }
+    }
+
+    /**
+     * Musixmatch на непонятный запрос честно отвечает «вот похожая песня».
+     * Поэтому смотрим, какой трек он нашёл, и сверяем его теми же воротами,
+     * что и каталог LRCLIB: название, исполнитель, длительность.
+     */
+    private static boolean musixmatchMatches(JSONObject macro, String artist, String title, int duration) {
+        try {
+            final JSONObject call = macro.optJSONObject("matcher.track.get") != null
+                    ? macro.optJSONObject("matcher.track.get")
+                    : macro.optJSONObject("track.get");
+            if (call == null) {
+                log("musixmatch: отсев — ответ без описания трека");
+                return false;
+            }
+            final JSONObject message = call.optJSONObject("message");
+            final JSONObject body = message == null ? null : message.optJSONObject("body");
+            final JSONObject track = body == null ? null : body.optJSONObject("track");
+            if (track == null) {
+                log("musixmatch: отсев — ответ без описания трека");
+                return false;
+            }
+            final String gotTitle = track.optString("track_name", "");
+            final String gotArtist = track.optString("artist_name", "");
+            final int gotLength = track.optInt("track_length", 0);
+            if (!titleGate(title, gotTitle)) {
+                log("musixmatch: отсев — название «" + gotTitle + "» не то");
+                return false;
+            }
+            if (!artistGate(artist, gotArtist)) {
+                log("musixmatch: отсев — исполнитель «" + gotArtist + "» не тот");
+                return false;
+            }
+            if (!durationGate(duration, gotLength)) {
+                log("musixmatch: отсев — длительность " + gotLength + " с вместо " + duration + " с");
+                return false;
+            }
+            log("musixmatch: подходит «" + gotArtist + " — " + gotTitle + "»");
+            return true;
+        } catch (Throwable e) {
+            return false;
         }
     }
 
@@ -1297,11 +1365,20 @@ public class PengramLyrics {
                     final org.json.JSONObject primary = result.optJSONObject("primary_artist");
                     final String gotArtist = primary == null ? "" : primary.optString("name", "");
                     final String gotTitle = result.optString("title", "");
-                    if (!TextUtils.isEmpty(url)
-                            && looksLikeMatch(artist, title, gotArtist, gotTitle, 0, 0)) {
-                        path = url;
-                        break;
+                    if (TextUtils.isEmpty(url)) {
+                        continue;
                     }
+                    if (!titleGate(title, gotTitle)) {
+                        log("genius: отсев — название «" + gotTitle + "» не то");
+                        continue;
+                    }
+                    if (!artistGate(artist, gotArtist)) {
+                        log("genius: отсев — исполнитель «" + gotArtist + "» не тот");
+                        continue;
+                    }
+                    log("genius: подходит «" + gotArtist + " — " + gotTitle + "»");
+                    path = url;
+                    break;
                 }
             }
             if (path == null) {
@@ -1345,41 +1422,6 @@ public class PengramLyrics {
                     .replace("&#039;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ");
             text = text.replaceAll("\\n{3,}", "\n\n").trim();
             return text.length() < 30 ? null : text;
-        } catch (Throwable e) {
-            return null;
-        }
-    }
-
-    /** api.textyl.co отдаёт готовый список строк с секундами */
-    private static String fetchTextyl(String artist, String title) {
-        try {
-            final String query = (TextUtils.isEmpty(artist) ? "" : artist + " ") + title;
-            final String json = getUrl("https://api.textyl.co/api/lyrics?q=" + enc(query));
-            if (TextUtils.isEmpty(json) || json.charAt(0) != '[') {
-                return null;
-            }
-            final JSONArray array = new JSONArray(json);
-            if (array.length() < 3) {
-                return null;
-            }
-            final StringBuilder builder = new StringBuilder();
-            for (int a = 0; a < array.length(); ++a) {
-                final JSONObject item = array.optJSONObject(a);
-                if (item == null) {
-                    continue;
-                }
-                final String text = item.optString("lyrics", "").trim();
-                if (TextUtils.isEmpty(text)) {
-                    continue;
-                }
-                final int seconds = item.optInt("seconds", -1);
-                if (seconds >= 0) {
-                    builder.append(String.format(Locale.US, "[%02d:%02d.00]", seconds / 60, seconds % 60));
-                }
-                builder.append(text).append('\n');
-            }
-            final String result = builder.toString().trim();
-            return TextUtils.isEmpty(result) ? null : result;
         } catch (Throwable e) {
             return null;
         }

@@ -26918,11 +26918,12 @@ public class ChatActivity extends BaseFragment implements
         processDeletedMessages(markAsDeletedMessages, channelId, sent, true);
     }
     private void processDeletedMessages(ArrayList<Integer> markAsDeletedMessages, long channelId, boolean sent, boolean thanos) {
-        if (!sent && pengramKeepDeletedMessages(markAsDeletedMessages)) {
-            return;
-        }
         if (!sent) {
+            // сначала анимация по живой ячейке, потом уже решаем, оставлять ли «призрак»
             pengramPlayDeleteEffect(markAsDeletedMessages);
+            if (pengramKeepDeletedMessages(markAsDeletedMessages)) {
+                return;
+            }
         }
         ArrayList<Integer> removedIndexes = new ArrayList<>();
         ArrayList<Integer> thanosMessagesIndexes = new ArrayList<>();
@@ -45098,12 +45099,12 @@ public class ChatActivity extends BaseFragment implements
     private void pengramPlayDeleteEffect(ArrayList<Integer> ids) {
         final int effect = org.telegram.messenger.PengramConfig.getDeleteEffect();
         if (effect == org.telegram.messenger.PengramConfig.DELETE_EFFECT_NONE
-                || effect == org.telegram.messenger.PengramConfig.DELETE_EFFECT_DUST
                 || ids == null || ids.isEmpty() || chatListView == null || contentView == null) {
             return;
         }
-        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS)) {
-            return;   // пользователь выключил тяжёлые эффекты в чате — уважаем
+        if (effect == org.telegram.messenger.PengramConfig.DELETE_EFFECT_DUST
+                && ThanosEffect.supports() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_THANOS)) {
+            return;   // «пыль» на таких устройствах красиво рисует сам Telegram
         }
         int played = 0;
         for (int a = 0; a < chatListView.getChildCount() && played < 6; ++a) {
@@ -45134,22 +45135,34 @@ public class ChatActivity extends BaseFragment implements
         if (contentView == null) {
             return null;
         }
+        final int[] base = new int[2];
+        contentView.getLocationInWindow(base);
         float top = 0;
         float bottom = contentView.getMeasuredHeight();
         try {
-            if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
-                top = Math.max(top, actionBar.getY() + actionBar.getMeasuredHeight());
+            if (actionBar != null && actionBar.getVisibility() == View.VISIBLE && actionBar.getHeight() > 0) {
+                final int[] at = new int[2];
+                actionBar.getLocationInWindow(at);
+                top = Math.max(top, at[1] - base[1] + actionBar.getHeight());
             }
-            if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
-                bottom = Math.min(bottom, chatActivityEnterView.getY());
+            // поле ввода лежит внутри своих контейнеров, поэтому считаем по экрану,
+            // иначе граница получается нулевой и эффект заезжает под панель
+            final View input = chatInputViewsContainer != null ? chatInputViewsContainer
+                    : (chatActivityEnterView != null ? chatActivityEnterView : null);
+            if (input != null && input.getVisibility() == View.VISIBLE && input.getHeight() > 0) {
+                final int[] at = new int[2];
+                input.getLocationInWindow(at);
+                bottom = Math.min(bottom, at[1] - base[1]);
             }
-            if (bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE) {
-                bottom = Math.min(bottom, bottomOverlay.getY());
+            if (bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE && bottomOverlay.getHeight() > 0) {
+                final int[] at = new int[2];
+                bottomOverlay.getLocationInWindow(at);
+                bottom = Math.min(bottom, at[1] - base[1]);
             }
         } catch (Throwable ignore) {
         }
-        if (bottom <= top) {
-            return null;
+        if (bottom - top < AndroidUtilities.dp(48)) {
+            return null;   // что-то посчиталось странно — лучше не ограничивать вовсе
         }
         return new android.graphics.RectF(0, top, contentView.getMeasuredWidth(), bottom);
     }
