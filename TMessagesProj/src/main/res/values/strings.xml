@@ -12029,4 +12029,8 @@
     <string name="PengramSenderAvatarInline">Before message text</string>
     <string name="PengramSenderAvatarBottom">On the bottom corner of the chat avatar</string>
     <string name="PengramSenderAvatarTop">On the top corner of the chat avatar</string>
+    <string name="PengramBypassRouteHeader">Connection route</string>
+    <string name="PengramBypassRouteAuto">Auto — recommended</string>
+    <string name="PengramBypassRouteSplitLegacy">Packet split — legacy networks</string>
+    <string name="PengramBypassRouteInfo">Auto tries WSS first and remembers the fastest working route. A regular direct connection always remains the first choice when available. Packet splitting is kept only for legacy networks because modern stateful DPI recognizes it.</string>
 </resources>

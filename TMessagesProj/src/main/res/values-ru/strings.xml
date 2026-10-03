@@ -1057,4 +1057,8 @@
     <string name="PengramSubsectionInterface">Список чатов и жесты</string>
     <string name="PengramSubsectionInterfaceInfo">Вкладки, диалоги и действия свайпа</string>
     <string name="PengramSubsectionMenus">Меню и видимость</string>
+    <string name="PengramBypassRouteHeader">Способ подключения</string>
+    <string name="PengramBypassRouteAuto">Авто — рекомендуемый</string>
+    <string name="PengramBypassRouteSplitLegacy">Разрыв пакета — старые сети</string>
+    <string name="PengramBypassRouteInfo">Авто сначала использует WSS и запоминает самый быстрый рабочий маршрут. Обычное подключение всегда остаётся первым, если оно доступно. Разрыв пакета оставлен только для старых сетей: современные ТСПУ его распознают.</string>
 </resources>

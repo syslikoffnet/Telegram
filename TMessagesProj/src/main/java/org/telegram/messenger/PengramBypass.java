@@ -43,11 +43,16 @@ public final class PengramBypass {
     public static final int MODE_WS = 2;
     public static final int MODE_MT = 3;
 
+    public static final int ROUTE_AUTO = 0;
+    public static final int ROUTE_WS = 1;
+    public static final int ROUTE_MT = 2;
+    public static final int ROUTE_SPLIT_LEGACY = 3;
+
     private static final String PREFS = "pengram_bypass";
     /** как часто смотрим на состояние связи (одно сравнение числа) */
     private static final long WATCH_INTERVAL = 8000;
     /** столько ждём прямое соединение, прежде чем включать обход */
-    private static final long DIRECT_PATIENCE = 7000;
+    private static final long DIRECT_PATIENCE = 3500;
     /** столько ждём, пока ядро подключится через выбранный способ */
     private static final long MODE_PATIENCE = 10000;
     /** пауза после полной неудачи */
@@ -274,17 +279,37 @@ public final class PengramBypass {
         }, "pengram-bypass-ladder").start();
     }
 
+    public static int getPreferredRoute() {
+        final SharedPreferences p = prefs();
+        final int value = p == null ? ROUTE_AUTO : p.getInt("preferred_route", ROUTE_AUTO);
+        return value < ROUTE_AUTO || value > ROUTE_SPLIT_LEGACY ? ROUTE_AUTO : value;
+    }
+
+    public static void setPreferredRoute(int value) {
+        value = Math.max(ROUTE_AUTO, Math.min(ROUTE_SPLIT_LEGACY, value));
+        final SharedPreferences p = prefs();
+        if (p != null) p.edit().putInt("preferred_route", value).apply();
+        if (isEnabled()) retryNow();
+    }
+
     private static boolean runLadder() {
         final ArrayList<Integer> order = new ArrayList<>();
+        final int preferred = getPreferredRoute();
+        if (preferred != ROUTE_AUTO) {
+            final int selected = preferred == ROUTE_WS ? MODE_WS
+                    : preferred == ROUTE_MT ? MODE_MT : MODE_SPLIT;
+            return tryMode(selected);
+        }
         final int remembered = rememberedMode();
         if (remembered != MODE_NONE) {
             order.add(remembered);
         }
-        for (int candidate : new int[]{MODE_SPLIT, MODE_MT, MODE_WS}) {
-            if (!order.contains(candidate)) {
-                order.add(candidate);
-            }
+        // Fragmentation-only is no longer useful against modern stateful DPI.
+        // Auto uses it neither as a first attempt nor as a fallback; it remains manual for legacy networks.
+        for (int candidate : new int[]{MODE_WS, MODE_MT}) {
+            if (!order.contains(candidate)) order.add(candidate);
         }
+        order.remove((Integer) MODE_SPLIT);
         for (int candidate : order) {
             if (!isEnabled()) {
                 return false;

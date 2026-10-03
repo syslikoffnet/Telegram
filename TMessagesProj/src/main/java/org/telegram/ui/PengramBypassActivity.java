@@ -44,6 +44,7 @@ public class PengramBypassActivity extends BaseFragment {
     private LinearLayout advancedBlock;
     private TextSettingsCell advancedButton;
     private TextSettingsCell refreshCell;
+    private final TextCheckCell[] routeCells = new TextCheckCell[4];
     private boolean advancedShown;
 
     @Override
@@ -94,6 +95,30 @@ public class PengramBypassActivity extends BaseFragment {
         advancedBlock.setOrientation(LinearLayout.VERTICAL);
         advancedBlock.setVisibility(View.GONE);
         root.addView(advancedBlock, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        final HeaderCell routeHeader = new HeaderCell(context);
+        routeHeader.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        routeHeader.setText(LocaleController.getString(R.string.PengramBypassRouteHeader));
+        advancedBlock.addView(routeHeader, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        final int[] routeNames = new int[]{R.string.PengramBypassRouteAuto, R.string.PengramBypassModeWs,
+                R.string.PengramBypassModeMt, R.string.PengramBypassRouteSplitLegacy};
+        for (int route = 0; route < routeCells.length; route++) {
+            final int selectedRoute = route;
+            final TextCheckCell cell = new TextCheckCell(context);
+            routeCells[route] = cell;
+            cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            cell.setTextAndCheck(LocaleController.getString(routeNames[route]), PengramBypass.getPreferredRoute() == route,
+                    route + 1 < routeCells.length);
+            cell.setOnClickListener(v -> {
+                PengramBypass.setPreferredRoute(selectedRoute);
+                updateAll();
+            });
+            advancedBlock.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+        final TextInfoPrivacyCell routeInfo = new TextInfoPrivacyCell(context);
+        routeInfo.setText(LocaleController.getString(R.string.PengramBypassRouteInfo));
+        advancedBlock.addView(routeInfo, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         final HeaderCell howHeader = new HeaderCell(context);
         howHeader.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
@@ -185,6 +210,9 @@ public class PengramBypassActivity extends BaseFragment {
                 String.valueOf(stateText()),
                 PengramBypass.isEnabled(), true, false);
         updateRefreshCell(PengramBypass.isBusy());
+        for (int a = 0; a < routeCells.length; a++) {
+            if (routeCells[a] != null) routeCells[a].setChecked(PengramBypass.getPreferredRoute() == a);
+        }
         if (advancedButton != null) {
             advancedButton.setText(LocaleController.getString(R.string.PengramBypassAdvanced), false);
         }
