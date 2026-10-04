@@ -96,6 +96,9 @@ public class PengramHistoryChatActivity extends BaseFragment {
 
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
+        // Явный фон и занятая status-bar область: без этого на некоторых темах сверху оставалась чёрная полоса.
+        actionBar.setOccupyStatusBar(true);
+        actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
         actionBar.setTitle(getTitleText());
         actionBar.setSubtitle(getSubtitleText());
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {

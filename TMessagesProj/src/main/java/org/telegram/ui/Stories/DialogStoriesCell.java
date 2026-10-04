@@ -634,6 +634,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                 LocaleController.formatPluralString("Stories", totalCount);
         }
 
+        // В свёрнутой шапке историй раньше снова показывался telegram_logo_2. Для всех
+        // пользовательских режимов используем тот же текст бренда, что и основной ActionBar.
+        if (TextUtils.isEmpty(currentTitle) && org.telegram.messenger.PengramConfig.getTitleMode()
+                != org.telegram.messenger.PengramConfig.TITLE_MODE_DEFAULT) {
+            currentTitle = org.telegram.messenger.PengramConfig.resolveAppTitle("Telegram");
+        }
         if (!hasOverlayText) {
             titleView.setText(currentTitle, animated && !LocaleController.isRTL);
         }

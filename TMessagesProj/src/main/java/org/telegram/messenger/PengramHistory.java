@@ -547,7 +547,12 @@ public class PengramHistory extends SQLiteOpenHelper {
             }
             String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data FROM " + TABLE +
                     (where.length() > 0 ? (" WHERE " + where) : "") +
-                    (ascending ? " ORDER BY saved_at ASC, id ASC" : " ORDER BY saved_at DESC, id DESC") +
+                    // Общий «чат истории» стоит по исходной дате/ID сообщения, а версии одного
+                    // сообщения — по времени сохранения. Так удалёнка никогда не прыгает в конец.
+                    (ascending ? (messageId != 0
+                            ? " ORDER BY saved_at ASC, id ASC"
+                            : " ORDER BY date ASC, message_id ASC, saved_at ASC, id ASC")
+                            : " ORDER BY saved_at DESC, id DESC") +
                     " LIMIT " + Math.max(1, limit);
             c = history.getReadableDatabase().rawQuery(sql, args.toArray(new String[0]));
             while (c.moveToNext()) {

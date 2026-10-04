@@ -14810,6 +14810,24 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             });
         }
 
+        /** Канонический экран для автоматически индексируемых строк Pengram. */
+        private static int pengramSearchSection(String name) {
+            if (name == null) return PengramSettingsActivity.SECTION_GENERAL;
+            if (name.contains("Ghost") || name.contains("Online") || name.contains("ReadDate")) return PengramSettingsActivity.SECTION_GHOST;
+            if (name.contains("History") || name.contains("Deleted") || name.contains("Edited") || name.contains("MediaFolder")) return PengramSettingsActivity.SECTION_HISTORY;
+            if (name.contains("InputAnim") || name.contains("DeleteEffect") || name.contains("Message")) return PengramSettingsActivity.SECTION_CHAT_MESSAGES;
+            if (name.contains("Menu") || name.contains("ChatClear") || name.contains("HideChat")) return PengramSettingsActivity.SECTION_CHAT_MENUS;
+            if (name.contains("Avatar") || name.contains("Gesture") || name.contains("Tab") || name.contains("Title")) return PengramSettingsActivity.SECTION_CHAT_INTERFACE;
+            if (name.contains("Quick") || name.contains("Forward") || name.contains("Action")) return PengramSettingsActivity.SECTION_CHAT_ACTIONS;
+            if (name.contains("Voice") || name.contains("Boost") || name.contains("Download")) return PengramSettingsActivity.SECTION_MEDIA;
+            if (name.contains("Phone") || name.contains("Reg") || name.contains("Id") || name.contains("Profile")) return PengramSettingsActivity.SECTION_PROFILE;
+            if (name.contains("Screenshot") || name.contains("Premium") || name.contains("Ads") || name.contains("Bypass")) return PengramSettingsActivity.SECTION_FREEDOM;
+            if (name.contains("Player") || name.contains("Lyrics")) return PengramSettingsActivity.SECTION_PLAYER;
+            if (name.contains("Penguin")) return PengramSettingsActivity.SECTION_PENGUIN;
+            if (name.contains("Color") || name.contains("Appearance") || name.contains("Theme")) return PengramSettingsActivity.SECTION_APPEARANCE;
+            return PengramSettingsActivity.SECTION_GENERAL;
+        }
+
         private static SearchResult[] onCreateSearchArray(final BaseFragment f) {
             final int currentAccount = f.getCurrentAccount();
             final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
@@ -15124,10 +15142,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             try {
                 for (java.lang.reflect.Field field : R.string.class.getFields()) {
                     if (!field.getName().startsWith("Pengram")) continue;
+                    final String resourceName = field.getName();
                     final String title = getString(field.getInt(null));
-                    if (TextUtils.isEmpty(title) || !knownTitles.add(title)) continue;
+                    // Форматные строки без аргументов показывали в поиске мусор вроде «%7$s».
+                    if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
+                            || !knownTitles.add(title)) continue;
+                    final int targetSection = pengramSearchSection(resourceName);
                     all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
-                            () -> f.presentFragment(new PengramSettingsActivity())));
+                            () -> f.presentFragment(new PengramSettingsActivity(targetSection))));
                 }
             } catch (Throwable e) {
                 FileLog.e(e);

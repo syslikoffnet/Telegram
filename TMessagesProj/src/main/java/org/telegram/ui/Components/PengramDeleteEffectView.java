@@ -624,16 +624,20 @@ public class PengramDeleteEffectView extends View {
 
     private void drawCells(Canvas canvas, float t) {
         if (effect == PengramConfig.DELETE_EFFECT_TNT && t < .46f) {
-            // Узнаваемое «взведение»: всё сообщение несколько раз мигает белым всё быстрее.
+            // Взведение в стиле блочного TNT: белые вспышки всё чаще и короткое «раздувание».
             final float armed = t / .46f;
             final float pulse = (float) Math.pow(Math.max(0f, Math.sin((3f + armed * 5f) * Math.PI * armed)), 1.7);
+            final float swell = 1f + pulse * .035f;
+            canvas.save();
+            canvas.scale(swell, swell, bmpW / 2f, bmpH / 2f);
             paint.setAlpha(255);
             paint.setColorFilter(null);
             canvas.drawBitmap(bitmap, 0, 0, paint);
             glow.setStyle(Paint.Style.FILL);
-            glow.setColor((Math.round(armed * 7f) & 1) == 0 ? Color.WHITE : 0xFFFF4242);
-            glow.setAlpha((int) ((55 + 155 * armed) * pulse));
+            glow.setColor(Color.WHITE);
+            glow.setAlpha((int) ((45 + 180 * armed) * pulse));
             canvas.drawRoundRect(0, 0, bmpW, bmpH, AndroidUtilities.dp(8), AndroidUtilities.dp(8), glow);
+            canvas.restore();
             glow.setAlpha(255);
             return;
         }
@@ -716,17 +720,10 @@ public class PengramDeleteEffectView extends View {
                     break;
                 }
                 case PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS: {
-                    final float e = CubicBezierInterpolator.EASE_IN.getInterpolation(local);
-                    final float nearestX = cx < GRID_X / 2 ? -w * .35f : bmpW + w * .35f;
-                    final float nearestY = cy < GRID_Y / 2 ? -h * .35f : bmpH + h * .35f;
-                    if (Math.min(cx, GRID_X - 1 - cx) < Math.min(cy, GRID_Y - 1 - cy)) {
-                        x += (nearestX - (x + w / 2f)) * e;
-                    } else {
-                        y += (nearestY - (y + h / 2f)) * e;
-                    }
-                    scale = 1f - .72f * e;
-                    rotate = cellAngle[a] * 35f * e;
-                    alpha = 1f - e * e;
+                    // Кусок не летит к рамке: пиксели сообщения прямо на месте заменяются порталом.
+                    scale = 1f;
+                    rotate = 0f;
+                    alpha = local < .88f ? 1f : clamp01((1f - local) / .12f);
                     break;
                 }
                 case PengramConfig.DELETE_EFFECT_DISSOLVE: {
@@ -758,14 +755,29 @@ public class PengramDeleteEffectView extends View {
                 canvas.scale(scale, scale, dst.centerX(), dst.centerY());
             }
             paint.setAlpha((int) (255 * Math.max(0f, Math.min(1f, alpha))));
-            canvas.drawBitmap(bitmap, src, dst, paint);
+            if (effect == PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS && local > .18f) {
+                // Сначала виден исходный фрагмент, затем его буквально замещает анимированный портал.
+                if (local < .55f) {
+                    paint.setAlpha((int) (255 * alpha * (1f - (local - .18f) / .37f)));
+                    canvas.drawBitmap(bitmap, src, dst, paint);
+                }
+                final float portalAlpha = clamp01((local - .18f) / .24f) * alpha;
+                glow.setStyle(Paint.Style.FILL);
+                glow.setColor(((cx + cy) & 1) == 0 ? 0xFF42106F : 0xFF7B25B8);
+                glow.setAlpha((int) (255 * portalAlpha));
+                canvas.drawRect(dst, glow);
+                glow.setColor(0xFFC15BFF);
+                glow.setAlpha((int) (145 * portalAlpha * (.65f + .35f * (float) Math.sin(t * 18f + a))));
+                canvas.drawRect(dst.left + w * .18f, dst.top + h * .18f, dst.right - w * .22f, dst.bottom - h * .22f, glow);
+                glow.setAlpha(255);
+            } else {
+                canvas.drawBitmap(bitmap, src, dst, paint);
+            }
             canvas.restore();
         }
 
         if (effect == PengramConfig.DELETE_EFFECT_BURN) {
             drawFireLine(canvas, t);
-        } else if (effect == PengramConfig.DELETE_EFFECT_TNT) {
-            drawBlast(canvas, t);
         }
     }
 
