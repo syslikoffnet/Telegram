@@ -43,6 +43,9 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         public long id, userId, time;
         public int account;
         public String name, username, bio, avatarHash;
+        // UI-only reconstruction metadata; never persisted as full duplicate snapshots.
+        public transient boolean firstSnapshot;
+        public transient String previousName, previousUsername, previousBio, previousAvatarHash;
     }
 
     private PengramProfileHistory(Context context) { super(context, "pengram_profiles.db", null, 1); }
@@ -75,7 +78,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
 
     public static void observeUser(int account, TLRPC.User user, boolean fromCache) {
-        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.id == 777000 || user.id == UserObject.VERIFY || user.self) return;
+        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.support || UserObject.isService(user.id) || user.id == UserObject.VERIFY || user.self) return;
         int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
         if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
         if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
@@ -100,7 +103,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
 
     public static void observeAdditionalUsernames(int account, TLRPC.User user, boolean fromCache) {
-        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.id == 777000 || user.id == UserObject.VERIFY || user.self) return;
+        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.support || UserObject.isService(user.id) || user.id == UserObject.VERIFY || user.self) return;
         int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
         if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
         if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
@@ -119,7 +122,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         PengramProfileHistory h = getInstance(); if (h == null) return;
         synchronized (lock) {
             String oldName=null, oldUsername=null, oldBio=null, oldAvatar=null;
-            try (Cursor c=h.getReadableDatabase().rawQuery("SELECT name,username,bio,avatar_hash FROM changes WHERE user_id=? ORDER BY id DESC",new String[]{""+userId})) {
+            try (Cursor c=h.getReadableDatabase().rawQuery("SELECT name,username,bio,avatar_hash FROM changes WHERE account=? AND user_id=? ORDER BY id DESC",new String[]{""+account,""+userId})) {
                 while(c.moveToNext() && (oldName==null||oldUsername==null||oldBio==null||oldAvatar==null)) {
                     if(oldName==null&&!c.isNull(0))oldName=c.getString(0); if(oldUsername==null&&!c.isNull(1))oldUsername=c.getString(1);
                     if(oldBio==null&&!c.isNull(2))oldBio=c.getString(2); if(oldAvatar==null&&!c.isNull(3))oldAvatar=c.getString(3);
