@@ -123,6 +123,8 @@ public class PengramConfig {
     // --- пересылка ---
     /** прятать ленту историй в списке чатов */
     public static final String KEY_HIDE_STORIES = "hideStories";
+    /** показывать другие аккаунты отдельным блоком в главных настройках */
+    public static final String KEY_SHOW_ACCOUNTS_SETTINGS = "showAccountsInSettings";
 
     /** убрать «хвостик» у пузырей сообщений */
     /** скрыть круглую кнопку «Написать» в списке чатов */

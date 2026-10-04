@@ -14813,7 +14813,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         private static SearchResult[] onCreateSearchArray(final BaseFragment f) {
             final int currentAccount = f.getCurrentAccount();
             final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
-            return new SearchResult[]{
+            final SearchResult[] builtIn = new SearchResult[]{
                     new SearchResult(9000, getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity())).withLink("tg://settings/pengram"),
                     new SearchResult(9001, getString(R.string.PengramSectionProfile), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
                     new SearchResult(9002, getString(R.string.PengramSectionGhost), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
@@ -14822,6 +14822,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9005, getString(R.string.PengramSectionChats), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
                     new SearchResult(9006, getString(R.string.PengramSectionMedia), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
                     new SearchResult(9007, getString(R.string.PengramSectionFreedom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9008, getString(R.string.PengramSectionGeneral), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
+                    new SearchResult(9009, getString(R.string.PengramSectionCustom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CUSTOM))),
+                    new SearchResult(9080, getString(R.string.PengramSectionPlayer), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PLAYER))),
+                    new SearchResult(9081, getString(R.string.PengramSectionPenguin), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PENGUIN))),
+                    new SearchResult(9082, getString(R.string.PengramSubsectionActions), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_ACTIONS))),
+                    new SearchResult(9083, getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
+                    new SearchResult(9084, getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_INTERFACE))),
+                    new SearchResult(9085, getString(R.string.PengramSubsectionMenus), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MENUS))),
+                    new SearchResult(9086, getString(R.string.PengramInputAnimation), null, getString(R.string.PengramSettings), getString(R.string.PengramSubsectionMessages), R.drawable.msg_customize, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
+                    new SearchResult(9087, getString(R.string.PengramShowAccountsSettings), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGeneral), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
                     new SearchResult(9010, getString(R.string.PengramGhostMode), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9011, getString(R.string.PengramGhostHideOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9012, getString(R.string.PengramGhostDontRead), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
@@ -15100,6 +15110,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(403, getString(R.string.TelegramFAQ), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.TelegramFaqUrl))).withLink("tg://settings/faq"),
                     new SearchResult(404, getString(R.string.PrivacyPolicy), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.PrivacyPolicyUrl))).withLink("tg://settings/privacy-policy"),
             };
+            // Индексируем все строки Pengram, в том числе новые настройки, которые разработчик
+            // добавит позже. Это не позволяет очередному пункту незаметно выпасть из поиска.
+            final ArrayList<SearchResult> all = new ArrayList<>();
+            final java.util.HashSet<String> knownTitles = new java.util.HashSet<>();
+            for (SearchResult result : builtIn) {
+                if (result != null) {
+                    all.add(result);
+                    if (result.searchTitle != null) knownTitles.add(result.searchTitle.toString());
+                }
+            }
+            int generatedId = 20000;
+            try {
+                for (java.lang.reflect.Field field : R.string.class.getFields()) {
+                    if (!field.getName().startsWith("Pengram")) continue;
+                    final String title = getString(field.getInt(null));
+                    if (TextUtils.isEmpty(title) || !knownTitles.add(title)) continue;
+                    all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
+                            () -> f.presentFragment(new PengramSettingsActivity())));
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            return all.toArray(new SearchResult[0]);
         }
 
         private static boolean isPremiumFeatureAvailable(int currentAccount, int feature) {

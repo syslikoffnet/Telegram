@@ -54,7 +54,7 @@ public class PengramTypingPreviewView extends FrameLayout {
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                if (!internalChange && count > before && count <= 2) animatePreview();
+                if (!internalChange) PengramTypingEffects.apply(input, input.getText(), start, before, count);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -78,6 +78,7 @@ public class PengramTypingPreviewView extends FrameLayout {
     }
 
     private void resetTransform() {
+        PengramTypingEffects.clear(input);
         if (animator != null) animator.cancel();
         animator = null;
         input.setAlpha(1f);

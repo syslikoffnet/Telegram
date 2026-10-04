@@ -11311,7 +11311,7 @@
     <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
     <string name="PengramMediaInfo">Deleted photos, videos and files (except voice messages) go to /storage/emulated/0/folder. Download is reserved for files downloaded by you. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramSettingsInfo">Ghost mode, deleted messages, appearance</string>
-    <string name="PengramSectionProfile">General and profile</string>
+    <string name="PengramSectionProfile">Profile</string>
     <string name="PengramSectionGhost">Ghost mode</string>
     <string name="PengramSectionHistory">Messages history</string>
     <string name="PengramSectionAppearance">Appearance</string>
@@ -12060,6 +12060,8 @@
     <string name="PengramInputIntensitySoft">Soft</string>
     <string name="PengramInputIntensityMedium">Medium</string>
     <string name="PengramInputIntensityStrong">Strong</string>
+    <string name="PengramShowAccountsSettings">Show accounts in Settings</string>
+    <string name="PengramShowAccountsSettingsInfo">Other logged-in accounts are hidden from the main Settings screen by default.</string>
     <string name="PengramSenderAvatarInline">Before message text</string>
     <string name="PengramSenderAvatarBottom">On the bottom corner of the chat avatar</string>
     <string name="PengramSenderAvatarTop">On the top corner of the chat avatar</string>

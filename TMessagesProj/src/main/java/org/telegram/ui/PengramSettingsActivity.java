@@ -972,8 +972,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
 
-        // крупные цветные строки разделов — как на экране «Настройки»
-        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.PURPLE, R.drawable.msg_customize, getString(R.string.PengramConstructor), null));
+        // Каждый раздел имеет единственный вход. Отдельный «Конструктор» дублировал
+        // те же функции и создавал второй маршрут к настройкам, поэтому убран.
         items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account, getString(R.string.PengramSectionProfile), null));
@@ -1005,6 +1005,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_NO_ROUNDING, false, getString(R.string.PengramNoRounding), getString(R.string.PengramNoRoundingInfo)));
         items.add(checkInfo(PengramConfig.KEY_TIME_SECONDS, false, getString(R.string.PengramTimeSeconds), getString(R.string.PengramTimeSecondsInfo)));
         items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
+        items.add(checkInfo(PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS, false, getString(R.string.PengramShowAccountsSettings), getString(R.string.PengramShowAccountsSettingsInfo)));
         items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), zalgoInfo()));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
 

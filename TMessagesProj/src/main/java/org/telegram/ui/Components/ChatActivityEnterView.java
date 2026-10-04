@@ -5311,59 +5311,14 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private ArrayList<TextWatcher> messageEditTextWatchers;
     private boolean messageEditTextEnabled = true;
-    private Animator pengramTypingAnimator;
-    private long pengramLastTypingAnimation;
     private long pengramLastTypingHaptic;
 
-    /** Cheap compositor-only feedback for a typed character; never allocates per glyph. */
-    private void pengramAnimateTyping(int before, int count) {
-        if (messageEditText == null || count <= before || count > 2 || SharedConfig.getDevicePerformanceClass() == SharedConfig.PERFORMANCE_CLASS_LOW) return;
-        final int mode = org.telegram.messenger.PengramConfig.getInputAnimation();
-        if (mode == org.telegram.messenger.PengramConfig.INPUT_ANIM_NONE) return;
+    /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
+    private void pengramAnimateTyping(int start, int before, int count) {
+        if (messageEditText == null) return;
+        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
         final long now = SystemClock.uptimeMillis();
-        if (now - pengramLastTypingAnimation < 32) return; // cap at ~30 fps for fast keyboards
-        pengramLastTypingAnimation = now;
-        if (pengramTypingAnimator != null) pengramTypingAnimator.cancel();
-        messageEditText.setAlpha(1f);
-        messageEditText.setScaleX(1f);
-        messageEditText.setScaleY(1f);
-        messageEditText.setTranslationX(0f);
-        messageEditText.setTranslationY(0f);
-        final float k = org.telegram.messenger.PengramConfig.getInputAnimationIntensity() * .5f;
-        final long duration = new long[]{90, 140, 210}[org.telegram.messenger.PengramConfig.getInputAnimationSpeed()];
-        Animator animator;
-        switch (mode) {
-            case org.telegram.messenger.PengramConfig.INPUT_ANIM_POP:
-                messageEditText.setScaleX(1f - .018f * k); messageEditText.setScaleY(1f - .018f * k);
-                animator = ObjectAnimator.ofPropertyValuesHolder(messageEditText,
-                        android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f),
-                        android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f));
-                break;
-            case org.telegram.messenger.PengramConfig.INPUT_ANIM_SLIDE:
-                messageEditText.setTranslationX(dp(2.5f) * k * (LocaleController.isRTL ? -1 : 1));
-                animator = ObjectAnimator.ofFloat(messageEditText, View.TRANSLATION_X, 0f); break;
-            case org.telegram.messenger.PengramConfig.INPUT_ANIM_RISE:
-                messageEditText.setTranslationY(dp(2f) * k);
-                animator = ObjectAnimator.ofFloat(messageEditText, View.TRANSLATION_Y, 0f); break;
-            case org.telegram.messenger.PengramConfig.INPUT_ANIM_BOUNCE:
-                messageEditText.setScaleX(1f + .012f * k); messageEditText.setScaleY(1f + .012f * k);
-                animator = ObjectAnimator.ofPropertyValuesHolder(messageEditText,
-                        android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f),
-                        android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f));
-                animator.setInterpolator(new OvershootInterpolator(.9f)); break;
-            case org.telegram.messenger.PengramConfig.INPUT_ANIM_SHAKE:
-                animator = ObjectAnimator.ofFloat(messageEditText, View.TRANSLATION_X, 0, dp(1.2f) * k, -dp(1.2f) * k, 0); break;
-            default:
-                messageEditText.setAlpha(Math.max(.72f, 1f - .12f * k));
-                animator = ObjectAnimator.ofFloat(messageEditText, View.ALPHA, 1f); break;
-        }
-        animator.setDuration(duration);
-        animator.addListener(new AnimatorListenerAdapter() {
-            @Override public void onAnimationEnd(Animator animation) { if (pengramTypingAnimator == animation) pengramTypingAnimator = null; }
-        });
-        pengramTypingAnimator = animator;
-        animator.start();
-        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && now - pengramLastTypingHaptic >= 90) {
+        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && count <= 2 && now - pengramLastTypingHaptic >= 90) {
             pengramLastTypingHaptic = now;
             messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         }
@@ -5977,7 +5932,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     return;
                 }
                 if (!ignoreTextChange && innerTextChange == 0 && !isPaste) {
-                    pengramAnimateTyping(before, count);
+                    pengramAnimateTyping(start, before, count);
                 }
 
                 boolean allowChangeToSmile = true;

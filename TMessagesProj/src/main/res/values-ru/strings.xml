@@ -339,7 +339,7 @@
     <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
     <string name="PengramMediaInfo">Удалённые фото, видео и файлы (кроме голосовых) сохраняются в /storage/emulated/0/папка. Download остаётся только для файлов, скачанных вами. Подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramSettingsInfo">Призрак, удалённые сообщения, оформление</string>
-    <string name="PengramSectionProfile">Основное и профиль</string>
+    <string name="PengramSectionProfile">Профиль</string>
     <string name="PengramSectionGhost">Режим призрака</string>
     <string name="PengramSectionHistory">История сообщений</string>
     <string name="PengramSectionAppearance">Оформление</string>
@@ -1081,6 +1081,8 @@
     <string name="PengramInputIntensitySoft">Слабо</string>
     <string name="PengramInputIntensityMedium">Средне</string>
     <string name="PengramInputIntensityStrong">Сильно</string>
+    <string name="PengramShowAccountsSettings">Показывать аккаунты в Настройках</string>
+    <string name="PengramShowAccountsSettingsInfo">По умолчанию другие добавленные аккаунты скрыты с главного экрана настроек.</string>
     <string name="PengramSenderAvatarInline">Перед текстом сообщения</string>
     <string name="PengramSenderAvatarBottom">На нижнем углу аватарки чата</string>
     <string name="PengramSenderAvatarTop">На верхнем углу аватарки чата</string>
