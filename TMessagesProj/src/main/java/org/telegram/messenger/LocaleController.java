@@ -1469,7 +1469,8 @@ public class LocaleController {
     // deprecated: String key is no longer necessary
     @Deprecated
     public static String getString(String key, @StringRes int res) {
-        return getInstance().getStringInternal(key, res);
+        final String value = getInstance().getStringInternal(key, res);
+        return res == R.string.AppName ? PengramConfig.resolveAppTitle(value) : value;
     }
 
     // deprecated: String key is no longer necessary

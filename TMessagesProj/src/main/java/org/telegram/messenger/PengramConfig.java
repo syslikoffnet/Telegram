@@ -66,7 +66,8 @@ public class PengramConfig {
     public static final int TITLE_MODE_NAME = 3;      // имя аккаунта
     public static final int TITLE_MODE_USERNAME = 4;  // @username
     public static final int TITLE_MODE_CUSTOM = 5;    // свой текст
-    public static int titleMode = TITLE_MODE_DEFAULT;
+    /** На новой установке бренд Pengram используется во всех местах, где Telegram показывал AppName. */
+    public static int titleMode = TITLE_MODE_PENGRAM;
     public static String titleCustom = "";
 
     // размер нижней панели вкладок, % (70..130)
@@ -727,7 +728,7 @@ public class PengramConfig {
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
             regDatePlace = p.getInt("regDatePlace", REG_PLACE_BOTH);
             regDateIcon = p.getInt("regDateIcon", REG_ICON_CALENDAR);
-            titleMode = p.getInt("titleMode", TITLE_MODE_DEFAULT);
+            titleMode = p.getInt("titleMode", TITLE_MODE_PENGRAM);
             titleCustom = p.getString("titleCustom", "");
             tabBarSize = p.getInt("tabBarSize", 100);
             saveDeleted = p.getBoolean("saveDeleted", true);
@@ -941,8 +942,33 @@ public class PengramConfig {
     }
 
     public static int getTitleMode() { init(); return titleMode; }
-    public static void setTitleMode(int mode) { init(); titleMode = mode; putInt("titleMode", mode); }
+    public static void setTitleMode(int mode) { init(); titleMode = Math.max(TITLE_MODE_DEFAULT, Math.min(TITLE_MODE_CUSTOM, mode)); putInt("titleMode", titleMode); }
     public static String getTitleCustom() { init(); return titleCustom == null ? "" : titleCustom; }
+
+    /** Единый источник бренда для шапок, диалогов, уведомлений и accessibility. */
+    public static String resolveAppTitle(String telegramTitle) {
+        init();
+        switch (titleMode) {
+            case TITLE_MODE_PENGRAM:
+                return "Pengram";
+            case TITLE_MODE_CHATS:
+                try { return ApplicationLoader.applicationContext.getString(R.string.PengramTitleChats); } catch (Throwable ignore) { return "Chats"; }
+            case TITLE_MODE_NAME: {
+                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+                final String name = user == null ? null : ContactsController.formatName(user.first_name, user.last_name);
+                return android.text.TextUtils.isEmpty(name) ? "Pengram" : name;
+            }
+            case TITLE_MODE_USERNAME: {
+                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+                final String username = user == null ? null : UserObject.getPublicUsername(user);
+                return android.text.TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
+            }
+            case TITLE_MODE_CUSTOM:
+                return android.text.TextUtils.isEmpty(titleCustom) ? "Pengram" : titleCustom;
+            default:
+                return telegramTitle;
+        }
+    }
     public static void setTitleCustom(String text) { init(); titleCustom = text == null ? "" : text; putString("titleCustom", titleCustom); }
     public static boolean isTitleCentered() { return getBool(KEY_TITLE_CENTER, false); }
 
