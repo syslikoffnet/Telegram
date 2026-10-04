@@ -93,11 +93,11 @@ public final class PengramBypass {
             lastGoodTime = 0;
             lastFailTime = 0;
             start();
-            // заранее собираем входы, чтобы в момент блокировки не ждать ни секунды
+            // Каталоги обновляются параллельно, но включение не ждёт следующего 8-секундного tick.
             if (PengramBypassSources.needRefresh() && ApplicationLoader.isNetworkOnline()) {
                 PengramBypassSources.refresh(false, null);
             }
-            AndroidUtilities.runOnUIThread(PengramBypass::tick, 300);
+            activateImmediately();
         } else {
             releaseTunnel();
             status = STATUS_OFF;
@@ -157,6 +157,9 @@ public final class PengramBypass {
             // Каталоги загружаются заранее параллельно ожиданию прямого соединения.
             PengramBypassSources.refresh(false, null);
         }
+        if (isEnabled()) {
+            AndroidUtilities.runOnUIThread(PengramBypass::activateImmediately, 50);
+        }
         AndroidUtilities.runOnUIThread(PengramBypass::tick, isEnabled() ? 500 : 3000);
     }
 
@@ -167,6 +170,32 @@ public final class PengramBypass {
             FileLog.e(e);
         }
         AndroidUtilities.runOnUIThread(PengramBypass::tick, WATCH_INTERVAL);
+    }
+
+    /**
+     * Немедленная реакция на нажатие переключателя. Если ядро уже подключено, сохраняем
+     * прямой маршрут. В противном случае запускаем запомненный рабочий способ сразу,
+     * не добавляя DIRECT_PATIENCE и WATCH_INTERVAL к ожиданию пользователя.
+     */
+    private static void activateImmediately() {
+        if (!isEnabled()) return;
+        if (!ApplicationLoader.isNetworkOnline()) {
+            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassNoNetwork));
+            return;
+        }
+        if (isCoreConnected()) {
+            lastGoodTime = System.currentTimeMillis();
+            setState(STATUS_DIRECT, LocaleController.getString(R.string.PengramBypassStateDirectInfo));
+            return;
+        }
+        // Явно будим сетевое ядро: после выключения VPN Android не всегда присылает
+        // Telegram новый network callback достаточно быстро.
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).isClientActivated()) {
+                ConnectionsManager.getInstance(a).checkConnection();
+            }
+        }
+        AndroidUtilities.runOnUIThread(PengramBypass::escalate, 50);
     }
 
     private static void check() {

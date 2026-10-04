@@ -353,7 +353,8 @@ public class ApplicationLoader extends Application {
 
         AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
         AndroidUtilities.runOnUIThread(PengramBackgroundService::onApplicationStart, 2000);
-        AndroidUtilities.runOnUIThread(PengramBypass::start, 6000);
+        // Включённый обход должен восстановить соединение сразу после запуска, а не через 6 секунд.
+        AndroidUtilities.runOnUIThread(PengramBypass::start, 500);
         AndroidUtilities.runOnUIThread(PengramHistory::autoCleanup, 4000);
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
