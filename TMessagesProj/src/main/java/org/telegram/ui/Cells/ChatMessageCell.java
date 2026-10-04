@@ -24049,6 +24049,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {
             return false;
         }
+        // в плашке времени живёт метка «удалено»/«изменено» — без неё удалённый стикер
+        // ничем не отличается от обычного, поэтому такие сообщения не трогаем
+        if (pengramMarkDrawn || msg.pengramDeleted) {
+            return false;
+        }
         if (msg.isRoundVideo()) {
             return PengramConfig.isMediaTimeRoundHidden();
         }

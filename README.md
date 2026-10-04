@@ -335,6 +335,15 @@ Workflow сам ставит JDK 17, Android SDK, NDK 27.2.12479018 и CMake 3.2
 Перед запуском workflow нужны секреты `APP_ID` и `APP_HASH` — без них шаг
 «Prepare API keys» остановит сборку с понятной ошибкой.
 
+### Публикация беты
+1. Один раз: **Settings → Secrets and variables → Actions** — секреты `APP_ID` и `APP_HASH`
+   (по желанию `SAFETYNET_KEY`, `GOOGLE_AUTH_CLIENT_ID`, и ключ подписи `KEYSTORE_BASE64` и компания).
+2. `git tag build-1.0-beta && git push origin build-1.0-beta`.
+3. Workflow соберёт APK и сам создаст **pre-release** с этим APK и списком изменений.
+
+Форк не дёргает апдейтер Telegram (`CHECK_UPDATES = false`), поэтому бета не будет
+предлагать пользователю скачать официальный клиент — обновления раздаются из своего канала.
+
 ### Локально
 ```bash
 ./scripts/build-arm64.sh standalone   # или debug

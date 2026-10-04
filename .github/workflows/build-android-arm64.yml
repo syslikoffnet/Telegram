@@ -253,10 +253,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish beta release
+        # тег build-* -> готовый релиз с APK, это и есть публикация беты
+        if: startsWith(github.ref, 'refs/tags/build-')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          name: "Pengram ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: true
+
       - name: Publish failure log to repo
-        if: failure()
+        # только для веток: у тега пушить логи некуда
+        if: failure() && github.ref_type == 'branch'
         env:
-          LOG_BRANCH: arena/01a10249-telegram
+          LOG_BRANCH: ${{ github.ref_name }}
         run: |
           set -eux
           # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
