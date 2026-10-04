@@ -138,6 +138,20 @@ public class PengramConfig {
     public static final String KEY_HIDE_TAIL = "hideBubbleTail";
     /** не писать «изменено» у времени (метка остаётся) */
     public static final String KEY_HIDE_EDITED_LABEL = "hideEditedLabel";
+
+    // --- время поверх медиа (стикеры, кружки, фото) ---
+    /** как показывать плашку времени, которая лежит поверх самого медиа */
+    public static final String KEY_MEDIA_TIME_MODE = "mediaTimeMode";
+    /** как в оригинальном Telegram */
+    public static final int MEDIA_TIME_DEFAULT = 0;
+    /** прятать у стикеров и больших эмодзи */
+    public static final int MEDIA_TIME_HIDE_STICKERS = 1;
+    /** прятать на любом медиа, где время рисуется поверх картинки */
+    public static final int MEDIA_TIME_HIDE_MEDIA = 2;
+    /** прятать и у кружков-видеосообщений */
+    public static final String KEY_MEDIA_TIME_ROUND = "mediaTimeRound";
+    /** пока сообщение не отправлено (часики/ошибка) — показывать всё равно */
+    public static final String KEY_MEDIA_TIME_SENDING = "mediaTimeSending";
     /** тап по календарику показывает текст вместо окна */
     public static final String KEY_REG_TAP_TEXT = "regTapText";
     /** всегда идёт снег в шапке */
@@ -1555,6 +1569,21 @@ public class PengramConfig {
     public static boolean isMenuCopyMessageId() { return getBool(KEY_MENU_COPY_MESSAGE_ID, true); }
     public static boolean isMenuSaveToSaved() { return getBool(KEY_MENU_SAVE_TO_SAVED, true); }
     public static boolean isHidingEditedLabel() { return getBool(KEY_HIDE_EDITED_LABEL, false); }
+
+    /** режим плашки времени поверх медиа */
+    public static int getMediaTimeMode() {
+        return Math.max(MEDIA_TIME_DEFAULT, Math.min(MEDIA_TIME_HIDE_MEDIA, getIntCached(KEY_MEDIA_TIME_MODE, MEDIA_TIME_DEFAULT)));
+    }
+
+    public static void setMediaTimeMode(int mode) {
+        setIntValue(KEY_MEDIA_TIME_MODE, Math.max(MEDIA_TIME_DEFAULT, Math.min(MEDIA_TIME_HIDE_MEDIA, mode)));
+    }
+
+    /** прячем ли время у кружков-видеосообщений */
+    public static boolean isMediaTimeRoundHidden() { return getBool(KEY_MEDIA_TIME_ROUND, false); }
+
+    /** показывать время, пока сообщение ещё отправляется или не ушло */
+    public static boolean isMediaTimeKeptWhileSending() { return getBool(KEY_MEDIA_TIME_SENDING, true); }
     /**
      * Прятать слово «изменено» имеет смысл только когда вместо него рисуется значок.
      * Если значок не выбран — ведём себя как обычный Telegram и пишем «изменено».

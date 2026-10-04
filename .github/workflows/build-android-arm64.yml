@@ -27,6 +27,7 @@ on:
     branches:
       - "arena/01a10249-telegram"
       - "arena/01a105ae-telegram"
+      - "arena/01a10850-telegram"
     tags:
       - "build-*"
 
@@ -180,6 +181,25 @@ jobs:
           else
             echo "Используется keystore из репозитория"
           fi
+
+      - name: Prepare API keys
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
+          SAFETYNET_KEY: ${{ secrets.SAFETYNET_KEY }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
+            echo "::error::Не заданы секреты APP_ID / APP_HASH (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+          {
+            echo "APP_ID=$APP_ID"
+            echo "APP_HASH=$APP_HASH"
+            echo "SAFETYNET_KEY=$SAFETYNET_KEY"
+            echo "GOOGLE_AUTH_CLIENT_ID=$GOOGLE_AUTH_CLIENT_ID"
+          } > api.properties
+          echo "api.properties создан, значения не печатаются"
 
       - name: Build APK
         shell: bash

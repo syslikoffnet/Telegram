@@ -126,6 +126,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.PengramAntiCrash;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -24031,8 +24032,37 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return mediaBackground && (captionLayout == null || captionAbove) && (reactionsLayoutInBubble.isEmpty || reactionsLayoutInBubble.isSmall || currentMessageObject != null && (currentMessageObject.isAnyKindOfSticker() || currentMessageObject.isRoundVideo())) || currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_PAID_MEDIA/* || isMedia && drawCommentButton && !isRepliesChat*/;
     }
 
+    /**
+     * Pengram: плашка времени (и статус рядом с ней) лежит прямо поверх стикера/медиа и закрывает картинку.
+     * Пользователь может выключить её целиком — отдельно для стикеров, кружков и остальных медиа.
+     */
+    public boolean isPengramTimeHidden() {
+        final MessageObject msg = currentMessageObject;
+        if (msg == null) {
+            return false;
+        }
+        final int mode = PengramConfig.getMediaTimeMode();
+        if (mode == PengramConfig.MEDIA_TIME_DEFAULT) {
+            return false;
+        }
+        // пока сообщение не ушло, часики и крестик ошибки важнее красоты
+        if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {
+            return false;
+        }
+        if (msg.isRoundVideo()) {
+            return PengramConfig.isMediaTimeRoundHidden();
+        }
+        if (msg.isAnyKindOfSticker()) {
+            return true;
+        }
+        return mode == PengramConfig.MEDIA_TIME_HIDE_MEDIA && shouldDrawTimeOnMedia();
+    }
+
     public void drawTime(Canvas canvas, float alpha, boolean fromParent) {
         if (!drawFromPinchToZoom && delegate != null && delegate.getPinchToZoomHelper() != null && delegate.getPinchToZoomHelper().isInOverlayModeFor(this) && shouldDrawTimeOnMedia()) {
+            return;
+        }
+        if (isPengramTimeHidden()) {
             return;
         }
         if (currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
@@ -24110,6 +24140,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private void drawTimeInternal(Canvas canvas, float alpha, boolean fromParent, float timeX, StaticLayout timeLayout, float timeWidth, boolean drawSelectionBackground) {
         if ((!drawTime || groupPhotoInvisible) && shouldDrawTimeOnMedia() || timeLayout == null || (currentMessageObject.deleted && currentPosition != null) || currentMessageObject.type == MessageObject.TYPE_PHONE_CALL) {
+            return;
+        }
+        if (isPengramTimeHidden()) {
             return;
         }
         if (currentMessageObject.type == MessageObject.TYPE_ROUND_VIDEO) {

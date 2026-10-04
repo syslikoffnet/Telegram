@@ -4,6 +4,7 @@ on:
     branches:
       - "arena/01a10249-telegram"
       - "arena/01a105ae-telegram"
+      - "arena/01a10850-telegram"
 permissions:
   contents: read
 jobs:
@@ -23,6 +24,25 @@ jobs:
         run: |
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           echo "sdk.dir=$SDK" > local.properties
+      - name: Prepare API keys
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
+          SAFETYNET_KEY: ${{ secrets.SAFETYNET_KEY }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
+            echo "::error::Не заданы секреты APP_ID / APP_HASH (Settings -> Secrets and variables -> Actions)."
+            exit 1
+          fi
+          {
+            echo "APP_ID=$APP_ID"
+            echo "APP_HASH=$APP_HASH"
+            echo "SAFETYNET_KEY=$SAFETYNET_KEY"
+            echo "GOOGLE_AUTH_CLIENT_ID=$GOOGLE_AUTH_CLIENT_ID"
+          } > api.properties
+          echo "api.properties создан, значения не печатаются"
+
       - name: Compile Java
         run: |
           chmod +x gradlew

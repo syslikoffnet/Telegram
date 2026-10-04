@@ -14829,6 +14829,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (name == null) return PengramSettingsActivity.SECTION_GENERAL;
             if (name.contains("Ghost") || name.contains("Online") || name.contains("ReadDate")) return PengramSettingsActivity.SECTION_GHOST;
             if (name.contains("History") || name.contains("Deleted") || name.contains("Edited") || name.contains("MediaFolder")) return PengramSettingsActivity.SECTION_HISTORY;
+            if (name.contains("MediaTime") || name.contains("Bubbles") || name.contains("HideTail")) return PengramSettingsActivity.SECTION_CHAT_MESSAGES;
+            if (name.contains("Dialogs") || name.contains("WriteButton") || name.contains("ThreeLines")
+                    || name.contains("HideArchive") || name.contains("Stories") || name.contains("Sender")) {
+                return PengramSettingsActivity.SECTION_CHAT_INTERFACE;
+            }
             if (name.contains("InputAnim") || name.contains("DeleteEffect") || name.contains("Message")) return PengramSettingsActivity.SECTION_CHAT_MESSAGES;
             if (name.contains("Menu") || name.contains("ChatClear") || name.contains("HideChat")) return PengramSettingsActivity.SECTION_CHAT_MENUS;
             if (name.contains("Avatar") || name.contains("Gesture") || name.contains("Tab") || name.contains("Title")) return PengramSettingsActivity.SECTION_CHAT_INTERFACE;
@@ -15157,10 +15162,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 for (java.lang.reflect.Field field : R.string.class.getFields()) {
                     if (!field.getName().startsWith("Pengram")) continue;
                     final String resourceName = field.getName();
+                    // Подписи-пояснения под пунктами — это не настройки, в поиске от них только шум.
+                    if (resourceName.endsWith("Info") || resourceName.endsWith("Info2")) continue;
                     final String title = getString(field.getInt(null));
                     // Форматные строки без аргументов показывали в поиске мусор вроде «%7$s».
                     if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
-                            || !knownTitles.add(title)) continue;
+                            || title.length() > 60 || !knownTitles.add(title)) continue;
                     final int targetSection = pengramSearchSection(resourceName);
                     all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
                             () -> f.presentFragment(new PengramSettingsActivity(targetSection))));

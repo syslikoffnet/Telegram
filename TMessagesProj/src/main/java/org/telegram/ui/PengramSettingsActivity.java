@@ -223,6 +223,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
     private static final int BTN_LYRICS_SOURCE = 1435;
+
+    // время поверх медиа (стикеры / кружки / фото)
+    private static final int BTN_MEDIA_TIME_DEFAULT = 1440;
+    private static final int BTN_MEDIA_TIME_STICKERS = 1441;
+    private static final int BTN_MEDIA_TIME_MEDIA = 1442;
     /** экран выбора анимации удаления */
     private static final int BTN_DELETE_EFFECT = 1490;
     /** экран обхода блокировок */
@@ -1573,9 +1578,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
         items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
 
+        // Пузыри и время сообщений живут в «Чаты и кнопки → Сообщения» — здесь только переход,
+        // чтобы одна и та же настройка не лежала в двух местах.
         items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
-        items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
-        items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
+        items.add(UItem.asSettingsCell(BTN_SECTION_CHAT_MESSAGES, R.drawable.msg_message,
+                getString(R.string.PengramSubsectionMessages)));
+        items.add(UItem.asShadow(getString(R.string.PengramBubblesMovedInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramPenguinHeader)));
         items.add(UItem.asSettingsCell(BTN_PENGUIN_SKIN, R.drawable.msg_customize, getString(R.string.PengramPenguinSkin),
@@ -1606,10 +1614,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
         items.add(UItem.asShadow(getString(R.string.PengramEffectsInfo)));
 
+        // Всё, что про список чатов, собрано в «Чаты и кнопки → Интерфейс».
+        // Здесь остаётся только то, что меняет приложение целиком.
         items.add(UItem.asHeader(getString(R.string.PengramInterfaceHeader)));
-        items.add(check(PengramConfig.KEY_HIDE_WRITE_BUTTON, false, getString(R.string.PengramHideWriteButton)));
-        items.add(tgCheck(BTN_EXTRA_BASE + 20, getString(R.string.PengramThreeLines), () -> SharedConfig.useThreeLinesLayout, () -> SharedConfig.setUseThreeLinesLayout(!SharedConfig.useThreeLinesLayout)));
-        items.add(tgCheck(BTN_EXTRA_BASE + 21, getString(R.string.PengramHideArchive), () -> SharedConfig.archiveHidden, SharedConfig::toggleArchiveHidden));
         items.add(tgCheck(BTN_EXTRA_BASE + 22, getString(R.string.PengramNoTabletMode), () -> SharedConfig.forceDisableTabletMode, SharedConfig::toggleForceDisableTabletMode));
         items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
     }
@@ -1899,6 +1906,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
         items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
+
+        // --- вид пузырей (переехало сюда из «Оформления»: это про сообщения, а не про тему) ---
+        items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
+        items.add(UItem.asShadow(null));
+
+        // --- время, которое лежит поверх стикера/медиа ---
+        fillMediaTime(items);
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
         if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
         if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }
@@ -1921,12 +1937,39 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
     }
 
+    /**
+     * Плашка времени поверх стикеров, кружков и медиа.
+     * Три понятных режима + уточнения, которые появляются, только когда время вообще прячется.
+     */
+    private void fillMediaTime(ArrayList<UItem> items) {
+        final int mode = PengramConfig.getMediaTimeMode();
+        items.add(UItem.asHeader(getString(R.string.PengramMediaTimeHeader)));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_DEFAULT, getString(R.string.PengramMediaTimeDefault), getString(R.string.PengramMediaTimeDefaultInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_DEFAULT));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_STICKERS, getString(R.string.PengramMediaTimeStickers), getString(R.string.PengramMediaTimeStickersInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_HIDE_STICKERS));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_MEDIA, getString(R.string.PengramMediaTimeMedia), getString(R.string.PengramMediaTimeMediaInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_HIDE_MEDIA));
+        if (mode == PengramConfig.MEDIA_TIME_DEFAULT) {
+            items.add(UItem.asShadow(getString(R.string.PengramMediaTimeInfo)));
+            return;
+        }
+        items.add(UItem.asShadow(null));
+        items.add(subCheck(PengramConfig.KEY_MEDIA_TIME_ROUND, false, getString(R.string.PengramMediaTimeRound)));
+        items.add(subCheck(PengramConfig.KEY_MEDIA_TIME_SENDING, true, getString(R.string.PengramMediaTimeSending)));
+        items.add(UItem.asShadow(getString(R.string.PengramMediaTimeHiddenInfo)));
+    }
+
     private void fillChatInterface(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
         if (tabsMockView == null && getContext() != null) { tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext()); tabsMockView.setOnChanged(this::applyTabsNow); }
         if (tabsMockView != null) { tabsMockView.sync(); items.add(UItem.asCustom(tabsMockView, 140)); }
         items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
         items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
+        // переехало из «Оформления»: это настройки именно списка чатов
+        items.add(check(PengramConfig.KEY_HIDE_WRITE_BUTTON, false, getString(R.string.PengramHideWriteButton)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 20, getString(R.string.PengramThreeLines), () -> SharedConfig.useThreeLinesLayout, () -> SharedConfig.setUseThreeLinesLayout(!SharedConfig.useThreeLinesLayout)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 21, getString(R.string.PengramHideArchive), () -> SharedConfig.archiveHidden, SharedConfig::toggleArchiveHidden));
         items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
         items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
         if (PengramConfig.isDialogSenderAvatars()) {
@@ -2567,6 +2610,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_ID_FORMAT_BOT:
                 PengramConfig.setIdFormat(PengramConfig.ID_FORMAT_BOT);
+                updateAll = true;
+                break;
+            case BTN_MEDIA_TIME_DEFAULT:
+            case BTN_MEDIA_TIME_STICKERS:
+            case BTN_MEDIA_TIME_MEDIA:
+                PengramConfig.setMediaTimeMode(item.id - BTN_MEDIA_TIME_DEFAULT);
                 updateAll = true;
                 break;
             case BTN_BOOST_OFF:

@@ -143,6 +143,18 @@ android {
         minSdkVersion 21
         targetSdkVersion 36
 
+        // --- ключи приложения (api_id / api_hash) ---
+        // В репозитории их нет. Значения берутся, в порядке приоритета, из:
+        //   1) -PAPP_ID=... -PAPP_HASH=... в командной строке,
+        //   2) переменных окружения APP_ID / APP_HASH (удобно для CI),
+        //   3) файла api.properties в корне проекта (он в .gitignore),
+        //   4) local.properties.
+        // Шаблон лежит в api.properties.example, см. README → «Сборка».
+        buildConfigField "int", "APP_ID", pengramSecret("APP_ID", "0")
+        buildConfigField "String", "APP_HASH", "\"" + pengramSecret("APP_HASH", "") + "\""
+        buildConfigField "String", "SAFETYNET_KEY", "\"" + pengramSecret("SAFETYNET_KEY", "") + "\""
+        buildConfigField "String", "GOOGLE_AUTH_CLIENT_ID", "\"" + pengramSecret("GOOGLE_AUTH_CLIENT_ID", "") + "\""
+
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         multiDexEnabled true
@@ -258,6 +270,58 @@ def getProps(String propName) {
         return "";
     }
 }
+
+/** Читает файл с ключами, если он есть. Файлы с ключами в репозиторий не попадают. */
+def pengramPropsFile(String fileName) {
+    def propsFile = rootProject.file(fileName)
+    if (!propsFile.exists()) {
+        return null
+    }
+    def props = new Properties()
+    propsFile.withInputStream { props.load(it) }
+    return props
+}
+
+/**
+ * Секрет сборки: сначала -P, потом переменная окружения, потом api.properties, потом local.properties.
+ * Ничего не найдено — возвращаем значение по умолчанию, а checkApiKeys уронит сборку с понятным текстом.
+ */
+def pengramSecret(String name, String fallback) {
+    def value = project.findProperty(name)
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = System.getenv(name)
+    }
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = pengramPropsFile('api.properties')?.getProperty(name)
+    }
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = pengramPropsFile('local.properties')?.getProperty(name)
+    }
+    if (value == null || value.toString().trim().isEmpty()) {
+        return fallback
+    }
+    return value.toString().trim()
+}
+
+/**
+ * Без api_id/api_hash приложение не залогинится, поэтому падаем на старте сборки,
+ * а не ловим «AUTH_KEY» уже в телефоне.
+ */
+task checkApiKeys {
+    doFirst {
+        def appId = pengramSecret("APP_ID", "0")
+        def appHash = pengramSecret("APP_HASH", "")
+        if (appId == "0" || appHash.isEmpty()) {
+            throw new GradleException(
+                    "Не заданы APP_ID / APP_HASH.\n" +
+                    "Скопируйте api.properties.example в api.properties (он в .gitignore) и впишите свои ключи\n" +
+                    "с https://my.telegram.org, либо передайте их через -PAPP_ID=... -PAPP_HASH=... или переменные окружения.")
+        }
+    }
+}
+
+preBuild.dependsOn checkApiKeys
+
 apply plugin: 'com.google.gms.google-services'
 
 task checkVisibility {
