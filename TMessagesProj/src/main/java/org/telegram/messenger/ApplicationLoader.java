@@ -214,6 +214,10 @@ public class ApplicationLoader extends Application {
 
                     boolean isSlow = isConnectionSlow();
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                        // не поднимаем сетевой стек для пустых слотов на каждое событие сети
+                        if (!UserConfig.isValidAccount(a)) {
+                            continue;
+                        }
                         ConnectionsManager.getInstance(a).checkConnection();
                         FileLoader.getInstance(a).onNetworkChanged(isSlow);
                     }
@@ -247,8 +251,15 @@ public class ApplicationLoader extends Application {
         PengramConfig.init();
         SharedConfig.loadConfig();
         SharedPrefsHelper.init(applicationContext);
+        // Pengram: слотов под аккаунты много, но на старте поднимаем только занятые.
+        // Пустой слот не создаёт ни MessagesController, ни сетевой менеджер —
+        // это и память, и дескрипторы, и время запуска.
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();
+            final boolean slotUsed = a == 0 || UserConfig.getInstance(a).isClientActivated();
+            if (!slotUsed) {
+                continue;
+            }
             MessagesController.getInstance(a);
             if (a == 0) {
                 SharedConfig.pushStringStatus = "__FIREBASE_GENERATING_SINCE_" + ConnectionsManager.getInstance(a).getCurrentTime() + "__";
@@ -270,6 +281,9 @@ public class ApplicationLoader extends Application {
 
         MediaController.getInstance();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
+            if (a != 0 && !UserConfig.getInstance(a).isClientActivated()) {
+                continue;
+            }
             ContactsController.getInstance(a).checkAppAccount();
             DownloadController.getInstance(a);
         }

@@ -135,25 +135,43 @@ ConnectionsManager::~ConnectionsManager() {
     pthread_mutex_destroy(&mutex);
 }
 
-ConnectionsManager& ConnectionsManager::getInstance(int32_t instanceNum) {
-    switch (instanceNum) {
-        case 0:
-            static ConnectionsManager instance0(0);
-            return instance0;
-        case 1:
-            static ConnectionsManager instance1(1);
-            return instance1;
-        case 2:
-            static ConnectionsManager instance2(2);
-            return instance2;
-        case 3:
-            static ConnectionsManager instance3(3);
-            return instance3;
-        case 4:
-        default:
-            static ConnectionsManager instance4(4);
-            return instance4;
+// Pengram: экземпляры создаются лениво и только для реально используемых аккаунтов.
+// Раньше здесь было пять жёстко прошитых статических объектов, и любой аккаунт с
+// номером больше четвёртого молча попадал в чужой — а индексация jniEnv[] выходила
+// за границы массива и роняла приложение на старте.
+static ConnectionsManager *connectionsManagerInstances[MAX_ACCOUNT_COUNT] = {};
+static pthread_mutex_t connectionsManagerInstancesMutex = PTHREAD_MUTEX_INITIALIZER;
+static void (*connectionsManagerCreatedCallback)(int32_t) = nullptr;
+
+void ConnectionsManager::setInstanceCreatedCallback(void (*callback)(int32_t)) {
+    connectionsManagerCreatedCallback = callback;
+}
+
+bool ConnectionsManager::hasInstance(int32_t instanceNum) {
+    if (instanceNum < 0 || instanceNum >= MAX_ACCOUNT_COUNT) {
+        return false;
     }
+    return connectionsManagerInstances[instanceNum] != nullptr;
+}
+
+ConnectionsManager& ConnectionsManager::getInstance(int32_t instanceNum) {
+    if (instanceNum < 0 || instanceNum >= MAX_ACCOUNT_COUNT) {
+        instanceNum = 0;
+    }
+    ConnectionsManager *manager = connectionsManagerInstances[instanceNum];
+    if (manager == nullptr) {
+        pthread_mutex_lock(&connectionsManagerInstancesMutex);
+        manager = connectionsManagerInstances[instanceNum];
+        if (manager == nullptr) {
+            manager = new ConnectionsManager(instanceNum);
+            connectionsManagerInstances[instanceNum] = manager;
+            if (connectionsManagerCreatedCallback != nullptr) {
+                connectionsManagerCreatedCallback(instanceNum);
+            }
+        }
+        pthread_mutex_unlock(&connectionsManagerInstancesMutex);
+    }
+    return *manager;
 }
 
 int ConnectionsManager::callEvents(int64_t now) {

@@ -514,10 +514,19 @@ void init(JNIEnv *env, jclass c, jint instanceNum, jint version, jint layer, jin
     }
 }
 
+static void onConnectionsManagerCreated(int32_t instanceNum) {
+    ConnectionsManager::getInstance(instanceNum).setDelegate(new Delegate());
+}
+
 void setJava(JNIEnv *env, jclass c, jboolean useJavaByteBuffers) {
     ConnectionsManager::useJavaVM(java, useJavaByteBuffers);
+    // Делегат ставится в момент создания экземпляра: поднимать все аккаунты сразу
+    // не нужно — пустые слоты не тратят ни памяти, ни файловых дескрипторов.
+    ConnectionsManager::setInstanceCreatedCallback(onConnectionsManagerCreated);
     for (int a = 0; a < MAX_ACCOUNT_COUNT; a++) {
-        ConnectionsManager::getInstance(a).setDelegate(new Delegate());
+        if (ConnectionsManager::hasInstance(a)) {
+            ConnectionsManager::getInstance(a).setDelegate(new Delegate());
+        }
     }
 }
 

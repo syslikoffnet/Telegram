@@ -43,6 +43,10 @@ public:
     ~ConnectionsManager();
 
     static ConnectionsManager &getInstance(int32_t instanceNum);
+    /** Pengram: экземпляр уже создан (без побочного создания нового) */
+    static bool hasInstance(int32_t instanceNum);
+    /** Pengram: вызывается при создании экземпляра — туда вешается Java-делегат */
+    static void setInstanceCreatedCallback(void (*callback)(int32_t));
     int64_t getCurrentTimeMillis();
     int64_t getCurrentTimeMonotonicMillis();
     int32_t getCurrentTime();
