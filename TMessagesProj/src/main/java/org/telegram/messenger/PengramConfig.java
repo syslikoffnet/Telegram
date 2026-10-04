@@ -496,6 +496,19 @@ public class PengramConfig {
 
     public static void setAntiCrashJournal(String value) { putString("antiCrashJournal", value == null ? "" : value); }
 
+    public static String getString(String key, String def) { SharedPreferences p = prefs(); return p == null ? def : p.getString(key, def); }
+    public static void setString(String key, String value) { putString(key, value == null ? "" : value); }
+
+    /* --- быстрые ссылки: два слота «название + t.me-ссылка» для меню Pengram в чате --- */
+
+    public static final String KEY_QUICKLINK_COPY = "quickLinkCopy";
+
+    public static String getQuickLinkTitle(int slot) { return getString("quickLink" + slot + "Title", "").trim(); }
+    public static String getQuickLinkUrl(int slot) { return getString("quickLink" + slot + "Url", "").trim(); }
+    public static void setQuickLinkTitle(int slot, String value) { setString("quickLink" + slot + "Title", value == null ? "" : value.trim()); }
+    public static void setQuickLinkUrl(int slot, String value) { setString("quickLink" + slot + "Url", value == null ? "" : value.trim()); }
+    public static boolean isQuickLinkCopyMine() { return getBool(KEY_QUICKLINK_COPY, false); }
+
     public static void setAntiCrashBlocked(int value) { putInt("antiCrashBlocked", Math.max(0, value)); }
 
     /** всё, что связано с текстами, приложение делает само */

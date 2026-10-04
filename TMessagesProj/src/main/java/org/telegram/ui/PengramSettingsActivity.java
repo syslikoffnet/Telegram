@@ -214,6 +214,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BYPASS = 1491;
     private static final int BTN_ANTICRASH_STATS = 1492;
     private static final int BTN_ANTICRASH_LOG = 1493;
+    private static final int BTN_QUICKLINK1_TITLE = 1494;
+    private static final int BTN_QUICKLINK1_URL = 1495;
+    private static final int BTN_QUICKLINK2_TITLE = 1496;
+    private static final int BTN_QUICKLINK2_URL = 1497;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     /** переключатели «чужих» настроек Telegram и LiteMode */
@@ -405,6 +409,29 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramAntiCrash.KIND_DRAW: return R.drawable.msg_info;
             default: return R.drawable.msg_retry;
         }
+    }
+
+    private String quickLinkValue(String value) {
+        return value == null || value.isEmpty() ? "\u2014" : value;
+    }
+
+    /** текст названия/ссылки быстрой кнопки */
+    private void showQuickLinkText(final int slot, final boolean title) {
+        showTextDialog(
+                getString(title ? (slot == 1 ? R.string.PengramQuickLink1Title : R.string.PengramQuickLink2Title)
+                        : (slot == 1 ? R.string.PengramQuickLink1Url : R.string.PengramQuickLink2Url)),
+                title ? PengramConfig.getQuickLinkTitle(slot) : PengramConfig.getQuickLinkUrl(slot),
+                title ? getString(R.string.PengramQuickLinkTitleHint) : "https://t.me/name/123",
+                value -> {
+                    if (title) {
+                        PengramConfig.setQuickLinkTitle(slot, value);
+                    } else {
+                        PengramConfig.setQuickLinkUrl(slot, value);
+                    }
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
     }
 
     /** журнал атак: кто когда пытался уронить клиент и чем именно */
@@ -1872,6 +1899,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramQuickLinkHeader)));
+        items.add(UItem.asSettingsCell(BTN_QUICKLINK1_TITLE, R.drawable.msg_link, getString(R.string.PengramQuickLink1Title), quickLinkValue(PengramConfig.getQuickLinkTitle(1))));
+        items.add(UItem.asSettingsCell(BTN_QUICKLINK1_URL, R.drawable.msg_link, getString(R.string.PengramQuickLink1Url), quickLinkValue(PengramConfig.getQuickLinkUrl(1))));
+        items.add(UItem.asSettingsCell(BTN_QUICKLINK2_TITLE, R.drawable.msg_link, getString(R.string.PengramQuickLink2Title), quickLinkValue(PengramConfig.getQuickLinkTitle(2))));
+        items.add(UItem.asSettingsCell(BTN_QUICKLINK2_URL, R.drawable.msg_link, getString(R.string.PengramQuickLink2Url), quickLinkValue(PengramConfig.getQuickLinkUrl(2))));
+        items.add(check(PengramConfig.KEY_QUICKLINK_COPY, false, getString(R.string.PengramQuickLinkCopy)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuickLinkInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
         items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.ChatListSwipeGesture), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
@@ -2264,6 +2299,18 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_ANTICRASH_LOG:
                 showAntiCrashLog();
+                return;
+            case BTN_QUICKLINK1_TITLE:
+                showQuickLinkText(1, true);
+                return;
+            case BTN_QUICKLINK1_URL:
+                showQuickLinkText(1, false);
+                return;
+            case BTN_QUICKLINK2_TITLE:
+                showQuickLinkText(2, true);
+                return;
+            case BTN_QUICKLINK2_URL:
+                showQuickLinkText(2, false);
                 return;
             case BTN_DELETE_EFFECT:
                 presentFragment(new PengramDeleteEffectActivity());

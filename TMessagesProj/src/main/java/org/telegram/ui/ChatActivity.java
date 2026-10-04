@@ -1737,6 +1737,16 @@ public class ChatActivity extends BaseFragment implements
                         LocaleController.getString(org.telegram.messenger.PengramConfig.getChatItemTitle(id)));
                 any = true;
             }
+            for (int slot = 1; slot <= 2; ++slot) {
+                if (org.telegram.messenger.PengramConfig.getQuickLinkUrl(slot).isEmpty()) {
+                    continue;
+                }
+                final String label = org.telegram.messenger.PengramConfig.getQuickLinkTitle(slot);
+                headerItem.lazilyAddSubItem(slot == 1 ? pengram_quick_link1 : pengram_quick_link2,
+                        R.drawable.msg_link,
+                        label.isEmpty() ? LocaleController.getString(R.string.PengramQuickLinkFallback) : label);
+                any = true;
+            }
             if (any) {
                 headerItem.lazilyAddColoredGap();
             }
@@ -1762,6 +1772,114 @@ public class ChatActivity extends BaseFragment implements
         if (actionId != 0 && actionBar != null && actionBar.getActionBarMenuOnItemClick() != null) {
             actionBar.getActionBarMenuOnItemClick().onItemClick(actionId);
         }
+    }
+
+    /** Pengram: быстрая ссылка — в один тап отправить в текущий чат сообщение по t.me-ссылке.
+     * Ссылку и подпись пользователь задаёт сам в настройках Pengram. */
+    private void pengramQuickLinkSend(final int slot) {
+        final String url = org.telegram.messenger.PengramConfig.getQuickLinkUrl(slot);
+        if (url.isEmpty()) {
+            return;
+        }
+        String username = null;
+        long channelNumericId = 0;
+        int messageId = 0;
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("^(?:https?://)?t\\.me/c/(\\d+)/(\\d+)(?:\\?.*)?$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(url);
+        if (matcher.find()) {
+            try {
+                channelNumericId = Long.parseLong(matcher.group(1));
+                messageId = Integer.parseInt(matcher.group(2));
+            } catch (Throwable ignore) {
+            }
+        } else {
+            matcher = java.util.regex.Pattern
+                    .compile("^(?:https?://)?t\\.me/([A-Za-z0-9_]+)/(\\d+)(?:\\?.*)?$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(url);
+            if (matcher.find()) {
+                username = matcher.group(1);
+                try {
+                    messageId = Integer.parseInt(matcher.group(2));
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+        if (messageId <= 0 || (username == null && channelNumericId == 0)) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramQuickLinkInvalid)).show();
+            return;
+        }
+        if (username != null) {
+            final TLRPC.TL_contacts_resolveUsername req = new TLRPC.TL_contacts_resolveUsername();
+            req.username = username;
+            final int fMessageId = messageId;
+            getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+                if (res instanceof TLRPC.TL_contacts_resolvedPeer) {
+                    final TLRPC.TL_contacts_resolvedPeer resolved = (TLRPC.TL_contacts_resolvedPeer) res;
+                    getMessagesController().putUsers(resolved.users, false);
+                    getMessagesController().putChats(resolved.chats, false);
+                    pengramQuickLinkLoad(DialogObject.getPeerDialogId(resolved.peer), fMessageId);
+                } else {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramQuickLinkPeerFail)).show();
+                }
+            }));
+        } else {
+            if (getMessagesController().getChat(channelNumericId) == null) {
+                // приватная ссылка t.me/c/... требует, чтобы чат был хотя бы раз открыт вручную
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramQuickLinkPeerFail)).show();
+                return;
+            }
+            pengramQuickLinkLoad(-channelNumericId, messageId);
+        }
+    }
+
+    private void pengramQuickLinkLoad(final long peerDialogId, final int messageId) {
+        final TLObject req;
+        if (peerDialogId < 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(-peerDialogId);
+            if (chat != null && ChatObject.isChannel(chat)) {
+                final TLRPC.TL_channels_getMessages request = new TLRPC.TL_channels_getMessages();
+                request.channel = MessagesController.getInputChannel(chat);
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                mid.id = messageId;
+                request.id.add(mid);
+                req = request;
+            } else {
+                final TLRPC.TL_messages_getMessages request = new TLRPC.TL_messages_getMessages();
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                mid.id = messageId;
+                request.id.add(mid);
+                req = request;
+            }
+        } else {
+            final TLRPC.TL_messages_getMessages request = new TLRPC.TL_messages_getMessages();
+            final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+            mid.id = messageId;
+            request.id.add(mid);
+            req = request;
+        }
+        getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            TLRPC.Message found = null;
+            if (res instanceof TLRPC.messages_Messages) {
+                final TLRPC.messages_Messages messages = (TLRPC.messages_Messages) res;
+                getMessagesController().putUsers(messages.users, false);
+                getMessagesController().putChats(messages.chats, false);
+                for (int a = 0; a < messages.messages.size(); ++a) {
+                    final TLRPC.Message candidate = messages.messages.get(a);
+                    if (candidate != null && candidate.id == messageId) {
+                        found = candidate;
+                        break;
+                    }
+                }
+            }
+            if (found == null) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramQuickLinkMsgFail)).show();
+                return;
+            }
+            final MessageObject messageObject = new MessageObject(currentAccount, found, true, true);
+            final ArrayList<MessageObject> list = new ArrayList<>();
+            list.add(messageObject);
+            // стандартный путь пересылки: с автором или копией от своего имени — по выключателю в настройках
+            forwardMessages(list, org.telegram.messenger.PengramConfig.isQuickLinkCopyMine(), false, true, 0, 0);
+        }));
     }
 
     /** Pengram: наши пункты добавляем только один раз на одно создание меню */
@@ -2222,6 +2340,8 @@ public class ChatActivity extends BaseFragment implements
     private final static int pengram_to_beginning = 902;
     private final static int pengram_copy_chat_id = 903;
     private final static int pengram_saved_media = 904;
+    private final static int pengram_quick_link1 = 905;
+    private final static int pengram_quick_link2 = 906;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -4250,6 +4370,12 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 } else if (id == pengram_saved_media) {
                     presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+                    return;
+                } else if (id == pengram_quick_link1) {
+                    pengramQuickLinkSend(1);
+                    return;
+                } else if (id == pengram_quick_link2) {
+                    pengramQuickLinkSend(2);
                     return;
                 }
                 if (id == -1) {
