@@ -1057,6 +1057,7 @@
     <string name="PengramQuickActionText">Текст сообщения</string>
     <string name="PengramQuickActionLink">Ссылка на публичный пост t.me</string>
     <string name="PengramQuickDefaultName">Новое действие</string>
+    <string name="PengramQuickEmptyText">Введите текст сообщения перед сохранением действия.</string>
     <string name="PengramSenderAvatarPosition">Позиция мини-аватарки</string>
     <string name="PengramSwipeAction">Смахивание влево</string>
     <string name="PengramSenderAvatarInline">Перед текстом сообщения</string>

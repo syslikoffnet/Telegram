@@ -1558,13 +1558,20 @@ public class PengramConfig {
     public static final int QUICK_ACTION_TEXT = 1;
     public static int getQuickActionCount() { return Math.max(0, Math.min(QUICK_ACTION_LIMIT, getIntCached("quickActionCount", 0))); }
     public static void setQuickActionCount(int count) { putInt("quickActionCount", Math.max(0, Math.min(QUICK_ACTION_LIMIT, count))); }
-    public static String getQuickActionName(int index) { init(); SharedPreferences p = prefs(); return (p == null ? "Action " + (index + 1) : p.getString("quickActionName" + index, "Action " + (index + 1))).trim(); }
+    public static String getQuickActionName(int index) {
+        init();
+        final SharedPreferences p = prefs();
+        final String fallback = "Action " + (index + 1);
+        final String value = p == null ? fallback : p.getString("quickActionName" + index, fallback);
+        return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    }
     public static String getQuickActionValue(int index) { init(); SharedPreferences p = prefs(); return p == null ? "" : p.getString("quickActionValue" + index, ""); }
     public static int getQuickActionType(int index) { return getIntCached("quickActionType" + index, QUICK_ACTION_TEXT) == QUICK_ACTION_FORWARD ? QUICK_ACTION_FORWARD : QUICK_ACTION_TEXT; }
     public static void setQuickAction(int index, String name, String value, int type) {
         if (index < 0 || index >= QUICK_ACTION_LIMIT) return;
         putString("quickActionName" + index, name == null ? "" : name.trim());
-        putString("quickActionValue" + index, value == null ? "" : value.trim());
+        // Для текстового действия сохраняем переносы и пробелы пользователя; URL нормализуем при выполнении.
+        putString("quickActionValue" + index, value == null ? "" : value);
         putInt("quickActionType" + index, type == QUICK_ACTION_FORWARD ? QUICK_ACTION_FORWARD : QUICK_ACTION_TEXT);
     }
     public static void removeQuickAction(int index) {

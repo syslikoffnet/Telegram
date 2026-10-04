@@ -14551,6 +14551,7 @@ public class MessagesStorage extends BaseController {
             }
             final boolean isImage = message.media instanceof TLRPC.TL_messageMediaPhoto;
             boolean isVideo = false;
+            boolean isVoice = false;
             String mime = null;
             String ext = isImage ? "jpg" : null;
             TLRPC.Document doc = message.media.document;
@@ -14559,6 +14560,8 @@ public class MessagesStorage extends BaseController {
                 for (int i = 0; i < doc.attributes.size(); ++i) {
                     if (doc.attributes.get(i) instanceof TLRPC.TL_documentAttributeVideo) {
                         isVideo = true;
+                    } else if (doc.attributes.get(i) instanceof TLRPC.TL_documentAttributeAudio) {
+                        isVoice = ((TLRPC.TL_documentAttributeAudio) doc.attributes.get(i)).voice;
                     }
                 }
                 final String docName = FileLoader.getDocumentFileName(doc);
@@ -14576,7 +14579,7 @@ public class MessagesStorage extends BaseController {
                 return;
             }
             final String name = PengramHistory.buildFileName(PengramConfig.getMediaPattern(), dialogId, message.id, message.date, ext);
-            PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage);
+            PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage, isVoice);
         } catch (Throwable e) {
             FileLog.e(e);
         }

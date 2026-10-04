@@ -1950,7 +1950,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
     }
 
-    private void editQuickAction(final int index) {
+    private void editQuickAction(final int index, final boolean isNew) {
         final CharSequence[] options = new CharSequence[]{
                 getString(R.string.PengramQuickTypeText),
                 getString(R.string.PengramQuickTypeForward),
@@ -1959,8 +1959,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         final int selected = PengramConfig.getQuickActionType(index) == PengramConfig.QUICK_ACTION_FORWARD ? 1 : 0;
         showChoicePicker(getString(R.string.PengramQuickActionType), options, selected, choice -> {
             if (choice == 2) {
-                PengramConfig.removeQuickAction(index);
-                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                if (!isNew) {
+                    PengramConfig.removeQuickAction(index);
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                }
                 return;
             }
             final int type = choice == 1 ? PengramConfig.QUICK_ACTION_FORWARD : PengramConfig.QUICK_ACTION_TEXT;
@@ -1973,7 +1975,15 @@ public class PengramSettingsActivity extends UniversalFragment {
                                             .setMessage(getString(R.string.PengramQuickInvalidUrl)).setPositiveButton(getString(R.string.OK), null).show();
                                     return;
                                 }
+                                if (type == PengramConfig.QUICK_ACTION_TEXT && (value == null || value.isEmpty())) {
+                                    new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName))
+                                            .setMessage(getString(R.string.PengramQuickEmptyText)).setPositiveButton(getString(R.string.OK), null).show();
+                                    return;
+                                }
                                 PengramConfig.setQuickAction(index, name, value, type);
+                                if (isNew) {
+                                    PengramConfig.setQuickActionCount(index + 1);
+                                }
                                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                             }));
         });
@@ -2119,16 +2129,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_QUICK_ACTION_BASE && item.id < BTN_QUICK_ACTION_BASE + PengramConfig.QUICK_ACTION_LIMIT) {
-            editQuickAction(item.id - BTN_QUICK_ACTION_BASE);
+            editQuickAction(item.id - BTN_QUICK_ACTION_BASE, false);
             return;
         }
         switch (item.id) {
             case BTN_QUICK_ADD: {
                 final int index = PengramConfig.getQuickActionCount();
                 if (index < PengramConfig.QUICK_ACTION_LIMIT) {
-                    PengramConfig.setQuickAction(index, getString(R.string.PengramQuickDefaultName), "", PengramConfig.QUICK_ACTION_TEXT);
-                    PengramConfig.setQuickActionCount(index + 1);
-                    editQuickAction(index);
+                    // Не создаём пустую кнопку заранее: отмена любого диалога оставляет список неизменным.
+                    editQuickAction(index, true);
                 }
                 return;
             }

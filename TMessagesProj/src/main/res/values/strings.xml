@@ -12022,6 +12022,7 @@
     <string name="PengramQuickActionText">Message text</string>
     <string name="PengramQuickActionLink">Public t.me post link</string>
     <string name="PengramQuickDefaultName">New action</string>
+    <string name="PengramQuickEmptyText">Enter the message text before saving this action.</string>
     <string name="PengramHideSharePhoneOption">Hide “Share my phone number” option</string>
     <string name="PengramSharePhoneDefault">Share my phone number by default</string>
     <string name="PengramAntiCrashJournalEnabled">Keep attack journal</string>

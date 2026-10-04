@@ -789,12 +789,9 @@ public class PengramHistory extends SQLiteOpenHelper {
      * Download остаётся только для файлов, которые явно скачал сам пользователь. Голосовые
      * сообщения намеренно не экспортируются: они остаются частью приватной истории Pengram.
      */
-    public static void saveMediaCopy(final File source, final String displayName, final String mimeType, final boolean isVideo, final boolean isImage) {
-        if (source == null || !source.exists() || ApplicationLoader.applicationContext == null) {
-            return;
-        }
-        final String normalizedMime = mimeType == null ? "" : mimeType.toLowerCase(Locale.US);
-        if (normalizedMime.startsWith("audio/") || normalizedMime.contains("ogg") || normalizedMime.contains("opus")) {
+    public static void saveMediaCopy(final File source, final String displayName, final String mimeType,
+                                     final boolean isVideo, final boolean isImage, final boolean isVoice) {
+        if (source == null || !source.exists() || ApplicationLoader.applicationContext == null || isVoice) {
             return;
         }
         executor.execute(() -> {
