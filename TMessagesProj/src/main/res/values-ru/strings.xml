@@ -1113,7 +1113,11 @@
     <string name="PengramProfileHistoryTrack">Начать отслеживать изменения</string>
     <string name="PengramProfileHistoryClearAvatars">Очистить историю аватарок</string>
     <string name="PengramProfileHistoryClearAvatarsInfo">Удалить все дедуплицированные WebP-миниатюры из приватного хранилища Pengram? Текстовая история не изменится.</string>
-    <string name="PengramProfileHistoryRetentionInfo">По умолчанию: до 1 ГБ, бессрочно. Аватары дедуплицируются по MD5 и не относятся к кэшу Telegram.</string>
+    <string name="PengramProfileHistoryRetentionInfo">Ограничения размера и времени независимы. «Без ограничений» отключает соответствующую автоочистку. Аватары дедуплицируются по MD5 и не относятся к кэшу Telegram.</string>
+    <string name="PengramProfileLimitSize">Лимит хранилища</string>
+    <string name="PengramProfileLimitTime">Срок хранения</string>
+    <string name="PengramProfileUnlimited">Без ограничений</string>
+    <string name="PengramProfileDays">дней</string>
     <string name="PengramProfileHistoryDisable">Сбор выключен</string>
     <string name="PengramProfileHistoryDisableInfo">Выберите, что сделать с уже собранными данными.</string>
     <string name="PengramProfileDisableKeep">Выключить и оставить все данные</string>

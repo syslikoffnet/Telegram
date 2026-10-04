@@ -24,6 +24,9 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     public static final String KEY_BIO = "profileHistoryBio";
     public static final String KEY_SCOPE = "profileHistoryScope";
     public static final String KEY_STORAGE = "profileHistoryStorage";
+    /** 0 means unlimited. Defaults: 1 GiB and unlimited time. */
+    public static final String KEY_LIMIT_MB = "profileHistoryLimitMb";
+    public static final String KEY_LIMIT_DAYS = "profileHistoryLimitDays";
     public static final int SCOPE_MANUAL = 0, SCOPE_INTERACTED = 1, SCOPE_CONTACTS_CHATS = 2, SCOPE_ENCOUNTERED = 3;
     public static final int STORAGE_LOCAL = 0, STORAGE_CLOUD = 1, STORAGE_BOTH = 2;
 
@@ -147,15 +150,32 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         } return out;
     }
     public static int count(long userId){PengramProfileHistory h=getInstance();if(h==null)return 0;try(Cursor c=h.getReadableDatabase().rawQuery("SELECT count(*) FROM changes WHERE user_id=?",new String[]{""+userId})){return c.moveToFirst()?c.getInt(0):0;}}
+    public static void applyRetentionNow() { Utilities.globalQueue.postRunnable(PengramProfileHistory::trimToLimit); }
     private static void trimToLimit() {
-        final long limit = 1024L * 1024L * 1024L;
+        final int days = PengramConfig.getIntCached(KEY_LIMIT_DAYS, 0);
+        final PengramProfileHistory h = getInstance();
+        if (days > 0 && h != null) {
+            final long cutoff = System.currentTimeMillis() / 1000L - days * 86400L;
+            h.getWritableDatabase().delete("changes", "time<?", new String[]{String.valueOf(cutoff)});
+            File[] candidates = avatarDir().listFiles();
+            if (candidates != null) for (File file : candidates) {
+                String n = file.getName();
+                if (!n.endsWith(".webp")) continue;
+                String hash = n.substring(0, n.length() - 5);
+                try (Cursor c = h.getReadableDatabase().rawQuery("SELECT 1 FROM changes WHERE avatar_hash=? LIMIT 1", new String[]{hash})) {
+                    if (!c.moveToFirst()) file.delete();
+                }
+            }
+        }
+        final int limitMb = PengramConfig.getIntCached(KEY_LIMIT_MB, 1024);
+        if (limitMb == 0) return; // explicit unlimited storage
+        final long limit = limitMb * 1024L * 1024L;
         File[] files = avatarDir().listFiles();
         if (files == null) return;
         File databaseFile = ApplicationLoader.applicationContext.getDatabasePath("pengram_profiles.db");
         long total = databaseFile.exists() ? databaseFile.length() : 0; for (File f : files) total += f.length();
         if (total <= limit) return;
         java.util.Arrays.sort(files, java.util.Comparator.comparingLong(File::lastModified));
-        PengramProfileHistory h = getInstance();
         for (File f : files) {
             if (total <= limit) break;
             long size = f.length();

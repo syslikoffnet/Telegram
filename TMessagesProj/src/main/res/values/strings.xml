@@ -12085,7 +12085,11 @@
     <string name="PengramProfileHistoryTrack">Start tracking changes</string>
     <string name="PengramProfileHistoryClearAvatars">Clear avatar history</string>
     <string name="PengramProfileHistoryClearAvatarsInfo">Delete all deduplicated WebP thumbnails from Pengram private storage? Text history is not affected.</string>
-    <string name="PengramProfileHistoryRetentionInfo">Default retention: up to 1 GB, indefinitely. Avatar files are MD5-deduplicated and are not part of Telegram cache.</string>
+    <string name="PengramProfileHistoryRetentionInfo">Size and time limits are independent. Unlimited disables the corresponding automatic cleanup. Avatar files are MD5-deduplicated and are not part of Telegram cache.</string>
+    <string name="PengramProfileLimitSize">Storage limit</string>
+    <string name="PengramProfileLimitTime">Retention time</string>
+    <string name="PengramProfileUnlimited">Unlimited</string>
+    <string name="PengramProfileDays">days</string>
     <string name="PengramProfileHistoryDisable">Collection disabled</string>
     <string name="PengramProfileHistoryDisableInfo">Choose what to do with previously collected data.</string>
     <string name="PengramProfileDisableKeep">Disable and keep all data</string>

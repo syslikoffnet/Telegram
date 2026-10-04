@@ -2919,14 +2919,19 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             }
             if (!MessagesController.getInstance(currentAccount).dialogsForward.isEmpty()) {
                 TLRPC.Dialog dialog = MessagesController.getInstance(currentAccount).dialogsForward.get(0);
-                dialogs.add(dialog);
-                dialogsMap.put(dialog.id, dialog);
+                if (!org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, dialog.id)) {
+                    dialogs.add(dialog);
+                    dialogsMap.put(dialog.id, dialog);
+                }
             }
             ArrayList<TLRPC.Dialog> archivedDialogs = new ArrayList<>();
             ArrayList<TLRPC.Dialog> allDialogs = MessagesController.getInstance(currentAccount).getAllDialogs();
             for (int a = 0; a < allDialogs.size(); a++) {
                 TLRPC.Dialog dialog = allDialogs.get(a);
                 if (!(dialog instanceof TLRPC.TL_dialog)) {
+                    continue;
+                }
+                if (org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, dialog.id)) {
                     continue;
                 }
                 if (dialog.id == selfUserId) {
