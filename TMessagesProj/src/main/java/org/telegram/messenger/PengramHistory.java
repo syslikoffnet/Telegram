@@ -790,8 +790,8 @@ public class PengramHistory extends SQLiteOpenHelper {
      * сообщения намеренно не экспортируются: они остаются частью приватной истории Pengram.
      */
     public static void saveMediaCopy(final File source, final String displayName, final String mimeType,
-                                     final boolean isVideo, final boolean isImage, final boolean isVoice) {
-        if (source == null || !source.exists() || ApplicationLoader.applicationContext == null || isVoice) {
+                                     final boolean isVideo, final boolean isImage) {
+        if (source == null || !source.exists() || ApplicationLoader.applicationContext == null) {
             return;
         }
         executor.execute(() -> {
@@ -870,6 +870,20 @@ public class PengramHistory extends SQLiteOpenHelper {
         } catch (Throwable e) {
             return null;
         }
+    }
+
+    /**
+     * Сохраняет голосовое во внутреннем каталоге приложения. Оно остаётся доступно
+     * истории Pengram, но не появляется в /storage/emulated/0/Pengram и медиатеке.
+     * Метод синхронный: вызывающий код успевает записать новый attachPath в историю.
+     */
+    public static File savePrivateVoiceCopy(File source, String displayName) {
+        if (source == null || !source.exists()) return null;
+        final File dest = savePrivateCopy(source, displayName, PengramConfig.getMediaFolder());
+        if (dest != null) {
+            trackSavedMedia(null, dest.getAbsolutePath(), dest.length());
+        }
+        return dest;
     }
 
     private static File savePrivateCopy(File source, String displayName, String folder) {

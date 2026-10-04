@@ -14579,7 +14579,14 @@ public class MessagesStorage extends BaseController {
                 return;
             }
             final String name = PengramHistory.buildFileName(PengramConfig.getMediaPattern(), dialogId, message.id, message.date, ext);
-            PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage, isVoice);
+            if (isVoice) {
+                final java.io.File savedVoice = PengramHistory.savePrivateVoiceCopy(file, name);
+                if (savedVoice != null) {
+                    message.attachPath = savedVoice.getAbsolutePath();
+                }
+            } else {
+                PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage);
+            }
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -14639,6 +14646,9 @@ public class MessagesStorage extends BaseController {
                             continue;
                         }
                         final String text = PengramHistory.describe(message);
+                        // Сначала переносим голосовое во внутреннее постоянное хранилище и
+                        // обновляем attachPath, затем сериализуем сообщение в историю.
+                        pengramSaveDeletedMedia(did, message);
                         PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
                                 PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
                         ArrayList<Integer> marks = marksByDialog.get(did);
@@ -14647,7 +14657,6 @@ public class MessagesStorage extends BaseController {
                             marksByDialog.put(did, marks);
                         }
                         marks.add(message.id);
-                        pengramSaveDeletedMedia(did, message);
                     }
                 } finally {
                     data.reuse();
