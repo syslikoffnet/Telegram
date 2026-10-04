@@ -636,9 +636,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
 
         // В свёрнутой шапке историй раньше снова показывался telegram_logo_2. Для всех
         // пользовательских режимов используем тот же текст бренда, что и основной ActionBar.
-        if (TextUtils.isEmpty(currentTitle) && org.telegram.messenger.PengramConfig.getTitleMode()
+        if (org.telegram.messenger.PengramConfig.getTitleMode()
                 != org.telegram.messenger.PengramConfig.TITLE_MODE_DEFAULT) {
-            currentTitle = org.telegram.messenger.PengramConfig.resolveAppTitle("Telegram");
+            // Branding is authoritative in both expanded and collapsed states. Story counts,
+            // uploads and overlay transitions must not restore Telegram or another stale title.
+            currentTitle = org.telegram.messenger.PengramConfig.resolveAppTitle("Telegram", currentAccount);
         }
         if (!hasOverlayText) {
             titleView.setText(currentTitle, animated && !LocaleController.isRTL);
@@ -1308,7 +1310,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setText(currentTitle, !LocaleController.isRTL);
         }
 
-        animatorHasTitleText.setValue(hasOverlayText, true);
+        animatorHasTitleText.setValue(!TextUtils.isEmpty(currentTitle) || hasOverlayText, true);
         if (hasEllipsizedText) {
             ellipsizeSpanAnimator.addView(titleView);
         } else {

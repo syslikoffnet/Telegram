@@ -12835,6 +12835,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 actionBar.setTitle(ssb, statusDrawable);
             }
             actionBar.requestLayout();
+            // The expanded/collapsed stories header owns a separate title view and must be
+            // refreshed together with the ActionBar, otherwise its cached Telegram logo wins.
+            if (dialogStoriesCell != null) {
+                dialogStoriesCell.updateItems(false, true);
+            }
         } catch (Throwable e) {
             FileLog.e(e);
         }

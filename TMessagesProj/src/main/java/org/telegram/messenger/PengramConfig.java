@@ -956,6 +956,11 @@ public class PengramConfig {
 
     /** Единый источник бренда для шапок, диалогов, уведомлений и accessibility. */
     public static String resolveAppTitle(String telegramTitle) {
+        return resolveAppTitle(telegramTitle, UserConfig.selectedAccount);
+    }
+
+    /** Resolve the brand for the account owning the actual header, not whichever account is selected globally. */
+    public static String resolveAppTitle(String telegramTitle, int account) {
         init();
         switch (titleMode) {
             case TITLE_MODE_PENGRAM:
@@ -963,12 +968,12 @@ public class PengramConfig {
             case TITLE_MODE_CHATS:
                 try { return ApplicationLoader.applicationContext.getString(R.string.PengramTitleChats); } catch (Throwable ignore) { return "Chats"; }
             case TITLE_MODE_NAME: {
-                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(account).getCurrentUser();
                 final String name = user == null ? null : ContactsController.formatName(user.first_name, user.last_name);
                 return android.text.TextUtils.isEmpty(name) ? "Pengram" : name;
             }
             case TITLE_MODE_USERNAME: {
-                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+                final org.telegram.tgnet.TLRPC.User user = UserConfig.getInstance(account).getCurrentUser();
                 final String username = user == null ? null : UserObject.getPublicUsername(user);
                 return android.text.TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
             }
