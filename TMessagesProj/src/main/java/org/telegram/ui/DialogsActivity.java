@@ -11042,8 +11042,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
             // Служебный канал принудительно находится в архиве. Главный список — hot path:
             // не сканируем тысячи диалогов при каждом layout/scroll кадре.
-            return folderId == 0 ? messagesController.getDialogs(folderId)
-                    : pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
+            if(folderId==0){long hidden=org.telegram.messenger.PengramProfileCloud.getHiddenDialogId(currentAccount);TLRPC.Dialog hiddenDialog=hidden==0?null:messagesController.dialogs_dict.get(hidden);return hiddenDialog!=null&&hiddenDialog.folder_id==0?pengramVisibleDialogs(currentAccount,messagesController.getDialogs(folderId)):messagesController.getDialogs(folderId);}
+            return pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
             return pengramVisibleDialogs(currentAccount, messagesController.dialogsServerOnly);
         } else if (dialogsType == DIALOGS_TYPE_ADD_USERS_TO) {

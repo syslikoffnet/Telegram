@@ -12102,7 +12102,8 @@
     <string name="PengramProfileDisableLocal">Disable and delete local data</string>
     <string name="PengramProfileDisableAll">Disable and delete local data and channel</string>
     <string name="PengramProfileHistoryEmpty">No recorded profile changes</string>
-    <string name="PengramProfileAvatarChanged">Avatar changed</string>
+    <string name="PengramProfileAvatarChanged">Avatar saved</string>
+    <string name="PengramProfileFirstSaved">First profile snapshot</string>
     <string name="PengramProfileStorageLocal">Local only (recommended)</string>
     <string name="PengramProfileStorageCloud">Private hidden channel</string>
     <string name="PengramProfileStorageBoth">Local and private channel</string>

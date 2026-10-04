@@ -1130,7 +1130,8 @@
     <string name="PengramProfileDisableLocal">Выключить и удалить локальные данные</string>
     <string name="PengramProfileDisableAll">Выключить, удалить локальные данные и канал</string>
     <string name="PengramProfileHistoryEmpty">Изменений профиля пока нет</string>
-    <string name="PengramProfileAvatarChanged">Аватарка изменена</string>
+    <string name="PengramProfileAvatarChanged">Аватарка сохранена</string>
+    <string name="PengramProfileFirstSaved">Первое сохранение профиля</string>
     <string name="PengramProfileStorageLocal">Только локально (рекомендуется)</string>
     <string name="PengramProfileStorageCloud">Приватный скрытый канал</string>
     <string name="PengramProfileStorageBoth">Локально и приватный канал</string>
