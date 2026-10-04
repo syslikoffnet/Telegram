@@ -1067,7 +1067,7 @@
     <string name="PengramInputAnimationSpeed">Скорость</string>
     <string name="PengramInputAnimationIntensity">Интенсивность</string>
     <string name="PengramInputAnimationHaptic">Лёгкая вибрация</string>
-    <string name="PengramInputAnimationInfo">Выбранный эффект работает во время набора. Используются только лёгкие transform-анимации с ограничением 30 кадров/с; на слабых устройствах они отключаются автоматически.</string>
+    <string name="PengramInputAnimationInfo">Новые буквы появляются с синхронизацией VSync — до 120 кадров/с на поддерживаемом экране. Одновременно анимируются только последние символы; на слабых устройствах эффекты отключаются автоматически.</string>
     <string name="PengramInputAnimNone">Без анимации</string>
     <string name="PengramInputAnimFade">Мягкое проявление</string>
     <string name="PengramInputAnimPop">Компактный импульс</string>

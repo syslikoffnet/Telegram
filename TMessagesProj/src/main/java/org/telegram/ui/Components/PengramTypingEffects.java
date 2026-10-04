@@ -5,11 +5,13 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.os.SystemClock;
+import android.os.Build;
+import android.view.View;
 import android.text.Editable;
 import android.text.TextPaint;
 import android.text.style.ReplacementSpan;
 import android.view.animation.OvershootInterpolator;
+import android.view.animation.PathInterpolator;
 import android.widget.EditText;
 
 import org.telegram.messenger.LocaleController;
@@ -23,7 +25,9 @@ import java.util.WeakHashMap;
 /** Transient fixed-width spans that animate only newly typed glyphs, never the whole draft. */
 public final class PengramTypingEffects {
     private static final WeakHashMap<EditText, ArrayDeque<GlyphSpan>> active = new WeakHashMap<>();
-    private static final WeakHashMap<EditText, Long> lastFrame = new WeakHashMap<>();
+    // VSync-driven: Android выдаёт кадр на реальной частоте дисплея (60/90/120/144 Гц).
+    private static final PathInterpolator SMOOTH_OUT = new PathInterpolator(.16f, 1f, .30f, 1f);
+    private static final PathInterpolator SOFT_OUT = new PathInterpolator(.22f, 1f, .36f, 1f);
     private PengramTypingEffects() {}
 
     public static void apply(EditText edit, Editable text, int start, int before, int count) {
@@ -31,11 +35,6 @@ public final class PengramTypingEffects {
         if (SharedConfig.getDevicePerformanceClass() == SharedConfig.PERFORMANCE_CLASS_LOW) return;
         final int mode = PengramConfig.getInputAnimation();
         if (mode == PengramConfig.INPUT_ANIM_NONE) return;
-        final long now = SystemClock.uptimeMillis();
-        final Long previous = lastFrame.get(edit);
-        if (previous != null && now - previous < 28) return;
-        lastFrame.put(edit, now);
-
         final int end = Math.min(text.length(), start + count);
         if (end <= start || Character.isLowSurrogate(text.charAt(start))) return;
         final GlyphSpan span = new GlyphSpan(edit, mode, PengramConfig.getInputAnimationIntensity());
@@ -44,13 +43,17 @@ public final class PengramTypingEffects {
         if (queue == null) active.put(edit, queue = new ArrayDeque<>());
         queue.addLast(span);
         while (queue.size() > 10) queue.removeFirst().finish();
-        span.start(new long[]{90, 145, 220}[PengramConfig.getInputAnimationSpeed()]);
+        if (Build.VERSION.SDK_INT >= 30) {
+            // Это пожелание compositor, не busy-loop: 120 Гц используется только если дисплей поддерживает.
+            edit.setFrameRate(120f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
+        }
+        // Длительность достаточно длинная для 120 Гц (22–40 уникальных кадров), но не мешает быстрому набору.
+        span.start(new long[]{180, 245, 330}[PengramConfig.getInputAnimationSpeed()]);
     }
 
     public static void clear(EditText edit) {
         final ArrayDeque<GlyphSpan> queue = active.remove(edit);
         if (queue != null) while (!queue.isEmpty()) queue.removeFirst().finish();
-        lastFrame.remove(edit);
     }
 
     private static final class GlyphSpan extends ReplacementSpan {
@@ -69,7 +72,13 @@ public final class PengramTypingEffects {
         void start(long duration) {
             animator = ValueAnimator.ofFloat(0f, 1f);
             animator.setDuration(duration);
-            if (mode == PengramConfig.INPUT_ANIM_BOUNCE) animator.setInterpolator(new OvershootInterpolator(.8f));
+            if (mode == PengramConfig.INPUT_ANIM_BOUNCE) {
+                animator.setInterpolator(new OvershootInterpolator(.72f));
+            } else if (mode == PengramConfig.INPUT_ANIM_SHAKE) {
+                animator.setInterpolator(SOFT_OUT);
+            } else {
+                animator.setInterpolator(SMOOTH_OUT);
+            }
             animator.addUpdateListener(a -> {
                 progress = (float) a.getAnimatedValue();
                 final EditText edit = editRef.get();
@@ -93,7 +102,10 @@ public final class PengramTypingEffects {
                 edit.getText().removeSpan(this);
                 edit.invalidate();
                 final ArrayDeque<GlyphSpan> queue = active.get(edit);
-                if (queue != null) queue.remove(this);
+                if (queue != null) {
+                    queue.remove(this);
+                    if (queue.isEmpty() && Build.VERSION.SDK_INT >= 30) edit.setFrameRate(0f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
+                }
             }
         }
 
@@ -103,13 +115,14 @@ public final class PengramTypingEffects {
         }
 
         @Override public void draw(Canvas canvas, CharSequence text, int start, int end, float x, int top, int y, int bottom, Paint paint) {
-            final float p = Math.max(0f, Math.min(1f, progress));
+            final float raw = progress;
+            final float p = Math.max(0f, Math.min(1f, raw));
             float alpha = p, scale = 1f, dx = 0f, dy = 0f, rotation = 0f;
             switch (mode) {
                 case PengramConfig.INPUT_ANIM_POP: scale = .55f + .45f * p; break;
                 case PengramConfig.INPUT_ANIM_SLIDE: alpha = p; dx = (1f - p) * dp(7) * intensity * (LocaleController.isRTL ? -1 : 1); break;
                 case PengramConfig.INPUT_ANIM_RISE: alpha = p; dy = (1f - p) * dp(8) * intensity; break;
-                case PengramConfig.INPUT_ANIM_BOUNCE: alpha = Math.min(1f, p * 2f); scale = .65f + .35f * p; break;
+                case PengramConfig.INPUT_ANIM_BOUNCE: alpha = Math.min(1f, p * 2f); scale = .65f + .35f * raw; break;
                 case PengramConfig.INPUT_ANIM_SHAKE: alpha = Math.min(1f, p * 2f); rotation = (float) Math.sin(p * Math.PI * 4) * (1f - p) * 5f * intensity; break;
                 default: break;
             }

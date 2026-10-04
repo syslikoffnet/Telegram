@@ -12046,7 +12046,7 @@
     <string name="PengramInputAnimationSpeed">Speed</string>
     <string name="PengramInputAnimationIntensity">Intensity</string>
     <string name="PengramInputAnimationHaptic">Light haptic feedback</string>
-    <string name="PengramInputAnimationInfo">The selected effect plays while you type. Effects use compositor transforms, are capped at 30 fps and automatically disabled on low-performance devices.</string>
+    <string name="PengramInputAnimationInfo">New letters appear with a VSync-synchronised effect up to 120 fps on supported displays. Only a few recent glyphs animate; low-performance devices disable effects automatically.</string>
     <string name="PengramInputAnimNone">No animation</string>
     <string name="PengramInputAnimFade">Soft fade</string>
     <string name="PengramInputAnimPop">Compact pop</string>
