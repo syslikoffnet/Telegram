@@ -5992,6 +5992,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             VerticalPositionAutoAnimator.attach(bottomContainer);
 
             bottomContainer.setOnClickListener(view -> {
+                // В форке без собственного OAuth-клиента Google-вход невозможен:
+                // GoogleSignInOptions.requestIdToken("") бросает исключение и роняет экран входа.
+                if (TextUtils.isEmpty(BuildVars.GOOGLE_AUTH_CLIENT_ID)) {
+                    return;
+                }
                 NotificationCenter.getGlobalInstance().addObserver(new NotificationCenter.NotificationCenterDelegate() {
                     @Override
                     public void didReceivedNotification(int id, int account, Object... args) {
@@ -6326,6 +6331,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             signInWithGoogleView.setText(str);
 
             signInWithGoogleView.setOnClickListener(view -> {
+                // В форке без собственного OAuth-клиента Google-вход невозможен:
+                // GoogleSignInOptions.requestIdToken("") бросает исключение и роняет экран входа.
+                if (TextUtils.isEmpty(BuildVars.GOOGLE_AUTH_CLIENT_ID)) {
+                    return;
+                }
                 NotificationCenter.getGlobalInstance().addObserver(new NotificationCenter.NotificationCenterDelegate() {
                     @Override
                     public void didReceivedNotification(int id, int account, Object... args) {
