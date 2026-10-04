@@ -43,8 +43,9 @@ import java.util.regex.Pattern;
 public final class PengramBypassSources {
 
     private static final String PREFS = "pengram_bypass";
-    private static final long LIST_TTL = 24L * 60 * 60 * 1000;
-    private static final int KEEP = 20;
+    // Публичные входы быстро блокируются и перегружаются: обновляем несколько раз в сутки.
+    private static final long LIST_TTL = 6L * 60 * 60 * 1000;
+    private static final int KEEP = 24;
     private static final int PROBE_TIMEOUT = 4000;
 
     /** каталоги входов через Cloudflare; зеркала cdn.jsdelivr.net идут первыми — они живут на том же Cloudflare */
@@ -59,6 +60,8 @@ public final class PengramBypassSources {
     /** каталоги классических MTProto-входов */
     private static final String[] MT_SOURCES = new String[]{
             "https://mtpro.xyz/api/?type=mtproto",
+            "https://cdn.jsdelivr.net/gh/Chumbayoumba/free-telegram-proxy-russia-2026@main/README.md",
+            "https://raw.githubusercontent.com/Chumbayoumba/free-telegram-proxy-russia-2026/main/README.md",
             "https://t.me/s/MTProtoProxies",
             "https://t.me/s/mtproxy_tg",
     };
@@ -187,13 +190,26 @@ public final class PengramBypassSources {
                 out.add(n);
             }
         }
-        Collections.sort(out, new Comparator<Node>() {
-            @Override
-            public int compare(Node a, Node b) {
-                return a.ping - b.ping;
-            }
-        });
+        Collections.sort(out, PengramBypassSources::compareRoutes);
         return out;
+    }
+
+    private static boolean isFakeTls(Node node) {
+        if (node == null || node.isWs() || TextUtils.isEmpty(node.secret)) return false;
+        final String secret = node.secret.trim().toLowerCase(java.util.Locale.US);
+        // Fake-TLS MTProto secrets use the ee prefix (hex or URL-safe representation).
+        return secret.startsWith("ee");
+    }
+
+    /** Fake-TLS на 443 предпочтительнее простого MTProto даже при чуть большем ping. */
+    private static int compareRoutes(Node a, Node b) {
+        if (!a.isWs() && !b.isWs()) {
+            final int fake = Boolean.compare(isFakeTls(b), isFakeTls(a));
+            if (fake != 0) return fake;
+            final int httpsPort = Boolean.compare(b.port == 443, a.port == 443);
+            if (httpsPort != 0) return httpsPort;
+        }
+        return Integer.compare(a.ping, b.ping);
     }
 
     public static int savedCount() {
@@ -443,7 +459,7 @@ public final class PengramBypassSources {
             return;
         }
         final Matcher link = MT_LINK_PATTERN.matcher(body);
-        while (link.find() && countOfKind(out, "mt") < 24) {
+        while (link.find() && countOfKind(out, "mt") < 64) {
             final Node n = new Node();
             n.kind = "mt";
             n.host = link.group(1);
@@ -461,7 +477,7 @@ public final class PengramBypassSources {
         final Matcher hosts = MT_HOST_PATTERN.matcher(body);
         final Matcher ports = MT_PORT_PATTERN.matcher(body);
         final Matcher secrets = MT_SECRET_PATTERN.matcher(body);
-        while (hosts.find() && ports.find() && secrets.find() && countOfKind(out, "mt") < 24) {
+        while (hosts.find() && ports.find() && secrets.find() && countOfKind(out, "mt") < 64) {
             final Node n = new Node();
             n.kind = "mt";
             n.host = hosts.group(1);
@@ -556,12 +572,7 @@ public final class PengramBypassSources {
         } catch (Throwable ignore) {
         }
         synchronized (alive) {
-            Collections.sort(alive, new Comparator<Node>() {
-                @Override
-                public int compare(Node a, Node b) {
-                    return a.ping - b.ping;
-                }
-            });
+            Collections.sort(alive, PengramBypassSources::compareRoutes);
             final ArrayList<Node> keep = new ArrayList<>();
             int ws = 0;
             int mt = 0;

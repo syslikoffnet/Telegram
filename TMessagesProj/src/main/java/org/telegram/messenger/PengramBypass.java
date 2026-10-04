@@ -335,7 +335,9 @@ public final class PengramBypass {
         }
         // Fragmentation-only is no longer useful against modern stateful DPI.
         // Auto uses it neither as a first attempt nor as a fallback; it remains manual for legacy networks.
-        for (int candidate : new int[]{MODE_WS, MODE_MT}) {
+        // Native Fake-TLS MTProto on 443 is the cheapest and most stable first choice;
+        // the HTTPS/WebSocket VLESS tunnel remains a stronger fallback for IP filtering.
+        for (int candidate : new int[]{MODE_MT, MODE_WS}) {
             if (!order.contains(candidate)) order.add(candidate);
         }
         order.remove((Integer) MODE_SPLIT);
