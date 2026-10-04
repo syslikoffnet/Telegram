@@ -81,9 +81,33 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
         if (scope == SCOPE_INTERACTED && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null && !isTracked(account, user.id)) return;
         final String name = ContactsController.formatName(user.first_name, user.last_name);
-        final String username = UserObject.getPublicUsername(user);
+        final String username = collectUsernames(user);
         final String avatarToken = user.photo == null ? null : String.valueOf(user.photo.photo_id);
         Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, name, username, null, avatarToken, user));
+    }
+
+    /** Primary, additional and collectible usernames in stable Telegram order. */
+    private static String collectUsernames(TLRPC.User user) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        if (!TextUtils.isEmpty(user.username)) names.add(user.username);
+        if (user.usernames != null) for (TLRPC.TL_username item : user.usernames) {
+            if (item != null && (item.active || item.editable) && !TextUtils.isEmpty(item.username)) names.add(item.username);
+        }
+        if (names.isEmpty()) return ""; // empty is a real delta: all usernames were removed
+        StringBuilder out = new StringBuilder();
+        for (String value : names) { if (out.length() > 0) out.append(", @"); out.append(value); }
+        return out.toString();
+    }
+
+    public static void observeAdditionalUsernames(int account, TLRPC.User user, boolean fromCache) {
+        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.id == 777000 || user.id == UserObject.VERIFY || user.self) return;
+        int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
+        if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
+        if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
+        if (scope == SCOPE_INTERACTED && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null && !isTracked(account, user.id)) return;
+        final String usernames = collectUsernames(user);
+        if (TextUtils.isEmpty(usernames)) return;
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, null, usernames, null, null, null));
     }
 
     public static void observeBio(int account, long userId, String bio) {
@@ -120,7 +144,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
 
     private static void enqueueCloud(PengramProfileHistory h,int account,long uid,String name,String username,String bio,String avatar) {
         StringBuilder p=new StringBuilder("#user_").append(uid).append("\nID: ").append(uid);
-        if(name!=null)p.append("\nName: ").append(name); if(username!=null)p.append("\nUsername: @").append(username);
+        if(name!=null)p.append("\nName: ").append(name); if(username!=null)p.append("\nUsernames: ").append(username.isEmpty()?"—":"@"+username);
         if(bio!=null)p.append("\nBio: ").append(bio); if(avatar!=null)p.append("\nAvatar: #avatar_").append(avatar);
         p.append("\nDate: ").append(String.format(Locale.US,"%tF %<tR",System.currentTimeMillis()));
         h.getWritableDatabase().execSQL("INSERT INTO cloud_queue(account,payload,created) VALUES(?,?,?)",new Object[]{account,p.toString(),System.currentTimeMillis()/1000});
