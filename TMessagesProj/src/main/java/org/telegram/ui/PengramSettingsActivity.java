@@ -1392,7 +1392,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramProfileHistory)));
         items.add(UItem.asSettingsCell(BTN_PROFILE_HISTORY, R.drawable.msg_contacts,
                 getString(R.string.PengramProfileHistory),
-                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                onOff(org.telegram.messenger.PengramProfileHistory.enabled())));
         items.add(UItem.asShadow(getString(R.string.PengramProfileHistoryDisabledInfo)));
 
         if (PengramConfig.saveDeleted) {
