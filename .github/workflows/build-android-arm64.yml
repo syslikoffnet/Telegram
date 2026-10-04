@@ -190,7 +190,7 @@ jobs:
           GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
         run: |
           if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
-            echo "::error::Не заданы секреты APP_ID / APP_HASH (Settings -> Secrets and variables -> Actions)."
+            echo "::error::Не заданы секреты APP_ID / APP_HASH. Settings -> Secrets and variables -> Actions -> New repository secret. Ключи берутся на https://my.telegram.org"
             exit 1
           fi
           {

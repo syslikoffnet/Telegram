@@ -32,8 +32,8 @@ jobs:
           GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
         run: |
           if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
-            echo "::error::Не заданы секреты APP_ID / APP_HASH (Settings -> Secrets and variables -> Actions)."
-            exit 1
+            echo "::warning::Секреты APP_ID / APP_HASH не заданы — проверяем только компиляцию, APK из такой сборки войти в Telegram не сможет."
+            exit 0
           fi
           {
             echo "APP_ID=$APP_ID"

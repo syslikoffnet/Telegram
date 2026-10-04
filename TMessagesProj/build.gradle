@@ -305,18 +305,29 @@ def pengramSecret(String name, String fallback) {
 
 /**
  * Без api_id/api_hash приложение не залогинится, поэтому падаем на старте сборки,
- * а не ловим «AUTH_KEY» уже в телефоне.
+ * а не ловим «AUTH_KEY» уже в телефоне. Для задач, которые APK не производят
+ * (компиляция, lint, тесты), ключи не нужны — там просто предупреждение.
  */
 task checkApiKeys {
     doFirst {
         def appId = pengramSecret("APP_ID", "0")
         def appHash = pengramSecret("APP_HASH", "")
-        if (appId == "0" || appHash.isEmpty()) {
-            throw new GradleException(
-                    "Не заданы APP_ID / APP_HASH.\n" +
-                    "Скопируйте api.properties.example в api.properties (он в .gitignore) и впишите свои ключи\n" +
-                    "с https://my.telegram.org, либо передайте их через -PAPP_ID=... -PAPP_HASH=... или переменные окружения.")
+        if (appId != "0" && !appHash.isEmpty()) {
+            return
         }
+        def makesApk = gradle.startParameter.taskNames.any {
+            def t = it.toLowerCase()
+            t.contains("assemble") || t.contains("bundle") || t.contains("install") || t.contains("package")
+        }
+        def message = "Не заданы APP_ID / APP_HASH.\n" +
+                "Локально: cp api.properties.example api.properties и впишите ключи с https://my.telegram.org\n" +
+                "         (или ./gradlew ... -PAPP_ID=12345 -PAPP_HASH=abc...).\n" +
+                "GitHub Actions: Settings -> Secrets and variables -> Actions -> New repository secret,\n" +
+                "         секреты APP_ID и APP_HASH."
+        if (makesApk) {
+            throw new GradleException(message)
+        }
+        logger.warn("\n[Pengram] " + message + "\nСборка продолжится, но собранное приложение не сможет войти в Telegram.\n")
     }
 }
 
