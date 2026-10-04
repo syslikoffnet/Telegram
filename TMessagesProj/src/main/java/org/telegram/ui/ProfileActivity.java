@@ -12324,7 +12324,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 selfUser = true;
             } else {
-                if (!user.bot && !user.deleted && user.id != 777000) {
+                if (org.telegram.messenger.PengramProfileHistory.enabled() && !user.bot && !user.deleted && user.id != 777000) {
                     final boolean tracked = org.telegram.messenger.PengramProfileHistory.isTracked(currentAccount, user.id);
                     otherItem.addSubItem(pengram_profile_history, R.drawable.msg_viewchats,
                             getString(tracked ? R.string.PengramProfileHistoryOpen : R.string.PengramProfileHistoryTrack));

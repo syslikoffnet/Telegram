@@ -130,7 +130,8 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
 
     public static ArrayList<Change> getChanges(long userId) {
         ArrayList<Change> out=new ArrayList<>(); PengramProfileHistory h=getInstance(); if(h==null)return out;
-        try(Cursor c=h.getReadableDatabase().rawQuery("SELECT id,account,user_id,time,name,username,bio,avatar_hash FROM changes WHERE user_id=? ORDER BY time DESC,id DESC",new String[]{""+userId})){
+        final String sql = "SELECT id,account,user_id,time,name,username,bio,avatar_hash FROM changes" + (userId != 0 ? " WHERE user_id=?" : "") + " ORDER BY time DESC,id DESC";
+        try(Cursor c=h.getReadableDatabase().rawQuery(sql,userId != 0 ? new String[]{""+userId} : null)){
             while(c.moveToNext()){Change x=new Change();x.id=c.getLong(0);x.account=c.getInt(1);x.userId=c.getLong(2);x.time=c.getLong(3);x.name=c.getString(4);x.username=c.getString(5);x.bio=c.getString(6);x.avatarHash=c.getString(7);out.add(x);}
         } return out;
     }
