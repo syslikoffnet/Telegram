@@ -1551,6 +1551,28 @@ public class PengramConfig {
     public static void setQuickName(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_NAME_1 : DEFAULT_QUICK_NAME_2) : value.trim(); if (index == 1) quickName1 = value; else quickName2 = value; putString(index == 1 ? "quickName1" : "quickName2", value); }
     public static void setQuickUrl(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_URL_1 : DEFAULT_QUICK_URL_2) : value.trim(); if (index == 1) quickUrl1 = value; else quickUrl2 = value; putString(index == 1 ? "quickUrl1" : "quickUrl2", value); }
     public static boolean isValidQuickUrl(String value) { return value != null && value.trim().matches("(?i)^(?:https://)?t\\.me/[A-Za-z0-9_]+/[0-9]+/?(?:\\?.*)?$"); }
+
+    // Настраиваемые быстрые действия. Новая установка начинается с пустого списка.
+    public static final int QUICK_ACTION_LIMIT = 5;
+    public static final int QUICK_ACTION_FORWARD = 0;
+    public static final int QUICK_ACTION_TEXT = 1;
+    public static int getQuickActionCount() { return Math.max(0, Math.min(QUICK_ACTION_LIMIT, getIntCached("quickActionCount", 0))); }
+    public static void setQuickActionCount(int count) { putInt("quickActionCount", Math.max(0, Math.min(QUICK_ACTION_LIMIT, count))); }
+    public static String getQuickActionName(int index) { init(); SharedPreferences p = prefs(); return (p == null ? "Action " + (index + 1) : p.getString("quickActionName" + index, "Action " + (index + 1))).trim(); }
+    public static String getQuickActionValue(int index) { init(); SharedPreferences p = prefs(); return p == null ? "" : p.getString("quickActionValue" + index, ""); }
+    public static int getQuickActionType(int index) { return getIntCached("quickActionType" + index, QUICK_ACTION_TEXT) == QUICK_ACTION_FORWARD ? QUICK_ACTION_FORWARD : QUICK_ACTION_TEXT; }
+    public static void setQuickAction(int index, String name, String value, int type) {
+        if (index < 0 || index >= QUICK_ACTION_LIMIT) return;
+        putString("quickActionName" + index, name == null ? "" : name.trim());
+        putString("quickActionValue" + index, value == null ? "" : value.trim());
+        putInt("quickActionType" + index, type == QUICK_ACTION_FORWARD ? QUICK_ACTION_FORWARD : QUICK_ACTION_TEXT);
+    }
+    public static void removeQuickAction(int index) {
+        final int count = getQuickActionCount();
+        for (int i = index; i + 1 < count; i++) setQuickAction(i, getQuickActionName(i + 1), getQuickActionValue(i + 1), getQuickActionType(i + 1));
+        setQuickAction(count - 1, "", "", QUICK_ACTION_TEXT);
+        setQuickActionCount(count - 1);
+    }
     public static int getAppFont() { init(); return appFont; }
 
     public static void toggleSaveDeletedMedia() { init(); saveDeletedMedia = !saveDeletedMedia; putBoolean("saveDeletedMedia", saveDeletedMedia); }

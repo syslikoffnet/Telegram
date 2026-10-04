@@ -1722,8 +1722,8 @@ public class ChatActivity extends BaseFragment implements
 
                             @Override
                             public void onItem(int itemId) {
-                                if (itemId == -101 || itemId == -102) {
-                                    pengramForwardQuickMessage(itemId == -101 ? 1 : 2);
+                                if (itemId <= -101 && itemId > -101 - org.telegram.messenger.PengramConfig.QUICK_ACTION_LIMIT) {
+                                    pengramRunQuickAction(-101 - itemId);
                                 } else {
                                     pengramRunChatItem(itemId);
                                 }
@@ -1749,9 +1749,25 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /** Выполняет настраиваемое действие: пересылает публикацию либо отправляет готовый текст. */
+    private void pengramRunQuickAction(int index) {
+        if (index < 0 || index >= org.telegram.messenger.PengramConfig.getQuickActionCount()) return;
+        final String value = org.telegram.messenger.PengramConfig.getQuickActionValue(index);
+        if (org.telegram.messenger.PengramConfig.getQuickActionType(index) == org.telegram.messenger.PengramConfig.QUICK_ACTION_TEXT) {
+            if (TextUtils.isEmpty(value) || chatActivityEnterView == null) {
+                pengramQuickForwardError();
+                return;
+            }
+            chatActivityEnterView.setFieldText(value, true, true);
+            chatActivityEnterView.sendMessage();
+        } else {
+            pengramForwardQuickMessage(index);
+        }
+    }
+
     /** Загружает публичное сообщение из настроенной t.me-ссылки и сразу пересылает в текущий чат. */
     private void pengramForwardQuickMessage(int index) {
-        final String url = org.telegram.messenger.PengramConfig.getQuickUrl(index);
+        final String url = org.telegram.messenger.PengramConfig.getQuickActionValue(index);
         final java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(?i)^(?:https://)?t\\.me/([A-Za-z0-9_]+)/([0-9]+)/?(?:\\?.*)?$").matcher(url.trim());
         if (!matcher.matches()) {
             pengramQuickForwardError();

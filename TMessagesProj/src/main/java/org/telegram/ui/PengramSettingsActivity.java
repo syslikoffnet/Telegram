@@ -112,10 +112,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
     private static final int BTN_SENDER_AVATAR_POSITION = 547;
-    private static final int BTN_QUICK_NAME_1 = 543;
-    private static final int BTN_QUICK_URL_1 = 544;
-    private static final int BTN_QUICK_NAME_2 = 545;
-    private static final int BTN_QUICK_URL_2 = 546;
+    private static final int BTN_QUICK_ADD = 543;
+    private static final int BTN_QUICK_ACTION_BASE = 560;
 
     private static final int BTN_ID_FORMAT_HIDE = 220;
     private static final int BTN_ID_FORMAT_TELEGRAM = 221;
@@ -1859,14 +1857,19 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillChatActions(ArrayList<UItem> items) {
-        items.add(UItem.asHeader(getString(R.string.PengramQuickButton1Header)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_NAME_1, R.drawable.msg_edit, getString(R.string.PengramQuickName1), PengramConfig.getQuickName(1)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_URL_1, R.drawable.msg_link, getString(R.string.PengramQuickUrl1), quickUrlPreview(PengramConfig.getQuickUrl(1))));
-        items.add(UItem.asShadow(getString(R.string.PengramQuickEmptyInfo)));
-        items.add(UItem.asHeader(getString(R.string.PengramQuickButton2Header)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_NAME_2, R.drawable.msg_edit, getString(R.string.PengramQuickName2), PengramConfig.getQuickName(2)));
-        items.add(UItem.asSettingsCell(BTN_QUICK_URL_2, R.drawable.msg_link, getString(R.string.PengramQuickUrl2), quickUrlPreview(PengramConfig.getQuickUrl(2))));
-        items.add(UItem.asShadow(getString(R.string.PengramQuickUrlInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramQuickActions)));
+        final int quickCount = PengramConfig.getQuickActionCount();
+        for (int i = 0; i < quickCount; i++) {
+            final String type = getString(PengramConfig.getQuickActionType(i) == PengramConfig.QUICK_ACTION_FORWARD
+                    ? R.string.PengramQuickTypeForward : R.string.PengramQuickTypeText);
+            items.add(UItem.asSettingsCell(BTN_QUICK_ACTION_BASE + i,
+                    PengramConfig.getQuickActionType(i) == PengramConfig.QUICK_ACTION_FORWARD ? R.drawable.msg_forward : R.drawable.msg_message,
+                    PengramConfig.getQuickActionName(i), type));
+        }
+        if (quickCount < PengramConfig.QUICK_ACTION_LIMIT) {
+            items.add(UItem.asButton(BTN_QUICK_ADD, R.drawable.msg_add, getString(R.string.PengramQuickAdd)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuickActionsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
         // Базовые пункты отправки удалёнки и отправка без чужой подписи всегда включены.
@@ -1945,6 +1948,35 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
+    }
+
+    private void editQuickAction(final int index) {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramQuickTypeText),
+                getString(R.string.PengramQuickTypeForward),
+                getString(R.string.Delete)
+        };
+        final int selected = PengramConfig.getQuickActionType(index) == PengramConfig.QUICK_ACTION_FORWARD ? 1 : 0;
+        showChoicePicker(getString(R.string.PengramQuickActionType), options, selected, choice -> {
+            if (choice == 2) {
+                PengramConfig.removeQuickAction(index);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
+            }
+            final int type = choice == 1 ? PengramConfig.QUICK_ACTION_FORWARD : PengramConfig.QUICK_ACTION_TEXT;
+            showTextDialog(getString(R.string.PengramQuickActionName), PengramConfig.getQuickActionName(index),
+                    getString(R.string.PengramQuickDefaultName), name -> showTextDialog(
+                            getString(type == PengramConfig.QUICK_ACTION_FORWARD ? R.string.PengramQuickActionLink : R.string.PengramQuickActionText),
+                            PengramConfig.getQuickActionValue(index), "", value -> {
+                                if (type == PengramConfig.QUICK_ACTION_FORWARD && !PengramConfig.isValidQuickUrl(value)) {
+                                    new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName))
+                                            .setMessage(getString(R.string.PengramQuickInvalidUrl)).setPositiveButton(getString(R.string.OK), null).show();
+                                    return;
+                                }
+                                PengramConfig.setQuickAction(index, name, value, type);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            }));
+        });
     }
 
     private CharSequence quickUrlPreview(String value) {
@@ -2086,7 +2118,20 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
+        if (item.id >= BTN_QUICK_ACTION_BASE && item.id < BTN_QUICK_ACTION_BASE + PengramConfig.QUICK_ACTION_LIMIT) {
+            editQuickAction(item.id - BTN_QUICK_ACTION_BASE);
+            return;
+        }
         switch (item.id) {
+            case BTN_QUICK_ADD: {
+                final int index = PengramConfig.getQuickActionCount();
+                if (index < PengramConfig.QUICK_ACTION_LIMIT) {
+                    PengramConfig.setQuickAction(index, getString(R.string.PengramQuickDefaultName), "", PengramConfig.QUICK_ACTION_TEXT);
+                    PengramConfig.setQuickActionCount(index + 1);
+                    editQuickAction(index);
+                }
+                return;
+            }
             case BTN_SENDER_AVATAR_POSITION: {
                 final CharSequence[] options = new CharSequence[]{
                         getString(R.string.PengramSenderAvatarInline),
@@ -2099,30 +2144,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                         PengramConfig.getDialogSenderAvatarPosition(), value -> {
                             PengramConfig.setDialogSenderAvatarPosition(value);
                             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
-                        });
-                return;
-            }
-            case BTN_QUICK_NAME_1:
-            case BTN_QUICK_NAME_2: {
-                final int index = item.id == BTN_QUICK_NAME_1 ? 1 : 2;
-                showTextDialog(index == 1 ? getString(R.string.PengramQuickName1) : getString(R.string.PengramQuickName2),
-                        PengramConfig.getQuickName(index), index == 1 ? PengramConfig.DEFAULT_QUICK_NAME_1 : PengramConfig.DEFAULT_QUICK_NAME_2, value -> {
-                            PengramConfig.setQuickName(index, value);
-                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
-                        });
-                return;
-            }
-            case BTN_QUICK_URL_1:
-            case BTN_QUICK_URL_2: {
-                final int index = item.id == BTN_QUICK_URL_1 ? 1 : 2;
-                showTextDialog(index == 1 ? getString(R.string.PengramQuickUrl1) : getString(R.string.PengramQuickUrl2),
-                        PengramConfig.getQuickUrl(index), index == 1 ? PengramConfig.DEFAULT_QUICK_URL_1 : PengramConfig.DEFAULT_QUICK_URL_2, value -> {
-                            if (value != null && !value.trim().isEmpty() && !PengramConfig.isValidQuickUrl(value)) {
-                                new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName)).setMessage(getString(R.string.PengramQuickInvalidUrl)).setPositiveButton(getString(R.string.OK), null).show();
-                                return;
-                            }
-                            PengramConfig.setQuickUrl(index, value);
-                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
                         });
                 return;
             }
