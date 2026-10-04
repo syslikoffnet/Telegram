@@ -9346,7 +9346,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (uri != null && AndroidUtilities.isInternalUri(uri)) {
             return ERROR_TYPE_UNSUPPORTED;
         }
-        if (path != null && AndroidUtilities.isInternalUri(Uri.fromFile(new File(path)))) {
+        if (path != null && AndroidUtilities.isInternalUri(Uri.fromFile(new File(path)))
+                && !PengramProfileHistory.isCloudAvatarFile(path)) {
             return ERROR_TYPE_UNSUPPORTED;
         }
         MimeTypeMap myMime = MimeTypeMap.getSingleton();

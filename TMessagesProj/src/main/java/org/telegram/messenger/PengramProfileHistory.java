@@ -176,6 +176,19 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
     private static File avatarDir(){ File d=new File(ApplicationLoader.applicationContext.getFilesDir(),"pengram_avatars"); d.mkdirs(); return d; }
     public static File avatarFile(String hash) { return TextUtils.isEmpty(hash) ? null : new File(avatarDir(), hash + ".webp"); }
+    /** Narrow allow-list for sending Pengram-owned private avatar snapshots through SendMessagesHelper. */
+    public static boolean isCloudAvatarFile(String path) {
+        if (TextUtils.isEmpty(path)) return false;
+        try {
+            File file = new File(path).getCanonicalFile();
+            return file.getParentFile() != null
+                    && file.getParentFile().equals(avatarDir().getCanonicalFile())
+                    && file.getName().matches("[0-9a-f]{32}\\.webp")
+                    && file.isFile() && file.length() > 0;
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
     private static String saveAvatar(int account, TLRPC.User user) {
         try {
             if(user.photo==null||user.photo.photo_small==null)return null;
