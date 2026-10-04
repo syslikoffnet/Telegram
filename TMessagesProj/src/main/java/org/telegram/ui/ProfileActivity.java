@@ -14115,7 +14115,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PowerUsage), R.drawable.msg2_battery, true);
                     } else if (position == pengramHistoryRow) {
                         final long did = userId != 0 ? userId : -chatId;
-                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(PengramHistory.getCount(did)), R.drawable.msg_viewchats, false);
+                        // счётчик из кэша: COUNT(*) прямо в onBindViewHolder подлагивал при прокрутке профиля
+                        final int savedCount = PengramHistory.getCountCached(did, () -> {
+                            if (listAdapter != null && pengramHistoryRow >= 0) {
+                                listAdapter.notifyItemChanged(pengramHistoryRow);
+                            }
+                        });
+                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(savedCount), R.drawable.msg_viewchats, false);
                     } else if (position == pengramRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PengramSettings), R.drawable.msg2_devices, true);
                     } else if (position == questionRow) {

@@ -49,6 +49,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private RenderThread thread;
     private volatile boolean running;
     private volatile boolean paused;
+    /** пауза от экрана (фрагмент ушёл в фон) и пауза от системы (окно скрыто) — независимы */
+    private volatile boolean pausedByScreen;
+    private volatile boolean pausedByWindow;
     private volatile int surfaceWidth, surfaceHeight;
 
     private volatile boolean ready;
@@ -162,7 +165,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         surfaceTexture = surface;
         surfaceWidth = width;
         surfaceHeight = height;
-        paused = false;
+        applyPaused();
         thread = new RenderThread();
         thread.start();
     }
@@ -188,17 +191,32 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        paused = true;
+        pausedByWindow = true;
+        applyPaused();
     }
 
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        paused = false;
+        pausedByWindow = getWindowVisibility() != VISIBLE;
+        applyPaused();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        // приложение свернули или экран погас — незачем крутить 3D и жечь батарею
+        pausedByWindow = visibility != VISIBLE;
+        applyPaused();
     }
 
     public void setPaused(boolean value) {
-        paused = value;
+        pausedByScreen = value;
+        applyPaused();
+    }
+
+    private void applyPaused() {
+        paused = pausedByScreen || pausedByWindow;
     }
 
     // ---------------------------------------------------------------- touch

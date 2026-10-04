@@ -11595,6 +11595,7 @@
     <string name="PengramHideTailInfo">Bubbles are drawn without the little tail</string>
     <string name="PengramHideEditedLabel">Hide the «edited» label</string>
     <string name="PengramHideEditedLabelInfo">Only the mark near the time is left</string>
+    <string name="PengramHistoryShowMore">Show %1$d more</string>
     <string name="PengramBubblesMovedInfo">Bubble tail, the «edited» label and the time over stickers now live in «Chats and buttons → Messages».</string>
     <string name="PengramMediaTimeHeader">Time over stickers and media</string>
     <string name="PengramMediaTimeDefault">Show</string>

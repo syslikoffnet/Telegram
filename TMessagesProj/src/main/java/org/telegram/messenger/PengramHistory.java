@@ -167,6 +167,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     cv.put("data", data);
                 }
                 history.getWritableDatabase().insert(TABLE, null, cv);
+                invalidateCounts(dialogId);
             } catch (Throwable e) {
                 FileLog.e(e);
             }
@@ -220,6 +221,102 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     /** кэш: dialogId -> набор id удалённых сообщений (чтобы не дёргать базу при отрисовке) */
     private static final java.util.HashMap<Long, java.util.HashSet<Integer>> marksCache = new java.util.HashMap<>();
+
+    // ------------------------------------------------------- счётчики без фризов
+    // COUNT(*) по базе занимает десятки миллисекунд, а зовут его из onBindViewHolder
+    // и при открытии меню. Поэтому наружу отдаём кэш, а базу опрашиваем в фоне.
+
+    private static final java.util.concurrent.ConcurrentHashMap<Long, Integer> countCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Set<Long> countDirty = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private static final java.util.Set<Long> countLoading = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    /**
+     * Сколько записей сохранено для диалога (0 — по всей базе).
+     * Возвращается мгновенно последнее известное значение; если оно устарело,
+     * база опрашивается в фоне и onUpdated вызывается на UI-потоке только при реальном изменении.
+     */
+    public static int getCountCached(final long dialogId, final Runnable onUpdated) {
+        final Integer cached = countCache.get(dialogId);
+        if (cached == null || countDirty.contains(dialogId)) {
+            refreshCount(dialogId, onUpdated);
+        }
+        return cached == null ? 0 : cached;
+    }
+
+    private static void refreshCount(final long dialogId, final Runnable onUpdated) {
+        if (getInstance() == null || !countLoading.add(dialogId)) {
+            return;
+        }
+        executor.execute(() -> {
+            int value = 0;
+            try {
+                value = getCount(dialogId);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            final Integer previous = countCache.put(dialogId, value);
+            countDirty.remove(dialogId);
+            countLoading.remove(dialogId);
+            if (onUpdated != null && (previous == null || previous != value)) {
+                AndroidUtilities.runOnUIThread(onUpdated);
+            }
+        });
+    }
+
+    /** запись изменилась — при следующем запросе счётчики пересчитаются */
+    private static void invalidateCounts(long dialogId) {
+        countDirty.add(0L);
+        if (dialogId != 0) {
+            countDirty.add(dialogId);
+        } else {
+            countDirty.addAll(countCache.keySet());
+        }
+        statsDirty = true;
+    }
+
+    /** Снимок размеров хранилища для экрана настроек. Считается в фоне, экран не ждёт. */
+    public static class Stats {
+        public long databaseSize;
+        public int totalEntries;
+        public int mediaCount;
+        public long mediaSize;
+    }
+
+    private static volatile Stats statsCache;
+    private static volatile boolean statsDirty = true;
+    private static volatile boolean statsLoading;
+
+    public static Stats getStatsCached(final Runnable onUpdated) {
+        final Stats cached = statsCache;
+        if (cached == null || statsDirty) {
+            refreshStats(onUpdated);
+        }
+        return cached == null ? new Stats() : cached;
+    }
+
+    private static void refreshStats(final Runnable onUpdated) {
+        if (statsLoading) {
+            return;
+        }
+        statsLoading = true;
+        statsDirty = false;
+        executor.execute(() -> {
+            final Stats stats = new Stats();
+            try {
+                stats.databaseSize = getDatabaseSize();
+                stats.totalEntries = getCount(0);
+                stats.mediaCount = getSavedMediaCount();
+                stats.mediaSize = getSavedMediaSize();
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            statsCache = stats;
+            statsLoading = false;
+            if (onUpdated != null) {
+                AndroidUtilities.runOnUIThread(onUpdated);
+            }
+        });
+    }
 
     public static void markDeleted(final int account, final long dialogId, final java.util.Collection<Integer> ids) {
         if (ids == null || ids.isEmpty() || dialogId == 0) {
@@ -679,6 +776,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         int removed = 0;
         try {
             removed = history.getWritableDatabase().delete(TABLE, "saved_at > 0 AND saved_at < ?", new String[]{String.valueOf(edge)});
+            invalidateCounts(0);
             history.getWritableDatabase().delete(TABLE_MARKS, "date > 0 AND date < ?", new String[]{String.valueOf(edge)});
         } catch (Throwable e) {
             FileLog.e(e);
@@ -707,8 +805,10 @@ public class PengramHistory extends SQLiteOpenHelper {
         try {
             if (dialogId != 0) {
                 history.getWritableDatabase().delete(TABLE, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
+                invalidateCounts(dialogId);
             } else {
                 history.getWritableDatabase().delete(TABLE, null, null);
+                invalidateCounts(0);
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -720,6 +820,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (history == null) return;
         try {
             history.getWritableDatabase().delete(TABLE, "id = ?", new String[]{String.valueOf(rowId)});
+            invalidateCounts(0);
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -932,6 +1033,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             cv.put("size", size);
             cv.put("saved_at", (int) (System.currentTimeMillis() / 1000L));
             history.getWritableDatabase().insert("saved_media", null, cv);
+            statsDirty = true;
         } catch (Throwable e) {
             FileLog.e(e);
             return;
@@ -994,6 +1096,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     continue;
                 }
                 history.getWritableDatabase().delete("saved_media", "id = ?", new String[]{String.valueOf(id)});
+                statsDirty = true;
                 total -= size;
             }
         } catch (Throwable e) {
@@ -1021,6 +1124,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 } catch (Throwable ignore) {}
             }
             history.getWritableDatabase().delete("saved_media", null, null);
+            statsDirty = true;
         } catch (Throwable e) {
             FileLog.e(e);
         } finally {

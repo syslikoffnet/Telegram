@@ -32,9 +32,22 @@ import java.util.Locale;
 
 /** Date-grouped profile snapshots reconstructed from compact database deltas. */
 public class PengramProfileHistoryActivity extends BaseFragment {
+    /** сколько карточек рисуем за раз — иначе длинная история вешает UI-поток */
+    private static final int RENDER_LIMIT = 80;
+    /** маленькие аватарки живут в кэше: BitmapFactory на каждый кадр списка — это OOM и фризы */
+    private static final android.util.LruCache<String, android.graphics.Bitmap> avatarCache =
+            new android.util.LruCache<String, android.graphics.Bitmap>(4 * 1024 * 1024) {
+                @Override
+                protected int sizeOf(String key, android.graphics.Bitmap value) {
+                    return value == null ? 0 : value.getByteCount();
+                }
+            };
+
     private final long userId;
     private LinearLayout list;
     private String query = "";
+    private int renderLimit = RENDER_LIMIT;
+    private ArrayList<PengramProfileHistory.Change> lastValues = new ArrayList<>();
     public PengramProfileHistoryActivity(long userId){this.userId=userId;}
 
     @Override public View createView(Context context){
@@ -49,7 +62,7 @@ public class PengramProfileHistoryActivity extends BaseFragment {
         list=new LinearLayout(context);list.setPadding(dp(12),dp(10),dp(12),dp(20));list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);fragmentView=scroll;load();return fragmentView;
     }
 
-    private void load(){final String requested=query;org.telegram.messenger.Utilities.globalQueue.postRunnable(()->{
+    private void load(){final String requested=query;renderLimit=RENDER_LIMIT;org.telegram.messenger.Utilities.globalQueue.postRunnable(()->{
         ArrayList<PengramProfileHistory.Change> values=reconstruct(PengramProfileHistory.getChanges(userId));
         if(!TextUtils.isEmpty(requested)){String q=requested.toLowerCase(Locale.ROOT);values.removeIf(c->!searchText(c).toLowerCase(Locale.ROOT).contains(q));}
         AndroidUtilities.runOnUIThread(()->{if(TextUtils.equals(requested,query))show(values);});
@@ -65,11 +78,49 @@ public class PengramProfileHistoryActivity extends BaseFragment {
     private String safe(String s){return s==null?"":s;}
 
     private void show(ArrayList<PengramProfileHistory.Change> values){
+        lastValues=values;
         list.removeAllViews();if(values.isEmpty()){TextView e=text(getString(R.string.PengramProfileHistoryEmpty),14);e.setGravity(Gravity.CENTER);list.addView(e,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,120));return;}
-        String last="";for(PengramProfileHistory.Change c:values){String day=LocaleController.formatDateChat((int)c.time);if(!day.equals(last)){last=day;TextView h=text(day,13);h.setTypeface(Typeface.DEFAULT_BOLD);h.setGravity(Gravity.CENTER);list.addView(h,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,36));}
+        final int limit=Math.min(values.size(),Math.max(RENDER_LIMIT,renderLimit));
+        String last="";for(int index=0;index<limit;index++){final PengramProfileHistory.Change c=values.get(index);String day=LocaleController.formatDateChat((int)c.time);if(!day.equals(last)){last=day;TextView h=text(day,13);h.setTypeface(Typeface.DEFAULT_BOLD);h.setGravity(Gravity.CENTER);list.addView(h,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,36));}
             LinearLayout card=new LinearLayout(getContext());card.setOrientation(LinearLayout.HORIZONTAL);card.setGravity(Gravity.TOP);card.setPadding(dp(12),dp(10),dp(12),dp(10));card.setBackground(Theme.createRoundRectDrawable(dp(14),Theme.getColor(Theme.key_windowBackgroundWhite)));
-            File avatar=PengramProfileHistory.avatarFile(c.avatarHash);if(avatar!=null&&avatar.exists()){ImageView image=new ImageView(getContext());image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setClipToOutline(true);image.setBackground(Theme.createRoundRectDrawable(dp(24),0xffdddddd));image.setImageBitmap(BitmapFactory.decodeFile(avatar.getAbsolutePath()));card.addView(image,LayoutHelper.createLinear(52,52,0,0,12,0));}
+            File avatar=PengramProfileHistory.avatarFile(c.avatarHash);android.graphics.Bitmap thumb=avatar!=null&&avatar.exists()?avatarThumb(c.avatarHash,avatar):null;if(thumb!=null){ImageView image=new ImageView(getContext());image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setClipToOutline(true);image.setBackground(Theme.createRoundRectDrawable(dp(24),0xffdddddd));image.setImageBitmap(thumb);card.addView(image,LayoutHelper.createLinear(52,52,0,0,12,0));}
             StringBuilder b=new StringBuilder();b.append("#user_").append(c.userId).append("\nID: ").append(c.userId).append("\nAccount: ").append(c.account+1).append('\n');if(c.firstSnapshot)b.append(getString(R.string.PengramProfileFirstSaved)).append('\n');appendChange(b,"Name",c.previousName,c.name,false);appendChange(b,"Usernames",c.previousUsername,c.username,true);appendChange(b,"Bio",c.previousBio,c.bio,false);if(c.avatarHash!=null){if(c.previousAvatarHash!=null)b.append("Avatar: #avatar_").append(c.previousAvatarHash).append(" → #avatar_").append(c.avatarHash).append('\n');else b.append("Avatar: #avatar_").append(c.avatarHash).append('\n');}b.append(LocaleController.formatDateTime((int)c.time,true));TextView t=text(b.toString(),15);card.addView(t,LayoutHelper.createLinear(0,LayoutHelper.WRAP_CONTENT,1f));list.addView(card,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,LayoutHelper.WRAP_CONTENT,0,0,0,8));
+        }
+        if(values.size()>limit){
+            TextView more=text(LocaleController.formatString(R.string.PengramHistoryShowMore,values.size()-limit),15);
+            more.setGravity(Gravity.CENTER);
+            more.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+            more.setBackground(Theme.createRoundRectDrawable(dp(14),Theme.getColor(Theme.key_windowBackgroundWhite)));
+            more.setOnClickListener(v->{renderLimit=limit+RENDER_LIMIT;show(lastValues);});
+            list.addView(more,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,44,0,0,0,8));
+        }
+    }
+
+    /** уменьшенная аватарка под размер карточки: полноразмерные битмапы тут не нужны */
+    private android.graphics.Bitmap avatarThumb(String hash,File file){
+        final String key=hash==null?file.getAbsolutePath():hash;
+        android.graphics.Bitmap cached=avatarCache.get(key);
+        if(cached!=null&&!cached.isRecycled()){
+            return cached;
+        }
+        try{
+            final int target=dp(52);
+            final BitmapFactory.Options bounds=new BitmapFactory.Options();
+            bounds.inJustDecodeBounds=true;
+            BitmapFactory.decodeFile(file.getAbsolutePath(),bounds);
+            int sample=1;
+            while(bounds.outWidth/(sample*2)>=target&&bounds.outHeight/(sample*2)>=target){
+                sample*=2;
+            }
+            final BitmapFactory.Options options=new BitmapFactory.Options();
+            options.inSampleSize=sample;
+            final android.graphics.Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath(),options);
+            if(bitmap!=null){
+                avatarCache.put(key,bitmap);
+            }
+            return bitmap;
+        }catch(Throwable e){
+            return null;
         }
     }
     private void appendChange(StringBuilder out,String label,String previous,String current,boolean username){

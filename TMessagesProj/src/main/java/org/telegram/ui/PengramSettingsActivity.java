@@ -641,13 +641,21 @@ public class PengramSettingsActivity extends UniversalFragment {
         return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
     }
 
+    /** перерисовать список настроек (вызывается, когда дочитались фоновые счётчики) */
+    private void refreshList() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
     /** «Вкл · 128» — сколько всего сохранено */
     private CharSequence spySectionValue() {
         final boolean on = PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited();
         if (!on) {
             return onOff(false);
         }
-        final int count = PengramHistory.getCount(0);
+        // счётчик берём из кэша: SELECT COUNT(*) на UI-потоке подвешивал открытие настроек
+        final int count = PengramHistory.getCountCached(0, this::refreshList);
         return count > 0 ? (getString(R.string.PengramValueOn) + " \u00b7 " + count) : onOff(true);
     }
 
@@ -1036,13 +1044,14 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** короткая статистика под блоком хранилища */
     private CharSequence historyStatsText() {
+        // размеры считаются в фоне, экран рисуется сразу и обновится сам
+        final PengramHistory.Stats stats = PengramHistory.getStatsCached(this::refreshList);
         final StringBuilder sb = new StringBuilder();
-        sb.append(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize())));
-        final int mediaCount = PengramHistory.getSavedMediaCount();
-        if (mediaCount > 0) {
+        sb.append(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(stats.databaseSize)));
+        if (stats.mediaCount > 0) {
             sb.append('\n');
-            sb.append(LocaleController.formatString(R.string.PengramHistoryMediaStats, mediaCount,
-                    AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize())));
+            sb.append(LocaleController.formatString(R.string.PengramHistoryMediaStats, stats.mediaCount,
+                    AndroidUtilities.formatFileSize(stats.mediaSize)));
         }
         return sb.toString();
     }
@@ -1425,7 +1434,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
                 }
                 items.add(moreButton(GROUP_HISTORY_MEDIA));
-                items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo, AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize()))));
+                items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo,
+                            AndroidUtilities.formatFileSize(PengramHistory.getStatsCached(this::refreshList).mediaSize))));
             } else {
                 items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
             }

@@ -623,6 +623,7 @@
     <string name="PengramHideTailInfo">Пузыри рисуются без «хвостика»</string>
     <string name="PengramHideEditedLabel">Убрать надпись «изменено»</string>
     <string name="PengramHideEditedLabelInfo">Остаётся только метка рядом со временем</string>
+    <string name="PengramHistoryShowMore">Показать ещё %1$d</string>
     <string name="PengramBubblesMovedInfo">Хвостик пузыря, надпись «изменено» и время поверх стикеров переехали в «Чаты и кнопки → Сообщения».</string>
     <string name="PengramMediaTimeHeader">Время поверх стикеров и медиа</string>
     <string name="PengramMediaTimeDefault">Показывать</string>

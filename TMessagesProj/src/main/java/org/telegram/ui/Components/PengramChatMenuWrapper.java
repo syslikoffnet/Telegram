@@ -52,7 +52,14 @@ public class PengramChatMenuWrapper {
                 final ActionBarMenuSubItem item = ActionBarMenuItem.addItem(windowLayout, icon,
                         LocaleController.getString(PengramConfig.getChatItemTitle(id)), false, resourcesProvider);
                 if (id == PengramConfig.CHAT_ITEM_VIEW_DELETED) {
-                    final int count = PengramHistory.getCount(dialogId);
+                    // меню должно открыться мгновенно, поэтому число берём из кэша
+                    // и дорисовываем подпись, когда счётчик досчитается в фоне
+                    final int count = PengramHistory.getCountCached(dialogId, () -> {
+                        final int fresh = PengramHistory.getCountCached(dialogId, null);
+                        if (fresh > 0 && item.isAttachedToWindow()) {
+                            item.setSubtext(LocaleController.formatPluralString("PengramSavedMessagesCount", fresh));
+                        }
+                    });
                     if (count > 0) {
                         item.setSubtext(LocaleController.formatPluralString("PengramSavedMessagesCount", count));
                     }
