@@ -3209,8 +3209,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     public void setTitleOverlayText(String title, int titleId, Runnable action) {
         super.setTitleOverlayText(title, titleId, action);
         if (title == null) {
-            // Pengram: когда «Соединение…» уходит, возвращаем свой заголовок, а не «Telegram»
+            // Pengram: когда «Соединение…» уходит, возвращаем свой заголовок, а не «Telegram».
+            // Сразу — чтобы не было кадра с логотипом, и ещё раз после анимации подмены заголовка.
+            pengramUpdateTitle();
             AndroidUtilities.runOnUIThread(this::pengramUpdateTitle, 50);
+            AndroidUtilities.runOnUIThread(this::pengramUpdateTitle, 350);
         }
         if (actionBar != null && selectAnimatedEmojiDialog != null && selectAnimatedEmojiDialog.getContentView() instanceof SelectAnimatedEmojiDialog) {
             SimpleTextView textView = actionBar.getTitleTextView();

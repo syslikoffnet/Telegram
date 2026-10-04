@@ -341,6 +341,16 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         telegramLogoView.setFocusableInTouchMode(true);
         addView(telegramLogoView, LayoutHelper.createFrame(90, 22));
 
+        // Pengram: если выбран свой заголовок — логотип Telegram не создаёт даже первого кадра.
+        final CharSequence pengramInitialBrand = pengramBrandTitle();
+        if (pengramInitialBrand != null) {
+            currentTitle = pengramInitialBrand;
+            titleView.setText(pengramInitialBrand, false);
+            telegramLogoView.setVisibility(GONE);
+            telegramLogoView.setAlpha(0f);
+            animatorHasTitleText.setValue(true, false);
+        }
+
         statusDrawable = new AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable(null, dp(26));
         statusDrawable.center = true;
         statusDrawable.setCallback(this);
@@ -636,11 +646,11 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
 
         // В свёрнутой шапке историй раньше снова показывался telegram_logo_2. Для всех
         // пользовательских режимов используем тот же текст бренда, что и основной ActionBar.
-        if (org.telegram.messenger.PengramConfig.getTitleMode()
-                != org.telegram.messenger.PengramConfig.TITLE_MODE_DEFAULT) {
-            // Branding is authoritative in both expanded and collapsed states. Story counts,
-            // uploads and overlay transitions must not restore Telegram or another stale title.
-            currentTitle = org.telegram.messenger.PengramConfig.resolveAppTitle("Telegram", currentAccount);
+        // Branding is authoritative in both expanded and collapsed states. Story counts,
+        // uploads and overlay transitions must not restore Telegram or another stale title.
+        final CharSequence pengramBrand = pengramBrandTitle();
+        if (pengramBrand != null) {
+            currentTitle = pengramBrand;
         }
         if (!hasOverlayText) {
             titleView.setText(currentTitle, animated && !LocaleController.isRTL);
@@ -1307,6 +1317,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         } else {
             hasOverlayText = false;
             overlayTextId = 0;
+            // Pengram: «Соединение…» уходит — возвращаем бренд, а не устаревший (часто пустой)
+            // заголовок, иначе на его месте проступает логотип Telegram.
+            final CharSequence brandOnOverlayEnd = pengramBrandTitle();
+            if (brandOnOverlayEnd != null) {
+                currentTitle = brandOnOverlayEnd;
+            }
             titleView.setText(currentTitle, !LocaleController.isRTL);
         }
 
@@ -2213,9 +2229,31 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         }
     }
 
+    /**
+     * Pengram: текст бренда для шапки (null — оставить штатное поведение Telegram).
+     * Единая точка истины: и свёрнутая шапка историй, и ActionBar берут имя отсюда.
+     */
+    private CharSequence pengramBrandTitle() {
+        if (org.telegram.messenger.PengramConfig.getTitleMode()
+                == org.telegram.messenger.PengramConfig.TITLE_MODE_DEFAULT) {
+            return null;
+        }
+        final String brand = org.telegram.messenger.PengramConfig.resolveAppTitle("Telegram", currentAccount);
+        return TextUtils.isEmpty(brand) ? "Pengram" : brand;
+    }
+
     private void checkUi_titleVisibility() {
         final float progress = MathUtils.clamp(Math.min(collapsedProgress, collapsedProgress2), 0, 1);
-        final float titleVisibility = animatorHasTitleText.getFloatValue();
+        final CharSequence brand = pengramBrandTitle();
+        float titleVisibility = animatorHasTitleText.getFloatValue();
+        if (brand != null) {
+            // Логотип-надпись Telegram не должна появляться ни на одном кадре анимации.
+            titleVisibility = 1f;
+            if (titleView != null && TextUtils.isEmpty(titleView.getText())) {
+                currentTitle = brand;
+                titleView.setText(brand, false);
+            }
+        }
         final float logoVisibility = 1f - titleVisibility;
         final float titleAlpha = titleVisibility * progress;
         final float logoAlpha = logoVisibility * progress;

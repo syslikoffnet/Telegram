@@ -1167,6 +1167,11 @@ public class PengramConfig {
         if (word == null || word.length() == 0) {
             return text;
         }
+        if (isZalgoFilter()) {
+            // Фильтр включён — он обязан чистить текст и у себя в описании тоже:
+            // слово показываем обычными символами. Выключат — снова «сломаем».
+            return filterZalgo(text);
+        }
         final String src = text.toString();
         final int index = src.indexOf(word);
         if (index < 0) {

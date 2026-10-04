@@ -2193,6 +2193,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getMessagesController().pengramApplyZalgoFilter();
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
                 getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
+                // описание самой настройки тоже подчиняется фильтру: включено — ровный текст,
+                // выключено — слово «Zalgo» снова написано зальго-символами
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
             }
             if (item.id == boolId(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION) || item.id == boolId(PengramConfig.KEY_ANTICRASH_JOURNAL) || item.id == boolId(PengramConfig.KEY_DIALOG_SENDER_AVATARS)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);

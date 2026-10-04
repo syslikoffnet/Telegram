@@ -334,8 +334,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
-    /** Pengram: на этом экране разрешено центрировать заголовок */
-    private boolean pengramCenterAllowed;
+    /**
+     * Pengram: на этом экране разрешено центрировать заголовок.
+     * По умолчанию разрешено везде — настройка «Заголовок по центру» центрирует
+     * заголовки всех экранов; экран может отказаться через setPengramCenterTitle(false).
+     */
+    private boolean pengramCenterAllowed = true;
 
     public void setPengramCenterTitle(boolean value) {
         pengramCenterAllowed = value;

@@ -24,8 +24,10 @@ import java.util.Arrays;
 public class UserConfig extends BaseController {
 
     public static int selectedAccount;
-    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 3;
-    public final static int MAX_ACCOUNT_COUNT = 4;
+    // Pengram: 14 аккаунтов без Premium и 16 с ним. 16 — жёсткий предел,
+    // на него рассчитаны все массивы аккаунтов в приложении.
+    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 14;
+    public final static int MAX_ACCOUNT_COUNT = 16;
 
     private final Object sync = new Object();
     private volatile boolean configLoaded;
@@ -122,7 +124,7 @@ public class UserConfig extends BaseController {
     }
 
     public static int getMaxAccountCount() {
-        return hasPremiumOnAccounts() ? 5 : 3;
+        return hasPremiumOnAccounts() ? MAX_ACCOUNT_COUNT : MAX_ACCOUNT_DEFAULT_COUNT;
     }
 
     public int getNewMessageId() {
