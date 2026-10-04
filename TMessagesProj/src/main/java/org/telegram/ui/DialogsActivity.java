@@ -11040,7 +11040,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
-            return pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
+            // Служебный канал принудительно находится в архиве. Главный список — hot path:
+            // не сканируем тысячи диалогов при каждом layout/scroll кадре.
+            return folderId == 0 ? messagesController.getDialogs(folderId)
+                    : pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
             return pengramVisibleDialogs(currentAccount, messagesController.dialogsServerOnly);
         } else if (dialogsType == DIALOGS_TYPE_ADD_USERS_TO) {

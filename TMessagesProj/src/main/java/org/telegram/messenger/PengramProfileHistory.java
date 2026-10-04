@@ -34,6 +34,10 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
 
     private static volatile PengramProfileHistory instance;
     private static final Object lock = new Object();
+    private static final java.util.HashSet<String> trackedCache = new java.util.HashSet<>();
+    private static volatile boolean trackedCacheLoaded;
+    private static volatile boolean trackedCacheLoading;
+    private static final java.util.HashSet<String> avatarLoads = new java.util.HashSet<>();
 
     public static final class Change {
         public long id, userId, time;
@@ -57,14 +61,17 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
 
     public static boolean enabled() { return PengramConfig.getBool(KEY_ENABLED, false); }
+    private static String trackedKey(int account,long userId){return account+":"+userId;}
+    private static void ensureTrackedCache(){
+        if(trackedCacheLoaded||trackedCacheLoading)return;trackedCacheLoading=true;
+        Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h!=null)try(Cursor c=h.getReadableDatabase().rawQuery("SELECT account,user_id FROM tracked",null)){synchronized(trackedCache){while(c.moveToNext())trackedCache.add(trackedKey(c.getInt(0),c.getLong(1)));}}trackedCacheLoaded=true;trackedCacheLoading=false;});
+    }
     public static boolean isTracked(int account, long userId) {
-        PengramProfileHistory h = getInstance(); if (h == null) return false;
-        try (Cursor c = h.getReadableDatabase().rawQuery("SELECT 1 FROM tracked WHERE account=? AND user_id=?", new String[]{""+account,""+userId})) { return c.moveToFirst(); }
+        ensureTrackedCache();synchronized(trackedCache){return trackedCache.contains(trackedKey(account,userId));}
     }
     public static void setTracked(int account, long userId, boolean tracked) {
-        PengramProfileHistory h = getInstance(); if (h == null) return;
-        if (tracked) h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)", new Object[]{account,userId});
-        else h.getWritableDatabase().delete("tracked", "account=? AND user_id=?", new String[]{""+account,""+userId});
+        ensureTrackedCache();synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}
+        Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h==null)return;if(tracked)h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)",new Object[]{account,userId});else h.getWritableDatabase().delete("tracked","account=? AND user_id=?",new String[]{""+account,""+userId});synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}});
     }
 
     public static void observeUser(int account, TLRPC.User user, boolean fromCache) {
@@ -76,7 +83,6 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         final String name = ContactsController.formatName(user.first_name, user.last_name);
         final String username = UserObject.getPublicUsername(user);
         final String avatarToken = user.photo == null ? null : String.valueOf(user.photo.photo_id);
-        if (avatarToken != null && PengramConfig.getBool(KEY_AVATARS, false)) ensureAvatarAvailable(account, user, avatarToken);
         Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, name, username, null, avatarToken, user));
     }
 
@@ -99,7 +105,10 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             String du=username!=null&&!TextUtils.equals(username,oldUsername)?username:null;
             String db=bio!=null&&!TextUtils.equals(bio,oldBio)?bio:null;
             String currentAvatar = null;
-            if (avatarToken != null && user != null && PengramConfig.getBool(KEY_AVATARS, false)) currentAvatar = saveAvatar(account, user);
+            if (avatarToken != null && user != null && PengramConfig.getBool(KEY_AVATARS, false)) {
+                currentAvatar = saveAvatar(account, user);
+                if (currentAvatar == null) ensureAvatarAvailable(account, user, avatarToken);
+            }
             String da=currentAvatar!=null&&!TextUtils.equals(currentAvatar,oldAvatar)?currentAvatar:null;
             if(dn==null&&du==null&&db==null&&da==null)return;
             h.getWritableDatabase().execSQL("INSERT INTO changes(account,user_id,time,name,username,bio,avatar_hash) VALUES(?,?,?,?,?,?,?)",new Object[]{account,userId,System.currentTimeMillis()/1000,dn,du,db,da});
@@ -119,9 +128,11 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
 
     private static void ensureAvatarAvailable(int account, TLRPC.User user, String token) {
+        final String loadKey=account+":"+user.id+":"+token;
+        synchronized(avatarLoads){if(avatarLoads.contains(loadKey)||avatarLoads.size()>=4)return;avatarLoads.add(loadKey);}
         try {
             File source = FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small, true);
-            if (source != null && source.exists()) return;
+            if (source != null && source.exists()){synchronized(avatarLoads){avatarLoads.remove(loadKey);}return;}
             AndroidUtilities.runOnUIThread(() -> {
                 try {
                     FileLoader.getInstance(account).loadFile(ImageLocation.getForUser(account, user, ImageLocation.TYPE_SMALL), user,
@@ -133,10 +144,11 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
                 final int attempt = i;
                 Utilities.globalQueue.postRunnable(() -> {
                     File ready = FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small, true);
-                    if (ready != null && ready.exists()) saveDelta(account, user.id, null, null, null, token, user);
+                    if (ready != null && ready.exists()) { synchronized(avatarLoads){avatarLoads.remove(loadKey);} saveDelta(account, user.id, null, null, null, token, user); }
+                    else if(attempt==3)synchronized(avatarLoads){avatarLoads.remove(loadKey);}
                 }, attempt * attempt * 2500L);
             }
-        } catch (Throwable e) { FileLog.e(e); }
+        } catch (Throwable e) { synchronized(avatarLoads){avatarLoads.remove(loadKey);} FileLog.e(e); }
     }
     private static File avatarDir(){ File d=new File(ApplicationLoader.applicationContext.getFilesDir(),"pengram_avatars"); d.mkdirs(); return d; }
     public static File avatarFile(String hash) { return TextUtils.isEmpty(hash) ? null : new File(avatarDir(), hash + ".webp"); }
@@ -222,5 +234,5 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         }
     }
     public static void clearAvatars(){Utilities.globalQueue.postRunnable(()->{File[] fs=avatarDir().listFiles();if(fs!=null)for(File f:fs)if(f.getName().endsWith(".webp"))f.delete();PengramProfileHistory h=getInstance();if(h!=null)h.getWritableDatabase().execSQL("UPDATE changes SET avatar_hash=NULL");});}
-    public static void clearLocal() { Utilities.globalQueue.postRunnable(() -> { PengramProfileHistory h=getInstance(); if(h!=null){h.getWritableDatabase().delete("changes",null,null);h.getWritableDatabase().delete("tracked",null,null);} clearAvatars(); }); }
+    public static void clearLocal() { synchronized(trackedCache){trackedCache.clear();trackedCacheLoaded=true;}Utilities.globalQueue.postRunnable(() -> { PengramProfileHistory h=getInstance(); if(h!=null){h.getWritableDatabase().delete("changes",null,null);h.getWritableDatabase().delete("tracked",null,null);} clearAvatars(); }); }
 }
