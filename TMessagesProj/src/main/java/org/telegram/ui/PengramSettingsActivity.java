@@ -1910,7 +1910,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
-        items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.ChatListSwipeGesture), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
+        items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.PengramSwipeAction), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
         items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
         items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
@@ -1960,6 +1960,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         switch (PengramConfig.getDialogSenderAvatarPosition()) {
             case PengramConfig.SENDER_AVATAR_BOTTOM: return getString(R.string.PengramSenderAvatarBottom);
             case PengramConfig.SENDER_AVATAR_TOP: return getString(R.string.PengramSenderAvatarTop);
+            case PengramConfig.SENDER_AVATAR_BEFORE_NAME: return getString(R.string.PengramSenderAvatarBeforeName);
+            case PengramConfig.SENDER_AVATAR_AFTER_NAME: return getString(R.string.PengramSenderAvatarAfterName);
             default: return getString(R.string.PengramSenderAvatarInline);
         }
     }
@@ -2089,7 +2091,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final CharSequence[] options = new CharSequence[]{
                         getString(R.string.PengramSenderAvatarInline),
                         getString(R.string.PengramSenderAvatarBottom),
-                        getString(R.string.PengramSenderAvatarTop)
+                        getString(R.string.PengramSenderAvatarTop),
+                        getString(R.string.PengramSenderAvatarBeforeName),
+                        getString(R.string.PengramSenderAvatarAfterName)
                 };
                 showChoicePicker(getString(R.string.PengramSenderAvatarPosition), options,
                         PengramConfig.getDialogSenderAvatarPosition(), value -> {
@@ -2257,7 +2261,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         selected = a;
                     }
                 }
-                showChoicePicker(getString(R.string.ChatListSwipeGesture), options, selected, value -> {
+                showChoicePicker(getString(R.string.PengramSwipeAction), options, selected, value -> {
                     SharedConfig.updateChatListSwipeSetting(actions[value]);
                 });
                 return;

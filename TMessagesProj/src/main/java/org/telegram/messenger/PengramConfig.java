@@ -147,6 +147,8 @@ public class PengramConfig {
     public static final int SENDER_AVATAR_INLINE = 0;
     public static final int SENDER_AVATAR_BOTTOM = 1;
     public static final int SENDER_AVATAR_TOP = 2;
+    public static final int SENDER_AVATAR_BEFORE_NAME = 3;
+    public static final int SENDER_AVATAR_AFTER_NAME = 4;
     /** всегда показывать галочку «Удалить у всех» */
     public static final String KEY_FORCE_DELETE_FOR_ALL = "forceDeleteForAll";
     /** удалённые пересылать от своего лица, без «переслано от» */
@@ -1506,8 +1508,8 @@ public class PengramConfig {
     public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
-    public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_TOP, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
-    public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_TOP, value))); }
+    public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
+    public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
     /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
     public static boolean isResendDeletedAsMine() { return true; }

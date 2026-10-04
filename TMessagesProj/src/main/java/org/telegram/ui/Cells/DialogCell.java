@@ -2478,7 +2478,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
         if (pengramSenderAvatarThumb) {
             final int position = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
-            if (position != org.telegram.messenger.PengramConfig.SENDER_AVATAR_INLINE) {
+            if (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BOTTOM
+                    || position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_TOP) {
                 final int size = dp(20);
                 final int x = LocaleController.isRTL ? avatarLeft - dp(2) : avatarLeft + dp((useForceThreeLines || SharedConfig.useThreeLinesLayout) ? 38 : 34);
                 final int y = position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_TOP
@@ -2682,7 +2683,26 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         messageNameString = s;
                     }
                 }
-                messageNameLayout = StaticLayoutEx.createStaticLayout(messageNameString, Theme.dialogs_messageNamePaint, messageWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0, false, TextUtils.TruncateAt.END, messageWidth, 1);
+                final int senderAvatarPosition = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
+                final boolean avatarBesideName = pengramSenderAvatarThumb
+                        && (senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME
+                        || senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME);
+                final int nameWidth = avatarBesideName ? Math.max(dp(12), messageWidth - dp(24)) : messageWidth;
+                if (avatarBesideName && senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME) {
+                    final int avatarX = LocaleController.isRTL ? messageNameLeft + nameWidth + dp(4) : messageNameLeft;
+                    thumbImage[0].setImageCoords(avatarX, messageNameTop - dp(2), dp(20), dp(20));
+                    if (!LocaleController.isRTL) {
+                        messageNameLeft += dp(24);
+                    }
+                }
+                messageNameLayout = StaticLayoutEx.createStaticLayout(messageNameString, Theme.dialogs_messageNamePaint, nameWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0, false, TextUtils.TruncateAt.END, nameWidth, 1);
+                if (avatarBesideName && senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME) {
+                    final int renderedWidth = messageNameLayout.getLineCount() == 0 ? 0 : (int) Math.ceil(messageNameLayout.getLineWidth(0));
+                    final int avatarX = LocaleController.isRTL
+                            ? messageNameLeft - renderedWidth - dp(24)
+                            : messageNameLeft + renderedWidth + dp(4);
+                    thumbImage[0].setImageCoords(avatarX, messageNameTop - dp(2), dp(20), dp(20));
+                }
             } catch (Exception e) {
                 FileLog.e(e);
             }

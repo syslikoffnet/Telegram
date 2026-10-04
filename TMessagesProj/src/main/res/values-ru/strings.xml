@@ -1047,10 +1047,13 @@
     <string name="PengramQuickUrlInfo">Принимаются публичные ссылки вида https://t.me/name/id или t.me/name/id.</string>
     <string name="PengramQuickInvalidUrl">Неверная ссылка. Используйте https://t.me/name/id или t.me/name/id.</string>
     <string name="PengramQuickForwardFailed">Не удалось загрузить и переслать это сообщение.</string>
-    <string name="PengramSenderAvatarPosition">Расположение мини-аватарки</string>
+    <string name="PengramSenderAvatarPosition">Позиция мини-аватарки</string>
+    <string name="PengramSwipeAction">Смахивание влево</string>
     <string name="PengramSenderAvatarInline">Перед текстом сообщения</string>
     <string name="PengramSenderAvatarBottom">На нижнем углу аватарки чата</string>
     <string name="PengramSenderAvatarTop">На верхнем углу аватарки чата</string>
+    <string name="PengramSenderAvatarBeforeName">Перед именем отправителя</string>
+    <string name="PengramSenderAvatarAfterName">После имени отправителя</string>
     <string name="PengramSubsectionActions">Быстрые действия и пересылка</string>
     <string name="PengramSubsectionActionsInfo">Кнопки, пересылка и отправка копий</string>
     <string name="PengramSubsectionMessages">Сообщения и выделение</string>
