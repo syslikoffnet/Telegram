@@ -1403,7 +1403,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (PengramConfig.saveDeletedMedia) {
                 items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()));
                 items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()));
-                items.add(checkInfo(PengramConfig.KEY_MEDIA_GALLERY, false, getString(R.string.PengramMediaGallery), getString(R.string.PengramMediaGalleryInfo)));
                 if (expanded(GROUP_HISTORY_MEDIA)) {
                     items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
 
@@ -1870,13 +1869,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramQuickUrlInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
-        items.add(checkInfo(PengramConfig.KEY_RESEND_AS_MINE, true, getString(R.string.PengramResendAsMine), getString(R.string.PengramResendAsMineInfo)));
-        items.add(check(PengramConfig.KEY_RESEND_MENU, true, getString(R.string.PengramResendMenu)));
-        if (PengramConfig.isResendMenuVisible()) {
-            items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
-            items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
-        }
-        items.add(UItem.asShadow(null));
+        // Базовые пункты отправки удалёнки и отправка без чужой подписи всегда включены.
+        // Пользователю остаются только действительно значимые варианты поведения.
+        items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
+        items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
+        items.add(UItem.asShadow(getString(R.string.PengramResendAlwaysOnInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
         if (PengramConfig.isForwardLockEnabled()) items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));

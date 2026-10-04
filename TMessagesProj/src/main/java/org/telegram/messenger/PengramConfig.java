@@ -1509,8 +1509,9 @@ public class PengramConfig {
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_TOP, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_TOP, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
-    public static boolean isResendDeletedAsMine() { return getBool(KEY_RESEND_AS_MINE, true); }
-    public static boolean isResendMenuVisible() { return getBool(KEY_RESEND_MENU, true); }
+    /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
+    public static boolean isResendDeletedAsMine() { return true; }
+    public static boolean isResendMenuVisible() { return true; }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
 

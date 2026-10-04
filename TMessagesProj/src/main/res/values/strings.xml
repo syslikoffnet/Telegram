@@ -11309,7 +11309,7 @@
     <string name="PengramMediaFolder">Folder</string>
     <string name="PengramMediaPattern">File name</string>
     <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
-    <string name="PengramMediaInfo">Photos go to Pictures/folder, videos to Movies/folder, other files to Download/folder. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
+    <string name="PengramMediaInfo">Deleted photos, videos and files (except voice messages) go to /storage/emulated/0/folder. Download is reserved for files downloaded by you. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramSettingsInfo">Ghost mode, deleted messages, appearance</string>
     <string name="PengramSectionProfile">General and profile</string>
     <string name="PengramSectionGhost">Ghost mode</string>
@@ -11604,6 +11604,7 @@
     <string name="PengramDeletedSendHeader">Deleted messages</string>
     <string name="PengramResendAsMine">Send deleted as my own</string>
     <string name="PengramResendAsMineInfo">Forwarding a deleted message sends a copy from you, without «forwarded from»</string>
+    <string name="PengramResendAlwaysOnInfo">Deleted-message actions are always available and copies are sent from you. Choose only how one-time media and chat selection should behave.</string>
     <string name="PengramResendMenu">Items in the message menu</string>
     <string name="PengramResendOnce">Also for one-time media</string>
     <string name="PengramResendAsk">Always ask for the chat</string>

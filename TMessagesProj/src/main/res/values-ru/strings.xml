@@ -337,7 +337,7 @@
     <string name="PengramMediaFolder">Папка</string>
     <string name="PengramMediaPattern">Имя файла</string>
     <string name="PengramMediaPatternHint">deleted_{date}_{chat}_{id}</string>
-    <string name="PengramMediaInfo">Фото сохраняются в Pictures/папка, видео — в Movies/папка, остальные файлы — в Download/папка. Доступные подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
+    <string name="PengramMediaInfo">Удалённые фото, видео и файлы (кроме голосовых) сохраняются в /storage/emulated/0/папка. Download остаётся только для файлов, скачанных вами. Подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramSettingsInfo">Призрак, удалённые сообщения, оформление</string>
     <string name="PengramSectionProfile">Основное и профиль</string>
     <string name="PengramSectionGhost">Режим призрака</string>
@@ -632,6 +632,7 @@
     <string name="PengramDeletedSendHeader">Удалённые сообщения</string>
     <string name="PengramResendAsMine">Удалённые отправлять от своего лица</string>
     <string name="PengramResendAsMineInfo">При пересылке удалёнки уходит копия от вас, без пометки «переслано от»</string>
+    <string name="PengramResendAlwaysOnInfo">Действия с удалёнными сообщениями всегда доступны, а копия отправляется от вашего имени. Здесь настраиваются только одноразовые медиа и выбор чата.</string>
     <string name="PengramResendMenu">Пункты в меню сообщения</string>
     <string name="PengramResendOnce">И для одноразовых медиа</string>
     <string name="PengramResendAsk">Всегда спрашивать чат</string>

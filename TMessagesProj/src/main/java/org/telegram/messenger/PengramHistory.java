@@ -785,40 +785,28 @@ public class PengramHistory extends SQLiteOpenHelper {
     // --------------------------------------------- сохранение медиа удалёнок
 
     /**
-     * Копирует файл удалённого сообщения в выбранную пользователем папку.
-     * На Android 10+ пишем через MediaStore (без разрешений), ниже — обычным файлом.
+     * Копирует вложение удалённого сообщения в общую папку /storage/emulated/0/<folder>.
+     * Download остаётся только для файлов, которые явно скачал сам пользователь. Голосовые
+     * сообщения намеренно не экспортируются: они остаются частью приватной истории Pengram.
      */
     public static void saveMediaCopy(final File source, final String displayName, final String mimeType, final boolean isVideo, final boolean isImage) {
         if (source == null || !source.exists() || ApplicationLoader.applicationContext == null) {
+            return;
+        }
+        final String normalizedMime = mimeType == null ? "" : mimeType.toLowerCase(Locale.US);
+        if (normalizedMime.startsWith("audio/") || normalizedMime.contains("ogg") || normalizedMime.contains("opus")) {
             return;
         }
         executor.execute(() -> {
             try {
                 final String folder = PengramConfig.getMediaFolder();
                 final String mime = mimeType != null ? mimeType : (isVideo ? "video/mp4" : isImage ? "image/jpeg" : "application/octet-stream");
-                if (!PengramConfig.isMediaToGallery()) {
-                    // по умолчанию копии лежат только внутри Pengram и в галерею не попадают
-                    final File dest = savePrivateCopy(source, displayName, folder);
-                    if (dest != null) {
-                        trackSavedMedia(null, dest.getAbsolutePath(), dest.length());
-                    }
-                } else if (Build.VERSION.SDK_INT >= 29) {
+                if (Build.VERSION.SDK_INT >= 29) {
                     ContentValues cv = new ContentValues();
                     cv.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
                     cv.put(MediaStore.MediaColumns.MIME_TYPE, mime);
-                    final String relative;
-                    final Uri collection;
-                    if (isImage) {
-                        relative = Environment.DIRECTORY_PICTURES + "/" + folder;
-                        collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                    } else if (isVideo) {
-                        relative = Environment.DIRECTORY_MOVIES + "/" + folder;
-                        collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    } else {
-                        relative = Environment.DIRECTORY_DOWNLOADS + "/" + folder;
-                        collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
-                    }
-                    cv.put(MediaStore.MediaColumns.RELATIVE_PATH, relative);
+                    final Uri collection = MediaStore.Files.getContentUri("external");
+                    cv.put(MediaStore.MediaColumns.RELATIVE_PATH, folder + "/");
                     Uri uri = ApplicationLoader.applicationContext.getContentResolver().insert(collection, cv);
                     if (uri == null) {
                         return;
@@ -834,8 +822,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     }
                     trackSavedMedia(uri.toString(), null, source.length());
                 } else {
-                    File dir = new File(Environment.getExternalStoragePublicDirectory(
-                            isVideo ? Environment.DIRECTORY_MOVIES : isImage ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_DOWNLOADS), folder);
+                    File dir = new File(Environment.getExternalStorageDirectory(), folder);
                     if (!dir.exists() && !dir.mkdirs()) {
                         return;
                     }
