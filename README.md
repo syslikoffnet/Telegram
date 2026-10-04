@@ -305,6 +305,9 @@ ID перестал быть «просто цифрами в профиле»:
 
 ## Сборка
 
+Пошагово с картинками: [docs/SECRETS.md](docs/SECRETS.md) — куда нажимать в GitHub,
+[docs/UPSTREAM.md](docs/UPSTREAM.md) — как подтягивать новые версии Telegram.
+
 ### Ключи приложения (api_id / api_hash)
 В репозитории ключей **нет** — ни в исходниках, ни в `gradle.properties`.
 Сборка берёт их (в порядке приоритета) из `-PAPP_ID=... -PAPP_HASH=...`,
@@ -350,6 +353,16 @@ Workflow сам ставит JDK 17, Android SDK, NDK 27.2.12479018 и CMake 3.2
 # APK: TMessagesProj_AppStandalone/build/outputs/apk/...
 ```
 Нужны JDK 17, Android SDK, NDK `27.2.12479018`, CMake `3.22.1` и `git submodule update --init --recursive`.
+
+---
+
+## Обновление на новые версии Telegram
+
+Форк не придётся переписывать при выходе новой версии: вся логика Pengram живёт в отдельных
+`Pengram*.java`, а в файлы Telegram вставлены только вызовы. Один раз выполняется
+`./scripts/upstream.sh setup` (пришивает историю апстрима, файлы не меняет), дальше каждое
+обновление — `./scripts/upstream.sh update`. Подробности, разбор конфликтов и список
+«тяжёлых» файлов — в [docs/UPSTREAM.md](docs/UPSTREAM.md).
 
 ---
 
