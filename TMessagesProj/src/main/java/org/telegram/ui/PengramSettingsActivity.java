@@ -112,6 +112,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
     private static final int BTN_SENDER_AVATAR_POSITION = 547;
+    private static final int BTN_INPUT_ANIMATION = 548;
+    private static final int BTN_INPUT_ANIMATION_SPEED = 549;
+    private static final int BTN_INPUT_ANIMATION_INTENSITY = 550;
     private static final int BTN_QUICK_ADD = 543;
     private static final int BTN_QUICK_ACTION_BASE = 560;
 
@@ -1888,6 +1891,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
         items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
+        items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION, R.drawable.msg_customize,
+                getString(R.string.PengramInputAnimation), inputAnimationName()));
+        if (PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE) {
+            items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_SPEED, getString(R.string.PengramInputAnimationSpeed), inputAnimationSpeedName()));
+            items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_INTENSITY, getString(R.string.PengramInputAnimationIntensity), inputAnimationIntensityName()));
+            items.add(check(PengramConfig.KEY_INPUT_ANIMATION_HAPTIC, false, getString(R.string.PengramInputAnimationHaptic)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
         items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
         items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
@@ -2000,6 +2012,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         final int slash = text.lastIndexOf('/');
         final String tail = slash >= 0 ? text.substring(slash) : "";
         return text.substring(0, Math.min(18, text.length())) + "…" + tail;
+    }
+
+    private CharSequence inputAnimationName() {
+        final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
+                R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
+        return getString(names[PengramConfig.getInputAnimation()]);
+    }
+
+    private CharSequence inputAnimationSpeedName() {
+        return getString(new int[]{R.string.PengramInputSpeedFast, R.string.PengramInputSpeedNormal, R.string.PengramInputSpeedSmooth}[PengramConfig.getInputAnimationSpeed()]);
+    }
+
+    private CharSequence inputAnimationIntensityName() {
+        return getString(new int[]{R.string.PengramInputIntensitySoft, R.string.PengramInputIntensityMedium, R.string.PengramInputIntensityStrong}[PengramConfig.getInputAnimationIntensity() - 1]);
     }
 
     private CharSequence senderAvatarPositionName() {
@@ -2137,6 +2163,24 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_INPUT_ANIMATION: {
+                final CharSequence[] options = new CharSequence[PengramConfig.INPUT_ANIM_COUNT];
+                final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
+                        R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
+                for (int i = 0; i < options.length; i++) options[i] = getString(names[i]);
+                showChoicePicker(getString(R.string.PengramInputAnimation), options, PengramConfig.getInputAnimation(), value -> PengramConfig.setInputAnimation(value));
+                return;
+            }
+            case BTN_INPUT_ANIMATION_SPEED: {
+                final CharSequence[] options = {getString(R.string.PengramInputSpeedFast), getString(R.string.PengramInputSpeedNormal), getString(R.string.PengramInputSpeedSmooth)};
+                showChoicePicker(getString(R.string.PengramInputAnimationSpeed), options, PengramConfig.getInputAnimationSpeed(), PengramConfig::setInputAnimationSpeed);
+                return;
+            }
+            case BTN_INPUT_ANIMATION_INTENSITY: {
+                final CharSequence[] options = {getString(R.string.PengramInputIntensitySoft), getString(R.string.PengramInputIntensityMedium), getString(R.string.PengramInputIntensityStrong)};
+                showChoicePicker(getString(R.string.PengramInputAnimationIntensity), options, PengramConfig.getInputAnimationIntensity() - 1, value -> PengramConfig.setInputAnimationIntensity(value + 1));
+                return;
+            }
             case BTN_QUICK_ADD: {
                 final int index = PengramConfig.getQuickActionCount();
                 if (index < PengramConfig.QUICK_ACTION_LIMIT) {

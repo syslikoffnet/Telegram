@@ -165,6 +165,20 @@ public class PengramConfig {
     /** вибрация/звук по окончании пересылки */
     public static final String KEY_FORWARD_DONE_ALERT = "forwardDoneAlert";
 
+    // --- анимация набора текста (лёгкие transform-анимации без перерисовки glyph-ов) ---
+    public static final String KEY_INPUT_ANIMATION = "inputAnimation";
+    public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
+    public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
+    public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
+    public static final int INPUT_ANIM_NONE = 0;
+    public static final int INPUT_ANIM_FADE = 1;
+    public static final int INPUT_ANIM_POP = 2;
+    public static final int INPUT_ANIM_SLIDE = 3;
+    public static final int INPUT_ANIM_RISE = 4;
+    public static final int INPUT_ANIM_BOUNCE = 5;
+    public static final int INPUT_ANIM_SHAKE = 6;
+    public static final int INPUT_ANIM_COUNT = 7;
+
     // --- сохранение медиа удалённых сообщений ---
     public static final String DEFAULT_MEDIA_FOLDER = "Pengram";
     public static final String DEFAULT_MEDIA_PATTERN = "deleted_{date}_{chat}_{id}";
@@ -1532,6 +1546,13 @@ public class PengramConfig {
     public static boolean isForwardLockEnabled() { return getBool(KEY_FORWARD_LOCK, true); }
     public static boolean isHidingStories() { return getBool(KEY_HIDE_STORIES, false); }
     public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
+    public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
+    public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
+    public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
+    public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
+    public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
+    public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
+    public static boolean isInputAnimationHaptic() { return getBool(KEY_INPUT_ANIMATION_HAPTIC, false); }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
     public static boolean screenshotsAllowed() {
