@@ -61,16 +61,37 @@ def main():
     with open(SRC, encoding="utf-8") as f:
         lines = f.readlines()
 
+    # Склеиваем многострочные вызовы items.add(...) в одну строку, иначе заголовок,
+    # перенесённый на следующую строку, терялся бы.
+    statements = []   # (section, текст)
     section = None
-    entries = []
-    seen = set()
+    buffer = None
+    depth = 0
     for raw in lines:
         m = FILL_RE.match(raw)
         if m:
             section = FILL_TO_SECTION.get(m.group(1))
+            buffer = None
+            depth = 0
             continue
-        if section is None or "items.add(" not in raw:
+        if section is None:
             continue
+        if buffer is None:
+            if "items.add(" not in raw:
+                continue
+            buffer = raw.strip()
+            depth = raw.count("(") - raw.count(")")
+        else:
+            buffer += " " + raw.strip()
+            depth += raw.count("(") - raw.count(")")
+        if depth <= 0:
+            statements.append((section, buffer))
+            buffer = None
+            depth = 0
+
+    entries = []
+    seen = set()
+    for section, raw in statements:
         if any(marker in raw for marker in SKIP_MARKERS):
             continue
         if not any(marker in raw for marker in ROW_MARKERS):

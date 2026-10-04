@@ -88,6 +88,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     private volatile float flip;          // 0..1 — сальто назад
     private volatile boolean flipping;
+    private volatile boolean sleeping;    // спит (режим призрака)
+    private volatile boolean danceLoop;   // танцует, пока играет музыка
     private volatile float dance;         // сколько ещё секунд танцевать
     private volatile float wave;          // сколько ещё секунд махать крылом
     private float wingAngle;              // текущий угол крыльев, градусы
@@ -142,6 +144,41 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     /** потанцевать несколько секунд */
     public void doDance() {
         dance = Math.max(dance, 2.8f);
+    }
+
+    /** танцевать без остановки, пока играет музыка */
+    public void setDanceLoop(boolean value) {
+        if (danceLoop == value) {
+            return;
+        }
+        danceLoop = value;
+        if (value) {
+            sleeping = false;
+            dance = Math.max(dance, 1.5f);
+        }
+    }
+
+    public boolean isDanceLoop() {
+        return danceLoop;
+    }
+
+    /** уснуть: глаза закрыты, дыхание медленнее, движений нет */
+    public void setSleeping(boolean value) {
+        if (sleeping == value) {
+            return;
+        }
+        sleeping = value;
+        if (value) {
+            danceLoop = false;
+            dance = 0;
+            wave = 0;
+        } else {
+            doJump();
+        }
+    }
+
+    public boolean isSleeping() {
+        return sleeping;
     }
 
     /** помахать крылом */
@@ -426,7 +463,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         }
 
         // танец и приветствие крылом
-        if (dance > 0) {
+        if (danceLoop) {
+            dance = 1f;   // музыка играет — не останавливаемся
+        } else if (dance > 0) {
             dance = Math.max(0f, dance - dt);
         }
         if (wave > 0) {
@@ -441,12 +480,20 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             targetWing = 52f + (float) Math.sin(time * 13f) * 26f;
         } else if (jump > 0.02f) {
             targetWing = 30f;
+        } else if (sleeping) {
+            // во сне крылья прижаты и чуть покачиваются в такт дыханию
+            targetWing = 1.5f + (float) Math.sin(time * 0.8f) * 1.2f;
         } else {
             targetWing = 4f + (float) Math.sin(time * 1.7f) * 2.5f;
         }
         wingAngle += (targetWing - wingAngle) * Math.min(1f, dt * 14f);
 
-        // моргание
+        // моргание; во сне глаза просто закрыты
+        if (sleeping) {
+            blink = 1f;
+            blinkTimer = 2.6f;
+            return;
+        }
         blinkTimer -= dt;
         if (blinkTimer <= 0) {
             blinkTimer = 2.6f + (float) Math.random() * 3.4f;

@@ -31,6 +31,8 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramAntiCrash;
 import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.MediaController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PengramConfig;
@@ -236,6 +238,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ANTICRASH_LOG = 1493;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
+    private static final int BTN_PENGUIN_FLIP = 1443;
+    private static final int BTN_PENGUIN_DANCE = 1444;
+    private static final int BTN_PENGUIN_STRAIGHTEN = 1445;
     /** переключатели «чужих» настроек Telegram и LiteMode */
     private static final int BTN_EXTRA_BASE = 4000;
     private static final int BTN_GENERIC_BASE = 2000;
@@ -1769,7 +1774,35 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramSkinsInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinHeader)));
+        items.add(checkInfo(PengramConfig.KEY_PENGUIN_TIPS, true,
+                getString(R.string.PengramPenguinTips), getString(R.string.PengramPenguinTipsInfo)));
+        items.add(check(PengramConfig.KEY_PENGUIN_DANCE_MUSIC, true, getString(R.string.PengramPenguinDanceMusic)));
+        items.add(check(PengramConfig.KEY_PENGUIN_SLEEP_GHOST, true, getString(R.string.PengramPenguinSleepGhost)));
+        items.add(checkInfo(PengramConfig.KEY_PENGUIN_AUTO_SKIN, true,
+                getString(R.string.PengramPenguinAutoSkin), getString(R.string.PengramPenguinAutoSkinInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinSize)));
+        items.add(UItem.asIntSlideView(
+                1,
+                70, PengramConfig.getPenguinSize(), 150,
+                value -> value + "%",
+                value -> {
+                    PengramConfig.setPenguinSize(value);
+                    // пересобираем шапку: размер задаётся при создании вьюхи
+                    headerView = null;
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                }
+        ));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinActionsHeader)));
+        items.add(UItem.asButton(BTN_PENGUIN_FLIP, R.drawable.msg_reset, getString(R.string.PengramPenguinFlip)));
+        items.add(UItem.asButton(BTN_PENGUIN_DANCE, R.drawable.msg_played, getString(R.string.PengramPenguinDance)));
+        items.add(UItem.asButton(BTN_PENGUIN_STRAIGHTEN, R.drawable.msg_photo_rotate, getString(R.string.PengramPenguinStraighten)));
         items.add(UItem.asShadow(getString(R.string.PengramPenguinGesturesInfo)));
     }
 
@@ -2158,6 +2191,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {
+            if (headerView != null) {
+                headerView.doAction(item.id);
             }
             return;
         }
@@ -2951,6 +2990,18 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;
+        private TextView bubble;
+        /** какой скин реально надет сейчас — чтобы не переодевать пингвина каждую секунду */
+        private int appliedSkin = -1;
+        private int phraseIndex;
+        private long lastPhraseTime;
+        private final Runnable stateTicker = new Runnable() {
+            @Override
+            public void run() {
+                syncWithApp();
+                AndroidUtilities.runOnUIThread(this, 1500);
+            }
+        };
 
         public PengramHeaderView(Context context) {
             super(context);
@@ -2969,6 +3020,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 penguinView = new PengramPenguinView(context);
                 penguinView.setSkin(PengramConfig.getPenguinSkin());
                 penguinView.setOnTapListener(() -> {
+                    nextPhrase(true);
                     try {
                         if (PengramConfig.isVibrationEnabled()) {
                             penguinView.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP,
@@ -2995,7 +3047,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                 penguinView = null;
             }
 
-            addView(penguinContainer, LayoutHelper.createLinear(140, 132, Gravity.CENTER_HORIZONTAL));
+            final int penguinSize = Math.round(132 * PengramConfig.getPenguinSize() / 100f);
+            addView(penguinContainer, LayoutHelper.createLinear(penguinSize + 8, penguinSize, Gravity.CENTER_HORIZONTAL));
+
+            // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
+            bubble = new TextView(context);
+            bubble.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            bubble.setGravity(Gravity.CENTER);
+            bubble.setMaxLines(2);
+            bubble.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            bubble.setPadding(dp(12), dp(6), dp(12), dp(7));
+            bubble.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            bubble.setBackground(Theme.createRoundRectDrawable(dp(12),
+                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
+            bubble.setOnClickListener(v -> nextPhrase(true));
+            addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 2, 24, 0));
 
             final TextView title = new TextView(context);
             title.setText("Pengram");
@@ -3025,13 +3091,141 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (penguinView != null) {
                 penguinView.setPaused(paused);
             }
+            if (paused) {
+                AndroidUtilities.cancelRunOnUIThread(stateTicker);
+            } else if (isAttachedToWindow()) {
+                AndroidUtilities.cancelRunOnUIThread(stateTicker);
+                AndroidUtilities.runOnUIThread(stateTicker, 300);
+            }
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            syncWithApp();
+            nextPhrase(false);
+            AndroidUtilities.cancelRunOnUIThread(stateTicker);
+            AndroidUtilities.runOnUIThread(stateTicker, 1500);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            AndroidUtilities.cancelRunOnUIThread(stateTicker);
+        }
+
+        /** выполнить трюк по кнопке из настроек */
+        public void doAction(int id) {
+            if (penguinView == null) {
+                return;
+            }
+            penguinView.setSleeping(false);
+            if (id == BTN_PENGUIN_FLIP) {
+                penguinView.doFlip();
+            } else if (id == BTN_PENGUIN_DANCE) {
+                penguinView.doDance();
+                penguinView.doWave();
+            } else {
+                penguinView.resetRotation();
+            }
         }
 
         /** переодеть пингвина после выбора скина */
         public void applySkin() {
-            if (penguinView != null) {
-                penguinView.setSkin(PengramConfig.getPenguinSkin());
+            appliedSkin = -1;
+            syncWithApp();
+        }
+
+        /** играет ли сейчас музыка (именно играет, а не стоит на паузе) */
+        private MessageObject playingMusic() {
+            try {
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (playing != null && playing.isMusic() && !MediaController.getInstance().isMessagePaused()) {
+                    return playing;
+                }
+            } catch (Throwable ignore) {
             }
+            return null;
+        }
+
+        /**
+         * Пингвин живёт вместе с приложением: спит в режиме призрака, танцует под музыку
+         * и переодевается по ситуации. Состояние проверяется раз в полторы секунды —
+         * это дешевле и надёжнее, чем подписки на десяток уведомлений.
+         */
+        private void syncWithApp() {
+            if (penguinView == null) {
+                return;
+            }
+            final MessageObject music = playingMusic();
+            final boolean sleep = PengramConfig.isPenguinSleepGhost() && PengramConfig.ghostMode && music == null;
+            penguinView.setSleeping(sleep);
+            penguinView.setDanceLoop(!sleep && music != null && PengramConfig.isPenguinDanceMusic());
+
+            int skin = PengramConfig.getPenguinSkin();
+            if (PengramConfig.isPenguinAutoSkin()) {
+                if (music != null) {
+                    skin = PengramConfig.SKIN_HEADPHONES;
+                } else if (java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) == java.util.Calendar.DECEMBER
+                        && skin == PengramConfig.SKIN_NONE) {
+                    skin = PengramConfig.SKIN_SANTA;
+                }
+            }
+            if (skin != appliedSkin) {
+                appliedSkin = skin;
+                penguinView.setSkin(skin);
+            }
+
+            if (bubble != null) {
+                final int visibility = PengramConfig.isPenguinTips() ? VISIBLE : GONE;
+                if (bubble.getVisibility() != visibility) {
+                    bubble.setVisibility(visibility);
+                }
+                if (visibility == VISIBLE && System.currentTimeMillis() - lastPhraseTime > 6500) {
+                    nextPhrase(false);
+                }
+            }
+        }
+
+        /** следующая реплика; forced — пользователь сам ткнул в пингвина */
+        private void nextPhrase(boolean forced) {
+            if (bubble == null || !PengramConfig.isPenguinTips()) {
+                return;
+            }
+            final ArrayList<CharSequence> phrases = new ArrayList<>();
+            if (penguinView != null && penguinView.isSleeping()) {
+                phrases.add(getString(R.string.PengramPenguinSleeping));
+            } else {
+                final MessageObject music = playingMusic();
+                if (music != null) {
+                    phrases.add(LocaleController.formatString(R.string.PengramPenguinNowPlaying, music.getMusicTitle()));
+                }
+                phrases.add(getString(R.string.PengramPenguinHi));
+                phrases.add(getString(PengramConfig.ghostMode ? R.string.PengramPenguinGhostOn : R.string.PengramPenguinGhostOff));
+                final int lyrics = org.telegram.messenger.PengramLyrics.savedCount();
+                if (lyrics > 0) {
+                    phrases.add(LocaleController.formatString(R.string.PengramPenguinLyricsSaved, lyrics));
+                }
+                phrases.add(getString(R.string.PengramPenguinTipSwipe));
+                phrases.add(getString(R.string.PengramPenguinTipFlip));
+                phrases.add(getString(R.string.PengramPenguinTipHold));
+            }
+            if (phrases.isEmpty()) {
+                return;
+            }
+            phraseIndex = (phraseIndex + 1) % phrases.size();
+            lastPhraseTime = System.currentTimeMillis();
+            final CharSequence text = phrases.get(phraseIndex);
+            if (text.equals(bubble.getText())) {
+                return;
+            }
+            bubble.setText(text);
+            if (forced) {
+                bubble.setAlpha(0.4f);
+            }
+            bubble.animate().cancel();
+            bubble.setAlpha(0.35f);
+            bubble.animate().alpha(1f).setDuration(180).start();
         }
     }
 

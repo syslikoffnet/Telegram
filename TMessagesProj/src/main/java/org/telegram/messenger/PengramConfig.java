@@ -1375,6 +1375,26 @@ public class PengramConfig {
     public static final int SKIN_WIZARD = 8;
     public static final int SKIN_COUNT = 9;
 
+    // --- поведение пингвина (он не только крутится, но и полезен) ---
+    public static final String KEY_PENGUIN_TIPS = "penguinTips";
+    public static final String KEY_PENGUIN_DANCE_MUSIC = "penguinDanceMusic";
+    public static final String KEY_PENGUIN_AUTO_SKIN = "penguinAutoSkin";
+    public static final String KEY_PENGUIN_SLEEP_GHOST = "penguinSleepGhost";
+
+    public static boolean isPenguinTips() { return getBool(KEY_PENGUIN_TIPS, true); }
+    public static boolean isPenguinDanceMusic() { return getBool(KEY_PENGUIN_DANCE_MUSIC, true); }
+    public static boolean isPenguinAutoSkin() { return getBool(KEY_PENGUIN_AUTO_SKIN, true); }
+    public static boolean isPenguinSleepGhost() { return getBool(KEY_PENGUIN_SLEEP_GHOST, true); }
+
+    /** размер пингвина в процентах, 70…150 */
+    public static int getPenguinSize() {
+        return Math.max(70, Math.min(150, getIntCached("penguinSize", 100)));
+    }
+
+    public static void setPenguinSize(int percent) {
+        putInt("penguinSize", Math.max(70, Math.min(150, percent)));
+    }
+
     public static int getPenguinSkin() {
         init();
         final int skin = getIntCached("penguinSkin", SKIN_NONE);
