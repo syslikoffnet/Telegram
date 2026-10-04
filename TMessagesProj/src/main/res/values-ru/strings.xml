@@ -1115,7 +1115,10 @@
     <string name="PengramProfileHistoryClearAvatarsInfo">Удалить все дедуплицированные WebP-миниатюры из приватного хранилища Pengram? Текстовая история не изменится.</string>
     <string name="PengramProfileHistoryRetentionInfo">По умолчанию: до 1 ГБ, бессрочно. Аватары дедуплицируются по MD5 и не относятся к кэшу Telegram.</string>
     <string name="PengramProfileHistoryDisable">Сбор выключен</string>
-    <string name="PengramProfileHistoryDisableInfo">Существующие локальные и облачные данные сохранены. Для удаления используйте отдельные кнопки очистки.</string>
+    <string name="PengramProfileHistoryDisableInfo">Выберите, что сделать с уже собранными данными.</string>
+    <string name="PengramProfileDisableKeep">Выключить и оставить все данные</string>
+    <string name="PengramProfileDisableLocal">Выключить и удалить локальные данные</string>
+    <string name="PengramProfileDisableAll">Выключить, удалить локальные данные и канал</string>
     <string name="PengramProfileHistoryEmpty">Изменений профиля пока нет</string>
     <string name="PengramProfileAvatarChanged">Аватарка изменена</string>
     <string name="PengramProfileStorageLocal">Только локально (рекомендуется)</string>

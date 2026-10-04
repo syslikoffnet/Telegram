@@ -11022,23 +11022,27 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ArrayList<TLRPC.Dialog> botShareDialogs;
 
     @NonNull
+    private ArrayList<TLRPC.Dialog> pengramVisibleDialogs(int account, ArrayList<TLRPC.Dialog> source) {
+        if (source == null || source.isEmpty()) return source;
+        ArrayList<TLRPC.Dialog> visible = null;
+        for (int i = 0; i < source.size(); i++) {
+            if (org.telegram.messenger.PengramProfileCloud.isHiddenDialog(account, source.get(i).id)) {
+                if (visible == null) visible = new ArrayList<>(source);
+                visible.remove(source.get(i));
+            }
+        }
+        return visible == null ? source : visible;
+    }
+
     public ArrayList<TLRPC.Dialog> getDialogsArray(int currentAccount, int dialogsType, int folderId, boolean frozen) {
         if (frozen && frozenDialogsList != null) {
             return frozenDialogsList;
         }
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
-            final ArrayList<TLRPC.Dialog> source = messagesController.getDialogs(folderId);
-            ArrayList<TLRPC.Dialog> visible = null;
-            for (int i = 0; i < source.size(); i++) {
-                if (org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, source.get(i).id)) {
-                    if (visible == null) visible = new ArrayList<>(source);
-                    visible.remove(source.get(i));
-                }
-            }
-            return visible == null ? source : visible;
+            return pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
-            return messagesController.dialogsServerOnly;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsServerOnly);
         } else if (dialogsType == DIALOGS_TYPE_ADD_USERS_TO) {
             ArrayList<TLRPC.Dialog> dialogs = new ArrayList<>(messagesController.dialogsCanAddUsers.size() + messagesController.dialogsMyChannels.size() + messagesController.dialogsMyGroups.size() + 2);
             if (messagesController.dialogsMyChannels.size() > 0 && allowChannels) {
@@ -11066,11 +11070,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             return dialogs;
         } else if (dialogsType == DIALOGS_TYPE_FORWARD) {
-            return messagesController.dialogsForward;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsForward);
         } else if (dialogsType == DIALOGS_TYPE_USERS_ONLY || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY_USERS) {
             return messagesController.dialogsUsersOnly;
         } else if (dialogsType == DIALOGS_TYPE_CHANNELS_ONLY) {
-            return messagesController.dialogsChannelsOnly;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsChannelsOnly);
         } else if (dialogsType == DIALOGS_TYPE_GROUPS_ONLY || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY_GROUPS) {
             return messagesController.dialogsGroupsOnly;
         } else if (dialogsType == 7 || dialogsType == 8) {

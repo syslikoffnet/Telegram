@@ -99,19 +99,21 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             h.getWritableDatabase().execSQL("INSERT INTO changes(account,user_id,time,name,username,bio,avatar_hash) VALUES(?,?,?,?,?,?,?)",new Object[]{account,userId,System.currentTimeMillis()/1000,dn,du,db,da});
             int storage=PengramConfig.getIntCached(KEY_STORAGE,STORAGE_LOCAL);
             if(storage!=STORAGE_LOCAL) enqueueCloud(h,account,userId,dn,du,db,da);
+            trimToLimit();
         }
     }
 
     private static void enqueueCloud(PengramProfileHistory h,int account,long uid,String name,String username,String bio,String avatar) {
         StringBuilder p=new StringBuilder("#user_").append(uid).append("\nID: ").append(uid);
         if(name!=null)p.append("\nName: ").append(name); if(username!=null)p.append("\nUsername: @").append(username);
-        if(bio!=null)p.append("\nBio: ").append(bio); if(avatar!=null)p.append("\nAvatar: ").append(avatar);
+        if(bio!=null)p.append("\nBio: ").append(bio); if(avatar!=null)p.append("\nAvatar: #avatar_").append(avatar);
         p.append("\nDate: ").append(String.format(Locale.US,"%tF %<tR",System.currentTimeMillis()));
         h.getWritableDatabase().execSQL("INSERT INTO cloud_queue(account,payload,created) VALUES(?,?,?)",new Object[]{account,p.toString(),System.currentTimeMillis()/1000});
         PengramProfileCloud.schedule(account);
     }
 
     private static File avatarDir(){ File d=new File(ApplicationLoader.applicationContext.getFilesDir(),"pengram_avatars"); d.mkdirs(); return d; }
+    public static File avatarFile(String hash) { return TextUtils.isEmpty(hash) ? null : new File(avatarDir(), hash + ".webp"); }
     private static String saveAvatar(int account, TLRPC.User user) {
         try {
             if(user.photo==null||user.photo.photo_small==null)return null;
@@ -124,17 +126,58 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             MessageDigest md=MessageDigest.getInstance("MD5"); StringBuilder hex=new StringBuilder(); for(byte v:md.digest(bytes))hex.append(String.format(Locale.US,"%02x",v&255));
             File dest=new File(avatarDir(),hex+".webp"); if(!dest.exists())try(FileOutputStream f=new FileOutputStream(dest)){f.write(bytes);}
             if(thumb!=b)thumb.recycle(); b.recycle();
+            trimToLimit();
             return hex.toString();
         }catch(Throwable e){FileLog.e(e); return null;}
     }
 
-    public static ArrayList<Change> getChanges(long userId) {
+    public static ArrayList<Change> getChanges(long userId) { return getChanges(userId, null); }
+    public static ArrayList<Change> getChanges(long userId, String query) {
         ArrayList<Change> out=new ArrayList<>(); PengramProfileHistory h=getInstance(); if(h==null)return out;
-        final String sql = "SELECT id,account,user_id,time,name,username,bio,avatar_hash FROM changes" + (userId != 0 ? " WHERE user_id=?" : "") + " ORDER BY time DESC,id DESC";
-        try(Cursor c=h.getReadableDatabase().rawQuery(sql,userId != 0 ? new String[]{""+userId} : null)){
+        StringBuilder where = new StringBuilder(); ArrayList<String> args = new ArrayList<>();
+        if (userId != 0) { where.append("user_id=?"); args.add("" + userId); }
+        if (!TextUtils.isEmpty(query)) {
+            if (where.length() > 0) where.append(" AND ");
+            where.append("(name LIKE ? OR username LIKE ? OR bio LIKE ? OR CAST(user_id AS TEXT) LIKE ?)");
+            String q = "%" + query.trim() + "%"; args.add(q); args.add(q); args.add(q); args.add(q);
+        }
+        final String sql = "SELECT id,account,user_id,time,name,username,bio,avatar_hash FROM changes" + (where.length() > 0 ? " WHERE " + where : "") + " ORDER BY time DESC,id DESC";
+        try(Cursor c=h.getReadableDatabase().rawQuery(sql,args.toArray(new String[0]))){
             while(c.moveToNext()){Change x=new Change();x.id=c.getLong(0);x.account=c.getInt(1);x.userId=c.getLong(2);x.time=c.getLong(3);x.name=c.getString(4);x.username=c.getString(5);x.bio=c.getString(6);x.avatarHash=c.getString(7);out.add(x);}
         } return out;
     }
     public static int count(long userId){PengramProfileHistory h=getInstance();if(h==null)return 0;try(Cursor c=h.getReadableDatabase().rawQuery("SELECT count(*) FROM changes WHERE user_id=?",new String[]{""+userId})){return c.moveToFirst()?c.getInt(0):0;}}
-    public static void clearAvatars(){Utilities.globalQueue.postRunnable(()->{File[] fs=avatarDir().listFiles();if(fs!=null)for(File f:fs)if(f.getName().endsWith(".webp"))f.delete();});}
+    private static void trimToLimit() {
+        final long limit = 1024L * 1024L * 1024L;
+        File[] files = avatarDir().listFiles();
+        if (files == null) return;
+        File databaseFile = ApplicationLoader.applicationContext.getDatabasePath("pengram_profiles.db");
+        long total = databaseFile.exists() ? databaseFile.length() : 0; for (File f : files) total += f.length();
+        if (total <= limit) return;
+        java.util.Arrays.sort(files, java.util.Comparator.comparingLong(File::lastModified));
+        PengramProfileHistory h = getInstance();
+        for (File f : files) {
+            if (total <= limit) break;
+            long size = f.length();
+            String name = f.getName();
+            String hash = name.endsWith(".webp") ? name.substring(0, name.length() - 5) : "";
+            if (f.delete()) {
+                total -= size;
+                if (h != null) h.getWritableDatabase().execSQL("UPDATE changes SET avatar_hash=NULL WHERE avatar_hash=?", new Object[]{hash});
+            }
+        }
+        if (total > limit && h != null) {
+            // Text-only rows are tiny, but enforce the same hard ceiling even for extreme databases.
+            SQLiteDatabase db = h.getWritableDatabase();
+            while (total > limit) {
+                db.execSQL("DELETE FROM changes WHERE id IN (SELECT id FROM changes ORDER BY time ASC,id ASC LIMIT 1000)");
+                db.execSQL("VACUUM");
+                long next = databaseFile.exists() ? databaseFile.length() : 0;
+                if (next >= total) break;
+                total = next;
+            }
+        }
+    }
+    public static void clearAvatars(){Utilities.globalQueue.postRunnable(()->{File[] fs=avatarDir().listFiles();if(fs!=null)for(File f:fs)if(f.getName().endsWith(".webp"))f.delete();PengramProfileHistory h=getInstance();if(h!=null)h.getWritableDatabase().execSQL("UPDATE changes SET avatar_hash=NULL");});}
+    public static void clearLocal() { Utilities.globalQueue.postRunnable(() -> { PengramProfileHistory h=getInstance(); if(h!=null){h.getWritableDatabase().delete("changes",null,null);h.getWritableDatabase().delete("tracked",null,null);} clearAvatars(); }); }
 }

@@ -1382,8 +1382,16 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         return recent != null ? recent.size() : 0;
     }
 
+    private void purgePengramCloudResults() {
+        searchResult.removeIf(o -> o instanceof TLRPC.Chat && org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, -((TLRPC.Chat) o).id));
+        searchAdapterHelper.getGlobalSearch().removeIf(o -> o instanceof TLRPC.Chat && org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, -((TLRPC.Chat) o).id));
+        if (filteredRecentSearchObjects != null) filteredRecentSearchObjects.removeIf(o -> org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, o.did));
+        if (filtered2RecentSearchObjects != null) filtered2RecentSearchObjects.removeIf(o -> org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, o.did));
+    }
+
     @Override
     public int getItemCount() {
+        purgePengramCloudResults();
         if (waitingResponseCount == 3) {
             return 0;
         }
