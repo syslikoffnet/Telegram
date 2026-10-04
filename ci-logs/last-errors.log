@@ -2,18 +2,28 @@
 35:--W- The variant: afatDebug, Use the json file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
 36:--I- Using the AGConnect-Config file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
 37:--W- The variant: afatRelease, Use the json file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
+<<<<<<< Updated upstream
 150:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:688:29: note: place parentheses around the '&&' expression to silence this warning
 158:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:216:93: note: place parentheses around the '&&' expression to silence this warning
 165:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:527:223: note: place parentheses around the '&&' expression to silence this warning
 172:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:660:57: note: place parentheses around the '&&' expression to silence this warning
 179:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:62: note: place parentheses around the '&&' expression to silence this warning
 186:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:147: note: place parentheses around the '&&' expression to silence this warning
+=======
+150:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:216:93: note: place parentheses around the '&&' expression to silence this warning
+157:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:527:223: note: place parentheses around the '&&' expression to silence this warning
+164:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:660:57: note: place parentheses around the '&&' expression to silence this warning
+171:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:62: note: place parentheses around the '&&' expression to silence this warning
+178:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:147: note: place parentheses around the '&&' expression to silence this warning
+186:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:688:29: note: place parentheses around the '&&' expression to silence this warning
+>>>>>>> Stashed changes
 230:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:200:62: note: place parentheses around the '&&' expression to silence this warning
 236:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:258:62: note: place parentheses around the '&&' expression to silence this warning
 242:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:378:62: note: place parentheses around the '&&' expression to silence this warning
 248:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:447:62: note: place parentheses around the '&&' expression to silence this warning
 255:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Request.cpp:82:19: note: place parentheses around the '&&' expression to silence this warning
 262:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Request.cpp:82:77: note: place parentheses around the '&&' expression to silence this warning
+<<<<<<< Updated upstream
 363:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/group/GroupInstanceReferenceImpl.cpp:731:39: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
 366:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
 401:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2CompatImpl.cpp:439:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
@@ -80,3 +90,74 @@
 1444:Note: Recompile with -Xlint:deprecation for details.
 1445:Note: Some input files use unchecked or unsafe operations.
 1446:Note: Recompile with -Xlint:unchecked for details.
+=======
+309:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/group/GroupInstanceReferenceImpl.cpp:731:39: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+312:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+347:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2CompatImpl.cpp:439:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+350:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+363:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2ReferenceImpl.cpp:490:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+366:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+380:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2wasm/CallCoreHost.cpp:600:64: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+383:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+667:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+670:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+676:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+692:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+695:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+701:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+710:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+713:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+719:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+728:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+731:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+737:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+745:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+748:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+753:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+760:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:407:88: note: use array indexing to silence this warning
+767:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:557:34: note: read of non-const variable 'size' is not allowed in a constant expression
+768:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+774:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:558:38: note: read of non-const variable 'size' is not allowed in a constant expression
+775:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+781:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:559:39: note: read of non-const variable 'size' is not allowed in a constant expression
+782:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+788:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
+789:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
+800:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:652:15: note: initializer of 'div' is not a constant expression
+801:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:647:15: note: declared here
+807:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:19: note: expanded from macro 'MAX'
+810:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:655:14: note: read of non-const variable 'w' is not allowed in a constant expression
+811:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:20: note: expanded from macro 'MAX'
+814:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:633:9: note: declared here
+823:C/C++: /usr/local/lib/android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/stdlib.h:132:18: note: expanded from macro 'RAND_MAX'
+836:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+839:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: note: treat the string as an argument to avoid this
+843:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+849:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+856:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+871:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: note: place parentheses around the '&&' expression to silence this warning
+878:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: note: place parentheses around the '&&' expression to silence this warning
+889:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/.cxx/RelWithDebInfo/315u2d5t/arm64-v8a/<command line>:45:9: note: previous definition is here
+1344:Size: 97788 bytes
+1350:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+1354:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1359:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1364:Note: Some input files use or override a deprecated API.
+1365:Note: Recompile with -Xlint:deprecation for details.
+1366:Note: Some input files use unchecked or unsafe operations.
+1367:Note: Recompile with -Xlint:unchecked for details.
+1379:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+1383:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1388:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1393:  Note: Some input files use or override a deprecated API.
+1394:  Note: Recompile with -Xlint:deprecation for details.
+1395:  Note: Some input files use unchecked or unsafe operations.
+1396:  Note: Recompile with -Xlint:unchecked for details.
+1438:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+1442:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1447:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+1452:Note: Some input files use or override a deprecated API.
+1453:Note: Recompile with -Xlint:deprecation for details.
+1454:Note: Some input files use unchecked or unsafe operations.
+1455:Note: Recompile with -Xlint:unchecked for details.
+>>>>>>> Stashed changes

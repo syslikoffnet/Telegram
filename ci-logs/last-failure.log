@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 R.raw.copy (0x7f0e0039) — fps=60, frames=61, mono=false
 R.raw.profile_unmuting (0x7f0e00e4) — fps=60, frames=57, mono=false
 R.raw.tab_article (0x7f0e0139) — fps=60, frames=16, mono=false
@@ -10,6 +11,8 @@ R.raw.tsv_monkey_close (0x7f0e016b) — fps=60, frames=98, mono=false
 R.raw.tab_article_reverse (0x7f0e013a) — fps=60, frames=5, mono=false
 R.raw.permission_request_microphone (0x7f0e00b7) — fps=60, frames=60, mono=false
 R.raw.gif_to_keyboard (0x7f0e005d) — fps=60, frames=12, mono=false
+=======
+>>>>>>> Stashed changes
 R.raw.contact_check (0x7f0e0035) — fps=60, frames=45, mono=false
 R.raw.gift_broken (0x7f0e0060) — fps=60, frames=180, mono=false
 R.raw.biz_map (0x7f0e0005) — fps=60, frames=180, mono=false
@@ -129,13 +132,19 @@ R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
 R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
 
 > Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
+<<<<<<< Updated upstream
 Generated 12197 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
 Size: 97580 bytes
+=======
+Generated 12223 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
+Size: 97788 bytes
+>>>>>>> Stashed changes
 
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
 > Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac
+<<<<<<< Updated upstream
 /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:48: error: cannot find symbol
             edit.setFrameRate(120f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
                                         ^
@@ -146,11 +155,31 @@ Size: 97580 bytes
                                                                                                   ^
   symbol:   variable FRAME_RATE_COMPATIBILITY_DEFAULT
   location: class View
+=======
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                ^
+  both method getString(String) in LocaleController and method getString(int) in LocaleController match
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                           ^
+  symbol:   variable On
+  location: class string
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                                         ^
+  symbol:   variable Off
+  location: class string
+>>>>>>> Stashed changes
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
+<<<<<<< Updated upstream
 2 errors
+=======
+3 errors
+>>>>>>> Stashed changes
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac FAILED
 
@@ -161,6 +190,7 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
+<<<<<<< Updated upstream
   /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:48: error: cannot find symbol
               edit.setFrameRate(120f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
                                           ^
@@ -171,11 +201,31 @@ Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
                                                                                                     ^
     symbol:   variable FRAME_RATE_COMPATIBILITY_DEFAULT
     location: class View
+=======
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+                  getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                  ^
+    both method getString(String) in LocaleController and method getString(int) in LocaleController match
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                  getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                             ^
+    symbol:   variable On
+    location: class string
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                  getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                                           ^
+    symbol:   variable Off
+    location: class string
+>>>>>>> Stashed changes
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
+<<<<<<< Updated upstream
   2 errors
+=======
+  3 errors
+>>>>>>> Stashed changes
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -216,6 +266,7 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
+<<<<<<< Updated upstream
 /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:48: error: cannot find symbol
             edit.setFrameRate(120f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
                                         ^
@@ -226,11 +277,31 @@ Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Com
                                                                                                   ^
   symbol:   variable FRAME_RATE_COMPATIBILITY_DEFAULT
   location: class View
+=======
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: reference to getString is ambiguous
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                ^
+  both method getString(String) in LocaleController and method getString(int) in LocaleController match
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                           ^
+  symbol:   variable On
+  location: class string
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1395: error: cannot find symbol
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+                                                                                                         ^
+  symbol:   variable Off
+  location: class string
+>>>>>>> Stashed changes
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
+<<<<<<< Updated upstream
 2 errors
+=======
+3 errors
+>>>>>>> Stashed changes
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -396,5 +467,10 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
+<<<<<<< Updated upstream
 BUILD FAILED in 6m 39s
 321 actionable tasks: 167 executed, 154 from cache
+=======
+BUILD FAILED in 4m 21s
+321 actionable tasks: 170 executed, 151 from cache
+>>>>>>> Stashed changes
