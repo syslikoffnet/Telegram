@@ -276,6 +276,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
+    private org.telegram.ui.Components.PengramVoicePickerView voicePicker;
     private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
     private org.telegram.ui.Cells.AppIconsSelectorCell appIconsCell;
 
@@ -1648,18 +1649,23 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
-        final boolean voiceExpanded = expanded(GROUP_VOICE);
-        int voiceHidden = 0;
-        for (int a = 0; a < PengramVoiceChanger.MODES.length; ++a) {
-            final int m = PengramVoiceChanger.MODES[a];
-            if (!voiceExpanded && !isPrimaryVoiceMode(m) && m != mode) {
-                voiceHidden++;
-                continue;
-            }
-            items.add(UItem.asRadio2(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m), voiceModeDescription(m)).setChecked(mode == m));
+        // Вместо простыни радио-кнопок — сетка карточек: все режимы видно сразу.
+        if (voicePicker == null) {
+            voicePicker = new org.telegram.ui.Components.PengramVoicePickerView(getContext(), getResourceProvider());
+            voicePicker.setOnModeSelected(selectedMode -> {
+                if (voicePreview != null) {
+                    voicePreview.update();
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
         }
-        if (voiceHidden > 0 || voiceExpanded) {
-            items.add(moreButton(GROUP_VOICE, LocaleController.formatString(R.string.PengramVoiceMore, voiceHidden)));
+        voicePicker.update();
+        items.add(UItem.asCustom(voicePicker));
+        final CharSequence currentVoiceDescription = mode == PengramVoiceChanger.MODE_CUSTOM ? null : voiceModeDescription(mode);
+        if (!TextUtils.isEmpty(currentVoiceDescription)) {
+            items.add(UItem.asShadow(currentVoiceDescription));
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
             items.add(UItem.asHeader(getString(R.string.PengramVoicePitch)));

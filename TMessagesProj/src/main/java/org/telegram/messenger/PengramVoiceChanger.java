@@ -584,4 +584,48 @@ public class PengramVoiceChanger {
             default: return LocaleController.getString(R.string.PengramVoiceOff);
         }
     }
+
+    /** значок режима для плиточного выбора — чтобы список читался с одного взгляда */
+    public static String getModeEmoji(int mode) {
+        switch (mode) {
+            case MODE_ANONYMOUS: return "\uD83D\uDD75\uFE0F"; // детектив
+            case MODE_FEMALE: return "\uD83D\uDC69";
+            case MODE_MALE: return "\uD83D\uDC68";
+            case MODE_CHILD: return "\uD83E\uDDD2";
+            case MODE_HELIUM: return "\uD83C\uDF88";
+            case MODE_DEEP: return "\uD83D\uDC3B";
+            case MODE_MONSTER: return "\uD83D\uDC79";
+            case MODE_DEMON: return "\uD83D\uDC7F";
+            case MODE_ROBOT: return "\uD83E\uDD16";
+            case MODE_ALIEN: return "\uD83D\uDC7D";
+            case MODE_RADIO: return "\uD83D\uDCFB";
+            case MODE_PHONE: return "\u260E\uFE0F";
+            case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
+            case MODE_UNDERWATER: return "\uD83C\uDF0A";
+            case MODE_WHISPER: return "\uD83E\uDD2B";
+            case MODE_CUSTOM: return "\uD83C\uDF9B\uFE0F";
+            default: return "\uD83C\uDFA4";
+        }
+    }
+
+    /** группа режима: 0 — базовые, 1 — персонажи, 2 — техно и пространство */
+    public static int getModeGroup(int mode) {
+        switch (mode) {
+            case MODE_OFF:
+            case MODE_ANONYMOUS:
+            case MODE_CUSTOM:
+                return 0;
+            case MODE_FEMALE:
+            case MODE_MALE:
+            case MODE_CHILD:
+            case MODE_HELIUM:
+            case MODE_DEEP:
+            case MODE_MONSTER:
+            case MODE_DEMON:
+            case MODE_WHISPER:
+                return 1;
+            default:
+                return 2;
+        }
+    }
 }
