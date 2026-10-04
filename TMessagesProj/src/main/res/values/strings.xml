@@ -12090,6 +12090,12 @@
     <string name="PengramProfileLimitTime">Retention time</string>
     <string name="PengramProfileUnlimited">Unlimited</string>
     <string name="PengramProfileDays">days</string>
+    <string name="PengramProfileCloudFormat">Cloud post format</string>
+    <string name="PengramProfileCloudDelta">One post per delta</string>
+    <string name="PengramProfileCloudBatch">Batches of up to 20 changes</string>
+    <string name="PengramProfileCloudSummary">Hourly summary or 50 changes</string>
+    <string name="PengramProfileCloudRecreate">Reconnect cloud channel</string>
+    <string name="PengramProfileCloudRecreateInfo">Forget the previous channel ID and create a new private muted archived channel. Pending changes will be preserved.</string>
     <string name="PengramProfileHistoryDisable">Collection disabled</string>
     <string name="PengramProfileHistoryDisableInfo">Choose what to do with previously collected data.</string>
     <string name="PengramProfileDisableKeep">Disable and keep all data</string>

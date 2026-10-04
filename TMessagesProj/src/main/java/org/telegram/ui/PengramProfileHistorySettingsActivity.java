@@ -33,6 +33,7 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
         addEnabledSwitch();
         if(!PengramProfileHistory.enabled()) { addInfo(R.string.PengramProfileHistoryDisabledInfo); return; }
         addChoice(R.string.PengramProfileHistoryStorage,storageName(),this::showStorageChoice);
+        if(PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)!=PengramProfileHistory.STORAGE_LOCAL){addChoice(R.string.PengramProfileCloudFormat,cloudFormatName(),this::showCloudFormatChoice);addAction(R.string.PengramProfileCloudRecreate,()->new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileCloudRecreate)).setMessage(getString(R.string.PengramProfileCloudRecreateInfo)).setPositiveButton(getString(R.string.OK),(d,w)->org.telegram.messenger.PengramProfileCloud.recreateChannel(currentAccount)).setNegativeButton(getString(R.string.Cancel),null).show());}
         addChoice(R.string.PengramProfileHistoryScope,scopeName(),this::showScopeChoice);
         addCheck(R.string.PengramProfileHistoryBio,PengramProfileHistory.KEY_BIO,true,null);
         addCheck(R.string.PengramProfileHistoryAvatars,PengramProfileHistory.KEY_AVATARS,false,null);
@@ -50,6 +51,8 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
     private void addInfo(int text){TextView v=new TextView(getContext());v.setText(getString(text));v.setTextSize(13);v.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));v.setPadding(dp(21),dp(10),dp(21),dp(14));list.addView(v);}
     private String storageName(){return getString(new int[]{R.string.PengramProfileStorageLocal,R.string.PengramProfileStorageCloud,R.string.PengramProfileStorageBoth}[PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)]);}
     private String scopeName(){return getString(new int[]{R.string.PengramProfileScopeManual,R.string.PengramProfileScopeInteracted,R.string.PengramProfileScopeContacts,R.string.PengramProfileScopeAll}[PengramConfig.getIntCached(PengramProfileHistory.KEY_SCOPE,0)]);}
+    private String cloudFormatName(){return getString(new int[]{R.string.PengramProfileCloudDelta,R.string.PengramProfileCloudBatch,R.string.PengramProfileCloudSummary}[PengramConfig.getIntCached(PengramProfileHistory.KEY_CLOUD_FORMAT,0)]);}
+    private void showCloudFormatChoice(){String[] a={getString(R.string.PengramProfileCloudDelta),getString(R.string.PengramProfileCloudBatch),getString(R.string.PengramProfileCloudSummary)};new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileCloudFormat)).setItems(a,(d,w)->{PengramConfig.setIntValue(PengramProfileHistory.KEY_CLOUD_FORMAT,w);org.telegram.messenger.PengramProfileCloud.schedule(currentAccount);rebuild();}).show();}
     private static final int[] SIZE_LIMITS={100,250,500,1024,2048,5120,0};
     private static final int[] TIME_LIMITS={30,90,180,365,0};
     private String sizeName(int mb){return mb==0?getString(R.string.PengramProfileUnlimited):(mb>=1024?(mb/1024)+" GB":mb+" MB");}

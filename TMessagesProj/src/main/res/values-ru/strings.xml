@@ -1118,6 +1118,12 @@
     <string name="PengramProfileLimitTime">Срок хранения</string>
     <string name="PengramProfileUnlimited">Без ограничений</string>
     <string name="PengramProfileDays">дней</string>
+    <string name="PengramProfileCloudFormat">Формат облачных записей</string>
+    <string name="PengramProfileCloudDelta">Отдельный пост на каждую дельту</string>
+    <string name="PengramProfileCloudBatch">Пакеты до 20 изменений</string>
+    <string name="PengramProfileCloudSummary">Сводка каждый час или 50 изменений</string>
+    <string name="PengramProfileCloudRecreate">Переподключить облачный канал</string>
+    <string name="PengramProfileCloudRecreateInfo">Забыть ID прежнего канала и создать новый приватный канал с выключенными уведомлениями в архиве. Очередь изменений сохранится.</string>
     <string name="PengramProfileHistoryDisable">Сбор выключен</string>
     <string name="PengramProfileHistoryDisableInfo">Выберите, что сделать с уже собранными данными.</string>
     <string name="PengramProfileDisableKeep">Выключить и оставить все данные</string>

@@ -27,6 +27,8 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     /** 0 means unlimited. Defaults: 1 GiB and unlimited time. */
     public static final String KEY_LIMIT_MB = "profileHistoryLimitMb";
     public static final String KEY_LIMIT_DAYS = "profileHistoryLimitDays";
+    public static final String KEY_CLOUD_FORMAT = "profileHistoryCloudFormat";
+    public static final int CLOUD_DELTA = 0, CLOUD_BATCH = 1, CLOUD_SUMMARY = 2;
     public static final int SCOPE_MANUAL = 0, SCOPE_INTERACTED = 1, SCOPE_CONTACTS_CHATS = 2, SCOPE_ENCOUNTERED = 3;
     public static final int STORAGE_LOCAL = 0, STORAGE_CLOUD = 1, STORAGE_BOTH = 2;
 
@@ -74,6 +76,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         final String name = ContactsController.formatName(user.first_name, user.last_name);
         final String username = UserObject.getPublicUsername(user);
         final String avatarToken = user.photo == null ? null : String.valueOf(user.photo.photo_id);
+        if (avatarToken != null && PengramConfig.getBool(KEY_AVATARS, false)) ensureAvatarAvailable(account, user, avatarToken);
         Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, name, username, null, avatarToken, user));
     }
 
@@ -115,6 +118,26 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         PengramProfileCloud.schedule(account);
     }
 
+    private static void ensureAvatarAvailable(int account, TLRPC.User user, String token) {
+        try {
+            File source = FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small, true);
+            if (source != null && source.exists()) return;
+            AndroidUtilities.runOnUIThread(() -> {
+                try {
+                    FileLoader.getInstance(account).loadFile(ImageLocation.getForUser(account, user, ImageLocation.TYPE_SMALL), user,
+                            "jpg", FileLoader.PRIORITY_LOW, 1);
+                } catch (Throwable e) { FileLog.e(e); }
+            });
+            // FileLoader owns retries/network policy. These bounded probes only import the completed file.
+            for (int i = 1; i <= 3; i++) {
+                final int attempt = i;
+                Utilities.globalQueue.postRunnable(() -> {
+                    File ready = FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small, true);
+                    if (ready != null && ready.exists()) saveDelta(account, user.id, null, null, null, token, user);
+                }, attempt * attempt * 2500L);
+            }
+        } catch (Throwable e) { FileLog.e(e); }
+    }
     private static File avatarDir(){ File d=new File(ApplicationLoader.applicationContext.getFilesDir(),"pengram_avatars"); d.mkdirs(); return d; }
     public static File avatarFile(String hash) { return TextUtils.isEmpty(hash) ? null : new File(avatarDir(), hash + ".webp"); }
     private static String saveAvatar(int account, TLRPC.User user) {
