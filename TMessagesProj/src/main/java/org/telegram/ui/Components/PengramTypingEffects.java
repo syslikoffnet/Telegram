@@ -5,8 +5,6 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.os.Build;
-import android.view.View;
 import android.text.Editable;
 import android.text.TextPaint;
 import android.text.style.ReplacementSpan;
@@ -43,10 +41,6 @@ public final class PengramTypingEffects {
         if (queue == null) active.put(edit, queue = new ArrayDeque<>());
         queue.addLast(span);
         while (queue.size() > 10) queue.removeFirst().finish();
-        if (Build.VERSION.SDK_INT >= 30) {
-            // Это пожелание compositor, не busy-loop: 120 Гц используется только если дисплей поддерживает.
-            edit.setFrameRate(120f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
-        }
         // Длительность достаточно длинная для 120 Гц (22–40 уникальных кадров), но не мешает быстрому набору.
         span.start(new long[]{180, 245, 330}[PengramConfig.getInputAnimationSpeed()]);
     }
@@ -104,7 +98,6 @@ public final class PengramTypingEffects {
                 final ArrayDeque<GlyphSpan> queue = active.get(edit);
                 if (queue != null) {
                     queue.remove(this);
-                    if (queue.isEmpty() && Build.VERSION.SDK_INT >= 30) edit.setFrameRate(0f, View.FRAME_RATE_COMPATIBILITY_DEFAULT);
                 }
             }
         }
