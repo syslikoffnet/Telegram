@@ -1061,6 +1061,8 @@
     <string name="PengramSenderAvatarPosition">Позиция мини-аватарки</string>
     <string name="PengramSwipeAction">Смахивание влево</string>
     <string name="PengramInputAnimationHeader">Предпросмотр набора</string>
+    <string name="PengramInputPreviewHint">Печатайте здесь для проверки…</string>
+    <string name="PengramInputPreviewCurrent">Текущий эффект: %1$s</string>
     <string name="PengramInputAnimation">Анимация ввода текста</string>
     <string name="PengramInputAnimationSpeed">Скорость</string>
     <string name="PengramInputAnimationIntensity">Интенсивность</string>

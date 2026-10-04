@@ -930,6 +930,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** Pengram: мгновенно применяем скрытие вкладок к главному экрану */
     private org.telegram.ui.Components.PengramTabsMockView tabsMockView;
+    private org.telegram.ui.Components.PengramTypingPreviewView typingPreview;
     private org.telegram.ui.Components.PengramFontPreviewView fontPreview;
 
     private void applyTabsNow() {
@@ -1892,6 +1893,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
+        if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
+        if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }
         items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION, R.drawable.msg_customize,
                 getString(R.string.PengramInputAnimation), inputAnimationName()));
         if (PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE) {
@@ -2168,17 +2171,26 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
                         R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
                 for (int i = 0; i < options.length; i++) options[i] = getString(names[i]);
-                showChoicePicker(getString(R.string.PengramInputAnimation), options, PengramConfig.getInputAnimation(), value -> PengramConfig.setInputAnimation(value));
+                showChoicePicker(getString(R.string.PengramInputAnimation), options, PengramConfig.getInputAnimation(), value -> {
+                    PengramConfig.setInputAnimation(value);
+                    if (typingPreview != null) typingPreview.update();
+                });
                 return;
             }
             case BTN_INPUT_ANIMATION_SPEED: {
                 final CharSequence[] options = {getString(R.string.PengramInputSpeedFast), getString(R.string.PengramInputSpeedNormal), getString(R.string.PengramInputSpeedSmooth)};
-                showChoicePicker(getString(R.string.PengramInputAnimationSpeed), options, PengramConfig.getInputAnimationSpeed(), PengramConfig::setInputAnimationSpeed);
+                showChoicePicker(getString(R.string.PengramInputAnimationSpeed), options, PengramConfig.getInputAnimationSpeed(), value -> {
+                    PengramConfig.setInputAnimationSpeed(value);
+                    if (typingPreview != null) typingPreview.update();
+                });
                 return;
             }
             case BTN_INPUT_ANIMATION_INTENSITY: {
                 final CharSequence[] options = {getString(R.string.PengramInputIntensitySoft), getString(R.string.PengramInputIntensityMedium), getString(R.string.PengramInputIntensityStrong)};
-                showChoicePicker(getString(R.string.PengramInputAnimationIntensity), options, PengramConfig.getInputAnimationIntensity() - 1, value -> PengramConfig.setInputAnimationIntensity(value + 1));
+                showChoicePicker(getString(R.string.PengramInputAnimationIntensity), options, PengramConfig.getInputAnimationIntensity() - 1, value -> {
+                    PengramConfig.setInputAnimationIntensity(value + 1);
+                    if (typingPreview != null) typingPreview.update();
+                });
                 return;
             }
             case BTN_QUICK_ADD: {

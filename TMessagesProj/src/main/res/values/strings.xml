@@ -12040,6 +12040,8 @@
     <string name="PengramSenderAvatarPosition">Mini-avatar position</string>
     <string name="PengramSwipeAction">Swipe left</string>
     <string name="PengramInputAnimationHeader">Typing preview</string>
+    <string name="PengramInputPreviewHint">Type here to preview…</string>
+    <string name="PengramInputPreviewCurrent">Current effect: %1$s</string>
     <string name="PengramInputAnimation">Typing animation</string>
     <string name="PengramInputAnimationSpeed">Speed</string>
     <string name="PengramInputAnimationIntensity">Intensity</string>
