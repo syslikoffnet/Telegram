@@ -213,7 +213,7 @@ public class PengramDeleteEffectActivity extends BaseFragment {
             sampleBubble.setScaleY(0.9f);
             sampleBubble.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220)
                     .setInterpolator(CubicBezierInterpolator.EASE_OUT_BACK).start();
-        }, 1050);
+        }, 1450);
     }
 
     @Override

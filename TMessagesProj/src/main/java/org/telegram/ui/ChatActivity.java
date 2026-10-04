@@ -5146,7 +5146,8 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
             }
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
-                if (!PengramConfig.hideChatClearHistory)
+                // По умолчанию опасная очистка скрыта именно в группах; личные диалоги не затрагиваются.
+                if (currentChat == null || !PengramConfig.hideChatClearHistory)
                 clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
                     LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
             }

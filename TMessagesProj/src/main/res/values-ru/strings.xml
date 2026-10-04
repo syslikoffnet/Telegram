@@ -969,9 +969,11 @@
     <string name="PengramDeleteEffectShards">Осколки</string>
     <string name="PengramDeleteEffectShardsInfo">Пузырь раскалывается на острые осколки, они разлетаются с вращением и падают</string>
     <string name="PengramDeleteEffectTnt">Динамит</string>
-    <string name="PengramDeleteEffectTntInfo">Вспышка и ударная волна в центре сообщения, обломки разлетаются и догорают</string>
+    <string name="PengramDeleteEffectTntInfo">Сообщение мигает белым и красным всё быстрее, затем взрывается ударной волной и разлетается на блоки</string>
     <string name="PengramDeleteEffectPortal">Портал</string>
     <string name="PengramDeleteEffectPortalInfo">Сообщение закручивается в воронку и втягивается в точку</string>
+    <string name="PengramDeleteEffectPortal2">Портал 2 — блоки</string>
+    <string name="PengramDeleteEffectPortal2Info">Фиолетовые блоки портала появляются вокруг сообщения и по крупинкам съедают его от краёв</string>
     <string name="PengramDeleteEffectGhost">Призрак</string>
     <string name="PengramDeleteEffectGhostInfo">Призрачная копия сообщения всплывает вверх, покачиваясь, и растворяется</string>
     <string name="PengramDeleteEffectGlitch">Помехи</string>

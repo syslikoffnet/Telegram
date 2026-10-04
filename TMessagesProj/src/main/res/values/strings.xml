@@ -11941,9 +11941,11 @@
     <string name="PengramDeleteEffectShards">Shards</string>
     <string name="PengramDeleteEffectShardsInfo">The bubble cracks into sharp polygonal shards that spin away and fall</string>
     <string name="PengramDeleteEffectTnt">TNT</string>
-    <string name="PengramDeleteEffectTntInfo">A flash and a shockwave in the middle of the message, debris flies outwards and burns out</string>
+    <string name="PengramDeleteEffectTntInfo">The message flashes white and red faster and faster, then explodes in a shockwave of flying blocks</string>
     <string name="PengramDeleteEffectPortal">Portal</string>
     <string name="PengramDeleteEffectPortalInfo">The message spins into a funnel and gets sucked into a point</string>
+    <string name="PengramDeleteEffectPortal2">Nether portal blocks</string>
+    <string name="PengramDeleteEffectPortal2Info">A violet block portal appears and consumes the message piece by piece from its edges</string>
     <string name="PengramDeleteEffectGhost">Ghost</string>
     <string name="PengramDeleteEffectGhostInfo">A ghostly copy of the message floats up, swaying, and melts away</string>
     <string name="PengramDeleteEffectGlitch">Glitch</string>

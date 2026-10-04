@@ -140,6 +140,12 @@ public class PengramDeleteEffectView extends View {
                 case PengramConfig.DELETE_EFFECT_PORTAL:
                     cellDelay[a] = cellSeed[a] * 0.16f;
                     break;
+                case PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS: {
+                    // Портал по крупинкам съедает сообщение от краёв к центру.
+                    final float edge = Math.min(Math.min(cx, GRID_X - 1 - cx), Math.min(cy, GRID_Y - 1 - cy));
+                    cellDelay[a] = Math.min(.58f, edge * .075f + cellSeed[a] * .08f);
+                    break;
+                }
                 default:
                     cellDelay[a] = 0;
                     break;
@@ -357,6 +363,7 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_SHARDS: return 900;
             case PengramConfig.DELETE_EFFECT_TNT: return 1050;
             case PengramConfig.DELETE_EFFECT_PORTAL: return 1000;
+            case PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS: return 1250;
             case PengramConfig.DELETE_EFFECT_GHOST: return 920;
             case PengramConfig.DELETE_EFFECT_GLITCH: return 700;
             case PengramConfig.DELETE_EFFECT_SWEEP: return 760;
@@ -616,6 +623,23 @@ public class PengramDeleteEffectView extends View {
     // ------------------------------------------------------- клеточные эффекты
 
     private void drawCells(Canvas canvas, float t) {
+        if (effect == PengramConfig.DELETE_EFFECT_TNT && t < .46f) {
+            // Узнаваемое «взведение»: всё сообщение несколько раз мигает белым всё быстрее.
+            final float armed = t / .46f;
+            final float pulse = (float) Math.pow(Math.max(0f, Math.sin((3f + armed * 5f) * Math.PI * armed)), 1.7);
+            paint.setAlpha(255);
+            paint.setColorFilter(null);
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            glow.setStyle(Paint.Style.FILL);
+            glow.setColor((Math.round(armed * 7f) & 1) == 0 ? Color.WHITE : 0xFFFF4242);
+            glow.setAlpha((int) ((55 + 155 * armed) * pulse));
+            canvas.drawRoundRect(0, 0, bmpW, bmpH, AndroidUtilities.dp(8), AndroidUtilities.dp(8), glow);
+            glow.setAlpha(255);
+            return;
+        }
+        if (effect == PengramConfig.DELETE_EFFECT_TNT) t = (t - .46f) / .54f;
+        if (effect == PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS) drawPortalBlocks(canvas, t);
+
         final float w = bmpW / (float) GRID_X;
         final float h = bmpH / (float) GRID_Y;
         final float bw = bitmap.getWidth() / (float) GRID_X;
@@ -691,6 +715,20 @@ public class PengramDeleteEffectView extends View {
                     alpha = 1f - e * e;
                     break;
                 }
+                case PengramConfig.DELETE_EFFECT_PORTAL_BLOCKS: {
+                    final float e = CubicBezierInterpolator.EASE_IN.getInterpolation(local);
+                    final float nearestX = cx < GRID_X / 2 ? -w * .35f : bmpW + w * .35f;
+                    final float nearestY = cy < GRID_Y / 2 ? -h * .35f : bmpH + h * .35f;
+                    if (Math.min(cx, GRID_X - 1 - cx) < Math.min(cy, GRID_Y - 1 - cy)) {
+                        x += (nearestX - (x + w / 2f)) * e;
+                    } else {
+                        y += (nearestY - (y + h / 2f)) * e;
+                    }
+                    scale = 1f - .72f * e;
+                    rotate = cellAngle[a] * 35f * e;
+                    alpha = 1f - e * e;
+                    break;
+                }
                 case PengramConfig.DELETE_EFFECT_DISSOLVE: {
                     scale = 1f - 0.2f * local;
                     alpha = 1f - local;
@@ -729,6 +767,32 @@ public class PengramDeleteEffectView extends View {
         } else if (effect == PengramConfig.DELETE_EFFECT_TNT) {
             drawBlast(canvas, t);
         }
+    }
+
+    /** Блочная рамка фиолетового портала собирается вокруг сообщения и остаётся, пока оно осыпается внутрь. */
+    private void drawPortalBlocks(Canvas canvas, float t) {
+        final float appear = clamp01(t / .2f);
+        final float block = Math.max(AndroidUtilities.dp(7), Math.min(AndroidUtilities.dp(13), Math.min(bmpW, bmpH) / 7f));
+        glow.setStyle(Paint.Style.FILL);
+        for (float x = 0; x < bmpW; x += block) {
+            drawPortalBlock(canvas, x, -block * .72f, block, appear, (int) (x / block));
+            drawPortalBlock(canvas, x, bmpH - block * .28f, block, appear, (int) (x / block) + 17);
+        }
+        for (float y = block; y < bmpH - block; y += block) {
+            drawPortalBlock(canvas, -block * .72f, y, block, appear, (int) (y / block) + 31);
+            drawPortalBlock(canvas, bmpW - block * .28f, y, block, appear, (int) (y / block) + 47);
+        }
+        glow.setAlpha(255);
+    }
+
+    private void drawPortalBlock(Canvas canvas, float x, float y, float size, float appear, int seed) {
+        final float phase = .72f + .28f * (float) Math.sin(seed * 2.17f + appear * 9f);
+        glow.setColor((seed & 1) == 0 ? 0xFF32105E : 0xFF6D21A8);
+        glow.setAlpha((int) (255 * appear));
+        canvas.drawRect(x, y, x + size, y + size, glow);
+        glow.setColor(0xFFB34CFF);
+        glow.setAlpha((int) (150 * appear * phase));
+        canvas.drawRect(x + size * .18f, y + size * .18f, x + size * .58f, y + size * .58f, glow);
     }
 
     /** у «сгорания» есть живая линия огня, которая съедает сообщение снизу вверх */

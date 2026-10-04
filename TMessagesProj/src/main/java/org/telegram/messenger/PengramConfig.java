@@ -209,7 +209,7 @@ public class PengramConfig {
     public static boolean hideMenuTheme = false;
     public static boolean hideChatSearch = false;
     public static boolean hideChatTranslate = false;
-    public static boolean hideChatClearHistory = false;
+    public static boolean hideChatClearHistory = true;
     public static boolean hideChatWallpaper = false;
     public static boolean hideChatShortcut = false;
     public static boolean hideChatReport = false;
@@ -452,7 +452,8 @@ public class PengramConfig {
     public static final int DELETE_EFFECT_GHOST = 13;
     public static final int DELETE_EFFECT_GLITCH = 14;
     public static final int DELETE_EFFECT_SWEEP = 15;
-    public static final int DELETE_EFFECT_COUNT = 16;
+    public static final int DELETE_EFFECT_PORTAL_BLOCKS = 16;
+    public static final int DELETE_EFFECT_COUNT = 17;
 
     public static int getDeleteEffect() {
         final int value = getIntCached("deleteEffect", DELETE_EFFECT_DUST);
@@ -485,6 +486,7 @@ public class PengramConfig {
             case DELETE_EFFECT_GHOST: return org.telegram.messenger.R.string.PengramDeleteEffectGhost;
             case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitch;
             case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweep;
+            case DELETE_EFFECT_PORTAL_BLOCKS: return org.telegram.messenger.R.string.PengramDeleteEffectPortal2;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNone;
         }
     }
@@ -506,6 +508,7 @@ public class PengramConfig {
             case DELETE_EFFECT_GHOST: return org.telegram.messenger.R.string.PengramDeleteEffectGhostInfo;
             case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitchInfo;
             case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweepInfo;
+            case DELETE_EFFECT_PORTAL_BLOCKS: return org.telegram.messenger.R.string.PengramDeleteEffectPortal2Info;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNoneInfo;
         }
     }
@@ -767,7 +770,7 @@ public class PengramConfig {
             hideMenuTheme = p.getBoolean("hideMenuTheme", false);
             hideChatSearch = p.getBoolean("hideChatSearch", false);
             hideChatTranslate = p.getBoolean("hideChatTranslate", false);
-            hideChatClearHistory = p.getBoolean("hideChatClearHistory", false);
+            hideChatClearHistory = p.getBoolean("hideChatClearHistory", true);
             hideChatWallpaper = p.getBoolean("hideChatWallpaper", false);
             hideChatShortcut = p.getBoolean("hideChatShortcut", false);
             hideChatReport = p.getBoolean("hideChatReport", false);
