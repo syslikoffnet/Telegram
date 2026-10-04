@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - "arena/01a10249-telegram"
+      - "arena/01a105ae-telegram"
 permissions:
   contents: read
 jobs:
