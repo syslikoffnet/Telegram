@@ -1073,17 +1073,17 @@ public class PengramSettingsActivity extends UniversalFragment {
                 for (int b = 0; b < cells.length; ++b) {
                     cells[b].setChecked(b == index, true);
                 }
+                // Закрываем именно этот picker до callback. Иначе callback успевает открыть
+                // следующий диалог, а отложенный dismiss закрывает уже его.
+                try {
+                    if (visibleDialog != null) {
+                        visibleDialog.dismiss();
+                    }
+                } catch (Throwable ignore) {}
                 onSelected.run(index);
                 if (listView != null && listView.adapter != null) {
                     listView.adapter.update(true);
                 }
-                AndroidUtilities.runOnUIThread(() -> {
-                    try {
-                        if (visibleDialog != null) {
-                            visibleDialog.dismiss();
-                        }
-                    } catch (Throwable ignore) {}
-                }, 180);
             });
             linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
         }
@@ -1908,10 +1908,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
         items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
         if (PengramConfig.isDialogSenderAvatars()) {
+            // Длинное выбранное значение выводим отдельной строкой: на узких экранах
+            // title/value в TextSettingsCell визуально склеивались и перекрывались.
             items.add(UItem.asSettingsCell(BTN_SENDER_AVATAR_POSITION, R.drawable.msg_customize,
-                    getString(R.string.PengramSenderAvatarPosition), senderAvatarPositionName()));
+                    getString(R.string.PengramSenderAvatarPosition)));
+            items.add(UItem.asShadow(senderAvatarPositionName()));
+        } else {
+            items.add(UItem.asShadow(null));
         }
-        items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
         items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.PengramSwipeAction), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));

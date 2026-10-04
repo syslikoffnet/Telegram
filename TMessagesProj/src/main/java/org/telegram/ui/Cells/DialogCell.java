@@ -1223,8 +1223,18 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean pengramSenderAvatarThumb;
 
     private boolean pengramHasInlineThumbs() {
-        return thumbsCount > 0 && (!pengramSenderAvatarThumb
-                || org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition() == org.telegram.messenger.PengramConfig.SENDER_AVATAR_INLINE);
+        if (thumbsCount <= 0 || !pengramSenderAvatarThumb) {
+            return thumbsCount > 0;
+        }
+        final int position = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
+        // В двухстрочном списке имя отправителя входит в messageString, поэтому обе
+        // позиции около имени реализуются тем же inline-span с разным индексом вставки.
+        if (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_INLINE) {
+            return true;
+        }
+        final boolean separateSenderName = (useForceThreeLines || SharedConfig.useThreeLinesLayout) && !hasTags();
+        return !separateSenderName && (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME
+                || position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME);
     }
 
 
@@ -1839,6 +1849,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                     }
                                     checkMessage = false;
                                     SpannableStringBuilder builder = (SpannableStringBuilder) messageString;
+                                    if (pengramSenderAvatarThumb
+                                            && org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition()
+                                            == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME) {
+                                        thumbInsertIndex = 0;
+                                    }
                                     if (thumbInsertIndex >= builder.length()) {
                                         builder.append(" ");
                                         builder.setSpan(new FixedWidthSpan(dp(thumbsCount * (thumbSize + 2) - 2 + 5)), builder.length() - 1, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

@@ -11539,9 +11539,9 @@
     <string name="PengramForwardDone">Forwarding finished</string>
     <string name="PengramForwardHeader">Forwarding</string>
     <string name="PengramForwardLock">Status instead of input field</string>
-    <string name="PengramForwardLockInfo">While media is being forwarded</string>
+    <string name="PengramForwardLockInfo">Only while sending deleted or one-time media</string>
     <string name="PengramForwardDoneAlert">Notify when finished</string>
-    <string name="PengramForwardInfo">While photos, videos or deleted or one-time media are being forwarded into a chat, the input field is replaced with a progress bar. Hold it to send the rest in background and write in the chat.</string>
+    <string name="PengramForwardInfo">The input field is replaced with a status only when deleted or one-time media is being sent. Regular photos, videos and files never block input. Hold the status to continue in background.</string>
     <string name="PengramTabsInfo2">Switch off a button to remove it from the bar at the bottom of the main screen. Turning off Contacts leaves three perfectly spaced buttons.</string>
     <string name="PengramTabHidden">Button hidden</string>
     <string name="PengramTabVisible">Button is shown</string>

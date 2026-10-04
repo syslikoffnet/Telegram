@@ -567,9 +567,9 @@
     <string name="PengramForwardDone">Пересылка завершена</string>
     <string name="PengramForwardHeader">Пересылка</string>
     <string name="PengramForwardLock">Статус вместо поля ввода</string>
-    <string name="PengramForwardLockInfo">Пока в чат идёт пересылка медиа</string>
+    <string name="PengramForwardLockInfo">Только при отправке удалённых и одноразовых медиа</string>
     <string name="PengramForwardDoneAlert">Сообщать о завершении</string>
-    <string name="PengramForwardInfo">Пока в чат пересылаются фото, видео, удалённые или одноразовые медиа, вместо поля ввода показывается статус отправки. Зажмите его — остаток уйдёт в фоне, и в чат снова можно писать.</string>
+    <string name="PengramForwardInfo">При отправке удалённых или одноразовых медиа вместо поля ввода показывается статус. Обычная отправка фото, видео и файлов не блокирует ввод. Зажмите статус — остаток уйдёт в фоне.</string>
     <string name="PengramTabsInfo2">Выключите кнопку, чтобы убрать её с панели внизу главного экрана. Без «Контактов» остаются ровно три кнопки.</string>
     <string name="PengramTabHidden">Кнопка скрыта</string>
     <string name="PengramTabVisible">Кнопка показывается</string>

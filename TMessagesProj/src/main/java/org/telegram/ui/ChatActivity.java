@@ -1937,6 +1937,8 @@ public class ChatActivity extends BaseFragment implements
     private boolean pengramForwardBackgrounded;
     private Runnable pengramForwardTicker;
     private CharSequence pengramForwardLastText;
+    /** До какого момента текущая отправка считается специальной: только удалёнка/одноразка. */
+    private long pengramSpecialForwardUntil;
 
     /** сколько медиа/пересланных сообщений сейчас реально уходит в этот чат */
     private int pengramSendingCount() {
@@ -2003,12 +2005,17 @@ public class ChatActivity extends BaseFragment implements
         if (sending > pengramForwardTotal) {
             pengramForwardTotal = sending;
         }
-        final boolean active = sending >= 2 && org.telegram.messenger.PengramConfig.isForwardLockEnabled();
+        // Обычные фото/видео и стандартная пересылка не блокируют поле ввода.
+        // Статус относится только к явно запущенной отправке удалёнки/одноразки.
+        final boolean specialTransfer = System.currentTimeMillis() < pengramSpecialForwardUntil;
+        final boolean active = specialTransfer && sending >= 1
+                && org.telegram.messenger.PengramConfig.isForwardLockEnabled();
         if (active != pengramForwardActive) {
             final boolean wasBlocking = pengramForwardBlocking();
             pengramForwardActive = active;
             if (!active) {
                 pengramForwardTotal = 0;
+                pengramSpecialForwardUntil = 0;
                 pengramForwardLastText = null;
                 final boolean wasBackgrounded = pengramForwardBackgrounded;
                 pengramForwardBackgrounded = false;
@@ -2209,6 +2216,10 @@ public class ChatActivity extends BaseFragment implements
             list.add(message);
         }
         try {
+            if (targetDialogId == dialog_id) {
+                pengramSpecialForwardUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
+                pengramForwardTotal = Math.max(pengramForwardTotal, list.size());
+            }
             getSendMessagesHelper().sendMessage(list, targetDialogId, true, false, true, 0, 0);
             if (targetDialogId != dialog_id) {
                 BulletinFactory.of(this)
