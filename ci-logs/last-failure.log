@@ -1,46 +1,3 @@
-R.raw.voip_record_saved (0x7f0e0199) — fps=60, frames=56, mono=false
-R.raw.tab_colors (0x7f0e013f) — fps=60, frames=17, mono=false
-R.raw.phone_dots (0x7f0e00b8) — fps=60, frames=60, mono=false
-R.raw.topics_tabs (0x7f0e0166) — fps=60, frames=100, mono=false
-R.raw.voip_muted (0x7f0e0197) — fps=60, frames=120, mono=false
-R.raw.firefox_30 (0x7f0e0056) — fps=60, frames=180, mono=false
-R.raw.tab_wallet (0x7f0e0159) — fps=60, frames=17, mono=false
-R.raw.tab_poll_reverse (0x7f0e0151) — fps=60, frames=5, mono=false
-R.raw.profile_muting (0x7f0e00e3) — fps=60, frames=37, mono=false
-R.raw.msg_emoji_smiles (0x7f0e009d) — fps=60, frames=60, mono=false
-R.raw.payment_success (0x7f0e00ad) — fps=60, frames=63, mono=false
-R.raw.photo_suggest_icon (0x7f0e00c3) — fps=60, frames=85, mono=false
-R.raw.media_shrink (0x7f0e0094) — fps=60, frames=20, mono=false
-R.raw.db_migration_placeholder (0x7f0e003c) — fps=60, frames=180, mono=false
-R.raw.contacts_sync_off (0x7f0e0036) — fps=60, frames=120, mono=false
-R.raw.star_reaction_effect3 (0x7f0e011b) — fps=60, frames=85, mono=false
-R.raw.chats_archiveavatar (0x7f0e002a) — fps=60, frames=50, mono=false
-R.raw.permission_request_folder (0x7f0e00b5) — fps=60, frames=240, mono=false
-R.raw.convert_video (0x7f0e0038) — fps=60, frames=38, mono=false
-R.raw.roundcamera_flash_off (0x7f0e00f7) — fps=60, frames=30, mono=false
-R.raw.large_lastseen (0x7f0e0088) — fps=60, frames=180, mono=false
-R.raw.name_show (0x7f0e00a5) — fps=60, frames=20, mono=false
-R.raw.tsv_setup_email_sent (0x7f0e016c) — fps=60, frames=180, mono=false
-R.raw.seek_speed_hint (0x7f0e00fd) — fps=60, frames=42, mono=false
-R.raw.voice_outlined (0x7f0e018a) — fps=60, frames=24, mono=false
-R.raw.large_message_lock (0x7f0e0089) — fps=60, frames=180, mono=false
-R.raw.msg_translate (0x7f0e00a2) — fps=60, frames=180, mono=false
-R.raw.voip_invite (0x7f0e0196) — fps=60, frames=120, mono=false
-R.raw.caption_down (0x7f0e0020) — fps=60, frames=35, mono=false
-R.raw.tsv_setup_hint (0x7f0e016d) — fps=60, frames=180, mono=false
-R.raw.tab_emoji (0x7f0e0142) — fps=60, frames=18, mono=false
-R.raw.sound_off (0x7f0e0107) — fps=60, frames=61, mono=false
-R.raw.keyboard_to_sticker (0x7f0e0087) — fps=60, frames=12, mono=false
-R.raw.gift_crafting (0x7f0e0061) — fps=60, frames=47, mono=false
-R.raw.filter_reorder (0x7f0e0051) — fps=60, frames=61, mono=false
-R.raw.transcribe_in (0x7f0e0169) — fps=60, frames=20, mono=false
-R.raw.boosts (0x7f0e0008) — fps=60, frames=49, mono=false
-R.raw.tab_models (0x7f0e014c) — fps=60, frames=17, mono=false
-R.raw.silent_unmute (0x7f0e0100) — fps=60, frames=58, mono=false
-R.raw.calls_log (0x7f0e0016) — fps=60, frames=120, mono=false
-R.raw.notify_toggle (0x7f0e00a7) — fps=60, frames=80, mono=false
-R.raw.profile_voicechat (0x7f0e00e5) — fps=60, frames=48, mono=false
-R.raw.raised_hand (0x7f0e00eb) — fps=60, frames=90, mono=false
 R.raw.sun (0x7f0e012d) — fps=60, frames=36, mono=false
 R.raw.voice_outlined2 (0x7f0e018b) — fps=60, frames=84, mono=false
 R.raw.diceloop (0x7f0e003e) — fps=60, frames=60, mono=false
@@ -84,36 +41,18 @@ R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
 R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
 
 > Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
-<<<<<<< Updated upstream
-Generated 12127 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 97020 bytes
-
-> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
-> Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
-> Task :TMessagesProj:compileStandaloneJavaWithJavac
-> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneNativeDebugMetadata
-
-> Task :TMessagesProj:compileStandaloneJavaWithJavac
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:495: error: cannot find symbol
-=======
-Generated 12137 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 97100 bytes
+Generated 12139 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
+Size: 97116 bytes
 
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
 > Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:503: error: cannot find symbol
->>>>>>> Stashed changes
-    public static String getAntiCrashJournal() { init(); return preferences.getString("antiCrashJournal", ""); }
-                                                                ^
-  symbol:   variable preferences
-  location: class PengramConfig
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-1 error
+6 errors
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac FAILED
 
@@ -124,20 +63,41 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-<<<<<<< Updated upstream
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:495: error: cannot find symbol
-=======
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:503: error: cannot find symbol
->>>>>>> Stashed changes
-      public static String getAntiCrashJournal() { init(); return preferences.getString("antiCrashJournal", ""); }
-                                                                  ^
-    symbol:   variable preferences
-    location: class PengramConfig
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1841: error: cannot find symbol
+                  final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                             ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1841: error: cannot find symbol
+                  final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                               ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1847: error: cannot find symbol
+                  final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                             ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1847: error: cannot find symbol
+                  final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                               ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1854: error: cannot find symbol
+              final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                         ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1854: error: cannot find symbol
+              final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                           ^
+    symbol:   class TL_inputMessageID
+    location: class TLRPC
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
-  1 error
+  6 errors
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -207,20 +167,41 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-<<<<<<< Updated upstream
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:495: error: cannot find symbol
-=======
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:503: error: cannot find symbol
->>>>>>> Stashed changes
-    public static String getAntiCrashJournal() { init(); return preferences.getString("antiCrashJournal", ""); }
-                                                                ^
-  symbol:   variable preferences
-  location: class PengramConfig
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1841: error: cannot find symbol
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                           ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1841: error: cannot find symbol
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                             ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1847: error: cannot find symbol
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                           ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1847: error: cannot find symbol
+                final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                             ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1854: error: cannot find symbol
+            final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                       ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java:1854: error: cannot find symbol
+            final TLRPC.TL_inputMessageID mid = new TLRPC.TL_inputMessageID();
+                                                         ^
+  symbol:   class TL_inputMessageID
+  location: class TLRPC
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-1 error
+6 errors
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -415,9 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-<<<<<<< Updated upstream
-BUILD FAILED in 12m 3s
-=======
-BUILD FAILED in 21m 16s
->>>>>>> Stashed changes
-321 actionable tasks: 259 executed, 62 from cache
+BUILD FAILED in 34m 18s
+321 actionable tasks: 260 executed, 61 from cache
