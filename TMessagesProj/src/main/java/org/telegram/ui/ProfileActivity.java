@@ -587,6 +587,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int report = 24;
 
     private final static int edit_info = 30;
+    private final static int pengram_profile_history = 3030;
     private final static int logout = 31;
     private final static int search_button = 32;
     private final static int set_as_main = 33;
@@ -2814,6 +2815,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             BulletinFactory.createSaveToGalleryBulletin(ProfileActivity.this, isVideo, null).show();
                         });
                     }
+                } else if (id == pengram_profile_history) {
+                    boolean tracked = org.telegram.messenger.PengramProfileHistory.isTracked(currentAccount, userId);
+                    if (!tracked) {
+                        org.telegram.messenger.PengramProfileHistory.setTracked(currentAccount, userId, true);
+                        TLRPC.User observed = getMessagesController().getUser(userId);
+                        org.telegram.messenger.PengramProfileHistory.observeUser(currentAccount, observed, false);
+                    }
+                    presentFragment(new PengramProfileHistoryActivity(userId));
                 } else if (id == edit_info) {
                     presentFragment(new UserInfoActivity());
                 } else if (id == edit_color) {
@@ -12315,6 +12324,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 selfUser = true;
             } else {
+                if (!user.bot && !user.deleted && user.id != 777000) {
+                    final boolean tracked = org.telegram.messenger.PengramProfileHistory.isTracked(currentAccount, user.id);
+                    otherItem.addSubItem(pengram_profile_history, R.drawable.msg_viewchats,
+                            getString(tracked ? R.string.PengramProfileHistoryOpen : R.string.PengramProfileHistoryTrack));
+                }
                 if (user.bot && user.bot_can_edit) {
                     editItemVisible = true;
                 }

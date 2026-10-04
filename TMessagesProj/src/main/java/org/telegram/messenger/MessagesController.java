@@ -6887,6 +6887,8 @@ public class MessagesController extends BaseController implements NotificationCe
         if (user == null) {
             return false;
         }
+        // Снимок берётся до слияния с кэшем: в БД попадёт только реальная дельта.
+        PengramProfileHistory.observeUser(currentAccount, user, fromCache);
         // Pengram: локальный premium и фильтр zalgo применяем до того, как объект осядет в кэше
         if (PengramConfig.localPremium && PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
             user.premium = true;
@@ -7872,6 +7874,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     fullUsers.put(user.id, userFull);
+                    PengramProfileHistory.observeBio(currentAccount, user.id, userFull.about);
                     getTranslateController().updateDialogFull(user.id);
                     StarsController.getInstance(currentAccount).invalidateProfileGifts(userFull);
                     loadingFullUsers.remove(user.id);

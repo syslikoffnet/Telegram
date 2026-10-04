@@ -93,6 +93,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
+    private static final int BTN_PROFILE_HISTORY = 406;
 
     private static final int BTN_MEDIA_SAVE = 450;
     private static final int BTN_MEDIA_FOLDER = 451;
@@ -1388,6 +1389,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
         }
         items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo2)));
+        items.add(UItem.asHeader(getString(R.string.PengramProfileHistory)));
+        items.add(UItem.asSettingsCell(BTN_PROFILE_HISTORY, R.drawable.msg_contacts,
+                getString(R.string.PengramProfileHistory),
+                getString(org.telegram.messenger.PengramProfileHistory.enabled() ? R.string.On : R.string.Off)));
+        items.add(UItem.asShadow(getString(R.string.PengramProfileHistoryDisabledInfo)));
 
         if (PengramConfig.saveDeleted) {
             items.add(UItem.asHeader(getString(R.string.PengramInChatHeader)));
@@ -2390,6 +2396,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 });
                 return;
             }
+            case BTN_PROFILE_HISTORY:
+                presentFragment(new PengramProfileHistorySettingsActivity());
+                return;
             case BTN_OPEN_BY_ID:
                 showOpenByIdDialog();
                 return;

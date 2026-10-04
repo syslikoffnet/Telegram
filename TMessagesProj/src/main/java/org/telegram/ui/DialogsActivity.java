@@ -11028,7 +11028,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
-            return messagesController.getDialogs(folderId);
+            final ArrayList<TLRPC.Dialog> source = messagesController.getDialogs(folderId);
+            ArrayList<TLRPC.Dialog> visible = null;
+            for (int i = 0; i < source.size(); i++) {
+                if (org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, source.get(i).id)) {
+                    if (visible == null) visible = new ArrayList<>(source);
+                    visible.remove(source.get(i));
+                }
+            }
+            return visible == null ? source : visible;
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
             return messagesController.dialogsServerOnly;
         } else if (dialogsType == DIALOGS_TYPE_ADD_USERS_TO) {

@@ -310,6 +310,12 @@ public class PengramConfig {
         }
     }
 
+    public static void setIntValue(String key, int value) {
+        init();
+        synchronized (intCache) { intCache.put(key, value); }
+        putInt(key, value);
+    }
+
     public static void setBool(String key, boolean value) {
         init();
         synchronized (boolCache) {

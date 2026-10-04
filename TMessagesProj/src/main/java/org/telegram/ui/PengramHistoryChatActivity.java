@@ -93,6 +93,11 @@ public class PengramHistoryChatActivity extends BaseFragment {
     @Override
     public View createView(Context context) {
         Theme.createChatResources(context, false);
+        hasOwnBackground = true;
+        // Chat-like screens own their ActionBar. Letting BaseFragment reserve another bar created
+        // the full 56dp black strip reported directly below the header.
+        actionBar.setAddToContainer(false);
+        actionBar.setCastShadows(false);
 
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
@@ -142,12 +147,13 @@ public class PengramHistoryChatActivity extends BaseFragment {
         listView.setItemAnimator(null);
         listView.setLayoutAnimation(null);
         listView.setClipToPadding(false);
-        listView.setPadding(0, dp(4), 0, dp(4));
+        listView.setPadding(0, ActionBar.getCurrentActionBarHeight() + AndroidUtilities.statusBarHeight + dp(4), 0, dp(4));
         layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
         listView.setLayoutManager(layoutManager);
         adapter = new Adapter();
         listView.setAdapter(adapter);
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+        contentView.addView(actionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
 
         emptyView = new TextView(context);
         emptyView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);

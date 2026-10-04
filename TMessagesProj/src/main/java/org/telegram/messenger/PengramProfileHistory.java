@@ -1,0 +1,139 @@
+package org.telegram.messenger;
+
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.text.TextUtils;
+
+import org.telegram.tgnet.TLRPC;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Locale;
+
+/** Compact, account-aware profile delta journal. Photos live outside Telegram's disposable cache. */
+public final class PengramProfileHistory extends SQLiteOpenHelper {
+    public static final String KEY_ENABLED = "profileHistoryEnabled";
+    public static final String KEY_AVATARS = "profileHistoryAvatars";
+    public static final String KEY_BIO = "profileHistoryBio";
+    public static final String KEY_SCOPE = "profileHistoryScope";
+    public static final String KEY_STORAGE = "profileHistoryStorage";
+    public static final int SCOPE_MANUAL = 0, SCOPE_INTERACTED = 1, SCOPE_CONTACTS_CHATS = 2, SCOPE_ENCOUNTERED = 3;
+    public static final int STORAGE_LOCAL = 0, STORAGE_CLOUD = 1, STORAGE_BOTH = 2;
+
+    private static volatile PengramProfileHistory instance;
+    private static final Object lock = new Object();
+
+    public static final class Change {
+        public long id, userId, time;
+        public int account;
+        public String name, username, bio, avatarHash;
+    }
+
+    private PengramProfileHistory(Context context) { super(context, "pengram_profiles.db", null, 1); }
+    public static PengramProfileHistory getInstance() {
+        if (instance == null && ApplicationLoader.applicationContext != null) synchronized (PengramProfileHistory.class) {
+            if (instance == null) instance = new PengramProfileHistory(ApplicationLoader.applicationContext);
+        }
+        return instance;
+    }
+    @Override public void onCreate(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE changes(id INTEGER PRIMARY KEY AUTOINCREMENT,account INTEGER NOT NULL,user_id INTEGER NOT NULL,time INTEGER NOT NULL,name TEXT,username TEXT,bio TEXT,avatar_hash TEXT)");
+        db.execSQL("CREATE INDEX changes_user ON changes(user_id,time)");
+        db.execSQL("CREATE TABLE tracked(account INTEGER NOT NULL,user_id INTEGER NOT NULL,PRIMARY KEY(account,user_id))");
+        db.execSQL("CREATE TABLE cloud_queue(id INTEGER PRIMARY KEY AUTOINCREMENT,account INTEGER NOT NULL,payload TEXT NOT NULL,created INTEGER NOT NULL,retries INTEGER NOT NULL DEFAULT 0,next_try INTEGER NOT NULL DEFAULT 0)");
+    }
+    @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
+
+    public static boolean enabled() { return PengramConfig.getBool(KEY_ENABLED, false); }
+    public static boolean isTracked(int account, long userId) {
+        PengramProfileHistory h = getInstance(); if (h == null) return false;
+        try (Cursor c = h.getReadableDatabase().rawQuery("SELECT 1 FROM tracked WHERE account=? AND user_id=?", new String[]{""+account,""+userId})) { return c.moveToFirst(); }
+    }
+    public static void setTracked(int account, long userId, boolean tracked) {
+        PengramProfileHistory h = getInstance(); if (h == null) return;
+        if (tracked) h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)", new Object[]{account,userId});
+        else h.getWritableDatabase().delete("tracked", "account=? AND user_id=?", new String[]{""+account,""+userId});
+    }
+
+    public static void observeUser(int account, TLRPC.User user, boolean fromCache) {
+        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.id == 777000 || user.id == UserObject.VERIFY || user.self) return;
+        int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
+        if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
+        if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
+        if (scope == SCOPE_INTERACTED && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null && !isTracked(account, user.id)) return;
+        final String name = ContactsController.formatName(user.first_name, user.last_name);
+        final String username = UserObject.getPublicUsername(user);
+        final String avatarToken = user.photo == null ? null : String.valueOf(user.photo.photo_id);
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, name, username, null, avatarToken, user));
+    }
+
+    public static void observeBio(int account, long userId, String bio) {
+        if (!enabled() || !PengramConfig.getBool(KEY_BIO, true)) return;
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, userId, null, null, bio, null, null));
+    }
+
+    private static void saveDelta(int account, long userId, String name, String username, String bio, String avatarToken, TLRPC.User user) {
+        PengramProfileHistory h = getInstance(); if (h == null) return;
+        synchronized (lock) {
+            String oldName=null, oldUsername=null, oldBio=null, oldAvatar=null;
+            try (Cursor c=h.getReadableDatabase().rawQuery("SELECT name,username,bio,avatar_hash FROM changes WHERE user_id=? ORDER BY id DESC",new String[]{""+userId})) {
+                while(c.moveToNext() && (oldName==null||oldUsername==null||oldBio==null||oldAvatar==null)) {
+                    if(oldName==null&&!c.isNull(0))oldName=c.getString(0); if(oldUsername==null&&!c.isNull(1))oldUsername=c.getString(1);
+                    if(oldBio==null&&!c.isNull(2))oldBio=c.getString(2); if(oldAvatar==null&&!c.isNull(3))oldAvatar=c.getString(3);
+                }
+            }
+            String dn=name!=null&&!TextUtils.equals(name,oldName)?name:null;
+            String du=username!=null&&!TextUtils.equals(username,oldUsername)?username:null;
+            String db=bio!=null&&!TextUtils.equals(bio,oldBio)?bio:null;
+            String currentAvatar = null;
+            if (avatarToken != null && user != null && PengramConfig.getBool(KEY_AVATARS, false)) currentAvatar = saveAvatar(account, user);
+            String da=currentAvatar!=null&&!TextUtils.equals(currentAvatar,oldAvatar)?currentAvatar:null;
+            if(dn==null&&du==null&&db==null&&da==null)return;
+            h.getWritableDatabase().execSQL("INSERT INTO changes(account,user_id,time,name,username,bio,avatar_hash) VALUES(?,?,?,?,?,?,?)",new Object[]{account,userId,System.currentTimeMillis()/1000,dn,du,db,da});
+            int storage=PengramConfig.getIntCached(KEY_STORAGE,STORAGE_LOCAL);
+            if(storage!=STORAGE_LOCAL) enqueueCloud(h,account,userId,dn,du,db,da);
+        }
+    }
+
+    private static void enqueueCloud(PengramProfileHistory h,int account,long uid,String name,String username,String bio,String avatar) {
+        StringBuilder p=new StringBuilder("#user_").append(uid).append("\nID: ").append(uid);
+        if(name!=null)p.append("\nName: ").append(name); if(username!=null)p.append("\nUsername: @").append(username);
+        if(bio!=null)p.append("\nBio: ").append(bio); if(avatar!=null)p.append("\nAvatar: ").append(avatar);
+        p.append("\nDate: ").append(String.format(Locale.US,"%tF %<tR",System.currentTimeMillis()));
+        h.getWritableDatabase().execSQL("INSERT INTO cloud_queue(account,payload,created) VALUES(?,?,?)",new Object[]{account,p.toString(),System.currentTimeMillis()/1000});
+        PengramProfileCloud.schedule(account);
+    }
+
+    private static File avatarDir(){ File d=new File(ApplicationLoader.applicationContext.getFilesDir(),"pengram_avatars"); d.mkdirs(); return d; }
+    private static String saveAvatar(int account, TLRPC.User user) {
+        try {
+            if(user.photo==null||user.photo.photo_small==null)return null;
+            File source=FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small,true);
+            if(source==null||!source.exists())return null;
+            Bitmap b=BitmapFactory.decodeFile(source.getAbsolutePath()); if(b==null)return null;
+            int s=Math.max(b.getWidth(),b.getHeight()); float k=Math.min(1f,200f/Math.max(1,s));
+            Bitmap thumb=Bitmap.createScaledBitmap(b,Math.max(1,Math.round(b.getWidth()*k)),Math.max(1,Math.round(b.getHeight()*k)),true);
+            ByteArrayOutputStream out=new ByteArrayOutputStream(); thumb.compress(Bitmap.CompressFormat.WEBP,72,out); byte[] bytes=out.toByteArray();
+            MessageDigest md=MessageDigest.getInstance("MD5"); StringBuilder hex=new StringBuilder(); for(byte v:md.digest(bytes))hex.append(String.format(Locale.US,"%02x",v&255));
+            File dest=new File(avatarDir(),hex+".webp"); if(!dest.exists())try(FileOutputStream f=new FileOutputStream(dest)){f.write(bytes);}
+            if(thumb!=b)thumb.recycle(); b.recycle();
+            return hex.toString();
+        }catch(Throwable e){FileLog.e(e); return null;}
+    }
+
+    public static ArrayList<Change> getChanges(long userId) {
+        ArrayList<Change> out=new ArrayList<>(); PengramProfileHistory h=getInstance(); if(h==null)return out;
+        try(Cursor c=h.getReadableDatabase().rawQuery("SELECT id,account,user_id,time,name,username,bio,avatar_hash FROM changes WHERE user_id=? ORDER BY time DESC,id DESC",new String[]{""+userId})){
+            while(c.moveToNext()){Change x=new Change();x.id=c.getLong(0);x.account=c.getInt(1);x.userId=c.getLong(2);x.time=c.getLong(3);x.name=c.getString(4);x.username=c.getString(5);x.bio=c.getString(6);x.avatarHash=c.getString(7);out.add(x);}
+        } return out;
+    }
+    public static int count(long userId){PengramProfileHistory h=getInstance();if(h==null)return 0;try(Cursor c=h.getReadableDatabase().rawQuery("SELECT count(*) FROM changes WHERE user_id=?",new String[]{""+userId})){return c.moveToFirst()?c.getInt(0):0;}}
+    public static void clearAvatars(){Utilities.globalQueue.postRunnable(()->{File[] fs=avatarDir().listFiles();if(fs!=null)for(File f:fs)if(f.getName().endsWith(".webp"))f.delete();});}
+}
