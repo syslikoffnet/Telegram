@@ -266,7 +266,7 @@ jobs:
 
       - name: Publish failure log to repo
         # только для веток: у тега пушить логи некуда
-        if: failure() && github.ref_type == 'branch'
+        if: failure() && github.ref_type == 'branch' && hashFiles('build.log') != ''
         env:
           LOG_BRANCH: ${{ github.ref_name }}
         run: |
