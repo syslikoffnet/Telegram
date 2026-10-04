@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 34:--I- Using the AGConnect-Config file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
 35:--W- The variant: afatDebug, Use the json file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
 36:--I- Using the AGConnect-Config file: /home/runner/work/Telegram/Telegram/TMessagesProj_AppHuawei/agconnect-services.json
@@ -160,4 +161,6 @@
 1453:Note: Recompile with -Xlint:deprecation for details.
 1454:Note: Some input files use unchecked or unsafe operations.
 1455:Note: Recompile with -Xlint:unchecked for details.
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
