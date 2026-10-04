@@ -278,7 +278,7 @@ public class PengramLyrics {
         try {
             final String hash = "txt_" + hashOf(raw);
             final String owner = prefs().getString(hash, null);
-            if (!TextUtils.isEmpty(owner) && !owner.equals(key)) {
+            if (!TextUtils.isEmpty(owner) && !owner.equals(key) && !sameTrackKey(owner, key)) {
                 log("отсев — такой же текст уже принадлежит треку «" + owner + "»");
                 return null;
             }
@@ -288,23 +288,55 @@ public class PengramLyrics {
         return raw;
     }
 
+    /**
+     * Один и тот же трек часто приходит с разными ключами: у одного файла теги есть,
+     * у другого исполнитель вытащен из имени файла. Считаем такие ключи одним треком,
+     * иначе защита от дублей отбирает текст у законного владельца.
+     */
+    private static boolean sameTrackKey(String a, String b) {
+        if (TextUtils.isEmpty(a) || TextUtils.isEmpty(b)) {
+            return false;
+        }
+        final int sepA = a.indexOf('|');
+        final int sepB = b.indexOf('|');
+        if (sepA < 0 || sepB < 0) {
+            return false;
+        }
+        final String titleA = a.substring(sepA + 1).trim();
+        final String titleB = b.substring(sepB + 1).trim();
+        if (titleA.isEmpty() || titleB.isEmpty() || !titleA.equals(titleB)) {
+            return false;
+        }
+        final String artistA = a.substring(0, sepA).trim();
+        final String artistB = b.substring(0, sepB).trim();
+        // один из ключей без исполнителя либо исполнитель вложен в другой
+        return artistA.isEmpty() || artistB.isEmpty()
+                || artistA.contains(artistB) || artistB.contains(artistA);
+    }
+
     private static void store(String key, String raw) {
         if (TextUtils.isEmpty(key)) {
             return;
         }
         final SharedPreferences.Editor editor = prefs().edit();
         if (TextUtils.isEmpty(raw)) {
-            editor.remove(key);
+            // Уже найденный когда-то текст НЕ удаляем: неудачный повторный поиск —
+            // это не повод терять то, что человек уже слушал. Именно так тексты
+            // пропадали у ранее прослушанных треков.
+            final boolean hadText = !TextUtils.isEmpty(prefs().getString(key, null));
+            if (!hadText) {
+                editor.remove(key);
+                memory.remove(key);
+            }
             // без сети запоминать неудачу нельзя: появится интернет — ищем снова сами
             boolean online = true;
             try {
                 online = ApplicationLoader.isNetworkOnline();
             } catch (Throwable ignore) {
             }
-            if (online) {
+            if (online && !hadText) {
                 editor.putLong("fail_" + key, System.currentTimeMillis());
             }
-            memory.remove(key);
         } else {
             editor.putString(key, raw).remove("fail_" + key);
             memory.put(key, raw);
@@ -317,11 +349,28 @@ public class PengramLyrics {
         prefs().edit().clear().apply();
     }
 
+    /** служебная запись склада, а не сохранённый текст песни */
+    private static boolean isServiceKey(String key) {
+        return key == null
+                || key.startsWith("fail_")     // отметка о неудачном поиске
+                || key.startsWith("off_")      // личный сдвиг синхронизации
+                || key.startsWith("rej_")      // забракованный вручную текст
+                || key.startsWith("txt_")      // владелец текста (защита от дублей)
+                || key.startsWith("learned")   // выученная поправка
+                || key.equals("cache_version");
+    }
+
     public static int savedCount() {
         try {
             int count = 0;
-            for (String key : prefs().getAll().keySet()) {
-                if (!key.startsWith("fail_")) {
+            for (java.util.Map.Entry<String, ?> entry : prefs().getAll().entrySet()) {
+                // Раньше сюда попадали все служебные записи, и счётчик рос сам по себе,
+                // даже когда ни одного нового текста не сохранялось.
+                if (isServiceKey(entry.getKey())) {
+                    continue;
+                }
+                final Object value = entry.getValue();
+                if (value instanceof String && !((String) value).isEmpty()) {
                     count++;
                 }
             }
@@ -393,9 +442,10 @@ public class PengramLyrics {
                 }
                 return;
             }
-            log("кэш: запись для «" + key + "» не прошла проверку, выбрасываем и ищем заново");
-            memory.remove(key);
-            prefs().edit().remove(key).apply();
+            // Запись подозрительная (например, у этого файла другая длительность), поэтому
+            // ищем заново — но старый текст оставляем на складе: если ничего лучше не
+            // найдётся, пусть лучше будет он, чем пустой экран.
+            log("кэш: запись для «" + key + "» не прошла проверку, ищем заново");
         }
         if (!force) {
             final long failed = prefs().getLong("fail_" + key, 0);

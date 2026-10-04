@@ -15165,16 +15165,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
             int generatedId = 20000;
             try {
-                for (java.lang.reflect.Field field : R.string.class.getFields()) {
-                    if (!field.getName().startsWith("Pengram")) continue;
-                    final String resourceName = field.getName();
-                    // Подписи-пояснения под пунктами — это не настройки, в поиске от них только шум.
-                    if (resourceName.endsWith("Info") || resourceName.endsWith("Info2")) continue;
-                    final String title = getString(field.getInt(null));
-                    // Форматные строки без аргументов показывали в поиске мусор вроде «%7$s».
+                // Индекс собран по самому экрану настроек (scripts/gen-search-index.py):
+                // в поиск попадают только сами функции — не заголовки разделов, не пояснения
+                // под ними и не варианты выбора. Раньше индексировались все строки подряд,
+                // и в выдачу лезло то, что настройкой не является.
+                for (int[] entry : PengramSearchIndex.ITEMS) {
+                    final String title = getString(entry[0]);
                     if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
                             || title.length() > 60 || !knownTitles.add(title)) continue;
-                    final int targetSection = pengramSearchSection(resourceName);
+                    final int targetSection = entry[1];
                     all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
                             () -> f.presentFragment(new PengramSettingsActivity(targetSection))));
                 }
