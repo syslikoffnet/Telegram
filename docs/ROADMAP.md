@@ -31,17 +31,14 @@
 
 ### 2.1 Настройки, которые ничего не делают
 
-1. **[код] «Дублировать в галерею» — мёртвая настройка.** P1
-   `PengramConfig.isMediaToGallery()` (`PengramConfig.java:589`) не вызывается ни одной строкой кода,
-   а строки `PengramMediaGallery` / `PengramMediaGalleryInfo` уже переведены на два языка.
-   То есть функция заявлена, но не реализована и даже не выведена в UI.
-2. **[код] «Дата регистрации отдельной строкой в профиле» не работает.** P1
-   `isRegDateRowVisible()` (`PengramConfig.java:935`) не используется нигде; реально работает только
-   значок (`isRegDateIconVisible()`). Варианты «строка» и «везде» в настройке выбираются, но эффекта нет.
-3. **[код] «Сохранять свои сообщения» (`saveOutgoing`) не влияет ни на что.** P1
-   Есть поле, переключатель `toggleSaveOutgoing()` (`PengramConfig.java:892`) и строка
-   `PengramHistorySaveOutgoing`, но `isSaveOutgoing()` не читает никто — исходящие пишутся/не пишутся
-   независимо от галочки.
+1. ~~**«Дублировать в галерею» — мёртвая настройка.**~~ **ИСПРАВЛЕНО.** Копии удалённых медиа теперь
+   по умолчанию пишутся в приватную папку Pengram (с `.nomedia`), а в галерею попадают только при
+   включённом переключателе; сам переключатель добавлен в раздел медиа.
+2. ~~**«Дата регистрации отдельной строкой в профиле» не работает.»**~~ **БЫЛО НЕВЕРНО:** строка
+   работала, но правило дублировалось в `ProfileActivity.pengramRegRowNeeded()`. Дубль убран,
+   осталась одна точка правды — `PengramConfig.isRegDateRowVisible()`.
+3. ~~**«Сохранять свои сообщения» не влияет ни на что.**~~ **ИСПРАВЛЕНО.** `isSavingOutgoing()`
+   возвращал жёсткий `true`; теперь читает настройку, а переключатель вернулся в раздел истории.
 4. **[код] «Скрывать метку "изменено"» наполовину.** P2
    Работает `shouldHideEditedLabel()`, а `isHidingEditedLabel()` (`PengramConfig.java:1623`) не используется —
    значит при выключенном значке правки надпись не скрывается, хотя настройка включена.
@@ -63,10 +60,9 @@
   конкретные пункты не скрываются.
 - **Скрытие вкладок:** `PengramHideTabContacts`, `PengramHideTabCalls`, `PengramHideTabSettings`,
   `PengramHideTabProfile`, `PengramTabsInfo` — вкладки не прячутся.
-- **История:** `PengramOpenDeletedChat`, `PengramOpenEditedChat`, `PengramServiceDeleted`,
-  `PengramServiceEdited`, `PengramViewEdited`, `PengramViewAll`, `PengramHistoryShowInProfile`,
-  `PengramSavedMessagesCount_*` — нет быстрых переходов «открыть чат удалённых/изменённых»
-  и счётчиков в профиле.
+- **История:** `PengramServiceDeleted`, `PengramServiceEdited`, `PengramViewEdited`, `PengramViewAll`,
+  `PengramHistoryShowInProfile`, `PengramSavedMessagesCount_*` — не хватает счётчиков в профиле и
+  части переходов. (Экран удалённых по конкретному человеку/группе уже есть — это не пробел.)
 - **«Переслать как своё»:** `PengramResendAsMine`, `PengramResendAsMineInfo`, `PengramResendMenu` —
   функции нет вообще, только тексты.
 - **Прочее:** `PengramBackupInfo`, `PengramLinksHeader`, `PengramLinksInfo`, `PengramOpenByIdInfo`,

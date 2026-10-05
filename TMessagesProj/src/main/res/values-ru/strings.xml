@@ -1022,7 +1022,7 @@
     <string name="PengramHeaderLyricsSpeedTitle">Скорость прокрутки</string>
     <string name="PengramHeaderLyricsSpeedInfo">Насколько быстро строка следует за пением.</string>
     <string name="PengramMediaGallery">Дублировать в галерею</string>
-    <string name="PengramMediaGalleryInfo">Выключено — сохранённые копии лежат только внутри Pengram и в галерее не появляются.</string>
+    <string name="PengramMediaGalleryInfo">Выключено — удалённые фото, видео и файлы копируются в собственную папку Pengram и не появляются ни в галерее, ни в других программах. Подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Редактор экрана</string>
     <string name="PengramEditorPick">Нажмите на любой элемент</string>
     <string name="PengramEditorPickInfo">Касание — выбрать, долгое нажатие и перетаскивание — переставить. Всё меняется в приложении сразу.</string>

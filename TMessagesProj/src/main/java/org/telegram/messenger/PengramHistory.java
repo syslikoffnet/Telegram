@@ -902,6 +902,15 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         executor.execute(() -> {
             try {
+                if (!PengramConfig.isMediaToGallery()) {
+                    // по умолчанию копии живут внутри Pengram: ни галерея, ни другие
+                    // программы их не видят (в папке лежит .nomedia)
+                    final File dest = savePrivateCopy(source, displayName, PengramConfig.getMediaFolder());
+                    if (dest != null) {
+                        trackSavedMedia(null, dest.getAbsolutePath(), dest.length());
+                    }
+                    return;
+                }
                 final String folder = PengramConfig.getMediaFolder();
                 final String mime = mimeType != null ? mimeType : (isVideo ? "video/mp4" : isImage ? "image/jpeg" : "application/octet-stream");
                 if (Build.VERSION.SDK_INT >= 29) {

@@ -45,6 +45,7 @@ public final class PengramSearchIndex {
             {R.string.PengramHistoryClearButton, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaFolder, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaPattern, PengramSettingsActivity.SECTION_HISTORY},
+            {R.string.PengramMediaGallery, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaLimitValue, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaClear, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramGhostAutoOffline, PengramSettingsActivity.SECTION_GHOST},

@@ -11994,7 +11994,7 @@
     <string name="PengramHeaderLyricsSpeedTitle">Scroll speed</string>
     <string name="PengramHeaderLyricsSpeedInfo">How fast the line follows the singing.</string>
     <string name="PengramMediaGallery">Also save to the gallery</string>
-    <string name="PengramMediaGalleryInfo">Off: saved copies live only inside Pengram and never show up in the gallery.</string>
+    <string name="PengramMediaGalleryInfo">Off: deleted photos, videos and files are copied into Pengram's own folder and never show up in the gallery or in other apps. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Screen editor</string>
     <string name="PengramEditorPick">Tap any element</string>
     <string name="PengramEditorPickInfo">Tap to select it, hold and drag to move it. Everything changes in the app right away.</string>

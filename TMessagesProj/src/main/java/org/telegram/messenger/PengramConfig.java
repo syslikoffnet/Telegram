@@ -911,11 +911,12 @@ public class PengramConfig {
         return saveEdited;
     }
 
+    /**
+     * Сохранять ли в истории свои сообщения (удалённые собеседником или изменённые).
+     * Выключено — Pengram ведёт журнал только по чужим сообщениям; отдельные свои
+     * можно оставить через «сохранить у себя» в меню сообщения.
+     */
     public static boolean isSavingOutgoing() {
-        return true; // отдельной опции больше нет: свои сообщения сохраняются (см. «сохранить у себя»)
-    }
-
-    private static boolean isSavingOutgoingLegacy() {
         init();
         return saveOutgoing;
     }
@@ -935,7 +936,11 @@ public class PengramConfig {
     public static boolean isRegDateRowVisible() {
         if (!isRegDateVisible()) return false;
         final int place = getRegDatePlace();
-        return place == REG_PLACE_ROW || place == REG_PLACE_BOTH;
+        if (place == REG_PLACE_SUBTITLE) return false;
+        if (place == REG_PLACE_ROW || place == REG_PLACE_BOTH) return true;
+        // режим «только значок»: без отдельной строки ID значок вешать некуда,
+        // поэтому дату показываем строкой
+        return !isIdSeparateRow();
     }
     /** нужен ли значок рядом со строкой ID */
     public static boolean isRegDateIconVisible() {

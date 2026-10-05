@@ -95,6 +95,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_DELETED = 400;
     private static final int BTN_HIST_EDITED = 401;
     private static final int BTN_HIST_OUTGOING = 402;
+    private static final int BTN_HIST_OUTGOING = 402;
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
@@ -1916,6 +1917,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
         final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
         if (saving) {
+            items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
+                    .setChecked(PengramConfig.isSavingOutgoing()));
             items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_SHOW, true, getString(R.string.PengramSaveForMyselfOption)));
             items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_DEFAULT, false, getString(R.string.PengramSaveForMyselfDefault)));
             items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
@@ -1944,8 +1947,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (PengramConfig.saveDeletedMedia) {
                 items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()));
                 items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()));
+                items.add(check(PengramConfig.KEY_MEDIA_GALLERY, false, getString(R.string.PengramMediaGallery)));
                 if (expanded(GROUP_HISTORY_MEDIA)) {
-                    items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
+                    items.add(UItem.asShadow(getString(PengramConfig.isMediaToGallery()
+                            ? R.string.PengramMediaInfo : R.string.PengramMediaGalleryInfo)));
 
                     items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
                     items.add(UItem.asSettingsCell(BTN_MEDIA_LIMIT, R.drawable.msg_download, getString(R.string.PengramMediaLimitValue), mediaLimitName(PengramConfig.getMediaMaxSizeMb())));
@@ -3394,6 +3399,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIST_EDITED:
                 PengramConfig.toggleSaveEdited();
                 updateAll = true;
+                break;
+            case BTN_HIST_OUTGOING:
+                PengramConfig.toggleSaveOutgoing();
+                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.isSavingOutgoing());
                 break;
             case BTN_HIST_OPEN:
                 presentFragment(new PengramHistoryActivity(0));

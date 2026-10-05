@@ -7323,18 +7323,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     /** «Вы создали свой аккаунт примерно …» по тапу на календарик в строке ID */
     /** Pengram: нужна ли отдельная строка «дата регистрации» */
     private static boolean pengramRegRowNeeded() {
-        if (!PengramConfig.isRegDateVisible()) {
-            return false;
-        }
-        final int place = PengramConfig.getRegDatePlace();
-        if (place == PengramConfig.REG_PLACE_SUBTITLE) {
-            return false;
-        }
-        if (place == PengramConfig.REG_PLACE_ROW || place == PengramConfig.REG_PLACE_BOTH) {
-            return true;
-        }
-        // режим «только значок»: без строки ID значок вешать некуда
-        return !PengramConfig.isIdSeparateRow();
+        // правило живёт в одном месте — в настройках, чтобы профиль и превью
+        // в настройках не могли разойтись
+        return PengramConfig.isRegDateRowVisible();
     }
 
     /** чей id сейчас показываем — нужен, чтобы понимать точность оценки */
