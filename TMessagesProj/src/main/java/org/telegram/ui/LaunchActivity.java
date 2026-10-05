@@ -7007,6 +7007,15 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         checkFreeDiscSpace(0);
         MediaController.checkGallery();
         onPasscodeResume();
+        // Pengram: если прошлый запуск закончился вылетом, покажем отчёт —
+        // причина к этому моменту уже лежит в буфере обмена
+        if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(LaunchActivity.this);
+                }
+            }, 900);
+        }
         if (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE) {
             actionBarLayout.onResume();
             if (AndroidUtilities.isTablet()) {

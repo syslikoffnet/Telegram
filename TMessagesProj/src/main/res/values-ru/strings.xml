@@ -1249,4 +1249,21 @@
     <string name="PengramProfileScopeInteracted">Пользователи, с которыми взаимодействовали</string>
     <string name="PengramProfileScopeContacts">Контакты и существующие чаты</string>
     <string name="PengramProfileScopeAll">Все встреченные пользователи</string>
+    <string name="PengramCrashReports">Отчёты о вылетах</string>
+    <string name="PengramCrashReportsInfo">Если Pengram вылетит, причина сразу окажется в буфере обмена — останется вставить её в чат с разработчиком. Последние %1$s отчётов хранятся на устройстве и сами никуда не уходят.</string>
+    <string name="PengramCrashAutoCopy">Копировать причину в буфер обмена</string>
+    <string name="PengramCrashTitle">Pengram вылетел</string>
+    <string name="PengramCrashReportTitle">Отчёт о вылете</string>
+    <string name="PengramCrashCopiedInfo">Полный отчёт уже в буфере обмена — вставьте его в чат с разработчиком.</string>
+    <string name="PengramCrashNotCopiedInfo">Копирование в буфер выключено. Нажмите «Скопировать», чтобы забрать полный отчёт.</string>
+    <string name="PengramCrashCopy">Скопировать</string>
+    <string name="PengramCrashCopyLast">Скопировать последний</string>
+    <string name="PengramCrashCopied">Отчёт о вылете скопирован</string>
+    <string name="PengramCrashDetails">Подробнее</string>
+    <string name="PengramCrashShare">Поделиться</string>
+    <string name="PengramCrashClear">Очистить</string>
+    <string name="PengramCrashCleared">Отчёты о вылетах удалены</string>
+    <string name="PengramCrashEmpty">Вылетов не было — отлично.</string>
+    <string name="PengramCrashNone">Нет</string>
+    <string name="PengramCrashTapToCopy">Нажмите, чтобы открыть отчёт</string>
 </resources>

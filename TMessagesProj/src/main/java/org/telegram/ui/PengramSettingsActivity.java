@@ -240,6 +240,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BYPASS = 1491;
     private static final int BTN_ANTICRASH_STATS = 1492;
     private static final int BTN_ANTICRASH_LOG = 1493;
+    private static final int BTN_CRASH_REPORTS = 1494;
+    private static final int BTN_CRASH_AUTOCOPY = 1495;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     private static final int BTN_SEARCH = 1447;
@@ -2048,6 +2050,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramAntiCrashInfo)));
 
+        // отчёт о вылете: причина уходит в буфер обмена прямо в момент падения
+        items.add(UItem.asHeader(getString(R.string.PengramCrashReports)));
+        items.add(UItem.asCheck(BTN_CRASH_AUTOCOPY, getString(R.string.PengramCrashAutoCopy))
+                .setChecked(org.telegram.messenger.PengramCrashReport.isCopyEnabled()));
+        items.add(UItem.asSettingsCell(BTN_CRASH_REPORTS, R.drawable.msg_report,
+                getString(R.string.PengramCrashReports),
+                org.telegram.ui.Components.PengramCrashDialogs.summary()));
+        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramCrashReportsInfo,
+                String.valueOf(org.telegram.messenger.PengramCrashReport.LIMIT))));
+
         items.add(UItem.asHeader(getString(R.string.PengramAdsHeader)));
         items.add(UItem.asCheck(BTN_ADS, getString(R.string.PengramHideAds)).setChecked(PengramConfig.hideAds));
         items.add(UItem.asShadow(getString(R.string.PengramAdsInfo)));
@@ -3139,6 +3151,14 @@ public class PengramSettingsActivity extends UniversalFragment {
                 listView.adapter.update(true);
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                         getString(R.string.PengramAntiCrashStatsReset)).show();
+                return;
+            case BTN_CRASH_AUTOCOPY:
+                org.telegram.messenger.PengramCrashReport.setCopyEnabled(
+                        !org.telegram.messenger.PengramCrashReport.isCopyEnabled());
+                listView.adapter.update(true);
+                return;
+            case BTN_CRASH_REPORTS:
+                org.telegram.ui.Components.PengramCrashDialogs.showJournal(this);
                 return;
             case BTN_ANTICRASH_LOG:
                 showAntiCrashLog();

@@ -12221,4 +12221,21 @@
     <string name="PengramProfileScopeInteracted">Users you interacted with</string>
     <string name="PengramProfileScopeContacts">Contacts and existing chats</string>
     <string name="PengramProfileScopeAll">All encountered users</string>
+    <string name="PengramCrashReports">Crash reports</string>
+    <string name="PengramCrashReportsInfo">If Pengram crashes, the reason is copied to the clipboard right away — just paste it into the chat with the developer. The last %1$s reports are kept on the device and never leave it on their own.</string>
+    <string name="PengramCrashAutoCopy">Copy the reason to the clipboard</string>
+    <string name="PengramCrashTitle">Pengram crashed</string>
+    <string name="PengramCrashReportTitle">Crash report</string>
+    <string name="PengramCrashCopiedInfo">The full report is already in your clipboard — paste it into the chat with the developer.</string>
+    <string name="PengramCrashNotCopiedInfo">Copying to the clipboard is turned off. Tap “Copy” to grab the full report.</string>
+    <string name="PengramCrashCopy">Copy</string>
+    <string name="PengramCrashCopyLast">Copy the last one</string>
+    <string name="PengramCrashCopied">Crash report copied</string>
+    <string name="PengramCrashDetails">Details</string>
+    <string name="PengramCrashShare">Share</string>
+    <string name="PengramCrashClear">Clear</string>
+    <string name="PengramCrashCleared">Crash reports cleared</string>
+    <string name="PengramCrashEmpty">No crashes recorded — nice.</string>
+    <string name="PengramCrashNone">None</string>
+    <string name="PengramCrashTapToCopy">Tap to open the report</string>
 </resources>

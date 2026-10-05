@@ -58,6 +58,7 @@ public final class PengramSearchIndex {
             {R.string.PengramAntiCrashJournalEnabled, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramAntiCrashStats, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramAntiCrashLog, PengramSettingsActivity.SECTION_FREEDOM},
+            {R.string.PengramCrashReports, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramLocalPremiumStatus, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramBackgroundMode, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramBackgroundSilent, PengramSettingsActivity.SECTION_FREEDOM},

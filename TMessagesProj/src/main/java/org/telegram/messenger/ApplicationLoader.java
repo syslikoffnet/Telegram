@@ -338,6 +338,10 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
 
+        // Pengram: перехват падений ставим как можно раньше — отчёт о вылете
+        // должен собраться даже если упадёт сама инициализация приложения
+        PengramCrashReport.install();
+
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
 
         try {
