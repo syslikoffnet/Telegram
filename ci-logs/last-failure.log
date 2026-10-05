@@ -1,61 +1,3 @@
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
-C/C++:   605 |                 unsigned int size = ssrcs.size();
-C/C++:       |                              ^
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:1372:39: warning: format specifies type 'int' but the argument has type 'jlong' (aka 'long') [-Wformat]
-C/C++:  1372 |     DEBUG_D("setConferenceCallId %d", call_id);
-C/C++:       |                                  ~~   ^~~~~~~
-C/C++:       |                                  %ld
-C/C++: 6 warnings generated.
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:50:1: warning: typedef requires a name [-Wmissing-declarations]
-C/C++:    50 | typedef struct VideoInfo {
-C/C++:       | ^~~~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: warning: format string is not a string literal (potentially insecure) [-Wformat-security]
-C/C++:   143 |     LOGE(line);
-C/C++:       |          ^~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-C/C++:    11 | #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-C/C++:       |                                                                   ^~~~~~~~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: note: treat the string as an argument to avoid this
-C/C++:   143 |     LOGE(line);
-C/C++:       |          ^
-C/C++:       |          "%s", 
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-C/C++:    11 | #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-C/C++:       |                                                                   ^
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:152:37: warning: format specifies type 'int' but the argument has type 'const enum AVPixelFormat *' [-Wformat]
-C/C++:   152 |         LOGE("available format %d", p);
-C/C++:       |                                ~~   ^
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-C/C++:    11 | #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-C/C++:       |                                                                   ^~~~~~~~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:416:86: warning: format specifies type 'long long' but the argument has type 'jlong' (aka 'long') [-Wformat]
-C/C++:   416 |             LOGE("can't open source file at offset %s (offset=%lld), %s", info->src, fileOffset, av_err2str(ret));
-C/C++:       |                                                               ~~~~                   ^~~~~~~~~~
-C/C++:       |                                                               %ld
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-C/C++:    11 | #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-C/C++:       |                                                                   ^~~~~~~~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:643:13: warning: comparison between NULL and non-pointer ('jlong' (aka 'long') and NULL) [-Wnull-arithmetic]
-C/C++:   643 |     if (ptr == NULL) {
-C/C++:       |         ~~~ ^  ~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:668:13: warning: comparison between NULL and non-pointer ('jlong' (aka 'long') and NULL) [-Wnull-arithmetic]
-C/C++:   668 |     if (ptr == NULL) {
-C/C++:       |         ~~~ ^  ~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:676:13: warning: comparison between NULL and non-pointer ('jlong' (aka 'long') and NULL) [-Wnull-arithmetic]
-C/C++:   676 |     if (ptr == NULL) {
-C/C++:       |         ~~~ ^  ~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: warning: '&&' within '||' [-Wlogical-op-parentheses]
-C/C++:   768 |     if (!(wantedWidth == frame->width && wantedHeight == frame->height || wantedWidth == frame->height && wantedHeight == frame->width)) {
-C/C++:       |           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: note: place parentheses around the '&&' expression to silence this warning
-C/C++:   768 |     if (!(wantedWidth == frame->width && wantedHeight == frame->height || wantedWidth == frame->height && wantedHeight == frame->width)) {
-C/C++:       |                                       ^
-C/C++:       |           (                                                           )
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: warning: '&&' within '||' [-Wlogical-op-parentheses]
-C/C++:   768 |     if (!(wantedWidth == frame->width && wantedHeight == frame->height || wantedWidth == frame->height && wantedHeight == frame->width)) {
-C/C++:       |                                                                        ~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: note: place parentheses around the '&&' expression to silence this warning
 C/C++:   768 |     if (!(wantedWidth == frame->width && wantedHeight == frame->height || wantedWidth == frame->height && wantedHeight == frame->width)) {
 C/C++:       |                                                                                                        ^                              
 C/C++:       |                                                                           (                                                           )
@@ -79,8 +21,8 @@ C/C++: 1 warning generated.
 > Task :TMessagesProj:mergeStandaloneNativeLibs
 > Task :TMessagesProj:generateStandaloneResources
 > Task :TMessagesProj:processStandaloneGoogleServices
-> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneArtProfile
 > Task :TMessagesProj:copyStandaloneJniLibsProjectOnly
+> Task :TMessagesProj_AppStandalone:mergeAfatStandaloneArtProfile
 > Task :TMessagesProj_AppStandalone:expandAfatStandaloneL8ArtProfileWildcards FROM-CACHE
 > Task :TMessagesProj:packageStandaloneResources
 > Task :TMessagesProj:processStandaloneNavigationResources
@@ -97,7 +39,7 @@ C/C++: 1 warning generated.
 > Task :TMessagesProj:mergeStandaloneJavaResource
 > Task :TMessagesProj:mergeStandaloneAssets
 > Task :TMessagesProj:parseStandaloneLocalResources
-> Task :TMessagesProj:generateStandaloneRFile FROM-CACHE
+> Task :TMessagesProj:generateStandaloneRFile
 > Task :TMessagesProj_AppStandalone:checkAfatStandaloneAarMetadata
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneNativeLibs
 > Task :TMessagesProj_AppStandalone:processAfatStandaloneNavigationResources FROM-CACHE
@@ -123,35 +65,35 @@ C/C++: 1 warning generated.
 /home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:4975:4: Multiple substitutions specified in non-positional format of string resource string/GiftOfferPayMulti. Did you mean to add the formatted="false" attribute?
 /home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:6596:4: Multiple substitutions specified in non-positional format of string resource string/NotificationTopicExceptionsDesctription_one. Did you mean to add the formatted="false" attribute?
 /home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:6597:4: Multiple substitutions specified in non-positional format of string resource string/NotificationTopicExceptionsDesctription_other. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7747:4: Failed to flatten XML for resource 'PengramMediaGalleryInfo' with error: Invalid unicode escape sequence in string
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7753:4: Failed to flatten XML for resource 'PengramMediaGalleryInfo' with error: Invalid unicode escape sequence in string
 "{str}"
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7747:4: string/PengramMediaGalleryInfo does not contain a valid string resource.
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10151:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription1. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10152:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription2. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10153:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription3. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10564:4: Multiple substitutions specified in non-positional format of string resource string/StoryAddedToAlbumTitle_one. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10565:4: Multiple substitutions specified in non-positional format of string resource string/StoryAddedToAlbumTitle_other. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10767:4: Multiple substitutions specified in non-positional format of string resource string/StoryRemovedFromAlbumTitle_one. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10768:4: Multiple substitutions specified in non-positional format of string resource string/StoryRemovedFromAlbumTitle_other. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10839:4: Multiple substitutions specified in non-positional format of string resource string/SuggestAPostBelowSubtitleStarsAndTime. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10893:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin1. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10894:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin1PastSimple. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10896:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin2. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10897:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin3Stars. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10898:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin3TON. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10899:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin4Stars. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10900:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin4TON. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10901:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser1. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10902:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser1PastSimple. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10905:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser3Stars. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10906:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser3TON. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10907:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser4Stars. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10908:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser4TON. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:11341:4: Multiple substitutions specified in non-positional format of string resource string/UnconfirmedAuthMultipleFrom_one. Did you mean to add the formatted="false" attribute?
-/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:11342:4: Multiple substitutions specified in non-positional format of string resource string/UnconfirmedAuthMultipleFrom_other. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7753:4: string/PengramMediaGalleryInfo does not contain a valid string resource.
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10157:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription1. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10158:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription2. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10159:4: Multiple substitutions specified in non-positional format of string resource string/StarRatingDescription3. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10570:4: Multiple substitutions specified in non-positional format of string resource string/StoryAddedToAlbumTitle_one. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10571:4: Multiple substitutions specified in non-positional format of string resource string/StoryAddedToAlbumTitle_other. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10773:4: Multiple substitutions specified in non-positional format of string resource string/StoryRemovedFromAlbumTitle_one. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10774:4: Multiple substitutions specified in non-positional format of string resource string/StoryRemovedFromAlbumTitle_other. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10845:4: Multiple substitutions specified in non-positional format of string resource string/SuggestAPostBelowSubtitleStarsAndTime. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10899:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin1. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10900:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin1PastSimple. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10902:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin2. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10903:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin3Stars. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10904:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin3TON. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10905:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin4Stars. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10906:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedAdmin4TON. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10907:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser1. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10908:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser1PastSimple. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10911:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser3Stars. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10912:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser3TON. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10913:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser4Stars. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:10914:4: Multiple substitutions specified in non-positional format of string resource string/SuggestionAgreementReachedUser4TON. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:11347:4: Multiple substitutions specified in non-positional format of string resource string/UnconfirmedAuthMultipleFrom_one. Did you mean to add the formatted="false" attribute?
+/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:11348:4: Multiple substitutions specified in non-positional format of string resource string/UnconfirmedAuthMultipleFrom_other. Did you mean to add the formatted="false" attribute?
 
 > Task :TMessagesProj_AppStandalone:extractAfatStandaloneNativeDebugMetadata FROM-CACHE
-> Task :TMessagesProj_AppStandalone:parseAfatStandaloneLocalResources FROM-CACHE
+> Task :TMessagesProj_AppStandalone:parseAfatStandaloneLocalResources
 > Task :TMessagesProj_AppStandalone:processAfatStandaloneMainManifest FROM-CACHE
 > Task :TMessagesProj_AppStandalone:processAfatStandaloneManifest FROM-CACHE
 > Task :TMessagesProj_AppStandalone:processAfatStandaloneManifestForPackage FROM-CACHE
@@ -173,7 +115,7 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj_AppStandalone:mergeAfatStandaloneResources'.
 > A failure occurred while executing com.android.build.gradle.internal.res.ResourceCompilerRunnable
-   > Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@17600de8.). Check logs for more details.
+   > Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@3517a482.). Check logs for more details.
 
 * Try:
 > Run with --info or --debug option to get more log output.
@@ -212,6 +154,35 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing com.android.build.gradle.internal.res.ResourceCompilerRunnable
@@ -342,9 +313,38 @@ Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionExcept
 	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
 	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:210)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:205)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:67)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:167)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:60)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
-Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@17600de8.). Check logs for more details.
+Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@3517a482.). Check logs for more details.
 	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:129)
 	at com.android.build.gradle.internal.res.ResourceCompilerRunnable$Companion.compileSingleResource(ResourceCompilerRunnable.kt:34)
 	at com.android.build.gradle.internal.res.ResourceCompilerRunnable.run(ResourceCompilerRunnable.kt:15)
@@ -383,7 +383,7 @@ Caused by: com.android.aaptcompiler.ResourceCompilationException: Failed to comp
 	at com.android.aaptcompiler.ResourceCompiler$getCompileMethod$1.invoke(ResourceCompiler.kt:138)
 	at com.android.aaptcompiler.ResourceCompiler.compileResource(ResourceCompiler.kt:123)
 	... 31 more
-Caused by: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@17600de8.
+Caused by: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@3517a482.
 	at com.android.aaptcompiler.TableExtractor.extractResourceValues(TableExtractor.kt:270)
 	at com.android.aaptcompiler.TableExtractor.extract(TableExtractor.kt:181)
 	at com.android.aaptcompiler.ResourceCompiler.compileTable(ResourceCompiler.kt:188)
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 3m 28s
-320 actionable tasks: 166 executed, 154 from cache
+BUILD FAILED in 6m 37s
+320 actionable tasks: 169 executed, 151 from cache

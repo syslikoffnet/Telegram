@@ -7,21 +7,21 @@
 165:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:660:57: note: place parentheses around the '&&' expression to silence this warning
 172:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:62: note: place parentheses around the '&&' expression to silence this warning
 179:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:147: note: place parentheses around the '&&' expression to silence this warning
-219:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:688:29: note: place parentheses around the '&&' expression to silence this warning
+187:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:688:29: note: place parentheses around the '&&' expression to silence this warning
 231:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:200:62: note: place parentheses around the '&&' expression to silence this warning
 237:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:258:62: note: place parentheses around the '&&' expression to silence this warning
 243:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:378:62: note: place parentheses around the '&&' expression to silence this warning
 249:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:447:62: note: place parentheses around the '&&' expression to silence this warning
 256:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Request.cpp:82:19: note: place parentheses around the '&&' expression to silence this warning
 263:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Request.cpp:82:77: note: place parentheses around the '&&' expression to silence this warning
-326:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/group/GroupInstanceReferenceImpl.cpp:731:39: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
-329:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
-364:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2CompatImpl.cpp:439:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
-367:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
-380:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2ReferenceImpl.cpp:490:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
-383:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
-397:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2wasm/CallCoreHost.cpp:600:64: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
-400:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+311:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/group/GroupInstanceReferenceImpl.cpp:731:39: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+314:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+349:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2CompatImpl.cpp:439:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+352:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+365:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2/InstanceV2ReferenceImpl.cpp:490:68: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+368:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
+382:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2wasm/CallCoreHost.cpp:600:64: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
+385:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
 668:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
 671:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
 677:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
@@ -37,22 +37,22 @@
 746:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
 749:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
 754:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-761:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:652:15: note: initializer of 'div' is not a constant expression
-762:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:647:15: note: declared here
-768:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:19: note: expanded from macro 'MAX'
-771:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:655:14: note: read of non-const variable 'w' is not allowed in a constant expression
-772:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:20: note: expanded from macro 'MAX'
-775:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:633:9: note: declared here
-784:C/C++: /usr/local/lib/android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/stdlib.h:132:18: note: expanded from macro 'RAND_MAX'
-794:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:407:88: note: use array indexing to silence this warning
-801:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:557:34: note: read of non-const variable 'size' is not allowed in a constant expression
-802:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-808:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:558:38: note: read of non-const variable 'size' is not allowed in a constant expression
-809:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-815:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:559:39: note: read of non-const variable 'size' is not allowed in a constant expression
-816:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-822:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
-823:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
+761:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:407:88: note: use array indexing to silence this warning
+768:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:557:34: note: read of non-const variable 'size' is not allowed in a constant expression
+769:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+775:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:558:38: note: read of non-const variable 'size' is not allowed in a constant expression
+776:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+782:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:559:39: note: read of non-const variable 'size' is not allowed in a constant expression
+783:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+789:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
+790:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
+801:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:652:15: note: initializer of 'div' is not a constant expression
+802:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:647:15: note: declared here
+808:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:19: note: expanded from macro 'MAX'
+811:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:655:14: note: read of non-const variable 'w' is not allowed in a constant expression
+812:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:20: note: expanded from macro 'MAX'
+815:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:633:9: note: declared here
+824:C/C++: /usr/local/lib/android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/stdlib.h:132:18: note: expanded from macro 'RAND_MAX'
 837:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
 840:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: note: treat the string as an argument to avoid this
 844:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
@@ -61,10 +61,10 @@
 872:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: note: place parentheses around the '&&' expression to silence this warning
 879:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: note: place parentheses around the '&&' expression to silence this warning
 890:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/.cxx/RelWithDebInfo/315u2d5t/arm64-v8a/<command line>:45:9: note: previous definition is here
-947:/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7747:4: Failed to flatten XML for resource 'PengramMediaGalleryInfo' with error: Invalid unicode escape sequence in string
+947:/home/runner/work/Telegram/Telegram/TMessagesProj/build/intermediates/packaged_res/standalone/packageStandaloneResources/values/values.xml:7753:4: Failed to flatten XML for resource 'PengramMediaGalleryInfo' with error: Invalid unicode escape sequence in string
 985:Note: Some input files use or override a deprecated API.
 986:Note: Recompile with -Xlint:deprecation for details.
 987:Note: Some input files use unchecked or unsafe operations.
 988:Note: Recompile with -Xlint:unchecked for details.
-997:   > Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@17600de8.). Check logs for more details.
-1168:Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@17600de8.). Check logs for more details.
+997:   > Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@3517a482.). Check logs for more details.
+1226:Caused by: com.android.aaptcompiler.ResourceCompilationException: Resource compilation failed (Failed to compile values resource file /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/intermediates/incremental/afatStandalone/mergeAfatStandaloneResources/merged.dir/values/values.xml. Cause: java.lang.IllegalStateException: Can not extract resource from com.android.aaptcompiler.ParsedResource@3517a482.). Check logs for more details.
