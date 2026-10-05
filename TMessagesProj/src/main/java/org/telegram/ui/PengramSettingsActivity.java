@@ -242,7 +242,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ANTICRASH_LOG = 1493;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
-    private static final int BTN_SEARCH = 1500;
+    private static final int BTN_SEARCH = 1447;
     /** строки результатов поиска: BTN_SEARCH_BASE + номер в списке найденного */
     private static final int BTN_SEARCH_BASE = 7000;
     private static final int BTN_PENGUIN_FLIP = 1443;
