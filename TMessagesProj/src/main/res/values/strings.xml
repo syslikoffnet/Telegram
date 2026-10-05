@@ -11743,6 +11743,13 @@
     <string name="PengramPenguinTipHold">Hold me and I will dance</string>
     <string name="PengramPenguinSleeping">Shh, I am asleep…</string>
     <string name="PengramSearchHint">Start typing a feature name — it will be found in any section.</string>
+    <string name="PengramChatMusicTitle">Chat music</string>
+    <string name="PengramChatMusicPlayAll">Play all</string>
+    <string name="PengramChatMusicShuffle">Shuffle</string>
+    <string name="PengramChatMusicSearchHint">Title or artist</string>
+    <string name="PengramChatMusicEmpty">No music in this chat yet</string>
+    <string name="PengramChatMusicHours">%1$d h %2$d min of music</string>
+    <string name="PengramChatMusicMinutes">%1$d min of music</string>
     <string name="PengramSkinsHeader">Outfits</string>
     <string name="PengramSkinsInfo">The outfit is applied instantly, right on the penguin above.</string>
     <string name="PengramPenguinGesturesInfo">Tap — jump, double tap — backflip, long press — dance with wing waves, swipe — spin. Ten quick taps open this screen from anywhere.</string>

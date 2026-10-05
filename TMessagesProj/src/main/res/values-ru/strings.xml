@@ -771,6 +771,13 @@
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
     <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
+    <string name="PengramChatMusicTitle">Музыка чата</string>
+    <string name="PengramChatMusicPlayAll">Слушать всё</string>
+    <string name="PengramChatMusicShuffle">Перемешать</string>
+    <string name="PengramChatMusicSearchHint">Название или исполнитель</string>
+    <string name="PengramChatMusicEmpty">В этом чате ещё нет музыки</string>
+    <string name="PengramChatMusicHours">%1$d ч %2$d мин звучания</string>
+    <string name="PengramChatMusicMinutes">%1$d мин звучания</string>
     <string name="PengramSkinsHeader">Одежда</string>
     <string name="PengramSkinsInfo">Скин применяется мгновенно — прямо на пингвине сверху.</string>
     <string name="PengramPenguinGesturesInfo">Тап — прыжок, двойной тап — сальто, долгое нажатие — танец с крыльями, свайп — раскрутка. Десять быстрых тапов открывают этот экран откуда угодно.</string>

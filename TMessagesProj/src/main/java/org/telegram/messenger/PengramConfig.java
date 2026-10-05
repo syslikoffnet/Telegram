@@ -1233,9 +1233,11 @@ public class PengramConfig {
     public static final int CHAT_ITEM_SAVED_MEDIA = 4;
     public static final int CHAT_ITEM_VIEW_DELETED = 5;
     public static final int CHAT_ITEM_DELETE_MY_MESSAGES = 6;
+    public static final int CHAT_ITEM_CHAT_MUSIC = 7;
 
     private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
-            CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA, CHAT_ITEM_DELETE_MY_MESSAGES
+            CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA,
+            CHAT_ITEM_CHAT_MUSIC, CHAT_ITEM_DELETE_MY_MESSAGES
     };
 
     /** где живёт пункт: в самом меню «три точки» или внутри острова Pengram */
@@ -1340,6 +1342,7 @@ public class PengramConfig {
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.string.PengramChatItemSavedMedia;
             case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.string.PengramViewDeleted;
             case CHAT_ITEM_DELETE_MY_MESSAGES: return org.telegram.messenger.R.string.PengramDeleteMyMessages;
+            case CHAT_ITEM_CHAT_MUSIC: return org.telegram.messenger.R.string.PengramChatMusicTitle;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.string.PengramMenuTitle;
         }
@@ -1352,6 +1355,7 @@ public class PengramConfig {
             case CHAT_ITEM_SAVED_MEDIA: return org.telegram.messenger.R.drawable.msg_saved;
             case CHAT_ITEM_VIEW_DELETED: return org.telegram.messenger.R.drawable.msg_delete;
             case CHAT_ITEM_DELETE_MY_MESSAGES: return org.telegram.messenger.R.drawable.msg_delete;
+            case CHAT_ITEM_CHAT_MUSIC: return org.telegram.messenger.R.drawable.msg_played;
             case CHAT_ITEM_PENGRAM:
             default: return org.telegram.messenger.R.drawable.msg_viewchats;
         }

@@ -1823,8 +1823,25 @@ public class ChatActivity extends BaseFragment implements
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_COPY_ID: return pengram_copy_chat_id;
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_SAVED_MEDIA: return pengram_saved_media;
             case org.telegram.messenger.PengramConfig.CHAT_ITEM_DELETE_MY_MESSAGES: return pengram_delete_my_messages;
+            case org.telegram.messenger.PengramConfig.CHAT_ITEM_CHAT_MUSIC: return pengram_chat_music;
         }
         return 0;
+    }
+
+    /** Pengram: вся музыка этого чата — красивым списком с обложками */
+    private void pengramShowChatMusic() {
+        if (getContext() == null) {
+            return;
+        }
+        final CharSequence name = currentChat != null
+                ? currentChat.title
+                : (currentUser != null ? org.telegram.messenger.UserObject.getUserName(currentUser) : null);
+        showDialog(new org.telegram.ui.Components.PengramChatMusicSheet(getContext(), themeDelegate,
+                currentAccount, getDialogId(), name, messageObject -> {
+            if (messageObject != null) {
+                scrollToMessageId(messageObject.getId(), 0, true, 0, true, 0);
+            }
+        }));
     }
 
     /** Pengram: выполнить наш пункт меню по его id */
@@ -2351,6 +2368,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int pengram_copy_chat_id = 903;
     private final static int pengram_saved_media = 904;
     private final static int pengram_delete_my_messages = 905;
+    private final static int pengram_chat_music = 906;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -4382,6 +4400,9 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 } else if (id == pengram_delete_my_messages) {
                     pengramConfirmDeleteMyMessages();
+                    return;
+                } else if (id == pengram_chat_music) {
+                    pengramShowChatMusic();
                     return;
                 }
                 if (id == -1) {
