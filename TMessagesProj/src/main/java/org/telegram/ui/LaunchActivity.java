@@ -1500,6 +1500,21 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         return overlayPasscodeViews.isEmpty() && this.passcodeDialog != null ? passcodeView == this.passcodeDialog.passcodeView : overlayPasscodeViews.get(overlayPasscodeViews.size() - 1) == passcodeView;
     }
 
+    /** .pen, пришедший снаружи: распознаём по имени и предлагаем применить */
+    private boolean pengramHandleBackupIntent(Uri data) {
+        if (data == null) {
+            return false;
+        }
+        try {
+            if (!org.telegram.ui.Components.PengramBackupOpener.looksLikePenUri(data)) {
+                return false;
+            }
+            return org.telegram.ui.Components.PengramBackupOpener.tryOpen(this, null, data);
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
     private boolean handleIntent(Intent intent, boolean isNew, boolean restore, boolean fromPassword) {
         return handleIntent(intent, isNew, restore, fromPassword, null, true, false);
     }
@@ -1883,6 +1898,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     }
                 } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
                     Uri data = intent.getData();
+
+                    // Pengram: файл настроек .pen, открытый извне (файловый менеджер,
+                    // «Открыть с помощью»), применяется прямо здесь
+                    if (pengramHandleBackupIntent(data)) {
+                        return true;
+                    }
 
                     final LinkManager linkManager = new LinkManager(this, intentAccount[0], progress, openedTelegram);
                     if (linkManager.handle(data)) {

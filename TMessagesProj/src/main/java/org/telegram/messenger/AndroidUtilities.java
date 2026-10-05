@@ -4237,6 +4237,11 @@ public class AndroidUtilities {
             f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToMessage(message.messageOwner);
         }
         if (f != null && f.exists()) {
+            // Pengram: .pen — наш формат настроек, его открывает сам клиент
+            if (activity != null && org.telegram.ui.Components.PengramBackupOpener.tryOpen(activity, parentFragment, f,
+                    message.getDocumentName() != null ? message.getDocumentName() : fileName)) {
+                return;
+            }
             if (parentFragment != null && f.getName().toLowerCase().endsWith("attheme")) {
                 Theme.ThemeInfo themeInfo = Theme.applyThemeFile(f, message.getDocumentName(), null, true);
                 if (themeInfo != null) {
@@ -4312,6 +4317,10 @@ public class AndroidUtilities {
 
     public static boolean openForView(File f, String fileName, String mimeType, final Activity activity, Theme.ResourcesProvider resourcesProvider, boolean restrict) {
         if (f != null && f.exists()) {
+            // Pengram: настройки .pen применяем сами, а не отдаём системе
+            if (activity != null && org.telegram.ui.Components.PengramBackupOpener.tryOpen(activity, null, f, fileName)) {
+                return true;
+            }
             String realMimeType = null;
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

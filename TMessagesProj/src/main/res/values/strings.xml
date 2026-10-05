@@ -11396,6 +11396,9 @@
     <string name="PengramBackupApply">Apply</string>
     <string name="PengramBackupImportConfirm">Current Pengram settings will be replaced with the ones from the clipboard. Continue?</string>
     <string name="PengramBackupImported">Settings applied</string>
+    <string name="PengramBackupOpenTitle">Pengram settings</string>
+    <string name="PengramBackupOpenMessage">This file contains saved Pengram settings. Apply them? Your current settings will be replaced.</string>
+    <string name="PengramBackupOpenDone">Settings applied. Some changes will appear after restarting the app.</string>
     <string name="PengramBackupReset">Reset Pengram settings</string>
     <string name="PengramBackupResetConfirm">All fork settings will return to their defaults. Chats and saved history are not affected.</string>
     <string name="PengramBackupResetDone">Settings reset</string>

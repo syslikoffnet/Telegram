@@ -424,6 +424,9 @@
     <string name="PengramBackupApply">Применить</string>
     <string name="PengramBackupImportConfirm">Текущие настройки Pengram будут заменены теми, что лежат в буфере обмена. Продолжить?</string>
     <string name="PengramBackupImported">Настройки применены</string>
+    <string name="PengramBackupOpenTitle">Настройки Pengram</string>
+    <string name="PengramBackupOpenMessage">Этот файл — сохранённые настройки Pengram. Применить их? Текущие настройки будут заменены.</string>
+    <string name="PengramBackupOpenDone">Настройки применены. Часть изменений появится после перезапуска приложения.</string>
     <string name="PengramBackupReset">Сбросить настройки Pengram</string>
     <string name="PengramBackupResetConfirm">Все настройки форка вернутся к значениям по умолчанию. Чаты и сохранённая история не пострадают.</string>
     <string name="PengramBackupResetDone">Настройки сброшены</string>
