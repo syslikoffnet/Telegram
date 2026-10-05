@@ -151,6 +151,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_CHAT_INTERFACE = 14;
     public static final int SECTION_CHAT_MENUS = 15;
     public static final int SECTION_ABOUT = 16;
+    public static final int SECTION_AI = 17;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -167,6 +168,20 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_CHAT_MESSAGES = 1013;
     private static final int BTN_SECTION_CHAT_INTERFACE = 1014;
     private static final int BTN_SECTION_CHAT_MENUS = 1015;
+    private static final int BTN_SECTION_AI = 1016;
+
+    // AI: сервисы, роли и поведение ответа
+    private static final int BTN_AI_ADD_SERVICE = 1700;
+    private static final int BTN_AI_ADD_ROLE = 1701;
+    private static final int BTN_AI_STREAM = 1702;
+    private static final int BTN_AI_ONLY_ANSWER = 1703;
+    private static final int BTN_AI_AS_QUOTE = 1704;
+    private static final int BTN_AI_HISTORY = 1705;
+    private static final int BTN_AI_DEPTH = 1706;
+    private static final int BTN_AI_RESET = 1707;
+    /** строки сервисов и ролей: к базе прибавляется номер в списке */
+    private static final int BTN_AI_SERVICE_BASE = 9000;
+    private static final int BTN_AI_ROLE_BASE = 9500;
 
     private static final int BTN_BOOST_OFF = 1300;
     private static final int BTN_BOOST_FAST = 1301;
@@ -470,6 +485,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN: return IconBackgroundColors.BLUE_LIGHT;
             case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
             case SECTION_ABOUT: return IconBackgroundColors.BLUE_LIGHT;
+            case SECTION_AI: return IconBackgroundColors.PURPLE;
             default: return IconBackgroundColors.GRAY;
         }
     }
@@ -493,6 +509,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN: return R.string.PengramHeroPenguin;
             case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
             case SECTION_ABOUT: return R.string.PengramHeroAbout;
+            case SECTION_AI: return R.string.PengramHeroAI;
             default: return 0;
         }
     }
@@ -516,6 +533,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN: return R.drawable.pengram_penguin_glyph;
             case SECTION_FREEDOM: return R.drawable.settings_features;
             case SECTION_ABOUT: return R.drawable.msg_info;
+            case SECTION_AI: return R.drawable.msg_bot;
             default: return R.drawable.msg_settings;
         }
     }
@@ -539,6 +557,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN: return getString(R.string.PengramSectionPenguin);
             case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
             case SECTION_ABOUT: return getString(R.string.PengramAbout);
+            case SECTION_AI: return getString(R.string.PengramSectionAI);
             default: return getString(R.string.PengramSettings);
         }
     }
@@ -654,6 +673,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN: fillPenguin(items); break;
             case SECTION_PLAYER: fillPlayer(items); break;
             case SECTION_ABOUT: fillAbout(items); break;
+            case SECTION_AI: fillAI(items); break;
             default: fillRoot(items); break;
         }
         addResetRow(items);
@@ -1530,6 +1550,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
                 getString(R.string.PengramSectionFreedom), null));
+        items.add(sectionRow(BTN_SECTION_AI, IconBackgroundColors.PURPLE, R.drawable.msg_bot,
+                getString(R.string.PengramSectionAI), aiSectionValue()));
         items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
                 getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
@@ -3039,6 +3061,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
+        if (onAIClick(item)) {
+            return;
+        }
         final Runnable extraToggle = extraToggles.get(item.id);
         if (extraToggle != null) {
             extraToggle.run();
@@ -3902,6 +3927,305 @@ public class PengramSettingsActivity extends UniversalFragment {
         builder.setPositiveButton(button, (d, w) -> onDone.run(editText.getText().toString()));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
+    }
+
+
+    // ------------------------------------------------------------ AI-сервисы
+
+    /** что показать в строке раздела на главном экране: активный сервис или «не настроено» */
+    private CharSequence aiSectionValue() {
+        final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
+        return service == null ? getString(R.string.PengramAIEmptyValue) : service.title;
+    }
+
+    /** Экран «Нейросети»: свои сервисы вместо встроенных, роли и вид ответа */
+    private void fillAI(ArrayList<UItem> items) {
+        final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
+        final String activeId = org.telegram.messenger.PengramAI.activeId();
+
+        items.add(UItem.asHeader(getString(R.string.PengramAIServices)));
+        if (services.isEmpty()) {
+            items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
+        } else {
+            for (int i = 0; i < services.size(); i++) {
+                final org.telegram.messenger.PengramAI.Service service = services.get(i);
+                final boolean active = TextUtils.equals(service.id, activeId)
+                        || (activeId == null && i == 0);
+                items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title, service.summary())
+                        .setChecked(active));
+            }
+        }
+        items.add(UItem.asButton(BTN_AI_ADD_SERVICE, R.drawable.msg_add, getString(R.string.PengramAIAddService)));
+        items.add(UItem.asShadow(getString(R.string.PengramAIServicesInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAIRoles)));
+        final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
+        final String activeRole = org.telegram.messenger.PengramAIRoles.activeId();
+        for (int i = 0; i < roles.size(); i++) {
+            final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
+            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title)
+                    .setChecked(TextUtils.equals(role.id, activeRole)));
+        }
+        items.add(UItem.asButton(BTN_AI_ADD_ROLE, R.drawable.msg_add, getString(R.string.PengramAIAddRole)));
+        items.add(UItem.asShadow(getString(R.string.PengramAIRolesInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAIAnswer)));
+        items.add(tgCheckInfo(BTN_AI_STREAM, getString(R.string.PengramAIStream), getString(R.string.PengramAIStreamInfo),
+                org.telegram.messenger.PengramAI::isStream,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_STREAM, true)));
+        items.add(tgCheckInfo(BTN_AI_ONLY_ANSWER, getString(R.string.PengramAIOnlyAnswer), getString(R.string.PengramAIOnlyAnswerInfo),
+                org.telegram.messenger.PengramAI::isOnlyAnswer,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_ONLY_ANSWER, false)));
+        items.add(tgCheckInfo(BTN_AI_AS_QUOTE, getString(R.string.PengramAIAsQuote), getString(R.string.PengramAIAsQuoteInfo),
+                org.telegram.messenger.PengramAI::isAsQuote,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_AS_QUOTE, false)));
+        items.add(tgCheckInfo(BTN_AI_HISTORY, getString(R.string.PengramAIHistory), getString(R.string.PengramAIHistoryInfo),
+                org.telegram.messenger.PengramAI::isHistory,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_HISTORY, true)));
+        if (org.telegram.messenger.PengramAI.isHistory()) {
+            items.add(UItem.asButton(BTN_AI_DEPTH, getString(R.string.PengramAIDepth),
+                    String.valueOf(org.telegram.messenger.PengramAI.historyDepth())));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramAIAnswerInfo)));
+
+        items.add(UItem.asButton(BTN_AI_RESET, R.drawable.msg_reset, getString(R.string.PengramAIReset)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramAIResetInfo)));
+    }
+
+    /** список заготовок: выбрал шлюз — остались только ключ и модель */
+    private void showAIPresets() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final CharSequence[] titles = new CharSequence[org.telegram.messenger.PengramAI.PRESETS.length + 1];
+        for (int i = 0; i < org.telegram.messenger.PengramAI.PRESETS.length; i++) {
+            titles[i] = org.telegram.messenger.PengramAI.PRESETS[i].title;
+        }
+        titles[titles.length - 1] = getString(R.string.PengramAIManual);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.PengramAIAddService));
+        builder.setItems(titles, (d, which) -> {
+            if (which >= org.telegram.messenger.PengramAI.PRESETS.length) {
+                showAIServiceDialog(null);
+                return;
+            }
+            final org.telegram.messenger.PengramAI.Preset preset = org.telegram.messenger.PengramAI.PRESETS[which];
+            showAIServiceDialog(new org.telegram.messenger.PengramAI.Service(null, preset.title,
+                    preset.baseUrl, preset.model, ""));
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private EditTextBoldCursor aiField(Context context, CharSequence hint, String value, LinearLayout parent) {
+        final EditTextBoldCursor field = new EditTextBoldCursor(context);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setSingleLine(true);
+        field.setHint(hint);
+        field.setText(value == null ? "" : value);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
+        field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setBackgroundDrawable(null);
+        field.setPadding(0, dp(8), 0, dp(8));
+        parent.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        return field;
+    }
+
+    /** добавление и правка сервиса: адрес, модель, ключ */
+    private void showAIServiceDialog(org.telegram.messenger.PengramAI.Service source) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final boolean editing = source != null && !TextUtils.isEmpty(source.id);
+        final LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(4));
+        final EditTextBoldCursor title = aiField(context, getString(R.string.PengramAIFieldTitle),
+                source == null ? "" : source.title, layout);
+        final EditTextBoldCursor url = aiField(context, getString(R.string.PengramAIFieldUrl),
+                source == null ? "https://" : source.baseUrl, layout);
+        final EditTextBoldCursor model = aiField(context, getString(R.string.PengramAIFieldModel),
+                source == null ? "" : source.model, layout);
+        final EditTextBoldCursor key = aiField(context, getString(R.string.PengramAIFieldKey),
+                source == null ? "" : source.apiKey, layout);
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(editing ? R.string.PengramAIEditService : R.string.PengramAIAddService));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            final org.telegram.messenger.PengramAI.Service service = new org.telegram.messenger.PengramAI.Service(
+                    source == null ? null : source.id,
+                    TextUtils.isEmpty(title.getText()) ? getString(R.string.PengramSectionAI).toString() : title.getText().toString().trim(),
+                    url.getText().toString().trim(),
+                    model.getText().toString().trim(),
+                    key.getText().toString().trim());
+            if (!service.isReady()) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIFieldsNeeded)).show();
+                return;
+            }
+            org.telegram.messenger.PengramAI.put(service);
+            org.telegram.messenger.PengramAI.setActive(service.id);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            checkAIService(service);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        if (editing) {
+            builder.setNeutralButton(getString(R.string.Delete), (d, w) -> {
+                org.telegram.messenger.PengramAI.remove(source.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        showDialog(builder.create());
+    }
+
+    /** живая проверка: сервис отвечает — значит адрес, модель и ключ сошлись */
+    private void checkAIService(org.telegram.messenger.PengramAI.Service service) {
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramAIChecking)).show();
+        org.telegram.messenger.PengramAIClient.check(service, new org.telegram.messenger.PengramAIClient.Listener() {
+            @Override
+            public void onChunk(String text) {
+            }
+
+            @Override
+            public void onDone(String text) {
+                BulletinFactory.of(PengramSettingsActivity.this)
+                        .createSimpleBulletin(R.raw.done, getString(R.string.PengramAICheckOk)).show();
+            }
+
+            @Override
+            public void onError(String message) {
+                BulletinFactory.of(PengramSettingsActivity.this)
+                        .createSimpleBulletin(R.raw.error, message).show();
+            }
+        });
+    }
+
+    /** своя роль: название и то, что модель прочитает перед работой */
+    private void showAIRoleDialog(org.telegram.messenger.PengramAIRoles.Role source) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(4));
+        final EditTextBoldCursor title = aiField(context, getString(R.string.PengramAIFieldRoleTitle),
+                source == null ? "" : source.title, layout);
+        final EditTextBoldCursor prompt = aiField(context, getString(R.string.PengramAIFieldPrompt),
+                source == null ? "" : source.prompt, layout);
+        prompt.setSingleLine(false);
+        prompt.setMaxLines(6);
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.PengramAIAddRole));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            final String name = title.getText().toString().trim();
+            final String text = prompt.getText().toString().trim();
+            if (TextUtils.isEmpty(name) || TextUtils.isEmpty(text)) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIFieldsNeeded)).show();
+                return;
+            }
+            final org.telegram.messenger.PengramAIRoles.Role role =
+                    new org.telegram.messenger.PengramAIRoles.Role(source == null ? null : source.id, name, text, false);
+            org.telegram.messenger.PengramAIRoles.put(role);
+            org.telegram.messenger.PengramAIRoles.setActive(role.id);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        if (source != null && !source.builtin) {
+            builder.setNeutralButton(getString(R.string.Delete), (d, w) -> {
+                org.telegram.messenger.PengramAIRoles.remove(source.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        showDialog(builder.create());
+    }
+
+    /** нажатия в разделе «Нейросети»; true — обработали */
+    private boolean onAIClick(UItem item) {
+        if (item.id >= BTN_AI_SERVICE_BASE && item.id < BTN_AI_SERVICE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
+            final int index = item.id - BTN_AI_SERVICE_BASE;
+            if (index < services.size()) {
+                final org.telegram.messenger.PengramAI.Service service = services.get(index);
+                if (TextUtils.equals(service.id, org.telegram.messenger.PengramAI.activeId())) {
+                    showAIServiceDialog(service);   // повторное нажатие — правка
+                } else {
+                    org.telegram.messenger.PengramAI.setActive(service.id);
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            }
+            return true;
+        }
+        if (item.id >= BTN_AI_ROLE_BASE && item.id < BTN_AI_ROLE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
+            final int index = item.id - BTN_AI_ROLE_BASE;
+            if (index < roles.size()) {
+                final org.telegram.messenger.PengramAIRoles.Role role = roles.get(index);
+                if (TextUtils.equals(role.id, org.telegram.messenger.PengramAIRoles.activeId()) && !role.builtin) {
+                    showAIRoleDialog(role);
+                } else {
+                    org.telegram.messenger.PengramAIRoles.setActive(role.id);
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            }
+            return true;
+        }
+        switch (item.id) {
+            case BTN_AI_ADD_SERVICE:
+                showAIPresets();
+                return true;
+            case BTN_AI_ADD_ROLE:
+                showAIRoleDialog(null);
+                return true;
+            case BTN_AI_DEPTH: {
+                showTextDialog(getString(R.string.PengramAIDepth),
+                        String.valueOf(org.telegram.messenger.PengramAI.historyDepth()), "10", value -> {
+                            try {
+                                org.telegram.messenger.PengramAI.setHistoryDepth(Integer.parseInt(value.trim()));
+                            } catch (Throwable ignore) {
+                            }
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                return true;
+            }
+            case BTN_AI_RESET: {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+                builder.setTitle(getString(R.string.PengramAIReset));
+                builder.setMessage(getString(R.string.PengramAIResetInfo));
+                builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                    org.telegram.messenger.PengramAI.resetAll();
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
+                builder.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(builder.create());
+                return true;
+            }
+            case BTN_SECTION_AI:
+                presentFragment(new PengramSettingsActivity(SECTION_AI));
+                return true;
+        }
+        return false;
     }
 
     /** Шапка настроек: живой 3D-пингвин, название и короткое описание */

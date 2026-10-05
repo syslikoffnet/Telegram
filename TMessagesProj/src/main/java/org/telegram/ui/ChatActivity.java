@@ -1254,6 +1254,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_RESEND_TO = 921;
     public final static int OPTION_PENGRAM_COPY_ID = 922;
     public final static int OPTION_PENGRAM_SAVE = 923;
+    public final static int OPTION_PENGRAM_AI = 924;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -2263,6 +2264,108 @@ public class ChatActivity extends BaseFragment implements
     }
 
     /** спросить чат и отправить туда копию */
+    // ------------------------------------------------------------ Pengram AI
+
+    /** текст, который имеет смысл отдавать нейросети: сам текст или подпись к медиа */
+    private CharSequence pengramAIText(MessageObject message) {
+        if (message == null) {
+            return null;
+        }
+        if (!TextUtils.isEmpty(message.caption)) {
+            return message.caption;
+        }
+        if (message.type == MessageObject.TYPE_TEXT && !TextUtils.isEmpty(message.messageText)) {
+            return message.messageText;
+        }
+        return null;
+    }
+
+    /** предыдущие сообщения чата как контекст разговора */
+    private java.util.ArrayList<org.telegram.messenger.PengramAIClient.Turn> pengramAITurns(MessageObject message) {
+        final java.util.ArrayList<org.telegram.messenger.PengramAIClient.Turn> turns = new java.util.ArrayList<>();
+        final CharSequence text = pengramAIText(message);
+        if (org.telegram.messenger.PengramAI.isHistory()) {
+            final int depth = org.telegram.messenger.PengramAI.historyDepth();
+            final java.util.ArrayList<org.telegram.messenger.PengramAIClient.Turn> tail = new java.util.ArrayList<>();
+            for (int i = 0; i < messages.size() && tail.size() < depth; i++) {
+                final MessageObject other = messages.get(i);
+                if (other == null || other == message) {
+                    continue;
+                }
+                final CharSequence otherText = pengramAIText(other);
+                if (TextUtils.isEmpty(otherText)) {
+                    continue;
+                }
+                tail.add(new org.telegram.messenger.PengramAIClient.Turn(
+                        other.isOutOwner() ? "assistant" : "user", otherText.toString()));
+            }
+            // список сообщений идёт от свежих к старым — разворачиваем
+            java.util.Collections.reverse(tail);
+            turns.addAll(tail);
+        }
+        if (!TextUtils.isEmpty(text)) {
+            turns.add(new org.telegram.messenger.PengramAIClient.Turn("user", text.toString()));
+        }
+        return turns;
+    }
+
+    /** спросить свою нейросеть про это сообщение: сначала роль, потом ответ */
+    private void pengramAskAI(MessageObject message) {
+        if (getParentActivity() == null || message == null) {
+            return;
+        }
+        if (!org.telegram.messenger.PengramAI.hasService()) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    LocaleController.getString(R.string.PengramAINoService),
+                    LocaleController.getString(R.string.PengramAIAddService),
+                    () -> presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_AI))).show();
+            return;
+        }
+        final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
+        final CharSequence[] titles = new CharSequence[roles.size()];
+        for (int i = 0; i < roles.size(); i++) {
+            titles[i] = roles.get(i).title;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramAIMenu));
+        builder.setItems(titles, (d, which) -> {
+            final org.telegram.messenger.PengramAIRoles.Role role = roles.get(which);
+            org.telegram.messenger.PengramAIRoles.setActive(role.id);
+            pengramShowAI(message, role);
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void pengramShowAI(MessageObject message, org.telegram.messenger.PengramAIRoles.Role role) {
+        final CharSequence source = pengramAIText(message);
+        showDialog(new org.telegram.ui.Components.PengramAISheet(getParentActivity(), themeDelegate,
+                source, role, pengramAITurns(message), this::pengramInsertAIAnswer));
+    }
+
+    /** готовый ответ — в поле ввода, обычной строкой или цитатой */
+    private void pengramInsertAIAnswer(CharSequence text, boolean asQuote) {
+        if (chatActivityEnterView == null || TextUtils.isEmpty(text)) {
+            return;
+        }
+        final org.telegram.ui.Components.EditTextCaption field = chatActivityEnterView.getEditField();
+        if (field == null || field.getText() == null) {
+            chatActivityEnterView.setFieldText(text);
+            return;
+        }
+        final android.text.Editable editable = field.getText();
+        if (editable.length() > 0 && editable.charAt(editable.length() - 1) != '\n') {
+            editable.append("\n");
+        }
+        final int start = editable.length();
+        editable.append(text);
+        if (asQuote) {
+            org.telegram.ui.Components.QuoteSpan.putQuoteToEditable(editable, start, editable.length(), false);
+        }
+        field.setSelection(field.getText().length());
+        chatActivityEnterView.openKeyboard();
+    }
+
     private void pengramResendToChat(MessageObject message) {
         if (message == null) {
             return;
@@ -34278,6 +34381,10 @@ public class ChatActivity extends BaseFragment implements
                 pengramResendToChat(selectedObject);
                 break;
             }
+            case OPTION_PENGRAM_AI: {
+                pengramAskAI(selectedObject);
+                break;
+            }
             case OPTION_FORWARD: {
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
@@ -46819,6 +46926,12 @@ public class ChatActivity extends BaseFragment implements
             items.add(LocaleController.getString(R.string.PengramMenuCopyMessageId));
             options.add(OPTION_PENGRAM_COPY_ID);
             icons.add(R.drawable.msg_copy);
+        }
+        // Pengram: отдать текст сообщения своей нейросети
+        if (!message.isSponsored() && !TextUtils.isEmpty(pengramAIText(message))) {
+            items.add(LocaleController.getString(R.string.PengramAIMenu));
+            options.add(OPTION_PENGRAM_AI);
+            icons.add(R.drawable.msg_bot);
         }
 
         // Pengram: удалёнки и одноразки отправляем копией от своего лица
