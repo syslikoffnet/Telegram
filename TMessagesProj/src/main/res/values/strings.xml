@@ -11291,8 +11291,8 @@
     <string name="PengramKeepOnce">Keep one-time media</string>
     <string name="PengramFreedomInfo">Screenshots and recording work in secret chats, one-time media and payment screens. One-time photos, videos and voice messages never burn — neither for you nor for the sender. When you open one, a Burn button appears: only tapping it makes the media disappear for the sender, while your copy stays in the chat.</string>
     <string name="PengramAdsHeader">Ads</string>
-    <string name="PengramHideAds">Hide sponsored messages</string>
-    <string name="PengramAdsInfo">Sponsored posts are not requested from the server at all, so no ads appear anywhere.</string>
+    <string name="PengramHideAds">Hide all ads</string>
+    <string name="PengramAdsInfo">Sponsored posts, sponsored channels in search, ads in videos and the sponsored channel added by a proxy are not requested from the server at all, so no ads appear anywhere and nothing extra is downloaded.</string>
     <string name="PengramPremiumHeader">Premium</string>
     <string name="PengramLocalPremium">Local Premium</string>
     <string name="PengramPremiumInfo">Unlocks Premium features that work on the client side (animated emoji and statuses, extended limits, premium-only interface options). Server-side features still require a real subscription.</string>

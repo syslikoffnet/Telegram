@@ -10942,6 +10942,23 @@ public class MessagesController extends BaseController implements NotificationCe
     private long lastCheckPromoInfoTime;
 
     private void checkPromoInfoInternal(boolean reset) {
+        if (PengramConfig.isHidingAds()) {
+            // Pengram: спонсорский канал прокси и любые промо-диалоги сверху списка.
+            // Ничего не спрашиваем у сервера и убираем то, что успело прийти раньше.
+            checkingPromoInfo = false;
+            if (checkingPromoInfoRequestId != 0) {
+                getConnectionsManager().cancelRequest(checkingPromoInfoRequestId, true);
+                checkingPromoInfoRequestId = 0;
+            }
+            nextPromoInfoCheckTime = getConnectionsManager().getCurrentTime() + 60 * 60;
+            if (promoDialogId != 0) {
+                promoDialogId = 0;
+                proxyDialogAddress = null;
+                getGlobalMainSettings().edit().putLong("proxy_dialog", 0).remove("proxyDialogAddress").putInt("nextPromoInfoCheckTime", nextPromoInfoCheckTime).commit();
+            }
+            AndroidUtilities.runOnUIThread(this::removePromoDialog);
+            return;
+        }
         if (reset && checkingPromoInfo) {
             checkingPromoInfo = false;
         }

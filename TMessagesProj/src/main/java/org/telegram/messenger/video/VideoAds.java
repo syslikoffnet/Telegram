@@ -39,6 +39,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -194,6 +195,10 @@ public static VideoAds make(
     private boolean loading, loaded;
     private void load() {
         if (loading || loaded) return;
+
+        if (PengramConfig.isHidingAds()) { // Pengram: реклама в видео
+            return;
+        }
 
         if (UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
             return;
