@@ -3,6 +3,7 @@
 #include "tgnet/BuffersStorage.h"
 #include "tgnet/NativeByteBuffer.h"
 #include "tgnet/ConnectionsManager.h"
+#include "tgnet/PengramDesync.h"
 #include "tgnet/MTProtoScheme.h"
 #include "tgnet/ConnectionSocket.h"
 #include "tgnet/FileLog.h"
@@ -518,6 +519,32 @@ static void onConnectionsManagerCreated(int32_t instanceNum) {
     ConnectionsManager::getInstance(instanceNum).setDelegate(new Delegate());
 }
 
+/** Pengram: параметры десинхронизации первых пакетов приходят из настроек приложения */
+void pengramSetDesync(JNIEnv *env, jclass c, jboolean enabled, jint firstPackets,
+                      jint split1, jint split2, jint split3, jboolean randomSplit,
+                      jint delayMs, jboolean oob, jint oobChar, jboolean noDelay,
+                      jboolean fake, jint fakeTtl) {
+    PengramDesync::Params params;
+    params.enabled = enabled;
+    params.firstPackets = firstPackets;
+    params.split1 = split1;
+    params.split2 = split2;
+    params.split3 = split3;
+    params.randomSplit = randomSplit;
+    params.delayMs = delayMs;
+    params.oob = oob;
+    params.oobChar = oobChar;
+    params.noDelay = noDelay;
+    params.fake = fake;
+    params.fakeTtl = fakeTtl;
+    PengramDesync::set(params);
+}
+
+/** 0 — не пробовали, 1 — фейковые сегменты работают, -1 — нет прав (нужен root) */
+jint pengramDesyncFakeSupport(JNIEnv *env, jclass c) {
+    return PengramDesync::fakeSupport();
+}
+
 void setJava(JNIEnv *env, jclass c, jboolean useJavaByteBuffers) {
     ConnectionsManager::useJavaVM(java, useJavaByteBuffers);
     // Делегат ставится в момент создания экземпляра: поднимать все аккаунты сразу
@@ -569,6 +596,8 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_receivedIntegrityCheckClassic", "(IILjava/lang/String;Ljava/lang/String;)V", (void *) receivedIntegrityCheckClassic},
         {"native_receivedCaptchaResult", "(I[ILjava/lang/String;)V", (void *) receivedCaptchaResult},
         {"native_isGoodPrime", "([BI)Z", (void *) isGoodPrime},
+        {"native_pengramSetDesync", "(ZIIIIZIZIZZI)V", (void *) pengramSetDesync},
+        {"native_pengramDesyncFakeSupport", "()I", (void *) pengramDesyncFakeSupport},
 };
 
 

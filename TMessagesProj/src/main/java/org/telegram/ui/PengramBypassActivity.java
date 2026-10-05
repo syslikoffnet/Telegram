@@ -18,6 +18,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramBypass;
 import org.telegram.messenger.PengramBypassSources;
+import org.telegram.messenger.PengramNet;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -46,6 +47,13 @@ public class PengramBypassActivity extends BaseFragment {
     private TextSettingsCell refreshCell;
     private final TextCheckCell[] routeCells = new TextCheckCell[4];
     private boolean advancedShown;
+
+    // разрез пакетов: отдельный от туннеля слой, работает без всяких посредников
+    private TextCheckCell desyncSwitch;
+    private TextSettingsCell desyncProfile;
+    private LinearLayout desyncCustom;
+    private TextSettingsCell[] desyncValues;
+    private TextCheckCell[] desyncFlags;
 
     @Override
     public View createView(Context context) {
@@ -80,6 +88,8 @@ public class PengramBypassActivity extends BaseFragment {
         final TextInfoPrivacyCell mainInfo = new TextInfoPrivacyCell(context);
         mainInfo.setText(LocaleController.getString(R.string.PengramBypassMainInfo));
         root.addView(mainInfo, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        buildDesyncBlock(context, root);
 
         advancedButton = new TextSettingsCell(context);
         advancedButton.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
@@ -201,7 +211,193 @@ public class PengramBypassActivity extends BaseFragment {
         updateAll();
     }
 
+    // ------------------------------------------------- разрез первых пакетов
+
+    private static final int[] SPLIT_OPTIONS = {0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, -1, -8, -16};
+    private static final int[] DELAY_OPTIONS = {0, 5, 10, 25, 40, 60, 100};
+    private static final int[] FIRST_OPTIONS = {1, 2, 3, 4, 6, 8};
+    private static final int[] TTL_OPTIONS = {1, 2, 3, 4, 5, 6, 8, 12};
+
+    private void buildDesyncBlock(Context context, LinearLayout root) {
+        final HeaderCell header = new HeaderCell(context);
+        header.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        header.setText(LocaleController.getString(R.string.PengramDesyncHeader));
+        root.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        desyncSwitch = new TextCheckCell(context);
+        desyncSwitch.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        desyncSwitch.setOnClickListener(v -> {
+            final boolean value = !PengramNet.isEnabled();
+            desyncSwitch.setChecked(value);
+            PengramNet.setEnabled(value);
+            updateAll();
+        });
+        root.addView(desyncSwitch, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        desyncProfile = new TextSettingsCell(context);
+        desyncProfile.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        desyncProfile.setOnClickListener(v -> showProfilePicker());
+        root.addView(desyncProfile, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        desyncCustom = new LinearLayout(context);
+        desyncCustom.setOrientation(LinearLayout.VERTICAL);
+        desyncCustom.setVisibility(View.GONE);
+        root.addView(desyncCustom, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        desyncValues = new TextSettingsCell[6];
+        for (int a = 0; a < desyncValues.length; ++a) {
+            final int index = a;
+            final TextSettingsCell cell = new TextSettingsCell(context);
+            cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            cell.setOnClickListener(v -> showValuePicker(index));
+            desyncValues[a] = cell;
+            desyncCustom.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+
+        final String[] flagKeys = {PengramNet.FLAG_RANDOM, PengramNet.FLAG_NODELAY,
+                PengramNet.FLAG_OOB, PengramNet.FLAG_FAKE};
+        desyncFlags = new TextCheckCell[flagKeys.length];
+        for (int a = 0; a < flagKeys.length; ++a) {
+            final String key = flagKeys[a];
+            final TextCheckCell cell = new TextCheckCell(context);
+            cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            cell.setOnClickListener(v -> {
+                PengramNet.toggleCustomFlag(key);
+                updateAll();
+            });
+            desyncFlags[a] = cell;
+            desyncCustom.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+
+        final TextInfoPrivacyCell info = new TextInfoPrivacyCell(context);
+        info.setText(LocaleController.getString(R.string.PengramDesyncInfo));
+        root.addView(info, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+    }
+
+    private CharSequence profileName(int profile) {
+        switch (profile) {
+            case PengramNet.PROFILE_SPLIT2: return LocaleController.getString(R.string.PengramDesyncSplit2);
+            case PengramNet.PROFILE_SPLIT_MTPROTO: return LocaleController.getString(R.string.PengramDesyncSplitMt);
+            case PengramNet.PROFILE_MULTISPLIT: return LocaleController.getString(R.string.PengramDesyncMulti);
+            case PengramNet.PROFILE_PACED: return LocaleController.getString(R.string.PengramDesyncPaced);
+            case PengramNet.PROFILE_MOBILE: return LocaleController.getString(R.string.PengramDesyncMobile);
+            case PengramNet.PROFILE_HARD: return LocaleController.getString(R.string.PengramDesyncHard);
+            case PengramNet.PROFILE_OOB: return LocaleController.getString(R.string.PengramDesyncOob);
+            case PengramNet.PROFILE_FAKE: return LocaleController.getString(R.string.PengramDesyncFake);
+            case PengramNet.PROFILE_CUSTOM: return LocaleController.getString(R.string.PengramDesyncCustom);
+            default: return LocaleController.getString(R.string.PengramDesyncNone);
+        }
+    }
+
+    private void showProfilePicker() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final CharSequence[] names = new CharSequence[PengramNet.PROFILE_COUNT];
+        for (int a = 0; a < names.length; ++a) {
+            names[a] = profileName(a);
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramDesyncProfile));
+        builder.setItems(names, (dialog, which) -> {
+            PengramNet.setProfile(which);
+            updateAll();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** 0..2 — позиции разрезов, 3 — пауза, 4 — сколько пакетов, 5 — TTL фейка */
+    private void showValuePicker(int index) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final int[] options = index <= 2 ? SPLIT_OPTIONS
+                : index == 3 ? DELAY_OPTIONS
+                : index == 4 ? FIRST_OPTIONS : TTL_OPTIONS;
+        final CharSequence[] names = new CharSequence[options.length];
+        for (int a = 0; a < options.length; ++a) {
+            names[a] = index <= 2 && options[a] == 0
+                    ? LocaleController.getString(R.string.PengramDesyncNoCut)
+                    : index == 3 && options[a] == 0
+                        ? LocaleController.getString(R.string.PengramDesyncNoPause)
+                        : String.valueOf(options[a]);
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(valueTitle(index));
+        builder.setItems(names, (dialog, which) -> {
+            final int value = options[which];
+            if (index <= 2) {
+                PengramNet.setCustomSplit(index, value);
+            } else if (index == 3) {
+                PengramNet.setCustomDelay(value);
+            } else if (index == 4) {
+                PengramNet.setCustomFirstPackets(value);
+            } else {
+                PengramNet.setCustomFakeTtl(value);
+            }
+            updateAll();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private CharSequence valueTitle(int index) {
+        switch (index) {
+            case 0: return LocaleController.getString(R.string.PengramDesyncCut1);
+            case 1: return LocaleController.getString(R.string.PengramDesyncCut2);
+            case 2: return LocaleController.getString(R.string.PengramDesyncCut3);
+            case 3: return LocaleController.getString(R.string.PengramDesyncDelay);
+            case 4: return LocaleController.getString(R.string.PengramDesyncPackets);
+            default: return LocaleController.getString(R.string.PengramDesyncTtl);
+        }
+    }
+
+    private void updateDesync() {
+        if (desyncSwitch == null) {
+            return;
+        }
+        final boolean enabled = PengramNet.isEnabled();
+        final String details = PengramNet.describe();
+        desyncSwitch.setTextAndValueAndCheck(LocaleController.getString(R.string.PengramDesyncMain),
+                details == null ? LocaleController.getString(R.string.PengramDesyncOffValue) : details,
+                enabled, true, false);
+        desyncProfile.setTextAndValue(LocaleController.getString(R.string.PengramDesyncProfile),
+                String.valueOf(profileName(PengramNet.getProfile())), false);
+        desyncProfile.setVisibility(enabled ? View.VISIBLE : View.GONE);
+
+        final boolean custom = enabled && PengramNet.getProfile() == PengramNet.PROFILE_CUSTOM;
+        desyncCustom.setVisibility(custom ? View.VISIBLE : View.GONE);
+        if (!custom) {
+            return;
+        }
+        for (int a = 0; a < 3; ++a) {
+            final int value = PengramNet.getCustomSplit(a);
+            desyncValues[a].setTextAndValue(String.valueOf(valueTitle(a)),
+                    value == 0 ? LocaleController.getString(R.string.PengramDesyncNoCut) : String.valueOf(value), true);
+        }
+        final int delay = PengramNet.getCustomDelay();
+        desyncValues[3].setTextAndValue(String.valueOf(valueTitle(3)),
+                delay == 0 ? LocaleController.getString(R.string.PengramDesyncNoPause) : delay + " ms", true);
+        desyncValues[4].setTextAndValue(String.valueOf(valueTitle(4)),
+                String.valueOf(PengramNet.getCustomFirstPackets()), true);
+        desyncValues[5].setTextAndValue(String.valueOf(valueTitle(5)),
+                String.valueOf(PengramNet.getCustomFakeTtl()), true);
+
+        desyncFlags[0].setTextAndCheck(LocaleController.getString(R.string.PengramDesyncRandom),
+                PengramNet.isCustomRandom(), true);
+        desyncFlags[1].setTextAndCheck(LocaleController.getString(R.string.PengramDesyncNoDelay),
+                PengramNet.isCustomNoDelay(), true);
+        desyncFlags[2].setTextAndCheck(LocaleController.getString(R.string.PengramDesyncOobFlag),
+                PengramNet.isCustomOob(), true);
+        final boolean rootMissing = PengramNet.fakeSupport() < 0;
+        desyncFlags[3].setTextAndValueAndCheck(LocaleController.getString(R.string.PengramDesyncFakeFlag),
+                rootMissing ? LocaleController.getString(R.string.PengramDesyncNeedsRoot) : "",
+                PengramNet.isCustomFake(), true, false);
+    }
+
     private void updateAll() {
+        updateDesync();
         if (switchCell == null) {
             return;
         }

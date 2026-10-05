@@ -1020,6 +1020,15 @@ public class ConnectionsManager extends BaseController {
     public static native void native_receivedCaptchaResult(int currentAccount, int[] requestTokens, String token);
     public static native boolean native_isGoodPrime(byte[] prime, int g);
 
+    // Pengram: десинхронизация первых пакетов соединения (обход DPI)
+    public static native void native_pengramSetDesync(boolean enabled, int firstPackets,
+                                                      int split1, int split2, int split3,
+                                                      boolean randomSplit, int delayMs,
+                                                      boolean oob, int oobChar, boolean noDelay,
+                                                      boolean fake, int fakeTtl);
+
+    public static native int native_pengramDesyncFakeSupport();
+
 
     public static boolean testNativeTlScheme(NativeByteBuffer buffer, INativeTlTest test) {
         return test.test(buffer.address);

@@ -31,6 +31,7 @@
 #include "BuffersStorage.h"
 #include "Connection.h"
 #include "TLSHello.h"
+#include "PengramDesync.h"
 #include <random>
 
 #ifndef EPOLLRDHUP
@@ -624,7 +625,7 @@ void ConnectionSocket::onEvent(uint32_t events) {
 
                         std::memcpy(tempBuffer->bytes + headersSize, buffer->bytes(), remaining);
 
-                        if ((sentLength = send(socketFd, tempBuffer->bytes, headersSize + remaining, 0)) < headersSize) {
+                        if ((sentLength = pengramSend(tempBuffer->bytes, headersSize + remaining)) < (ssize_t) headersSize) {
                             if (LOGS_ENABLED) DEBUG_E("connection(%p) send failed", this);
                             closeSocket(1, -1);
                             return;
@@ -636,7 +637,7 @@ void ConnectionSocket::onEvent(uint32_t events) {
                             adjustWriteOp();
                         }
                     } else {
-                        if ((sentLength = send(socketFd, buffer->bytes(), remaining, 0)) < 0) {
+                        if ((sentLength = pengramSend(buffer->bytes(), remaining)) < 0) {
                             if (LOGS_ENABLED) DEBUG_D("connection(%p) send failed", this);
                             closeSocket(1, -1);
                             return;
@@ -665,6 +666,21 @@ void ConnectionSocket::onEvent(uint32_t events) {
         if (LOGS_ENABLED) DEBUG_E("connection(%p) epoll error", this);
         return;
     }
+}
+
+/**
+ * Pengram: отправка с десинхронизацией первых пакетов.
+ *
+ * Сигнатуру Telegram DPI ищет в первом сегменте соединения, поэтому режем
+ * только начало (сколько именно — настраивается), а дальше всё идёт обычным
+ * send() без лишних накладных расходов.
+ */
+ssize_t ConnectionSocket::pengramSend(uint8_t *data, size_t size) {
+    if (PengramDesync::isEnabled() && pengramWrites < PengramDesync::get().firstPackets) {
+        pengramWrites++;
+        return PengramDesync::sendDesynced(socketFd, data, size, isIpv6);
+    }
+    return send(socketFd, data, size, 0);
 }
 
 void ConnectionSocket::writeBuffer(uint8_t *data, uint32_t size) {

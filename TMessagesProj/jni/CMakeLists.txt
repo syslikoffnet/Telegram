@@ -110,6 +110,7 @@ add_library(tgnet STATIC
         tgnet/ConnectionsManager.cpp
         tgnet/TLSHello.cpp
         tgnet/ConnectionSocket.cpp
+        tgnet/PengramDesync.cpp
         tgnet/Datacenter.cpp
         tgnet/EventObject.cpp
         tgnet/FileLog.cpp
