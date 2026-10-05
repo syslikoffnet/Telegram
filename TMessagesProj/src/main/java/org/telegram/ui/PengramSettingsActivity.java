@@ -95,7 +95,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_DELETED = 400;
     private static final int BTN_HIST_EDITED = 401;
     private static final int BTN_HIST_OUTGOING = 402;
-    private static final int BTN_HIST_OUTGOING = 402;
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
