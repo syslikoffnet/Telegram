@@ -377,12 +377,14 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     @Override
-    public boolean onBackPressed() {
+    public boolean onBackPressed(boolean invoked) {
         if (searchQuery != null && actionBar != null && actionBar.isSearchFieldVisible()) {
-            actionBar.closeSearchField();
+            if (invoked) {
+                actionBar.closeSearchField();
+            }
             return false;
         }
-        return super.onBackPressed();
+        return super.onBackPressed(invoked);
     }
 
     private void updateList() {
