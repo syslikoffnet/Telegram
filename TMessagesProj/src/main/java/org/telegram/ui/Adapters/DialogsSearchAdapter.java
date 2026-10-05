@@ -983,23 +983,24 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
      */
     private void pengramSearchById(String query, ArrayList<Object> resultArray, ArrayList<CharSequence> resultArrayNames) {
         try {
-            final long raw = org.telegram.messenger.PengramConfig.parsePeerId(query);
-            if (raw == 0) {
+            final long dialogId = org.telegram.messenger.PengramPeerId.parseDialogId(query);
+            if (dialogId == 0) {
                 return;
             }
             final MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
-            TLRPC.User user = raw > 0 ? storage.getUser(raw) : null;
+            TLRPC.User user = dialogId > 0 ? storage.getUser(dialogId) : null;
             TLRPC.Chat chat = null;
-            if (user == null) {
-                final long chatId = raw < 0
-                        ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw)
-                        : raw;
-                if (chatId > 0) {
-                    chat = storage.getChat(chatId);
-                }
+            if (user == null && dialogId < 0) {
+                chat = storage.getChat(-dialogId);
+            }
+            if (user == null && chat == null && dialogId > 0) {
+                // у человека могли не сохраниться контакты — вдруг это всё же чат с таким же номером
+                chat = storage.getChat(dialogId);
             }
             final long foundId = user != null ? user.id : (chat != null ? -chat.id : 0);
             if (foundId == 0) {
+                // в базе пусто — спросим сервер и добавим результат, когда он придёт
+                pengramResolveById(query, dialogId);
                 return;
             }
             for (int a = 0; a < resultArray.size(); ++a) {
@@ -1019,6 +1020,38 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         } catch (Throwable e) {
             FileLog.e(e);
         }
+    }
+
+    /**
+     * Pengram: ID, которого нет в локальной базе, доспрашиваем у сервера и дорисовываем
+     * в уже показанную выдачу — чтобы «поиск по ID» работал и для незнакомых людей.
+     */
+    private void pengramResolveById(String query, long dialogId) {
+        AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.PengramPeerId.resolve(currentAccount, dialogId, peer -> {
+            if (peer == null) {
+                return;
+            }
+            final String current = lastSearchText == null ? null : lastSearchText.trim().toLowerCase();
+            if (!TextUtils.equals(current, query)) {
+                return; // человек уже печатает что-то другое
+            }
+            for (int a = 0; a < searchResult.size(); ++a) {
+                final Object obj = searchResult.get(a);
+                if (obj instanceof TLRPC.User && ((TLRPC.User) obj).id == dialogId) {
+                    return;
+                }
+                if (obj instanceof TLRPC.Chat && -((TLRPC.Chat) obj).id == dialogId) {
+                    return;
+                }
+            }
+            final CharSequence name = peer instanceof TLRPC.User
+                    ? UserObject.getUserName((TLRPC.User) peer)
+                    : ((TLRPC.Chat) peer).title;
+            searchResult.add(0, peer);
+            searchResultNames.add(0, name == null ? "" : name);
+            searchWas = true;
+            notifyDataSetChanged();
+        }));
     }
 
     private void updateSearchResults(final ArrayList<Object> result, final ArrayList<CharSequence> names, final ArrayList<TLRPC.User> encUsers,  final ArrayList<ContactsController.Contact> contacts, final int searchId) {

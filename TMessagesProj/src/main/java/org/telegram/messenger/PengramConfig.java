@@ -1205,29 +1205,24 @@ public class PengramConfig {
         if (needle.length() < 3) {
             return false;
         }
+        final String digits = String.valueOf(Math.abs(id));
         if (needle.startsWith("100") && needle.length() > 3) {
             // Bot API id канала: -100xxxxxxxxxx
-            if (String.valueOf(Math.abs(id)).startsWith(needle.substring(3))) {
+            if (digits.startsWith(needle.substring(3))) {
                 return true;
             }
         }
-        return String.valueOf(Math.abs(id)).startsWith(needle);
+        if (digits.startsWith(needle)) {
+            return true;
+        }
+        // хвост ID помнится чаще начала — ищем вхождение, но только для длинных запросов
+        return needle.length() >= 5 && digits.contains(needle);
     }
 
     /** разобрать строку в peer id: принимаем 123, -100123, @name отбрасываем */
     public static long parsePeerId(String query) {
-        if (query == null) {
-            return 0;
-        }
-        String q = query.trim();
-        if (q.isEmpty()) {
-            return 0;
-        }
-        try {
-            return Long.parseLong(q);
-        } catch (Throwable ignore) {
-        }
-        return 0;
+        // разбор живёт в PengramPeerId: он понимает и «id: 123», и tg://user?id=123, и -100…
+        return PengramPeerId.parse(query);
     }
 
     // ------------------------------- пункты меню чата -------------------------------
