@@ -134,6 +134,7 @@ public final class PengramSearchIndex {
             {R.string.PengramResendAsk, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramForwardLock, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramForwardDoneAlert, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
+            {R.string.PengramMusicForwardClean, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramChatLook, PengramSettingsActivity.SECTION_CHAT_MESSAGES},
             {R.string.PengramKeepFormatting, PengramSettingsActivity.SECTION_CHAT_MESSAGES},
             {R.string.PengramHideTail, PengramSettingsActivity.SECTION_CHAT_MESSAGES},

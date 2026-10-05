@@ -175,6 +175,8 @@ public class PengramConfig {
     public static final String KEY_FORWARD_LOCK = "forwardLockInput";
     /** вибрация/звук по окончании пересылки */
     public static final String KEY_FORWARD_DONE_ALERT = "forwardDoneAlert";
+    /** треки пересылаются без автора и без подписи */
+    public static final String KEY_MUSIC_FORWARD_CLEAN = "musicForwardClean";
 
     // --- анимация набора текста (лёгкие transform-анимации без перерисовки glyph-ов) ---
     public static final String KEY_INPUT_ANIMATION = "inputAnimation";
@@ -1692,6 +1694,7 @@ public class PengramConfig {
     public static boolean isForwardLockEnabled() { return getBool(KEY_FORWARD_LOCK, true); }
     public static boolean isHidingStories() { return getBool(KEY_HIDE_STORIES, false); }
     public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
+    public static boolean isMusicForwardClean() { return getBool(KEY_MUSIC_FORWARD_CLEAN, true); }
     public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
     public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }

@@ -11577,6 +11577,8 @@
     <string name="PengramForwardHeader">Forwarding</string>
     <string name="PengramForwardLock">Status instead of input field</string>
     <string name="PengramForwardLockInfo">Only while sending deleted or one-time media</string>
+    <string name="PengramMusicForwardClean">Tracks without author and caption</string>
+    <string name="PengramMusicForwardCleanInfo">When only music is forwarded, the track is sent as a plain file: no "forwarded from" line and no caption it had in the original chat.</string>
     <string name="PengramForwardDoneAlert">Notify when finished</string>
     <string name="PengramForwardInfo">The input field is replaced with a status only when deleted or one-time media is being sent. Regular photos, videos and files never block input. Hold the status to continue in background.</string>
     <string name="PengramTabsInfo2">Switch off a button to remove it from the bar at the bottom of the main screen. Turning off Contacts leaves three perfectly spaced buttons.</string>

@@ -2742,6 +2742,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
         if (PengramConfig.isForwardLockEnabled()) items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
+        items.add(checkInfo(PengramConfig.KEY_MUSIC_FORWARD_CLEAN, true, getString(R.string.PengramMusicForwardClean), getString(R.string.PengramMusicForwardCleanInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
     }
 

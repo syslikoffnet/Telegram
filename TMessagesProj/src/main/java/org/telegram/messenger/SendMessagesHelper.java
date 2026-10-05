@@ -2094,6 +2094,20 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         return sendMessage(messages, peer, forwardFromMyName, hideCaption, notify, scheduleDate, null, -1, payStars);
     }
 
+    /** пересылаются только музыкальные треки — тогда убираем автора и подписи */
+    private static boolean pengramOnlyMusic(ArrayList<MessageObject> messages) {
+        if (!PengramConfig.isMusicForwardClean() || messages == null || messages.isEmpty()) {
+            return false;
+        }
+        for (int a = 0; a < messages.size(); a++) {
+            final MessageObject msg = messages.get(a);
+            if (msg == null || !msg.isMusic()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public int sendMessage(ArrayList<MessageObject> messages, final long peer, boolean forwardFromMyName, boolean hideCaption, boolean notify, int scheduleDate, MessageObject replyToTopMsg, int video_timestamp, long payStars) {
         return sendMessage(messages, peer, forwardFromMyName, hideCaption, notify, scheduleDate, 0, replyToTopMsg, video_timestamp, payStars, 0, null);
     }
@@ -2101,8 +2115,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     public int sendMessage(
         ArrayList<MessageObject> messages,
         final long peer,
-        boolean forwardFromMyName,
-        boolean hideCaption,
+        boolean forwardFromMyNameArg,
+        boolean hideCaptionArg,
         boolean notify,
         int scheduleDate,
         int scheduleRepeatPeriod,
@@ -2115,6 +2129,11 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
+        // Pengram: трек уходит как самостоятельный файл — без строки «переслано от»
+        // и без подписи, которая была у него в исходном чате.
+        final boolean pengramCleanMusic = pengramOnlyMusic(messages);
+        final boolean forwardFromMyName = forwardFromMyNameArg || pengramCleanMusic;
+        final boolean hideCaption = hideCaptionArg || pengramCleanMusic;
         int sendResult = 0;
         long myId = getUserConfig().getClientUserId();
         boolean isChannel = false;

@@ -605,6 +605,8 @@
     <string name="PengramForwardHeader">Пересылка</string>
     <string name="PengramForwardLock">Статус вместо поля ввода</string>
     <string name="PengramForwardLockInfo">Только при отправке удалённых и одноразовых медиа</string>
+    <string name="PengramMusicForwardClean">Треки без автора и подписи</string>
+    <string name="PengramMusicForwardCleanInfo">Если пересылаются только треки, они уходят как обычные файлы: без строки «переслано от» и без подписи, которая была у них в исходном чате.</string>
     <string name="PengramForwardDoneAlert">Сообщать о завершении</string>
     <string name="PengramForwardInfo">При отправке удалённых или одноразовых медиа вместо поля ввода показывается статус. Обычная отправка фото, видео и файлов не блокирует ввод. Зажмите статус — остаток уйдёт в фоне.</string>
     <string name="PengramTabsInfo2">Выключите кнопку, чтобы убрать её с панели внизу главного экрана. Без «Контактов» остаются ровно три кнопки.</string>
