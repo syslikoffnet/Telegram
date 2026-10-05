@@ -11471,6 +11471,10 @@ public class MessageObject {
                             title = getString(R.string.AudioUnknownTitle);
                         }
                     }
+                    // Pengram: «Пошлая Молли — Нимфоманка» показываем как название без имени
+                    if (TextUtils.isEmpty(attribute.performer)) {
+                        title = PengramMusicMeta.titleFrom(title);
+                    }
                     return title;
                 } else if (attribute instanceof TLRPC.TL_documentAttributeVideo) {
                     if (attribute.round_message) {
@@ -11503,6 +11507,9 @@ public class MessageObject {
                     if (TextUtils.isEmpty(title) && unknown) {
                         title = getString(R.string.AudioUnknownTitle);
                     }
+                }
+                if (TextUtils.isEmpty(attribute.performer)) {
+                    title = PengramMusicMeta.titleFrom(title);
                 }
                 return title;
             }
@@ -11597,6 +11604,10 @@ public class MessageObject {
                         isVoice = true;
                     } else {
                         String performer = attribute.performer;
+                        if (TextUtils.isEmpty(performer)) {
+                            // Pengram: имя часто написано прямо в названии трека
+                            performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));
+                        }
                         if (TextUtils.isEmpty(performer) && unknown) {
                             performer = getString(R.string.AudioUnknownArtist);
                         }
@@ -11651,6 +11662,9 @@ public class MessageObject {
                 if (attribute instanceof TLRPC.TL_documentAttributeAudio) {
                     if (!attribute.voice) {
                         String performer = attribute.performer;
+                        if (TextUtils.isEmpty(performer)) {
+                            performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));
+                        }
                         if (TextUtils.isEmpty(performer) && unknown) {
                             performer = getString(R.string.AudioUnknownArtist);
                         }
@@ -11660,6 +11674,15 @@ public class MessageObject {
             }
         }
         return getString(R.string.AudioUnknownArtist);
+    }
+
+    /** строка, в которой может прятаться имя исполнителя: тег названия или имя файла */
+    private static String pengramRawAudioTitle(TLRPC.Document document, TLRPC.DocumentAttribute attribute) {
+        String title = attribute == null ? null : attribute.title;
+        if (TextUtils.isEmpty(title)) {
+            title = FileLoader.getDocumentFileName(document);
+        }
+        return title;
     }
 
     public TLRPC.InputStickerSet getInputStickerSet() {

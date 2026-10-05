@@ -605,6 +605,9 @@
     <string name="PengramForwardHeader">Пересылка</string>
     <string name="PengramForwardLock">Статус вместо поля ввода</string>
     <string name="PengramForwardLockInfo">Только при отправке удалённых и одноразовых медиа</string>
+    <string name="PengramMusicMetaHeader">Данные трека</string>
+    <string name="PengramMusicSmartArtist">Исполнитель из названия</string>
+    <string name="PengramMusicSmartArtistInfo">Если в файле нет тега исполнителя, а название выглядит как «Пошлая Молли — Нимфоманка», часть до тире показывается как исполнитель. Настоящие теги никогда не перезаписываются.</string>
     <string name="PengramMusicForwardClean">Треки без автора и подписи</string>
     <string name="PengramMusicForwardCleanInfo">Если пересылаются только треки, они уходят как обычные файлы: без строки «переслано от» и без подписи, которая была у них в исходном чате.</string>
     <string name="PengramForwardDoneAlert">Сообщать о завершении</string>

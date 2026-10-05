@@ -11577,6 +11577,9 @@
     <string name="PengramForwardHeader">Forwarding</string>
     <string name="PengramForwardLock">Status instead of input field</string>
     <string name="PengramForwardLockInfo">Only while sending deleted or one-time media</string>
+    <string name="PengramMusicMetaHeader">Track info</string>
+    <string name="PengramMusicSmartArtist">Find the artist in the title</string>
+    <string name="PengramMusicSmartArtistInfo">If a file has no artist tag but the name looks like "Artist — Song", the part before the dash is shown as the artist. Real tags are never overwritten.</string>
     <string name="PengramMusicForwardClean">Tracks without author and caption</string>
     <string name="PengramMusicForwardCleanInfo">When only music is forwarded, the track is sent as a plain file: no "forwarded from" line and no caption it had in the original chat.</string>
     <string name="PengramForwardDoneAlert">Notify when finished</string>

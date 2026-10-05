@@ -2623,6 +2623,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_CAPTION, false,
                 getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
         items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
+        items.add(checkInfo(PengramConfig.KEY_MUSIC_FORWARD_CLEAN, true,
+                getString(R.string.PengramMusicForwardClean), getString(R.string.PengramMusicForwardCleanInfo)));
+        if (!PengramConfig.isMusicForwardClean()) {
+            // манера и подпись имеют смысл только когда трек пересылается «как есть»
+            items.add(UItem.asSettingsCell(BTN_TRACK_FORWARD_MODE, R.drawable.msg_forward,
+                    getString(R.string.PengramTrackForwardMode),
+                    org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.getTrackForwardMode())));
+            items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_CAPTION, false,
+                    getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
+        }
+        items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
+        items.add(UItem.asHeader(getString(R.string.PengramMusicMetaHeader)));
+        items.add(checkInfo(PengramConfig.KEY_MUSIC_SMART_ARTIST, true,
+                getString(R.string.PengramMusicSmartArtist), getString(R.string.PengramMusicSmartArtistInfo)));
 
         if (PengramConfig.isNewPlayer()) {
             items.add(UItem.asHeader(getString(R.string.PengramLyricsSyncHeader)));
@@ -2742,7 +2756,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
         if (PengramConfig.isForwardLockEnabled()) items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
-        items.add(checkInfo(PengramConfig.KEY_MUSIC_FORWARD_CLEAN, true, getString(R.string.PengramMusicForwardClean), getString(R.string.PengramMusicForwardCleanInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
     }
 
