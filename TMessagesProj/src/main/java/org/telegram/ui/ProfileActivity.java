@@ -5598,6 +5598,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             nameTextView[a].setFocusable(a == 0);
+            // Pengram: жест по имени показывает вторую известную версию имени
+            if (a == 1) {
+                org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
+            }
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
@@ -11458,6 +11462,55 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private MessagesController.PeerColor peerColor;
 
+    /** показано ли сейчас «второе» имя вместо обычного */
+    private boolean pengramOriginalNameShown;
+
+    /**
+     * Pengram: переключить имя в шапке профиля.
+     *
+     * Первый жест показывает вторую версию имени и подписывает, откуда она
+     * взялась, второй возвращает всё как было. Если второй версии нет —
+     * честно об этом говорим, а не молчим.
+     */
+    private void pengramToggleOriginalName() {
+        final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
+        if (user == null || nameTextView[1] == null) {
+            return;
+        }
+        if (pengramOriginalNameShown) {
+            pengramOriginalNameShown = false;
+            updateProfileData(false);
+            return;
+        }
+        // история профилей живёт в SQLite — ищем в фоне, чтобы не дёргать интерфейс
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final org.telegram.messenger.PengramOriginalName.Result found =
+                    org.telegram.messenger.PengramOriginalName.other(currentAccount, user);
+            AndroidUtilities.runOnUIThread(() -> pengramApplyOriginalName(found));
+        });
+    }
+
+    private void pengramApplyOriginalName(org.telegram.messenger.PengramOriginalName.Result other) {
+        if (nameTextView[1] == null) {
+            return;
+        }
+        if (other == null) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramOriginalNameNothing)).show();
+            return;
+        }
+        pengramOriginalNameShown = true;
+        nameTextView[1].setText(other.name);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
+        AndroidUtilities.runOnUIThread(() -> {
+            if (pengramOriginalNameShown) {
+                pengramOriginalNameShown = false;
+                updateProfileData(false);
+            }
+        }, 6000);
+    }
+
     private void updateProfileData(boolean reload) {
         if (avatarContainer == null || nameTextView == null || getParentActivity() == null) {
             return;
@@ -11676,7 +11729,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, false, false, a));
                         nameTextViewRightDrawableContentDescription = LocaleController.getString(R.string.AccDescrPremium);
-                    } else if (getMessagesController().isPremiumUser(user)) {
+                    } else if (getMessagesController().isPremiumUserForDisplay(user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, false, false, a));
@@ -11697,7 +11750,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, true, true, a));
-                    } else if (getMessagesController().isPremiumUser(user)) {
+                    } else if (getMessagesController().isPremiumUserForDisplay(user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, true, true, a));
@@ -11715,12 +11768,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (a == 1 && (rightIconIsStatus || rightIconIsPremium)) {
                     nameTextView[a].setRightDrawableOutside(true);
                 }
-                if (user.self && getMessagesController().isPremiumUser(user)) {
+                if (user.self && getMessagesController().isPremiumUserForDisplay(user)) {
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         showStatusSelect();
                     });
                 }
-                if (!user.self && getMessagesController().isPremiumUser(user)) {
+                if (!user.self && getMessagesController().isPremiumUserForDisplay(user)) {
                     final SimpleTextView textView = nameTextView[a];
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         if (user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible) {

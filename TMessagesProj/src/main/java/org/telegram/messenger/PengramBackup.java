@@ -46,6 +46,16 @@ public final class PengramBackup {
 
     public static final String EXTENSION = "pen";
 
+    /**
+     * Потолок распакованных настроек.
+     *
+     * Gzip сжимает нули в тысячи раз, поэтому восьмимегабайтный .pen мог
+     * развернуться в гигабайты и убить приложение по памяти ещё до того, как
+     * пользователь что-то подтвердил. Настоящий файл настроек — это десятки
+     * килобайт, так что два мегабайта с огромным запасом.
+     */
+    private static final int MAX_PLAIN = 2 * 1024 * 1024;
+
     /** ключи, которые переносить бессмысленно или вредно: кеши, разовые отметки, статистика */
     private static final String[] SKIP_PREFIXES = {
             "cache_", "learned", "fail_", "off_", "rej_", "txt_", "anticrash_", "lastCrash",
@@ -248,6 +258,20 @@ public final class PengramBackup {
         }
     }
 
+    /**
+     * Расшифровка в фоне.
+     *
+     * PBKDF2 здесь считает 320 000 итераций — на UI-потоке это гарантированная
+     * заморозка интерфейса и ANR даже на честном файле. Результат отдаём в
+     * главный поток: null означает «не тот пароль или не наш файл».
+     */
+    public static void unpackAsync(byte[] data, String password, Utilities.Callback<String> whenDone) {
+        Utilities.globalQueue.postRunnable(() -> {
+            final String json = unpack(data, password);
+            AndroidUtilities.runOnUIThread(() -> whenDone.run(json));
+        });
+    }
+
     /** записать файл во временную папку и вернуть его */
     public static File writeToCache(byte[] data) {
         if (data == null) {
@@ -277,7 +301,7 @@ public final class PengramBackup {
             final java.io.FileInputStream stream = new java.io.FileInputStream(file);
             try {
                 final ByteArrayOutputStream out = new ByteArrayOutputStream();
-                copy(stream, out);
+                copy(stream, out, MAX_PLAIN * 4);
                 return out.toByteArray();
             } finally {
                 stream.close();
@@ -339,7 +363,7 @@ public final class PengramBackup {
             throw new IllegalStateException("broken");
         }
         final int length = ((input[0] & 0xFF) << 24) | ((input[1] & 0xFF) << 16) | ((input[2] & 0xFF) << 8) | (input[3] & 0xFF);
-        if (length < 0 || length > input.length - 4) {
+        if (length < 0 || length > input.length - 4 || length > MAX_PLAIN) {
             throw new IllegalStateException("broken");
         }
         final byte[] result = new byte[length];
@@ -357,16 +381,23 @@ public final class PengramBackup {
 
     private static byte[] ungzip(byte[] input) throws Exception {
         final GZIPInputStream gzip = new GZIPInputStream(new java.io.ByteArrayInputStream(input));
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        copy(gzip, out);
-        gzip.close();
-        return out.toByteArray();
+        try {
+            final ByteArrayOutputStream out = new ByteArrayOutputStream();
+            copy(gzip, out, MAX_PLAIN);
+            return out.toByteArray();
+        } finally {
+            gzip.close();
+        }
     }
 
-    private static void copy(InputStream from, ByteArrayOutputStream to) throws Exception {
+    /** копирование с потолком: превышение — это зип-бомба, а не настройки */
+    private static void copy(InputStream from, ByteArrayOutputStream to, int limit) throws Exception {
         final byte[] buffer = new byte[8192];
         int read;
         while ((read = from.read(buffer)) > 0) {
+            if (to.size() + read > limit) {
+                throw new IllegalStateException("too big");
+            }
             to.write(buffer, 0, read);
         }
     }

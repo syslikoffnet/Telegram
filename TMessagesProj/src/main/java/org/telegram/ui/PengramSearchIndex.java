@@ -31,6 +31,7 @@ public final class PengramSearchIndex {
             {R.string.PengramEditedMark, PengramSettingsActivity.SECTION_CUSTOM},
             {R.string.PengramDeleteEffect, PengramSettingsActivity.SECTION_CUSTOM},
             {R.string.PengramDeleteEffectIncoming, PengramSettingsActivity.SECTION_CUSTOM},
+            {R.string.PengramOriginalName, PengramSettingsActivity.SECTION_PROFILE},
             {R.string.PengramRegStyle, PengramSettingsActivity.SECTION_PROFILE},
             {R.string.PengramRegPlace, PengramSettingsActivity.SECTION_PROFILE},
             {R.string.PengramRegIcon, PengramSettingsActivity.SECTION_PROFILE},

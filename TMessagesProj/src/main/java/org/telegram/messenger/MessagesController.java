@@ -923,10 +923,22 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isPremiumUser(TLRPC.User currentUser) {
-        if (currentUser != null && PengramConfig.localPremium && PengramConfig.isPremiumStatusLocal() && currentUser.id == getUserConfig().getClientUserId()) {
+        return currentUser != null && currentUser.premium && !isSupportUser(currentUser);
+    }
+
+    /**
+     * Pengram: нужно ли рисовать звёздочку рядом с именем.
+     *
+     * Отличается от isPremiumUser ровно одним: своему аккаунту звёздочку можно
+     * включить локально. Это только картинка — никаких прав она не даёт и в
+     * объект пользователя не записывается, поэтому ни сервер, ни собеседники
+     * о ней не знают.
+     */
+    public boolean isPremiumUserForDisplay(TLRPC.User user) {
+        if (user != null && PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
             return true;
         }
-        return currentUser != null && currentUser.premium && !isSupportUser(currentUser);
+        return isPremiumUser(user);
     }
 
     public boolean didPressTranscribeButtonEnough() {
@@ -6887,10 +6899,9 @@ public class MessagesController extends BaseController implements NotificationCe
         if (user == null) {
             return false;
         }
-        // Pengram: локальный premium и фильтр zalgo применяем до того, как объект осядет в кэше
-        if (PengramConfig.localPremium && PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
-            user.premium = true;
-        }
+        // Pengram: фильтр zalgo применяем до того, как объект осядет в кэше.
+        // Локальный «премиум» сюда больше не лезет: испорченный объект попадал
+        // в кэш и на диск, и подделка переживала и перезапуск, и выключение.
         if (PengramConfig.isZalgoFilter()) {
             user.first_name = PengramConfig.filterZalgo(user.first_name);
             user.last_name = PengramConfig.filterZalgo(user.last_name);

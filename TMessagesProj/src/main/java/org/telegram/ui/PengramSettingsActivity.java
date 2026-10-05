@@ -171,6 +171,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_AI = 1016;
 
     // AI: сервисы, роли и поведение ответа
+    private static final int BTN_ORIGINAL_NAME = 1710;
     private static final int BTN_AI_ADD_SERVICE = 1700;
     private static final int BTN_AI_ADD_ROLE = 1701;
     private static final int BTN_AI_STREAM = 1702;
@@ -689,7 +690,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static String[] sectionKeys(int section) {
         switch (section) {
             case SECTION_PROFILE:
-                return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber",
+                return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber", "originalName",
                         "hideSharePhoneOption", "sharePhoneDefault", "historyRowInProfile",
                         "groupAvatarPos", "coverShape", "showAccountsInSettings"};
             case SECTION_GHOST:
@@ -1839,7 +1840,23 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void applyBackup(byte[] data, String password) {
-        final String json = org.telegram.messenger.PengramBackup.unpack(data, password);
+        if (getParentActivity() == null) {
+            return;
+        }
+        // ключ считается сотнями тысяч итераций — на UI-потоке это заморозка
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+        org.telegram.messenger.PengramBackup.unpackAsync(data, password, json -> {
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+            applyBackupJson(json);
+        });
+    }
+
+    private void applyBackupJson(String json) {
         if (json == null) {
             BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupWrongPassword)).show();
             return;
@@ -2129,6 +2146,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(null));
             }
         }
+
+        items.add(UItem.asHeader(getString(R.string.PengramOriginalNameHeader)));
+        items.add(UItem.asSettingsCell(BTN_ORIGINAL_NAME, R.drawable.msg_contacts,
+                getString(R.string.PengramOriginalName), originalNameModeName()));
+        items.add(UItem.asShadow(getString(R.string.PengramOriginalNameInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
         items.add(UItem.asSettingsCell(BTN_REG_STYLE_PICK, R.drawable.msg_calendar2, getString(R.string.PengramRegStyle), regStyleName(PengramConfig.getRegDateStyle())));
@@ -4153,6 +4175,34 @@ public class PengramSettingsActivity extends UniversalFragment {
         showDialog(builder.create());
     }
 
+    /** подпись режима «второе имя»: выключено / нажатие / свайп / оба */
+    private CharSequence originalNameModeName() {
+        switch (org.telegram.messenger.PengramOriginalName.mode()) {
+            case org.telegram.messenger.PengramOriginalName.MODE_TAP:
+                return getString(R.string.PengramOriginalNameTap);
+            case org.telegram.messenger.PengramOriginalName.MODE_SWIPE:
+                return getString(R.string.PengramOriginalNameSwipe);
+            case org.telegram.messenger.PengramOriginalName.MODE_BOTH:
+                return getString(R.string.PengramOriginalNameBoth);
+            default:
+                return getString(R.string.PengramOriginalNameOff);
+        }
+    }
+
+    private void showOriginalNamePicker() {
+        showChoicePicker(getString(R.string.PengramOriginalName), new CharSequence[]{
+                getString(R.string.PengramOriginalNameOff),
+                getString(R.string.PengramOriginalNameTap),
+                getString(R.string.PengramOriginalNameSwipe),
+                getString(R.string.PengramOriginalNameBoth)
+        }, org.telegram.messenger.PengramOriginalName.mode(), value -> {
+            org.telegram.messenger.PengramOriginalName.setMode(value);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
     /** нажатия в разделе «Нейросети»; true — обработали */
     private boolean onAIClick(UItem item) {
         if (item.id >= BTN_AI_SERVICE_BASE && item.id < BTN_AI_SERVICE_BASE + 100) {
@@ -4223,6 +4273,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             case BTN_SECTION_AI:
                 presentFragment(new PengramSettingsActivity(SECTION_AI));
+                return true;
+            case BTN_ORIGINAL_NAME:
+                showOriginalNamePicker();
                 return true;
         }
         return false;

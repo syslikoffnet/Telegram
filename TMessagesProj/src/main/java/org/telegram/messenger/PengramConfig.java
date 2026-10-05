@@ -1841,14 +1841,99 @@ public class PengramConfig {
      * Служебные ключи, которым нечего делать в бэкапе и тем более в чужом устройстве:
      * состояние раскрытых групп, счётчики показанных подсказок, кэши и временные метки.
      */
+    /** потолки на импорт: защита от раздутого или собранного вручную файла */
+    private static final int MAX_IMPORT_KEYS = 2000;
+    private static final int MAX_IMPORT_VALUE = 8192;
+
     private static final String[] NOT_EXPORTABLE_PREFIXES = {
             "ui", "shown", "seen", "hint", "tip", "cache", "last", "tmp", "temp",
             "crash", "stat", "counter", "firstRun", "migrat", "pending", "session"
     };
 
-    /** можно ли класть ключ в .pen */
+    /**
+     * Белый список ключей, которые ездят в .pen.
+     *
+     * Раньше здесь был чёрный список, и это ошибка: чужой файл мог выставить
+     * в наших настройках любой ключ, о котором мы не подумали. Теперь наоборот —
+     * принимаем только то, что форк действительно умеет читать.
+     */
+    private static final java.util.HashSet<String> EXPORTABLE_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled",
+            "appFont", "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
+            "chatItemsOrder", "chatMenuEnabled", "chatMenuPosition", "copyIdOnTap",
+            "copyToClipboard", "coverShape", "deleteEffect", "deleteEffectIncoming",
+            "deletedMark", "dialogAvatarShape", "dialogSenderAvatarPosition", "dialogSenderAvatars",
+            "dontSendRead", "dontSendStoryViews", "dontSendTyping", "editedMark",
+            "fadeDeleted", "forceDeleteForAll", "forceSnow", "forwardDoneAlert",
+            "forwardLockInput", "ghostAutoOffline", "ghostDontSendReactions", "ghostDontSendVoiceRead",
+            "ghostMode", "ghostSendDelay", "ghostStoriesWarn", "groupAvatarPos",
+            "headerLyrics", "headerLyricsAnim", "headerLyricsArtist", "headerLyricsBold",
+            "headerLyricsMarquee", "headerLyricsSize", "headerLyricsSpeed", "headerLyricsWords",
+            "hideAds", "hideBubbleTail", "hideEditedLabel", "hideMenuCalls",
+            "hideMenuContacts", "hideMenuGhost", "hideMenuNewGroup", "hideMenuPengram",
+            "hideMenuSavedMessages", "hideMenuSettings", "hideMenuTheme", "hideOnline",
+            "hidePhoneNumber", "hideSharePhoneOption", "hideStories", "hideTabCalls",
+            "hideTabContacts", "hideTabProfile", "hideTabSettings", "hideWriteButton",
+            "historyKeepDays", "historyMaxEntries", "historyRowInProfile", "idFormat",
+            "idStyle", "inAppVibration", "inputAnimation", "inputAnimationHaptic",
+            "inputAnimationIntensity", "inputAnimationSpeed", "keepDeletedInChat", "keepFormatting",
+            "keepOnceMedia", "localPremium", "localPremiumStatus", "lyricsAlign",
+            "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
+            "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",
+            "lyricsSmooth", "lyricsSource", "lyricsSpeed", "lyricsStretch",
+            "markEdited", "mediaFolder", "mediaMaxSizeMb", "mediaPattern",
+            "mediaTimeMode", "mediaTimeRound", "mediaTimeSending", "mediaToGallery",
+            "menuCopyMessageId", "menuOrder", "menuSaveToSaved", "musicForwardClean",
+            "musicSmartArtist", "netBypass", "netDelay", "netFake",
+            "netFakeTtl", "netFirstPackets", "netNoDelay", "netOob",
+            "netProfile", "netSplit1", "netSplit2", "netSplit3",
+            "netSplitRandom", "newPlayer", "noNumberRounding", "noScreenshotNotify",
+            "originalName", "pengramCardOnTop", "penguinAutoSkin", "penguinDanceMusic",
+            "penguinSize", "penguinSkin", "penguinSleepGhost", "penguinTips",
+            "playerBg", "playerBlur", "playerRotate", "playerStyle",
+            "playerSwipe", "playerWave", "profileHistoryAvatars", "profileHistoryBio",
+            "profileHistoryCloudFormat", "profileHistoryEnabled", "profileHistoryLimitDays", "profileHistoryLimitMb",
+            "profileHistoryScope", "profileHistoryStorage", "quickActionCount", "quickTiles",
+            "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",
+            "resendAskChat", "resendDeletedAsMine", "resendDeletedMenu", "resendOnceMedia",
+            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveForMyselfDefault",
+            "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
+            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendTextStyle",
+            "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "showAccountsInSettings",
+            "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
+            "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
+            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "zalgoFilter"
+    ));
+
+    /** семейства ключей с именем, которое зависит от чата или человека */
+    private static boolean isDynamicExportableKey(String key) {
+        if (key.startsWith("chatItemHidden_") || key.startsWith("chatItemPlace_")
+                || key.startsWith("quickAction") || key.startsWith("settingsOrder")) {
+            return true;
+        }
+        // «id123456» и «regDate123456» — пометки к конкретному человеку
+        final String tail;
+        if (key.startsWith("regDate")) {
+            tail = key.substring(7);
+        } else if (key.startsWith("id")) {
+            tail = key.substring(2);
+        } else {
+            return false;
+        }
+        if (tail.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < tail.length(); i++) {
+            if (!Character.isDigit(tail.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** можно ли класть ключ в .pen и принимать его оттуда */
     public static boolean isExportableKey(String key) {
-        if (key == null || key.isEmpty()) {
+        if (key == null || key.isEmpty() || key.length() > 128) {
             return false;
         }
         for (String prefix : NOT_EXPORTABLE_PREFIXES) {
@@ -1856,7 +1941,13 @@ public class PengramConfig {
                 return false;
             }
         }
-        return true;
+        if (EXPORTABLE_NAMES.contains(key) || isDynamicExportableKey(key)) {
+            return true;
+        }
+        // ключ, который уже есть в наших настройках, создан самим приложением:
+        // свой же бэкап не должен терять то, о чём список не знает
+        final SharedPreferences p = prefs();
+        return p != null && p.contains(key);
     }
 
     /**
@@ -1939,6 +2030,9 @@ public class PengramConfig {
                 return false;
             }
             final org.json.JSONObject values = root.getJSONObject("values");
+            if (values.length() > MAX_IMPORT_KEYS) {
+                return false;   // столько настроек у форка просто нет — файл подозрительный
+            }
             final SharedPreferences.Editor editor = p.edit();
             // Чистим только то, что сами же и выгружаем: состояние экранов,
             // счётчики подсказок и прочая служебка пользователя переживают импорт.
@@ -1963,7 +2057,11 @@ public class PengramConfig {
                 } else if (v instanceof Double) {
                     editor.putInt(key, (int) Math.round((Double) v));
                 } else if (v instanceof String) {
-                    editor.putString(key, (String) v);
+                    final String value = (String) v;
+                    if (value.length() > MAX_IMPORT_VALUE) {
+                        continue;   // строка такой длины в настройках не хранится
+                    }
+                    editor.putString(key, value);
                 }
             }
             editor.apply();

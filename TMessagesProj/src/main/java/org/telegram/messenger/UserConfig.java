@@ -573,10 +573,17 @@ public class UserConfig extends BaseController {
         }
     }
 
+    /**
+     * Настоящий премиум аккаунта.
+     *
+     * Pengram: локальный «премиум» сюда намеренно не подмешивается. Этот метод
+     * спрашивают сотни мест в коде, и почти везде вопрос звучит как «можно ли
+     * выполнить действие», а не «рисовать ли звёздочку». Если соврать здесь,
+     * клиент начнёт отправлять на сервер запросы, которые тот отобьёт
+     * PREMIUM_ACCOUNT_REQUIRED, — и получатся зависшие сообщения и вечные
+     * спиннеры. Для звёздочки есть MessagesController.isPremiumUserForDisplay.
+     */
     public boolean isPremium() {
-        if (PengramConfig.isLocalPremium()) {
-            return true;
-        }
         TLRPC.User user = currentUser;
         if (user == null) {
             return false;
@@ -585,39 +592,41 @@ public class UserConfig extends BaseController {
     }
 
     /**
-     * Pengram: «витрина» локального премиума — звёздочка рядом с именем.
-     * Меняем флаг только у себя и умеем вернуть всё назад.
+     * Pengram: звёздочка локального премиума.
+     *
+     * Раньше этот метод писал user.premium = true прямо в объект пользователя и
+     * сохранял его на диск. Подделка после этого жила своей жизнью: переживала
+     * перезапуск, оставалась после выключения тумблера и выглядела для всего
+     * остального кода как настоящая подписка. Теперь флаг в объекте не трогаем
+     * вовсе — звёздочку рисует отдельная проверка при отрисовке, — а здесь
+     * только чиним то, что успели испортить прежние версии, и просим интерфейс
+     * перерисоваться.
      */
     public void pengramApplyLocalPremiumStatus() {
         final TLRPC.User user = currentUser;
         if (user == null) {
             return;
         }
-        final boolean show = PengramConfig.isPremiumStatusLocal();
-        final boolean applied = PengramConfig.getBool("localPremiumStatusApplied", false);
-        boolean changed = false;
-        if (show && !user.premium) {
-            user.premium = true;
-            PengramConfig.setBool("localPremiumStatusApplied", true);
-            changed = true;
-        } else if (!show && applied) {
-            user.premium = false;
+        boolean repaired = false;
+        if (PengramConfig.getBool("localPremiumStatusApplied", false)) {
+            // наследство старых сборок: снимаем подделку с сохранённого профиля
+            if (user.premium) {
+                user.premium = false;
+                saveConfig(true);
+                repaired = true;
+            }
+            final TLRPC.User cached = MessagesController.getInstance(currentAccount).getUser(user.id);
+            if (cached != null && cached != user && cached.premium) {
+                cached.premium = false;
+                repaired = true;
+            }
             PengramConfig.setBool("localPremiumStatusApplied", false);
-            changed = true;
         }
-        // синхронизируем и копию, которая лежит в кэше контроллера, иначе звёздочка не появится
-        final TLRPC.User cached = MessagesController.getInstance(currentAccount).getUser(user.id);
-        if (cached != null && cached != user && cached.premium != user.premium) {
-            cached.premium = user.premium;
-            changed = true;
-        }
-        if (changed) {
-            saveConfig(true);
-            MessagesController.getInstance(currentAccount).putUser(user, false, true);
-            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
-            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS);
+        if (repaired) {
             NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
         }
+        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
+        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS);
     }
 
     public Long getEmojiStatus() {

@@ -93,13 +93,30 @@ public final class PengramBackupOpener {
         return true;
     }
 
-    /** применить уже прочитанные байты (используется экраном настроек) */
+    /**
+     * Применить уже прочитанные байты (используется экраном настроек).
+     *
+     * Порядок важен: сначала спрашиваем человека и только потом трогаем
+     * содержимое файла. Раньше распаковка шла до диалога — присланный в чат
+     * файл успевал уронить приложение ещё до того, как пользователь что-то
+     * решил.
+     */
     public static void start(Activity activity, BaseFragment fragment, byte[] data) {
-        if (PengramBackup.needsPassword(data)) {
-            askPassword(activity, fragment, password -> confirm(activity, fragment, data, password));
-        } else {
-            confirm(activity, fragment, data, null);
-        }
+        final boolean needsPassword = PengramBackup.needsPassword(data);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+        builder.setTitle(LocaleController.getString(R.string.PengramBackupOpenTitle));
+        final String message = LocaleController.getString(R.string.PengramBackupOpenMessage)
+                + (needsPassword ? "" : "\n\n" + LocaleController.getString(R.string.PengramBackupNoPasswordWarning));
+        builder.setMessage(message);
+        builder.setPositiveButton(LocaleController.getString(R.string.PengramBackupApply), (d, w) -> {
+            if (needsPassword) {
+                askPassword(activity, fragment, password -> unpack(activity, fragment, data, password));
+            } else {
+                unpack(activity, fragment, data, null);
+            }
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        show(fragment, builder);
     }
 
     // ------------------------------------------------------------------ чтение
@@ -135,25 +152,27 @@ public final class PengramBackupOpener {
 
     // ----------------------------------------------------------------- диалоги
 
-    private static void confirm(Activity activity, BaseFragment fragment, byte[] data, String password) {
-        final String json = PengramBackup.unpack(data, password);
-        if (json == null) {
-            error(activity, fragment, LocaleController.getString(password == null
-                    ? R.string.PengramBackupNotPen : R.string.PengramBackupWrongPassword));
-            return;
-        }
-        final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle(LocaleController.getString(R.string.PengramBackupOpenTitle));
-        builder.setMessage(LocaleController.getString(R.string.PengramBackupOpenMessage));
-        builder.setPositiveButton(LocaleController.getString(R.string.PengramBackupApply), (d, w) -> {
+    /** расшифровка идёт в фоне с кружком: ключ считается сотни тысяч итераций */
+    private static void unpack(Activity activity, BaseFragment fragment, byte[] data, String password) {
+        final AlertDialog progress = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+        PengramBackup.unpackAsync(data, password, json -> {
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+            if (json == null) {
+                error(activity, fragment, LocaleController.getString(password == null
+                        ? R.string.PengramBackupNotPen : R.string.PengramBackupWrongPassword));
+                return;
+            }
             if (PengramBackup.apply(json)) {
                 applied(activity, fragment);
             } else {
                 error(activity, fragment, LocaleController.getString(R.string.PengramBackupFailed));
             }
         });
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        show(fragment, builder);
     }
 
     private static void applied(Activity activity, BaseFragment fragment) {

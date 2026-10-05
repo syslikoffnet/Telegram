@@ -3048,7 +3048,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 showSelectStatusDialog();
             });
             SelectAnimatedEmojiDialog.preload(currentAccount);
-        } else if (user != null && MessagesController.getInstance(currentAccount).isPremiumUser(user)) {
+        } else if (user != null && MessagesController.getInstance(currentAccount).isPremiumUserForDisplay(user)) {
             if (premiumStar == null) {
                 premiumStar = getContext().getResources().getDrawable(R.drawable.msg_premium_liststar).mutate();
                 premiumStar = new AnimatedEmojiDrawable.WrapSizeDrawable(premiumStar, dp(18), dp(18)) {
