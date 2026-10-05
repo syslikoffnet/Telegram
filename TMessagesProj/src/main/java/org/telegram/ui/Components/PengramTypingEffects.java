@@ -11,6 +11,7 @@ import android.text.TextPaint;
 import android.text.style.CharacterStyle;
 import android.text.style.ReplacementSpan;
 import android.text.style.UpdateAppearance;
+import android.view.Gravity;
 import android.widget.EditText;
 
 import org.telegram.messenger.LocaleController;
@@ -290,18 +291,22 @@ public final class PengramTypingEffects {
             if (glyphs.isEmpty()) {
                 return;
             }
-            paint.set(edit.getPaint());
-            final int baseAlpha = paint.getAlpha();
             final int paddingLeft = edit.getCompoundPaddingLeft();
-            final int paddingTop = edit.getExtendedPaddingTop();
+            // Главная причина «съехавших» букв: поле ввода в чате выровнено по низу
+            // (setGravity(Gravity.BOTTOM)), а превью в настройках — по центру.
+            // TextView в таком случае сдвигает всю строку вниз, а мы рисовали
+            // анимируемый символ по верхнему краю — он висел отдельно от текста
+            // и в конце анимации прыгал на место. Повторяем сдвиг один в один.
+            final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
             // super.onDraw уже снял свои трансформации, поэтому прокрутку учитываем сами
             final int scrollX = edit.getScrollX();
             final int scrollY = edit.getScrollY();
 
             final int clip = canvas.save();
-            canvas.clipRect(edit.getCompoundPaddingLeft() - dp(2), edit.getExtendedPaddingTop() - dp(6),
-                    edit.getWidth() - edit.getCompoundPaddingRight() + dp(2),
-                    edit.getHeight() - edit.getExtendedPaddingBottom() + dp(6));
+            // по горизонтали держим букву внутри поля, по вертикали не режем:
+            // «подъём» и «подпрыгивание» выносят глиф выше строки
+            canvas.clipRect(edit.getCompoundPaddingLeft() - dp(2), 0,
+                    edit.getWidth() - edit.getCompoundPaddingRight() + dp(2), edit.getHeight());
 
             for (int a = 0; a < glyphs.size(); ++a) {
                 final Glyph glyph = glyphs.get(a);
@@ -316,6 +321,18 @@ public final class PengramTypingEffects {
                 } catch (Exception e) {
                     continue;
                 }
+                // рисуем ровно тем же пером, что и сам текст: жирный, курсив, цвет,
+                // размер — всё, что навешано спанами, кроме нашего «скрывателя»
+                paint.set(edit.getPaint());
+                try {
+                    for (CharacterStyle style : text.getSpans(from, to, CharacterStyle.class)) {
+                        if (!(style instanceof HideSpan)) {
+                            style.updateDrawState(paint);
+                        }
+                    }
+                } catch (Exception ignore) {
+                }
+                final int baseAlpha = paint.getAlpha();
                 final float x = layout.getPrimaryHorizontal(from) + paddingLeft - scrollX;
                 final float baseline = layout.getLineBaseline(line) + paddingTop - scrollY;
                 final float width = paint.measureText(text, from, to);
@@ -359,6 +376,23 @@ public final class PengramTypingEffects {
                 }
             }
             canvas.restoreToCount(clip);
+        }
+
+        /**
+         * То же самое, что приватный TextView.getVerticalOffset(): если текст ниже
+         * поля, он прижимается по гравитации, и все координаты строки съезжают.
+         */
+        private int verticalOffset(EditText edit, Layout layout) {
+            final int gravity = edit.getGravity() & Gravity.VERTICAL_GRAVITY_MASK;
+            if (gravity == Gravity.TOP) {
+                return 0;
+            }
+            final int boxHeight = edit.getHeight() - edit.getExtendedPaddingTop() - edit.getExtendedPaddingBottom();
+            final int textHeight = layout.getHeight();
+            if (textHeight >= boxHeight) {
+                return 0;
+            }
+            return gravity == Gravity.BOTTOM ? boxHeight - textHeight : (boxHeight - textHeight) >> 1;
         }
     }
 

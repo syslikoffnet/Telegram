@@ -8591,6 +8591,83 @@ public class MessageObject {
         return addEntitiesToText(messageText, useManualParse);
     }
 
+    /** есть ли строки, которые не влезли в заданную ширину */
+    private static boolean pengramLinesWider(Layout layout, int width) {
+        if (layout == null) {
+            return false;
+        }
+        for (int l = 0; l < layout.getLineCount(); ++l) {
+            if (layout.getLineRight(l) > width + 0.5f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Pengram: вставляет мягкие переносы (U+200B) внутрь слов, которые шире строки.
+     * Спаны при этом едут вместе с текстом, поэтому ссылка остаётся ссылкой —
+     * просто переносится на следующую строку вместо того, чтобы торчать из пузыря.
+     */
+    private static CharSequence pengramSoftWrap(CharSequence text, TextPaint paint, int width) {
+        if (text == null || width <= 0 || text.length() == 0 || text.length() > 10000) {
+            return text;
+        }
+        try {
+            SpannableStringBuilder sb = null;
+            int inserted = 0;
+            int i = 0;
+            while (i < (sb != null ? sb.length() : text.length()) && inserted < 128) {
+                final CharSequence current = sb != null ? sb : text;
+                int start = i;
+                while (start < current.length() && Character.isWhitespace(current.charAt(start))) {
+                    start++;
+                }
+                int end = start;
+                while (end < current.length() && !Character.isWhitespace(current.charAt(end))) {
+                    end++;
+                }
+                if (end <= start) {
+                    i = start + 1;
+                    continue;
+                }
+                if (paint.measureText(current, start, end) <= width) {
+                    i = end;
+                    continue;
+                }
+                if (sb == null) {
+                    sb = new SpannableStringBuilder(text);
+                }
+                int chunk = start;
+                while (chunk < end && inserted < 128) {
+                    int fit = paint.breakText(sb, chunk, end, true, width, null);
+                    if (fit <= 0) {
+                        break;
+                    }
+                    int next = chunk + fit;
+                    if (next >= end) {
+                        break;
+                    }
+                    // не разрываем суррогатную пару (эмодзи и редкие символы)
+                    if (Character.isHighSurrogate(sb.charAt(next - 1))) {
+                        next++;
+                        if (next >= end) {
+                            break;
+                        }
+                    }
+                    sb.insert(next, "\u200B");
+                    inserted++;
+                    end++;
+                    chunk = next + 1;
+                }
+                i = end;
+            }
+            return sb != null ? sb : text;
+        } catch (Throwable e) {
+            return text;
+        }
+    }
+
     public static StaticLayout makeStaticLayout(CharSequence text_, TextPaint paint, int width, float lineSpacingMult, float lineSpacingAdd, boolean dontIncludePad) {
         return makeStaticLayout(text_, paint, width, lineSpacingMult, lineSpacingAdd, dontIncludePad, Layout.Alignment.ALIGN_NORMAL);
     }
@@ -8615,14 +8692,7 @@ public class MessageObject {
             }
             StaticLayout layout = builder.build();
 
-            boolean realWidthLarger = false;
-            for (int l = 0; l < layout.getLineCount(); ++l) {
-                if (layout.getLineRight(l) > width) {
-                    realWidthLarger = true;
-                    break;
-                }
-            }
-            if (realWidthLarger) {
+            if (pengramLinesWider(layout, width)) {
                 builder = StaticLayout.Builder.obtain(text, 0, text.length(), paint, width)
                                 .setLineSpacing(lineSpacingAdd, lineSpacingMult)
                                 .setBreakStrategy(StaticLayout.BREAK_STRATEGY_SIMPLE)
@@ -8635,6 +8705,28 @@ public class MessageObject {
                     builder.setUseLineSpacingFromFallbacks(false);
                 }
                 layout = builder.build();
+            }
+
+            // Pengram: длинная ссылка (или любое слово без пробелов) иногда не
+            // переносится ни одной из стратегий и вылезает за края пузыря —
+            // ширина сообщения считается по ограничению, а текст рисуется шире.
+            // Расставляем в таком слове невидимые места переноса и верстаем заново.
+            if (pengramLinesWider(layout, width)) {
+                final CharSequence soft = pengramSoftWrap(text, paint, width);
+                if (soft != text) {
+                    builder = StaticLayout.Builder.obtain(soft, 0, soft.length(), paint, width)
+                                    .setLineSpacing(lineSpacingAdd, lineSpacingMult)
+                                    .setBreakStrategy(StaticLayout.BREAK_STRATEGY_SIMPLE)
+                                    .setHyphenationFrequency(StaticLayout.HYPHENATION_FREQUENCY_NONE)
+                                    .setAlignment(alignment);
+                    if (dontIncludePad) {
+                        builder.setIncludePad(false);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        builder.setUseLineSpacingFromFallbacks(false);
+                    }
+                    layout = builder.build();
+                }
             }
 
             return layout;
