@@ -346,6 +346,11 @@
     <string name="PengramSectionChats">Чаты и кнопки</string>
     <string name="PengramSectionFreedom">Свобода и Premium</string>
     <string name="PengramSectionsInfo">Все возможности Pengram разложены по разделам.</string>
+    <string name="PengramQuickInfo">Быстрые переключатели — то, что обычно дёргают чаще всего.</string>
+    <string name="PengramQuickGhost">Призрак</string>
+    <string name="PengramQuickSpy">Антиудаление</string>
+    <string name="PengramQuickAds">Без рекламы</string>
+    <string name="PengramQuickPremium">Premium</string>
     <string name="PengramGroupLook">Как всё выглядит</string>
     <string name="PengramGroupLookInfo">Шрифты, иконки, пометки и пингвин — всё, что видно глазу.</string>
     <string name="PengramGroupPrivacy">Приватность</string>

@@ -297,6 +297,46 @@ public class PengramSettingsActivity extends UniversalFragment {
         return sectionTitle(section);
     }
 
+    /** ряд быстрых тумблеров над разделами: то, что дёргают чаще всего */
+    private org.telegram.ui.Components.PengramQuickToggles quickTogglesView;
+
+    private org.telegram.ui.Components.PengramQuickToggles quickToggles() {
+        if (quickTogglesView == null) {
+            final Runnable refresh = () -> {
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            };
+            quickTogglesView = new org.telegram.ui.Components.PengramQuickToggles(getContext());
+            quickTogglesView.add(0, R.drawable.msg_secret, getString(R.string.PengramQuickGhost),
+                    IconBackgroundColors.GREEN.bottom,
+                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                        @Override public boolean isOn() { return PengramConfig.ghostMode; }
+                        @Override public void toggle() { PengramConfig.toggleGhostMode(); }
+                    }, refresh);
+            quickTogglesView.add(1, R.drawable.msg_viewchats, getString(R.string.PengramQuickSpy),
+                    IconBackgroundColors.RED.bottom,
+                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                        @Override public boolean isOn() { return PengramConfig.saveDeleted; }
+                        @Override public void toggle() { PengramConfig.toggleSaveDeleted(); }
+                    }, refresh);
+            quickTogglesView.add(2, R.drawable.msg_block, getString(R.string.PengramQuickAds),
+                    IconBackgroundColors.ORANGE.bottom,
+                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                        @Override public boolean isOn() { return PengramConfig.hideAds; }
+                        @Override public void toggle() { PengramConfig.toggleHideAds(); }
+                    }, refresh);
+            quickTogglesView.add(3, R.drawable.msg_premium_liststar, getString(R.string.PengramQuickPremium),
+                    IconBackgroundColors.PURPLE.bottom,
+                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                        @Override public boolean isOn() { return PengramConfig.localPremium; }
+                        @Override public void toggle() { PengramConfig.toggleLocalPremium(); }
+                    }, refresh);
+        }
+        quickTogglesView.update();
+        return quickTogglesView;
+    }
+
     /** карточка-шапка раздела: цветной значок, название и зачем сюда заходить */
     private org.telegram.ui.Components.PengramSectionHero heroView;
 
@@ -726,7 +766,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         return UItem.asCheck(id, text).setChecked(PengramConfig.getBool(key, def));
     }
 
-    /** свитч с подписью — родная ячейка NotificationsCheckCell */
+    /** свитч с подписью — родная ячейка NotificationsCheckCell; иконка подбирается по ключу */
     private UItem checkInfo(String key, boolean def, CharSequence text, CharSequence subtext) {
         Integer id = boolIds.get(key);
         if (id == null) {
@@ -735,7 +775,63 @@ public class PengramSettingsActivity extends UniversalFragment {
             boolKeys.add(key);
             boolDefaults.add(def);
         }
-        return UItem.asButtonCheck(id, text, subtext).setChecked(PengramConfig.getBool(key, def));
+        final boolean value = PengramConfig.getBool(key, def);
+        final int icon = iconForKey(key);
+        if (icon != 0) {
+            return UItem.asIconButtonCheck(id, icon, text, subtext).setChecked(value);
+        }
+        return UItem.asButtonCheck(id, text, subtext).setChecked(value);
+    }
+
+    /** свитч с подписью и явной иконкой слева */
+    private UItem checkIcon(String key, boolean def, int icon, CharSequence text, CharSequence subtext) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        return UItem.asIconButtonCheck(id, icon, text, subtext).setChecked(PengramConfig.getBool(key, def));
+    }
+
+    /**
+     * Иконка для переключателя с подписью. Без неё строки с заголовком и описанием
+     * выглядят одинаковыми «кирпичами», а глазу нужна зацепка, чтобы находить нужный пункт.
+     */
+    private static int iconForKey(String key) {
+        if (key == null) {
+            return 0;
+        }
+        switch (key) {
+            case PengramConfig.KEY_NO_ROUNDING: return R.drawable.msg_views;
+            case PengramConfig.KEY_TIME_SECONDS: return R.drawable.msg_contacts_time;
+            case PengramConfig.KEY_VIBRATION: return R.drawable.msg_tone_on;
+            case PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS: return R.drawable.msg_contacts;
+            case PengramConfig.KEY_ZALGO: return R.drawable.msg_text_outlined;
+            case PengramConfig.KEY_REG_TAP_TEXT: return R.drawable.msg_calendar2;
+            case PengramConfig.KEY_GHOST_STORIES_WARN: return R.drawable.msg_media;
+            case PengramConfig.KEY_GHOST_SEND_DELAY: return R.drawable.msg_recent;
+            case PengramConfig.KEY_FORCE_SNOW: return R.drawable.msg_theme;
+            case PengramConfig.KEY_PENGUIN_TIPS: return R.drawable.msg_info;
+            case PengramConfig.KEY_PENGUIN_AUTO_SKIN: return R.drawable.msg_customize;
+            case PengramConfig.KEY_TRACK_FORWARD_BUTTON: return R.drawable.msg_forward;
+            case PengramConfig.KEY_TRACK_FORWARD_CAPTION: return R.drawable.msg_edit;
+            case PengramConfig.KEY_LYRICS_AUTO: return R.drawable.msg_download;
+            case PengramConfig.KEY_LYRICS_STRETCH: return R.drawable.msg_select;
+            case PengramConfig.KEY_LYRICS_SMOOTH: return R.drawable.msg_speed;
+            case PengramConfig.KEY_HEADER_LYRICS: return R.drawable.msg_played;
+            case PengramConfig.KEY_HEADER_LYRICS_MARQUEE: return R.drawable.msg_reorder;
+            case PengramConfig.KEY_FORWARD_LOCK: return R.drawable.msg_mini_lock3;
+            case PengramConfig.KEY_KEEP_FORMATTING: return R.drawable.msg_copy;
+            case PengramConfig.KEY_HIDE_TAIL: return R.drawable.msg_msgbubble3;
+            case PengramConfig.KEY_HIDE_EDITED_LABEL: return R.drawable.msg_edit;
+            case PengramConfig.KEY_FORCE_DELETE_FOR_ALL: return R.drawable.msg_delete;
+            case PengramConfig.KEY_HIDE_STORIES: return R.drawable.msg_media;
+            case PengramConfig.KEY_DIALOG_SENDER_AVATARS: return R.drawable.msg_openprofile;
+            case PengramConfig.KEY_PENGRAM_CARD: return R.drawable.msg_settings;
+            default: return 0;
+        }
     }
 
     /** круглая галочка внутри раскрывающегося блока */
@@ -786,6 +882,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else if (view instanceof org.telegram.ui.Cells.NotificationsCheckCell) {
             ((org.telegram.ui.Cells.NotificationsCheckCell) view).setChecked(value);
         }
+        // короткая тактильная отдача: переключение должно ощущаться, а не только выглядеть
+        AndroidUtilities.vibrateCursor(view);
         // список перестраиваем всегда и с анимацией: зависимые пункты
         // должны выезжать/сворачиваться прямо при переключении
         if (listView != null && listView.adapter != null) {
@@ -1180,6 +1278,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
+
+        if (getContext() != null) {
+            items.add(UItem.asCustom(quickToggles()));
+            items.add(UItem.asShadow(getString(R.string.PengramQuickInfo)));
+        }
 
         // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
         // потом чаты, потом медиа. Так список перестаёт быть «простынёй из одинаковых строк».
@@ -1871,6 +1974,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 .setCollapsed(!isGhostExpanded())
                 .setClickCallback(v -> {
                     PengramConfig.toggleGhostMode();
+                    AndroidUtilities.vibrateCursor(v);
                     if (v instanceof TextCheckCell2) {
                         ((TextCheckCell2) v).setChecked(PengramConfig.ghostMode);
                     }

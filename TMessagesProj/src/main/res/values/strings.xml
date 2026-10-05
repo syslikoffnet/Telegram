@@ -11318,6 +11318,11 @@
     <string name="PengramSectionChats">Chats and buttons</string>
     <string name="PengramSectionFreedom">Freedom and Premium</string>
     <string name="PengramSectionsInfo">All Pengram features are grouped into sections.</string>
+    <string name="PengramQuickInfo">Quick switches for the things you flip most often.</string>
+    <string name="PengramQuickGhost">Ghost</string>
+    <string name="PengramQuickSpy">Anti-delete</string>
+    <string name="PengramQuickAds">No ads</string>
+    <string name="PengramQuickPremium">Premium</string>
     <string name="PengramGroupLook">How it looks</string>
     <string name="PengramGroupLookInfo">Fonts, icons, marks and the penguin — everything you actually see.</string>
     <string name="PengramGroupPrivacy">Privacy</string>
