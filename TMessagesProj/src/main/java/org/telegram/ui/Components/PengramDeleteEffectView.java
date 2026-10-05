@@ -33,7 +33,7 @@ public class PengramDeleteEffectView extends View {
     private final Bitmap bitmap;
     private final int effect;
     private final Random random = new Random();
-    private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect src = new Rect();
     private final RectF dst = new RectF();
@@ -56,6 +56,17 @@ public class PengramDeleteEffectView extends View {
             new android.graphics.PorterDuffColorFilter(0xFFFF4D4D, android.graphics.PorterDuff.Mode.MULTIPLY);
     private final android.graphics.ColorFilter glitchCyan =
             new android.graphics.PorterDuffColorFilter(0xFF4DF2FF, android.graphics.PorterDuff.Mode.MULTIPLY);
+
+    /** dp считаются один раз: в цикле по клеткам это были сотни вызовов за кадр */
+    private final float dp6 = AndroidUtilities.dp(6);
+    private final float dp16 = AndroidUtilities.dp(16);
+    private final float dp18 = AndroidUtilities.dp(18);
+    private final float dp34 = AndroidUtilities.dp(34);
+    private final float dp60 = AndroidUtilities.dp(60);
+    private final float dp70 = AndroidUtilities.dp(70);
+    private final float dp80 = AndroidUtilities.dp(80);
+    private final float dp90 = AndroidUtilities.dp(90);
+    private final float dp110 = AndroidUtilities.dp(110);
 
     private final float[] cellSeed;
     private final float[] cellAngle;
@@ -158,7 +169,10 @@ public class PengramDeleteEffectView extends View {
         } else if (effect == PengramConfig.DELETE_EFFECT_SHARDS) {
             buildShards();
         }
-        setLayerType(LAYER_TYPE_HARDWARE, null);
+        // Аппаратный слой здесь вреден: содержимое меняется каждый кадр, и слой
+        // приходится целиком перерисовывать в отдельную текстуру — это и давало
+        // рывки на предпросмотре. Рисуем напрямую.
+        setLayerType(LAYER_TYPE_NONE, null);
     }
 
     /**
@@ -353,6 +367,24 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    /** сколько длится эффект — нужно вызывающему, чтобы не гадать с задержками */
+    public static long durationFor(int effect) {
+        return effect == PengramConfig.DELETE_EFFECT_NONE ? 0 : durationOf(effect);
+    }
+
+    /** убрать уже идущие эффекты из контейнера: быстрые повторные запуски не должны накладываться */
+    public static void cancelAll(ViewGroup container) {
+        if (container == null) {
+            return;
+        }
+        for (int a = container.getChildCount() - 1; a >= 0; --a) {
+            final View child = container.getChildAt(a);
+            if (child instanceof PengramDeleteEffectView) {
+                ((PengramDeleteEffectView) child).finish();
+            }
+        }
+    }
+
     private static long durationOf(int effect) {
         switch (effect) {
             case PengramConfig.DELETE_EFFECT_BURN: return 900;
@@ -370,6 +402,18 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_GLITCH: return 700;
             case PengramConfig.DELETE_EFFECT_SWEEP: return 760;
             default: return 800;
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        stopFollowing();
+        if (!finished) {
+            finished = true;
+        }
+        if (bitmap != null && !bitmap.isRecycled()) {
+            bitmap.recycle();
         }
     }
 
@@ -681,16 +725,16 @@ public class PengramDeleteEffectView extends View {
             switch (effect) {
                 case PengramConfig.DELETE_EFFECT_DUST: {
                     final float e = local * local;
-                    x += e * AndroidUtilities.dp(34) * cellSpeed[a];
-                    y -= e * AndroidUtilities.dp(18) * (0.3f + cellSeed[a]);
+                    x += e * dp34 * cellSpeed[a];
+                    y -= e * dp18 * (0.3f + cellSeed[a]);
                     scale = 1f - 0.45f * e;
                     alpha = 1f - local;
                     break;
                 }
                 case PengramConfig.DELETE_EFFECT_BURN: {
                     final float e = local;
-                    y -= e * AndroidUtilities.dp(34) * (0.4f + cellSeed[a]);
-                    x += (cellAngle[a]) * AndroidUtilities.dp(16) * e;
+                    y -= e * dp34 * (0.4f + cellSeed[a]);
+                    x += (cellAngle[a]) * dp16 * e;
                     scale = 1f - 0.5f * e;
                     alpha = 1f - e;
                     break;
@@ -699,8 +743,8 @@ public class PengramDeleteEffectView extends View {
                     final float e = local * local;
                     final float dirX = (cx + 0.5f) / GRID_X - 0.5f;
                     final float dirY = (cy + 0.5f) / GRID_Y - 0.5f;
-                    x += dirX * AndroidUtilities.dp(90) * e * cellSpeed[a];
-                    y += (dirY * AndroidUtilities.dp(70) + AndroidUtilities.dp(60) * e) * e * cellSpeed[a];
+                    x += dirX * dp90 * e * cellSpeed[a];
+                    y += (dirY * dp70 + dp60 * e) * e * cellSpeed[a];
                     rotate = cellAngle[a] * 90f * e;
                     alpha = 1f - e;
                     break;
@@ -711,8 +755,8 @@ public class PengramDeleteEffectView extends View {
                     final float dirY = (cy + 0.5f) / GRID_Y - 0.5f;
                     // ближе к эпицентру — сильнее импульс
                     final float push = 0.22f / ((float) Math.hypot(dirX, dirY) + 0.1f) * cellSpeed[a];
-                    x += dirX * AndroidUtilities.dp(110) * push * e;
-                    y += dirY * AndroidUtilities.dp(80) * push * e + AndroidUtilities.dp(70) * e * e;
+                    x += dirX * dp110 * push * e;
+                    y += dirY * dp80 * push * e + dp70 * e * e;
                     rotate = cellAngle[a] * 70f * e;
                     scale = 1f - 0.3f * e;
                     alpha = 1f - e * e;
@@ -743,7 +787,7 @@ public class PengramDeleteEffectView extends View {
                 case PengramConfig.DELETE_EFFECT_DISSOLVE: {
                     scale = 1f - 0.2f * local;
                     alpha = 1f - local;
-                    y -= local * AndroidUtilities.dp(6);
+                    y -= local * dp6;
                     break;
                 }
                 case PengramConfig.DELETE_EFFECT_PIXELATE: {
@@ -763,8 +807,10 @@ public class PengramDeleteEffectView extends View {
                 continue;
             }
             dst.set(x, y, x + w, y + h);
-            canvas.save();
-            if (rotate != 0 || scale != 1f) {
+            // save/restore стоят дорого, а большинству клеток они не нужны вовсе
+            final boolean transformed = rotate != 0 || scale != 1f;
+            if (transformed) {
+                canvas.save();
                 canvas.rotate(rotate, dst.centerX(), dst.centerY());
                 canvas.scale(scale, scale, dst.centerX(), dst.centerY());
             }
@@ -787,7 +833,9 @@ public class PengramDeleteEffectView extends View {
             } else {
                 canvas.drawBitmap(bitmap, src, dst, paint);
             }
-            canvas.restore();
+            if (transformed) {
+                canvas.restore();
+            }
         }
 
         if (effect == PengramConfig.DELETE_EFFECT_BURN) {
@@ -942,6 +990,7 @@ public class PengramDeleteEffectView extends View {
         stopFollowing();
         final Runnable done = whenDone;
         whenDone = null;
+        setVisibility(GONE);
         AndroidUtilities.runOnUIThread(() -> {
             AndroidUtilities.removeFromParent(this);
             if (bitmap != null && !bitmap.isRecycled()) {

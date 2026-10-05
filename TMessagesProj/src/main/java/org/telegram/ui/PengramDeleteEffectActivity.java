@@ -174,11 +174,16 @@ public class PengramDeleteEffectActivity extends BaseFragment {
         row.addView(check, LayoutHelper.createFrame(40, 40, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
 
         row.setOnClickListener(v -> {
+            final boolean changed = PengramConfig.getDeleteEffect() != effect;
             PengramConfig.setDeleteEffect(effect);
-            for (int a = 0; a < list.getChildCount(); ++a) {
-                list.getChildAt(a).invalidate();
-                if (list.getChildAt(a) instanceof FrameLayout) {
-                    ((FrameLayout) list.getChildAt(a)).getChildAt(2).invalidate();
+            AndroidUtilities.vibrateCursor(v);
+            if (changed) {
+                for (int a = 0; a < list.getChildCount(); ++a) {
+                    final View child = list.getChildAt(a);
+                    child.invalidate();
+                    if (child instanceof FrameLayout && ((FrameLayout) child).getChildCount() > 2) {
+                        ((FrameLayout) child).getChildAt(2).invalidate();
+                    }
                 }
             }
             playPreview(effect);
@@ -186,13 +191,25 @@ public class PengramDeleteEffectActivity extends BaseFragment {
         return row;
     }
 
+    /** отложенный возврат пузыря — его обязательно нужно отменять при новом запуске */
+    private Runnable restoreBubble;
+
     /** проиграть эффект на витрине и вернуть пузырь обратно */
     private void playPreview(int effect) {
         if (previewBox == null || sampleBubble == null) {
             return;
         }
+        // Главная причина рывков: быстрые нажатия по списку накладывали эффекты друг
+        // на друга — несколько полноэкранных накладок рисовались одновременно.
+        // Предыдущий эффект и отложенный возврат пузыря снимаем сразу.
+        if (restoreBubble != null) {
+            AndroidUtilities.cancelRunOnUIThread(restoreBubble);
+            restoreBubble = null;
+        }
+        PengramDeleteEffectView.cancelAll(previewBox);
+        sampleBubble.animate().cancel();
+
         if (effect == PengramConfig.DELETE_EFFECT_NONE) {
-            sampleBubble.animate().cancel();
             sampleBubble.setAlpha(1f);
             sampleBubble.setScaleX(1f);
             sampleBubble.setScaleY(1f);
@@ -200,12 +217,18 @@ public class PengramDeleteEffectActivity extends BaseFragment {
                     .withEndAction(() -> sampleBubble.animate().alpha(1f).setStartDelay(260).setDuration(160).start()).start();
             return;
         }
+
+        sampleBubble.setAlpha(1f);
+        sampleBubble.setScaleX(1f);
+        sampleBubble.setScaleY(1f);
         if (!PengramDeleteEffectView.play(previewBox, sampleBubble, effect)) {
             return;
         }
         sampleBubble.setAlpha(0f);
-        sampleBubble.animate().cancel();
-        AndroidUtilities.runOnUIThread(() -> {
+
+        // ждём ровно столько, сколько длится сам эффект, а не наугад полторы секунды
+        restoreBubble = () -> {
+            restoreBubble = null;
             if (sampleBubble == null) {
                 return;
             }
@@ -213,12 +236,30 @@ public class PengramDeleteEffectActivity extends BaseFragment {
             sampleBubble.setScaleY(0.9f);
             sampleBubble.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220)
                     .setInterpolator(CubicBezierInterpolator.EASE_OUT_BACK).start();
-        }, 1450);
+        };
+        AndroidUtilities.runOnUIThread(restoreBubble, PengramDeleteEffectView.durationFor(effect) + 180);
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        if (restoreBubble != null) {
+            AndroidUtilities.cancelRunOnUIThread(restoreBubble);
+            restoreBubble = null;
+        }
+        PengramDeleteEffectView.cancelAll(previewBox);
+        super.onFragmentDestroy();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        rebuild();
+        // раньше список пересобирался целиком при каждом возврате на экран —
+        // пятнадцать новых вьюх на пустом месте; достаточно перерисовать имеющиеся
+        if (list == null) {
+            return;
+        }
+        for (int a = 0; a < list.getChildCount(); ++a) {
+            list.getChildAt(a).invalidate();
+        }
     }
 }
