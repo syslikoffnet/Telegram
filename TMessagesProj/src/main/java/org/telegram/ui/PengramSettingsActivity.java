@@ -1285,11 +1285,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         if (getContext() != null) {
             items.add(UItem.asCustom(quickToggles()));
-            items.add(UItem.asShadow(getString(R.string.PengramQuickInfo)));
+            items.add(UItem.asShadow(null));
         }
 
         // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
-        // потом чаты, потом медиа. Так список перестаёт быть «простынёй из одинаковых строк».
+        // потом чаты, потом медиа. Пояснений под группами нет намеренно — заголовка
+        // и подписи у строки достаточно, а лишние абзацы делали экран длинным.
         items.add(UItem.asHeader(getString(R.string.PengramGroupLook)));
         items.add(sectionRow(BTN_SECTION_APPEARANCE, IconBackgroundColors.PURPLE, R.drawable.msg_theme,
                 getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
@@ -1297,7 +1298,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
         items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph,
                 getString(R.string.PengramSectionPenguin), getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
-        items.add(UItem.asShadow(getString(R.string.PengramGroupLookInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupPrivacy)));
         items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret,
@@ -1306,7 +1307,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSectionSpy), spySectionValue()));
         items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account,
                 getString(R.string.PengramSectionProfile), null));
-        items.add(UItem.asShadow(getString(R.string.PengramGroupPrivacyInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupChats)));
         items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat,
@@ -1314,14 +1315,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
                 getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
-        items.add(UItem.asShadow(getString(R.string.PengramGroupChatsInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupMedia)));
         items.add(sectionRow(BTN_SECTION_PLAYER, IconBackgroundColors.ORANGE_DEEP, R.drawable.msg_played,
                 getString(R.string.PengramSectionPlayer), playerSectionValue()));
         items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data,
                 getString(R.string.PengramSectionMedia), mediaSectionValue()));
-        items.add(UItem.asShadow(getString(R.string.PengramGroupMediaInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
@@ -1330,10 +1331,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramLinksHeader)));
-        items.add(UItem.asSettingsCell(BTN_LINK_CHANNEL, R.drawable.msg_channel, getString(R.string.PengramLinkChannel), "@" + LINK_CHANNEL));
-        items.add(UItem.asSettingsCell(BTN_LINK_AUTHOR, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor), "@" + LINK_AUTHOR));
-        items.add(UItem.asShadow(getString(R.string.PengramLinksInfo)));
     }
 
     /** строка раздела с цветной иконкой */
@@ -3658,6 +3655,50 @@ public class PengramSettingsActivity extends UniversalFragment {
                 BulletinFactory.of(PengramSettingsActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
             });
             addView(subtitle, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 4, 24, 0));
+
+            // Канал и автор — сразу под шапкой. Раньше они лежали в самом низу списка,
+            // куда никто не доскроллит.
+            final LinearLayout links = new LinearLayout(context);
+            links.setOrientation(HORIZONTAL);
+            links.setGravity(Gravity.CENTER_HORIZONTAL);
+            links.addView(linkChip(context, R.drawable.msg_channel, getString(R.string.PengramLinkChannel),
+                    () -> openLink(LINK_CHANNEL)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 0, 0, 4, 0));
+            links.addView(linkChip(context, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor),
+                    () -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 4, 0, 0, 0));
+            addView(links, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                    Gravity.CENTER_HORIZONTAL, 16, 10, 16, 0));
+        }
+
+        /** маленькая «таблетка» со значком и подписью */
+        private View linkChip(Context context, int icon, CharSequence text, Runnable onClick) {
+            final LinearLayout chip = new LinearLayout(context);
+            chip.setOrientation(HORIZONTAL);
+            chip.setGravity(Gravity.CENTER_VERTICAL);
+            chip.setPadding(dp(11), 0, dp(13), 0);
+            chip.setBackground(Theme.createRoundRectDrawable(dp(16),
+                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
+
+            final android.widget.ImageView iconView = new android.widget.ImageView(context);
+            iconView.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+            iconView.setImageResource(icon);
+            iconView.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()),
+                    android.graphics.PorterDuff.Mode.SRC_IN));
+            chip.addView(iconView, LayoutHelper.createLinear(17, 17, Gravity.CENTER_VERTICAL, 0, 0, 6, 0));
+
+            final TextView label = new TextView(context);
+            label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            label.setTypeface(AndroidUtilities.bold());
+            label.setSingleLine(true);
+            label.setText(text);
+            label.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+            chip.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
+
+            chip.setOnClickListener(v -> {
+                AndroidUtilities.vibrateCursor(v);
+                onClick.run();
+            });
+            return chip;
         }
 
         public void setPaused(boolean paused) {
