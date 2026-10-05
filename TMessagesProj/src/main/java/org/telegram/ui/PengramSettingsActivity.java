@@ -224,7 +224,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_COVER_SHAPE = 1429;
     private static final int BTN_LYRICS_CLEAR = 1430;
     private static final int BTN_PLAYER_STYLE = 1431;
-    private static final int BTN_TRACK_FORWARD_MODE = 1432;
+    private static final int BTN_TRACK_FORWARD_MODE = 1446;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
