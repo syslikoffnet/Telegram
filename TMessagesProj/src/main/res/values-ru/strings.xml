@@ -855,6 +855,7 @@
     <string name="PengramSkinBowtieInfo">Бабочка для торжественных случаев</string>
     <string name="PengramSkinWizardInfo">Шляпа мага со звёздами</string>
     <string name="PengramPlayerHeader">Плеер</string>
+    <string name="PengramPlayerPreviewInfo">Нажмите на макет, чтобы перебрать оформления плеера.</string>
     <string name="PengramPlayerNew">Плеер Pengram</string>
     <string name="PengramPlayerNewInfo">Полноэкранный плеер с большой обложкой, цветами из самой обложки и анимированным текстом песни.</string>
     <string name="PengramPlayerOriginal">Как в оригинале</string>
@@ -952,6 +953,7 @@
     <string name="PengramKeepFormatting">Продолжать оформление при наборе</string>
     <string name="PengramKeepFormattingInfo">Жирный, курсив и остальное продолжаются при наборе и не слетают, когда правишь сообщение.</string>
     <string name="PengramConstructor">Конструктор интерфейса</string>
+    <string name="PengramConstructorValue">Живые макеты</string>
     <string name="PengramConstructorInfo">Всё, что можно подвинуть, спрятать или перекрасить, — в одном месте. Откройте карточку и таскайте элементы пальцем.</string>
     <string name="PengramConstructorDialogs">Список чатов</string>
     <string name="PengramConstructorDialogsInfo">Форма аватарок и вид сообщений — с живым превью.</string>

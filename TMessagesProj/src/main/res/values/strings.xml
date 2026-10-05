@@ -11827,6 +11827,7 @@
     <string name="PengramSkinBowtieInfo">Bow tie for special occasions</string>
     <string name="PengramSkinWizardInfo">Wizard hat with stars</string>
     <string name="PengramPlayerHeader">Player</string>
+    <string name="PengramPlayerPreviewInfo">Tap the mockup to cycle through player looks.</string>
     <string name="PengramPlayerNew">Pengram player</string>
     <string name="PengramPlayerNewInfo">Full screen player with a big cover, colours taken from the artwork and animated lyrics.</string>
     <string name="PengramPlayerOriginal">Original</string>
@@ -11924,6 +11925,7 @@
     <string name="PengramKeepFormatting">Keep formatting while typing</string>
     <string name="PengramKeepFormattingInfo">Bold, italic and the rest continue as you type and do not drop off when you edit a message.</string>
     <string name="PengramConstructor">Interface builder</string>
+    <string name="PengramConstructorValue">Live mockups</string>
     <string name="PengramConstructorInfo">Everything that can be moved, hidden or restyled — in one place. Open a card and drag the items with your finger.</string>
     <string name="PengramConstructorDialogs">Chat list</string>
     <string name="PengramConstructorDialogsInfo">Avatar shape and the look of messages, with a live preview.</string>

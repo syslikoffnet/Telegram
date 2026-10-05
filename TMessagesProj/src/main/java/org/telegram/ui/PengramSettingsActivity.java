@@ -258,6 +258,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_MENU_MAIN = 2;
     private static final int GROUP_MENU_CHAT = 3;
     private static final int GROUP_HISTORY_MEDIA = 4;
+    private static final int GROUP_EFFECTS = 5;
 
     /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
     private static String expandedKey(int group) {
@@ -341,7 +342,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private org.telegram.ui.Components.PengramSectionHero heroView;
 
     private void addSectionHero(ArrayList<UItem> items) {
-        if (section == SECTION_ROOT) {
+        // в разделах, которые и так открываются большим превью или шапкой с пингвином,
+        // вторая крупная карточка подряд только мешает
+        if (section == SECTION_ROOT || section == SECTION_PENGUIN
+                || section == SECTION_PROFILE || section == SECTION_CUSTOM) {
             return;
         }
         final int info = sectionInfo(section);
@@ -1322,6 +1326,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
                 getString(R.string.PengramSectionFreedom), null));
+        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
+                getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramLinksHeader)));
@@ -2126,16 +2132,21 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(tgCheck(BTN_EXTRA_BASE + 3, getString(R.string.LoopAnimatedStickers), SharedConfig::loopStickers, SharedConfig::toggleLoopStickers));
         items.add(UItem.asShadow(null));
 
+        // девять одинаковых галочек подряд читаются тяжело: три самых нужных сверху,
+        // остальное — под «Показать ещё»
         items.add(UItem.asHeader(getString(R.string.PengramEffectsHeader)));
         items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
         items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 15, LiteMode.FLAG_PARTICLES, getString(R.string.LiteOptionsParticles)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 16, LiteMode.FLAG_CALLS_ANIMATIONS, getString(R.string.LiteOptionsCalls)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 17, LiteMode.FLAG_CHAT_BACKGROUND, getString(R.string.PengramChatBackgroundAnim)));
         items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
+        if (expanded(GROUP_EFFECTS)) {
+            items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 15, LiteMode.FLAG_PARTICLES, getString(R.string.LiteOptionsParticles)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 16, LiteMode.FLAG_CALLS_ANIMATIONS, getString(R.string.LiteOptionsCalls)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 17, LiteMode.FLAG_CHAT_BACKGROUND, getString(R.string.PengramChatBackgroundAnim)));
+        }
+        items.add(moreButton(GROUP_EFFECTS));
         items.add(UItem.asShadow(getString(R.string.PengramEffectsInfo)));
 
         // Всё, что про список чатов, собрано в «Чаты и кнопки → Интерфейс».
@@ -2328,8 +2339,30 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
+    private org.telegram.ui.Components.PengramPlayerMockView playerMock;
+
     /** Плеер — Spotify-режим и текст песни */
     private void fillPlayer(ArrayList<UItem> items) {
+        // живая миниатюра плеера: по нажатию перебирает оформления прямо на месте
+        if (playerMock == null && getContext() != null) {
+            playerMock = new org.telegram.ui.Components.PengramPlayerMockView(getContext(), PengramConfig.getPlayerStyle());
+            playerMock.setAccent(Theme.getColor(Theme.key_featuredStickers_addButton));
+            playerMock.setOnClickListener(v -> {
+                final int next = (PengramConfig.getPlayerStyle() + 1) % PengramConfig.PLAYER_STYLE_COUNT;
+                PengramConfig.setPlayerStyle(next);
+                playerMock.setStyle(next);
+                AndroidUtilities.vibrateCursor(v);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        if (playerMock != null) {
+            playerMock.setStyle(PengramConfig.getPlayerStyle());
+            items.add(UItem.asCustom(playerMock, 150));
+            items.add(UItem.asShadow(getString(R.string.PengramPlayerPreviewInfo)));
+        }
+
         items.add(UItem.asHeader(getString(R.string.PengramPlayerHeader)));
         items.add(UItem.asSettingsCell(BTN_PLAYER_STYLE, R.drawable.msg_played, getString(R.string.PengramPlayerLook), getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()))));
         if (PengramConfig.isNewPlayer()) {
@@ -2431,12 +2464,13 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillChats(ArrayList<UItem> items) {
+        // у каждого подраздела своя подпись — видно состояние, не заходя внутрь
         items.add(sectionRow(BTN_SECTION_CHAT_ACTIONS, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
-                getString(R.string.PengramSubsectionActions), null));
+                getString(R.string.PengramSubsectionActions), String.valueOf(PengramConfig.getQuickActionCount())));
         items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
-                getString(R.string.PengramSubsectionMessages), null));
+                getString(R.string.PengramSubsectionMessages), inputAnimationName()));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
-                getString(R.string.PengramSubsectionInterface), null));
+                getString(R.string.PengramSubsectionInterface), hiddenCountValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
                 getString(R.string.PengramSubsectionMenus), hiddenChatItemsValue()));
         items.add(UItem.asShadow(getString(R.string.PengramChatsHubInfo)));
