@@ -5,6 +5,7 @@ on:
       - "arena/01a10249-telegram"
       - "arena/01a105ae-telegram"
       - "arena/01a10850-telegram"
+      - "arena/01a10ced-telegram"
 permissions:
   contents: read
 jobs:

@@ -11283,6 +11283,9 @@
     <string name="PengramRegStyleDate">Date only</string>
     <string name="PengramRegStyleDateAge">Date and account age</string>
     <string name="PengramRegDate">Registered</string>
+    <string name="PengramRealNameFailed">Couldn't check the name — try again a bit later.</string>
+    <string name="PengramRealNameNotContact">This person is not in your contacts, so you already see their real name.</string>
+    <string name="PengramRealNamePersonalPhoto">You set a personal photo for this contact. Checking the real name would delete that photo, so it is disabled here.</string>
     <string name="PengramRegInfo">The date is estimated from the account ID, so it is approximate.</string>
     <string name="PengramFreedomHeader">No restrictions</string>
     <string name="PengramAllowScreenshots">Allow screenshots everywhere</string>

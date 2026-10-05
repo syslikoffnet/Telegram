@@ -2131,6 +2131,36 @@ public class ChatActivity extends BaseFragment implements
      * Pengram: вместо удаления оставляем сообщения в чате.
      * @return true — удаление перехвачено, выше по коду ничего делать не нужно
      */
+    /**
+     * Pengram: какие из удаляемых сообщений вообще можно «сохранить в чате».
+     *
+     * <p>Отмена отправки приходит тем же путём, что и настоящее удаление, но удаляется
+     * при этом локальное сообщение с отрицательным id, которое ещё грузится. Если его
+     * оставить призраком, пользователь получает вечную полоску загрузки с пометкой
+     * «отправляется», а каждое нажатие на крестик заново запускает эффект удаления.
+     */
+    private ArrayList<Integer> pengramKeepableIds(ArrayList<Integer> ids) {
+        final ArrayList<Integer> result = new ArrayList<>();
+        if (ids == null || ids.isEmpty()) {
+            return result;
+        }
+        for (int a = 0; a < ids.size(); ++a) {
+            final Integer mid = ids.get(a);
+            if (mid == null || mid <= 0) {
+                continue;   // локальное, ещё не отправленное сообщение
+            }
+            MessageObject obj = messagesDict[0].get(mid);
+            if (obj == null && filteredMessagesDict != null) {
+                obj = filteredMessagesDict.get((long) mid);
+            }
+            if (obj != null && (obj.isSending() || obj.isSendError() || obj.isEditing())) {
+                continue;   // ещё не долетело до сервера — сохранять нечего
+            }
+            result.add(mid);
+        }
+        return result;
+    }
+
     private boolean pengramKeepDeletedMessages(ArrayList<Integer> ids) {
         if (ids == null || ids.isEmpty() || chatMode != MODE_DEFAULT || dialog_id == 0) {
             return false;
@@ -27137,10 +27167,19 @@ public class ChatActivity extends BaseFragment implements
     }
     private void processDeletedMessages(ArrayList<Integer> markAsDeletedMessages, long channelId, boolean sent, boolean thanos) {
         if (!sent) {
+            // Локальные (ещё не отправленные) сообщения сюда попадают при отмене отправки.
+            // Их нельзя ни провожать эффектом, ни оставлять «призраком»: иначе отменённое
+            // медиа остаётся висеть вечным «загружается» со значком отправки.
+            final ArrayList<Integer> pengramKeepable = pengramKeepableIds(markAsDeletedMessages);
             // сначала анимация по живой ячейке, потом уже решаем, оставлять ли «призрак»
-            pengramPlayDeleteEffect(markAsDeletedMessages);
-            if (pengramKeepDeletedMessages(markAsDeletedMessages)) {
-                return;
+            pengramPlayDeleteEffect(pengramKeepable);
+            if (!pengramKeepable.isEmpty() && pengramKeepDeletedMessages(pengramKeepable)) {
+                if (pengramKeepable.size() == markAsDeletedMessages.size()) {
+                    return;
+                }
+                // часть сообщений оставили в чате — остальные (локальные) удаляем как обычно
+                markAsDeletedMessages = new ArrayList<>(markAsDeletedMessages);
+                markAsDeletedMessages.removeAll(pengramKeepable);
             }
         }
         ArrayList<Integer> removedIndexes = new ArrayList<>();

@@ -311,6 +311,9 @@
     <string name="PengramRegStyleDate">Только дата</string>
     <string name="PengramRegStyleDateAge">Дата и возраст аккаунта</string>
     <string name="PengramRegDate">Регистрация</string>
+    <string name="PengramRealNameFailed">Не удалось проверить имя — попробуйте чуть позже.</string>
+    <string name="PengramRealNameNotContact">Этого человека нет у вас в контактах, вы и так видите его настоящее имя.</string>
+    <string name="PengramRealNamePersonalPhoto">Для этого контакта вы поставили персональное фото. Проверка настоящего имени его удалит, поэтому здесь она отключена.</string>
     <string name="PengramRegInfo">Дата вычисляется по ID аккаунта, поэтому она приблизительная.</string>
     <string name="PengramFreedomHeader">Без ограничений</string>
     <string name="PengramAllowScreenshots">Разрешить скриншоты везде</string>

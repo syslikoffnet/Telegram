@@ -371,6 +371,18 @@ public class ApplicationLoader extends Application {
 
         AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
         AndroidUtilities.runOnUIThread(PengramBackgroundService::onApplicationStart, 2000);
+        // Pengram: если прошлый запуск оборвался посреди проверки настоящего имени —
+        // возвращаем контакт на место, пока пользователь этого не заметил
+        AndroidUtilities.runOnUIThread(() -> {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                try {
+                    if (UserConfig.getInstance(a).isClientActivated()) {
+                        PengramRealName.restorePending(a);
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }, 3000);
         // Включённый обход должен восстановить соединение сразу после запуска, а не через 6 секунд.
         AndroidUtilities.runOnUIThread(PengramBypass::start, 500);
         AndroidUtilities.runOnUIThread(PengramHistory::autoCleanup, 4000);

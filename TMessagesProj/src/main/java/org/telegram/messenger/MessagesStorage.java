@@ -14614,10 +14614,22 @@ public class MessagesStorage extends BaseController {
         if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
             return;
         }
+        // Отмена отправки удаляет локальное сообщение с отрицательным id — в историю
+        // «удалённых» такое попадать не должно, его никто не удалял.
+        final ArrayList<Integer> sentIds = new ArrayList<>(messages.size());
+        for (int a = 0; a < messages.size(); ++a) {
+            final Integer mid = messages.get(a);
+            if (mid != null && mid > 0) {
+                sentIds.add(mid);
+            }
+        }
+        if (sentIds.isEmpty()) {
+            return;
+        }
         SQLiteCursor cursor = null;
         try {
             final long selfId = getUserConfig().getClientUserId();
-            final String ids = TextUtils.join(",", messages);
+            final String ids = TextUtils.join(",", sentIds);
             if (dialogId != 0) {
                 cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
             } else {

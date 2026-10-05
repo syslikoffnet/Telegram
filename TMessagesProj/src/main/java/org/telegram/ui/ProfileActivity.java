@@ -160,6 +160,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramRealName;
 import org.telegram.messenger.PengramRegDate;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
@@ -5602,6 +5603,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
         }
+        pengramSetupRealNameGesture(context);
         for (int a = 0; a < onlineTextView.length; a++) {
             if (a == 1) {
                 onlineTextView[a] = new LinkSpanDrawable.ClickableSmallTextView(context) {
@@ -7376,6 +7378,100 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     /** Pengram: дописать дату регистрации к подписи под именем */
+    // ------------------------------------------------------------------ Pengram: настоящее имя
+
+    /** сейчас в шапке профиля показано «как видят остальные», а не моя запись в контактах */
+    private boolean pengramRealNameShown;
+    /** найденное имя: держим в памяти экрана, чтобы переключение было мгновенным */
+    private String pengramRealNameValue;
+    /** запрос в полёте — второй жест ничего не делает */
+    private boolean pengramRealNameLoading;
+
+    /**
+     * Pengram: нажатие и свайп по имени показывают, как человек записан у остальных.
+     *
+     * <p>Имя контакта Telegram подменяет вашей записью везде, поэтому настоящее приходится
+     * доставать хитростью — см. {@link PengramRealName}. Жест доступен только в профиле
+     * обычного человека из контактов.
+     */
+    private void pengramSetupRealNameGesture(Context context) {
+        if (nameTextView == null || nameTextView[1] == null || context == null) {
+            return;
+        }
+        if (userId == 0 || userId == getUserConfig().getClientUserId()) {
+            return;
+        }
+        final android.view.GestureDetector detector = new android.view.GestureDetector(context,
+                new android.view.GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onDown(MotionEvent e) {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onSingleTapUp(MotionEvent e) {
+                        pengramToggleRealName();
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                        if (Math.abs(velocityX) > Math.abs(velocityY) * 1.5f && Math.abs(velocityX) > dp(200)) {
+                            pengramToggleRealName();
+                            return true;
+                        }
+                        return false;
+                    }
+                });
+        nameTextView[1].setOnTouchListener((v, event) -> {
+            if (!PengramRealName.isApplicable(currentAccount, userId) && !pengramRealNameShown) {
+                return false;   // не контакт — отдаём касание шапке, как и было
+            }
+            return detector.onTouchEvent(event);
+        });
+    }
+
+    /** переключить «моя запись» ⇄ «как видят остальные» */
+    private void pengramToggleRealName() {
+        if (pengramRealNameLoading || userId == 0) {
+            return;
+        }
+        if (pengramRealNameShown) {
+            pengramRealNameShown = false;
+            updateProfileData(false);
+            return;
+        }
+        final String cached = pengramRealNameValue != null ? pengramRealNameValue : PengramRealName.cached(userId);
+        if (!TextUtils.isEmpty(cached)) {
+            pengramRealNameValue = cached;
+            pengramRealNameShown = true;
+            updateProfileData(false);
+            return;
+        }
+        pengramRealNameLoading = true;
+        PengramRealName.resolve(currentAccount, userId, (name, error) -> {
+            pengramRealNameLoading = false;
+            if (getParentActivity() == null || isFinishing()) {
+                return;
+            }
+            if (!TextUtils.isEmpty(name)) {
+                pengramRealNameValue = name;
+                pengramRealNameShown = true;
+                updateProfileData(false);
+                return;
+            }
+            final int message;
+            if (error == PengramRealName.ERROR_PERSONAL_PHOTO) {
+                message = R.string.PengramRealNamePersonalPhoto;
+            } else if (error == PengramRealName.ERROR_NOT_CONTACT) {
+                message = R.string.PengramRealNameNotContact;
+            } else {
+                message = R.string.PengramRealNameFailed;
+            }
+            BulletinFactory.of(ProfileActivity.this).createSimpleBulletin(R.raw.info, getString(message)).show();
+        });
+    }
+
     private CharSequence pengramWithRegDate(CharSequence status) {
         if (userId == 0 || !PengramConfig.isRegDateInSubtitle()) {
             return status;
@@ -11565,6 +11661,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
 
             CharSequence newString = UserObject.getUserName(user);
+            // Pengram: по жесту показываем имя, которое видят остальные, вместо своей записи
+            if (pengramRealNameShown && !TextUtils.isEmpty(pengramRealNameValue)) {
+                newString = pengramRealNameValue;
+            }
             String newString2;
             boolean hiddenStatusButton = false;
             if (user.id == getUserConfig().getClientUserId()) {
