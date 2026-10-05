@@ -297,6 +297,70 @@ public class PengramSettingsActivity extends UniversalFragment {
         return sectionTitle(section);
     }
 
+    /** карточка-шапка раздела: цветной значок, название и зачем сюда заходить */
+    private org.telegram.ui.Components.PengramSectionHero heroView;
+
+    private void addSectionHero(ArrayList<UItem> items) {
+        if (section == SECTION_ROOT) {
+            return;
+        }
+        final int info = sectionInfo(section);
+        if (info == 0 || getContext() == null) {
+            return;
+        }
+        if (heroView == null) {
+            final IconBackgroundColors colors = sectionColors(section);
+            heroView = new org.telegram.ui.Components.PengramSectionHero(getContext(),
+                    sectionIcon(section), sectionTitle(section), getString(info), colors.top, colors.bottom);
+        }
+        items.add(UItem.asCustom(heroView));
+        items.add(UItem.asShadow(null));
+    }
+
+    /** цвет раздела — тот же, что у его строки в корне настроек */
+    public static IconBackgroundColors sectionColors(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return IconBackgroundColors.GRAY;
+            case SECTION_PROFILE: return IconBackgroundColors.BLUE;
+            case SECTION_APPEARANCE: return IconBackgroundColors.PURPLE;
+            case SECTION_CUSTOM: return IconBackgroundColors.ORANGE;
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS: return IconBackgroundColors.BLUE_ALT;
+            case SECTION_GHOST: return IconBackgroundColors.GREEN;
+            case SECTION_HISTORY: return IconBackgroundColors.RED;
+            case SECTION_MEDIA: return IconBackgroundColors.BLUE_DEEP;
+            case SECTION_PLAYER: return IconBackgroundColors.ORANGE_DEEP;
+            case SECTION_PENGUIN: return IconBackgroundColors.BLUE_LIGHT;
+            case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
+            default: return IconBackgroundColors.GRAY;
+        }
+    }
+
+    /** одна строка о том, что умеет раздел */
+    public static int sectionInfo(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return R.string.PengramHeroGeneral;
+            case SECTION_PROFILE: return R.string.PengramHeroProfile;
+            case SECTION_APPEARANCE: return R.string.PengramHeroAppearance;
+            case SECTION_CUSTOM: return R.string.PengramHeroCustom;
+            case SECTION_CHATS: return R.string.PengramHeroChats;
+            case SECTION_CHAT_ACTIONS: return R.string.PengramHeroChatActions;
+            case SECTION_CHAT_MESSAGES: return R.string.PengramHeroChatMessages;
+            case SECTION_CHAT_INTERFACE: return R.string.PengramHeroChatInterface;
+            case SECTION_CHAT_MENUS: return R.string.PengramHeroChatMenus;
+            case SECTION_GHOST: return R.string.PengramHeroGhost;
+            case SECTION_HISTORY: return R.string.PengramHeroSpy;
+            case SECTION_MEDIA: return R.string.PengramHeroMedia;
+            case SECTION_PLAYER: return R.string.PengramHeroPlayer;
+            case SECTION_PENGUIN: return R.string.PengramHeroPenguin;
+            case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
+            default: return 0;
+        }
+    }
+
     /** иконка раздела — та же, что на главном экране настроек */
     public static int sectionIcon(int section) {
         switch (section) {
@@ -434,6 +498,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             fillSearch(items);
             return;
         }
+        addSectionHero(items);
         switch (section) {
             case SECTION_PROFILE: fillProfile(items); break;
             case SECTION_GHOST: fillGhost(items); break;
@@ -1116,20 +1181,44 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
 
-        // Каждый раздел имеет единственный вход. Отдельный «Конструктор» дублировал
-        // те же функции и создавал второй маршрут к настройкам, поэтому убран.
-        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings, getString(R.string.PengramSectionGeneral),
+        // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
+        // потом чаты, потом медиа. Так список перестаёт быть «простынёй из одинаковых строк».
+        items.add(UItem.asHeader(getString(R.string.PengramGroupLook)));
+        items.add(sectionRow(BTN_SECTION_APPEARANCE, IconBackgroundColors.PURPLE, R.drawable.msg_theme,
+                getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
+        items.add(sectionRow(BTN_SECTION_CUSTOM, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
+                getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
+        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph,
+                getString(R.string.PengramSectionPenguin), getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
+        items.add(UItem.asShadow(getString(R.string.PengramGroupLookInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupPrivacy)));
+        items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret,
+                getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
+        items.add(sectionRow(BTN_SECTION_HISTORY, IconBackgroundColors.RED, R.drawable.msg_viewchats,
+                getString(R.string.PengramSectionSpy), spySectionValue()));
+        items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account,
+                getString(R.string.PengramSectionProfile), null));
+        items.add(UItem.asShadow(getString(R.string.PengramGroupPrivacyInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupChats)));
+        items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat,
+                getString(R.string.PengramSectionChats), hiddenCountValue()));
+        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
+                getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
-        items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account, getString(R.string.PengramSectionProfile), null));
-        items.add(sectionRow(BTN_SECTION_APPEARANCE, IconBackgroundColors.PURPLE, R.drawable.msg_theme, getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
-        items.add(sectionRow(BTN_SECTION_CUSTOM, IconBackgroundColors.ORANGE, R.drawable.msg_customize, getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
-        items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat, getString(R.string.PengramSectionChats), hiddenCountValue()));
-        items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret, getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
-        items.add(sectionRow(BTN_SECTION_HISTORY, IconBackgroundColors.RED, R.drawable.msg_viewchats, getString(R.string.PengramSectionSpy), spySectionValue()));
-        items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data, getString(R.string.PengramSectionMedia), mediaSectionValue()));
-        items.add(sectionRow(BTN_SECTION_PLAYER, IconBackgroundColors.ORANGE_DEEP, R.drawable.msg_played, getString(R.string.PengramSectionPlayer), playerSectionValue()));
-        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph, getString(R.string.PengramSectionPenguin), getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
-        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features, getString(R.string.PengramSectionFreedom), null));
+        items.add(UItem.asShadow(getString(R.string.PengramGroupChatsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupMedia)));
+        items.add(sectionRow(BTN_SECTION_PLAYER, IconBackgroundColors.ORANGE_DEEP, R.drawable.msg_played,
+                getString(R.string.PengramSectionPlayer), playerSectionValue()));
+        items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data,
+                getString(R.string.PengramSectionMedia), mediaSectionValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramGroupMediaInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
+        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
+                getString(R.string.PengramSectionFreedom), null));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramLinksHeader)));

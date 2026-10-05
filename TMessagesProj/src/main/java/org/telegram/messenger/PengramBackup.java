@@ -29,13 +29,20 @@ public final class PengramBackup {
 
     private PengramBackup() {}
 
-    /** «PENGRAM» + версия формата */
-    private static final byte[] MAGIC = {'P', 'E', 'N', 'G', 'R', 'A', 'M', 1};
-    private static final int SALT_LEN = 16;
+    /** «PENGRAM» + версия формата (2 — двухслойное шифрование) */
+    private static final byte[] MAGIC = {'P', 'E', 'N', 'G', 'R', 'A', 'M', 2};
+    /** первая версия формата: один слой AES-GCM, соль 16 байт */
+    private static final byte[] MAGIC_V1 = {'P', 'E', 'N', 'G', 'R', 'A', 'M', 1};
+    private static final int SALT_LEN = 32;
+    private static final int SALT_LEN_V1 = 16;
     private static final int IV_LEN = 12;
+    private static final int CTR_IV_LEN = 16;
     private static final int TAG_BITS = 128;
-    private static final int ITERATIONS = 210000;
+    /** PBKDF2: столько итераций подбор пароля переживает плохо, а телефон — нормально */
+    private static final int ITERATIONS = 320000;
     private static final String FALLBACK_SECRET = "pengram.local.backup.v1";
+    /** перец: подбирать пароль «вслепую», не зная сборку, бессмысленно */
+    private static final String PEPPER = "pengram//pen//2026//penguin";
 
     public static final String EXTENSION = "pen";
 
@@ -47,15 +54,21 @@ public final class PengramBackup {
 
     /** есть ли вообще смысл это читать как .pen */
     public static boolean looksLikeBackup(byte[] data) {
-        if (data == null || data.length < MAGIC.length + SALT_LEN + IV_LEN + 16) {
-            return false;
+        return version(data) > 0;
+    }
+
+    /** 2 — текущий формат, 1 — старый, 0 — это не наш файл */
+    private static int version(byte[] data) {
+        if (data == null || data.length < MAGIC.length + SALT_LEN_V1 + IV_LEN + 16) {
+            return 0;
         }
-        for (int a = 0; a < MAGIC.length; ++a) {
+        for (int a = 0; a < MAGIC.length - 1; ++a) {
             if (data[a] != MAGIC[a]) {
-                return false;
+                return 0;
             }
         }
-        return true;
+        final byte v = data[MAGIC.length - 1];
+        return v == 2 || v == 1 ? v : 0;
     }
 
     /** имя файла с датой: Pengram-2026-02-14.pen */
@@ -132,22 +145,40 @@ public final class PengramBackup {
             return null;
         }
         try {
-            final byte[] plain = gzip(json.getBytes("UTF-8"));
+            final SecureRandom random = new SecureRandom();
+            // сначала прячем длину: к сжатым данным добавляем случайный хвост
+            final byte[] body = pad(gzip(json.getBytes("UTF-8")), random);
+
             final byte[] salt = new byte[SALT_LEN];
             final byte[] iv = new byte[IV_LEN];
-            final SecureRandom random = new SecureRandom();
+            final byte[] ctrIv = new byte[CTR_IV_LEN];
             random.nextBytes(salt);
             random.nextBytes(iv);
+            random.nextBytes(ctrIv);
 
-            final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, key(password, salt), new GCMParameterSpec(TAG_BITS, iv));
-            final byte[] encrypted = cipher.doFinal(plain);
+            final byte[][] keys = keys(password, salt);
+
+            // слой 1: поток AES-256-CTR
+            final Cipher inner = Cipher.getInstance("AES/CTR/NoPadding");
+            inner.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keys[1], "AES"), new javax.crypto.spec.IvParameterSpec(ctrIv));
+            final byte[] once = inner.doFinal(body);
+
+            // слой 2: AES-256-GCM, заголовок идёт в AAD — подменить его не выйдет
+            final ByteArrayOutputStream head = new ByteArrayOutputStream();
+            head.write(MAGIC);
+            head.write(hasPassword(password) ? 1 : 0);
+            head.write(salt);
+            head.write(iv);
+            head.write(ctrIv);
+            final byte[] header = head.toByteArray();
+
+            final Cipher outer = Cipher.getInstance("AES/GCM/NoPadding");
+            outer.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(keys[0], "AES"), new GCMParameterSpec(TAG_BITS, iv));
+            outer.updateAAD(header);
+            final byte[] encrypted = outer.doFinal(once);
 
             final ByteArrayOutputStream out = new ByteArrayOutputStream();
-            out.write(MAGIC);
-            out.write(hasPassword(password) ? 1 : 0);
-            out.write(salt);
-            out.write(iv);
+            out.write(header);
             out.write(encrypted);
             return out.toByteArray();
         } catch (Throwable e) {
@@ -156,31 +187,54 @@ public final class PengramBackup {
         }
     }
 
-    /** нужен ли паролю файл — чтобы спросить пароль только там, где он правда нужен */
+    /** нужен ли файлу пароль — чтобы спрашивать его только там, где он правда нужен */
     public static boolean needsPassword(byte[] data) {
         return looksLikeBackup(data) && data[MAGIC.length] == 1;
     }
 
     /** расшифровать файл; null — неверный пароль или битый файл */
     public static String unpack(byte[] data, String password) {
-        if (!looksLikeBackup(data)) {
+        final int version = version(data);
+        if (version == 0) {
             return null;
         }
         try {
+            final int saltLen = version == 1 ? SALT_LEN_V1 : SALT_LEN;
             int offset = MAGIC.length + 1;
-            final byte[] salt = new byte[SALT_LEN];
-            System.arraycopy(data, offset, salt, 0, SALT_LEN);
-            offset += SALT_LEN;
+            final byte[] salt = new byte[saltLen];
+            System.arraycopy(data, offset, salt, 0, saltLen);
+            offset += saltLen;
             final byte[] iv = new byte[IV_LEN];
             System.arraycopy(data, offset, iv, 0, IV_LEN);
             offset += IV_LEN;
+            byte[] ctrIv = null;
+            if (version >= 2) {
+                ctrIv = new byte[CTR_IV_LEN];
+                System.arraycopy(data, offset, ctrIv, 0, CTR_IV_LEN);
+                offset += CTR_IV_LEN;
+            }
+            final byte[] header = new byte[offset];
+            System.arraycopy(data, 0, header, 0, offset);
             final byte[] encrypted = new byte[data.length - offset];
             System.arraycopy(data, offset, encrypted, 0, encrypted.length);
 
-            final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, key(password, salt), new GCMParameterSpec(TAG_BITS, iv));
-            final byte[] plain = ungzip(cipher.doFinal(encrypted));
-            return new String(plain, "UTF-8");
+            final byte[][] keys = version == 1
+                    ? new byte[][]{legacyKey(password, salt), null}
+                    : keys(password, salt);
+
+            final Cipher outer = Cipher.getInstance("AES/GCM/NoPadding");
+            outer.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keys[0], "AES"), new GCMParameterSpec(TAG_BITS, iv));
+            if (version >= 2) {
+                outer.updateAAD(header);
+            }
+            byte[] body = outer.doFinal(encrypted);
+
+            if (version >= 2) {
+                final Cipher inner = Cipher.getInstance("AES/CTR/NoPadding");
+                inner.init(Cipher.DECRYPT_MODE, new SecretKeySpec(keys[1], "AES"), new javax.crypto.spec.IvParameterSpec(ctrIv));
+                body = unpad(inner.doFinal(body));
+            }
+            return new String(ungzip(body), "UTF-8");
         } catch (Throwable e) {
             return null;   // неверный пароль — это обычное дело, в лог не шумим
         }
@@ -237,11 +291,52 @@ public final class PengramBackup {
         return password != null && password.trim().length() > 0;
     }
 
-    private static SecretKeySpec key(String password, byte[] salt) throws Exception {
+    /** два независимых ключа по 256 бит: для внешнего GCM и внутреннего CTR */
+    private static byte[][] keys(String password, byte[] salt) throws Exception {
+        final char[] chars = ((hasPassword(password) ? password.trim() : FALLBACK_SECRET) + PEPPER).toCharArray();
+        final SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        final byte[] material = factory.generateSecret(new PBEKeySpec(chars, salt, ITERATIONS, 512)).getEncoded();
+        final byte[] k1 = new byte[32];
+        final byte[] k2 = new byte[32];
+        System.arraycopy(material, 0, k1, 0, 32);
+        System.arraycopy(material, 32, k2, 0, 32);
+        java.util.Arrays.fill(material, (byte) 0);
+        return new byte[][]{k1, k2};
+    }
+
+    /** ключ файлов первой версии — чтобы старые .pen продолжали открываться */
+    private static byte[] legacyKey(String password, byte[] salt) throws Exception {
         final char[] chars = (hasPassword(password) ? password.trim() : FALLBACK_SECRET).toCharArray();
         final SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        final byte[] bytes = factory.generateSecret(new PBEKeySpec(chars, salt, ITERATIONS, 256)).getEncoded();
-        return new SecretKeySpec(bytes, "AES");
+        return factory.generateSecret(new PBEKeySpec(chars, salt, 210000, 256)).getEncoded();
+    }
+
+    /** случайный хвост: по размеру файла не видно, сколько у человека настроек */
+    private static byte[] pad(byte[] input, SecureRandom random) {
+        final int extra = 64 + random.nextInt(960);
+        final byte[] result = new byte[4 + input.length + extra];
+        result[0] = (byte) (input.length >>> 24);
+        result[1] = (byte) (input.length >>> 16);
+        result[2] = (byte) (input.length >>> 8);
+        result[3] = (byte) input.length;
+        System.arraycopy(input, 0, result, 4, input.length);
+        final byte[] tail = new byte[extra];
+        random.nextBytes(tail);
+        System.arraycopy(tail, 0, result, 4 + input.length, extra);
+        return result;
+    }
+
+    private static byte[] unpad(byte[] input) throws Exception {
+        if (input == null || input.length < 4) {
+            throw new IllegalStateException("broken");
+        }
+        final int length = ((input[0] & 0xFF) << 24) | ((input[1] & 0xFF) << 16) | ((input[2] & 0xFF) << 8) | (input[3] & 0xFF);
+        if (length < 0 || length > input.length - 4) {
+            throw new IllegalStateException("broken");
+        }
+        final byte[] result = new byte[length];
+        System.arraycopy(input, 4, result, 0, length);
+        return result;
     }
 
     private static byte[] gzip(byte[] input) throws Exception {

@@ -742,10 +742,12 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 final boolean multiline = item.subtext != null && item.subtext.toString().contains("\n");
                 checkCell1.setTextAndValueAndCheck(item.text, item.subtext, item.checked, 0, multiline, divider);
                 break;
-            case VIEW_TYPE_ICON_TEXT_CHECK:
-                // TODO: image
-                ((NotificationsCheckCell) holder.itemView).setTextAndValueAndCheck(item.text, item.subtext, item.checked, divider);
+            case VIEW_TYPE_ICON_TEXT_CHECK: {
+                NotificationsCheckCell iconCheckCell = (NotificationsCheckCell) holder.itemView;
+                final boolean iconMultiline = item.subtext != null && item.subtext.toString().contains("\n");
+                iconCheckCell.setTextAndValueAndIconAndCheck(item.text, item.subtext, item.iconResId, item.checked, 0, iconMultiline, divider);
                 break;
+            }
             case VIEW_TYPE_SHADOW_COLLAPSE_BUTTON:
             case VIEW_TYPE_SHADOW:
             case VIEW_TYPE_LARGE_SHADOW:

@@ -330,6 +330,16 @@ public class UItem extends AdapterWithDiffUtils.Item {
         return i;
     }
 
+    /** Pengram: переключатель с заголовком, подписью и иконкой слева. */
+    public static UItem asIconButtonCheck(int id, int iconResId, CharSequence text, CharSequence subtext) {
+        UItem i = new UItem(UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK, false);
+        i.id = id;
+        i.iconResId = iconResId;
+        i.text = text;
+        i.subtext = subtext;
+        return i;
+    }
+
     public static UItem asShadow(CharSequence text) {
         UItem i = new UItem(UniversalAdapter.VIEW_TYPE_SHADOW, false);
         i.text = text;
