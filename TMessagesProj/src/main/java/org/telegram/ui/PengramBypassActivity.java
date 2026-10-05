@@ -19,6 +19,7 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramBypass;
 import org.telegram.messenger.PengramBypassSources;
 import org.telegram.messenger.PengramNet;
+import org.telegram.messenger.PengramNetTuner;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
@@ -54,6 +55,9 @@ public class PengramBypassActivity extends BaseFragment {
     private LinearLayout desyncCustom;
     private TextSettingsCell[] desyncValues;
     private TextCheckCell[] desyncFlags;
+    private TextSettingsCell tuneCell;
+    private TextSettingsCell ipCell;
+    private CharSequence tuneState;
 
     @Override
     public View createView(Context context) {
@@ -269,9 +273,108 @@ public class PengramBypassActivity extends BaseFragment {
             desyncCustom.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         }
 
+        tuneCell = new TextSettingsCell(context);
+        tuneCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        tuneCell.setOnClickListener(v -> startTuning());
+        root.addView(tuneCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        ipCell = new TextSettingsCell(context);
+        ipCell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        ipCell.setOnClickListener(v -> showIpPicker());
+        root.addView(ipCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
         final TextInfoPrivacyCell info = new TextInfoPrivacyCell(context);
         info.setText(LocaleController.getString(R.string.PengramDesyncInfo));
         root.addView(info, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+    }
+
+    // ------------------------------------------------------- автоподбор
+
+    private void startTuning() {
+        if (PengramNetTuner.isRunning()) {
+            PengramNetTuner.stop();
+            return;
+        }
+        PengramNetTuner.start(new PengramNetTuner.Callback() {
+            @Override
+            public void onProgress(int profile, int index, int total) {
+                tuneState = LocaleController.formatString(R.string.PengramDesyncTuneProgress,
+                        String.valueOf(profileName(profile)), index + 1, total);
+                updateDesync();
+            }
+
+            @Override
+            public void onResult(PengramNetTuner.Result result) {
+                updateDesync();
+            }
+
+            @Override
+            public void onFinish(java.util.ArrayList<PengramNetTuner.Result> results, int best) {
+                tuneState = null;
+                updateDesync();
+                showTuneResult(best);
+            }
+        });
+        tuneState = LocaleController.getString(R.string.PengramDesyncTuneStart);
+        updateDesync();
+    }
+
+    private void showTuneResult(int best) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramDesyncTune));
+        final StringBuilder sb = new StringBuilder();
+        for (PengramNetTuner.Result result : PengramNetTuner.getLastResults()) {
+            sb.append(result.ok() ? "✓ " : "✕ ").append(profileName(result.profile));
+            if (result.ok()) {
+                sb.append(" — ").append(result.ms).append(" ms");
+            }
+            sb.append('\n');
+        }
+        if (best < 0) {
+            sb.append('\n').append(LocaleController.getString(R.string.PengramDesyncTuneNone));
+            builder.setMessage(sb.toString().trim());
+            builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
+        } else {
+            sb.append('\n').append(LocaleController.formatString(R.string.PengramDesyncTuneBest,
+                    String.valueOf(profileName(best))));
+            builder.setMessage(sb.toString().trim());
+            builder.setPositiveButton(LocaleController.getString(R.string.PengramBackupApply), (dialog, which) -> {
+                PengramNetTuner.apply(best);
+                updateAll();
+            });
+            builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        }
+        showDialog(builder.create());
+    }
+
+    private void showIpPicker() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final CharSequence[] names = {
+                LocaleController.getString(R.string.PengramDesyncIpAuto),
+                "IPv4", "IPv6",
+                LocaleController.getString(R.string.PengramDesyncIpBoth)};
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString(R.string.PengramDesyncIp));
+        builder.setItems(names, (dialog, which) -> {
+            PengramNet.setIpStrategy(which);
+            updateAll();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private CharSequence ipName(int value) {
+        switch (value) {
+            case PengramNet.IP_V4: return "IPv4";
+            case PengramNet.IP_V6: return "IPv6";
+            case PengramNet.IP_BOTH: return LocaleController.getString(R.string.PengramDesyncIpBoth);
+            default: return LocaleController.getString(R.string.PengramDesyncIpAuto);
+        }
     }
 
     private CharSequence profileName(int profile) {
@@ -295,7 +398,10 @@ public class PengramBypassActivity extends BaseFragment {
         }
         final CharSequence[] names = new CharSequence[PengramNet.PROFILE_COUNT];
         for (int a = 0; a < names.length; ++a) {
-            names[a] = profileName(a);
+            final PengramNetTuner.Result result = PengramNetTuner.resultOf(a);
+            names[a] = result == null ? profileName(a)
+                    : result.ok() ? profileName(a) + "  ✓ " + result.ms + " ms"
+                    : profileName(a) + "  ✕";
         }
         final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
         builder.setTitle(LocaleController.getString(R.string.PengramDesyncProfile));
@@ -365,6 +471,19 @@ public class PengramBypassActivity extends BaseFragment {
         desyncProfile.setTextAndValue(LocaleController.getString(R.string.PengramDesyncProfile),
                 String.valueOf(profileName(PengramNet.getProfile())), false);
         desyncProfile.setVisibility(enabled ? View.VISIBLE : View.GONE);
+
+        if (tuneCell != null) {
+            final CharSequence value = tuneState != null ? tuneState
+                    : PengramNetTuner.getLastResults().isEmpty()
+                        ? LocaleController.getString(R.string.PengramDesyncTuneIdle)
+                        : LocaleController.getString(R.string.PengramDesyncTuneAgain);
+            tuneCell.setTextAndValue(LocaleController.getString(R.string.PengramDesyncTune),
+                    String.valueOf(value), true);
+        }
+        if (ipCell != null) {
+            ipCell.setTextAndValue(LocaleController.getString(R.string.PengramDesyncIp),
+                    String.valueOf(ipName(PengramNet.getIpStrategy())), false);
+        }
 
         final boolean custom = enabled && PengramNet.getProfile() == PengramNet.PROFILE_CUSTOM;
         desyncCustom.setVisibility(custom ? View.VISIBLE : View.GONE);

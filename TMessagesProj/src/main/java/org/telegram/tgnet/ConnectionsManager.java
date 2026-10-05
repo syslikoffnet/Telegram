@@ -1058,6 +1058,17 @@ public class ConnectionsManager extends BaseController {
 
     @SuppressLint("NewApi")
     protected byte getIpStrategy() {
+        // Pengram: ручной выбор протокола. IPv6 у операторов часто фильтруют
+        // слабее, чем IPv4, поэтому возможность прибить стратегию гвоздями —
+        // полноценный инструмент обхода, а не косметика.
+        final int override = org.telegram.messenger.PengramNet.getIpStrategy();
+        if (override == org.telegram.messenger.PengramNet.IP_V4) {
+            return USE_IPV4_ONLY;
+        } else if (override == org.telegram.messenger.PengramNet.IP_V6) {
+            return USE_IPV6_ONLY;
+        } else if (override == org.telegram.messenger.PengramNet.IP_BOTH) {
+            return USE_IPV4_IPV6_RANDOM;
+        }
         if (Build.VERSION.SDK_INT < 19) {
             return USE_IPV4_ONLY;
         }

@@ -227,6 +227,66 @@ public class PengramNet {
         }
     }
 
+    // --------------------------------------------------------- IP-протокол
+
+    public static final int IP_AUTO = 0;
+    public static final int IP_V4 = 1;
+    public static final int IP_V6 = 2;
+    public static final int IP_BOTH = 3;
+
+    public static int getIpStrategy() {
+        final int value = PengramConfig.getIntCached("netIpStrategy", IP_AUTO);
+        return value < IP_AUTO || value > IP_BOTH ? IP_AUTO : value;
+    }
+
+    public static void setIpStrategy(int value) {
+        PengramConfig.setIntValue("netIpStrategy", value);
+        reconnect();
+    }
+
+    // ------------------------------------------------------- точечная подача
+
+    /**
+     * Отдать движку конкретную стратегию, не трогая сохранённые настройки.
+     * Нужно автоподбору: он гоняет профили один за другим.
+     */
+    public static void applyStrategy(Strategy s, boolean enabled) {
+        try {
+            ConnectionsManager.native_pengramSetDesync(
+                    enabled && (s.split1 != 0 || s.split2 != 0 || s.split3 != 0 || s.fake),
+                    s.firstPackets, s.split1, s.split2, s.split3, s.randomSplit,
+                    s.delayMs, s.oob, 'a', s.noDelay, s.fake, s.fakeTtl);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /**
+     * Уронить живые сокеты, чтобы следующая попытка пошла с новой стратегией:
+     * она действует только на первые пакеты соединения.
+     */
+    public static void dropConnections() {
+        try {
+            final int type = ApplicationLoader.getCurrentNetworkType();
+            final boolean slow = ApplicationLoader.isConnectionSlow();
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; ++a) {
+                if (!UserConfig.getInstance(a).isClientActivated()) {
+                    continue;
+                }
+                ConnectionsManager.native_setNetworkAvailable(a, false, type, slow);
+            }
+            Thread.sleep(120);
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; ++a) {
+                if (!UserConfig.getInstance(a).isClientActivated()) {
+                    continue;
+                }
+                ConnectionsManager.native_setNetworkAvailable(a, true, type, slow);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     /**
      * Переподключиться, чтобы новая стратегия применилась сразу: она действует
      * на первые пакеты соединения, а значит на уже открытых её не увидеть.

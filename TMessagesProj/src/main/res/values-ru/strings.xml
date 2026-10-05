@@ -347,6 +347,16 @@
     <string name="PengramSectionFreedom">Свобода и Premium</string>
     <string name="PengramSectionsInfo">Все возможности Pengram разложены по разделам.</string>
     <string name="PengramQuickInfo">Быстрые переключатели — то, что обычно дёргают чаще всего.</string>
+    <string name="PengramDesyncTune">Подобрать стратегию</string>
+    <string name="PengramDesyncTuneIdle">проверит 7 вариантов</string>
+    <string name="PengramDesyncTuneAgain">проверить ещё раз</string>
+    <string name="PengramDesyncTuneStart">запускаю…</string>
+    <string name="PengramDesyncTuneProgress">%1$s · %2$d из %3$d</string>
+    <string name="PengramDesyncTuneBest">Лучший: %1$s. Применить?</string>
+    <string name="PengramDesyncTuneNone">Не прошёл ни один вариант. Похоже, сеть фильтруется по белому списку адресов — попробуйте туннель выше.</string>
+    <string name="PengramDesyncIp">IP-протокол</string>
+    <string name="PengramDesyncIpAuto">Авто</string>
+    <string name="PengramDesyncIpBoth">Оба</string>
     <string name="PengramDesyncHeader">Разрез пакетов</string>
     <string name="PengramDesyncMain">Резать первые пакеты</string>
     <string name="PengramDesyncOffValue">Выключено</string>

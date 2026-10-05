@@ -11319,6 +11319,16 @@
     <string name="PengramSectionFreedom">Freedom and Premium</string>
     <string name="PengramSectionsInfo">All Pengram features are grouped into sections.</string>
     <string name="PengramQuickInfo">Quick switches for the things you flip most often.</string>
+    <string name="PengramDesyncTune">Find best strategy</string>
+    <string name="PengramDesyncTuneIdle">checks 7 options</string>
+    <string name="PengramDesyncTuneAgain">run again</string>
+    <string name="PengramDesyncTuneStart">starting…</string>
+    <string name="PengramDesyncTuneProgress">%1$s · %2$d of %3$d</string>
+    <string name="PengramDesyncTuneBest">Best: %1$s. Apply it?</string>
+    <string name="PengramDesyncTuneNone">Nothing got through. The network is likely filtered by IP whitelist — try the tunnel above.</string>
+    <string name="PengramDesyncIp">IP protocol</string>
+    <string name="PengramDesyncIpAuto">Auto</string>
+    <string name="PengramDesyncIpBoth">Both</string>
     <string name="PengramDesyncHeader">Packet splitting</string>
     <string name="PengramDesyncMain">Split first packets</string>
     <string name="PengramDesyncOffValue">Off</string>
