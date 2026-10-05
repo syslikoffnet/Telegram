@@ -433,6 +433,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return R.drawable.msg_played;
             case SECTION_PENGUIN: return R.drawable.pengram_penguin_glyph;
             case SECTION_FREEDOM: return R.drawable.settings_features;
+            case SECTION_ABOUT: return R.drawable.msg_info;
             default: return R.drawable.msg_settings;
         }
     }
