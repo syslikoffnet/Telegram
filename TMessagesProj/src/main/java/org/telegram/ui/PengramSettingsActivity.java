@@ -23,6 +23,7 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
@@ -46,6 +47,8 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
@@ -238,6 +241,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ANTICRASH_LOG = 1493;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
+    private static final int BTN_SEARCH = 1500;
+    /** строки результатов поиска: BTN_SEARCH_BASE + номер в списке найденного */
+    private static final int BTN_SEARCH_BASE = 7000;
     private static final int BTN_PENGUIN_FLIP = 1443;
     private static final int BTN_PENGUIN_DANCE = 1444;
     private static final int BTN_PENGUIN_STRAIGHTEN = 1445;
@@ -287,6 +293,33 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     @Override
     protected CharSequence getTitle() {
+        return sectionTitle(section);
+    }
+
+    /** иконка раздела — та же, что на главном экране настроек */
+    public static int sectionIcon(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return R.drawable.msg_settings;
+            case SECTION_PROFILE: return R.drawable.settings_account;
+            case SECTION_APPEARANCE: return R.drawable.msg_theme;
+            case SECTION_CUSTOM: return R.drawable.msg_customize;
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS: return R.drawable.settings_chat;
+            case SECTION_GHOST: return R.drawable.msg_secret;
+            case SECTION_HISTORY: return R.drawable.msg_viewchats;
+            case SECTION_MEDIA: return R.drawable.settings_data;
+            case SECTION_PLAYER: return R.drawable.msg_played;
+            case SECTION_PENGUIN: return R.drawable.pengram_penguin_glyph;
+            case SECTION_FREEDOM: return R.drawable.settings_features;
+            default: return R.drawable.msg_settings;
+        }
+    }
+
+    /** название раздела настроек — одно на все экраны и на поиск */
+    public static CharSequence sectionTitle(int section) {
         switch (section) {
             case SECTION_PROFILE: return getString(R.string.PengramSectionProfile);
             case SECTION_GHOST: return getString(R.string.PengramSectionGhost);
@@ -307,9 +340,97 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
+    /** текст в строке поиска; null — поиск закрыт */
+    private String searchQuery;
+    /** что сейчас показано в выдаче: разделы по номерам строк */
+    private final ArrayList<int[]> searchResults = new ArrayList<>();
+
+    @Override
+    public View createView(Context context) {
+        final View view = super.createView(context);
+        // Поиск прямо внутри настроек Pengram: не нужно помнить, в каком разделе лежит функция.
+        final ActionBarMenu menu = actionBar.createMenu();
+        final ActionBarMenuItem searchItem = menu.addItem(BTN_SEARCH, R.drawable.outline_header_search)
+                .setIsSearchField(true)
+                .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+                    @Override
+                    public void onSearchExpand() {
+                        searchQuery = "";
+                        updateList();
+                    }
+
+                    @Override
+                    public void onSearchCollapse() {
+                        searchQuery = null;
+                        updateList();
+                    }
+
+                    @Override
+                    public void onTextChanged(EditText editText) {
+                        searchQuery = editText.getText() == null ? "" : editText.getText().toString();
+                        updateList();
+                    }
+                });
+        searchItem.setSearchFieldHint(getString(R.string.Search));
+        searchItem.setContentDescription(getString(R.string.Search));
+        return view;
+    }
+
+    @Override
+    public boolean onBackPressed() {
+        if (searchQuery != null && actionBar != null && actionBar.isSearchFieldVisible()) {
+            actionBar.closeSearchField();
+            return false;
+        }
+        return super.onBackPressed();
+    }
+
+    private void updateList() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    /** выдача поиска по всем разделам сразу */
+    private void fillSearch(ArrayList<UItem> items) {
+        searchResults.clear();
+        final String query = searchQuery == null ? "" : searchQuery.trim().toLowerCase();
+        if (query.length() == 0) {
+            items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
+            return;
+        }
+        for (int[] entry : PengramSearchIndex.ITEMS) {
+            final String title = getString(entry[0]);
+            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) {
+                continue;
+            }
+            final CharSequence sectionName = sectionTitle(entry[1]);
+            final boolean matches = title.toLowerCase().contains(query)
+                    || (sectionName != null && sectionName.toString().toLowerCase().contains(query));
+            if (!matches) {
+                continue;
+            }
+            items.add(UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
+                    sectionIcon(entry[1]), title, sectionName));
+            searchResults.add(entry);
+            if (searchResults.size() >= 40) {
+                break;
+            }
+        }
+        if (searchResults.isEmpty()) {
+            items.add(UItem.asShadow(getString(R.string.NoResult)));
+        } else {
+            items.add(UItem.asShadow(null));
+        }
+    }
+
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         PengramConfig.init();
+        if (searchQuery != null) {
+            fillSearch(items);
+            return;
+        }
         switch (section) {
             case SECTION_PROFILE: fillProfile(items); break;
             case SECTION_GHOST: fillGhost(items); break;
@@ -2191,6 +2312,16 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_SEARCH_BASE && item.id - BTN_SEARCH_BASE < searchResults.size()) {
+            final int targetSection = searchResults.get(item.id - BTN_SEARCH_BASE)[1];
+            if (targetSection == section) {
+                // мы уже здесь — просто закрываем поиск и показываем раздел
+                actionBar.closeSearchField();
+            } else {
+                presentFragment(new PengramSettingsActivity(targetSection));
             }
             return;
         }

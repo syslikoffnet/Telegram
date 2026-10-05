@@ -770,6 +770,7 @@
     <string name="PengramPenguinTipFlip">Двойной тап — сальто</string>
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
+    <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
     <string name="PengramSkinsHeader">Одежда</string>
     <string name="PengramSkinsInfo">Скин применяется мгновенно — прямо на пингвине сверху.</string>
     <string name="PengramPenguinGesturesInfo">Тап — прыжок, двойной тап — сальто, долгое нажатие — танец с крыльями, свайп — раскрутка. Десять быстрых тапов открывают этот экран откуда угодно.</string>
