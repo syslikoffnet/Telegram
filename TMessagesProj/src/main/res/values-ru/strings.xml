@@ -347,6 +347,11 @@
     <string name="PengramSectionFreedom">Свобода и Premium</string>
     <string name="PengramSectionsInfo">Все возможности Pengram разложены по разделам.</string>
     <string name="PengramQuickInfo">Быстрые переключатели — то, что обычно дёргают чаще всего.</string>
+    <string name="PengramQuickTilesHeader">Главный экран</string>
+    <string name="PengramQuickTiles">Плитки на главном</string>
+    <string name="PengramQuickTilesInfo">Плитки стоят в самом верху настроек Pengram и переключают всё одним касанием. По умолчанию их нет — добавьте только то, чем правда пользуетесь.</string>
+    <string name="PengramQuickTilesNone">Выключены</string>
+    <string name="PengramQuickTilesCount">%1$d из %2$d</string>
     <string name="PengramQuickGhost">Призрак</string>
     <string name="PengramQuickSpy">Антиудаление</string>
     <string name="PengramQuickAds">Без рекламы</string>

@@ -226,6 +226,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_LYRICS_CLEAR = 1430;
     private static final int BTN_PLAYER_STYLE = 1431;
     private static final int BTN_TRACK_FORWARD_MODE = 1446;
+    private static final int BTN_QUICK_TILES = 1450;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
@@ -306,44 +307,125 @@ public class PengramSettingsActivity extends UniversalFragment {
         return sectionTitle(section);
     }
 
-    /** ряд быстрых тумблеров над разделами: то, что дёргают чаще всего */
+    /**
+     * Ряд быстрых плиток над разделами.
+     *
+     * <p>По умолчанию его нет вовсе: четыре разноцветных квадрата на главном экране
+     * выглядели случайным набором. Теперь пользователь сам собирает ряд в
+     * «Внешний вид → Плитки на главном» — показываем только то, что он выбрал,
+     * в постоянном порядке. Долгое нажатие по ряду открывает тот же выбор.
+     */
     private org.telegram.ui.Components.PengramQuickToggles quickTogglesView;
 
+    private CharSequence quickTileName(int tile) {
+        switch (tile) {
+            case PengramConfig.QUICK_TILE_DELETED: return getString(R.string.PengramQuickSpy);
+            case PengramConfig.QUICK_TILE_ADS: return getString(R.string.PengramQuickAds);
+            case PengramConfig.QUICK_TILE_PREMIUM: return getString(R.string.PengramQuickPremium);
+            case PengramConfig.QUICK_TILE_GHOST:
+            default: return getString(R.string.PengramQuickGhost);
+        }
+    }
+
     private org.telegram.ui.Components.PengramQuickToggles quickToggles() {
+        final Runnable refresh = () -> {
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        };
         if (quickTogglesView == null) {
-            final Runnable refresh = () -> {
-                if (listView != null && listView.adapter != null) {
-                    listView.adapter.update(true);
-                }
-            };
             quickTogglesView = new org.telegram.ui.Components.PengramQuickToggles(getContext());
-            quickTogglesView.add(0, R.drawable.msg_secret, getString(R.string.PengramQuickGhost),
-                    IconBackgroundColors.GREEN.bottom,
-                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
-                        @Override public boolean isOn() { return PengramConfig.ghostMode; }
-                        @Override public void toggle() { PengramConfig.toggleGhostMode(); }
-                    }, refresh);
-            quickTogglesView.add(1, R.drawable.msg_viewchats, getString(R.string.PengramQuickSpy),
-                    IconBackgroundColors.RED.bottom,
-                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
-                        @Override public boolean isOn() { return PengramConfig.saveDeleted; }
-                        @Override public void toggle() { PengramConfig.toggleSaveDeleted(); }
-                    }, refresh);
-            quickTogglesView.add(2, R.drawable.msg_block, getString(R.string.PengramQuickAds),
-                    IconBackgroundColors.ORANGE.bottom,
-                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
-                        @Override public boolean isOn() { return PengramConfig.hideAds; }
-                        @Override public void toggle() { PengramConfig.toggleHideAds(); }
-                    }, refresh);
-            quickTogglesView.add(3, R.drawable.msg_premium_liststar, getString(R.string.PengramQuickPremium),
-                    IconBackgroundColors.PURPLE.bottom,
-                    new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
-                        @Override public boolean isOn() { return PengramConfig.localPremium; }
-                        @Override public void toggle() { PengramConfig.toggleLocalPremium(); }
-                    }, refresh);
+            quickTogglesView.setOnLongClickListener(v -> {
+                showQuickTilesPicker();
+                return true;
+            });
+        }
+        quickTogglesView.clear();
+        for (int tile = 0; tile < PengramConfig.QUICK_TILE_COUNT; ++tile) {
+            if (!PengramConfig.isQuickTileOn(tile)) {
+                continue;
+            }
+            switch (tile) {
+                case PengramConfig.QUICK_TILE_GHOST:
+                    quickTogglesView.add(R.drawable.msg_secret, quickTileName(tile),
+                            IconBackgroundColors.GREEN.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.ghostMode; }
+                                @Override public void toggle() { PengramConfig.toggleGhostMode(); }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_DELETED:
+                    quickTogglesView.add(R.drawable.msg_viewchats, quickTileName(tile),
+                            IconBackgroundColors.RED.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.saveDeleted; }
+                                @Override public void toggle() { PengramConfig.toggleSaveDeleted(); }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_ADS:
+                    quickTogglesView.add(R.drawable.msg_block, quickTileName(tile),
+                            IconBackgroundColors.ORANGE.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.hideAds; }
+                                @Override public void toggle() { PengramConfig.toggleHideAds(); }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_PREMIUM:
+                    quickTogglesView.add(R.drawable.msg_premium_liststar, quickTileName(tile),
+                            IconBackgroundColors.PURPLE.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.localPremium; }
+                                @Override public void toggle() { PengramConfig.toggleLocalPremium(); }
+                            }, refresh);
+                    break;
+            }
         }
         quickTogglesView.update();
         return quickTogglesView;
+    }
+
+    /** подпись строки «Плитки на главном»: сколько выбрано */
+    private CharSequence quickTilesValue() {
+        final int count = PengramConfig.getQuickTilesCount();
+        return count == 0 ? getString(R.string.PengramQuickTilesNone)
+                : LocaleController.formatString(R.string.PengramQuickTilesCount, count, PengramConfig.QUICK_TILE_COUNT);
+    }
+
+    /** выбор плиток: несколько галочек в одном листе, применяем по кнопке */
+    private void showQuickTilesPicker() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramQuickTiles), true);
+
+        final LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        final boolean[] checks = new boolean[PengramConfig.QUICK_TILE_COUNT];
+        for (int a = 0; a < PengramConfig.QUICK_TILE_COUNT; ++a) {
+            final int index = a;
+            checks[a] = PengramConfig.isQuickTileOn(a);
+            final org.telegram.ui.Cells.CheckBoxCell cell =
+                    new org.telegram.ui.Cells.CheckBoxCell(context, 1, getResourceProvider());
+            cell.setBackground(Theme.getSelectorDrawable(false));
+            cell.setText(quickTileName(a), "", checks[a], false);
+            cell.setPadding(dp(LocaleController.isRTL ? 16 : 8), 0, dp(LocaleController.isRTL ? 8 : 16), 0);
+            cell.setOnClickListener(v -> {
+                // применяем сразу: список под листом перестраивается на глазах,
+                // и видно, как ряд появляется или исчезает
+                checks[index] = !checks[index];
+                ((org.telegram.ui.Cells.CheckBoxCell) v).setChecked(checks[index], true);
+                PengramConfig.setQuickTileOn(index, checks[index]);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+            linearLayout.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        builder.setCustomView(linearLayout);
+        showDialog(builder.create());
     }
 
     /** карточка-шапка раздела: цветной значок, название и зачем сюда заходить */
@@ -1404,7 +1486,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(headerView));
         items.add(UItem.asShadow(null));
 
-        if (getContext() != null) {
+        if (getContext() != null && PengramConfig.getQuickTilesCount() > 0) {
             items.add(UItem.asCustom(quickToggles()));
             items.add(UItem.asShadow(null));
         }
@@ -2233,6 +2315,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCustom(appIconsCell, 104));
             items.add(UItem.asShadow(getString(R.string.PengramAppIconInfo)));
         }
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuickTilesHeader)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_TILES, R.drawable.msg_customize,
+                getString(R.string.PengramQuickTiles), quickTilesValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramQuickTilesInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
         if (fontPreview == null && getContext() != null) {
@@ -3103,6 +3190,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 });
                 return;
             }
+            case BTN_QUICK_TILES:
+                showQuickTilesPicker();
+                return;
             case BTN_TITLE_MODE: {
                 final CharSequence[] options = new CharSequence[]{
                         getString(R.string.PengramTitleModeDefault),

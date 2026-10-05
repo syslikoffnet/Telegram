@@ -11319,6 +11319,11 @@
     <string name="PengramSectionFreedom">Freedom and Premium</string>
     <string name="PengramSectionsInfo">All Pengram features are grouped into sections.</string>
     <string name="PengramQuickInfo">Quick switches for the things you flip most often.</string>
+    <string name="PengramQuickTilesHeader">Main screen</string>
+    <string name="PengramQuickTiles">Quick tiles</string>
+    <string name="PengramQuickTilesInfo">Tiles sit at the very top of Pengram settings and switch things with one tap. By default there are none — pick only what you really use.</string>
+    <string name="PengramQuickTilesNone">Off</string>
+    <string name="PengramQuickTilesCount">%1$d of %2$d</string>
     <string name="PengramQuickGhost">Ghost</string>
     <string name="PengramQuickSpy">Anti-delete</string>
     <string name="PengramQuickAds">No ads</string>

@@ -36,20 +36,29 @@ public class PengramQuickToggles extends LinearLayout {
         void toggle();
     }
 
-    private final Tile[] tiles;
+    private final java.util.ArrayList<Tile> tiles = new java.util.ArrayList<>();
 
     public PengramQuickToggles(Context context) {
         super(context);
         setOrientation(HORIZONTAL);
         setPadding(dp(10), dp(4), dp(10), dp(10));
-        tiles = new Tile[4];
     }
 
-    public PengramQuickToggles add(int index, int icon, CharSequence title, int color, Toggle toggle, Runnable after) {
+    /** убрать все плитки — набор задаётся пользователем и может поменяться на ходу */
+    public void clear() {
+        tiles.clear();
+        removeAllViews();
+    }
+
+    public PengramQuickToggles add(int icon, CharSequence title, int color, Toggle toggle, Runnable after) {
         final Tile tile = new Tile(getContext(), icon, title, color, toggle, after);
-        tiles[index] = tile;
+        tiles.add(tile);
         addView(tile, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 3, 0, 3, 0));
         return this;
+    }
+
+    public boolean isEmpty() {
+        return tiles.isEmpty();
     }
 
     /** перерисовать состояния — вызывается, когда список обновился */

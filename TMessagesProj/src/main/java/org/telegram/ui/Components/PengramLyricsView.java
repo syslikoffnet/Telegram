@@ -432,7 +432,9 @@ public class PengramLyricsView extends View {
         }
         // Без реальных таймкодов нельзя угадывать, какая строка звучит:
         // в полном экране оставляем обычный читаемый текст, в компактной шапке — первую строку.
-        return tickerMode ? 0 : -1;
+        // В витрине анимаций строка всегда одна и она всегда «активная» — иначе
+        // предпросмотр рисовался бы обычным текстом и анимация была не видна.
+        return tickerMode || previewMode ? 0 : -1;
     }
 
     @Override
@@ -514,7 +516,7 @@ public class PengramLyricsView extends View {
             }
             canvas.save();
             canvas.translate(0, top);
-            if (!timed) {
+            if (!timed && !(previewMode && a == activeLine)) {
                 textPaint.setColor(baseColor);
                 textPaint.clearShadowLayer();
                 layout.draw(canvas);

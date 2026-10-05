@@ -64,6 +64,7 @@ public final class PengramSearchIndex {
             {R.string.PengramLocalPremiumStatus, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramBackgroundMode, PengramSettingsActivity.SECTION_FREEDOM},
             {R.string.PengramBackgroundSilent, PengramSettingsActivity.SECTION_FREEDOM},
+            {R.string.PengramQuickTiles, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleText, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleCustom, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleCenter, PengramSettingsActivity.SECTION_APPEARANCE},

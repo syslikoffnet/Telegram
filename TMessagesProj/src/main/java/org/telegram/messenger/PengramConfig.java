@@ -2265,6 +2265,37 @@ public class PengramConfig {
         putInt("lyricsAnim", value < 0 || value >= LYRICS_ANIM_COUNT ? LYRICS_ANIM_KARAOKE : value);
     }
 
+    // --- быстрые плитки на главном экране настроек ---
+    // По умолчанию их нет: пустой верх экрана выглядит опрятнее, а кому нужно —
+    // собирает свой набор сам. Хранится битовой маской, чтобы порядок был всегда один.
+    public static final int QUICK_TILE_GHOST = 0;
+    public static final int QUICK_TILE_DELETED = 1;
+    public static final int QUICK_TILE_ADS = 2;
+    public static final int QUICK_TILE_PREMIUM = 3;
+    public static final int QUICK_TILE_COUNT = 4;
+
+    public static int getQuickTilesMask() {
+        init();
+        final int mask = getIntCached("quickTiles", 0);
+        return mask & ((1 << QUICK_TILE_COUNT) - 1);
+    }
+
+    public static boolean isQuickTileOn(int index) {
+        return index >= 0 && index < QUICK_TILE_COUNT && (getQuickTilesMask() & (1 << index)) != 0;
+    }
+
+    public static void setQuickTileOn(int index, boolean on) {
+        if (index < 0 || index >= QUICK_TILE_COUNT) {
+            return;
+        }
+        final int mask = getQuickTilesMask();
+        putInt("quickTiles", on ? mask | (1 << index) : mask & ~(1 << index));
+    }
+
+    public static int getQuickTilesCount() {
+        return Integer.bitCount(getQuickTilesMask());
+    }
+
     public static int getLyricsAnimName(int value) {
         switch (value) {
             case LYRICS_ANIM_LETTERS: return org.telegram.messenger.R.string.PengramLyricsAnimLetters;

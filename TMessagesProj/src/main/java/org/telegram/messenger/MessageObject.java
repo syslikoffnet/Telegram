@@ -8609,6 +8609,14 @@ public class MessageObject {
      * Спаны при этом едут вместе с текстом, поэтому ссылка остаётся ссылкой —
      * просто переносится на следующую строку вместо того, чтобы торчать из пузыря.
      */
+    private static float pengramWidthOf(CharSequence text, int start, int end, TextPaint paint) {
+        try {
+            return Layout.getDesiredWidth(text, start, end, paint);
+        } catch (Throwable e) {
+            return paint.measureText(text, start, end);
+        }
+    }
+
     private static CharSequence pengramSoftWrap(CharSequence text, TextPaint paint, int width) {
         if (text == null || width <= 0 || text.length() == 0 || text.length() > 10000) {
             return text;
@@ -8631,7 +8639,9 @@ public class MessageObject {
                     i = start + 1;
                     continue;
                 }
-                if (paint.measureText(current, start, end) <= width) {
+                // ширину меряем с учётом спанов (моноширинный код, другой кегль),
+                // иначе длинная ссылка внутри такого спана кажется уже, чем рисуется
+                if (pengramWidthOf(current, start, end, paint) <= width) {
                     i = end;
                     continue;
                 }
@@ -8711,8 +8721,12 @@ public class MessageObject {
             // переносится ни одной из стратегий и вылезает за края пузыря —
             // ширина сообщения считается по ограничению, а текст рисуется шире.
             // Расставляем в таком слове невидимые места переноса и верстаем заново.
-            if (pengramLinesWider(layout, width)) {
-                final CharSequence soft = pengramSoftWrap(text, paint, width);
+            // Иногда одного захода мало: ширина символов, посчитанная краской, чуть
+            // меньше реальной (спаны, эмодзи, letter spacing), и слово всё равно
+            // вылезает. Тогда рубим с запасом — 6 и 14 процентов.
+            for (int attempt = 0; attempt < 3 && pengramLinesWider(layout, width); ++attempt) {
+                final int target = attempt == 0 ? width : (int) (width * (attempt == 1 ? 0.94f : 0.86f));
+                final CharSequence soft = pengramSoftWrap(text, paint, Math.max(1, target));
                 if (soft != text) {
                     builder = StaticLayout.Builder.obtain(soft, 0, soft.length(), paint, width)
                                     .setLineSpacing(lineSpacingAdd, lineSpacingMult)
