@@ -1698,6 +1698,7 @@ public class PengramConfig {
     public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
     public static boolean isMusicForwardClean() { return getBool(KEY_MUSIC_FORWARD_CLEAN, true); }
     public static boolean isMusicSmartArtist() { return getBool(KEY_MUSIC_SMART_ARTIST, true); }
+    public static boolean isPlayerSwipe() { return getBool(KEY_PLAYER_SWIPE, true); }
     public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
     public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
@@ -2199,6 +2200,8 @@ public class PengramConfig {
 
     public static final String KEY_NEW_PLAYER = "newPlayer";
     public static final String KEY_PLAYER_BLUR = "playerBlur";
+    /** смена трека свайпом по свёрнутому плееру в шапке */
+    public static final String KEY_PLAYER_SWIPE = "playerSwipe";
     public static final String KEY_PLAYER_ROTATE = "playerRotate";
     public static final String KEY_PLAYER_WAVE = "playerWave";
     public static final String KEY_LYRICS_AUTOSCROLL = "lyricsAutoScroll";

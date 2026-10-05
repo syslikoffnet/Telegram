@@ -11849,6 +11849,11 @@
     <string name="PengramPlayerBgGradient">Gradient from the cover</string>
     <string name="PengramPlayerBgDark">Dark</string>
     <string name="PengramPlayerBgTheme">Theme colour</string>
+    <string name="PengramPlayerSwipeHeader">Swipe in the player bar</string>
+    <string name="PengramPlayerSwipe">Switch tracks with a swipe</string>
+    <string name="PengramPlayerSwipeInfo">Swipe the collapsed player in the header left for the next track and right for the previous one. A short flick is enough, and a tap still opens the full player.</string>
+    <string name="PengramPlayerSwipePreviewHint">Drag the bar left or right</string>
+    <string name="PengramPlayerSwipePreviewOff">Swipe is off: the bar only reacts to taps</string>
     <string name="PengramPlayerBlur">Blur the cover</string>
     <string name="PengramCoverShape">Cover shape</string>
     <string name="PengramCoverRounded">Rounded</string>

@@ -8591,6 +8591,22 @@ public class MessageObject {
         return addEntitiesToText(messageText, useManualParse);
     }
 
+    /**
+     * Pengram: ширина пузыря под строку, которая не влезла.
+     *
+     * Раньше ширина жёстко обрезалась по лимиту, а текст рисовался настоящей
+     * длины — отсюда буквы и значки, торчащие наружу. Теперь пузырю разрешено
+     * чуть подрасти (не больше 18dp и 12% лимита), чего хватает на огрехи
+     * измерения ширины: эмодзи, спаны, межбуквенные интервалы.
+     */
+    private static int pengramFitWidth(int maxWidth, int linesMaxWidth) {
+        if (linesMaxWidth <= maxWidth) {
+            return linesMaxWidth;
+        }
+        final int extra = Math.min(AndroidUtilities.dp(18), (int) (maxWidth * 0.12f));
+        return Math.min(linesMaxWidth, maxWidth + Math.max(0, extra));
+    }
+
     /** есть ли строки, которые не влезли в заданную ширину */
     private static boolean pengramLinesWider(Layout layout, int width) {
         if (layout == null) {
@@ -8724,8 +8740,9 @@ public class MessageObject {
             // Иногда одного захода мало: ширина символов, посчитанная краской, чуть
             // меньше реальной (спаны, эмодзи, letter spacing), и слово всё равно
             // вылезает. Тогда рубим с запасом — 6 и 14 процентов.
-            for (int attempt = 0; attempt < 3 && pengramLinesWider(layout, width); ++attempt) {
-                final int target = attempt == 0 ? width : (int) (width * (attempt == 1 ? 0.94f : 0.86f));
+            final float[] targets = {1f, 0.94f, 0.86f, 0.76f, 0.64f};
+            for (int attempt = 0; attempt < targets.length && pengramLinesWider(layout, width); ++attempt) {
+                final int target = (int) (width * targets[attempt]);
                 final CharSequence soft = pengramSoftWrap(text, paint, Math.max(1, target));
                 if (soft != text) {
                     builder = StaticLayout.Builder.obtain(soft, 0, soft.length(), paint, width)
@@ -9219,7 +9236,7 @@ public class MessageObject {
                     block.directionFlags |= TextLayoutBlock.FLAG_NOT_RTL;
                 }
 
-                textWidth = Math.max(textWidth, Math.min(maxWidth, linesMaxWidth));
+                textWidth = Math.max(textWidth, pengramFitWidth(maxWidth, linesMaxWidth));
             }
             if (block.languageLayout != null) {
                 textWidth = (int) Math.max(textWidth, Math.min(block.languageLayout.getCurrentWidth() + dp(15), block.textLayout == null ? 0 : block.textLayout.getWidth()));
@@ -9670,7 +9687,7 @@ public class MessageObject {
                         block.directionFlags |= TextLayoutBlock.FLAG_NOT_RTL;
                     }
 
-                    textWidth = Math.max(textWidth, Math.min(width, linesMaxWidth));
+                    textWidth = Math.max(textWidth, pengramFitWidth(width, linesMaxWidth));
                 }
                 if (block.languageLayout != null) {
                     textWidth = (int) Math.max(textWidth, Math.min(block.languageLayout.getCurrentWidth() + dp(15), block.textLayout == null ? 0 : block.textLayout.getWidth()));

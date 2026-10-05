@@ -877,6 +877,11 @@
     <string name="PengramPlayerBgGradient">Градиент из обложки</string>
     <string name="PengramPlayerBgDark">Тёмный</string>
     <string name="PengramPlayerBgTheme">Цвет темы</string>
+    <string name="PengramPlayerSwipeHeader">Свайп по шапке плеера</string>
+    <string name="PengramPlayerSwipe">Переключать треки свайпом</string>
+    <string name="PengramPlayerSwipeInfo">Свайп влево по свёрнутому плееру в шапке — следующий трек, вправо — предыдущий. Достаточно короткого рывка, а обычное нажатие по-прежнему открывает полный плеер.</string>
+    <string name="PengramPlayerSwipePreviewHint">Потяните полоску влево или вправо</string>
+    <string name="PengramPlayerSwipePreviewOff">Свайп выключен: полоска реагирует только на нажатие</string>
     <string name="PengramPlayerBlur">Размывать обложку</string>
     <string name="PengramCoverShape">Форма обложки</string>
     <string name="PengramCoverRounded">Скруглённая</string>

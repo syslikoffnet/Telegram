@@ -132,6 +132,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private ImageView playButton;
     private PlayPauseDrawable playPauseDrawable;
     private PengramLyricsView pengramTicker;   // Pengram: строка песни прямо в шапке
+    private PengramPlayerSwipe pengramSwipe;   // Pengram: смена трека свайпом по шапке
     private String pengramLyricsKey;
     private int pengramLyricsToken;
     private AudioPlayerAlert.ClippingTextViewSwitcher titleTextView;
@@ -486,6 +487,31 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
         pengramTicker.setVisibility(GONE);
         addView(pengramTicker, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 37, 0, 36 + (isSideMenued ? 64 : 0) + 44, 0));
+
+        // Pengram: свайп влево/вправо по свёрнутому плееру меняет трек
+        pengramSwipe = new PengramPlayerSwipe(this,
+                new View[]{playButton, titleTextView, subtitleTextView, pengramTicker},
+                new PengramPlayerSwipe.Callback() {
+                    @Override
+                    public boolean canSwipe() {
+                        if (currentStyle != STYLE_AUDIO_PLAYER || !PengramConfig.isPlayerSwipe()) {
+                            return false;
+                        }
+                        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                        return playing != null && playing.isMusic();
+                    }
+
+                    @Override
+                    public void next() {
+                        MediaController.getInstance().playNextMessage();
+                    }
+
+                    @Override
+                    public void previous() {
+                        MediaController.getInstance().playPreviousMessage();
+                    }
+                });
+        pengramSwipe.setColor(getThemedColor(Theme.key_inappPlayerPerformer));
 
         joinButtonFlicker = new CellFlickerDrawable();
         joinButtonFlicker.setProgress(1);
@@ -1184,6 +1210,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
         currentStyle = style;
+        if (pengramSwipe != null) {
+            pengramSwipe.reset();   // Pengram: смена режима шапки — содержимое на место
+        }
         if (style != STYLE_AUDIO_PLAYER) {
             pengramHideTicker();   // Pengram: строка песни живёт только в музыкальной шапке
         }
@@ -2752,9 +2781,28 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
     @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (pengramSwipe != null && pengramSwipe.onIntercept(ev)) {
+            return true;
+        }
+        return super.onInterceptTouchEvent(ev);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        if (pengramSwipe != null && pengramSwipe.onTouch(ev)) {
+            return true;
+        }
+        return super.onTouchEvent(ev);
+    }
+
+    @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (frameLayout == null) {
             return;
+        }
+        if (pengramSwipe != null && currentStyle == STYLE_AUDIO_PLAYER) {
+            pengramSwipe.draw(canvas, getMeasuredWidth(), dp(36));
         }
         if (drawOverlay && getVisibility() != View.VISIBLE) {
             return;

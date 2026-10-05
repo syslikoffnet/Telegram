@@ -2581,6 +2581,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private org.telegram.ui.Components.PengramPlayerMockView playerMock;
+    private org.telegram.ui.Components.PengramSwipePreview swipePreview;
 
     /** Плеер — Spotify-режим и текст песни */
     private void fillPlayer(ArrayList<UItem> items) {
@@ -2612,6 +2613,16 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(check(PengramConfig.KEY_PLAYER_BLUR, true, getString(R.string.PengramPlayerBlur)));
         }
         items.add(UItem.asShadow(null));
+
+        // Свайп по свёрнутому плееру: листать треки прямо из шапки
+        items.add(UItem.asHeader(getString(R.string.PengramPlayerSwipeHeader)));
+        items.add(check(PengramConfig.KEY_PLAYER_SWIPE, true, getString(R.string.PengramPlayerSwipe)));
+        if (swipePreview == null) {
+            swipePreview = new org.telegram.ui.Components.PengramSwipePreview(getContext());
+        }
+        swipePreview.setEnabledPreview(PengramConfig.isPlayerSwipe());
+        items.add(UItem.asCustom(swipePreview, 104));
+        items.add(UItem.asShadow(getString(R.string.PengramPlayerSwipeInfo)));
 
         // Пересылка трека: манера выбирается заранее, кнопка потом не задаёт лишних вопросов
         items.add(UItem.asHeader(getString(R.string.PengramTrackForwardHeader)));

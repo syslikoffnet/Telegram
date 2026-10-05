@@ -17042,6 +17042,23 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     canvas.restore();
                 }
             }
+            // Pengram: последняя страховка от символов, вылезающих из пузыря.
+            // Включается только там, где блок реально шире отведённого места,
+            // поэтому на обычных сообщениях ничего не меняется.
+            boolean pengramOverflow = false;
+            for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
+                MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
+                if (b != null && b.maxRight > maxWidth + 1) {
+                    pengramOverflow = true;
+                    break;
+                }
+            }
+            int pengramClipRestore = Integer.MIN_VALUE;
+            if (pengramOverflow) {
+                pengramClipRestore = canvas.save();
+                canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4), -getMeasuredHeight(),
+                        right + dp(4), getMeasuredHeight() * 2f);
+            }
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum; a++) {
                 if (a >= textLayoutBlocks.size()) {
                     break;
@@ -17227,6 +17244,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     canvas.restore();
                 }
                 canvas.restoreToCount(saveCount);
+            }
+            if (pengramClipRestore != Integer.MIN_VALUE) {
+                canvas.restoreToCount(pengramClipRestore);
             }
             if (needRestoreColor) {
                 Theme.chat_msgTextPaint.setAlpha(oldAlpha);

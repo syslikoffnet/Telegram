@@ -112,6 +112,7 @@ public final class PengramSearchIndex {
             {R.string.PengramPlayerBg, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramCoverShape, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramPlayerBlur, PengramSettingsActivity.SECTION_PLAYER},
+            {R.string.PengramPlayerSwipe, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramTrackForwardButton, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramTrackForwardMode, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramTrackForwardCaption, PengramSettingsActivity.SECTION_PLAYER},
