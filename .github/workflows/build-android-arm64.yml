@@ -177,9 +177,15 @@ jobs:
               echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
               echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
             } >> gradle.properties
-            echo "Используется пользовательский keystore"
+            echo "Используется пользовательский keystore из секретов"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # Публичный релиз ключом из репозитория подписывать нельзя: этим ключом
+            # владеет кто угодно, кто видел исходники, и он сможет выпустить
+            # «обновление» поверх беты. Инструкция: docs/KEYSTORE.md
+            echo "::error::Релизный тег, а секрета KEYSTORE_BASE64 нет. Сгенерируйте свой ключ (scripts/new-keystore.sh) и добавьте секреты KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD. Подробности: docs/KEYSTORE.md"
+            exit 1
           else
-            echo "Используется keystore из репозитория"
+            echo "::warning::Сборка подписана тестовым ключом из репозитория — ставить поверх неё релиз не получится. См. docs/KEYSTORE.md"
           fi
 
       - name: Prepare API keys
@@ -244,6 +250,15 @@ jobs:
           find TMessagesProj_AppStandalone/build/outputs/apk -name "*.apk" -exec sh -c \
             'cp "$1" "out/Pengram-${BUILD_TYPE}-${ABI%%,*}-run${GITHUB_RUN_NUMBER}.apk"' _ {} \;
           ls -lh out
+
+      # Отпечаток ключа печатаем в лог: так видно, что релиз подписан тем же ключом,
+      # что и прошлый, и обновление поверх встанет.
+      - name: Show signing fingerprint
+        continue-on-error: true
+        run: |
+          APK=$(ls out/*.apk | head -n 1)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | grep -i "SHA-256 digest" || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

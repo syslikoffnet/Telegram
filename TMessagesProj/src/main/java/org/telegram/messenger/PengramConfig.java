@@ -92,14 +92,8 @@ public class PengramConfig {
     public static final int MENU_POS_BOTTOM = 1;
     public static int chatMenuPosition = MENU_POS_TOP;  // где остров Pengram в меню чата
     public static boolean chatMenuEnabled = true;
-    public static final String DEFAULT_QUICK_NAME_1 = "PC";
-    public static final String DEFAULT_QUICK_URL_1 = "https://t.me/xieworld_vf2/7";
-    public static final String DEFAULT_QUICK_NAME_2 = "Android/iOS";
-    public static final String DEFAULT_QUICK_URL_2 = "https://t.me/xieworld_vf2/5";
-    private static String quickName1 = DEFAULT_QUICK_NAME_1;
-    private static String quickUrl1 = DEFAULT_QUICK_URL_1;
-    private static String quickName2 = DEFAULT_QUICK_NAME_2;
-    private static String quickUrl2 = DEFAULT_QUICK_URL_2;
+    // Старая пара «быстрых ссылок» (quickName1/2, quickUrl1/2) удалена:
+    // её заменила система getQuickActionType(i), а мёртвые ключи только мусорили в .pen.
 
     public static final int FONT_DEFAULT = 0;
     public static final int FONT_SYSTEM = 1;
@@ -213,8 +207,10 @@ public class PengramConfig {
     public static int voiceChangerMode;
     public static int voiceChangerPitch;
     public static int speedBoost = 1; // BOOST_FAST
-    public static int mediaMaxSizeMb = 2048;   // 0 = без лимита
-    public static int historyKeepDays = 0;      // 0 = хранить всегда
+    public static int mediaMaxSizeMb = 1024;   // 0 = без лимита
+    public static int historyKeepDays = 90;     // 0 = хранить всегда
+    /** сколько записей истории держать максимум; 0 = без лимита */
+    public static int historyMaxEntries = 20000;
 
     // --- скрытие кнопок ---
     public static boolean hideMenuNewGroup = false;
@@ -683,6 +679,9 @@ public class PengramConfig {
     }
 
     public static boolean isBackgroundMode() { return getBool(KEY_BACKGROUND_MODE, false); }
+
+    /** фоновый режим живёт в тихом канале уведомлений и не висит заметной строкой */
+    public static boolean isBackgroundSilent() { return getBool(KEY_BACKGROUND_SILENT, true); }
     public static boolean isPremiumStatusLocal() { return isLocalPremium() && getBool(KEY_PREMIUM_STATUS, true); }
 
     public static int getDeletedMark() { init(); return deletedMark; }
@@ -772,10 +771,6 @@ public class PengramConfig {
             localPremium = p.getBoolean("localPremium", false);
             chatMenuPosition = p.getInt("chatMenuPosition", MENU_POS_TOP);
             chatMenuEnabled = p.getBoolean("chatMenuEnabled", true);
-            quickName1 = p.getString("quickName1", DEFAULT_QUICK_NAME_1);
-            quickUrl1 = p.getString("quickUrl1", DEFAULT_QUICK_URL_1);
-            quickName2 = p.getString("quickName2", DEFAULT_QUICK_NAME_2);
-            quickUrl2 = p.getString("quickUrl2", DEFAULT_QUICK_URL_2);
             appFont = p.getInt("appFont", FONT_DEFAULT);
             sendTextStyle = p.getInt("sendTextStyle", SEND_STYLE_OFF);
             saveDeletedMedia = p.getBoolean("saveDeletedMedia", false);
@@ -785,8 +780,9 @@ public class PengramConfig {
             saveInBots = p.getBoolean("saveInBots", true);
             saveReadDate = p.getBoolean("saveReadDate", true);
             saveLastOnline = p.getBoolean("saveLastOnline", true);
-            mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 2048);
-            historyKeepDays = p.getInt("historyKeepDays", 0);
+            mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 1024);
+            historyKeepDays = p.getInt("historyKeepDays", 90);
+            historyMaxEntries = p.getInt("historyMaxEntries", 20000);
             voiceChangerMode = p.getInt("voiceChangerMode", 0);
             voiceChangerPitch = p.getInt("voiceChangerPitch", 0);
             speedBoost = p.getInt("speedBoost", BOOST_FAST);
@@ -1651,10 +1647,10 @@ public class PengramConfig {
     /** показывать время, пока сообщение ещё отправляется или не ушло */
     public static boolean isMediaTimeKeptWhileSending() { return getBool(KEY_MEDIA_TIME_SENDING, true); }
     /**
-     * Прятать слово «изменено» имеет смысл только когда вместо него рисуется значок.
-     * Если значок не выбран — ведём себя как обычный Telegram и пишем «изменено».
+     * Настройка «скрывать метку изменено» теперь честная: слово убирается всегда,
+     * когда переключатель включён — и со значком вместо него, и совсем без значка.
      */
-    public static boolean shouldHideEditedLabel() { return isHidingEditedLabel() && getEditedMarkIconRes() != 0; }
+    public static boolean shouldHideEditedLabel() { return isHidingEditedLabel(); }
     /** по нажатию на календарик показывать текст, а не открывать окно */
     public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
@@ -1704,10 +1700,6 @@ public class PengramConfig {
     public static boolean isLocalPremium() { init(); return localPremium; }
     public static int getChatMenuPosition() { init(); return chatMenuPosition; }
     public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
-    public static String getQuickName(int index) { init(); String v = index == 1 ? quickName1 : quickName2; return v == null || v.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_NAME_1 : DEFAULT_QUICK_NAME_2) : v.trim(); }
-    public static String getQuickUrl(int index) { init(); String v = index == 1 ? quickUrl1 : quickUrl2; return v == null || v.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_URL_1 : DEFAULT_QUICK_URL_2) : v.trim(); }
-    public static void setQuickName(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_NAME_1 : DEFAULT_QUICK_NAME_2) : value.trim(); if (index == 1) quickName1 = value; else quickName2 = value; putString(index == 1 ? "quickName1" : "quickName2", value); }
-    public static void setQuickUrl(int index, String value) { init(); value = value == null || value.trim().isEmpty() ? (index == 1 ? DEFAULT_QUICK_URL_1 : DEFAULT_QUICK_URL_2) : value.trim(); if (index == 1) quickUrl1 = value; else quickUrl2 = value; putString(index == 1 ? "quickUrl1" : "quickUrl2", value); }
     public static boolean isValidQuickUrl(String value) { return value != null && value.trim().matches("(?i)^(?:https://)?t\\.me/[A-Za-z0-9_]+/[0-9]+/?(?:\\?.*)?$"); }
 
     // Настраиваемые быстрые действия. Новая установка начинается с пустого списка.
@@ -1810,9 +1802,97 @@ public class PengramConfig {
         putInt("historyKeepDays", days);
     }
 
+    /** потолок по числу записей журнала: старое вытесняется новым */
+    public static int getHistoryMaxEntries() { init(); return historyMaxEntries; }
+
+    public static void setHistoryMaxEntries(int count) {
+        init();
+        historyMaxEntries = count;
+        putInt("historyMaxEntries", count);
+    }
+
     // ------------------------------------------------------- резервная копия настроек
 
     /** все настройки Pengram одним JSON — чтобы перенести на другое устройство */
+    /** версия схемы .pen: 1 — старый дамп «всё подряд», 2 — только настройки по белому списку */
+    public static final int BACKUP_SCHEMA = 2;
+
+    /**
+     * Служебные ключи, которым нечего делать в бэкапе и тем более в чужом устройстве:
+     * состояние раскрытых групп, счётчики показанных подсказок, кэши и временные метки.
+     */
+    private static final String[] NOT_EXPORTABLE_PREFIXES = {
+            "ui", "shown", "seen", "hint", "tip", "cache", "last", "tmp", "temp",
+            "crash", "stat", "counter", "firstRun", "migrat", "pending", "session"
+    };
+
+    /** можно ли класть ключ в .pen */
+    public static boolean isExportableKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return false;
+        }
+        for (String prefix : NOT_EXPORTABLE_PREFIXES) {
+            if (key.startsWith(prefix)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Сброс настроек: ключи с указанными именами или префиксами («ghost*»).
+     * Возвращает, сколько ключей реально удалили.
+     */
+    public static int resetKeys(String... patterns) {
+        final SharedPreferences p = prefs();
+        if (p == null || patterns == null || patterns.length == 0) {
+            return 0;
+        }
+        int removed = 0;
+        try {
+            final SharedPreferences.Editor editor = p.edit();
+            for (String key : new java.util.ArrayList<>(p.getAll().keySet())) {
+                for (String pattern : patterns) {
+                    if (pattern == null || pattern.isEmpty()) {
+                        continue;
+                    }
+                    final boolean match = pattern.endsWith("*")
+                            ? key.startsWith(pattern.substring(0, pattern.length() - 1))
+                            : key.equals(pattern);
+                    if (match) {
+                        editor.remove(key);
+                        ++removed;
+                        break;
+                    }
+                }
+            }
+            editor.apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return 0;
+        }
+        reload();
+        return removed;
+    }
+
+    /** полный сброс: Pengram становится таким, каким был сразу после установки */
+    public static int resetAll() {
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return 0;
+        }
+        int removed = 0;
+        try {
+            removed = p.getAll().size();
+            p.edit().clear().apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return 0;
+        }
+        reload();
+        return removed;
+    }
+
     public static String exportToJson() {
         init();
         final SharedPreferences p = prefs();
@@ -1821,11 +1901,15 @@ public class PengramConfig {
         }
         try {
             final org.json.JSONObject root = new org.json.JSONObject();
-            root.put("pengram", 1);
+            root.put("pengram", BACKUP_SCHEMA);
+            root.put("schema", BACKUP_SCHEMA);
             root.put("version", BuildVars.BUILD_VERSION_STRING);
             final org.json.JSONObject values = new org.json.JSONObject();
             for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
                 final Object v = entry.getValue();
+                if (!isExportableKey(entry.getKey())) {
+                    continue;   // служебное состояние интерфейса в бэкап не едет
+                }
                 if (v instanceof Boolean || v instanceof Integer || v instanceof Long || v instanceof String) {
                     values.put(entry.getKey(), v);
                 }
@@ -1854,10 +1938,19 @@ public class PengramConfig {
             }
             final org.json.JSONObject values = root.getJSONObject("values");
             final SharedPreferences.Editor editor = p.edit();
-            editor.clear();
+            // Чистим только то, что сами же и выгружаем: состояние экранов,
+            // счётчики подсказок и прочая служебка пользователя переживают импорт.
+            for (String old : new java.util.ArrayList<>(p.getAll().keySet())) {
+                if (isExportableKey(old)) {
+                    editor.remove(old);
+                }
+            }
             final java.util.Iterator<String> keys = values.keys();
             while (keys.hasNext()) {
                 final String key = keys.next();
+                if (!isExportableKey(key)) {
+                    continue;   // чужой или служебный ключ из старого бэкапа игнорируем
+                }
                 final Object v = values.get(key);
                 if (v instanceof Boolean) {
                     editor.putBoolean(key, (Boolean) v);

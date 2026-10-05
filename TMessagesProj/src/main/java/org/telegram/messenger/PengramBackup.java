@@ -126,8 +126,16 @@ public final class PengramBackup {
         return count;
     }
 
+    /**
+     * Что в файл не едет. Белый список один на всё приложение и живёт в
+     * PengramConfig.isExportableKey(): иначе .pen и «экспорт в JSON» расходятся,
+     * и в бэкап снова начинает попадать служебное состояние интерфейса.
+     */
     private static boolean skip(String key) {
         if (key == null) {
+            return true;
+        }
+        if (!PengramConfig.isExportableKey(key)) {
             return true;
         }
         for (String prefix : SKIP_PREFIXES) {

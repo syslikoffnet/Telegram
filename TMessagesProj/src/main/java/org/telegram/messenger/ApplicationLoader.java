@@ -399,7 +399,10 @@ public class ApplicationLoader extends Application {
         }
         if (enabled) {
             try {
-                applicationContext.startService(new Intent(applicationContext, NotificationsService.class));
+                // сервис сразу поднимает себя в foreground — запускаем его правильно,
+                // иначе Android 8+ прибьёт его через несколько секунд
+                androidx.core.content.ContextCompat.startForegroundService(applicationContext,
+                        new Intent(applicationContext, NotificationsService.class));
             } catch (Throwable ignore) {
 
             }

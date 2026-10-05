@@ -42,6 +42,7 @@ public final class PengramSearchIndex {
             {R.string.PengramProfileHistory, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramKeepDeleted, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramKeepDays, PengramSettingsActivity.SECTION_HISTORY},
+            {R.string.PengramHistoryMax, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramHistoryClearButton, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaFolder, PengramSettingsActivity.SECTION_HISTORY},
             {R.string.PengramMediaPattern, PengramSettingsActivity.SECTION_HISTORY},

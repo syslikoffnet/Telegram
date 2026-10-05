@@ -167,6 +167,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     cv.put("data", data);
                 }
                 history.getWritableDatabase().insert(TABLE, null, cv);
+                maybeEnforceLimits();
                 invalidateCounts(dialogId);
             } catch (Throwable e) {
                 FileLog.e(e);
@@ -784,16 +785,64 @@ public class PengramHistory extends SQLiteOpenHelper {
         return removed;
     }
 
-    /** фоновая автоочистка по сроку хранения из настроек */
+    /** фоновая автоочистка: сначала по сроку хранения, потом по числу записей */
     public static void autoCleanup() {
         final int days = PengramConfig.getHistoryKeepDays();
-        if (days <= 0) {
+        executor.execute(() -> {
+            if (days > 0) {
+                final int removed = deleteOlderThan(days);
+                if (BuildVars.LOGS_ENABLED && removed > 0) {
+                    FileLog.d("pengram: автоочистка истории — удалено " + removed + " записей старше " + days + " дней");
+                }
+            }
+            enforceEntryLimit();
+            enforceMediaLimit();
+        });
+    }
+
+    /** сколько записей журнала осталось после прошлой проверки — чтобы не считать на каждое сохранение */
+    private static volatile int entriesSinceCheck;
+
+    /**
+     * Потолок по числу записей: журнал ведёт себя как кольцевой буфер —
+     * когда записей больше лимита, самые старые уходят. Иначе база растёт вечно.
+     */
+    public static void enforceEntryLimit() {
+        final int limit = PengramConfig.getHistoryMaxEntries();
+        if (limit <= 0) {
             return;
         }
-        executor.execute(() -> {
-            final int removed = deleteOlderThan(days);
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        try {
+            final int total = getCount(0);
+            if (total <= limit) {
+                return;
+            }
+            // оставляем ровно limit самых свежих записей
+            final int removed = history.getWritableDatabase().delete(TABLE,
+                    "id NOT IN (SELECT id FROM " + TABLE + " ORDER BY id DESC LIMIT " + limit + ")", null);
+            invalidateCounts(0);
+            statsDirty = true;
             if (BuildVars.LOGS_ENABLED && removed > 0) {
-                FileLog.d("pengram: автоочистка истории — удалено " + removed + " записей старше " + days + " дней");
+                FileLog.d("pengram: журнал подрезан до " + limit + " записей, удалено " + removed);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** вызывается после сохранения: раз в сотню записей проверяем, не пора ли подрезать */
+    private static void maybeEnforceLimits() {
+        if (++entriesSinceCheck < 100) {
+            return;
+        }
+        entriesSinceCheck = 0;
+        executor.execute(() -> {
+            enforceEntryLimit();
+            final int days = PengramConfig.getHistoryKeepDays();
+            if (days > 0) {
+                deleteOlderThan(days);
             }
         });
     }

@@ -155,6 +155,12 @@ android {
         buildConfigField "String", "SAFETYNET_KEY", "\"" + pengramSecret("SAFETYNET_KEY", "") + "\""
         buildConfigField "String", "GOOGLE_AUTH_CLIENT_ID", "\"" + pengramSecret("GOOGLE_AUTH_CLIENT_ID", "") + "\""
 
+        // --- паспорт сборки Pengram: его показывает экран «О программе» ---
+        buildConfigField "String", "PENGRAM_VERSION", "\"" + pengramVersionName() + "\""
+        buildConfigField "int", "PENGRAM_VERSION_CODE", pengramProp("PENGRAM_VERSION_CODE", "1")
+        buildConfigField "String", "PENGRAM_BUILD_DATE", "\"" + pengramBuildDate() + "\""
+        buildConfigField "String", "PENGRAM_COMMIT", "\"" + pengramCommit() + "\""
+
         vectorDrawables.generatedDensities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi']
 
         multiDexEnabled true
@@ -265,6 +271,54 @@ android {
     namespace 'org.telegram.messenger'
 }
 
+
+/** значение из gradle.properties / -P / окружения */
+def pengramProp(String name, String fallback) {
+    def value = project.findProperty(name)
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = System.getenv(name)
+    }
+    if (value == null || value.toString().trim().isEmpty()) {
+        return fallback
+    }
+    return value.toString().trim()
+}
+
+/** «1.0.0 beta 1» — то, что видит бета-тестер */
+def pengramVersionName() {
+    def name = pengramProp("PENGRAM_VERSION_NAME", "1.0.0")
+    def stage = pengramProp("PENGRAM_VERSION_STAGE", "")
+    return stage.isEmpty() ? name : (name + " " + stage)
+}
+
+/** дата сборки в UTC: без неё баг-репорты не привязать к сборке */
+def pengramBuildDate() {
+    def format = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'")
+    format.setTimeZone(TimeZone.getTimeZone("UTC"))
+    return format.format(new Date())
+}
+
+/** короткий хеш коммита: в CI берём из окружения, локально спрашиваем git */
+def pengramCommit() {
+    def sha = pengramProp("GITHUB_SHA", "")
+    if (!sha.isEmpty()) {
+        return sha.length() > 7 ? sha.substring(0, 7) : sha
+    }
+    try {
+        def out = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            standardOutput = out
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+            workingDir rootProject.projectDir
+        }
+        def value = out.toString().trim()
+        return value.isEmpty() ? "local" : value
+    } catch (Throwable ignore) {
+        return "local"
+    }
+}
 
 def getProps(String propName) {
     def propsFile = rootProject.file('local.properties')

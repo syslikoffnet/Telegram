@@ -35,7 +35,8 @@ public class PengramBackgroundService {
             }
             Intent intent = new Intent(appContext, NotificationsService.class);
             if (enabled) {
-                appContext.startService(intent);
+                // сервис сразу уходит в foreground, поэтому и запускать его надо соответствующе
+                androidx.core.content.ContextCompat.startForegroundService(appContext, intent);
             } else {
                 appContext.stopService(intent);
             }

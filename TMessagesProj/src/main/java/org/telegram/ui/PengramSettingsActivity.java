@@ -150,6 +150,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_CHAT_MESSAGES = 13;
     public static final int SECTION_CHAT_INTERFACE = 14;
     public static final int SECTION_CHAT_MENUS = 15;
+    public static final int SECTION_ABOUT = 16;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -242,6 +243,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ANTICRASH_LOG = 1493;
     private static final int BTN_CRASH_REPORTS = 1494;
     private static final int BTN_CRASH_AUTOCOPY = 1495;
+    private static final int BTN_SECTION_ABOUT = 1496;
+    private static final int BTN_ABOUT_COPY = 1497;
+    private static final int BTN_RESET_SECTION = 1498;
+    private static final int BTN_RESET_ALL = 1499;
+    private static final int BTN_HIST_MAX = 407;
     /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
     private static final int BTN_SKIN_BASE = 1600;
     private static final int BTN_SEARCH = 1447;
@@ -381,6 +387,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return IconBackgroundColors.ORANGE_DEEP;
             case SECTION_PENGUIN: return IconBackgroundColors.BLUE_LIGHT;
             case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
+            case SECTION_ABOUT: return IconBackgroundColors.BLUE_LIGHT;
             default: return IconBackgroundColors.GRAY;
         }
     }
@@ -403,6 +410,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return R.string.PengramHeroPlayer;
             case SECTION_PENGUIN: return R.string.PengramHeroPenguin;
             case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
+            case SECTION_ABOUT: return R.string.PengramHeroAbout;
             default: return 0;
         }
     }
@@ -447,6 +455,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CUSTOM: return getString(R.string.PengramSectionCustom);
             case SECTION_PENGUIN: return getString(R.string.PengramSectionPenguin);
             case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
+            case SECTION_ABOUT: return getString(R.string.PengramAbout);
             default: return getString(R.string.PengramSettings);
         }
     }
@@ -561,8 +570,117 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CUSTOM: fillCustom(items, adapter); break;
             case SECTION_PENGUIN: fillPenguin(items); break;
             case SECTION_PLAYER: fillPlayer(items); break;
+            case SECTION_ABOUT: fillAbout(items); break;
             default: fillRoot(items); break;
         }
+        addResetRow(items);
+    }
+
+    // ------------------------------------------------------------ сброс настроек
+
+    /**
+     * Ключи, которые относятся к разделу. Звёздочка на конце — префикс.
+     * Таблица нужна кнопке «сбросить раздел»: она удаляет ровно эти ключи,
+     * а всё остальное (другие разделы, состояние экранов) не трогает.
+     */
+    private static String[] sectionKeys(int section) {
+        switch (section) {
+            case SECTION_PROFILE:
+                return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber",
+                        "hideSharePhoneOption", "sharePhoneDefault", "historyRowInProfile",
+                        "groupAvatarPos", "coverShape", "showAccountsInSettings"};
+            case SECTION_GHOST:
+                return new String[]{"ghost*", "dontSend*", "hideOnline"};
+            case SECTION_HISTORY:
+                return new String[]{"save*", "history*", "keepDeletedInChat", "fadeDeleted", "markEdited",
+                        "deletedMark", "editedMark", "forceDeleteForAll", "resend*", "keepOnceMedia",
+                        "mediaFolder", "mediaPattern", "mediaMaxSizeMb", "mediaToGallery"};
+            case SECTION_APPEARANCE:
+                return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
+                        "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
+                        "tabBarSize", "hideTab*", "forceSnow"};
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS:
+                return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
+                        "pengramCardOnTop", "inputAnimation*", "sendTextStyle", "sendStyleCaptions",
+                        "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
+                        "forward*", "trackForward*"};
+            case SECTION_FREEDOM:
+                return new String[]{"allowForwards", "allowScreenshots", "noScreenshotNotify", "hideAds",
+                        "localPremium*", "backgroundMode", "backgroundSilentIcon", "antiCrash*"};
+            case SECTION_MEDIA:
+                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "trackForward*"};
+            case SECTION_GENERAL:
+                return new String[]{"noNumberRounding", "timeWithSeconds", "inAppVibration", "zalgoFilter",
+                        "quickAction*", "sendTextStyle"};
+            case SECTION_CUSTOM:
+                return new String[]{"deletedMark", "editedMark", "deleteEffect*", "markEdited",
+                        "fadeDeleted", "keepDeletedInChat"};
+            case SECTION_PENGUIN:
+                return new String[]{"penguin*"};
+            case SECTION_PLAYER:
+                return new String[]{"player*", "lyrics*", "headerLyrics*", "newPlayer"};
+            default:
+                return null;
+        }
+    }
+
+    /** красная кнопка внизу раздела: вернуть этот раздел к заводским значениям */
+    private void addResetRow(ArrayList<UItem> items) {
+        if (searchQuery != null || section == SECTION_ROOT || section == SECTION_ABOUT) {
+            return;
+        }
+        if (sectionKeys(section) == null) {
+            return;
+        }
+        items.add(UItem.asButton(BTN_RESET_SECTION, R.drawable.msg_reset, getString(R.string.PengramResetSection)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramResetSectionInfo)));
+    }
+
+    /** экран «О программе»: всё, что нужно приложить к баг-репорту */
+    private void fillAbout(ArrayList<UItem> items) {
+        aboutRowIndex = 0;
+        aboutValues.clear();
+        items.add(UItem.asHeader(getString(R.string.PengramAboutBuildHeader)));
+        items.add(aboutRow(R.string.PengramAboutVersion, org.telegram.messenger.PengramVersion.shortLine()));
+        items.add(aboutRow(R.string.PengramAboutDate, org.telegram.messenger.PengramVersion.buildDate()));
+        items.add(aboutRow(R.string.PengramAboutCommit, org.telegram.messenger.PengramVersion.commit()));
+        items.add(aboutRow(R.string.PengramAboutBase, org.telegram.messenger.PengramVersion.telegramVersion()));
+        items.add(aboutRow(R.string.PengramAboutPackage, org.telegram.messenger.PengramVersion.packageName()));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAboutDeviceHeader)));
+        items.add(aboutRow(R.string.PengramAboutDevice, org.telegram.messenger.PengramVersion.device()));
+        items.add(aboutRow(R.string.PengramAboutSystem, org.telegram.messenger.PengramVersion.androidVersion()));
+        items.add(aboutRow(R.string.PengramAboutAbi, org.telegram.messenger.PengramVersion.abi()));
+        items.add(UItem.asButton(BTN_ABOUT_COPY, R.drawable.msg_copy, getString(R.string.PengramAboutCopy)));
+        items.add(UItem.asShadow(getString(R.string.PengramAboutCopyInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramCrashReports)));
+        items.add(UItem.asSettingsCell(BTN_CRASH_REPORTS, R.drawable.msg_report,
+                getString(R.string.PengramCrashReports),
+                org.telegram.ui.Components.PengramCrashDialogs.summary()));
+        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramCrashReportsInfo,
+                String.valueOf(org.telegram.messenger.PengramCrashReport.LIMIT))));
+
+        items.add(UItem.asHeader(getString(R.string.PengramResetHeader)));
+        items.add(UItem.asButton(BTN_RESET_ALL, R.drawable.msg_reset, getString(R.string.PengramResetAll)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramResetAllInfo)));
+    }
+
+    /** строки «О программе»: id раздаём по порядку, значение помним для копирования */
+    private static final int BTN_ABOUT_ROW_BASE = 8000;
+    private final android.util.SparseArray<CharSequence> aboutValues = new android.util.SparseArray<>();
+    private int aboutRowIndex;
+
+    /** строка «название — значение», по тапу значение уходит в буфер */
+    private UItem aboutRow(int titleRes, CharSequence value) {
+        final int id = BTN_ABOUT_ROW_BASE + aboutRowIndex++;
+        aboutValues.put(id, value);
+        return UItem.asButton(id, getString(titleRes), value);
     }
 
     /** читалка состояния для переключателей чужих настроек */
@@ -1331,6 +1449,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSectionFreedom), null));
         items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
                 getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
+        items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
+                getString(R.string.PengramAbout), org.telegram.messenger.PengramVersion.shortLine()));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
 
     }
@@ -1368,6 +1488,25 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport), null));
         items.add(UItem.asButton(BTN_CFG_RESET, R.drawable.msg_delete, getString(R.string.PengramBackupReset)).red());
         items.add(UItem.asShadow(getString(R.string.PengramBackupInfoFile)));
+    }
+
+    /** подпись к лимиту записей журнала */
+    private CharSequence historyMaxName(int limit) {
+        return limit <= 0 ? getString(R.string.PengramHistoryMaxUnlimited)
+                : LocaleController.formatString(R.string.PengramHistoryMaxValue, limit);
+    }
+
+    /** после сброса настроек перерисовываем всё, до чего дотягиваемся */
+    private void rebuildAfterReset() {
+        if (headerView != null) {
+            headerView.applySkin();
+        }
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.mainUserInfoChanged);
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramResetDone)).show();
     }
 
     /** короткая статистика под блоком хранилища */
@@ -1937,6 +2076,8 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
         items.add(UItem.asSettingsCell(BTN_KEEP_DAYS, R.drawable.msg_autodelete, getString(R.string.PengramKeepDays), keepDaysName(PengramConfig.getHistoryKeepDays())));
+        items.add(UItem.asSettingsCell(BTN_HIST_MAX, R.drawable.msg_limit_links, getString(R.string.PengramHistoryMax),
+                historyMaxName(PengramConfig.getHistoryMaxEntries())));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
         items.add(UItem.asShadow(historyStatsText()));
 
@@ -2001,7 +2142,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(subCheck(PengramConfig.KEY_GHOST_DONT_SEND_VOICE_READ, true, getString(R.string.PengramGhostDontSendVoiceRead)));
             items.add(subCheck(PengramConfig.KEY_GHOST_DONT_SEND_REACTIONS, false, getString(R.string.PengramGhostDontSendReactions)));
         }
-        items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)
+                + "\n\n" + getString(R.string.PengramGhostWhatHeader) + ": "
+                + getString(R.string.PengramGhostWhatInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramGhostExtraHeader)));
         items.add(checkInfo(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn), getString(R.string.PengramGhostStoriesWarnInfo)));
@@ -2405,6 +2548,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asSettingsCell(BTN_LYRICS_SOURCE, R.drawable.msg_download,
                         getString(R.string.PengramLyricsSourceHeader),
                         getString(PengramConfig.getLyricsSourceName(PengramConfig.getLyricsSourceRaw()))));
+                items.add(UItem.asShadow(getString(PengramConfig.getLyricsSourceInfo(PengramConfig.getLyricsSourceRaw()))));
                 items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true, getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
                 items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true, getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
                 items.add(UItem.asShadow(null));
@@ -2749,6 +2893,15 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        // «О программе»: тап по любой строке кладёт её значение в буфер
+        if (item.id >= BTN_ABOUT_ROW_BASE && aboutValues.indexOfKey(item.id) >= 0) {
+            final CharSequence value = aboutValues.get(item.id);
+            if (!TextUtils.isEmpty(value)) {
+                AndroidUtilities.addToClipboard(value.toString());
+                BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
+            }
+            return;
+        }
         // выбор скина пингвина — применяется мгновенно, прямо на превью сверху
         if (item.id >= BTN_SKIN_BASE && item.id < BTN_SKIN_BASE + PengramConfig.SKIN_COUNT) {
             PengramConfig.setPenguinSkin(item.id - BTN_SKIN_BASE);
@@ -3136,6 +3289,61 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_PENGUIN:
                 presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
                 return;
+            case BTN_SECTION_ABOUT:
+                presentFragment(new PengramSettingsActivity(SECTION_ABOUT));
+                return;
+            case BTN_ABOUT_COPY:
+                AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVersion.report());
+                BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramAboutCopied)).show();
+                return;
+            case BTN_RESET_SECTION: {
+                final String[] keys = sectionKeys(section);
+                if (keys == null || getParentActivity() == null) {
+                    return;
+                }
+                final AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramResetSection));
+                b.setMessage(LocaleController.formatString(R.string.PengramResetSectionAsk, sectionTitle(section)));
+                b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
+                    PengramConfig.resetKeys(keys);
+                    rebuildAfterReset();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
+            case BTN_RESET_ALL: {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                final AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramResetAll));
+                b.setMessage(getString(R.string.PengramResetAllAsk));
+                b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
+                    PengramConfig.resetAll();
+                    rebuildAfterReset();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
+            case BTN_HIST_MAX: {
+                final int[] limits = new int[]{2000, 10000, 20000, 50000, 0};
+                final CharSequence[] options = new CharSequence[limits.length];
+                int selected = 0;
+                for (int a = 0; a < limits.length; ++a) {
+                    options[a] = historyMaxName(limits[a]);
+                    if (limits[a] == PengramConfig.getHistoryMaxEntries()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramHistoryMax), options, selected, value -> {
+                    PengramConfig.setHistoryMaxEntries(limits[value]);
+                    PengramHistory.enforceEntryLimit();
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                });
+                return;
+            }
             case BTN_SECTION_PLAYER:
             case BTN_PLAYER_STYLE:
                 presentFragment(new PengramPlayerStyleActivity());
@@ -3873,6 +4081,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** версия приложения — показывается под пингвином */
     private static String getAppVersion() {
+        // В шапке — своя версия форка: именно её называют в баг-репортах.
+        return "Pengram " + org.telegram.messenger.PengramVersion.shortLine();
+    }
+
+    @SuppressWarnings("unused")
+    private static String getTelegramVersion() {
         String version = org.telegram.messenger.BuildVars.BUILD_VERSION_STRING;
         int code = 0;
         try {
