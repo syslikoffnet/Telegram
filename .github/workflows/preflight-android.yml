@@ -46,4 +46,23 @@ jobs:
       - name: Compile Java
         run: |
           chmod +x gradlew
-          ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g"
+          set -o pipefail
+          ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee build.log
+
+      # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
+      # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.
+      - name: Report compile errors
+        if: failure()
+        run: |
+          grep -nE "error:|^FAILURE|What went wrong|Execution failed" build.log | head -n 40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+
+      - name: Upload compile log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preflight-log
+          path: build.log
+          retention-days: 7

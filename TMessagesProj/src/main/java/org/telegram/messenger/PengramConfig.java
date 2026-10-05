@@ -1875,24 +1875,6 @@ public class PengramConfig {
         return removed;
     }
 
-    /** полный сброс: Pengram становится таким, каким был сразу после установки */
-    public static int resetAll() {
-        final SharedPreferences p = prefs();
-        if (p == null) {
-            return 0;
-        }
-        int removed = 0;
-        try {
-            removed = p.getAll().size();
-            p.edit().clear().apply();
-        } catch (Throwable e) {
-            FileLog.e(e);
-            return 0;
-        }
-        reload();
-        return removed;
-    }
-
     public static String exportToJson() {
         init();
         final SharedPreferences p = prefs();
@@ -1974,6 +1956,7 @@ public class PengramConfig {
     }
 
     /** вернуть всё к заводским значениям форка */
+    /** полный сброс: Pengram становится таким, каким был сразу после установки */
     public static void resetAll() {
         final SharedPreferences p = prefs();
         if (p != null) {

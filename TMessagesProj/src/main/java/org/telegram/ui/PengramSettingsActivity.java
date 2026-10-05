@@ -1502,12 +1502,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (headerView != null) {
             headerView.applySkin();
         }
-        if (listView != null && listView.adapter != null) {
-            listView.adapter.update(true);
-        }
-        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.mainUserInfoChanged);
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
-        BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramResetDone)).show();
+        // общий хвост с импортом бэкапа: перезапуск сервисов, премиум-статус, бюллетень
+        afterSettingsReplaced(getString(R.string.PengramResetDone));
     }
 
     /** короткая статистика под блоком хранилища */
