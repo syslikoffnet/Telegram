@@ -2132,6 +2132,37 @@ public class ChatActivity extends BaseFragment implements
      * Pengram: вместо удаления оставляем сообщения в чате.
      * @return true — удаление перехвачено, выше по коду ничего делать не нужно
      */
+    /**
+     * Pengram: оставляем только настоящие сообщения.
+     *
+     * Когда пользователь отменяет отправку медиа, Telegram точно так же шлёт
+     * «сообщения удалены», но номера у них отрицательные, а сами они всё ещё
+     * висят в состоянии отправки. Для нас это не удаление: ни эффекта, ни
+     * сохранённой копии в истории быть не должно, иначе в чате остаётся
+     * вечно загружающийся «призрак».
+     */
+    private ArrayList<Integer> pengramRealDeleted(ArrayList<Integer> ids) {
+        final ArrayList<Integer> result = new ArrayList<>();
+        if (ids == null || ids.isEmpty()) {
+            return result;
+        }
+        for (int a = 0; a < ids.size(); ++a) {
+            final Integer mid = ids.get(a);
+            if (!org.telegram.messenger.PengramHistory.isRealId(mid)) {
+                continue;
+            }
+            MessageObject obj = messagesDict[0].get(mid);
+            if (obj == null) {
+                obj = messagesDict[1].get(mid);
+            }
+            if (obj != null && (obj.isSending() || obj.isSendError() || obj.getId() <= 0)) {
+                continue;
+            }
+            result.add(mid);
+        }
+        return result;
+    }
+
     private boolean pengramKeepDeletedMessages(ArrayList<Integer> ids) {
         if (ids == null || ids.isEmpty() || chatMode != MODE_DEFAULT || dialog_id == 0) {
             return false;
@@ -27240,10 +27271,14 @@ public class ChatActivity extends BaseFragment implements
     }
     private void processDeletedMessages(ArrayList<Integer> markAsDeletedMessages, long channelId, boolean sent, boolean thanos) {
         if (!sent) {
-            // сначала анимация по живой ячейке, потом уже решаем, оставлять ли «призрак»
-            pengramPlayDeleteEffect(markAsDeletedMessages);
-            if (pengramKeepDeletedMessages(markAsDeletedMessages)) {
-                return;
+            // отменённая отправка — это не удаление: ни анимации, ни «призрака»
+            final ArrayList<Integer> pengramIds = pengramRealDeleted(markAsDeletedMessages);
+            if (!pengramIds.isEmpty()) {
+                // сначала анимация по живой ячейке, потом уже решаем, оставлять ли «призрак»
+                pengramPlayDeleteEffect(pengramIds);
+                if (pengramIds.size() == markAsDeletedMessages.size() && pengramKeepDeletedMessages(pengramIds)) {
+                    return;
+                }
             }
         }
         ArrayList<Integer> removedIndexes = new ArrayList<>();

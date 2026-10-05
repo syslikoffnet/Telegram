@@ -6908,6 +6908,8 @@ public class MessagesController extends BaseController implements NotificationCe
         }
         fromCache = fromCache && user.id / 1000 != 333 && user.id != 777000;
         TLRPC.User oldUser = users.get(user.id);
+        // Pengram: запоминаем имя, пока оно ещё не подменено на ваше из контактов
+        PengramOriginalName.observe(user, oldUser);
         if (oldUser == user && !force) {
             return false;
         }

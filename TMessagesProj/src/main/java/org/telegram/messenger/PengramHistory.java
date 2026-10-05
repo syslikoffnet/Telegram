@@ -319,11 +319,27 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
+    /**
+     * Pengram: у ещё не отправленных сообщений номер отрицательный — это черновик
+     * загрузки, а не настоящее сообщение собеседника. Такие в историю не берём.
+     */
+    public static boolean isRealId(Integer id) {
+        return id != null && id > 0;
+    }
+
     public static void markDeleted(final int account, final long dialogId, final java.util.Collection<Integer> ids) {
         if (ids == null || ids.isEmpty() || dialogId == 0) {
             return;
         }
-        final ArrayList<Integer> copy = new ArrayList<>(ids);
+        final ArrayList<Integer> copy = new ArrayList<>();
+        for (Integer id : ids) {
+            if (isRealId(id)) {
+                copy.add(id);
+            }
+        }
+        if (copy.isEmpty()) {
+            return;
+        }
         synchronized (marksCache) {
             java.util.HashSet<Integer> set = marksCache.get(dialogId);
             if (set == null) {
@@ -565,12 +581,23 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (ids == null || ids.isEmpty()) {
             return false;
         }
+        boolean anyReal = false;
+        for (Integer id : ids) {
+            if (isRealId(id)) {
+                anyReal = true;
+                break;
+            }
+        }
+        if (!anyReal) {
+            // отменённая отправка: сообщения ещё не существовало, хранить нечего
+            return false;
+        }
         boolean anySaveForMyself = false;
         boolean anyUserDeleted = false;
         synchronized (userDeletedGuard) {
             cleanupGuard(System.currentTimeMillis());
             for (Integer id : ids) {
-                if (id == null) continue;
+                if (!isRealId(id)) continue;
                 if (saveForMyself.containsKey(id)) anySaveForMyself = true;
                 if (userDeletedGuard.containsKey(id)) anyUserDeleted = true;
             }

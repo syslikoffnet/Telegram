@@ -9,12 +9,16 @@ import android.view.ViewConfiguration;
 import org.telegram.tgnet.TLRPC;
 
 /**
- * Pengram: второе имя человека в его профиле.
+ * Pengram: официальное имя человека в его профиле.
  *
- * Записанного в контакты человека Telegram везде показывает так, как записали
- * вы. Настоящее имя при этом никуда не девается — оно просто не на виду: оно
- * лежит в телефонной книге, в истории профиля Pengram или хотя бы в @нике.
- * Жест по имени в профиле показывает эту вторую версию и возвращает обратно.
+ * Сохранённого в контакты человека Telegram везде показывает так, как записали
+ * его вы — это и остаётся обычным видом профиля. Жест по имени показывает, как
+ * того же человека видят все остальные: имя, которое он поставил себе сам.
+ *
+ * Telegram не отдаёт такое имя отдельным полем, поэтому Pengram запоминает его
+ * сам: имя, встреченное до того, как человек попал в ваши контакты (в группах,
+ * каналах, поиске), затем самое раннее имя из истории профилей, и в крайнем
+ * случае — @ник.
  */
 public final class PengramOriginalName {
 
@@ -25,8 +29,8 @@ public final class PengramOriginalName {
     public static final int MODE_SWIPE = 2;
     public static final int MODE_BOTH = 3;
 
-    /** откуда взяли второе имя — чтобы честно подписать, что показываем */
-    public static final int SOURCE_PHONEBOOK = 0;
+    /** откуда взяли официальное имя — чтобы честно подписать, что показываем */
+    public static final int SOURCE_PUBLIC = 0;
     public static final int SOURCE_HISTORY = 1;
     public static final int SOURCE_USERNAME = 2;
 
@@ -55,6 +59,51 @@ public final class PengramOriginalName {
         return mode == MODE_SWIPE || mode == MODE_BOTH;
     }
 
+    /** здесь живут имена, увиденные до переименования в контактах */
+    private static final String PREFS = "pengram_public_names";
+
+    private static android.content.SharedPreferences prefs() {
+        return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+    }
+
+    /**
+     * Запомнить, как человека зовут «для всех».
+     *
+     * Сюда попадают объекты пользователя, пришедшие без подмены на имя из ваших
+     * контактов: человек ещё не в контактах или это сокращённая (min) запись из
+     * группы либо канала.
+     */
+    public static void observe(TLRPC.User incoming, TLRPC.User local) {
+        try {
+            if (incoming == null || incoming.deleted || incoming.self) {
+                return;
+            }
+            if (incoming.contact && !incoming.min) {
+                return;   // такое имя уже могло быть заменено на ваше
+            }
+            final String name = clean(ContactsController.formatName(incoming.first_name, incoming.last_name));
+            if (TextUtils.isEmpty(name)) {
+                return;
+            }
+            final String key = Long.toString(incoming.id);
+            final android.content.SharedPreferences prefs = prefs();
+            if (name.equals(prefs.getString(key, null))) {
+                return;
+            }
+            prefs.edit().putString(key, name).apply();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** имя, которое видят остальные, если Pengram успел его встретить */
+    private static String fromPublicCache(long userId) {
+        try {
+            return prefs().getString(Long.toString(userId), null);
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
     public static class Result {
         public final String name;
         public final int source;
@@ -66,11 +115,10 @@ public final class PengramOriginalName {
     }
 
     /**
-     * Второе известное имя или null, если второго нет.
+     * Официальное имя человека или null, если его взять неоткуда.
      *
-     * Ищем по очереди: как человек записан в телефонной книге, каким его имя
-     * видели раньше (история профилей Pengram) и, если больше нечего показать,
-     * его @ник.
+     * Ищем по очереди: имя, встреченное до добавления в контакты, самое раннее
+     * имя из истории профилей и, если больше нечего показать, @ник.
      */
     public static Result other(int account, TLRPC.User user) {
         if (user == null) {
@@ -78,9 +126,9 @@ public final class PengramOriginalName {
         }
         final String shown = clean(ContactsController.formatName(user.first_name, user.last_name));
 
-        final String phonebook = clean(fromPhoneBook(account, user));
-        if (!TextUtils.isEmpty(phonebook) && !phonebook.equalsIgnoreCase(shown)) {
-            return new Result(phonebook, SOURCE_PHONEBOOK);
+        final String open = clean(fromPublicCache(user.id));
+        if (!TextUtils.isEmpty(open) && !open.equalsIgnoreCase(shown)) {
+            return new Result(open, SOURCE_PUBLIC);
         }
 
         final String history = clean(fromHistory(user.id));
@@ -97,35 +145,6 @@ public final class PengramOriginalName {
 
     private static String clean(String value) {
         return value == null ? null : value.trim();
-    }
-
-    /** имя из телефонной книги устройства: как человек записан у вас */
-    private static String fromPhoneBook(int account, TLRPC.User user) {
-        try {
-            final ContactsController controller = ContactsController.getInstance(account);
-            if (controller == null || controller.contactsBook == null) {
-                return null;
-            }
-            for (ContactsController.Contact contact : controller.contactsBook.values()) {
-                if (contact == null) {
-                    continue;
-                }
-                boolean mine = contact.user != null && contact.user.id == user.id;
-                if (!mine && !TextUtils.isEmpty(user.phone) && contact.shortPhones != null) {
-                    for (String phone : contact.shortPhones) {
-                        if (!TextUtils.isEmpty(phone) && user.phone.endsWith(phone)) {
-                            mine = true;
-                            break;
-                        }
-                    }
-                }
-                if (mine) {
-                    return ContactsController.formatName(contact.first_name, contact.last_name);
-                }
-            }
-        } catch (Throwable ignore) {
-        }
-        return null;
     }
 
     /** самое раннее имя, которое Pengram успел увидеть до переименования */
@@ -146,8 +165,8 @@ public final class PengramOriginalName {
 
     public static int sourceTextRes(int source) {
         switch (source) {
-            case SOURCE_PHONEBOOK:
-                return R.string.PengramOriginalNamePhonebook;
+            case SOURCE_PUBLIC:
+                return R.string.PengramOriginalNamePublic;
             case SOURCE_HISTORY:
                 return R.string.PengramOriginalNameHistory;
             default:
