@@ -2240,7 +2240,7 @@ public class ChatActivity extends BaseFragment implements
         if (!org.telegram.messenger.PengramConfig.isResendMenuVisible()) {
             return false;
         }
-        if (currentEncryptedChat != null || message.getId() <= 0 || message.isSending() || message.isSendError()) {
+        if (message.isSending() || message.isSendError()) {
             return false;
         }
         if (message.messageOwner.action != null && !(message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty)) {
@@ -2249,8 +2249,13 @@ public class ChatActivity extends BaseFragment implements
         if (message.isSponsored() || message.scheduled) {
             return false;
         }
-        final boolean once = message.isSecretMedia() && org.telegram.messenger.PengramConfig.isResendOnceMedia();
-        return message.pengramDeleted || once;
+        // одноразовые медиа отдельным выключателем: их копия — отдельная история
+        if (message.isSecretMedia() && !org.telegram.messenger.PengramConfig.isResendOnceMedia()) {
+            return false;
+        }
+        // всё остальное можно отправить копией: и в секретном чате, и там,
+        // где запрещены пересылка и сохранение, и с удалёнок
+        return true;
     }
 
     /** отправляем копию сообщения от своего лица (без «переслано от») */
@@ -2269,7 +2274,7 @@ public class ChatActivity extends BaseFragment implements
                 pengramSpecialForwardUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
                 pengramForwardTotal = Math.max(pengramForwardTotal, list.size());
             }
-            getSendMessagesHelper().sendMessage(list, targetDialogId, true, false, true, 0, 0);
+            org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, list, targetDialogId);
             if (targetDialogId != dialog_id) {
                 BulletinFactory.of(this)
                         .createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramResendSent))
@@ -2416,7 +2421,7 @@ public class ChatActivity extends BaseFragment implements
             for (int a = 0; a < dids.size(); a++) {
                 final long did = dids.get(a).dialogId;
                 try {
-                    getSendMessagesHelper().sendMessage(new ArrayList<>(list), did, true, false, true, 0, 0);
+                    org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, new ArrayList<>(list), did);
                 } catch (Throwable e) {
                     FileLog.e(e);
                 }
@@ -46975,11 +46980,9 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_PENGRAM_RESEND);
             icons.add(R.drawable.msg_send);
 
-            if (org.telegram.messenger.PengramConfig.isResendAskChat() || message.pengramDeleted) {
-                items.add(LocaleController.getString(R.string.PengramResendTo));
-                options.add(OPTION_PENGRAM_RESEND_TO);
-                icons.add(R.drawable.msg_forward);
-            }
+            items.add(LocaleController.getString(R.string.PengramResendTo));
+            options.add(OPTION_PENGRAM_RESEND_TO);
+            icons.add(R.drawable.msg_forward);
         }
 
         final @DrawableRes int deleteIconRes;

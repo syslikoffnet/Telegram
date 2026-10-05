@@ -2129,6 +2129,12 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (messages == null || messages.isEmpty()) {
             return 0;
         }
+        // Pengram: то, что сервер переслать не даст (защищённые чаты, секретные,
+        // удалёнки, одноразовые медиа), отправляем копией от своего лица
+        if (PengramCopySender.shouldCopy(messages, peer)) {
+            PengramCopySender.sendCopies(currentAccount, messages, peer);
+            return 0;
+        }
         // Pengram: трек уходит как самостоятельный файл — без строки «переслано от»
         // и без подписи, которая была у него в исходном чате.
         final boolean pengramCleanMusic = pengramOnlyMusic(messages);

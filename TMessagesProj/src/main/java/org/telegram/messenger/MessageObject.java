@@ -8603,7 +8603,7 @@ public class MessageObject {
         if (linesMaxWidth <= maxWidth) {
             return linesMaxWidth;
         }
-        final int extra = Math.min(AndroidUtilities.dp(18), (int) (maxWidth * 0.12f));
+        final int extra = Math.min(AndroidUtilities.dp(32), (int) (maxWidth * 0.2f));
         return Math.min(linesMaxWidth, maxWidth + Math.max(0, extra));
     }
 
