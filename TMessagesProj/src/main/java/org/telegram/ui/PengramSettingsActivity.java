@@ -1166,10 +1166,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramIdSearchInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramBackupHeader)));
-        items.add(UItem.asButton(BTN_CFG_EXPORT, R.drawable.msg_copy, getString(R.string.PengramBackupExport)));
-        items.add(UItem.asButton(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport)));
+        items.add(UItem.asSettingsCell(BTN_CFG_EXPORT, R.drawable.msg_shareout, getString(R.string.PengramBackupExport),
+                LocaleController.formatString(R.string.PengramBackupCount, org.telegram.messenger.PengramBackup.countTransferable())));
+        items.add(UItem.asSettingsCell(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport), null));
         items.add(UItem.asButton(BTN_CFG_RESET, R.drawable.msg_delete, getString(R.string.PengramBackupReset)).red());
-        items.add(UItem.asShadow(getString(R.string.PengramBackupInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramBackupInfoFile)));
     }
 
     /** короткая статистика под блоком хранилища */
@@ -1258,7 +1259,30 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     // ------------------------------------------------- резервная копия настроек
 
+    /** Что сделать с настройками: отправить себе, сохранить файлом или скопировать текстом */
     private void exportSettings() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramBackupExport), true);
+        builder.setItems(new CharSequence[]{
+                getString(R.string.PengramBackupToSaved),
+                getString(R.string.PengramBackupToFile),
+                getString(R.string.PengramBackupToClipboard)
+        }, new int[]{R.drawable.msg_saved, R.drawable.msg_shareout, R.drawable.msg_copy}, (dialog, which) -> {
+            if (which == 2) {
+                exportAsText();
+            } else {
+                askPassword(true, password -> packAndDeliver(password, which == 0));
+            }
+        });
+        builder.show();
+    }
+
+    private void exportAsText() {
         final String json = PengramConfig.exportToJson();
         if (json == null) {
             BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
@@ -1268,7 +1292,138 @@ public class PengramSettingsActivity extends UniversalFragment {
         BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramBackupCopied)).show();
     }
 
+    /** собрать .pen и либо отправить в Избранное, либо отдать системе «поделиться» */
+    private void packAndDeliver(String password, boolean toSaved) {
+        final byte[] data = org.telegram.messenger.PengramBackup.pack(password);
+        final java.io.File file = org.telegram.messenger.PengramBackup.writeToCache(data);
+        if (file == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            return;
+        }
+        if (toSaved) {
+            final long selfId = getUserConfig().getClientUserId();
+            org.telegram.messenger.SendMessagesHelper.prepareSendingDocument(getAccountInstance(),
+                    file.getAbsolutePath(), file.getAbsolutePath(), null,
+                    getString(R.string.PengramBackupCaption), "application/octet-stream",
+                    selfId, null, null, null, null, null, true, 0, null, null, false);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.saved_messages,
+                    getString(R.string.PengramBackupSentToSaved)).show();
+            return;
+        }
+        try {
+            final android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            intent.setType("application/octet-stream");
+            intent.putExtra(android.content.Intent.EXTRA_STREAM,
+                    androidx.core.content.FileProvider.getUriForFile(getParentActivity(),
+                            ApplicationLoader.getApplicationId() + ".provider", file));
+            intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getParentActivity().startActivityForResult(android.content.Intent.createChooser(intent,
+                    getString(R.string.PengramBackupToFile)), 500);
+        } catch (Throwable e) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+        }
+    }
+
+    /** Импорт: файл .pen или текст из буфера */
     private void importSettings() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramBackupImport), true);
+        builder.setItems(new CharSequence[]{
+                getString(R.string.PengramBackupFromFile),
+                getString(R.string.PengramBackupFromClipboard)
+        }, new int[]{R.drawable.msg_download, R.drawable.msg_copy}, (dialog, which) -> {
+            if (which == 0) {
+                pickBackupFile();
+            } else {
+                importFromClipboard();
+            }
+        });
+        builder.show();
+    }
+
+    private static final int REQUEST_PICK_BACKUP = 4711;
+
+    /** системный выбор файла — так .pen открывается откуда угодно, хоть из Избранного */
+    private void pickBackupFile() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        try {
+            final android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT);
+            intent.setType("*/*");
+            intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            startActivityForResult(android.content.Intent.createChooser(intent,
+                    getString(R.string.PengramBackupFromFile)), REQUEST_PICK_BACKUP);
+        } catch (Throwable e) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PICK_BACKUP || data == null || data.getData() == null) {
+            return;
+        }
+        byte[] bytes = null;
+        try {
+            final java.io.InputStream stream = ApplicationLoader.applicationContext.getContentResolver().openInputStream(data.getData());
+            if (stream != null) {
+                final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                final byte[] buffer = new byte[8192];
+                int read;
+                while ((read = stream.read(buffer)) > 0 && out.size() < 8 * 1024 * 1024) {
+                    out.write(buffer, 0, read);
+                }
+                stream.close();
+                bytes = out.toByteArray();
+            }
+        } catch (Throwable ignore) {
+        }
+        applyPickedBackup(bytes);
+    }
+
+    private void applyPickedBackup(byte[] bytes) {
+        if (bytes == null || !org.telegram.messenger.PengramBackup.looksLikeBackup(bytes)) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupNotPen)).show();
+            return;
+        }
+        if (org.telegram.messenger.PengramBackup.needsPassword(bytes)) {
+            askPassword(false, password -> applyBackup(bytes, password));
+        } else {
+            applyBackup(bytes, null);
+        }
+    }
+
+    private void applyBackup(byte[] data, String password) {
+        final String json = org.telegram.messenger.PengramBackup.unpack(data, password);
+        if (json == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupWrongPassword)).show();
+            return;
+        }
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupImport));
+        builder.setMessage(getString(R.string.PengramBackupImportConfirm));
+        builder.setPositiveButton(getString(R.string.PengramBackupApply), (d, w) -> {
+            if (org.telegram.messenger.PengramBackup.apply(json)) {
+                afterSettingsReplaced(getString(R.string.PengramBackupImported));
+            } else {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void importFromClipboard() {
         final Context context = getContext();
         if (context == null) {
             return;
@@ -1299,6 +1454,42 @@ public class PengramSettingsActivity extends UniversalFragment {
                 BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
             }
         });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** один и тот же диалог пароля на экспорт и импорт */
+    private void askPassword(boolean creating, Utilities.Callback<String> whenDone) {
+        final Context context = getContext();
+        if (context == null || getParentActivity() == null) {
+            return;
+        }
+        final EditTextBoldCursor field = new EditTextBoldCursor(context);
+        field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint));
+        field.setHint(getString(creating ? R.string.PengramBackupPasswordHint : R.string.PengramBackupPasswordEnter));
+        field.setBackground(null);
+        field.setSingleLine(true);
+        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack));
+        field.setCursorWidth(1.5f);
+
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44, 22, 4, 22, 0));
+
+        final TextView hint = new TextView(context);
+        hint.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 13);
+        hint.setTextColor(Theme.getColor(Theme.key_dialogTextGray2));
+        hint.setText(getString(creating ? R.string.PengramBackupPasswordInfo : R.string.PengramBackupPasswordInfoOpen));
+        layout.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 10, 22, 4));
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupPasswordTitle));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(creating ? R.string.PengramBackupSave : R.string.PengramBackupApply), (d, w) ->
+                whenDone.run(field.getText() == null ? "" : field.getText().toString()));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
     }

@@ -21398,6 +21398,19 @@ public class ChatActivity extends BaseFragment implements
             postponedScrollToLastMessageQueryIndex = 0;
         }
         ArrayList<MessageObject> messArr = (ArrayList<MessageObject>) args[2];
+        // Pengram: по самому раннему сообщению человека видно, что раньше него он точно был —
+        // это честно уточняет оценку даты регистрации
+        if (messArr != null) {
+            for (int a = 0, N = messArr.size(); a < N; ++a) {
+                final MessageObject mo = messArr.get(a);
+                if (mo != null && mo.messageOwner != null && mo.messageOwner.date > 0) {
+                    final long from = mo.getFromChatId();
+                    if (from > 0) {
+                        org.telegram.messenger.PengramRegDate.noteNotLaterThan(from, mo.messageOwner.date);
+                    }
+                }
+            }
+        }
 
         boolean universalNotify = false;
         HashMap<Integer, MessageObject> oldMessages = null;

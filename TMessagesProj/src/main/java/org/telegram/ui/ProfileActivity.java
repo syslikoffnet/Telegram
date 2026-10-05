@@ -7337,6 +7337,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return !PengramConfig.isIdSeparateRow();
     }
 
+    /** чей id сейчас показываем — нужен, чтобы понимать точность оценки */
+    private static long pengramRegDateUserId;
+
     /** Pengram: текст даты регистрации в выбранном формате */
     private static String pengramRegDateText(long estimate) {
         if (estimate <= 0) {
@@ -7350,6 +7353,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         String date = style == PengramConfig.REG_STYLE_EXACT
                 ? PengramRegDate.formatDate(estimate)
                 : PengramRegDate.formatMonthYear(estimate);
+        if (style != PengramConfig.REG_STYLE_EXACT && pengramRegDateUserId != 0) {
+            // показываем месяц только там, где он действительно известен
+            final String smart = PengramRegDate.formatSmart(estimate, pengramRegDateUserId);
+            if (smart != null) {
+                date = smart;
+            }
+        }
         if (date == null) {
             date = "—";
         }
@@ -7383,6 +7393,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (estimate <= 0) {
             return status;
         }
+        pengramRegDateUserId = userId;
         final String reg = pengramRegDateText(estimate);
         if (TextUtils.isEmpty(reg) || "—".equals(reg)) {
             return status;
@@ -13732,6 +13743,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (position == regDateRow) {
                         final long estimate = PengramRegDate.estimate(userId);
+                        pengramRegDateUserId = userId;
                         final String text = pengramRegDateText(estimate);
                         detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);

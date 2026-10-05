@@ -54,3 +54,23 @@
 # Use -keep to explicitly keep any other classes shrinking would remove
 #-dontoptimize
 #-dontobfuscate
+# ------------------------------------------------------------------
+# Pengram: обфускация только нашего кода.
+#
+# Весь Telegram и все библиотеки остаются как есть — они полны рефлексии
+# и JNI-колбэков по именам, трогать их нельзя. А классы форка (Pengram*)
+# переименовываются: в декомпиляторе от них остаются буквы вместо смысла.
+# ------------------------------------------------------------------
+-dontoptimize
+-dontwarn **
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions
+# строки стектрейсов остаются читаемыми — иначе не разобрать падения беты
+-keepattributes SourceFile,LineNumberTable
+
+# всё, кроме классов форка, сохраняем целиком
+-keep class !**.Pengram**, ** { *; }
+-keepclassmembers class !**.Pengram**, ** { *; }
+
+# то, что действительно нельзя переименовывать и у нас: компоненты из манифеста
+-keep class org.telegram.messenger.PengramBackgroundService { *; }
+-keep class org.telegram.messenger.PengramAntiCrash { *; }
