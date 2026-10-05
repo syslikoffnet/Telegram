@@ -8242,14 +8242,24 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             title = "Updating";
             titleId = R.string.Updating;
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
-            title = "ConnectingToProxyWithDots";
-            titleId = R.string.ConnectingToProxyWithDots;
+            if (org.telegram.messenger.PengramBypass.isTunnelActive()) {
+                // идёт не «подключение к прокси», а переподключение обхода
+                title = "PengramBypassConnectingDots";
+                titleId = R.string.PengramBypassConnectingDots;
+            } else {
+                title = "ConnectingToProxyWithDots";
+                titleId = R.string.ConnectingToProxyWithDots;
+            }
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting) {
             title = "Connecting";
             titleId = R.string.Connecting;
         }
         if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting || currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
             action = () -> {
+                if (org.telegram.messenger.PengramBypass.isTunnelActive()) {
+                    presentFragment(new PengramBypassActivity());
+                    return;
+                }
                 BaseFragment lastFragment = null;
                 if (AndroidUtilities.isTablet()) {
                     if (!layerFragmentsStack.isEmpty()) {

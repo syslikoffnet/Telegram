@@ -306,6 +306,12 @@ public class PengramNet {
     /** отдать текущие настройки нативному движку; вызывать после любого изменения */
     public static void apply() {
         try {
+            // Разрез пакетов убран из интерфейса: современные фильтры его узнают,
+            // пользы от него нет. Один раз гасим у тех, кто успел его включить.
+            if (!PengramConfig.getBool("netBypassRetired", false)) {
+                PengramConfig.setBool("netBypassRetired", true);
+                PengramConfig.setBool(KEY_ENABLED, false);
+            }
             final boolean enabled = isEnabled();
             final Strategy s = enabled ? strategyOf(getProfile()) : strategyOf(PROFILE_OFF);
             ConnectionsManager.native_pengramSetDesync(

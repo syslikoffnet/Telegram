@@ -62,7 +62,7 @@ public final class PengramBypassEngine {
 
     private static final Charset ASCII = Charset.forName("US-ASCII");
     private static final int BUFFER = 32 * 1024;
-    private static final int CONNECT_TIMEOUT = 8000;
+    private static final int CONNECT_TIMEOUT = 5000;
 
     private static final Object lock = new Object();
     private static ServerSocket server;

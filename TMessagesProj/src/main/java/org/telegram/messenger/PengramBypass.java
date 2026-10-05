@@ -7,25 +7,19 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.utils.proxy.ProxySettings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Pengram: обход блокировки одной галочкой.
+ * Pengram: обход блокировки одним переключателем.
  *
- * Пользователь включает один переключатель — дальше приложение всё делает само
- * и молча. Как только Telegram перестаёт подключаться, Pengram по очереди
- * пробует способы, от самого быстрого к самому пробивному:
- *
- *   1. «Разрыв» — прямое соединение с разрезанным первым пакетом. Никаких
- *      посредников, скорость обычная; снимает блокировку по подписи трафика.
- *   2. «Через сайт» — HTTPS-туннель к сайту на Cloudflare. Снаружи это
- *      обычное открытие сайта, поэтому проходит даже при белом списке адресов.
- *   3. «MTProto» — классический телеграм-вход, если первые два не сработали.
- *
- * Победивший способ запоминается и в следующий раз включается сразу. Когда
- * блокировка отпускает, приложение само возвращается на прямое соединение,
- * потому что оно быстрее.
+ * Снаружи — только «включено / выключено». Внутри: пока прямое соединение
+ * живое, оно и используется (оно быстрее всех). Как только связь пропала,
+ * Pengram замеряет задержку у готовых входов и подключается к самому
+ * быстрому живому; если ни один не ответил, пробуется запасная дорога через
+ * веб-адреса самого Telegram. Когда блокировка отпускает, приложение само
+ * возвращается на прямое соединение.
  */
 public final class PengramBypass {
 
@@ -39,26 +33,24 @@ public final class PengramBypass {
     public static final int STATUS_FAILED = 4;
 
     public static final int MODE_NONE = 0;
-    public static final int MODE_SPLIT = 1;
-    public static final int MODE_WS = 2;
     public static final int MODE_MT = 3;
     public static final int MODE_TGWS = 4;
 
-    public static final int ROUTE_AUTO = 0;
-    public static final int ROUTE_WS = 1;
-    public static final int ROUTE_MT = 2;
-    public static final int ROUTE_SPLIT_LEGACY = 3;
-    public static final int ROUTE_TGWS = 4;
-
     private static final String PREFS = "pengram_bypass";
     /** как часто смотрим на состояние связи (одно сравнение числа) */
-    private static final long WATCH_INTERVAL = 8000;
+    private static final long WATCH_INTERVAL = 4000;
     /** столько ждём прямое соединение, прежде чем включать обход */
-    private static final long DIRECT_PATIENCE = 3500;
-    /** столько ждём, пока ядро подключится через выбранный способ */
-    private static final long MODE_PATIENCE = 10000;
+    private static final long DIRECT_PATIENCE = 2000;
+    /** столько ждём, пока ядро подключится через выбранный вход */
+    private static final long MODE_PATIENCE = 5500;
     /** пауза после полной неудачи */
-    private static final long RETRY_AFTER_FAIL = 90000;
+    private static final long RETRY_AFTER_FAIL = 20000;
+    /** сколько входов замеряем параллельно перед подключением */
+    private static final int MEASURE_CANDIDATES = 8;
+    /** сколько самых быстрых входов пробуем по очереди */
+    private static final int TRY_BEST = 3;
+    /** замер задержки входа: дольше ждать нет смысла */
+    private static final int MEASURE_TIMEOUT = 1500;
     /** как часто проверяем, не отпустила ли блокировка */
     private static final long DIRECT_RECHECK = 10L * 60 * 1000;
 
@@ -310,119 +302,93 @@ public final class PengramBypass {
         }, "pengram-bypass-ladder").start();
     }
 
-    public static int getPreferredRoute() {
-        final SharedPreferences p = prefs();
-        final int value = p == null ? ROUTE_AUTO : p.getInt("preferred_route", ROUTE_AUTO);
-        return value < ROUTE_AUTO || value > ROUTE_TGWS ? ROUTE_AUTO : value;
-    }
-
-    public static void setPreferredRoute(int value) {
-        value = Math.max(ROUTE_AUTO, Math.min(ROUTE_TGWS, value));
-        final SharedPreferences p = prefs();
-        if (p != null) p.edit().putInt("preferred_route", value).apply();
-        if (isEnabled()) retryNow();
-    }
-
+    /**
+     * Остался один путь, который реально проходит: готовый вход Telegram.
+     * Берём не «первый попавшийся», а самый быстрый по живому замеру задержки.
+     * Запасная дорога — через веб-адреса самого Telegram.
+     */
     private static boolean runLadder() {
-        final ArrayList<Integer> order = new ArrayList<>();
-        final int preferred = getPreferredRoute();
-        if (preferred != ROUTE_AUTO) {
-            final int selected = preferred == ROUTE_WS ? MODE_WS
-                    : preferred == ROUTE_MT ? MODE_MT
-                    : preferred == ROUTE_TGWS ? MODE_TGWS : MODE_SPLIT;
-            return tryMode(selected);
+        if (tryEntries()) {
+            return true;
         }
-        final int remembered = rememberedMode();
-        if (remembered != MODE_NONE) {
-            order.add(remembered);
+        return tryWebRoute();
+    }
+
+    private static boolean tryEntries() {
+        ArrayList<PengramBypassSources.Node> nodes = PengramBypassSources.nodesOfKind("mt");
+        if (nodes.isEmpty()) {
+            refreshBlocking();
+            nodes = PengramBypassSources.nodesOfKind("mt");
         }
-        // Fragmentation-only is no longer useful against modern stateful DPI.
-        // Auto uses it neither as a first attempt nor as a fallback; it remains manual for legacy networks.
-        // Native Fake-TLS MTProto on 443 is the cheapest and most stable first choice;
-        // the HTTPS/WebSocket VLESS tunnel remains a stronger fallback for IP filtering.
-        // Веб-версия Telegram стоит первой: свои же домены на 443, без чужих серверов
-        // и без зависимости от списков входов — помогает и при блокировке по адресам.
-        for (int candidate : new int[]{MODE_TGWS, MODE_MT, MODE_WS}) {
-            if (!order.contains(candidate)) order.add(candidate);
+        if (nodes.isEmpty()) {
+            return false;
         }
-        order.remove((Integer) MODE_SPLIT);
-        for (int candidate : order) {
+        final ArrayList<PengramBypassSources.Node> fastest = fastestFirst(nodes);
+        for (int i = 0; i < Math.min(TRY_BEST, fastest.size()); i++) {
             if (!isEnabled()) {
                 return false;
             }
-            if (tryMode(candidate)) {
-                remember(candidate);
+            PengramBypassEngine.stop();
+            applyMtProxy(fastest.get(i));
+            mode = MODE_MT;
+            if (waitForConnection()) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean tryMode(int candidate) {
-        if (candidate == MODE_SPLIT) {
-            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassModeSplit));
-            final int port = PengramBypassEngine.start(PengramBypassEngine.ROUTE_SPLIT, null);
-            if (port == 0) {
-                return false;
-            }
-            applyLocalProxy(port);
-            mode = MODE_SPLIT;
-            return waitForConnection();
-        }
-        if (candidate == MODE_TGWS) {
-            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassModeTgWs));
-            final int port = PengramBypassEngine.start(PengramBypassEngine.ROUTE_TGWS, null);
-            if (port == 0) {
-                return false;
-            }
-            applyLocalProxy(port);
-            mode = MODE_TGWS;
-            return waitForConnection();
-        }
-        if (candidate == MODE_WS) {
-            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassModeWs));
-            ArrayList<PengramBypassSources.Node> nodes = PengramBypassSources.nodesOfKind("ws");
-            if (nodes.isEmpty() || PengramBypassSources.needRefresh()) {
-                refreshBlocking();
-                nodes = PengramBypassSources.nodesOfKind("ws");
-            }
-            for (int i = 0; i < Math.min(4, nodes.size()); i++) {
-                if (!isEnabled()) {
-                    return false;
-                }
-                final int port = PengramBypassEngine.start(PengramBypassEngine.ROUTE_WS, nodes.get(i));
-                if (port == 0) {
-                    continue;
-                }
-                applyLocalProxy(port);
-                mode = MODE_WS;
-                if (waitForConnection()) {
-                    return true;
-                }
-            }
+    private static boolean tryWebRoute() {
+        if (!isEnabled()) {
             return false;
         }
-        if (candidate == MODE_MT) {
-            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassModeMt));
-            ArrayList<PengramBypassSources.Node> nodes = PengramBypassSources.nodesOfKind("mt");
-            if (nodes.isEmpty()) {
-                refreshBlocking();
-                nodes = PengramBypassSources.nodesOfKind("mt");
-            }
-            for (int i = 0; i < Math.min(4, nodes.size()); i++) {
-                if (!isEnabled()) {
-                    return false;
-                }
-                PengramBypassEngine.stop();
-                applyMtProxy(nodes.get(i));
-                mode = MODE_MT;
-                if (waitForConnection()) {
-                    return true;
-                }
-            }
+        final int port = PengramBypassEngine.start(PengramBypassEngine.ROUTE_TGWS, null);
+        if (port == 0) {
             return false;
         }
-        return false;
+        applyLocalProxy(port);
+        mode = MODE_TGWS;
+        return waitForConnection();
+    }
+
+    /**
+     * Параллельный замер задержки: все кандидаты проверяются одновременно,
+     * поэтому выбор самого быстрого стоит примерно полторы секунды, а не минуту.
+     */
+    private static ArrayList<PengramBypassSources.Node> fastestFirst(ArrayList<PengramBypassSources.Node> nodes) {
+        final ArrayList<PengramBypassSources.Node> candidates =
+                new ArrayList<>(nodes.subList(0, Math.min(MEASURE_CANDIDATES, nodes.size())));
+        final ArrayList<PengramBypassSources.Node> alive = new ArrayList<>();
+        final CountDownLatch latch = new CountDownLatch(candidates.size());
+        for (final PengramBypassSources.Node node : candidates) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    final int ms = PengramBypassEngine.probe(node, MEASURE_TIMEOUT);
+                    if (ms > 0) {
+                        node.ping = ms;
+                        synchronized (alive) {
+                            alive.add(node);
+                        }
+                    }
+                } catch (Throwable ignore) {
+                } finally {
+                    latch.countDown();
+                }
+            }, "pengram-measure");
+            thread.setDaemon(true);
+            thread.start();
+        }
+        try {
+            latch.await(MEASURE_TIMEOUT + 500L, TimeUnit.MILLISECONDS);
+        } catch (Throwable ignore) {
+        }
+        synchronized (alive) {
+            Collections.sort(alive, (a, b) -> Integer.compare(a.ping, b.ping));
+            if (!alive.isEmpty()) {
+                return new ArrayList<>(alive);
+            }
+        }
+        return candidates;
     }
 
     private static void refreshBlocking() {
@@ -527,35 +493,16 @@ public final class PengramBypass {
         }, "pengram-bypass-direct").start();
     }
 
-    // ------------------------------------------------------------- память о победителе
-
-    private static int rememberedMode() {
-        final SharedPreferences p = prefs();
-        return p == null ? MODE_NONE : p.getInt("winner", MODE_NONE);
-    }
-
-    private static void remember(int value) {
-        final SharedPreferences p = prefs();
-        if (p != null) {
-            p.edit().putInt("winner", value).putLong("winner_time", System.currentTimeMillis()).apply();
-        }
-    }
-
     // ------------------------------------------------------------- для экрана настроек
 
+    /** подпись под состоянием: без технических слов, пользователю они не нужны */
     public static String modeName(int value) {
-        switch (value) {
-            case MODE_SPLIT:
-                return LocaleController.getString(R.string.PengramBypassModeSplit);
-            case MODE_WS:
-                return LocaleController.getString(R.string.PengramBypassModeWs);
-            case MODE_MT:
-                return LocaleController.getString(R.string.PengramBypassModeMt);
-            case MODE_TGWS:
-                return LocaleController.getString(R.string.PengramBypassModeTgWs);
-            default:
-                return "";
-        }
+        return value == MODE_NONE ? "" : LocaleController.getString(R.string.PengramBypassStateProxyInfo);
+    }
+
+    /** идёт ли сейчас трафик через обход — нужно для подписи «Переподключение…» */
+    public static boolean isTunnelActive() {
+        return isEnabled() && tunnelActive;
     }
 
     /** кнопка «проверить сейчас» на экране обхода */
@@ -569,16 +516,7 @@ public final class PengramBypass {
         AndroidUtilities.runOnUIThread(PengramBypass::escalate, 200);
     }
 
-    /** ручное добавление своей ссылки: vless:// или tg://proxy */
-    public static boolean addFromLink(String link) {
-        final PengramBypassSources.Node node = PengramBypassSources.parseLink(link);
-        if (node == null) {
-            return false;
-        }
-        return PengramBypassSources.addManual(node);
-    }
-
-    /** обновление списка входов руками */
+    /** обновление списка входов (вызывается изнутри) */
     public static void refreshNodes(PengramBypassSources.Callback callback) {
         PengramBypassSources.refresh(true, callback);
     }
