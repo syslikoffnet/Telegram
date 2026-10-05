@@ -55,6 +55,11 @@ android {
             storePassword RELEASE_STORE_PASSWORD
             keyAlias RELEASE_KEY_ALIAS
             keyPassword RELEASE_KEY_PASSWORD
+            // Свой релизный ключ лежит в формате PKCS12; тестовый из репозитория — JKS.
+            // Тип задаёт CI через RELEASE_STORE_TYPE, по умолчанию ничего не меняем.
+            if (project.hasProperty("RELEASE_STORE_TYPE")) {
+                storeType project.property("RELEASE_STORE_TYPE")
+            }
         }
 
         release {
@@ -62,6 +67,9 @@ android {
             storePassword RELEASE_STORE_PASSWORD
             keyAlias RELEASE_KEY_ALIAS
             keyPassword RELEASE_KEY_PASSWORD
+            if (project.hasProperty("RELEASE_STORE_TYPE")) {
+                storeType project.property("RELEASE_STORE_TYPE")
+            }
         }
     }
 

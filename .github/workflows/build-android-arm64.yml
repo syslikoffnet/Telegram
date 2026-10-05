@@ -169,20 +169,38 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_TYPE: ${{ secrets.KEYSTORE_TYPE }}
         run: |
+          ENC=TMessagesProj/config/pengram-release.keystore.enc
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > TMessagesProj/config/release.keystore
             {
               echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
-              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
-              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS:-pengram}"
+              echo "RELEASE_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+              echo "RELEASE_STORE_TYPE=${KEYSTORE_TYPE:-pkcs12}"
             } >> gradle.properties
-            echo "Используется пользовательский keystore из секретов"
+            echo "Используется пользовательский keystore из секрета KEYSTORE_BASE64"
+          elif [ -n "$KEYSTORE_PASSWORD" ] && [ -f "$ENC" ]; then
+            # Простой путь для телефона: сам ключ лежит в репозитории зашифрованным,
+            # в секретах достаточно одного пароля. Без пароля файл бесполезен.
+            if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 400000 -in "$ENC" \
+                 -out TMessagesProj/config/release.keystore -pass env:KEYSTORE_PASSWORD; then
+              echo "::error::Не удалось расшифровать $ENC — неверный секрет KEYSTORE_PASSWORD. См. docs/KEYSTORE.md"
+              exit 1
+            fi
+            {
+              echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS:-pengram}"
+              echo "RELEASE_KEY_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_STORE_TYPE=pkcs12"
+            } >> gradle.properties
+            echo "Используется собственный ключ Pengram (зашифрован в репозитории)"
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             # Публичный релиз ключом из репозитория подписывать нельзя: этим ключом
             # владеет кто угодно, кто видел исходники, и он сможет выпустить
             # «обновление» поверх беты. Инструкция: docs/KEYSTORE.md
-            echo "::error::Релизный тег, а секрета KEYSTORE_BASE64 нет. Сгенерируйте свой ключ (scripts/new-keystore.sh) и добавьте секреты KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD. Подробности: docs/KEYSTORE.md"
+            echo "::error::Релизный тег, а подписывать нечем: нет ни секрета KEYSTORE_PASSWORD (к зашифрованному ключу в репозитории), ни KEYSTORE_BASE64. Сгенерируйте свой ключ (scripts/new-keystore.sh) и добавьте секреты KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD. Подробности: docs/KEYSTORE.md"
             exit 1
           else
             echo "::warning::Сборка подписана тестовым ключом из репозитория — ставить поверх неё релиз не получится. См. docs/KEYSTORE.md"
