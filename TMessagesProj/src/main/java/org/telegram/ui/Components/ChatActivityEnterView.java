@@ -5332,6 +5332,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         CanvasButton canvasButton;
 
         @Override
+        protected void onDraw(android.graphics.Canvas canvas) {
+            super.onDraw(canvas);
+            // Pengram: анимация только что набранных букв рисуется поверх текста,
+            // чтобы не трогать разметку строки (иначе текст мигает и прыгает)
+            PengramTypingEffects.drawOverlay(this, canvas);
+        }
+
+        @Override
         protected void onScrollChanged(int horiz, int vert, int oldHoriz, int oldVert) {
             super.onScrollChanged(horiz, vert, oldHoriz, oldVert);
             if (delegate != null) {

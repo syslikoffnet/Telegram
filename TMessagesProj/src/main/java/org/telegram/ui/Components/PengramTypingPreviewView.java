@@ -30,7 +30,13 @@ public class PengramTypingPreviewView extends FrameLayout {
         caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         addView(caption, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 24, Gravity.TOP | Gravity.LEFT));
 
-        input = new EditText(context);
+        input = new EditText(context) {
+            @Override
+            protected void onDraw(android.graphics.Canvas canvas) {
+                super.onDraw(canvas);
+                PengramTypingEffects.drawOverlay(this, canvas);
+            }
+        };
         input.setTextSize(17);
         input.setSingleLine(true);
         input.setGravity(Gravity.CENTER_VERTICAL);
