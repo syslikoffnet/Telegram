@@ -340,7 +340,10 @@ public class PengramScreenMockView extends View {
                     selected.bounds.right + grow, selected.bounds.bottom + grow);
             stroke.setColor(ColorUtils.setAlphaComponent(accent, (int) (220 * selectionPhase)));
             canvas.drawRoundRect(rect, dp(10), dp(10), stroke);
-            invalidate();
+            // пульс выделения крутим только пока экран реально на виду
+            if (isShown()) {
+                postInvalidateOnAnimation();
+            }
         }
 
         // ---------- то, что сейчас в руке ----------
@@ -356,7 +359,9 @@ public class PengramScreenMockView extends View {
             final String label = getString(dragging.titleRes);
             canvas.drawText(TextUtils.ellipsize(label, small, w - dp(8), TextUtils.TruncateAt.END).toString(),
                     rect.left + dp(4), rect.centerY() + dp(3.5f), small);
-            invalidate();
+            if (isShown()) {
+                postInvalidateOnAnimation();
+            }
         }
     }
 

@@ -398,7 +398,7 @@ public class PengramDeleteEffectView extends View {
             }
             canvas.drawBitmap(bitmap, originX, originY, paint);
             canvas.restore();
-            invalidate();
+            postInvalidateOnAnimation();
             return;
         }
         final float t = Math.min(1f, passed / (float) duration);

@@ -458,6 +458,8 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         private final EqualizerView equalizer;
         private final RectF rect = new RectF();
         private final Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        /** заглушка вместо обложки создаётся один раз на ячейку, а не на каждую привязку */
+        private final android.graphics.drawable.Drawable coverPlaceholder = Theme.createRoundRectDrawable(dp(10), 0x1FFFFFFF);
         private boolean active;
 
         TrackCell(Context context) {
@@ -521,7 +523,7 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             } else if (thumbLocation != null) {
                 cover.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
             } else {
-                cover.setImageDrawable(Theme.createRoundRectDrawable(dp(10), 0x1FFFFFFF));
+                cover.setImageDrawable(coverPlaceholder);
             }
 
             final boolean playingNow = active && !MediaController.getInstance().isMessagePaused();
@@ -592,8 +594,8 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
                         left + a * (barWidth + gap) + barWidth, centerY + height / 2f);
                 canvas.drawRoundRect(rect, barWidth / 2f, barWidth / 2f, paint);
             }
-            if (playing && isAttachedToWindow() && getVisibility() == VISIBLE) {
-                invalidate();
+            if (playing && isAttachedToWindow() && isShown()) {
+                postInvalidateOnAnimation();
             }
         }
     }
@@ -602,13 +604,18 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     private class HeaderBackground extends android.graphics.drawable.Drawable {
 
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        /** градиент пересоздаём только при смене размера, а не в каждом кадре */
+        private int shaderHeight = -1;
 
         @Override
         public void draw(@NonNull Canvas canvas) {
             final android.graphics.Rect bounds = getBounds();
-            paint.setShader(new LinearGradient(0, 0, 0, Math.max(1, bounds.height() * 0.5f),
-                    new int[]{ColorUtils.blendARGB(0xFF11161B, accentColor, 0.28f), 0xFF0E1115},
-                    null, Shader.TileMode.CLAMP));
+            if (shaderHeight != bounds.height()) {
+                shaderHeight = bounds.height();
+                paint.setShader(new LinearGradient(0, 0, 0, Math.max(1, shaderHeight * 0.5f),
+                        new int[]{ColorUtils.blendARGB(0xFF11161B, accentColor, 0.28f), 0xFF0E1115},
+                        null, Shader.TileMode.CLAMP));
+            }
             canvas.drawRect(bounds, paint);
         }
 

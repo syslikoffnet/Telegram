@@ -289,8 +289,11 @@ public class PengramConfig {
     public static int deletedMark = MARK_TRASH;
     public static int editedMark = MARK_EDIT_PENCIL;
 
-    private static final java.util.HashMap<String, Boolean> boolCache = new java.util.HashMap<>();
-    private static final java.util.HashMap<String, Integer> intCache = new java.util.HashMap<>();
+    // кеши читаются из каждого кадра отрисовки чата, поэтому они без блокировок
+    private static final java.util.concurrent.ConcurrentHashMap<String, Boolean> boolCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> intCache = new java.util.concurrent.ConcurrentHashMap<>();
+    /** сами настройки открываем один раз, а не на каждый getBool */
+    private static volatile SharedPreferences prefsCache;
 
     /**
      * Чтение числовой настройки без похода в SharedPreferences.
@@ -298,43 +301,37 @@ public class PengramConfig {
      */
     public static int getIntCached(String key, int def) {
         init();
-        synchronized (intCache) {
-            Integer cached = intCache.get(key);
-            if (cached != null) {
-                return cached;
-            }
-            SharedPreferences p = prefs();
-            final int value = p != null ? p.getInt(key, def) : def;
-            intCache.put(key, value);
-            return value;
+        final Integer cached = intCache.get(key);
+        if (cached != null) {
+            return cached;
         }
+        final SharedPreferences p = prefs();
+        final int value = p != null ? p.getInt(key, def) : def;
+        intCache.put(key, value);
+        return value;
     }
 
     public static boolean getBool(String key, boolean def) {
         init();
-        synchronized (boolCache) {
-            Boolean cached = boolCache.get(key);
-            if (cached != null) {
-                return cached;
-            }
-            SharedPreferences p = prefs();
-            final boolean value = p != null ? p.getBoolean(key, def) : def;
-            boolCache.put(key, value);
-            return value;
+        final Boolean cached = boolCache.get(key);
+        if (cached != null) {
+            return cached;
         }
+        final SharedPreferences p = prefs();
+        final boolean value = p != null ? p.getBoolean(key, def) : def;
+        boolCache.put(key, value);
+        return value;
     }
 
     public static void setIntValue(String key, int value) {
         init();
-        synchronized (intCache) { intCache.put(key, value); }
+        intCache.put(key, value);
         putInt(key, value);
     }
 
     public static void setBool(String key, boolean value) {
         init();
-        synchronized (boolCache) {
-            boolCache.put(key, value);
-        }
+        boolCache.put(key, value);
         putBoolean(key, value);
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
@@ -803,8 +800,14 @@ public class PengramConfig {
     }
 
     private static SharedPreferences prefs() {
+        SharedPreferences p = prefsCache;
+        if (p != null) {
+            return p;
+        }
         if (ApplicationLoader.applicationContext == null) return null;
-        return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        p = ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        prefsCache = p;
+        return p;
     }
 
     private static void putBoolean(String key, boolean value) {
@@ -818,9 +821,7 @@ public class PengramConfig {
     }
 
     private static void putInt(String key, int value) {
-        synchronized (intCache) {
-            intCache.put(key, value);
-        }
+        intCache.put(key, value);
         SharedPreferences p = prefs();
         if (p != null) p.edit().putInt(key, value).apply();
     }
@@ -1879,12 +1880,8 @@ public class PengramConfig {
         synchronized (PengramConfig.class) {
             loaded = false;
         }
-        synchronized (intCache) {
-            intCache.clear();
-        }
-        synchronized (boolCache) {
-            boolCache.clear();
-        }
+        intCache.clear();
+        boolCache.clear();
         init();
     }
 
