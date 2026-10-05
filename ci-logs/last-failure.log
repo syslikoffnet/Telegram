@@ -150,14 +150,14 @@ R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
 R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
 
 > Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
-Generated 12296 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 98372 bytes
+Generated 12313 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
+Size: 98508 bytes
 
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
 > Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2793: error: duplicate case label
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2984: error: duplicate case label
             case BTN_TRACK_FORWARD_MODE: {
             ^
 Note: Some input files use or override a deprecated API.
@@ -175,7 +175,7 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2793: error: duplicate case label
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2984: error: duplicate case label
               case BTN_TRACK_FORWARD_MODE: {
               ^
   Note: Some input files use or override a deprecated API.
@@ -223,7 +223,7 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2793: error: duplicate case label
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2984: error: duplicate case label
             case BTN_TRACK_FORWARD_MODE: {
             ^
 Note: Some input files use or override a deprecated API.
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 3m 27s
-322 actionable tasks: 171 executed, 151 from cache
+BUILD FAILED in 6m 53s
+325 actionable tasks: 174 executed, 151 from cache
