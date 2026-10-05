@@ -470,7 +470,10 @@ public class PengramConfig {
     public static final int DELETE_EFFECT_GLITCH = 14;
     public static final int DELETE_EFFECT_SWEEP = 15;
     public static final int DELETE_EFFECT_PORTAL_BLOCKS = 16;
-    public static final int DELETE_EFFECT_COUNT = 17;
+    public static final int DELETE_EFFECT_VOXELS = 17;
+    public static final int DELETE_EFFECT_PORTAL_GUN = 18;
+    public static final int DELETE_EFFECT_VORONOI = 19;
+    public static final int DELETE_EFFECT_COUNT = 20;
 
     public static int getDeleteEffect() {
         final int value = getIntCached("deleteEffect", DELETE_EFFECT_DUST);
@@ -504,6 +507,9 @@ public class PengramConfig {
             case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitch;
             case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweep;
             case DELETE_EFFECT_PORTAL_BLOCKS: return org.telegram.messenger.R.string.PengramDeleteEffectPortal2;
+            case DELETE_EFFECT_VOXELS: return org.telegram.messenger.R.string.PengramDeleteEffectVoxels;
+            case DELETE_EFFECT_PORTAL_GUN: return org.telegram.messenger.R.string.PengramDeleteEffectPortalGun;
+            case DELETE_EFFECT_VORONOI: return org.telegram.messenger.R.string.PengramDeleteEffectVoronoi;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNone;
         }
     }
@@ -526,6 +532,9 @@ public class PengramConfig {
             case DELETE_EFFECT_GLITCH: return org.telegram.messenger.R.string.PengramDeleteEffectGlitchInfo;
             case DELETE_EFFECT_SWEEP: return org.telegram.messenger.R.string.PengramDeleteEffectSweepInfo;
             case DELETE_EFFECT_PORTAL_BLOCKS: return org.telegram.messenger.R.string.PengramDeleteEffectPortal2Info;
+            case DELETE_EFFECT_VOXELS: return org.telegram.messenger.R.string.PengramDeleteEffectVoxelsInfo;
+            case DELETE_EFFECT_PORTAL_GUN: return org.telegram.messenger.R.string.PengramDeleteEffectPortalGunInfo;
+            case DELETE_EFFECT_VORONOI: return org.telegram.messenger.R.string.PengramDeleteEffectVoronoiInfo;
             default: return org.telegram.messenger.R.string.PengramDeleteEffectNoneInfo;
         }
     }

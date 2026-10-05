@@ -1266,4 +1266,10 @@
     <string name="PengramCrashEmpty">Вылетов не было — отлично.</string>
     <string name="PengramCrashNone">Нет</string>
     <string name="PengramCrashTapToCopy">Нажмите, чтобы открыть отчёт</string>
+    <string name="PengramDeleteEffectVoxels">Блоки</string>
+    <string name="PengramDeleteEffectVoxelsInfo">Сообщение трескается, как выбиваемый блок, и разваливается на кубики, разбрасывая пиксельные частицы.</string>
+    <string name="PengramDeleteEffectPortalGun">Портальная пушка</string>
+    <string name="PengramDeleteEffectPortalGunInfo">Снизу открывается оранжевый портал, сообщение проваливается в него и вылетает из синего.</string>
+    <string name="PengramDeleteEffectVoronoi">Стекло</string>
+    <string name="PengramDeleteEffectVoronoiInfo">По сообщению бегут трещины, и оно рассыпается на неровные стеклянные осколки с бликами.</string>
 </resources>

@@ -12238,4 +12238,10 @@
     <string name="PengramCrashEmpty">No crashes recorded — nice.</string>
     <string name="PengramCrashNone">None</string>
     <string name="PengramCrashTapToCopy">Tap to open the report</string>
+    <string name="PengramDeleteEffectVoxels">Blocks</string>
+    <string name="PengramDeleteEffectVoxelsInfo">The message cracks like a mined block and falls apart into cubes, spraying pixel particles.</string>
+    <string name="PengramDeleteEffectPortalGun">Portal gun</string>
+    <string name="PengramDeleteEffectPortalGunInfo">An orange portal opens underneath, the message falls through it and flies out of the blue one.</string>
+    <string name="PengramDeleteEffectVoronoi">Glass</string>
+    <string name="PengramDeleteEffectVoronoiInfo">Cracks run across the message, and it shatters into uneven glass shards that scatter with a glint.</string>
 </resources>

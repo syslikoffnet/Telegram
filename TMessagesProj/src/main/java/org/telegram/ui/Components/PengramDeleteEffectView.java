@@ -106,6 +106,39 @@ public class PengramDeleteEffectView extends View {
     private float[] pieceSpin;
     private int pieceCols;
     private int pieceRows;
+    private float[] pieceW;          // размер куска: у Вороного ячейки разные
+    private float[] pieceH;
+    private float[] pieceFlip;       // «кувырок» осколка в 3D
+
+    // --- Minecraft-блоки ---
+    private final Paint pixelPaint = new Paint();   // ни сглаживания, ни фильтрации: кубик остаётся кубиком
+    private float voxelSize;
+    private int voxelCols;
+    private int voxelRows;
+    private boolean[] voxelOn;
+    private float[] voxelVx;
+    private float[] voxelVy;
+    private float[] voxelDelay;
+    private float[] voxelSeed;
+    private float[] partX;
+    private float[] partY;
+    private float[] partVx;
+    private float[] partVy;
+    private float[] partSize;
+    private float[] partDelay;
+    private int[] partColor;
+
+    // --- портальная пушка ---
+    private final RectF oval = new RectF();
+    private float portalAx, portalAy, portalArx, portalAry;
+    private float portalBx, portalBy, portalBrx, portalBry;
+    private float[] sparkAngle;
+    private float[] sparkRadius;
+    private float[] sparkSpeed;
+    private float[] sparkSize;
+
+    // --- стекло (Вороной) ---
+    private android.graphics.Path crackPath;
 
     /** если список едет во время эффекта, картинка едет вместе с ним */
     private androidx.recyclerview.widget.RecyclerView followList;
@@ -168,6 +201,12 @@ public class PengramDeleteEffectView extends View {
             buildPuzzle();
         } else if (effect == PengramConfig.DELETE_EFFECT_SHARDS) {
             buildShards();
+        } else if (effect == PengramConfig.DELETE_EFFECT_VOXELS) {
+            buildVoxels();
+        } else if (effect == PengramConfig.DELETE_EFFECT_PORTAL_GUN) {
+            buildPortalGun();
+        } else if (effect == PengramConfig.DELETE_EFFECT_VORONOI) {
+            buildVoronoi();
         }
         // Аппаратный слой здесь вреден: содержимое меняется каждый кадр, и слой
         // приходится целиком перерисовывать в отдельную текстуру — это и давало
@@ -346,6 +385,259 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    // ------------------------------------------------- подготовка новых эффектов
+
+    /**
+     * Minecraft: сообщение — это блок, который выбивают киркой.
+     * Режем снимок на ровные кубики и заранее раскидываем пиксельные частицы,
+     * цвет которых берём прямо из снимка — осколки «того же материала».
+     */
+    private void buildVoxels() {
+        if (bmpW <= 0 || bmpH <= 0) {
+            return;
+        }
+        voxelSize = AndroidUtilities.dpf2(9f);
+        voxelCols = Math.max(1, (int) Math.ceil(bmpW / voxelSize));
+        voxelRows = Math.max(1, (int) Math.ceil(bmpH / voxelSize));
+        final int count = voxelCols * voxelRows;
+        voxelOn = new boolean[count];
+        voxelVx = new float[count];
+        voxelVy = new float[count];
+        voxelDelay = new float[count];
+        voxelSeed = new float[count];
+        final float centerX = bmpW / 2f;
+        final float spread = AndroidUtilities.dpf2(62f);
+        for (int a = 0; a < count; ++a) {
+            final int col = a % voxelCols;
+            final int row = a / voxelCols;
+            final float left = col * voxelSize;
+            final float top = row * voxelSize;
+            if (isPieceEmpty(left, top, voxelSize, voxelSize)) {
+                continue;
+            }
+            voxelOn[a] = true;
+            voxelSeed[a] = random.nextFloat();
+            final float dir = (left + voxelSize / 2f - centerX) / Math.max(1f, centerX);
+            voxelVx[a] = dir * spread * (0.6f + random.nextFloat() * 0.9f)
+                    + (random.nextFloat() - 0.5f) * AndroidUtilities.dpf2(26f);
+            // блоки сначала подпрыгивают, потом их забирает гравитация
+            voxelVy[a] = -AndroidUtilities.dpf2(34f) * (0.5f + random.nextFloat());
+            voxelDelay[a] = Math.min(0.42f, (1f - row / (float) voxelRows) * 0.22f + voxelSeed[a] * 0.2f);
+        }
+
+        final int parts = Math.max(24, Math.min(110, count / 3));
+        partX = new float[parts];
+        partY = new float[parts];
+        partVx = new float[parts];
+        partVy = new float[parts];
+        partSize = new float[parts];
+        partDelay = new float[parts];
+        partColor = new int[parts];
+        for (int a = 0; a < parts; ++a) {
+            int px = 0, py = 0, color = 0;
+            for (int tries = 0; tries < 8; ++tries) {
+                px = random.nextInt(Math.max(1, bmpW));
+                py = random.nextInt(Math.max(1, bmpH));
+                try {
+                    color = bitmap.getPixel(px, py);
+                } catch (Throwable e) {
+                    color = 0;
+                }
+                if (Color.alpha(color) > 40) {
+                    break;
+                }
+            }
+            if (Color.alpha(color) <= 40) {
+                color = 0xFF8C8C8C;
+            }
+            partX[a] = px;
+            partY[a] = py;
+            partColor[a] = 0xFF000000 | color;
+            partSize[a] = AndroidUtilities.dpf2(1.5f) * (1f + random.nextFloat() * 1.6f);
+            final double angle = random.nextFloat() * Math.PI * 2;
+            final float speed = AndroidUtilities.dpf2(40f) * (0.4f + random.nextFloat());
+            partVx[a] = (float) Math.cos(angle) * speed;
+            partVy[a] = (float) Math.sin(angle) * speed - AndroidUtilities.dpf2(46f) * random.nextFloat();
+            partDelay[a] = random.nextFloat() * 0.3f;
+        }
+    }
+
+    /** геометрия двух порталов и искры, которые засасывает в оранжевый */
+    private void buildPortalGun() {
+        portalArx = Math.max(AndroidUtilities.dpf2(40f), bmpW * 0.34f);
+        portalAry = Math.max(AndroidUtilities.dpf2(7f), portalArx * 0.21f);
+        portalAx = bmpW * 0.34f;
+        portalAy = bmpH + AndroidUtilities.dpf2(5f);
+
+        portalBrx = portalArx * 0.82f;
+        portalBry = portalAry * 0.82f;
+        portalBx = bmpW * 0.74f;
+        portalBy = -AndroidUtilities.dpf2(22f);
+
+        final int count = 26;
+        sparkAngle = new float[count];
+        sparkRadius = new float[count];
+        sparkSpeed = new float[count];
+        sparkSize = new float[count];
+        for (int a = 0; a < count; ++a) {
+            sparkAngle[a] = random.nextFloat() * 360f;
+            sparkRadius[a] = 0.45f + random.nextFloat() * 0.95f;
+            sparkSpeed[a] = (random.nextFloat() < 0.5f ? -1f : 1f) * (160f + random.nextFloat() * 340f);
+            sparkSize[a] = AndroidUtilities.dpf2(1f) * (1f + random.nextFloat() * 1.8f);
+        }
+    }
+
+    /**
+     * Стекло: диаграмма Вороного по случайным центрам.
+     * Каждая ячейка получается отсечением прямоугольника серединными перпендикулярами
+     * (алгоритм Сазерленда — Ходжмана) — честные выпуклые осколки без единой лишней грани.
+     */
+    private void buildVoronoi() {
+        if (bmpW <= 0 || bmpH <= 0) {
+            return;
+        }
+        final int count = Math.max(12, Math.min(22,
+                Math.round(bmpW * bmpH / (float) (AndroidUtilities.dp(38) * AndroidUtilities.dp(38)))));
+        final float[] seedX = new float[count];
+        final float[] seedY = new float[count];
+        final float minDist = (float) Math.sqrt(bmpW * (double) bmpH / count) * 0.55f;
+        for (int a = 0; a < count; ++a) {
+            float bestX = 0, bestY = 0, bestScore = -1f;
+            for (int tries = 0; tries < 10; ++tries) {
+                final float x = random.nextFloat() * bmpW;
+                final float y = random.nextFloat() * bmpH;
+                float nearest = Float.MAX_VALUE;
+                for (int b = 0; b < a; ++b) {
+                    nearest = Math.min(nearest, (float) Math.hypot(x - seedX[b], y - seedY[b]));
+                }
+                if (nearest > bestScore) {
+                    bestScore = nearest;
+                    bestX = x;
+                    bestY = y;
+                }
+                if (nearest > minDist) {
+                    break;
+                }
+            }
+            seedX[a] = bestX;
+            seedY[a] = bestY;
+        }
+
+        piecePaths = new android.graphics.Path[count];
+        pieceX = new float[count];
+        pieceY = new float[count];
+        pieceCx = new float[count];
+        pieceCy = new float[count];
+        pieceDelay = new float[count];
+        pieceVx = new float[count];
+        pieceVy = new float[count];
+        pieceSpin = new float[count];
+        pieceW = new float[count];
+        pieceH = new float[count];
+        pieceFlip = new float[count];
+        pieceCols = 1;
+        pieceRows = 1;
+        crackPath = new android.graphics.Path();
+
+        // точка удара: от неё расходятся трещины и считается очередь разлёта
+        final float hitX = bmpW * (0.3f + random.nextFloat() * 0.4f);
+        final float hitY = bmpH * (0.3f + random.nextFloat() * 0.4f);
+        final float maxDist = (float) Math.hypot(bmpW, bmpH);
+
+        float[] polyX = new float[32];
+        float[] polyY = new float[32];
+        final float[] bufX = new float[32];
+        final float[] bufY = new float[32];
+
+        for (int a = 0; a < count; ++a) {
+            int n = 4;
+            polyX[0] = 0; polyY[0] = 0;
+            polyX[1] = bmpW; polyY[1] = 0;
+            polyX[2] = bmpW; polyY[2] = bmpH;
+            polyX[3] = 0; polyY[3] = bmpH;
+
+            for (int b = 0; b < count && n >= 3; ++b) {
+                if (b == a) {
+                    continue;
+                }
+                // полуплоскость «ближе к a, чем к b»
+                final float nx = seedX[b] - seedX[a];
+                final float ny = seedY[b] - seedY[a];
+                final float mx = (seedX[a] + seedX[b]) / 2f;
+                final float my = (seedY[a] + seedY[b]) / 2f;
+                if (Math.abs(nx) < 0.0001f && Math.abs(ny) < 0.0001f) {
+                    continue;
+                }
+                int out = 0;
+                for (int i = 0; i < n; ++i) {
+                    final int j = (i + 1) % n;
+                    final float di = (polyX[i] - mx) * nx + (polyY[i] - my) * ny;
+                    final float dj = (polyX[j] - mx) * nx + (polyY[j] - my) * ny;
+                    if (di <= 0 && out < bufX.length) {
+                        bufX[out] = polyX[i];
+                        bufY[out] = polyY[i];
+                        ++out;
+                    }
+                    if ((di < 0 && dj > 0) || (di > 0 && dj < 0)) {
+                        final float k = di / (di - dj);
+                        if (out < bufX.length) {
+                            bufX[out] = polyX[i] + (polyX[j] - polyX[i]) * k;
+                            bufY[out] = polyY[i] + (polyY[j] - polyY[i]) * k;
+                            ++out;
+                        }
+                    }
+                }
+                n = out;
+                System.arraycopy(bufX, 0, polyX, 0, n);
+                System.arraycopy(bufY, 0, polyY, 0, n);
+            }
+            if (n < 3) {
+                continue;
+            }
+
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
+            float cx = 0, cy = 0;
+            for (int i = 0; i < n; ++i) {
+                minX = Math.min(minX, polyX[i]);
+                maxX = Math.max(maxX, polyX[i]);
+                minY = Math.min(minY, polyY[i]);
+                maxY = Math.max(maxY, polyY[i]);
+                cx += polyX[i];
+                cy += polyY[i];
+            }
+            cx /= n;
+            cy /= n;
+            if (isPieceEmpty(minX, minY, maxX - minX, maxY - minY)) {
+                continue;   // прозрачный участок осколка не даёт
+            }
+
+            final android.graphics.Path path = new android.graphics.Path();
+            path.moveTo(polyX[0], polyY[0]);
+            for (int i = 1; i < n; ++i) {
+                path.lineTo(polyX[i], polyY[i]);
+            }
+            path.close();
+            piecePaths[a] = path;
+            crackPath.addPath(path);
+
+            pieceX[a] = minX;
+            pieceY[a] = minY;
+            pieceW[a] = maxX - minX;
+            pieceH[a] = maxY - minY;
+            pieceCx[a] = cx;
+            pieceCy[a] = cy;
+
+            final float dist = (float) Math.hypot(cx - hitX, cy - hitY) / Math.max(1f, maxDist);
+            pieceDelay[a] = Math.min(0.5f, dist * 0.45f + random.nextFloat() * 0.06f);
+            final float dirX = (cx - hitX) / Math.max(1f, bmpW / 2f);
+            final float dirY = (cy - hitY) / Math.max(1f, bmpH / 2f);
+            pieceVx[a] = dirX * AndroidUtilities.dpf2(85f) * (0.7f + random.nextFloat() * 0.7f);
+            pieceVy[a] = dirY * AndroidUtilities.dpf2(48f) - AndroidUtilities.dpf2(26f) * random.nextFloat();
+            pieceSpin[a] = (random.nextFloat() - 0.5f) * 260f;
+            pieceFlip[a] = (0.6f + random.nextFloat() * 1.8f) * (random.nextFloat() < 0.5f ? -1f : 1f);
+        }
+    }
+
     /** кусок целиком прозрачный? тогда он не нужен */
     private boolean isPieceEmpty(float left, float top, float pw, float ph) {
         try {
@@ -401,6 +693,9 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_GHOST: return 920;
             case PengramConfig.DELETE_EFFECT_GLITCH: return 700;
             case PengramConfig.DELETE_EFFECT_SWEEP: return 760;
+            case PengramConfig.DELETE_EFFECT_VOXELS: return 1150;
+            case PengramConfig.DELETE_EFFECT_PORTAL_GUN: return 1400;
+            case PengramConfig.DELETE_EFFECT_VORONOI: return 1050;
             default: return 800;
         }
     }
@@ -462,6 +757,9 @@ public class PengramDeleteEffectView extends View {
             case PengramConfig.DELETE_EFFECT_GHOST: drawGhost(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_GLITCH: drawGlitch(canvas, t); break;
             case PengramConfig.DELETE_EFFECT_SWEEP: drawSweep(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_VOXELS: drawVoxels(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_PORTAL_GUN: drawPortalGun(canvas, t); break;
+            case PengramConfig.DELETE_EFFECT_VORONOI: drawVoronoi(canvas, t); break;
             default: drawCells(canvas, t); break;
         }
 
@@ -894,6 +1192,276 @@ public class PengramDeleteEffectView extends View {
         glow.setAlpha(255);
         canvas.drawPath(firePath, glow);
         glow.setShader(null);
+    }
+
+    // ------------------------------------------------------- новые эффекты
+
+    /** Minecraft: блок трескается, разлетается кубиками и сыплет пиксельной крошкой */
+    private void drawVoxels(Canvas canvas, float t) {
+        if (voxelOn == null) {
+            drawCells(canvas, t);
+            return;
+        }
+        final float crack = clamp01(t / 0.18f);
+        final float fly = clamp01((t - 0.18f) / 0.82f);
+
+        if (fly <= 0f) {
+            // фаза «добывания»: блок подрагивает по пиксельной сетке и покрывается сколами
+            final float step = voxelSize * 0.2f;
+            final int phase = (int) (crack * 9f);
+            canvas.save();
+            canvas.translate((phase % 2 == 0 ? -step : step) * crack, (phase % 3 == 0 ? step : 0) * crack * 0.5f);
+            pixelPaint.setColorFilter(null);
+            pixelPaint.setAlpha(255);
+            canvas.drawBitmap(bitmap, 0, 0, pixelPaint);
+            // сколы: тёмные квадратики, их становится больше
+            pixelPaint.setStyle(Paint.Style.FILL);
+            final int cracks = (int) (crack * (partX == null ? 0 : partX.length) * 0.6f);
+            for (int a = 0; a < cracks; ++a) {
+                final float size = voxelSize * (0.35f + (a % 3) * 0.18f);
+                pixelPaint.setColor(0x66000000);
+                canvas.drawRect(partX[a], partY[a], partX[a] + size, partY[a] + size, pixelPaint);
+            }
+            canvas.restore();
+            return;
+        }
+
+        final float gravity = AndroidUtilities.dpf2(210f);
+        pixelPaint.setColorFilter(null);
+        for (int a = 0; a < voxelOn.length; ++a) {
+            if (!voxelOn[a]) {
+                continue;
+            }
+            final float delay = voxelDelay[a];
+            final float local = delay >= 1f ? 0f : clamp01((fly - delay) / (1f - delay));
+            if (local <= 0f) {
+                continue;
+            }
+            float alpha = local > 0.78f ? clamp01((1f - local) / 0.22f) : 1f;
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            final int col = a % voxelCols;
+            final int row = a / voxelCols;
+            final float left = col * voxelSize;
+            final float top = row * voxelSize;
+            final float dx = voxelVx[a] * local;
+            final float dy = voxelVy[a] * local + gravity * local * local;
+            alpha *= edgeFade(left + dx, top + dy, voxelSize, voxelSize);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            // кубик «усыхает» — ровно как исчезающие частицы блока в Minecraft
+            final float scale = 1f - 0.55f * local * local;
+            final float inset = voxelSize * (1f - scale) / 2f;
+            src.set((int) left, (int) top,
+                    (int) Math.min(bmpW, left + voxelSize), (int) Math.min(bmpH, top + voxelSize));
+            if (src.width() <= 0 || src.height() <= 0) {
+                continue;
+            }
+            dst.set(left + dx + inset, top + dy + inset,
+                    left + dx + voxelSize - inset, top + dy + voxelSize - inset);
+            pixelPaint.setAlpha((int) (255 * alpha));
+            canvas.drawBitmap(bitmap, src, dst, pixelPaint);
+        }
+
+        if (partX != null) {
+            pixelPaint.setStyle(Paint.Style.FILL);
+            pixelPaint.setColorFilter(null);
+            final float pg = AndroidUtilities.dpf2(260f);
+            for (int a = 0; a < partX.length; ++a) {
+                final float delay = partDelay[a];
+                final float local = clamp01((fly - delay) / (1f - delay));
+                if (local <= 0f) {
+                    continue;
+                }
+                float alpha = local > 0.6f ? clamp01((1f - local) / 0.4f) : 1f;
+                final float x = partX[a] + partVx[a] * local;
+                final float y = partY[a] + partVy[a] * local + pg * local * local;
+                alpha *= edgeFade(x, y, partSize[a], partSize[a]);
+                if (alpha <= 0.01f) {
+                    continue;
+                }
+                final float size = partSize[a] * (1f - 0.35f * local);
+                pixelPaint.setColor(partColor[a]);
+                pixelPaint.setAlpha((int) (255 * alpha));
+                canvas.drawRect(x, y, x + size, y + size, pixelPaint);
+            }
+        }
+        pixelPaint.setAlpha(255);
+    }
+
+    /** Portal 2: оранжевый портал снизу глотает сообщение, синий сверху его выплёвывает */
+    private void drawPortalGun(Canvas canvas, float t) {
+        if (sparkAngle == null) {
+            drawCells(canvas, t);
+            return;
+        }
+        final int orange = 0xFFFF8A1E;
+        final int blue = 0xFF2FA8FF;
+
+        final float openA = clamp01(t / 0.13f) * (1f - clamp01((t - 0.82f) / 0.18f));
+        final float openB = clamp01((t - 0.33f) / 0.13f) * (1f - clamp01((t - 0.9f) / 0.1f));
+        final float spin = t * 520f;
+
+        // 1. сообщение проваливается в оранжевый портал — всё ниже его плоскости срезается
+        final float fall = clamp01((t - 0.1f) / 0.42f);
+        if (fall < 1f) {
+            final float e = CubicBezierInterpolator.EASE_IN.getInterpolation(fall);
+            final float travel = portalAy + AndroidUtilities.dpf2(6f);
+            canvas.save();
+            canvas.clipRect(-bmpW, -bmpH * 3f, bmpW * 2f, portalAy);
+            canvas.translate((portalAx - bmpW / 2f) * e * 0.4f, travel * e);
+            canvas.scale(1f - 0.14f * e, 1f - 0.08f * e, bmpW / 2f, bmpH);
+            paint.setAlpha(255);
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+        }
+
+        // 2. и вылетает из синего — уже меньше и с разгоном
+        final float out = clamp01((t - 0.4f) / 0.46f);
+        if (out > 0f) {
+            final float e = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(out);
+            final float scale = 0.74f - 0.22f * e;
+            canvas.save();
+            canvas.clipRect(-bmpW, portalBy, bmpW * 2f, bmpH * 3f);
+            canvas.translate(portalBx - bmpW / 2f + AndroidUtilities.dpf2(26f) * e,
+                    portalBy - bmpH * scale + (bmpH * scale + AndroidUtilities.dpf2(54f)) * e);
+            canvas.rotate(-10f * e, bmpW / 2f, bmpH / 2f);
+            canvas.scale(scale, scale, bmpW / 2f, 0);
+            paint.setAlpha((int) (255 * clamp01((1f - out) / 0.3f)));
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+            paint.setAlpha(255);
+        }
+
+        // 3. сами порталы — поверх всего
+        drawPortalOval(canvas, portalAx, portalAy, portalArx, portalAry, openA, orange, spin);
+        drawPortalOval(canvas, portalBx, portalBy, portalBrx, portalBry, openB, blue, -spin * 0.8f);
+
+        // 4. искры затягивает в оранжевый портал
+        glow.setStyle(Paint.Style.FILL);
+        glow.setColorFilter(null);
+        for (int a = 0; a < sparkAngle.length; ++a) {
+            final float local = clamp01((t - 0.06f - (a % 7) * 0.02f) / 0.6f);
+            if (local <= 0f || local >= 1f) {
+                continue;
+            }
+            final float radius = sparkRadius[a] * (1f - local);
+            final double angle = Math.toRadians(sparkAngle[a] + sparkSpeed[a] * local);
+            final float x = portalAx + (float) Math.cos(angle) * portalArx * radius;
+            final float y = portalAy + (float) Math.sin(angle) * portalAry * radius * 2.6f - portalAry * radius;
+            glow.setColor(orange);
+            glow.setAlpha((int) (235 * clamp01(1f - local) * edgeFade(x, y, sparkSize[a], sparkSize[a])));
+            canvas.drawCircle(x, y, sparkSize[a] * (1f - 0.4f * local), glow);
+        }
+        glow.setAlpha(255);
+    }
+
+    /** светящееся «окно» портала: тёмная дыра, кольца и закрученная дымка */
+    private void drawPortalOval(Canvas canvas, float cx, float cy, float rx, float ry, float open, int color, float spin) {
+        if (open <= 0.004f) {
+            return;
+        }
+        final float sx = rx * (0.15f + 0.85f * open);
+        final float sy = ry * (0.25f + 0.75f * open);
+        oval.set(cx - sx, cy - sy, cx + sx, cy + sy);
+
+        glow.setColorFilter(null);
+        glow.setStyle(Paint.Style.FILL);
+        glow.setColor(0xFF0B0C14);
+        glow.setAlpha((int) (225 * open));
+        canvas.drawOval(oval, glow);
+
+        glow.setStyle(Paint.Style.STROKE);
+        for (int i = 0; i < 3; ++i) {
+            glow.setStrokeWidth(AndroidUtilities.dpf2(2.2f + i * 3.4f));
+            glow.setColor(color);
+            glow.setAlpha((int) ((i == 0 ? 240 : i == 1 ? 86 : 34) * open));
+            canvas.drawOval(oval, glow);
+        }
+
+        glow.setStrokeWidth(AndroidUtilities.dpf2(1.4f));
+        for (int i = 0; i < 5; ++i) {
+            final float k = 0.36f + i * 0.13f;
+            oval.set(cx - sx * k, cy - sy * k, cx + sx * k, cy + sy * k);
+            glow.setColor(color);
+            glow.setAlpha((int) ((78 - i * 11) * open));
+            canvas.drawArc(oval, spin * (1f + i * 0.33f) + i * 57f, 110f + i * 24f, false, glow);
+        }
+        glow.setStyle(Paint.Style.FILL);
+        glow.setAlpha(255);
+    }
+
+    /** стекло: трещины по Вороному, затем осколки разлетаются, кувыркаясь и ловя блик */
+    private void drawVoronoi(Canvas canvas, float t) {
+        if (piecePaths == null || pieceW == null) {
+            drawCells(canvas, t);
+            return;
+        }
+        final float crack = clamp01(t / 0.16f);
+        final float fly = clamp01((t - 0.16f) / 0.84f);
+
+        if (fly <= 0f) {
+            paint.setAlpha(255);
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            if (crackPath != null) {
+                glow.setColorFilter(null);
+                glow.setStyle(Paint.Style.STROKE);
+                glow.setStrokeWidth(AndroidUtilities.dpf2(1.2f));
+                glow.setColor(0xFFFFFFFF);
+                glow.setAlpha((int) (200 * crack));
+                canvas.drawPath(crackPath, glow);
+                glow.setStyle(Paint.Style.FILL);
+                glow.setAlpha(255);
+            }
+            return;
+        }
+
+        final float gravity = AndroidUtilities.dpf2(120f);
+        for (int a = 0; a < piecePaths.length; ++a) {
+            final android.graphics.Path path = piecePaths[a];
+            if (path == null) {
+                continue;
+            }
+            final float delay = pieceDelay[a];
+            final float local = delay >= 1f ? 0f : clamp01((fly - delay) / (1f - delay));
+            if (local <= 0f) {
+                continue;
+            }
+            float alpha = local >= 0.7f ? clamp01((1f - local) / 0.3f) : 1f;
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            final float dx = pieceVx[a] * local;
+            final float dy = pieceVy[a] * local + gravity * local * local;
+            alpha *= edgeFade(pieceX[a] + dx, pieceY[a] + dy, pieceW[a], pieceH[a]);
+            if (alpha <= 0.01f) {
+                continue;
+            }
+            // осколок крутится в плоскости и заодно кувыркается — отсюда сжатие по X
+            final float flip = 0.45f + 0.55f * Math.abs((float) Math.cos(local * pieceFlip[a] * 2.4f));
+            canvas.save();
+            canvas.translate(dx, dy);
+            canvas.rotate(pieceSpin[a] * local, pieceCx[a], pieceCy[a]);
+            canvas.scale(flip, 1f, pieceCx[a], pieceCy[a]);
+            canvas.save();
+            canvas.clipPath(path);
+            paint.setAlpha((int) (255 * alpha));
+            canvas.drawBitmap(bitmap, 0, 0, paint);
+            canvas.restore();
+            // блик по кромке: пока осколок свежий, грань ловит свет
+            glow.setColorFilter(null);
+            glow.setStyle(Paint.Style.STROKE);
+            glow.setStrokeWidth(AndroidUtilities.dpf2(1.1f));
+            glow.setColor(0xFFFFFFFF);
+            glow.setAlpha((int) (130 * alpha * clamp01(1f - local * 1.2f)));
+            canvas.drawPath(path, glow);
+            glow.setStyle(Paint.Style.FILL);
+            glow.setAlpha(255);
+            canvas.restore();
+        }
+        paint.setAlpha(255);
     }
 
     /**
