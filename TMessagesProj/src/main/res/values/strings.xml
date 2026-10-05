@@ -12143,6 +12143,7 @@
     <string name="PengramBypassOwnProxy">Your own proxy is in use</string>
     <string name="PengramBypassModeSplit">Packet split</string>
     <string name="PengramBypassModeWs">Tunnel through a website</string>
+    <string name="PengramBypassModeTgWs">Through Telegram Web</string>
     <string name="PengramBypassModeMt">MTProto entry point</string>
     <string name="PengramBypassHowHeader">How it works</string>
     <string name="PengramBypassHow">Three ways, tried from fastest to most stubborn. First a packet split — a direct connection whose first bytes are torn apart so the filter cannot recognise Telegram. Then a tunnel through an ordinary website on Cloudflare: from the outside it looks like opening a web page, so it goes through even where only a white list of addresses is allowed. Last comes a classic MTProto entry point. The winner is remembered and used right away next time.</string>
@@ -12225,7 +12226,7 @@
     <string name="PengramBypassRouteHeader">Connection route</string>
     <string name="PengramBypassRouteAuto">Auto — recommended</string>
     <string name="PengramBypassRouteSplitLegacy">Packet split — legacy networks</string>
-    <string name="PengramBypassRouteInfo">Auto tries WSS first and remembers the fastest working route. A regular direct connection always remains the first choice when available. Packet splitting is kept only for legacy networks because modern stateful DPI recognizes it.</string>
+    <string name="PengramBypassRouteInfo">Auto tries the Telegram Web route first and remembers the fastest working route. A regular direct connection always remains the first choice when available. The Telegram Web route opens a normal HTTPS connection to the web endpoints of Telegram itself, so it also helps where datacenter addresses are blocked. Packet splitting is kept only for legacy networks because modern stateful DPI recognizes it.</string>
     <string name="PengramProfileHistory">Profile change history</string>
     <string name="PengramProfileHistoryEnable">Save profile changes</string>
     <string name="PengramProfileHistoryDisabledInfo">Off by default. Stores only real changes as compact deltas; bots, deleted and service accounts are excluded.</string>

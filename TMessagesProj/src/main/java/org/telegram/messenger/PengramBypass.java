@@ -42,11 +42,13 @@ public final class PengramBypass {
     public static final int MODE_SPLIT = 1;
     public static final int MODE_WS = 2;
     public static final int MODE_MT = 3;
+    public static final int MODE_TGWS = 4;
 
     public static final int ROUTE_AUTO = 0;
     public static final int ROUTE_WS = 1;
     public static final int ROUTE_MT = 2;
     public static final int ROUTE_SPLIT_LEGACY = 3;
+    public static final int ROUTE_TGWS = 4;
 
     private static final String PREFS = "pengram_bypass";
     /** как часто смотрим на состояние связи (одно сравнение числа) */
@@ -311,11 +313,11 @@ public final class PengramBypass {
     public static int getPreferredRoute() {
         final SharedPreferences p = prefs();
         final int value = p == null ? ROUTE_AUTO : p.getInt("preferred_route", ROUTE_AUTO);
-        return value < ROUTE_AUTO || value > ROUTE_SPLIT_LEGACY ? ROUTE_AUTO : value;
+        return value < ROUTE_AUTO || value > ROUTE_TGWS ? ROUTE_AUTO : value;
     }
 
     public static void setPreferredRoute(int value) {
-        value = Math.max(ROUTE_AUTO, Math.min(ROUTE_SPLIT_LEGACY, value));
+        value = Math.max(ROUTE_AUTO, Math.min(ROUTE_TGWS, value));
         final SharedPreferences p = prefs();
         if (p != null) p.edit().putInt("preferred_route", value).apply();
         if (isEnabled()) retryNow();
@@ -326,7 +328,8 @@ public final class PengramBypass {
         final int preferred = getPreferredRoute();
         if (preferred != ROUTE_AUTO) {
             final int selected = preferred == ROUTE_WS ? MODE_WS
-                    : preferred == ROUTE_MT ? MODE_MT : MODE_SPLIT;
+                    : preferred == ROUTE_MT ? MODE_MT
+                    : preferred == ROUTE_TGWS ? MODE_TGWS : MODE_SPLIT;
             return tryMode(selected);
         }
         final int remembered = rememberedMode();
@@ -337,7 +340,9 @@ public final class PengramBypass {
         // Auto uses it neither as a first attempt nor as a fallback; it remains manual for legacy networks.
         // Native Fake-TLS MTProto on 443 is the cheapest and most stable first choice;
         // the HTTPS/WebSocket VLESS tunnel remains a stronger fallback for IP filtering.
-        for (int candidate : new int[]{MODE_MT, MODE_WS}) {
+        // Веб-версия Telegram стоит первой: свои же домены на 443, без чужих серверов
+        // и без зависимости от списков входов — помогает и при блокировке по адресам.
+        for (int candidate : new int[]{MODE_TGWS, MODE_MT, MODE_WS}) {
             if (!order.contains(candidate)) order.add(candidate);
         }
         order.remove((Integer) MODE_SPLIT);
@@ -362,6 +367,16 @@ public final class PengramBypass {
             }
             applyLocalProxy(port);
             mode = MODE_SPLIT;
+            return waitForConnection();
+        }
+        if (candidate == MODE_TGWS) {
+            setState(STATUS_SEARCHING, LocaleController.getString(R.string.PengramBypassModeTgWs));
+            final int port = PengramBypassEngine.start(PengramBypassEngine.ROUTE_TGWS, null);
+            if (port == 0) {
+                return false;
+            }
+            applyLocalProxy(port);
+            mode = MODE_TGWS;
             return waitForConnection();
         }
         if (candidate == MODE_WS) {
@@ -536,6 +551,8 @@ public final class PengramBypass {
                 return LocaleController.getString(R.string.PengramBypassModeWs);
             case MODE_MT:
                 return LocaleController.getString(R.string.PengramBypassModeMt);
+            case MODE_TGWS:
+                return LocaleController.getString(R.string.PengramBypassModeTgWs);
             default:
                 return "";
         }

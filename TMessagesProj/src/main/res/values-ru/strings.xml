@@ -1171,6 +1171,7 @@
     <string name="PengramBypassOwnProxy">Работает ваш прокси</string>
     <string name="PengramBypassModeSplit">Разрыв пакета</string>
     <string name="PengramBypassModeWs">Туннель через сайт</string>
+    <string name="PengramBypassModeTgWs">Через веб-версию Telegram</string>
     <string name="PengramBypassModeMt">Вход MTProto</string>
     <string name="PengramBypassHowHeader">Как это работает</string>
     <string name="PengramBypassHow">Три способа, от самого быстрого к самому пробивному. Сначала разрыв пакета: соединение прямое, но первые байты разрезаны на части, и фильтр не узнаёт в них Telegram. Потом туннель через обычный сайт на Cloudflare — снаружи это выглядит как открытие веб-страницы, поэтому проходит даже там, где разрешён только белый список адресов. Последним идёт классический вход MTProto. Победивший способ запоминается и в следующий раз включается сразу.</string>
@@ -1253,7 +1254,7 @@
     <string name="PengramBypassRouteHeader">Способ подключения</string>
     <string name="PengramBypassRouteAuto">Авто — рекомендуемый</string>
     <string name="PengramBypassRouteSplitLegacy">Разрыв пакета — старые сети</string>
-    <string name="PengramBypassRouteInfo">Авто сначала использует WSS и запоминает самый быстрый рабочий маршрут. Обычное подключение всегда остаётся первым, если оно доступно. Разрыв пакета оставлен только для старых сетей: современные ТСПУ его распознают.</string>
+    <string name="PengramBypassRouteInfo">Автоматически сначала пробуется веб-версия Telegram, затем запоминается самый быстрый рабочий путь. Обычное прямое подключение всегда остаётся первым выбором, если оно работает. Путь через веб-версию — это обычное HTTPS-подключение к собственным веб-адресам Telegram, поэтому он помогает и там, где закрыты адреса дата-центров. Разрыв пакетов оставлен только для старых сетей: современные фильтры его узнают.</string>
     <string name="PengramProfileHistory">История изменений профилей</string>
     <string name="PengramProfileHistoryEnable">Сохранять изменения профилей</string>
     <string name="PengramProfileHistoryDisabledInfo">По умолчанию выключено. Хранятся только реальные изменения в виде компактных дельт; боты, удалённые и служебные аккаунты исключены.</string>

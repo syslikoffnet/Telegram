@@ -46,7 +46,7 @@ public class PengramBypassActivity extends BaseFragment {
     private LinearLayout advancedBlock;
     private TextSettingsCell advancedButton;
     private TextSettingsCell refreshCell;
-    private final TextCheckCell[] routeCells = new TextCheckCell[4];
+    private final TextCheckCell[] routeCells = new TextCheckCell[5];
     private boolean advancedShown;
 
     // разрез пакетов: отдельный от туннеля слой, работает без всяких посредников
@@ -116,7 +116,8 @@ public class PengramBypassActivity extends BaseFragment {
         advancedBlock.addView(routeHeader, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         final int[] routeNames = new int[]{R.string.PengramBypassRouteAuto, R.string.PengramBypassModeWs,
-                R.string.PengramBypassModeMt, R.string.PengramBypassRouteSplitLegacy};
+                R.string.PengramBypassModeMt, R.string.PengramBypassRouteSplitLegacy,
+                R.string.PengramBypassModeTgWs};
         for (int route = 0; route < routeCells.length; route++) {
             final int selectedRoute = route;
             final TextCheckCell cell = new TextCheckCell(context);

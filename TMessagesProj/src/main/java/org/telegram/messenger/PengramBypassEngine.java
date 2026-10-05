@@ -48,6 +48,17 @@ public final class PengramBypassEngine {
 
     public static final int ROUTE_SPLIT = 1;
     public static final int ROUTE_WS = 2;
+    public static final int ROUTE_TGWS = 4;
+
+    /** домены веб-версии Telegram по номеру дата-центра (1..5) */
+    private static final String[] TGWS_HOSTS = {
+            "pluto.web.telegram.org",
+            "venus.web.telegram.org",
+            "aurora.web.telegram.org",
+            "vesta.web.telegram.org",
+            "flora.web.telegram.org"
+    };
+    private static final String TGWS_PATH = "/apiws";
 
     private static final Charset ASCII = Charset.forName("US-ASCII");
     private static final int BUFFER = 32 * 1024;
@@ -318,6 +329,17 @@ public final class PengramBypassEngine {
     }
 
     private static Tunnel openTunnel(String host, int port) throws Exception {
+        if (route == ROUTE_TGWS) {
+            final int dc = datacenterOf(host);
+            if (dc > 0) {
+                try {
+                    return tgWsTunnel(dc);
+                } catch (Throwable e) {
+                    FileLog.e("pengram tgws failed: " + e);
+                }
+            }
+            return splitTunnel(host, port);
+        }
         if (route == ROUTE_WS) {
             final PengramBypassSources.Node n = node;
             if (n == null) {
@@ -408,6 +430,171 @@ public final class PengramBypassEngine {
         return new Tunnel(new VlessInput(ws), new VlessOutput(ws, header), socket);
     }
 
+    // ------------------------------------------------------------- туннель «через веб-версию Telegram»
+
+    /**
+     * Тот самый путь, которым ходит web.telegram.org: обычный HTTPS к домену
+     * своего дата-центра, внутри — WebSocket на {@code /apiws}, а внутри него
+     * байт-в-байт тот же обфусцированный поток MTProto, который сетевое ядро
+     * и так собиралось отправить. Ничего не перешифровываем: без секрета
+     * MTProxy поток совпадает с тем, что ждёт сервер.
+     *
+     * Для фильтра это посещение сайта Telegram по доменному имени на 443 —
+     * помогает и там, где режут не подпись, а адреса дата-центров.
+     */
+    private static Tunnel tgWsTunnel(int datacenter) throws Exception {
+        final String domain = TGWS_HOSTS[datacenter - 1];
+        Socket socket = new Socket();
+        socket.connect(new InetSocketAddress(domain, 443), CONNECT_TIMEOUT);
+        socket.setTcpNoDelay(true);
+        socket.setSoTimeout(CONNECT_TIMEOUT);
+        socket = upgradeTls(socket, domain, 443);
+        final InputStream rawIn = socket.getInputStream();
+        final OutputStream rawOut = socket.getOutputStream();
+        handshakeTgWs(domain, rawIn, rawOut);
+        socket.setSoTimeout(0);
+
+        final WsStream ws = new WsStream(rawIn, rawOut);
+        return new Tunnel(new WsInput(ws), new TgWsOutput(ws), socket);
+    }
+
+    /** веб-версия ходит с подпротоколом binary и своим Origin — повторяем точно */
+    private static void handshakeTgWs(String domain, InputStream in, OutputStream out) throws Exception {
+        final byte[] keyBytes = new byte[16];
+        random.nextBytes(keyBytes);
+        final String key = Base64.encodeToString(keyBytes, Base64.NO_WRAP);
+        final String request = "GET " + TGWS_PATH + " HTTP/1.1\r\n"
+                + "Host: " + domain + "\r\n"
+                + "Origin: https://web.telegram.org\r\n"
+                + "User-Agent: Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36\r\n"
+                + "Accept: */*\r\n"
+                + "Accept-Language: en-US,en;q=0.9\r\n"
+                + "Upgrade: websocket\r\n"
+                + "Connection: Upgrade\r\n"
+                + "Sec-WebSocket-Key: " + key + "\r\n"
+                + "Sec-WebSocket-Protocol: binary\r\n"
+                + "Sec-WebSocket-Version: 13\r\n\r\n";
+        out.write(request.getBytes(ASCII));
+        out.flush();
+        final String head = readHead(in);
+        if (!head.toLowerCase(Locale.US).startsWith("http/1.1 101")) {
+            throw new IOException("apiws refused");
+        }
+    }
+
+    /**
+     * Номер дата-центра по адресу, к которому идёт сетевое ядро. Адреса Telegram
+     * стабильны и перечислены в самом ядре; у IPv6 номер прямо записан в адресе
+     * (…:f00X:…). Незнакомый адрес — 0, такой поток пойдёт напрямую.
+     */
+    private static int datacenterOf(String host) {
+        if (TextUtils.isEmpty(host)) {
+            return 0;
+        }
+        final String value = host.toLowerCase(Locale.US);
+        if (value.indexOf(':') >= 0) {
+            for (int dc = 1; dc <= 5; dc++) {
+                if (value.contains(":f00" + dc + ":")) {
+                    return dc;
+                }
+            }
+            return 0;
+        }
+        final int last = lastOctet(value);
+        if (value.startsWith("149.154.175.")) {
+            return last >= 100 ? 3 : 1;
+        }
+        if (value.startsWith("149.154.167.")) {
+            return last >= 80 && last < 150 ? 4 : 2;
+        }
+        if (value.startsWith("149.154.171.") || value.startsWith("91.108.56.")) {
+            return 5;
+        }
+        if (value.startsWith("149.154.164.") || value.startsWith("149.154.166.")) {
+            return 4;
+        }
+        if (value.startsWith("95.161.76.")) {
+            return 2;
+        }
+        return 0;
+    }
+
+    private static int lastOctet(String ip) {
+        final int dot = ip.lastIndexOf('.');
+        if (dot < 0 || dot + 1 >= ip.length()) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(ip.substring(dot + 1));
+        } catch (Throwable ignore) {
+            return -1;
+        }
+    }
+
+    /**
+     * Первые 64 байта обфусцированного заголовка уходят отдельным кадром:
+     * сервер веб-версии разбирает их по приходу и не любит склейку с первым пакетом.
+     */
+    private static final class TgWsOutput extends OutputStream {
+        private final WsStream ws;
+        private int head = 64;
+
+        TgWsOutput(WsStream ws) {
+            this.ws = ws;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            write(new byte[]{(byte) b}, 0, 1);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            if (head > 0 && len > head) {
+                ws.send(b, off, head);
+                final int rest = len - head;
+                final int start = off + head;
+                head = 0;
+                ws.send(b, start, rest);
+                return;
+            }
+            head = Math.max(0, head - len);
+            ws.send(b, off, len);
+        }
+    }
+
+    /** кадры WebSocket как обычный поток байтов */
+    private static final class WsInput extends InputStream {
+        private final WsStream ws;
+
+        WsInput(WsStream ws) {
+            this.ws = ws;
+        }
+
+        @Override
+        public int read() throws IOException {
+            final byte[] one = new byte[1];
+            final int read = read(one, 0, 1);
+            return read < 0 ? -1 : one[0] & 0xff;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return ws.receive(b, off, len);
+        }
+    }
+
+    private static Socket upgradeTls(Socket plain, String domain, int port) throws Exception {
+        final SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+        final SSLSocket ssl = (SSLSocket) factory.createSocket(plain, domain, port, true);
+        ssl.setUseClientMode(true);
+        ssl.startHandshake();
+        if (!HttpsURLConnection.getDefaultHostnameVerifier().verify(domain, ssl.getSession())) {
+            throw new IOException("bad certificate");
+        }
+        return ssl;
+    }
+
     private static Socket upgradeTls(Socket plain, PengramBypassSources.Node n) throws Exception {
         final SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
         final String sni = TextUtils.isEmpty(n.sni) ? n.host : n.sni;
@@ -449,6 +636,14 @@ public final class PengramBypassEngine {
         out.write(request.getBytes(ASCII));
         out.flush();
 
+        final String head = readHead(in);
+        if (!head.toLowerCase(Locale.US).startsWith("http/1.1 101")) {
+            throw new IOException("no upgrade");
+        }
+    }
+
+    /** читает ответ сервера до пустой строки */
+    private static String readHead(InputStream in) throws IOException {
         final StringBuilder response = new StringBuilder();
         int state = 0;
         while (state < 4 && response.length() < 8192) {
@@ -465,10 +660,7 @@ public final class PengramBypassEngine {
                 state = 0;
             }
         }
-        final String head = response.toString();
-        if (!head.toLowerCase(Locale.US).startsWith("http/1.1 101")) {
-            throw new IOException("no upgrade");
-        }
+        return response.toString();
     }
 
     /** кадры WebSocket: наружу — бинарные и маскированные, внутрь — любые */
