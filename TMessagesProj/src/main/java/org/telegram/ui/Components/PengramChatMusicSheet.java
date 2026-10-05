@@ -181,11 +181,10 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             play((MessageObject) items.get(position));
         });
         listView.setOnItemLongClickListener((view, position) -> {
-            if (showInChat == null || position < 0 || position >= items.size() || !(items.get(position) instanceof MessageObject)) {
+            if (position < 0 || position >= items.size() || !(items.get(position) instanceof MessageObject)) {
                 return false;
             }
-            showInChat.run((MessageObject) items.get(position));
-            dismiss();
+            showTrackMenu((MessageObject) items.get(position));
             return true;
         });
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -355,6 +354,33 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             return LocaleController.formatString("PengramChatMusicHours", R.string.PengramChatMusicHours, hours, minutes);
         }
         return LocaleController.formatString("PengramChatMusicMinutes", R.string.PengramChatMusicMinutes, Math.max(1, minutes));
+    }
+
+    /** долгое нажатие на трек: переслать или показать сообщение в чате */
+    private void showTrackMenu(MessageObject messageObject) {
+        final BottomSheet.Builder builder = new BottomSheet.Builder(getContext(), false, resourcesProvider);
+        final ArrayList<CharSequence> titles = new ArrayList<>();
+        final ArrayList<Integer> icons = new ArrayList<>();
+        titles.add(getString(R.string.PengramTrackForwardTitle));
+        icons.add(R.drawable.msg_forward);
+        if (showInChat != null) {
+            titles.add(getString(R.string.PengramChatMusicShowInChat));
+            icons.add(R.drawable.msg_message);
+        }
+        final int[] iconsArray = new int[icons.size()];
+        for (int a = 0; a < icons.size(); ++a) {
+            iconsArray[a] = icons.get(a);
+        }
+        builder.setTitle(messageObject.getMusicTitle(true), true);
+        builder.setItems(titles.toArray(new CharSequence[0]), iconsArray, (dialog, which) -> {
+            if (which == 0) {
+                PengramTrackForward.start(getContext(), resourcesProvider, messageObject);
+            } else if (showInChat != null) {
+                showInChat.run(messageObject);
+                dismiss();
+            }
+        });
+        builder.show();
     }
 
     private void play(MessageObject messageObject) {

@@ -224,6 +224,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_COVER_SHAPE = 1429;
     private static final int BTN_LYRICS_CLEAR = 1430;
     private static final int BTN_PLAYER_STYLE = 1431;
+    private static final int BTN_TRACK_FORWARD_MODE = 1432;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
@@ -1954,6 +1955,17 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(null));
 
+        // Пересылка трека: манера выбирается заранее, кнопка потом не задаёт лишних вопросов
+        items.add(UItem.asHeader(getString(R.string.PengramTrackForwardHeader)));
+        items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_BUTTON, true,
+                getString(R.string.PengramTrackForwardButton), getString(R.string.PengramTrackForwardButtonInfo)));
+        items.add(UItem.asSettingsCell(BTN_TRACK_FORWARD_MODE, R.drawable.msg_forward,
+                getString(R.string.PengramTrackForwardMode),
+                org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.getTrackForwardMode())));
+        items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_CAPTION, false,
+                getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
+        items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
+
         if (PengramConfig.isNewPlayer()) {
             items.add(UItem.asHeader(getString(R.string.PengramLyricsSyncHeader)));
             items.add(checkInfo(PengramConfig.KEY_LYRICS_AUTO, true,
@@ -2776,6 +2788,16 @@ public class PengramSettingsActivity extends UniversalFragment {
                 }
                 showChoicePicker(getString(R.string.PengramLyricsAlign), options, PengramConfig.getLyricsAlign(),
                         value -> PengramConfig.setLyricsAlign(value));
+                return;
+            }
+            case BTN_TRACK_FORWARD_MODE: {
+                final CharSequence[] options = new CharSequence[]{
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_ASK),
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_AS_ME),
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_WITH_AUTHOR)
+                };
+                showChoicePicker(getString(R.string.PengramTrackForwardMode), options, PengramConfig.getTrackForwardMode(),
+                        value -> PengramConfig.setTrackForwardMode(value));
                 return;
             }
             case BTN_LYRICS_CLEAR: {

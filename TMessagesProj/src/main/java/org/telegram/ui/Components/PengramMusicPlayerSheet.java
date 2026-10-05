@@ -213,6 +213,25 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         queueButton.setVisibility(compact ? View.GONE : View.VISIBLE);
         topBar.addView(queueButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 54, 0));
 
+        // Pengram: пересылка трека одной кнопкой — манера берётся из настроек
+        if (PengramConfig.isTrackForwardButton()) {
+            final ImageView forwardButton = new ImageView(context);
+            forwardButton.setScaleType(ImageView.ScaleType.CENTER);
+            forwardButton.setImageResource(R.drawable.msg_forward);
+            forwardButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+            forwardButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(20)));
+            forwardButton.setContentDescription(getString(R.string.PengramTrackForwardTitle));
+            forwardButton.setOnClickListener(v -> {
+                final MessageObject track = MediaController.getInstance().getPlayingMessageObject();
+                if (track == null) {
+                    return;
+                }
+                dismiss();
+                PengramTrackForward.start(context, resourcesProvider, track);
+            });
+            topBar.addView(forwardButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 100, 0));
+        }
+
         // ---------- обложка и текст песни ----------
         final LinearLayout centerLayout = new LinearLayout(context);
         centerLayout.setOrientation(style == PengramConfig.PLAYER_STYLE_MINI_LYRICS

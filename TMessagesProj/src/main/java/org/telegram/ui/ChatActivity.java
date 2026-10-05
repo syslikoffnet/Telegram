@@ -2316,14 +2316,57 @@ public class ChatActivity extends BaseFragment implements
         showDialog(builder.create());
     }
 
+    /** Pengram: сколько моих сообщений в этом чате — чтобы спросить осмысленно, а не «вы уверены?» */
     private void pengramConfirmDeleteMyMessages() {
         if (getContext() == null) return;
-        new AlertDialog.Builder(getContext(), themeDelegate)
-                .setTitle(LocaleController.getString(R.string.PengramDeleteMyMessages))
-                .setMessage(LocaleController.getString(R.string.PengramDeleteMyMessagesConfirm))
-                .setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> pengramDeleteMyMessagesPage(0, 0))
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
-                .show();
+        final AlertDialog counting = new AlertDialog(getContext(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
+        counting.setCanCancel(true);
+        counting.showDelayed(250);
+
+        final TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
+        req.peer = getMessagesController().getInputPeer(getDialogId());
+        req.q = "";
+        req.filter = new TLRPC.TL_inputMessagesFilterEmpty();
+        req.limit = 1;
+        req.from_id = getMessagesController().getInputPeer(getUserConfig().getClientUserId());
+        req.flags |= 1;
+        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            try { counting.dismiss(); } catch (Throwable ignore) {}
+            if (getContext() == null) {
+                return;
+            }
+            int count = 0;
+            if (response instanceof TLRPC.messages_Messages) {
+                final TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                count = Math.max(res.count, res.messages.size());
+            }
+            if (count <= 0) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        LocaleController.getString(R.string.PengramDeleteMyMessagesNothing)).show();
+                return;
+            }
+            final int total = count;
+            new AlertDialog.Builder(getContext(), themeDelegate)
+                    .setTitle(LocaleController.getString(R.string.PengramDeleteMyMessages))
+                    .setMessage(LocaleController.formatString(R.string.PengramDeleteMyMessagesAsk, total))
+                    .setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> pengramStartDeleteMyMessages(total))
+                    .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                    .show();
+        }));
+    }
+
+    /** крутилка на время зачистки — её можно отменить, уже удалённое останется удалённым */
+    private AlertDialog pengramDeleteProgress;
+    private boolean pengramDeleteCancelled;
+
+    private void pengramStartDeleteMyMessages(int total) {
+        if (getContext() == null) return;
+        pengramDeleteCancelled = false;
+        pengramDeleteProgress = new AlertDialog(getContext(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
+        pengramDeleteProgress.setCanCancel(true);
+        pengramDeleteProgress.setOnCancelListener(dialog -> pengramDeleteCancelled = true);
+        pengramDeleteProgress.showDelayed(300);
+        pengramDeleteMyMessagesPage(0, 0);
     }
 
     private void pengramDeleteMyMessagesPage(int offsetId, int deleted) {
@@ -2337,6 +2380,10 @@ public class ChatActivity extends BaseFragment implements
         req.flags |= 1;
         getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             if (!(response instanceof TLRPC.messages_Messages)) {
+                if (pengramDeleteProgress != null) {
+                    try { pengramDeleteProgress.dismiss(); } catch (Throwable ignore) {}
+                    pengramDeleteProgress = null;
+                }
                 BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.UnknownError)).show();
                 return;
             }
@@ -2353,9 +2400,13 @@ public class ChatActivity extends BaseFragment implements
                 getMessagesController().deleteMessages(ids, null, null, getDialogId(), 0, true, 0);
             }
             final int total = deleted + ids.size();
-            if (result.messages.size() >= req.limit && nextOffset > 0) {
+            if (!pengramDeleteCancelled && result.messages.size() >= req.limit && nextOffset > 0) {
                 pengramDeleteMyMessagesPage(nextOffset, total);
             } else {
+                if (pengramDeleteProgress != null) {
+                    try { pengramDeleteProgress.dismiss(); } catch (Throwable ignore) {}
+                    pengramDeleteProgress = null;
+                }
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
                         LocaleController.formatString(R.string.PengramDeleteMyMessagesDone, total)).show();
             }
@@ -45275,7 +45326,7 @@ public class ChatActivity extends BaseFragment implements
             if (!object.isOutOwner() && !org.telegram.messenger.PengramConfig.isDeleteEffectIncoming()) {
                 continue;
             }
-            if (org.telegram.ui.Components.PengramDeleteEffectView.play(contentView, child, effect, pengramEffectBounds())) {
+            if (org.telegram.ui.Components.PengramDeleteEffectView.play(contentView, child, effect, pengramEffectBounds(), played * 70L)) {
                 played++;
             }
         }

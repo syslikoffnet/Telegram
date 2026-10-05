@@ -63,6 +63,8 @@ public class PengramDeleteEffectView extends View {
     private final float[] cellDelay;
 
     private long startTime;
+    /** пауза перед началом: из неё складывается «волна», когда удаляется сразу пачка сообщений */
+    private long startDelay;
     private final long duration;
     private Runnable whenDone;
     private boolean finished;
@@ -386,8 +388,20 @@ public class PengramDeleteEffectView extends View {
         if (startTime == 0) {
             startTime = android.os.SystemClock.elapsedRealtime();
         }
-        final float t = Math.min(1f, (android.os.SystemClock.elapsedRealtime() - startTime) / (float) duration);
+        final long passed = android.os.SystemClock.elapsedRealtime() - startTime - startDelay;
         syncGeometry();
+        if (passed < 0) {
+            // очередь ещё не дошла до этого сообщения — держим его нетронутым
+            canvas.save();
+            if (hasBounds) {
+                canvas.clipRect(bounds);
+            }
+            canvas.drawBitmap(bitmap, originX, originY, paint);
+            canvas.restore();
+            invalidate();
+            return;
+        }
+        final float t = Math.min(1f, passed / (float) duration);
 
         canvas.save();
         if (hasBounds) {
@@ -1080,6 +1094,14 @@ public class PengramDeleteEffectView extends View {
      * (чат отдаёт сюда полосу между шапкой и полем ввода).
      */
     public static boolean play(ViewGroup container, View view, int effect, RectF clipInWindow) {
+        return play(container, view, effect, clipInWindow, 0);
+    }
+
+    /**
+     * То же самое, но эффект стартует с задержкой — так пачка удалений уходит волной,
+     * а не мигает вся разом.
+     */
+    public static boolean play(ViewGroup container, View view, int effect, RectF clipInWindow, long startDelayMs) {
         if (container == null || view == null || effect == PengramConfig.DELETE_EFFECT_NONE) {
             return false;
         }
@@ -1126,6 +1148,7 @@ public class PengramDeleteEffectView extends View {
             bitmap.recycle();
             return false;
         }
+        effectView.startDelay = Math.max(0, startDelayMs);
         effectView.setGeometryInWindow(winX, winY, clip);
         if (parent instanceof androidx.recyclerview.widget.RecyclerView) {
             effectView.followScroll((androidx.recyclerview.widget.RecyclerView) parent);

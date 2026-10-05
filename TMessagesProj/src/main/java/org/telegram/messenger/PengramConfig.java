@@ -1225,6 +1225,33 @@ public class PengramConfig {
         return PengramPeerId.parse(query);
     }
 
+    // ------------------------------- пересылка трека -------------------------------
+
+    /** спросить при нажатии */
+    public static final int TRACK_FORWARD_ASK = 0;
+    /** переслать как своё сообщение, без «переслано от …» */
+    public static final int TRACK_FORWARD_AS_ME = 1;
+    /** обычная пересылка с именем отправителя */
+    public static final int TRACK_FORWARD_WITH_AUTHOR = 2;
+
+    public static final String KEY_TRACK_FORWARD_BUTTON = "trackForwardButton";
+    public static final String KEY_TRACK_FORWARD_CAPTION = "trackForwardCaption";
+
+    /** показывать ли кнопку пересылки в плеере */
+    public static boolean isTrackForwardButton() { return getBool(KEY_TRACK_FORWARD_BUTTON, true); }
+
+    /** добавлять ли отдельным сообщением подпись «исполнитель — название» */
+    public static boolean isTrackForwardCaption() { return getBool(KEY_TRACK_FORWARD_CAPTION, false); }
+
+    public static int getTrackForwardMode() {
+        final int value = getIntCached("trackForwardMode", TRACK_FORWARD_ASK);
+        return value < TRACK_FORWARD_ASK || value > TRACK_FORWARD_WITH_AUTHOR ? TRACK_FORWARD_ASK : value;
+    }
+
+    public static void setTrackForwardMode(int mode) {
+        putInt("trackForwardMode", mode < TRACK_FORWARD_ASK || mode > TRACK_FORWARD_WITH_AUTHOR ? TRACK_FORWARD_ASK : mode);
+    }
+
     // ------------------------------- пункты меню чата -------------------------------
 
     public static final int CHAT_ITEM_PENGRAM = 1;
