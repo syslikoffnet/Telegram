@@ -2667,6 +2667,50 @@ public class PengramConfig {
         }
     }
 
+    // ---- реакция плеера на музыку -----------------------------------------
+
+    /** пингвин и сияние не реагируют на звук */
+    public static final int PLAYER_BEAT_OFF = 0;
+    /** еле заметное покачивание — для тех, кого отвлекает движение */
+    public static final int PLAYER_BEAT_SOFT = 1;
+    /** обычный режим: пингвин подпрыгивает, вокруг расходятся кольца */
+    public static final int PLAYER_BEAT_NORMAL = 2;
+    /** всё по максимуму: высокие прыжки, яркое свечение, искры */
+    public static final int PLAYER_BEAT_JUICY = 3;
+    private static final int PLAYER_BEAT_COUNT = 4;
+
+    public static final String KEY_PLAYER_BEAT = "playerBeat";
+
+    public static int getPlayerBeatMode() {
+        final int value = getIntCached(KEY_PLAYER_BEAT, PLAYER_BEAT_NORMAL);
+        return value < 0 || value >= PLAYER_BEAT_COUNT ? PLAYER_BEAT_NORMAL : value;
+    }
+
+    public static void setPlayerBeatMode(int value) {
+        setIntValue(KEY_PLAYER_BEAT, value < 0 || value >= PLAYER_BEAT_COUNT ? PLAYER_BEAT_NORMAL : value);
+    }
+
+    /** множитель размаха анимаций; 0 — реакция выключена целиком */
+    public static float getPlayerBeatIntensity() {
+        switch (getPlayerBeatMode()) {
+            case PLAYER_BEAT_OFF: return 0f;
+            case PLAYER_BEAT_SOFT: return 0.5f;
+            case PLAYER_BEAT_JUICY: return 1.55f;
+            case PLAYER_BEAT_NORMAL:
+            default: return 1f;
+        }
+    }
+
+    public static int getPlayerBeatName(int value) {
+        switch (value) {
+            case PLAYER_BEAT_OFF: return org.telegram.messenger.R.string.PengramPlayerBeatOff;
+            case PLAYER_BEAT_SOFT: return org.telegram.messenger.R.string.PengramPlayerBeatSoft;
+            case PLAYER_BEAT_JUICY: return org.telegram.messenger.R.string.PengramPlayerBeatJuicy;
+            case PLAYER_BEAT_NORMAL:
+            default: return org.telegram.messenger.R.string.PengramPlayerBeatNormal;
+        }
+    }
+
     public static final int PLAYER_BG_COVER = 0;
     public static final int PLAYER_BG_GRADIENT = 1;
     public static final int PLAYER_BG_DARK = 2;

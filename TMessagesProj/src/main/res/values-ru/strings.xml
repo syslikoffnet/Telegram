@@ -1009,6 +1009,12 @@
     <string name="PengramEmptyCoverInfo">Нажмите на пингвина в плеере — он кувыркнётся.</string>
     <string name="PengramPlayerPenguinDance">Танцует под музыку</string>
     <string name="PengramPlayerPenguinDanceInfo">Пингвин двигается, пока играет трек, и дремлет на паузе.</string>
+    <string name="PengramPlayerBeat">Реакция на бит</string>
+    <string name="PengramPlayerBeatOff">Выкл</string>
+    <string name="PengramPlayerBeatSoft">Спокойно</string>
+    <string name="PengramPlayerBeatNormal">Обычно</string>
+    <string name="PengramPlayerBeatJuicy">Сочно</string>
+    <string name="PengramPlayerBeatInfo">Пингвин подпрыгивает на бочке, а вокруг расходятся светящиеся кольца в такт музыке. В режиме «Спокойно» движение почти незаметное.</string>
     <string name="PengramCoverRounded">Скруглённая</string>
     <string name="PengramCoverCircle">Круг</string>
     <string name="PengramCoverSquare">Квадрат</string>

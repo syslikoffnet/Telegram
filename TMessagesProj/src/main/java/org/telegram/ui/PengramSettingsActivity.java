@@ -115,6 +115,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SHARE_PHONE_MODE = 535;
     private static final int BTN_EMPTY_COVER = 536;
     private static final int BTN_PLAYER_ACCENT = 537;
+    private static final int BTN_PLAYER_BEAT = 538;
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
@@ -2975,6 +2976,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(PengramConfig.isEmptyCoverPenguin()
                     ? getString(R.string.PengramEmptyCoverInfo)
                     : getString(R.string.PengramPlayerAccentInfo)));
+            // как сильно плеер отзывается на музыку
+            items.add(UItem.asSettingsCell(BTN_PLAYER_BEAT, R.drawable.msg_tone_on,
+                    getString(R.string.PengramPlayerBeat),
+                    getString(PengramConfig.getPlayerBeatName(PengramConfig.getPlayerBeatMode()))));
+            items.add(UItem.asShadow(getString(R.string.PengramPlayerBeatInfo)));
         } else {
             items.add(UItem.asShadow(null));
         }
@@ -4153,6 +4159,22 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_PLAYER_ACCENT:
                 showPlayerAccentPicker();
                 break;
+            case BTN_PLAYER_BEAT: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramPlayerBeatOff),
+                        getString(R.string.PengramPlayerBeatSoft),
+                        getString(R.string.PengramPlayerBeatNormal),
+                        getString(R.string.PengramPlayerBeatJuicy)
+                };
+                showChoicePicker(getString(R.string.PengramPlayerBeat), options,
+                        PengramConfig.getPlayerBeatMode(), value -> {
+                            PengramConfig.setPlayerBeatMode(value);
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                break;
+            }
             case BTN_EMPTY_COVER: {
                 final CharSequence[] options = new CharSequence[]{
                         getString(R.string.PengramEmptyCoverPenguin),

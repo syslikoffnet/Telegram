@@ -3916,11 +3916,16 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     @Override
                     public void onVisualizerUpdate(boolean playing, boolean animate, float[] values) {
                         Theme.getCurrentAudiVisualizerDrawable().setWaveform(playing, animate, values);
+                        // Pengram: тот же спектр кормит анимации плеера
+                        PengramAudioPulse.update(playing, values);
                     }
 
                     @Override
                     public boolean needUpdate() {
-                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null;
+                        // спектр считается только когда его кто-то смотрит: волна
+                        // голосового или открытый плеер с живыми визуалами
+                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null
+                                || PengramAudioPulse.isListening();
                     }
                 });
                 if (exists) {

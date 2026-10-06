@@ -176,6 +176,7 @@ public final class PengramSearchIndex {
             {R.string.PengramPlayerBlur, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramEmptyCover, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramPlayerPenguinDance, PengramSettingsActivity.SECTION_PLAYER},
+            {R.string.PengramPlayerBeat, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramPlayerSwipe, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramTrackForwardButton, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramMusicForwardClean, PengramSettingsActivity.SECTION_PLAYER},

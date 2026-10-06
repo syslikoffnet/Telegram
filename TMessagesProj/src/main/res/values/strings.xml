@@ -11981,6 +11981,12 @@
     <string name="PengramEmptyCoverInfo">Tap the penguin in the player to make it flip.</string>
     <string name="PengramPlayerPenguinDance">Dance to the music</string>
     <string name="PengramPlayerPenguinDanceInfo">The penguin moves while the track is playing and dozes off on pause.</string>
+    <string name="PengramPlayerBeat">React to the beat</string>
+    <string name="PengramPlayerBeatOff">Off</string>
+    <string name="PengramPlayerBeatSoft">Gentle</string>
+    <string name="PengramPlayerBeatNormal">Normal</string>
+    <string name="PengramPlayerBeatJuicy">Juicy</string>
+    <string name="PengramPlayerBeatInfo">The penguin jumps on the kick drum and glowing rings spread out in time with the music. Gentle keeps the motion barely noticeable.</string>
     <string name="PengramCoverRounded">Rounded</string>
     <string name="PengramCoverCircle">Circle</string>
     <string name="PengramCoverSquare">Square</string>

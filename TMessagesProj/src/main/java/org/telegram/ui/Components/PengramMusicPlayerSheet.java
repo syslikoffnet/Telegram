@@ -34,6 +34,7 @@ import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramAudioPulse;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramLyrics;
 import org.telegram.messenger.R;
@@ -84,6 +85,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     /** пингвин на месте отсутствующей обложки */
     private PengramPenguinView penguinCover;
     private FrameLayout penguinHolder;
+    private PengramBeatHalo beatHalo;
+    /** 0 — реакция на музыку выключена в настройках */
+    private final float beatIntensity = PengramConfig.getPlayerBeatIntensity();
+    private PengramAudioPulse.Listener pulseListener;
     private final BackupImageView smallCoverView;
     private final TextView titleView;
     private final TextView artistView;
@@ -506,6 +511,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             buildQueuePanel(context);
         }
 
+        startPulse();
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
@@ -1487,6 +1493,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private void applyAccentToViews() {
         try {
             lyricsView.setColors(accentColor, 0xFFFFFFFF);
+            if (beatHalo != null) {
+                beatHalo.setAccentColor(accentColor);
+            }
             if (penguinHolder != null && penguinHolder.getVisibility() == View.VISIBLE) {
                 penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));
             }
@@ -1505,6 +1514,13 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private FrameLayout createPenguinHolder(Context context) {
         final FrameLayout holder = new FrameLayout(context);
         holder.setVisibility(View.GONE);
+        if (beatIntensity > 0) {
+            // сияние живёт под пингвином и чуть выходит за его границы
+            beatHalo = new PengramBeatHalo(context);
+            beatHalo.setIntensity(beatIntensity);
+            beatHalo.setAccentColor(accentColor);
+            holder.addView(beatHalo, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
         penguinCover = new PengramPenguinView(context);
         penguinCover.setSkin(PengramConfig.getPenguinSkin());
         penguinCover.setOnTapListener(() -> {
@@ -1625,6 +1641,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         penguinCover.setSleeping(paused);
         penguinCover.setDanceLoop(!paused);
+        if (paused && beatHalo != null) {
+            beatHalo.reset();
+        }
     }
 
     /** обложка нашлась — пингвин уходит со сцены */
@@ -1724,9 +1743,66 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         super.onBackPressed();
     }
 
+    /**
+     * Подписка на пульс музыки.
+     *
+     * Пока слушателя нет, плеер вообще не тратит время на спектр — поэтому
+     * подписываемся только на время, когда шторка открыта, и обязательно
+     * отписываемся при закрытии.
+     */
+    private void startPulse() {
+        if (beatIntensity <= 0 || pulseListener != null) {
+            return;
+        }
+        pulseListener = new PengramAudioPulse.Listener() {
+            @Override
+            public void onPulse(float level, float bass) {
+                applyPulse(level, bass);
+            }
+
+            @Override
+            public void onBeat(float power) {
+                applyBeat(power);
+            }
+        };
+        PengramAudioPulse.addListener(pulseListener);
+    }
+
+    private void stopPulse() {
+        if (pulseListener != null) {
+            PengramAudioPulse.removeListener(pulseListener);
+            pulseListener = null;
+        }
+    }
+
+    private void applyPulse(float level, float bass) {
+        if (beatHalo != null) {
+            beatHalo.onPulse(level, bass);
+        }
+        if (penguinCover != null) {
+            penguinCover.setEnergy(level);
+        }
+        if (coverView != null && coverView.getVisibility() == View.VISIBLE) {
+            // обложка едва заметно «дышит» вместе с басом
+            final float scale = 1f + Math.min(0.045f, bass * 0.03f * beatIntensity);
+            coverView.setScaleX(scale);
+            coverView.setScaleY(scale);
+        }
+    }
+
+    private void applyBeat(float power) {
+        if (beatHalo != null) {
+            beatHalo.onBeat(power);
+        }
+        if (penguinCover != null && penguinHolder != null && penguinHolder.getVisibility() == View.VISIBLE) {
+            penguinCover.pulse(Math.min(1f, power * beatIntensity));
+        }
+    }
+
     @Override
     public void dismiss() {
         super.dismiss();
+        stopPulse();
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);

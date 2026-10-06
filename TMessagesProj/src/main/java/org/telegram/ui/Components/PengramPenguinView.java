@@ -92,6 +92,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private volatile boolean danceLoop;   // танцует, пока играет музыка
     private volatile float dance;         // сколько ещё секунд танцевать
     private volatile float wave;          // сколько ещё секунд махать крылом
+    private volatile float beat;          // 0..1 — затухающий отклик на удар
+    private volatile float energy;        // 0..1 — насколько сейчас громко играет
     private float wingAngle;              // текущий угол крыльев, градусы
 
     private final float[] projection = new float[16];
@@ -184,6 +186,35 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     /** помахать крылом */
     public void doWave() {
         wave = Math.max(wave, 1.6f);
+    }
+
+    /**
+     * Удар бочки: пингвин подпрыгивает ровно настолько, насколько удар сильный.
+     *
+     * Прыжок добавляется импульсом к уже идущей физике, а не задаётся жёстко —
+     * поэтому частые удары накапливаются в задорную тряску, а редкие дают
+     * честный высокий прыжок, и ничего не дёргается рывками.
+     */
+    public void pulse(float power) {
+        if (power <= 0) {
+            return;
+        }
+        final float p = Math.min(1f, power);
+        beat = Math.min(1f, Math.max(beat, 0.35f + p * 0.65f));
+        if (jump <= 0.12f) {
+            jumpVelocity = Math.max(jumpVelocity, 1.7f + p * 2.4f);
+        } else {
+            jumpVelocity += p * 0.6f;
+        }
+        if (p > 0.75f) {
+            wave = Math.max(wave, 0.45f);   // на сильной доле ещё и крыльями
+        }
+        sleeping = false;
+    }
+
+    /** общая громкость: от неё зависит, насколько размашисто пингвин двигается */
+    public void setEnergy(float value) {
+        energy = value < 0 ? 0 : (value > 1f ? 1f : value);
     }
 
     /** вызовется на UI-потоке, когда первый кадр реально нарисован */
@@ -451,6 +482,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             }
         }
         squash = Math.max(0, squash - dt * 0.9f);
+        beat = Math.max(0, beat - dt * 2.6f);
 
         // сальто
         if (flipping) {
@@ -538,13 +570,19 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         }
 
         final float dancing = Math.min(1f, dance);
-        final float idleBob = (float) Math.sin(time * 1.7f) * 0.022f + dancing * (float) Math.abs(Math.sin(time * 8.5f)) * 0.10f;
+        // чем громче играет, тем шире движения: тихий проигрыш — лёгкое покачивание,
+        // припев — полноценная пляска
+        final float drive = 0.55f + energy * 0.75f;
+        final float idleBob = (float) Math.sin(time * 1.7f) * 0.022f
+                + dancing * (float) Math.abs(Math.sin(time * 8.5f)) * 0.10f * drive;
         final float idleTilt = settled && !dragging ? (float) Math.sin(time * 0.85f) * 2.4f : 0f;
-        final float danceTilt = dancing * (float) Math.sin(time * 8.5f) * 13f;
+        final float danceTilt = dancing * (float) Math.sin(time * 8.5f) * 13f * drive;
         final float breathe = 1f + (float) Math.sin(time * 1.7f) * 0.012f;
         final float jumpY = jump * 0.7f;
-        final float sx = (1f + squash * 0.9f) * breathe;
-        final float sy = (1f - squash) * breathe;
+        // удар сплющивает и тут же растягивает — та самая «резиновость»
+        final float punch = beat * 0.16f;
+        final float sx = (1f + squash * 0.9f + punch) * breathe;
+        final float sy = (1f - squash + punch * 0.7f) * breathe;
 
         Matrix.setIdentityM(model, 0);
         Matrix.translateM(model, 0, 0, idleBob + jumpY - 0.1f, 0);
