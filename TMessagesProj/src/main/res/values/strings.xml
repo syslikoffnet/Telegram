@@ -11965,6 +11965,13 @@
     <string name="PengramPlayerSwipePreviewOff">Swipe is off: the bar only reacts to taps</string>
     <string name="PengramPlayerBlur">Blur the cover</string>
     <string name="PengramCoverShape">Cover shape</string>
+    <string name="PengramEmptyCover">When there is no cover</string>
+    <string name="PengramEmptyCoverPenguin">Show the penguin</string>
+    <string name="PengramEmptyCoverHide">Hide the cover block</string>
+    <string name="PengramEmptyCoverPlain">Plain placeholder</string>
+    <string name="PengramEmptyCoverInfo">Tap the penguin in the player to make it flip.</string>
+    <string name="PengramPlayerPenguinDance">Dance to the music</string>
+    <string name="PengramPlayerPenguinDanceInfo">The penguin moves while the track is playing and dozes off on pause.</string>
     <string name="PengramCoverRounded">Rounded</string>
     <string name="PengramCoverCircle">Circle</string>
     <string name="PengramCoverSquare">Square</string>
@@ -11999,7 +12006,15 @@
     <string name="PengramLyricsAdd">Add lyrics</string>
     <string name="PengramLyricsEdit">Edit lyrics</string>
     <string name="PengramLyricsHint">Plain text works too — the lines will be spread over the track. With [00:12.34] timecodes you get real karaoke.</string>
-    <string name="PengramLyricsPlaceholder">[00:12.34] First line\n[00:16.80] Second line</string>
+    <string name="PengramLyricsPlaceholder">[00:12.34] First line\    <string name="PengramSharePhoneMode">My number in new contacts</string>
+    <string name="PengramSharePhoneModeInfo">Controls the "share my phone number" option when you add or edit a contact.</string>
+    <string name="PengramSharePhoneNever">Never share</string>
+    <string name="PengramSharePhoneAsk">Ask every time</string>
+    <string name="PengramSharePhoneAlways">Share by default</string>
+    <string name="PengramPhoneHiddenTitle">Your number stays hidden</string>
+    <string name="PengramPhoneHiddenInfo">**%1$s** will not get your phone number. Tap to change it in Pengram settings.</string>
+    <string name="PengramPhoneHiddenInfoShort">Your phone number will not be shared. Tap to change it in Pengram settings.</string>
+n[00:16.80] Second line</string>
     <string name="PengramCardOnTop">Pengram as a separate card</string>
     <string name="PengramCardOnTopInfo">Pengram sits in its own block above everything else in Settings.</string>
     <string name="PengramPlayerLook">Player look</string>
@@ -12246,8 +12261,6 @@
     <string name="PengramQuickActionLink">Public t.me post link</string>
     <string name="PengramQuickDefaultName">New action</string>
     <string name="PengramQuickEmptyText">Enter the message text before saving this action.</string>
-    <string name="PengramHideSharePhoneOption">Hide “Share my phone number” option</string>
-    <string name="PengramSharePhoneDefault">Share my phone number by default</string>
     <string name="PengramAntiCrashJournalEnabled">Keep attack journal</string>
     <string name="PengramDeleteMyMessages">Delete all my messages</string>
     <string name="PengramDeleteMyMessagesConfirm">Search the entire available history and permanently delete all messages sent by you in this chat? This cannot be undone.</string>

@@ -112,6 +112,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ADS = 510;
     private static final int BTN_LOCAL_PREMIUM = 520;
     private static final int BTN_FONT_PICK = 530;
+    private static final int BTN_SHARE_PHONE_MODE = 535;
+    private static final int BTN_EMPTY_COVER = 536;
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
@@ -749,7 +751,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         switch (section) {
             case SECTION_PROFILE:
                 return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber", "originalName",
-                        "hideSharePhoneOption", "sharePhoneDefault", "historyRowInProfile",
+                        "hideSharePhoneOption", "sharePhoneDefault", "sharePhoneMode", "historyRowInProfile",
                         "groupAvatarPos", "coverShape", "showAccountsInSettings"};
             case SECTION_GHOST:
                 return new String[]{"ghost*", "dontSend*", "hideOnline"};
@@ -1223,6 +1225,29 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** «Вкл» / «Выкл» справа в строке раздела */
     private CharSequence onOff(boolean value) {
         return getString(value ? R.string.PengramValueOn : R.string.PengramValueOff);
+    }
+
+    private CharSequence sharePhoneModeName(int mode) {
+        switch (mode) {
+            case PengramConfig.SHARE_PHONE_ASK: return getString(R.string.PengramSharePhoneAsk);
+            case PengramConfig.SHARE_PHONE_ALWAYS: return getString(R.string.PengramSharePhoneAlways);
+            default: return getString(R.string.PengramSharePhoneNever);
+        }
+    }
+
+    private void showSharePhonePicker() {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramSharePhoneNever),
+                getString(R.string.PengramSharePhoneAsk),
+                getString(R.string.PengramSharePhoneAlways)
+        };
+        showChoicePicker(getString(R.string.PengramSharePhoneMode), options,
+                PengramConfig.getSharePhoneMode(), value -> {
+                    PengramConfig.setSharePhoneMode(value);
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
     }
 
     private CharSequence fontName(int font) {
@@ -2306,10 +2331,11 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramPrivacyHeader)));
         items.add(UItem.asCheck(BTN_HIDE_PHONE, getString(R.string.PengramHidePhone)).setChecked(PengramConfig.hidePhoneNumber));
-        items.add(check(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION, false, getString(R.string.PengramHideSharePhoneOption)));
-        if (!PengramConfig.isSharePhoneOptionHidden()) {
-            items.add(check(PengramConfig.KEY_SHARE_PHONE_DEFAULT, false, getString(R.string.PengramSharePhoneDefault)));
-        }
+        // Две галочки про один и тот же номер («прятать опцию» и «включать заранее»)
+        // заменены одним выбором из трёх состояний: так понятнее, что произойдёт.
+        items.add(UItem.asSettingsCell(BTN_SHARE_PHONE_MODE, R.drawable.msg_secret,
+                getString(R.string.PengramSharePhoneMode), sharePhoneModeName(PengramConfig.getSharePhoneMode())));
+        items.add(UItem.asShadow(getString(R.string.PengramSharePhoneModeInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramHidePhoneInfo)));
     }
 
@@ -2844,8 +2870,17 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_PLAYER_BG, R.drawable.msg_theme, getString(R.string.PengramPlayerBg), getString(PengramConfig.getPlayerBgName(PengramConfig.getPlayerBg()))));
             items.add(UItem.asSettingsCell(BTN_COVER_SHAPE, R.drawable.msg_photos, getString(R.string.PengramCoverShape), getString(PengramConfig.getCoverShapeName(PengramConfig.getCoverShape()))));
             items.add(check(PengramConfig.KEY_PLAYER_BLUR, true, getString(R.string.PengramPlayerBlur)));
+            // что показывать, когда у трека нет картинки
+            items.add(UItem.asSettingsCell(BTN_EMPTY_COVER, R.drawable.pengram_penguin_glyph,
+                    getString(R.string.PengramEmptyCover),
+                    getString(PengramConfig.getEmptyCoverName(PengramConfig.getEmptyCoverMode()))));
+            if (PengramConfig.isEmptyCoverPenguin()) {
+                items.add(checkInfo(PengramConfig.KEY_PENGUIN_DANCE, true,
+                        getString(R.string.PengramPlayerPenguinDance), getString(R.string.PengramPlayerPenguinDanceInfo)));
+            }
         }
-        items.add(UItem.asShadow(null));
+        items.add(UItem.asShadow(PengramConfig.isNewPlayer() && PengramConfig.isEmptyCoverPenguin()
+                ? getString(R.string.PengramEmptyCoverInfo) : null));
 
         // Свайп по свёрнутому плееру: листать треки прямо из шапки
         items.add(UItem.asHeader(getString(R.string.PengramPlayerSwipeHeader)));
@@ -2861,12 +2896,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramTrackForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_BUTTON, true,
                 getString(R.string.PengramTrackForwardButton), getString(R.string.PengramTrackForwardButtonInfo)));
-        items.add(UItem.asSettingsCell(BTN_TRACK_FORWARD_MODE, R.drawable.msg_forward,
-                getString(R.string.PengramTrackForwardMode),
-                org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.getTrackForwardMode())));
-        items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_CAPTION, false,
-                getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
-        items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
         items.add(checkInfo(PengramConfig.KEY_MUSIC_FORWARD_CLEAN, true,
                 getString(R.string.PengramMusicForwardClean), getString(R.string.PengramMusicForwardCleanInfo)));
         if (!PengramConfig.isMusicForwardClean()) {
@@ -4021,6 +4050,24 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_FONT_PICK:
                 showFontPicker();
                 break;
+            case BTN_SHARE_PHONE_MODE:
+                showSharePhonePicker();
+                break;
+            case BTN_EMPTY_COVER: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramEmptyCoverPenguin),
+                        getString(R.string.PengramEmptyCoverHide),
+                        getString(R.string.PengramEmptyCoverPlain)
+                };
+                showChoicePicker(getString(R.string.PengramEmptyCover), options,
+                        PengramConfig.getEmptyCoverMode(), value -> {
+                            PengramConfig.setEmptyCoverMode(value);
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                break;
+            }
             case BTN_CHAT_MENU:
                 PengramConfig.toggleChatMenu();
                 updateAll = true;

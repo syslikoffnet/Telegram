@@ -2370,7 +2370,11 @@ public class ContactsController extends BaseController {
         req.first_name = user.first_name;
         req.last_name = user.last_name;
         req.phone = user.phone;
-        req.add_phone_privacy_exception = exception;
+        // Pengram: последний рубеж. Карточку контакта открывают из десятка мест —
+        // из чата, из профиля, из панели «добавить в контакты», — и достаточно
+        // одного пути, где флаг проскочит, чтобы номер уехал навсегда. Поэтому
+        // запрет проверяется здесь, в единственной точке отправки запроса.
+        req.add_phone_privacy_exception = exception && !PengramConfig.isSharePhoneBlocked();
         if (req.phone == null) {
             req.phone = "";
         } else if (req.phone.length() > 0 && !req.phone.startsWith("+")) {

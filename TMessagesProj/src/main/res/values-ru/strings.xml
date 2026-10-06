@@ -993,6 +993,13 @@
     <string name="PengramPlayerSwipePreviewOff">Свайп выключен: полоска реагирует только на нажатие</string>
     <string name="PengramPlayerBlur">Размывать обложку</string>
     <string name="PengramCoverShape">Форма обложки</string>
+    <string name="PengramEmptyCover">Если нет обложки</string>
+    <string name="PengramEmptyCoverPenguin">Показывать пингвина</string>
+    <string name="PengramEmptyCoverHide">Скрывать блок обложки</string>
+    <string name="PengramEmptyCoverPlain">Простая заглушка</string>
+    <string name="PengramEmptyCoverInfo">Нажмите на пингвина в плеере — он кувыркнётся.</string>
+    <string name="PengramPlayerPenguinDance">Танцует под музыку</string>
+    <string name="PengramPlayerPenguinDanceInfo">Пингвин двигается, пока играет трек, и дремлет на паузе.</string>
     <string name="PengramCoverRounded">Скруглённая</string>
     <string name="PengramCoverCircle">Круг</string>
     <string name="PengramCoverSquare">Квадрат</string>
@@ -1027,7 +1034,15 @@
     <string name="PengramLyricsAdd">Добавить текст</string>
     <string name="PengramLyricsEdit">Изменить текст</string>
     <string name="PengramLyricsHint">Можно вставить обычный текст — строки распределятся по длительности. А с таймкодами [00:12.34] получится настоящее караоке.</string>
-    <string name="PengramLyricsPlaceholder">[00:12.34] Первая строка\n[00:16.80] Вторая строка</string>
+    <string name="PengramLyricsPlaceholder">[00:12.34] Первая строка\    <string name="PengramSharePhoneMode">Мой номер в новых контактах</string>
+    <string name="PengramSharePhoneModeInfo">Что делать с галочкой «показать мой номер» при добавлении и изменении контакта.</string>
+    <string name="PengramSharePhoneNever">Никогда не показывать</string>
+    <string name="PengramSharePhoneAsk">Спрашивать каждый раз</string>
+    <string name="PengramSharePhoneAlways">Показывать по умолчанию</string>
+    <string name="PengramPhoneHiddenTitle">Ваш номер останется скрытым</string>
+    <string name="PengramPhoneHiddenInfo">**%1$s** не получит ваш номер телефона. Нажмите, чтобы изменить это в настройках Pengram.</string>
+    <string name="PengramPhoneHiddenInfoShort">Ваш номер телефона не будет передан. Нажмите, чтобы изменить это в настройках Pengram.</string>
+n[00:16.80] Вторая строка</string>
     <string name="PengramCardOnTop">Pengram отдельной плашкой</string>
     <string name="PengramCardOnTopInfo">Pengram стоит отдельным блоком над всеми остальными разделами в Настройках.</string>
     <string name="PengramPlayerLook">Вид плеера</string>
@@ -1258,8 +1273,6 @@
     <string name="PengramDeleteMyMessages">Удалить все мои сообщения</string>
     <string name="PengramDeleteMyMessagesConfirm">Найти во всей доступной истории и навсегда удалить все отправленные вами сообщения в этом чате? Это действие нельзя отменить.</string>
     <string name="PengramDeleteMyMessagesDone">Удалено сообщений: %1$d</string>
-    <string name="PengramHideSharePhoneOption">Скрыть пункт «Показать мой номер»</string>
-    <string name="PengramSharePhoneDefault">Показывать мой номер по умолчанию</string>
     <string name="PengramQuickButton1Header">Быстрая кнопка 1</string>
     <string name="PengramQuickButton2Header">Быстрая кнопка 2</string>
     <string name="PengramQuickName1">Название кнопки 1</string>

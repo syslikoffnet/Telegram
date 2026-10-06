@@ -554,8 +554,60 @@ public class PengramConfig {
 
     public static boolean isAntiCrashMark() { return getBool(KEY_ANTICRASH_MARK, true); }
     public static boolean isAntiCrashJournalEnabled() { return getBool(KEY_ANTICRASH_JOURNAL, false); }
-    public static boolean isSharePhoneOptionHidden() { return getBool(KEY_HIDE_SHARE_PHONE_OPTION, false); }
-    public static boolean isSharePhoneDefault() { return getBool(KEY_SHARE_PHONE_DEFAULT, false); }
+    // ------------------------------------------------------------ мой номер в контактах
+
+    /** номер не уходит никогда — заводское поведение Pengram */
+    public static final int SHARE_PHONE_NEVER = 0;
+    /** спрашивать галочкой, как в оригинальном клиенте */
+    public static final int SHARE_PHONE_ASK = 1;
+    /** галочка включена заранее */
+    public static final int SHARE_PHONE_ALWAYS = 2;
+
+    public static final String KEY_SHARE_PHONE_MODE = "sharePhoneMode";
+
+    /**
+     * Что делать с моим номером при добавлении контакта.
+     *
+     * По умолчанию — не отдавать. Галочка «показать мой номер» в оригинале
+     * стоит прямо над кнопкой «Готово», и нажать её случайно проще простого,
+     * а обратно номер уже не заберёшь. Значение читается из старых ключей,
+     * если пользователь успел их выставить: прятал галочку — значит «никогда»,
+     * включал заранее — значит «всегда».
+     */
+    public static int getSharePhoneMode() {
+        init();
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return SHARE_PHONE_NEVER;
+        }
+        if (p.contains(KEY_SHARE_PHONE_MODE)) {
+            final int value = p.getInt(KEY_SHARE_PHONE_MODE, SHARE_PHONE_NEVER);
+            return value < SHARE_PHONE_NEVER || value > SHARE_PHONE_ALWAYS ? SHARE_PHONE_NEVER : value;
+        }
+        if (p.getBoolean(KEY_HIDE_SHARE_PHONE_OPTION, false)) {
+            return SHARE_PHONE_NEVER;
+        }
+        if (p.getBoolean(KEY_SHARE_PHONE_DEFAULT, false)) {
+            return SHARE_PHONE_ALWAYS;
+        }
+        if (p.contains(KEY_SHARE_PHONE_DEFAULT) || p.contains(KEY_HIDE_SHARE_PHONE_OPTION)) {
+            return SHARE_PHONE_ASK;
+        }
+        return SHARE_PHONE_NEVER;
+    }
+
+    public static void setSharePhoneMode(int mode) {
+        setIntValue(KEY_SHARE_PHONE_MODE, mode);
+    }
+
+    /** номер нельзя отдать ни при каких нажатиях */
+    public static boolean isSharePhoneBlocked() { return getSharePhoneMode() == SHARE_PHONE_NEVER; }
+
+    /** галочка в карточке контакта вообще не показывается */
+    public static boolean isSharePhoneOptionHidden() { return getSharePhoneMode() == SHARE_PHONE_NEVER; }
+
+    /** галочка включена заранее */
+    public static boolean isSharePhoneDefault() { return getSharePhoneMode() == SHARE_PHONE_ALWAYS; }
 
     public static int getAntiCrashBlocked() { return getIntCached("antiCrashBlocked", 0); }
 
@@ -1899,7 +1951,7 @@ public class PengramConfig {
             "saveDeleted", "saveDeletedMedia", "saveEdited", "saveForMyselfDefault",
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
             "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendTextStyle",
-            "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "showAccountsInSettings",
+            "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
             "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "zalgoFilter"
@@ -2342,6 +2394,51 @@ public class PengramConfig {
             default: return org.telegram.messenger.R.string.PengramTracksViewList;
         }
     }
+
+    // ------------------------------------------------------------ пустая обложка
+
+    /** вместо пустого квадрата — пингвин, живущий под музыку */
+    public static final int EMPTY_COVER_PENGUIN = 0;
+    /** блок обложки просто убирается: экран не держит пустое место */
+    public static final int EMPTY_COVER_HIDE = 1;
+    /** как в оригинале — ровная полупрозрачная заливка */
+    public static final int EMPTY_COVER_PLAIN = 2;
+    private static final int EMPTY_COVER_COUNT = 3;
+
+    public static final String KEY_EMPTY_COVER = "playerEmptyCover";
+    public static final String KEY_PENGUIN_DANCE = "playerPenguinDance";
+
+    /**
+     * Что показывать, когда у трека нет обложки.
+     *
+     * Пустой серый квадрат размером в треть экрана — худшее из возможного,
+     * поэтому по умолчанию там живёт пингвин. Кому он мешает — есть «скрыть»
+     * (блок схлопывается, текст песни занимает всё место) и «как в оригинале».
+     */
+    public static int getEmptyCoverMode() {
+        init();
+        final int value = getIntCached(KEY_EMPTY_COVER, EMPTY_COVER_PENGUIN);
+        return value < 0 || value >= EMPTY_COVER_COUNT ? EMPTY_COVER_PENGUIN : value;
+    }
+
+    public static void setEmptyCoverMode(int value) {
+        setIntValue(KEY_EMPTY_COVER, value < 0 || value >= EMPTY_COVER_COUNT ? EMPTY_COVER_PENGUIN : value);
+    }
+
+    public static int getEmptyCoverName(int value) {
+        switch (value) {
+            case EMPTY_COVER_HIDE: return org.telegram.messenger.R.string.PengramEmptyCoverHide;
+            case EMPTY_COVER_PLAIN: return org.telegram.messenger.R.string.PengramEmptyCoverPlain;
+            case EMPTY_COVER_PENGUIN:
+            default: return org.telegram.messenger.R.string.PengramEmptyCoverPenguin;
+        }
+    }
+
+    public static boolean isEmptyCoverPenguin() { return getEmptyCoverMode() == EMPTY_COVER_PENGUIN; }
+    public static boolean isEmptyCoverHidden() { return getEmptyCoverMode() == EMPTY_COVER_HIDE; }
+
+    /** пингвин пританцовывает, пока идёт музыка, и засыпает на паузе */
+    public static boolean isPenguinDancing() { return getBool(KEY_PENGUIN_DANCE, true); }
 
     public static int getPlayerStyle() {
         init();

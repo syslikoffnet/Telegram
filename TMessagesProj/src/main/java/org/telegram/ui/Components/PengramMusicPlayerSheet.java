@@ -81,6 +81,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private FrameLayout speedPanel;
     private final BackgroundView backgroundView;
     private final BackupImageView coverView;
+    /** пингвин на месте отсутствующей обложки */
+    private PengramPenguinView penguinCover;
+    private FrameLayout penguinHolder;
     private final BackupImageView smallCoverView;
     private final TextView titleView;
     private final TextView artistView;
@@ -262,6 +265,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         if (style == PengramConfig.PLAYER_STYLE_MINI_LYRICS) {
             // мини-режим: слева обложка, справа текст
             centerLayout.addView(coverView, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+            penguinHolder = createPenguinHolder(context);
+            centerLayout.addView(penguinHolder, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
             centerLayout.addView(lyricsContainer, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
         } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
             // текст на весь экран, обложка маленькая у названия
@@ -270,6 +275,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             // обложка во весь блок, текст открывается поверх неё
             final FrameLayout overlay = new FrameLayout(context);
             overlay.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            penguinHolder = createPenguinHolder(context);
+            overlay.addView(penguinHolder, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             overlay.addView(lyricsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             centerLayout.addView(overlay, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
         }
@@ -1398,16 +1405,139 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             coverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
             smallCoverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
-            coverView.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0x33FFFFFF, 0x33FFFFFF));
-            smallCoverView.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(10), 0x33FFFFFF, 0x33FFFFFF));
+            applyEmptyCover();
+            return;
+        }
+        hideEmptyCover();
+        backgroundView.setCover(null);
+    }
+
+    /**
+     * Подложка под пингвина.
+     *
+     * Сам пингвин рисуется на TextureView и фона не имеет, поэтому под него
+     * кладётся мягкий прямоугольник в форме обложки — так пустое место
+     * выглядит частью оформления, а не дыркой в вёрстке.
+     */
+    private FrameLayout createPenguinHolder(Context context) {
+        final FrameLayout holder = new FrameLayout(context);
+        holder.setVisibility(View.GONE);
+        penguinCover = new PengramPenguinView(context);
+        penguinCover.setSkin(PengramConfig.getPenguinSkin());
+        penguinCover.setOnTapListener(() -> {
+            // тап — маленькая награда за любопытство
+            penguinCover.doFlip();
+            AndroidUtilities.vibrateCursor(holder);
+        });
+        holder.addView(penguinCover, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 10, 10, 10, 10));
+        return holder;
+    }
+
+    /** фон-заглушка в форме обложки */
+    private android.graphics.drawable.Drawable emptyCoverBackground(int radius) {
+        final android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setCornerRadius(radius);
+        shape.setColor(0x26FFFFFF);
+        return shape;
+    }
+
+    /**
+     * Обложки нет — решаем, что показать.
+     *
+     * Пингвин занимает место картинки, «скрыть» убирает блок целиком (в
+     * компактных режимах и в мини-тексте это возвращает экрану половину
+     * высоты), «как в оригинале» оставляет прежнюю заливку.
+     */
+    private void applyEmptyCover() {
+        final int mode = PengramConfig.getEmptyCoverMode();
+        final boolean penguin = mode == PengramConfig.EMPTY_COVER_PENGUIN && penguinHolder != null;
+        final boolean hide = mode == PengramConfig.EMPTY_COVER_HIDE;
+
+        if (penguinHolder != null) {
+            penguinHolder.setVisibility(penguin ? View.VISIBLE : View.GONE);
+            if (penguin) {
+                penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));
+                penguinCover.setSkin(PengramConfig.getPenguinSkin());
+                updatePenguinMood();
+            } else if (penguinCover != null) {
+                penguinCover.setPaused(true);
+            }
+        }
+        coverView.setVisibility(penguin || hide ? View.GONE : View.VISIBLE);
+        if (!penguin && !hide) {
+            coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
+        }
+        if (smallCoverView.getVisibility() != View.GONE || !hide) {
+            if (hide) {
+                smallCoverView.setVisibility(View.GONE);
+            } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
+                smallCoverView.setVisibility(View.VISIBLE);
+                if (penguin) {
+                    // в маленьком квадрате живой пингвин не читается — ставим его силуэт
+                    final android.graphics.drawable.Drawable glyph = getContext().getResources()
+                            .getDrawable(R.drawable.pengram_penguin_glyph).mutate();
+                    glyph.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+                    final android.graphics.drawable.LayerDrawable layers =
+                            new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{
+                                    emptyCoverBackground(dp(10)), glyph});
+                    layers.setLayerInset(1, dp(9), dp(9), dp(9), dp(9));
+                    smallCoverView.setImageDrawable(layers);
+                } else {
+                    smallCoverView.setImageDrawable(emptyCoverBackground(dp(10)));
+                }
+            }
         }
         backgroundView.setCover(null);
+    }
+
+    /** радиус, который сейчас у обложки — чтобы заглушка повторяла её форму */
+    private int coverCornerRadius() {
+        final int shape = PengramConfig.getCoverShape();
+        if (shape == PengramConfig.COVER_SHAPE_CIRCLE) {
+            return dp(1000);
+        }
+        if (shape == PengramConfig.COVER_SHAPE_SQUARE) {
+            return 0;
+        }
+        return dp(18);
+    }
+
+    /** пингвин танцует под музыку и дремлет на паузе */
+    private void updatePenguinMood() {
+        if (penguinCover == null || penguinHolder == null || penguinHolder.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        final boolean paused = MediaController.getInstance().isMessagePaused();
+        penguinCover.setPaused(false);
+        if (!PengramConfig.isPenguinDancing()) {
+            penguinCover.setDanceLoop(false);
+            penguinCover.setSleeping(false);
+            return;
+        }
+        penguinCover.setSleeping(paused);
+        penguinCover.setDanceLoop(!paused);
+    }
+
+    /** обложка нашлась — пингвин уходит со сцены */
+    private void hideEmptyCover() {
+        if (penguinHolder != null && penguinHolder.getVisibility() != View.GONE) {
+            penguinHolder.setVisibility(View.GONE);
+            if (penguinCover != null) {
+                penguinCover.setDanceLoop(false);
+                penguinCover.setPaused(true);
+            }
+        }
+        coverView.setVisibility(View.VISIBLE);
+        if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
+            smallCoverView.setVisibility(View.VISIBLE);
+        }
     }
 
     private void applyCoverBitmap(android.graphics.Bitmap bitmap) {
         if (bitmap == null || bitmap.isRecycled()) {
             return;
         }
+        hideEmptyCover();
         coverView.setImageBitmap(bitmap);
         smallCoverView.setImageBitmap(bitmap);
         backgroundView.setCover(bitmap);
@@ -1446,6 +1576,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
         } else if (id == NotificationCenter.messagePlayingPlayStateChanged) {
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
+            updatePenguinMood();
         } else if (id == NotificationCenter.mediaDidLoad) {
             if (args.length > 4 && args[3] instanceof Integer && (Integer) args[3] == chatTracksGuid
                     && args[4] instanceof Integer && (Integer) args[4] == MediaDataController.MEDIA_MUSIC) {
