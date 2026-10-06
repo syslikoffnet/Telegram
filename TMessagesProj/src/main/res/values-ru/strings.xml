@@ -818,6 +818,14 @@
     <string name="PengramTracksViewTitles">Только названия</string>
     <string name="PengramTracksViewGrid">Сеткой</string>
     <string name="PengramTracksViewCards">Карточками</string>
+        <string name="PengramMD3Header">Material Design 3</string>
+    <string name="PengramMD3">Стиль Material 3</string>
+    <string name="PengramMD3Subtitle">Скруглённые контейнеры, тональные подложки, без линеек</string>
+    <string name="PengramMD3Dialogs">Список чатов</string>
+    <string name="PengramMD3Tonal">Тональные непрочитанные и закреплённые</string>
+    <string name="PengramMD3NoDividers">Воздух вместо разделителей</string>
+    <string name="PengramMD3Fab">Скруглённый квадрат вместо круга</string>
+    <string name="PengramMD3Info">Экспериментальный слой Material 3 поверх привычного интерфейса. Начинаем со списка чатов, дальше подключим остальные экраны. Пока не включите — ничего не меняется.</string>
     <string name="PengramChatMusicTitle">Музыка чата</string>
     <string name="PengramChatMusicPlayAll">Слушать всё</string>
     <string name="PengramChatMusicShuffle">Перемешать</string>

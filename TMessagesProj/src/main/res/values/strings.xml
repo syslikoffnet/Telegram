@@ -11790,6 +11790,14 @@
     <string name="PengramTracksViewTitles">Titles only</string>
     <string name="PengramTracksViewGrid">Grid</string>
     <string name="PengramTracksViewCards">Cards</string>
+        <string name="PengramMD3Header">Material Design 3</string>
+    <string name="PengramMD3">Material 3 look</string>
+    <string name="PengramMD3Subtitle">Rounded containers, tonal surfaces, no hairlines</string>
+    <string name="PengramMD3Dialogs">Chat list</string>
+    <string name="PengramMD3Tonal">Tonal unread and pinned chats</string>
+    <string name="PengramMD3NoDividers">Space instead of dividers</string>
+    <string name="PengramMD3Fab">Squircle compose button</string>
+    <string name="PengramMD3Info">An experimental Material 3 layer on top of the usual interface. We start with the chat list; more screens will follow. Everything is off until you switch it on.</string>
     <string name="PengramChatMusicTitle">Chat music</string>
     <string name="PengramChatMusicPlayAll">Play all</string>
     <string name="PengramChatMusicShuffle">Shuffle</string>

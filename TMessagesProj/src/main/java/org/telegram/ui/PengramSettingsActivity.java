@@ -753,7 +753,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_APPEARANCE:
                 return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
                         "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
-                        "tabBarSize", "hideTab*", "forceSnow"};
+                        "tabBarSize", "hideTab*", "forceSnow", "md3*"};
             case SECTION_CHATS:
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
@@ -1163,6 +1163,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         // короткая тактильная отдача: переключение должно ощущаться, а не только выглядеть
         AndroidUtilities.vibrateCursor(view);
+        // слой Material 3 меняет отрисовку чужих экранов — просим их перерисоваться
+        if (key.startsWith("md3")) {
+            AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                    .postNotificationName(org.telegram.messenger.NotificationCenter.reloadInterface));
+        }
         // список перестраиваем всегда и с анимацией: зависимые пункты
         // должны выезжать/сворачиваться прямо при переключении
         if (listView != null && listView.adapter != null) {
@@ -2410,6 +2415,19 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCustom(appIconsCell, 104));
             items.add(UItem.asShadow(getString(R.string.PengramAppIconInfo)));
         }
+
+        items.add(UItem.asHeader(getString(R.string.PengramMD3Header)));
+        items.add(checkInfo(org.telegram.messenger.PengramMD3.KEY_ENABLED, false,
+                getString(R.string.PengramMD3), getString(R.string.PengramMD3Subtitle)));
+        if (org.telegram.messenger.PengramMD3.isEnabled()) {
+            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true, getString(R.string.PengramMD3Dialogs)));
+            if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true)) {
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_TONAL_UNREAD, true, getString(R.string.PengramMD3Tonal)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_NO_DIVIDERS, true, getString(R.string.PengramMD3NoDividers)));
+            }
+            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMD3Info)));
 
         items.add(UItem.asHeader(getString(R.string.PengramQuickTilesHeader)));
         items.add(UItem.asSettingsCell(BTN_QUICK_TILES, R.drawable.msg_customize,

@@ -65,6 +65,7 @@ import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ChatThemeController;
 import org.telegram.messenger.CodeHighlighting;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramMD3;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DownloadController;
@@ -642,6 +643,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean isSelected;
 
     private RectF rect = new RectF();
+    /** подложка строки в стиле Material 3 */
+    private final Paint pengramMD3Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private DialogsAdapter.DialogsPreloader preloader;
     private Path counterPath;
     private RectF counterPathRect;
@@ -3813,6 +3816,34 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private int archiveFadeGradientDrawableColor;
 
     @SuppressLint("DrawAllocation")
+        /**
+     * Material 3: вместо сплошной строки с разделителем — «контейнер» со
+     * скруглением и тональной заливкой. Цвет берётся из акцента темы, поэтому
+     * список остаётся в выбранной палитре и не спорит с обоями.
+     */
+    private void pengramDrawMD3Container(Canvas canvas) {
+        int color = 0;
+        if (isSelected) {
+            color = PengramMD3.selectedContainer(resourcesProvider);
+        } else if (PengramMD3.tonalRows() && currentDialogFolderId == 0) {
+            if (unreadCount != 0 || markUnread) {
+                color = PengramMD3.unreadContainer(resourcesProvider);
+            } else if (getIsPinned() || drawPinBackground) {
+                color = PengramMD3.pinnedContainer(resourcesProvider);
+            }
+        }
+        if (color == 0) {
+            return;
+        }
+        final int inset = PengramMD3.rowInset();
+        final float radius = PengramMD3.rowRadius();
+        rect.set(inset, dp(2), getMeasuredWidth() - inset,
+                AndroidUtilities.lerp(getMeasuredHeight(), getCollapsedHeight(), rightFragmentOpenedProgress) - dp(2));
+        rect.offset(0, -translateY + collapseOffset);
+        pengramMD3Paint.setColor(color);
+        canvas.drawRoundRect(rect, radius, radius, pengramMD3Paint);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (currentDialogId == 0 && customDialog == null) {
@@ -4041,7 +4072,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         float cornersRadius = dp(8) * cornerProgress;
-        if (isSelected) {
+        final boolean md3 = PengramMD3.dialogs() && customDialog == null;
+        if (md3) {
+            pengramDrawMD3Container(canvas);
+        }
+        if (isSelected && !md3) {
             rect.set(0, 0, getMeasuredWidth(), AndroidUtilities.lerp(getMeasuredHeight(), getCollapsedHeight(), rightFragmentOpenedProgress));
             rect.offset(0, -translateY + collapseOffset);
             canvas.drawRoundRect(rect, cornersRadius, cornersRadius, Theme.dialogs_tabletSeletedPaint);
@@ -4821,7 +4856,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             canvas.restore();
         }
 
-        if (useSeparator) {
+        if (useSeparator && !PengramMD3.hideDividers()) {
             int left;
             if (fullSeparator || currentDialogFolderId != 0 && archiveHidden && !fullSeparator2 || fullSeparator2 && !archiveHidden) {
                 left = 0;
