@@ -39,12 +39,16 @@ FILL_TO_SECTION = {
     "fillMediaTime": "SECTION_CHAT_MESSAGES",
     "fillChatInterface": "SECTION_CHAT_INTERFACE",
     "fillChatMenus": "SECTION_CHAT_MENUS",
+    "fillAI": "SECTION_AI",
+    "fillAbout": "SECTION_ABOUT",
 }
 
 # строки-функции
 ROW_MARKERS = (
-    "check(", "checkInfo(", "subCheck(", "tgCheck(", "liteCheck(",
-    "UItem.asSettingsCell(", "UItem.asButton(",
+    "check(", "checkInfo(", "subCheck(", "tgCheck(", "liteCheck(", "tgCheckInfo(",
+    "UItem.asSettingsCell(", "UItem.asButton(", "UItem.asCheck(",
+    "UItem.asRoundCheckbox(", "UItem.asExpandableSwitch(",
+    "sectionRow(", "aboutRow(",
 )
 # всё, что функцией не является
 SKIP_MARKERS = (

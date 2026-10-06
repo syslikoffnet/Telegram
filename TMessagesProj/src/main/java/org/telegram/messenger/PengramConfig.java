@@ -1289,7 +1289,7 @@ public class PengramConfig {
     /** куда помещён пункт меню чата */
     public static int getChatItemPlacement(int id) {
         init();
-        final int def = id == CHAT_ITEM_VIEW_DELETED ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
+        final int def = (id == CHAT_ITEM_VIEW_DELETED || id == CHAT_ITEM_DELETE_MY_MESSAGES) ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
         final int value = getIntCached("chatItemPlace_" + id, def);
         return value == CHAT_PLACE_ISLAND ? CHAT_PLACE_ISLAND : CHAT_PLACE_MAIN;
     }
@@ -1360,7 +1360,7 @@ public class PengramConfig {
     }
 
     public static boolean isChatItemHidden(int id) {
-        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA || id == CHAT_ITEM_DELETE_MY_MESSAGES);
+        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA);
     }
 
     public static void setChatItemHidden(int id, boolean hidden) {

@@ -2130,29 +2130,51 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         });
     }
 
+    /** строка песни сейчас показана (или как раз выезжает) */
+    private boolean pengramTickerShown;
+
     private void pengramShowTicker() {
-        if (pengramTicker == null || pengramTicker.getVisibility() == VISIBLE) {
+        if (pengramTicker == null || pengramTickerShown) {
             return;
         }
+        pengramTickerShown = true;
+        // быстрые переключения трека: прошлую анимацию обрываем, иначе строки
+        // догоняют друг друга и остаются висеть наложенными
+        pengramTicker.animate().cancel();
         pengramTicker.setVisibility(VISIBLE);
-        pengramTicker.setAlpha(0f);
         pengramTicker.setTranslationY(dp(6));
         pengramTicker.animate().alpha(1f).translationY(0).setDuration(220).start();
         if (titleTextView != null) {
+            titleTextView.animate().cancel();
             titleTextView.animate().alpha(0f).setDuration(220).start();
         }
     }
 
     private void pengramHideTicker() {
-        if (pengramTicker == null || pengramTicker.getVisibility() != VISIBLE) {
+        if (pengramTicker == null) {
             if (titleTextView != null) {
+                titleTextView.animate().cancel();
                 titleTextView.setAlpha(1f);
             }
             return;
         }
+        if (!pengramTickerShown && pengramTicker.getVisibility() != VISIBLE) {
+            if (titleTextView != null) {
+                titleTextView.animate().cancel();
+                titleTextView.setAlpha(1f);
+            }
+            return;
+        }
+        pengramTickerShown = false;
+        pengramTicker.animate().cancel();
         pengramTicker.animate().alpha(0f).setDuration(180)
-                .withEndAction(() -> pengramTicker.setVisibility(GONE)).start();
+                .withEndAction(() -> {
+                    if (!pengramTickerShown && pengramTicker != null) {
+                        pengramTicker.setVisibility(GONE);
+                    }
+                }).start();
         if (titleTextView != null) {
+            titleTextView.animate().cancel();
             titleTextView.animate().alpha(1f).setDuration(220).start();
         }
     }

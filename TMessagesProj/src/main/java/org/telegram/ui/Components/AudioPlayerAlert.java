@@ -3469,7 +3469,34 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             setText(text, true);
         }
 
+        /**
+         * Pengram: довести прошлую смену текста до конца.
+         *
+         * Переключили трек, не дождавшись анимации, — и прежний переход
+         * обрывался на полпути: обе строки оставались полупрозрачными и
+         * налезали друг на друга. Теперь перед новым переходом состояние
+         * честно доводится до «виден только активный текст».
+         */
+        private void finishPendingTransition() {
+            if (animatorSet == null) {
+                return;
+            }
+            final AnimatorSet set = animatorSet;
+            animatorSet = null;
+            set.cancel();
+            final int other = activeIndex == 0 ? 1 : 0;
+            textViews[activeIndex].setAlpha(1f);
+            textViews[activeIndex].setVisibility(VISIBLE);
+            clipProgress[activeIndex] = 0f;
+            textViews[other].setAlpha(0f);
+            textViews[other].setVisibility(GONE);
+            clipProgress[other] = 0.75f;
+            stableOffest = -1;
+            invalidate();
+        }
+
         public void setText(CharSequence text, boolean animated) {
+            finishPendingTransition();
             final CharSequence currentText = textViews[activeIndex].getText();
 
             if (TextUtils.isEmpty(currentText) || !animated) {
@@ -3495,14 +3522,17 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             final int prevIndex = activeIndex;
             activeIndex = index;
 
-            if (animatorSet != null) {
-                animatorSet.cancel();
-            }
-            animatorSet = new AnimatorSet();
-            animatorSet.addListener(new AnimatorListenerAdapter() {
+            final AnimatorSet set = new AnimatorSet();
+            animatorSet = set;
+            set.addListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(Animator animation) {
                     textViews[prevIndex].setVisibility(GONE);
+                    textViews[prevIndex].setAlpha(0f);
+                    clipProgress[prevIndex] = 0.75f;
+                    if (animatorSet == set) {
+                        animatorSet = null;
+                    }
                 }
             });
 
@@ -3535,8 +3565,8 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             fadeInAnimator.setStartDelay(duration / 4); // 0.25
             fadeInAnimator.setDuration(duration / 2); // 0.5
 
-            animatorSet.playTogether(collapseAnimator, expandAnimator, fadeOutAnimator, fadeInAnimator);
-            animatorSet.start();
+            set.playTogether(collapseAnimator, expandAnimator, fadeOutAnimator, fadeInAnimator);
+            set.start();
         }
 
         public TextView getTextView() {

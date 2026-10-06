@@ -64,6 +64,7 @@ import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.PengramPenguinView;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -301,9 +302,24 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     public PengramSettingsActivity(int section) {
+        this(section, 0);
+    }
+
+    /**
+     * Pengram: открыть раздел и показать в нём конкретную настройку.
+     *
+     * Так работает переход из поиска: человек нашёл функцию — и попадает прямо
+     * к ней, где бы она ни лежала, а строка на пару секунд подсвечивается,
+     * чтобы её не пришлось выискивать глазами.
+     */
+    public PengramSettingsActivity(int section, int highlightRes) {
         super();
         this.section = section;
+        this.highlightRes = highlightRes;
     }
+
+    /** строка, к которой нужно прокрутить сразу после открытия раздела */
+    private final int highlightRes;
 
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
@@ -596,7 +612,42 @@ public class PengramSettingsActivity extends UniversalFragment {
                 });
         searchItem.setSearchFieldHint(getString(R.string.Search));
         searchItem.setContentDescription(getString(R.string.Search));
+        if (highlightRes != 0) {
+            AndroidUtilities.runOnUIThread(() -> pengramJumpTo(highlightRes), 120);
+        }
         return view;
+    }
+
+    /** прокрутить список к строке с таким заголовком и подсветить её */
+    private void pengramJumpTo(int stringRes) {
+        if (listView == null || listView.adapter == null || stringRes == 0) {
+            return;
+        }
+        final CharSequence target = getString(stringRes);
+        if (TextUtils.isEmpty(target)) {
+            return;
+        }
+        int position = -1;
+        for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+            final UItem item = listView.adapter.getItem(i);
+            if (item != null && item.text != null && TextUtils.equals(target, item.text)) {
+                position = i;
+                break;
+            }
+        }
+        if (position < 0) {
+            return;
+        }
+        final int found = position;
+        if (listView.getLayoutManager() instanceof LinearLayoutManager) {
+            ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(found, AndroidUtilities.dp(96));
+        }
+        // подсветка включается после прокрутки — иначе ячейки ещё нет на экране
+        AndroidUtilities.runOnUIThread(() -> {
+            if (listView != null) {
+                listView.highlightRow(() -> found, 2000);
+            }
+        }, 180);
     }
 
     @Override
@@ -3068,12 +3119,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_SEARCH_BASE && item.id - BTN_SEARCH_BASE < searchResults.size()) {
-            final int targetSection = searchResults.get(item.id - BTN_SEARCH_BASE)[1];
+            final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
+            final int targetSection = found[1];
+            final int targetRes = found[0];
             if (targetSection == section) {
-                // мы уже здесь — просто закрываем поиск и показываем раздел
+                // мы уже здесь — закрываем поиск и прыгаем к самой строке
                 actionBar.closeSearchField();
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
             } else {
-                presentFragment(new PengramSettingsActivity(targetSection));
+                presentFragment(new PengramSettingsActivity(targetSection, targetRes));
             }
             return;
         }
