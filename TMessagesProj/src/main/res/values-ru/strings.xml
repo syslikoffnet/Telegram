@@ -1034,7 +1034,8 @@
     <string name="PengramLyricsAdd">Добавить текст</string>
     <string name="PengramLyricsEdit">Изменить текст</string>
     <string name="PengramLyricsHint">Можно вставить обычный текст — строки распределятся по длительности. А с таймкодами [00:12.34] получится настоящее караоке.</string>
-    <string name="PengramLyricsPlaceholder">[00:12.34] Первая строка\    <string name="PengramSharePhoneMode">Мой номер в новых контактах</string>
+    <string name="PengramLyricsPlaceholder">[00:12.34] Первая строка\n[00:16.80] Вторая строка</string>
+    <string name="PengramSharePhoneMode">Мой номер в новых контактах</string>
     <string name="PengramSharePhoneModeInfo">Что делать с галочкой «показать мой номер» при добавлении и изменении контакта.</string>
     <string name="PengramSharePhoneNever">Никогда не показывать</string>
     <string name="PengramSharePhoneAsk">Спрашивать каждый раз</string>
@@ -1042,7 +1043,6 @@
     <string name="PengramPhoneHiddenTitle">Ваш номер останется скрытым</string>
     <string name="PengramPhoneHiddenInfo">**%1$s** не получит ваш номер телефона. Нажмите, чтобы изменить это в настройках Pengram.</string>
     <string name="PengramPhoneHiddenInfoShort">Ваш номер телефона не будет передан. Нажмите, чтобы изменить это в настройках Pengram.</string>
-n[00:16.80] Вторая строка</string>
     <string name="PengramCardOnTop">Pengram отдельной плашкой</string>
     <string name="PengramCardOnTopInfo">Pengram стоит отдельным блоком над всеми остальными разделами в Настройках.</string>
     <string name="PengramPlayerLook">Вид плеера</string>

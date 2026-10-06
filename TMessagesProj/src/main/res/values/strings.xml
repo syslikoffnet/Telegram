@@ -12006,7 +12006,8 @@
     <string name="PengramLyricsAdd">Add lyrics</string>
     <string name="PengramLyricsEdit">Edit lyrics</string>
     <string name="PengramLyricsHint">Plain text works too — the lines will be spread over the track. With [00:12.34] timecodes you get real karaoke.</string>
-    <string name="PengramLyricsPlaceholder">[00:12.34] First line\    <string name="PengramSharePhoneMode">My number in new contacts</string>
+    <string name="PengramLyricsPlaceholder">[00:12.34] First line\n[00:16.80] Second line</string>
+    <string name="PengramSharePhoneMode">My number in new contacts</string>
     <string name="PengramSharePhoneModeInfo">Controls the "share my phone number" option when you add or edit a contact.</string>
     <string name="PengramSharePhoneNever">Never share</string>
     <string name="PengramSharePhoneAsk">Ask every time</string>
@@ -12014,7 +12015,6 @@
     <string name="PengramPhoneHiddenTitle">Your number stays hidden</string>
     <string name="PengramPhoneHiddenInfo">**%1$s** will not get your phone number. Tap to change it in Pengram settings.</string>
     <string name="PengramPhoneHiddenInfoShort">Your phone number will not be shared. Tap to change it in Pengram settings.</string>
-n[00:16.80] Second line</string>
     <string name="PengramCardOnTop">Pengram as a separate card</string>
     <string name="PengramCardOnTopInfo">Pengram sits in its own block above everything else in Settings.</string>
     <string name="PengramPlayerLook">Player look</string>
