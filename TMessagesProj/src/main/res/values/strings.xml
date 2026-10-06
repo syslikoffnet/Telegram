@@ -11483,6 +11483,10 @@
     <string name="PengramInChatHeader">In chat</string>
     <string name="PengramKeepDeleted">Keep deleted messages in chat</string>
     <string name="PengramKeepDeletedInfo">A deleted message is not removed from the chat: it becomes translucent and gets a mark next to the time. Tap the mark to open the full history.</string>
+    <string name="PengramHideChatShareNumber">Share My Phone Number</string>
+    <string name="PengramDeletedReplyQuote">Quote deleted text in replies</string>
+    <string name="PengramDeletedReplySign">Sign the quote with the author name</string>
+    <string name="PengramDeletedReplyInfo">A deleted message is already gone from the server, so in private chats Pengram attaches its text to your reply as a quote — otherwise the other side sees an answer to nothing. The author name above the quote can be turned off.</string>
     <string name="PengramPreviewInfo">This is how messages will look in chats.</string>
     <string name="PengramPreviewIncoming">Hey! Shall we go for a walk tonight?</string>
     <string name="PengramPreviewDeleted">This message was deleted, but you still see it.</string>

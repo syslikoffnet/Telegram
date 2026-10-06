@@ -4332,6 +4332,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void sendMessage(SendMessageParams sendMessageParams) {
+        // Pengram: ответ на удалённое в личке уходит с цитатой — иначе собеседнику
+        // отвечают на сообщение, которого у него уже нет
+        PengramDeletedReply.decorate(sendMessageParams);
         final SendMessageChatArguments sendMessageChatArguments = sendMessageParams.sendMessageChatArguments != null ?
                 sendMessageParams.sendMessageChatArguments : SendMessageChatArguments.EMPTY;
         String message = sendMessageParams.message;

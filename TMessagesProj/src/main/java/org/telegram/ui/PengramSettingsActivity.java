@@ -213,6 +213,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIDE_CHAT_REPORT = 1215;
     private static final int BTN_HIDE_CHAT_CALL = 1216;
     private static final int BTN_HIDE_CHAT_AUTODELETE = 1217;
+    private static final int BTN_HIDE_CHAT_SHARE_NUMBER = 1218;
 
     private static final int BTN_DELETED_MARK = 1400;
     private static final int BTN_OPEN_DELETED_CHAT = 1401;
@@ -1396,7 +1397,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         final boolean[] flags = new boolean[] {
                 PengramConfig.hideMenuNewGroup, PengramConfig.hideMenuSavedMessages, PengramConfig.hideMenuSettings, PengramConfig.hideMenuTheme,
                 PengramConfig.hideChatSearch, PengramConfig.hideChatTranslate, PengramConfig.hideChatClearHistory, PengramConfig.hideChatWallpaper,
-                PengramConfig.hideChatShortcut, PengramConfig.hideChatReport, PengramConfig.hideChatCall, PengramConfig.hideChatAutoDelete
+                PengramConfig.hideChatShortcut, PengramConfig.hideChatReport, PengramConfig.hideChatCall, PengramConfig.hideChatAutoDelete,
+                PengramConfig.hideChatShareMyNumber
         };
         for (int a = 0; a < flags.length; ++a) {
             if (flags[a]) {
@@ -2452,7 +2454,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (PengramConfig.saveDeleted) {
             items.add(UItem.asHeader(getString(R.string.PengramInChatHeader)));
             items.add(check(PengramConfig.KEY_KEEP_DELETED, true, getString(R.string.PengramKeepDeleted)));
-            items.add(UItem.asShadow(getString(R.string.PengramKeepDeletedInfo)));
+            if (PengramConfig.isKeepingDeletedInChat()) {
+                // отвечать на удалённое можно только там, где оно осталось видимым
+                items.add(check(PengramConfig.KEY_DELETED_REPLY_QUOTE, true, getString(R.string.PengramDeletedReplyQuote)));
+                if (PengramConfig.isDeletedReplyQuote()) {
+                    items.add(check(PengramConfig.KEY_DELETED_REPLY_SIGN, true, getString(R.string.PengramDeletedReplySign)));
+                }
+            }
+            items.add(UItem.asShadow(getString(PengramConfig.isDeletedReplyQuote()
+                    ? R.string.PengramDeletedReplyInfo
+                    : R.string.PengramKeepDeletedInfo)));
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
@@ -3256,6 +3267,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCheck(BTN_HIDE_CHAT_REPORT, getString(R.string.PengramHideChatReport)).setChecked(PengramConfig.hideChatReport));
             items.add(UItem.asCheck(BTN_HIDE_CHAT_CALL, getString(R.string.PengramHideChatCall)).setChecked(PengramConfig.hideChatCall));
             items.add(UItem.asCheck(BTN_HIDE_CHAT_AUTODELETE, getString(R.string.PengramHideChatAutoDelete)).setChecked(PengramConfig.hideChatAutoDelete));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_SHARE_NUMBER, getString(R.string.PengramHideChatShareNumber)).setChecked(PengramConfig.hideChatShareMyNumber));
         }
         items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
@@ -3366,6 +3378,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIDE_CHAT_REPORT: value = PengramConfig.toggleBoolean("hideChatReport"); break;
             case BTN_HIDE_CHAT_CALL: value = PengramConfig.toggleBoolean("hideChatCall"); break;
             case BTN_HIDE_CHAT_AUTODELETE: value = PengramConfig.toggleBoolean("hideChatAutoDelete"); break;
+            case BTN_HIDE_CHAT_SHARE_NUMBER: value = PengramConfig.toggleBoolean("hideChatShareMyNumber"); break;
             default: return;
         }
         if (view instanceof TextCheckCell) {
@@ -3470,6 +3483,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
             } else if (item.id == boolId(PengramConfig.KEY_KEEP_DELETED)
+                    || item.id == boolId(PengramConfig.KEY_DELETED_REPLY_QUOTE)
                     || item.id == boolId(PengramConfig.KEY_FADE_DELETED)
                     || item.id == boolId(PengramConfig.KEY_MARK_EDITED)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
@@ -4017,6 +4031,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIDE_CHAT_REPORT:
             case BTN_HIDE_CHAT_CALL:
             case BTN_HIDE_CHAT_AUTODELETE:
+            case BTN_HIDE_CHAT_SHARE_NUMBER:
                 toggleHideFlag(item.id, view);
                 break;
             case BTN_GHOST:

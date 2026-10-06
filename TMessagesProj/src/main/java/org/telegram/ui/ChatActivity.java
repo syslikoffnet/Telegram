@@ -30456,7 +30456,9 @@ public class ChatActivity extends BaseFragment implements
                 if (topChatPanelView == null) {
                     return;
                 }
-                addContactItem.setVisibility(View.VISIBLE);
+                // Pengram: пункт «Поделиться моим номером» по умолчанию спрятан —
+                // номер уходит только осознанно, а не случайным тапом в меню
+                addContactItem.setVisibility(org.telegram.messenger.PengramConfig.hideChatShareMyNumber ? View.GONE : View.VISIBLE);
                 addToContactsButton.setVisibility(View.VISIBLE);
                 addContactItem.setText(LocaleController.getString(R.string.ShareMyContactInfo));
                 addToContactsButton.setText(LocaleController.getString(R.string.ShareMyPhoneNoCaps));
@@ -30468,7 +30470,7 @@ public class ChatActivity extends BaseFragment implements
                     if (topChatPanelView == null) {
                         return;
                     }
-                    addContactItem.setVisibility(View.VISIBLE);
+                    addContactItem.setVisibility(org.telegram.messenger.PengramConfig.hideChatShareMyNumber ? View.GONE : View.VISIBLE);
                     addContactItem.setText(LocaleController.getString(R.string.ShareMyContactInfo));
                     addToContactsButton.setTag(2);
                 } else if (addContactItem != null) {

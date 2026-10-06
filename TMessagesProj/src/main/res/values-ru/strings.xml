@@ -511,6 +511,10 @@
     <string name="PengramInChatHeader">В чате</string>
     <string name="PengramKeepDeleted">Оставлять удалёнки в чате</string>
     <string name="PengramKeepDeletedInfo">Удалённое сообщение не пропадает из чата: оно становится полупрозрачным и получает значок рядом со временем. Нажмите на значок, чтобы открыть всю историю.</string>
+    <string name="PengramHideChatShareNumber">Поделиться моим номером</string>
+    <string name="PengramDeletedReplyQuote">Цитировать удалённое в ответе</string>
+    <string name="PengramDeletedReplySign">Подписывать цитату именем автора</string>
+    <string name="PengramDeletedReplyInfo">Удалённого сообщения на сервере уже нет, поэтому в личных чатах Pengram подклеивает его текст к вашему ответу цитатой — иначе собеседник увидит ответ в пустоту. Подпись с именем над цитатой можно отключить.</string>
     <string name="PengramPreviewInfo">Так сообщения будут выглядеть в чатах.</string>
     <string name="PengramPreviewIncoming">Привет! Пойдём сегодня гулять?</string>
     <string name="PengramPreviewDeleted">Это сообщение удалили, но вы его всё ещё видите.</string>

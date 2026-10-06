@@ -229,6 +229,8 @@ public class PengramConfig {
     public static boolean hideChatReport = false;
     public static boolean hideChatCall = false;
     public static boolean hideChatAutoDelete = false;
+    /** пункт «Поделиться моим номером» в меню личного чата; по умолчанию скрыт */
+    public static boolean hideChatShareMyNumber = true;
 
     // --- удалённые прямо в чате ---
     public static final int MARK_NONE = 0;
@@ -253,6 +255,11 @@ public class PengramConfig {
     public static final String KEY_SAVE_FOR_MYSELF_DEFAULT = "saveForMyselfDefault";
     /** показывать подсказку «сохранить у себя» в меню удаления */
     public static final String KEY_SAVE_FOR_MYSELF_SHOW = "saveForMyselfShow";
+
+    /** подклеивать текст удалённого сообщения цитатой при ответе в личке */
+    public static final String KEY_DELETED_REPLY_QUOTE = "deletedReplyQuote";
+    /** подписывать такую цитату именем автора */
+    public static final String KEY_DELETED_REPLY_SIGN = "deletedReplySign";
 
     // --- призрак ---
     public static final String KEY_GHOST_AUTO_OFFLINE = "ghostAutoOffline";
@@ -346,6 +353,10 @@ public class PengramConfig {
 
     public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
     public static boolean isFadingDeleted() { return getBool(KEY_FADE_DELETED, true); }
+    /** ответ на удалённое в личке уходит с цитатой самого удалённого текста */
+    public static boolean isDeletedReplyQuote() { return isKeepingDeletedInChat() && getBool(KEY_DELETED_REPLY_QUOTE, true); }
+    /** и эта цитата подписана именем автора */
+    public static boolean isDeletedReplySigned() { return isDeletedReplyQuote() && getBool(KEY_DELETED_REPLY_SIGN, true); }
     public static boolean isMarkingEdited() { return getBool(KEY_MARK_EDITED, false); }
     public static boolean isSaveForMyselfDefault() { return getBool(KEY_SAVE_FOR_MYSELF_DEFAULT, false); }
     public static boolean isSaveForMyselfVisible() { return getBool(KEY_SAVE_FOR_MYSELF_SHOW, true); }
@@ -854,6 +865,7 @@ public class PengramConfig {
             hideChatReport = p.getBoolean("hideChatReport", false);
             hideChatCall = p.getBoolean("hideChatCall", false);
             hideChatAutoDelete = p.getBoolean("hideChatAutoDelete", false);
+            hideChatShareMyNumber = p.getBoolean("hideChatShareMyNumber", true);
             deletedMark = p.getInt("deletedMark", MARK_TRASH);
             editedMark = p.getInt("editedMark", MARK_EDIT_PENCIL);
             loaded = true;
@@ -2160,6 +2172,7 @@ public class PengramConfig {
             case "hideChatReport": hideChatReport = !hideChatReport; putBoolean(key, hideChatReport); return hideChatReport;
             case "hideChatCall": hideChatCall = !hideChatCall; putBoolean(key, hideChatCall); return hideChatCall;
             case "hideChatAutoDelete": hideChatAutoDelete = !hideChatAutoDelete; putBoolean(key, hideChatAutoDelete); return hideChatAutoDelete;
+            case "hideChatShareMyNumber": hideChatShareMyNumber = !hideChatShareMyNumber; putBoolean(key, hideChatShareMyNumber); return hideChatShareMyNumber;
         }
         return false;
     }
