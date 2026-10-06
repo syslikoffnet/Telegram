@@ -374,6 +374,9 @@ public class ApplicationLoader extends Application {
         // Включённый обход должен восстановить соединение сразу после запуска, а не через 6 секунд.
         AndroidUtilities.runOnUIThread(PengramBypass::start, 500);
         AndroidUtilities.runOnUIThread(PengramHistory::autoCleanup, 4000);
+        // Pengram: разовое уплотнение журнала после обновления — позже автоочистки,
+        // чтобы не ужимать записи, которые она всё равно удалит
+        AndroidUtilities.runOnUIThread(PengramHistory::compactIfNeeded, 9000);
         // Pengram: стратегия обхода DPI должна уехать в нативный слой до первых коннектов
         PengramNet.apply();
 

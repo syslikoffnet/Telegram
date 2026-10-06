@@ -12355,8 +12355,6 @@
     <string name="PengramHeroAbout">Version, build and everything worth attaching to a bug report.</string>
     <string name="PengramAboutBuildHeader">Build</string>
     <string name="PengramAboutVersion">Pengram version</string>
-    <string name="PengramAboutDate">Built on</string>
-    <string name="PengramAboutCommit">Commit</string>
     <string name="PengramAboutBase">Telegram base</string>
     <string name="PengramAboutPackage">Package</string>
     <string name="PengramAboutDeviceHeader">Device</string>

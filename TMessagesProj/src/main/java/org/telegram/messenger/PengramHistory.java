@@ -23,6 +23,9 @@ import java.util.Locale;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+import java.io.ByteArrayOutputStream;
 
 /**
  * «Неубиваемое» локальное хранилище удалённых и отредактированных сообщений.
@@ -39,7 +42,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 3;
+    private static final int DB_VERSION = 4;
     private static final String TABLE = "history";
     private static final String TABLE_MARKS = "deleted_marks";
 
@@ -91,6 +94,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 "prev_text TEXT)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_dialog ON " + TABLE + " (dialog_id)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_saved ON " + TABLE + " (saved_at)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_message ON " + TABLE + " (dialog_id, message_id)");
         createV2(db);
         createV3(db);
     }
@@ -131,6 +135,13 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (oldVersion < 3) {
             createV3(db);
         }
+        if (oldVersion < 4) {
+            // старые записи лежат несжатыми — ужмём их в фоне и вернём место файлу
+            pendingCompaction = true;
+            try {
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_message ON " + TABLE + " (dialog_id, message_id)");
+            } catch (Throwable ignore) {}
+        }
     }
 
     // ------------------------------------------------------------------ запись
@@ -152,6 +163,12 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         executor.execute(() -> {
             try {
+                // Удаление одного и того же сообщения прилетает не один раз: из апдейта,
+                // из локальной чистки, из перезагрузки диалога. Вторая копия ничего не
+                // добавляет, а место занимает — поэтому для удалённых пишем один раз.
+                if (action == ACTION_DELETED && messageId != 0 && hasEntry(account, dialogId, messageId)) {
+                    return;
+                }
                 ContentValues cv = new ContentValues();
                 cv.put("account", account);
                 cv.put("dialog_id", dialogId);
@@ -164,7 +181,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 cv.put("prev_text", prevText);
                 cv.put("out", out ? 1 : 0);
                 if (data != null) {
-                    cv.put("data", data);
+                    cv.put("data", pack(data));
                 }
                 history.getWritableDatabase().insert(TABLE, null, cv);
                 maybeEnforceLimits();
@@ -173,6 +190,29 @@ public class PengramHistory extends SQLiteOpenHelper {
                 FileLog.e(e);
             }
         });
+    }
+
+    /** есть ли уже запись об удалении этого сообщения */
+    private static boolean hasEntry(int account, long dialogId, int messageId) {
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return false;
+        }
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery(
+                    "SELECT 1 FROM " + TABLE + " WHERE account = ? AND dialog_id = ? AND message_id = ? AND action = ? LIMIT 1",
+                    new String[]{String.valueOf(account), String.valueOf(dialogId),
+                            String.valueOf(messageId), String.valueOf(ACTION_DELETED)});
+            return c.moveToFirst();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        } finally {
+            if (c != null) {
+                try { c.close(); } catch (Throwable ignore) {}
+            }
+        }
     }
 
     /** сериализует сообщение целиком — чтобы потом показать его как настоящее */
@@ -194,7 +234,8 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
-    public static TLRPC.Message deserialize(byte[] data) {
+    public static TLRPC.Message deserialize(byte[] stored) {
+        final byte[] data = unpack(stored);
         if (data == null || data.length == 0) {
             return null;
         }
@@ -214,6 +255,91 @@ public class PengramHistory extends SQLiteOpenHelper {
         } finally {
             if (buffer != null) {
                 try { buffer.reuse(); } catch (Throwable ignore) {}
+            }
+        }
+    }
+
+    // ------------------------------------------------- сжатие записей
+
+    /**
+     * Метка сжатой записи.
+     *
+     * Сериализованное сообщение начинается с номера TL-конструктора, и ни один
+     * из них не начинается с этих четырёх байт — значит, по первым байтам всегда
+     * понятно, сжата запись или досталась от старой версии. Поэтому старые
+     * записи продолжают читаться как есть, без миграции «всё или ничего».
+     */
+    private static final byte[] PACK_MAGIC = {'P', 'G', 'Z', '1'};
+
+    /** blob сообщения ужимается раза в два-три: это текст, имена и TL-поля */
+    static byte[] pack(byte[] raw) {
+        if (raw == null || raw.length < 64) {
+            return raw;   // мелочь сжимать невыгодно: заголовок съест выигрыш
+        }
+        Deflater deflater = null;
+        try {
+            deflater = new Deflater(Deflater.BEST_COMPRESSION, true);
+            deflater.setInput(raw);
+            deflater.finish();
+            final ByteArrayOutputStream out = new ByteArrayOutputStream(raw.length / 2);
+            out.write(PACK_MAGIC, 0, PACK_MAGIC.length);
+            final byte[] buffer = new byte[8192];
+            while (!deflater.finished()) {
+                final int written = deflater.deflate(buffer);
+                if (written <= 0) {
+                    break;
+                }
+                out.write(buffer, 0, written);
+            }
+            final byte[] packed = out.toByteArray();
+            // если сжатие не помогло (уже сжатое видео в превью и т.п.) — храним как есть
+            return packed.length < raw.length ? packed : raw;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return raw;
+        } finally {
+            if (deflater != null) {
+                try { deflater.end(); } catch (Throwable ignore) {}
+            }
+        }
+    }
+
+    static boolean isPacked(byte[] data) {
+        if (data == null || data.length <= PACK_MAGIC.length) {
+            return false;
+        }
+        for (int a = 0; a < PACK_MAGIC.length; a++) {
+            if (data[a] != PACK_MAGIC[a]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static byte[] unpack(byte[] data) {
+        if (!isPacked(data)) {
+            return data;
+        }
+        Inflater inflater = null;
+        try {
+            inflater = new Inflater(true);
+            inflater.setInput(data, PACK_MAGIC.length, data.length - PACK_MAGIC.length);
+            final ByteArrayOutputStream out = new ByteArrayOutputStream(data.length * 3);
+            final byte[] buffer = new byte[8192];
+            while (!inflater.finished()) {
+                final int read = inflater.inflate(buffer);
+                if (read <= 0) {
+                    break;
+                }
+                out.write(buffer, 0, read);
+            }
+            return out.toByteArray();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        } finally {
+            if (inflater != null) {
+                try { inflater.end(); } catch (Throwable ignore) {}
             }
         }
     }
@@ -827,6 +953,119 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
+    // ------------------------------------------------- уплотнение файла базы
+
+    /** после обновления схемы в базе лежат несжатые записи — их нужно ужать один раз */
+    private static volatile boolean pendingCompaction;
+    /** VACUUM — дорогая операция, чаще раза в сутки она не нужна */
+    private static final long VACUUM_INTERVAL = 24 * 60 * 60 * 1000L;
+    private static long lastVacuum;
+
+    /**
+     * Разовое уплотнение после обновления.
+     *
+     * Ничего не выбрасываем: старые записи читаются, ужимаются и кладутся
+     * обратно. Делается пачками в фоновом потоке, чтобы не держать базу
+     * заблокированной надолго, а в конце — VACUUM: без него SQLite оставляет
+     * освободившиеся страницы внутри файла, и «похудевшая» база на диске
+     * занимает столько же, сколько занимала.
+     */
+    public static void compactIfNeeded() {
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                history.getWritableDatabase();   // поднимаем базу: onUpgrade выставит флаг
+            } catch (Throwable e) {
+                FileLog.e(e);
+                return;
+            }
+            if (!pendingCompaction) {
+                return;
+            }
+            pendingCompaction = false;
+            final long before = getDatabaseSize();
+            int packed = 0;
+            try {
+                final SQLiteDatabase db = history.getWritableDatabase();
+                while (true) {
+                    final ArrayList<long[]> ids = new ArrayList<>();
+                    final ArrayList<byte[]> blobs = new ArrayList<>();
+                    Cursor c = null;
+                    try {
+                        c = db.rawQuery("SELECT id, data FROM " + TABLE
+                                + " WHERE data IS NOT NULL AND id > ? ORDER BY id LIMIT 200",
+                                new String[]{String.valueOf(compactCursor)});
+                        while (c.moveToNext()) {
+                            ids.add(new long[]{c.getLong(0)});
+                            blobs.add(c.getBlob(1));
+                        }
+                    } finally {
+                        if (c != null) {
+                            try { c.close(); } catch (Throwable ignore) {}
+                        }
+                    }
+                    if (ids.isEmpty()) {
+                        break;
+                    }
+                    db.beginTransaction();
+                    try {
+                        for (int a = 0; a < ids.size(); a++) {
+                            final long rowId = ids.get(a)[0];
+                            compactCursor = rowId;
+                            final byte[] raw = blobs.get(a);
+                            if (raw == null || isPacked(raw)) {
+                                continue;
+                            }
+                            final byte[] small = pack(raw);
+                            if (small == raw || small.length >= raw.length) {
+                                continue;
+                            }
+                            final ContentValues cv = new ContentValues();
+                            cv.put("data", small);
+                            db.update(TABLE, cv, "id = ?", new String[]{String.valueOf(rowId)});
+                            packed++;
+                        }
+                        db.setTransactionSuccessful();
+                    } finally {
+                        db.endTransaction();
+                    }
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            vacuum(true);
+            statsDirty = true;
+            if (BuildVars.LOGS_ENABLED) {
+                FileLog.d("pengram: журнал уплотнён, сжато записей " + packed
+                        + ", файл " + before + " → " + getDatabaseSize());
+            }
+        });
+    }
+
+    /** id последней обработанной записи — чтобы пачки не пересекались */
+    private static volatile long compactCursor;
+
+    /** вернуть файлу базы освободившиеся страницы */
+    static void vacuum(boolean force) {
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        final long now = System.currentTimeMillis();
+        if (!force && now - lastVacuum < VACUUM_INTERVAL) {
+            return;
+        }
+        lastVacuum = now;
+        try {
+            history.getWritableDatabase().execSQL("VACUUM");
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     /** сколько записей журнала осталось после прошлой проверки — чтобы не считать на каждое сохранение */
     private static volatile int entriesSinceCheck;
 
@@ -851,6 +1090,9 @@ public class PengramHistory extends SQLiteOpenHelper {
                     "id NOT IN (SELECT id FROM " + TABLE + " ORDER BY id DESC LIMIT " + limit + ")", null);
             invalidateCounts(0);
             statsDirty = true;
+            if (removed > 0) {
+                vacuum(false);
+            }
             if (BuildVars.LOGS_ENABLED && removed > 0) {
                 FileLog.d("pengram: журнал подрезан до " + limit + " записей, удалено " + removed);
             }
@@ -885,6 +1127,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             } else {
                 history.getWritableDatabase().delete(TABLE, null, null);
                 invalidateCounts(0);
+                vacuum(true);
             }
         } catch (Throwable e) {
             FileLog.e(e);

@@ -16,8 +16,6 @@ public final class PengramSearchIndex {
     /** пары {строка заголовка, раздел настроек} */
     public static final int[][] ITEMS = {
             {R.string.PengramAboutVersion, PengramSettingsActivity.SECTION_ABOUT},
-            {R.string.PengramAboutDate, PengramSettingsActivity.SECTION_ABOUT},
-            {R.string.PengramAboutCommit, PengramSettingsActivity.SECTION_ABOUT},
             {R.string.PengramAboutBase, PengramSettingsActivity.SECTION_ABOUT},
             {R.string.PengramAboutPackage, PengramSettingsActivity.SECTION_ABOUT},
             {R.string.PengramAboutDevice, PengramSettingsActivity.SECTION_ABOUT},

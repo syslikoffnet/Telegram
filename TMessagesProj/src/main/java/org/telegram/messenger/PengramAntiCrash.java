@@ -106,7 +106,8 @@ public class PengramAntiCrash {
      * иначе получим шторм записей в prefs. Параллельно ведём журнал последних
      * ста попыток — время и тип, его показывает настройка «Журнал атак».
      */
-    public static void report(String reason) {
+    public static void report(String rawReason) {
+        final String reason = shortReason(rawReason);
         final long eventNow = android.os.SystemClock.elapsedRealtime();
         // Один вредоносный MessageObject может упасть в layout/draw несколько раз.
         // Считаем весь короткий каскад одной атакой, а не накручиваем счётчик.
@@ -135,6 +136,51 @@ public class PengramAntiCrash {
             journalStore();
         } catch (Throwable ignore) {
         }
+    }
+
+    /** сколько символов причины имеет смысл хранить и показывать */
+    private static final int REASON_LIMIT = 64;
+
+    /**
+     * Причина в одну строку и без простыней.
+     *
+     * Описание приходит из разных мест, и туда попадают имена классов, числа,
+     * а иногда и кусок разметки сообщения — то есть ровно то, чем атакующий
+     * и пытался сломать отрисовку. В журнале и в значении настройки такая
+     * строка растягивалась на пол-экрана, поэтому режем её здесь, у источника:
+     * тогда и в базе, и в интерфейсе лежит уже короткий текст.
+     */
+    static String shortReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        final StringBuilder sb = new StringBuilder(Math.min(reason.length(), REASON_LIMIT + 1));
+        boolean space = false;
+        for (int a = 0; a < reason.length() && sb.length() < REASON_LIMIT; a++) {
+            char c = reason.charAt(a);
+            if (c == '\n' || c == '\r' || c == '\t' || Character.isISOControl(c)) {
+                c = ' ';
+            }
+            if (c == ' ') {
+                if (space || sb.length() == 0) {
+                    continue;
+                }
+                space = true;
+            } else {
+                space = false;
+            }
+            sb.append(c);
+        }
+        while (sb.length() > 0 && sb.charAt(sb.length() - 1) == ' ') {
+            sb.setLength(sb.length() - 1);
+        }
+        if (sb.length() == 0) {
+            return null;
+        }
+        if (reason.length() > sb.length()) {
+            sb.append('…');
+        }
+        return sb.toString();
     }
 
     /* ------------------- журнал атак ------------------- */

@@ -810,8 +810,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         aboutValues.clear();
         items.add(UItem.asHeader(getString(R.string.PengramAboutBuildHeader)));
         items.add(aboutRow(R.string.PengramAboutVersion, org.telegram.messenger.PengramVersion.shortLine()));
-        items.add(aboutRow(R.string.PengramAboutDate, org.telegram.messenger.PengramVersion.buildDate()));
-        items.add(aboutRow(R.string.PengramAboutCommit, org.telegram.messenger.PengramVersion.commit()));
         items.add(aboutRow(R.string.PengramAboutBase, org.telegram.messenger.PengramVersion.telegramVersion()));
         items.add(aboutRow(R.string.PengramAboutPackage, org.telegram.messenger.PengramVersion.packageName()));
         items.add(UItem.asShadow(null));
@@ -1037,7 +1035,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (last == null) {
             return String.valueOf(total);
         }
-        return total + " · " + LocaleController.formatString(R.string.PengramAntiCrashLast, last);
+        // В значении строки показываем тип последней атаки, а не её техническое
+        // описание: оно бывает длиной в абзац и разъезжалось по экрану.
+        // Подробности с текстом причины остались в «Журнале атак».
+        final String kind = getString(crashKindTitle(PengramAntiCrash.kindOf(last)));
+        return total + " · " + LocaleController.formatString(R.string.PengramAntiCrashLast, kind);
     }
 
     private UItem check(String key, boolean def, CharSequence text) {

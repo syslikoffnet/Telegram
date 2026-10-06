@@ -6,8 +6,8 @@ import android.os.Build;
  * Pengram: паспорт сборки.
  *
  * Всё, что нужно бета-тестеру для осмысленного баг-репорта: своя версия форка,
- * версия телеграм-базы, дата сборки, коммит и железо. Значения приезжают из
- * BuildConfig (их проставляет gradle), поэтому руками их править не нужно.
+ * версия телеграм-базы и железо. Значения приезжают из BuildConfig (их
+ * проставляет gradle), поэтому руками их править не нужно.
  */
 public class PengramVersion {
 
@@ -33,30 +33,6 @@ public class PengramVersion {
         } catch (Throwable ignore) {
             return 1;
         }
-    }
-
-    /** дата сборки в UTC */
-    public static String buildDate() {
-        try {
-            final String value = BuildConfig.PENGRAM_BUILD_DATE;
-            if (value != null && !value.trim().isEmpty()) {
-                return value.trim();
-            }
-        } catch (Throwable ignore) {
-        }
-        return "—";
-    }
-
-    /** короткий хеш коммита */
-    public static String commit() {
-        try {
-            final String value = BuildConfig.PENGRAM_COMMIT;
-            if (value != null && !value.trim().isEmpty()) {
-                return value.trim();
-            }
-        } catch (Throwable ignore) {
-        }
-        return "local";
     }
 
     /** «1.0.0 beta 1 (1)» — короткая строка для шапок и подписей */
@@ -131,7 +107,6 @@ public class PengramVersion {
     public static String report() {
         final StringBuilder sb = new StringBuilder();
         sb.append("Pengram ").append(shortLine()).append('\n');
-        sb.append("build: ").append(buildDate()).append(" · ").append(commit()).append('\n');
         sb.append("base: Telegram ").append(telegramVersion()).append('\n');
         sb.append("package: ").append(packageName()).append(" · ").append(installer()).append('\n');
         sb.append("device: ").append(device()).append('\n');

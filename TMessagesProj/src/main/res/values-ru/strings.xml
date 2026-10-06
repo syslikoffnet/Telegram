@@ -1383,8 +1383,6 @@
     <string name="PengramHeroAbout">Версия, сборка и всё, что стоит приложить к сообщению об ошибке.</string>
     <string name="PengramAboutBuildHeader">Сборка</string>
     <string name="PengramAboutVersion">Версия Pengram</string>
-    <string name="PengramAboutDate">Собрано</string>
-    <string name="PengramAboutCommit">Коммит</string>
     <string name="PengramAboutBase">Основа Telegram</string>
     <string name="PengramAboutPackage">Пакет</string>
     <string name="PengramAboutDeviceHeader">Устройство</string>
