@@ -312,6 +312,10 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         backgroundPaddings = new Rect();
         if (progressStyle != ALERT_TYPE_SPINNER || blurredBackground) {
             shadowDrawable = context.getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate();
+            // Pengram: диалоги Material 3 — скругление 28dp
+            if (org.telegram.messenger.PengramMD3.alerts()) {
+                shadowDrawable = org.telegram.messenger.PengramMD3.sheetBackground(shadowDrawable, false);
+            }
             blurOpacity = progressStyle == ALERT_TYPE_SPINNER ? 0.55f : (isDark ? 0.80f : 0.985f);
             shadowDrawable.setColorFilter(new PorterDuffColorFilter(backgroundColor, PorterDuff.Mode.MULTIPLY));
             shadowDrawable.getPadding(backgroundPaddings);

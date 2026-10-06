@@ -24,6 +24,12 @@ public final class PengramMD3 {
     public static final String KEY_NO_DIVIDERS = "md3NoDividers";
     /** кнопка «написать» со скруглённым квадратом вместо круга */
     public static final String KEY_FAB = "md3Fab";
+    /** нижние шторки с крупным скруглением */
+    public static final String KEY_SHEETS = "md3Sheets";
+    /** диалоги с крупным скруглением */
+    public static final String KEY_ALERTS = "md3Alerts";
+    /** экран настроек Pengram в тональных тонах */
+    public static final String KEY_SETTINGS = "md3Settings";
     /** строка поиска в стиле M3 Search Bar */
     public static final String KEY_SEARCH_BAR = "md3SearchBar";
     /** мягкая тень под строкой поиска (M3 elevated) */
@@ -70,6 +76,40 @@ public final class PengramMD3 {
 
     public static boolean fab() {
         return isEnabled() && PengramConfig.getBool(KEY_FAB, true);
+    }
+
+    public static boolean sheets() {
+        return isEnabled() && PengramConfig.getBool(KEY_SHEETS, true);
+    }
+
+    public static boolean alerts() {
+        return isEnabled() && PengramConfig.getBool(KEY_ALERTS, true);
+    }
+
+    public static boolean settingsScreen() {
+        return isEnabled() && PengramConfig.getBool(KEY_SETTINGS, true);
+    }
+
+    /**
+     * Подложка шторки или диалога со скруглением M3 (28dp).
+     *
+     * Родной девятипатч нужен ради отступов: по ним считается положение
+     * содержимого. Поэтому отступы берём у него, а рисуем свою фигуру — белую,
+     * чтобы уже существующий MULTIPLY-фильтр покрасил её в цвет темы.
+     */
+    public static android.graphics.drawable.Drawable sheetBackground(android.graphics.drawable.Drawable original, boolean topCornersOnly) {
+        final android.graphics.Rect padding = new android.graphics.Rect();
+        if (original != null) {
+            original.getPadding(padding);
+        }
+        final android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setColor(0xFFFFFFFF);
+        final float r = AndroidUtilities.dp(28);
+        shape.setCornerRadii(topCornersOnly
+                ? new float[]{r, r, r, r, 0, 0, 0, 0}
+                : new float[]{r, r, r, r, r, r, r, r});
+        return new android.graphics.drawable.InsetDrawable(shape,
+                padding.left, padding.top, padding.right, padding.bottom);
     }
 
     /** скругление контейнера строки: M3 Expressive любит крупные радиусы */

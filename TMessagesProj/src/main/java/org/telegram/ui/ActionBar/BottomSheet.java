@@ -1221,6 +1221,10 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
 
         Rect padding = new Rect();
         shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
+        // Pengram: в Material 3 у шторок крупное скругление сверху
+        if (org.telegram.messenger.PengramMD3.sheets()) {
+            shadowDrawable = org.telegram.messenger.PengramMD3.sheetBackground(shadowDrawable, true);
+        }
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(internalBackgroundColor = getThemedColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY));
         shadowDrawable.getPadding(padding);
         backgroundPaddingLeft = padding.left;

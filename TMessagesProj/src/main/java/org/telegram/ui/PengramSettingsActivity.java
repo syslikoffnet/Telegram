@@ -153,6 +153,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_CHAT_MENUS = 15;
     public static final int SECTION_ABOUT = 16;
     public static final int SECTION_AI = 17;
+    public static final int SECTION_LYRICS = 18;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -170,6 +171,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_CHAT_INTERFACE = 1014;
     private static final int BTN_SECTION_CHAT_MENUS = 1015;
     private static final int BTN_SECTION_AI = 1016;
+    private static final int BTN_SECTION_LYRICS = 1017;
 
     // AI: сервисы, роли и поведение ответа
     private static final int BTN_ORIGINAL_NAME = 1710;
@@ -286,6 +288,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_MENU_CHAT = 3;
     private static final int GROUP_HISTORY_MEDIA = 4;
     private static final int GROUP_EFFECTS = 5;
+    private static final int GROUP_MD3 = 6;
+    private static final int GROUP_MONET = 7;
 
     /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
     private static String expandedKey(int group) {
@@ -504,6 +508,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
             case SECTION_ABOUT: return IconBackgroundColors.BLUE_LIGHT;
             case SECTION_AI: return IconBackgroundColors.PURPLE;
+            case SECTION_LYRICS: return IconBackgroundColors.ORANGE;
             default: return IconBackgroundColors.GRAY;
         }
     }
@@ -528,6 +533,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
             case SECTION_ABOUT: return R.string.PengramHeroAbout;
             case SECTION_AI: return R.string.PengramHeroAI;
+            case SECTION_LYRICS: return R.string.PengramHeroLyrics;
             default: return 0;
         }
     }
@@ -552,6 +558,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_FREEDOM: return R.drawable.settings_features;
             case SECTION_ABOUT: return R.drawable.msg_info;
             case SECTION_AI: return R.drawable.msg_bot;
+            case SECTION_LYRICS: return R.drawable.msg_msgbubble3;
             default: return R.drawable.msg_settings;
         }
     }
@@ -576,6 +583,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
             case SECTION_ABOUT: return getString(R.string.PengramAbout);
             case SECTION_AI: return getString(R.string.PengramSectionAI);
+            case SECTION_LYRICS: return getString(R.string.PengramLyricsSection);
             default: return getString(R.string.PengramSettings);
         }
     }
@@ -727,6 +735,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: fillPlayer(items); break;
             case SECTION_ABOUT: fillAbout(items); break;
             case SECTION_AI: fillAI(items); break;
+            case SECTION_LYRICS: fillLyrics(items); break;
             default: fillRoot(items); break;
         }
         addResetRow(items);
@@ -778,7 +787,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN:
                 return new String[]{"penguin*"};
             case SECTION_PLAYER:
-                return new String[]{"player*", "lyrics*", "headerLyrics*", "newPlayer"};
+                return new String[]{"player*", "newPlayer", "coverShape", "trackForward*", "musicForward*", "musicSmartArtist"};
+            case SECTION_LYRICS:
+                return new String[]{"lyrics*", "headerLyrics*"};
             default:
                 return null;
         }
@@ -815,12 +826,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(BTN_ABOUT_COPY, R.drawable.msg_copy, getString(R.string.PengramAboutCopy)));
         items.add(UItem.asShadow(getString(R.string.PengramAboutCopyInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramCrashReports)));
-        items.add(UItem.asSettingsCell(BTN_CRASH_REPORTS, R.drawable.msg_report,
-                getString(R.string.PengramCrashReports),
-                org.telegram.ui.Components.PengramCrashDialogs.summary()));
-        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramCrashReportsInfo,
-                String.valueOf(org.telegram.messenger.PengramCrashReport.LIMIT))));
+        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.msg_report,
+                getString(R.string.PengramCrashReports), org.telegram.ui.Components.PengramCrashDialogs.summary()));
+        items.add(UItem.asShadow(getString(R.string.PengramCrashReportsMovedInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramResetHeader)));
         items.add(UItem.asButton(BTN_RESET_ALL, R.drawable.msg_reset, getString(R.string.PengramResetAll)).red());
@@ -1179,6 +1187,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         if (previewMessages != null) {
             previewMessages.update();
+        }
+        if (md3Preview != null) {
+            md3Preview.update();
         }
         return true;
     }
@@ -1554,6 +1565,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private org.telegram.ui.Components.PengramTabsMockView tabsMockView;
     private org.telegram.ui.Components.PengramTypingPreviewView typingPreview;
     private org.telegram.ui.Components.PengramFontPreviewView fontPreview;
+    private org.telegram.ui.Components.PengramMD3PreviewView md3Preview;
 
     private void applyTabsNow() {
         try {
@@ -1650,6 +1662,11 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** строка раздела с цветной иконкой */
     private UItem sectionRow(int id, IconBackgroundColors colors, int icon, CharSequence title, CharSequence value) {
+        // Pengram: в Material 3 иконка раздела — ровный тональный кружок без градиента
+        if (org.telegram.messenger.PengramMD3.settingsScreen()) {
+            final int container = org.telegram.messenger.PengramMD3.surface(getResourceProvider(), 0.75f);
+            return SettingsActivity.SettingCell.Factory.of(id, container, container, icon, title, null, value);
+        }
         return SettingsActivity.SettingCell.Factory.of(id, colors.top, colors.bottom, icon, title, null, value);
     }
 
@@ -1670,6 +1687,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(check(PengramConfig.KEY_SEND_STYLE_CAPTIONS, true, getString(R.string.PengramSendStyleCaptions)));
         }
         items.add(UItem.asShadow(sendStyleInfo()));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSystemHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
+        items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
+        items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
+        items.add(UItem.asShadow(getString(R.string.PengramSystemInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramToolsHeader)));
         items.add(UItem.asButton(BTN_OPEN_BY_ID, R.drawable.msg_search, getString(R.string.PengramOpenById)));
@@ -2448,19 +2471,33 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramMD3Header)));
+        if (md3Preview == null && getContext() != null) {
+            md3Preview = new org.telegram.ui.Components.PengramMD3PreviewView(getContext(), getResourceProvider());
+        }
+        if (md3Preview != null) {
+            md3Preview.update();
+            items.add(UItem.asCustom(md3Preview));
+        }
         items.add(checkInfo(org.telegram.messenger.PengramMD3.KEY_ENABLED, false,
                 getString(R.string.PengramMD3), getString(R.string.PengramMD3Subtitle)));
+        // подробности прячем за «Настроить» — включённый режим не должен вываливать десяток строк
         if (org.telegram.messenger.PengramMD3.isEnabled()) {
-            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true, getString(R.string.PengramMD3Dialogs)));
-            if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true)) {
-                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_TONAL_UNREAD, true, getString(R.string.PengramMD3Tonal)));
-                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_NO_DIVIDERS, true, getString(R.string.PengramMD3NoDividers)));
+            if (expanded(GROUP_MD3)) {
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true, getString(R.string.PengramMD3Dialogs)));
+                if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_TONAL_UNREAD, true, getString(R.string.PengramMD3Tonal)));
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_NO_DIVIDERS, true, getString(R.string.PengramMD3NoDividers)));
+                }
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true, getString(R.string.PengramMD3SearchBar)));
+                if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_SHADOW, false, getString(R.string.PengramMD3SearchShadow)));
+                }
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SHEETS, true, getString(R.string.PengramMD3Sheets)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_ALERTS, true, getString(R.string.PengramMD3Alerts)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SETTINGS, true, getString(R.string.PengramMD3Settings)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
             }
-            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true, getString(R.string.PengramMD3SearchBar)));
-            if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true)) {
-                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_SHADOW, false, getString(R.string.PengramMD3SearchShadow)));
-            }
-            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
+            items.add(moreButton(GROUP_MD3, getString(R.string.PengramMD3Tune)));
         }
         items.add(UItem.asShadow(getString(R.string.PengramMD3Info)));
 
@@ -2469,10 +2506,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(checkInfo(org.telegram.messenger.PengramMonet.KEY_ENABLED, false,
                     getString(R.string.PengramMonet), getString(R.string.PengramMonetSubtitle)));
             if (org.telegram.messenger.PengramMonet.isEnabled()) {
-                items.add(subCheck(org.telegram.messenger.PengramMonet.KEY_MESSAGES, true,
-                        getString(R.string.PengramMonetMessages)));
-                items.add(UItem.asSettingsCell(BTN_MONET_STRENGTH, R.drawable.msg_colors,
-                        getString(R.string.PengramMonetStrength), monetStrengthName()));
+                if (expanded(GROUP_MONET)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMonet.KEY_MESSAGES, true,
+                            getString(R.string.PengramMonetMessages)));
+                    items.add(UItem.asSettingsCell(BTN_MONET_STRENGTH, R.drawable.msg_colors,
+                            getString(R.string.PengramMonetStrength), monetStrengthName()));
+                }
+                items.add(moreButton(GROUP_MONET, getString(R.string.PengramMD3Tune)));
             }
             items.add(UItem.asShadow(getString(R.string.PengramMonetInfo)));
         } else {
@@ -2514,15 +2554,14 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         // Пузыри и время сообщений живут в «Чаты и кнопки → Сообщения» — здесь только переход,
         // чтобы одна и та же настройка не лежала в двух местах.
-        items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
-        items.add(UItem.asSettingsCell(BTN_SECTION_CHAT_MESSAGES, R.drawable.msg_message,
-                getString(R.string.PengramSubsectionMessages)));
+        items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
+                getString(R.string.PengramSubsectionMessages), null));
         items.add(UItem.asShadow(getString(R.string.PengramBubblesMovedInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramPenguinHeader)));
-        items.add(UItem.asSettingsCell(BTN_PENGUIN_SKIN, R.drawable.msg_customize, getString(R.string.PengramPenguinSkin),
+        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph,
+                getString(R.string.PengramSectionPenguin),
                 getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
-        items.add(UItem.asShadow(getString(R.string.PengramPenguinInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinMovedInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
@@ -2811,8 +2850,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramMusicMetaHeader)));
         items.add(checkInfo(PengramConfig.KEY_MUSIC_SMART_ARTIST, true,
                 getString(R.string.PengramMusicSmartArtist), getString(R.string.PengramMusicSmartArtistInfo)));
+        items.add(UItem.asShadow(null));
 
-        if (PengramConfig.isNewPlayer()) {
+        items.add(sectionRow(BTN_SECTION_LYRICS, IconBackgroundColors.ORANGE, R.drawable.msg_msgbubble3,
+                getString(R.string.PengramLyricsSection), onOff(PengramConfig.isNewPlayer() && PengramConfig.isLyricsAuto())));
+        items.add(UItem.asShadow(getString(R.string.PengramLyricsSectionInfo)));
+
+    }
+
+    /** Текст песни: отдельный экран — в плеере этих строк было больше, чем всего остального */
+    private void fillLyrics(ArrayList<UItem> items) {
+        if (!PengramConfig.isNewPlayer()) {
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsNeedsNewPlayer)));
+            return;
+        }
             items.add(UItem.asHeader(getString(R.string.PengramLyricsSyncHeader)));
             items.add(checkInfo(PengramConfig.KEY_LYRICS_AUTO, true,
                     getString(R.string.PengramLyricsAuto), getString(R.string.PengramLyricsAutoInfo)));
@@ -2890,7 +2941,6 @@ public class PengramSettingsActivity extends UniversalFragment {
 
             items.add(UItem.asButton(BTN_LYRICS_CLEAR, R.drawable.msg_delete, LocaleController.formatString(R.string.PengramLyricsClear, org.telegram.messenger.PengramLyrics.savedCount())).red());
             items.add(UItem.asShadow(getString(R.string.PengramLyricsClearInfo)));
-        }
     }
 
     private void fillChats(ArrayList<UItem> items) {
@@ -3015,9 +3065,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
         items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.PengramSwipeAction), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
-        items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
-        items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
-        items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
         items.add(UItem.asShadow(null));
     }
 
@@ -4396,6 +4443,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 showDialog(builder.create());
                 return true;
             }
+            case BTN_SECTION_LYRICS:
+                presentFragment(new PengramSettingsActivity(SECTION_LYRICS));
+                return;
             case BTN_SECTION_AI:
                 presentFragment(new PengramSettingsActivity(SECTION_AI));
                 return true;

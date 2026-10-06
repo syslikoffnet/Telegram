@@ -41,6 +41,7 @@ FILL_TO_SECTION = {
     "fillChatMenus": "SECTION_CHAT_MENUS",
     "fillAI": "SECTION_AI",
     "fillAbout": "SECTION_ABOUT",
+    "fillLyrics": "SECTION_LYRICS",
 }
 
 # строки-функции
