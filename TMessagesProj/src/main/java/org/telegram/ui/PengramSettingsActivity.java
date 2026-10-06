@@ -3150,6 +3150,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         // Пользователю остаются только действительно значимые варианты поведения.
         items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
         items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
+        items.add(checkInfo(PengramConfig.KEY_COPY_SIGN_AUTHOR, false,
+                getString(R.string.PengramCopySignAuthor), getString(R.string.PengramCopySignAuthorInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramResendAlwaysOnInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));

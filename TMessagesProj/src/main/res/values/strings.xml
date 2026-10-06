@@ -11583,6 +11583,9 @@
     <string name="PengramSavedMessagesCount_other">%1$d saved</string>
     <string name="PengramForwardProgress">Forwarding %1$d of %2$d</string>
     <string name="PengramForwardHold">Hold to keep it in background and write here</string>
+    <string name="PengramForwardPreparing">Preparing the file — hold the chat open</string>
+    <string name="PengramCopySignAuthor">Sign copies with the author name</string>
+    <string name="PengramCopySignAuthorInfo">A copy is sent on your behalf, so it does not say who wrote the original. Turn this on to put the author name above the text — keep in mind it reveals your contact to whoever you send the copy to.</string>
     <string name="PengramForwardHint">Hold this bar to continue in background</string>
     <string name="PengramForwardBackground">Forwarding continues in background</string>
     <string name="PengramForwardDone">Forwarding finished</string>

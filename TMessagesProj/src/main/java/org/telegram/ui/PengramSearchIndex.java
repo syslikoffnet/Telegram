@@ -207,6 +207,7 @@ public final class PengramSearchIndex {
             {R.string.PengramQuickAdd, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramResendOnce, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramResendAsk, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
+            {R.string.PengramCopySignAuthor, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramForwardLock, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramForwardDoneAlert, PengramSettingsActivity.SECTION_CHAT_ACTIONS},
             {R.string.PengramChatLook, PengramSettingsActivity.SECTION_CHAT_MESSAGES},

@@ -170,6 +170,8 @@ public class PengramConfig {
     public static final String KEY_RESEND_ONCE = "resendOnceMedia";
     /** спрашивать чат перед отправкой удалёнки */
     public static final String KEY_RESEND_ASK_CHAT = "resendAskChat";
+    /** подписывать копию именем автора исходного сообщения */
+    public static final String KEY_COPY_SIGN_AUTHOR = "copySignAuthor";
 
     /** блокировать поле ввода, пока в чат идёт пересылка */
     public static final String KEY_FORWARD_LOCK = "forwardLockInput";
@@ -1731,6 +1733,8 @@ public class PengramConfig {
     public static boolean isResendMenuVisible() { return true; }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
+    /** подпись автора в копиях; по умолчанию выключена — она раскрывает собеседника */
+    public static boolean isCopySignAuthor() { return getBool(KEY_COPY_SIGN_AUTHOR, false); }
 
     public static void toggleAllowScreenshots() { init(); allowScreenshots = !allowScreenshots; putBoolean("allowScreenshots", allowScreenshots); }
     public static void toggleNoScreenshotNotify() { init(); noScreenshotNotify = !noScreenshotNotify; putBoolean("noScreenshotNotify", noScreenshotNotify); }

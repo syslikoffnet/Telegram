@@ -611,6 +611,9 @@
     <string name="PengramSavedMessagesCount_other">сохранено %1$d</string>
     <string name="PengramForwardProgress">Пересылается %1$d из %2$d</string>
     <string name="PengramForwardHold">Зажмите, чтобы продолжить в фоне и писать в чат</string>
+    <string name="PengramForwardPreparing">Готовим файл — не закрывайте чат</string>
+    <string name="PengramCopySignAuthor">Подписывать копии именем автора</string>
+    <string name="PengramCopySignAuthorInfo">Копия уходит от вашего лица, и по ней не понять, кто написал исходное сообщение. С этой настройкой над текстом появится имя автора — учтите, что так вы раскрываете собеседника тому, кому отправляете копию.</string>
     <string name="PengramForwardHint">Зажмите эту панель, чтобы продолжить в фоне</string>
     <string name="PengramForwardBackground">Пересылка продолжается в фоне</string>
     <string name="PengramForwardDone">Пересылка завершена</string>

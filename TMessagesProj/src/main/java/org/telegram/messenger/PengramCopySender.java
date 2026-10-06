@@ -40,7 +40,96 @@ public final class PengramCopySender {
         void onDone(int sent, int failed);
     }
 
+    /** кому-то (обычно открытому чату) интересно, как идёт отправка копий */
+    public interface ProgressListener {
+        void onCopyProgress();
+    }
+
+    private static final ArrayList<ProgressListener> listeners = new ArrayList<>();
+
+    private static long busyDialogId;
+    private static int busyTotal;
+    private static int busyDone;
+    private static boolean busyPreparing;
+    private static long busySince;
+    /** страховка: если отправка где-то застряла, статус не должен висеть вечно */
+    private static final long BUSY_MAX = 15 * 60_000L;
+
     private PengramCopySender() {
+    }
+
+    public static void addProgressListener(ProgressListener listener) {
+        if (listener == null) {
+            return;
+        }
+        synchronized (listeners) {
+            if (!listeners.contains(listener)) {
+                listeners.add(listener);
+            }
+        }
+    }
+
+    public static void removeProgressListener(ProgressListener listener) {
+        synchronized (listeners) {
+            listeners.remove(listener);
+        }
+    }
+
+    /** идёт ли прямо сейчас отправка копий в этот чат */
+    public static boolean isBusy(long dialogId) {
+        if (busyTotal <= 0 || busyDialogId != dialogId) {
+            return false;
+        }
+        return android.os.SystemClock.elapsedRealtime() - busySince < BUSY_MAX;
+    }
+
+    public static int getTotal() {
+        return busyTotal;
+    }
+
+    public static int getDone() {
+        return busyDone;
+    }
+
+    /**
+     * Файл ещё качается.
+     *
+     * Это важное отличие от обычной пересылки: сообщения в чате ещё нет, в
+     * ленте ничего не мигает, и без отдельного признака статус выглядел бы
+     * зависшим.
+     */
+    public static boolean isPreparing() {
+        return busyTotal > 0 && busyPreparing;
+    }
+
+    private static void setBusy(long dialogId, int total, int done, boolean preparing) {
+        if (busyTotal <= 0 && total > 0) {
+            busySince = android.os.SystemClock.elapsedRealtime();
+        }
+        busyDialogId = dialogId;
+        busyTotal = total;
+        busyDone = done;
+        busyPreparing = preparing;
+        notifyProgress();
+    }
+
+    private static void notifyProgress() {
+        final ProgressListener[] copy;
+        synchronized (listeners) {
+            if (listeners.isEmpty()) {
+                return;
+            }
+            copy = listeners.toArray(new ProgressListener[0]);
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            for (ProgressListener listener : copy) {
+                try {
+                    listener.onCopyProgress();
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+            }
+        });
     }
 
     // ------------------------------------------------------------ когда нужна копия
@@ -65,17 +154,39 @@ public final class PengramCopySender {
         if (message.getId() <= 0) {
             return true;
         }
-        // чат целиком с запретом пересылки — проверяем сам чат, а не только флаг сообщения
+        // Запрет копирования у самого чата. Проверяем сырые флаги, а не
+        // isChatNoForwards/isUserNoForwards: те при включённом обходе честно
+        // отвечают «можно», и мы бы просто отдали сообщение серверу, который
+        // в ответ отказал бы.
         try {
             final long dialogId = message.getDialogId();
-            if (dialogId < 0) {
-                final TLRPC.Chat chat = MessagesController.getInstance(message.currentAccount)
-                        .getChat(-dialogId);
-                if (chat != null && chat.noforwards) {
-                    return true;
-                }
+            if (isPeerRestricted(message.currentAccount, dialogId)) {
+                return true;
             }
         } catch (Throwable ignore) {
+        }
+        return false;
+    }
+
+    /**
+     * Чат, из которого нельзя копировать.
+     *
+     * Личные чаты сюда входят наравне с группами и каналами: запрет там живёт
+     * не на сообщении, а в настройках собеседника, и без этой проверки текст
+     * из такого чата уходил бы обычной пересылкой — то есть никуда.
+     */
+    public static boolean isPeerRestricted(int account, long dialogId) {
+        try {
+            if (dialogId < 0) {
+                final TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
+                return chat != null && chat.noforwards;
+            }
+            if (dialogId > 0) {
+                final TLRPC.UserFull full = MessagesController.getInstance(account).getUserFull(dialogId);
+                return full != null && (full.noforwards_peer_enabled || full.noforwards_my_enabled);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
         }
         return false;
     }
@@ -99,6 +210,17 @@ public final class PengramCopySender {
         return false;
     }
 
+    /** то же самое, но когда на руках только чат-источник (например, текст без медиа) */
+    public static boolean shouldCopyFrom(int account, long sourceDialogId, long targetDialogId) {
+        if (!PengramConfig.isBypassingForwardRestrictions()) {
+            return false;
+        }
+        if (DialogObject.isEncryptedDialog(targetDialogId)) {
+            return false;
+        }
+        return isPeerRestricted(account, sourceDialogId);
+    }
+
     // ------------------------------------------------------------ отправка
 
     public static void sendCopies(int account, ArrayList<MessageObject> messages, long dialogId) {
@@ -114,6 +236,7 @@ public final class PengramCopySender {
         }
         final ArrayList<MessageObject> queue = new ArrayList<>(messages);
         final int[] counters = new int[2];
+        setBusy(dialogId, queue.size(), 0, false);
         AndroidUtilities.runOnUIThread(() -> next(account, queue, 0, dialogId, counters, result));
     }
 
@@ -121,11 +244,13 @@ public final class PengramCopySender {
     private static void next(int account, ArrayList<MessageObject> queue, int index, long dialogId,
                              int[] counters, Result result) {
         if (index >= queue.size()) {
+            setBusy(0, 0, 0, false);
             if (result != null) {
                 result.onDone(counters[0], counters[1]);
             }
             return;
         }
+        setBusy(dialogId, queue.size(), index, false);
         final MessageObject message = queue.get(index);
         final Utilities.Callback<Boolean> goOn = ok -> {
             if (ok != null && ok) {
@@ -149,8 +274,11 @@ public final class PengramCopySender {
 
     private static void sendOne(int account, MessageObject message, long dialogId, Utilities.Callback<Boolean> done) {
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
-        final boolean hasPhoto = media != null && media.photo instanceof TLRPC.TL_photo;
-        final boolean hasDocument = media != null && media.document instanceof TLRPC.TL_document;
+        // В секретных чатах медиа приходит не как TL_photo/TL_document, а как
+        // их «зашифрованные» родственники. Раньше такие сообщения сюда не
+        // попадали и уходили без файла — то есть фактически не пересылались.
+        final boolean hasPhoto = media != null && media.photo != null;
+        final boolean hasDocument = media != null && media.document != null;
 
         if (!hasPhoto && !hasDocument) {
             done.run(sendWithoutFile(account, message, dialogId));
@@ -163,7 +291,9 @@ public final class PengramCopySender {
             return;
         }
 
+        setBusy(dialogId, busyTotal, busyDone, true);
         download(account, message, path -> {
+            setBusy(dialogId, busyTotal, busyDone, false);
             if (path != null) {
                 done.run(sendFile(account, message, dialogId, path));
             } else {
@@ -179,9 +309,10 @@ public final class PengramCopySender {
     private static boolean sendWithoutFile(int account, MessageObject message, long dialogId) {
         final SendMessagesHelper helper = SendMessagesHelper.getInstance(account);
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
-        final String text = message.messageOwner != null ? message.messageOwner.message : null;
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner != null
                 ? message.messageOwner.entities : null);
+        final String text = withAuthor(message,
+                message.messageOwner != null ? message.messageOwner.message : null, entities);
         try {
             if (media instanceof TLRPC.TL_messageMediaGeo
                     || media instanceof TLRPC.TL_messageMediaVenue
@@ -227,8 +358,8 @@ public final class PengramCopySender {
     /** собрать новое сообщение из лежащего на диске файла */
     private static boolean sendFile(int account, MessageObject message, long dialogId, String sourcePath) {
         final TLRPC.MessageMedia media = message.messageOwner.media;
-        final String caption = message.messageOwner.message;
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner.entities);
+        final String caption = withAuthor(message, message.messageOwner.message, entities);
         final boolean spoiler = media != null && media.spoiler;
 
         // работаем с копией: заливка не должна трогать кэш исходного чата
@@ -238,8 +369,8 @@ public final class PengramCopySender {
         }
 
         try {
-            if (media != null && media.document instanceof TLRPC.TL_document) {
-                final TLRPC.TL_document document = cloneAsNew((TLRPC.TL_document) media.document, path);
+            if (media != null && media.document != null) {
+                final TLRPC.TL_document document = buildDocument(media.document, path);
                 if (document == null) {
                     return sendWithoutFile(account, message, dialogId);
                 }
@@ -418,6 +549,41 @@ public final class PengramCopySender {
      * хранилище и ломают заливку. Все признаки (кружок, голосовое, стикер,
      * видео) живут в attributes и переезжают вместе с копией.
      */
+    /**
+     * Документ для копии — из чего угодно.
+     *
+     * Обычный TL_document просто клонируем. Из секретного чата приходит
+     * TL_documentEncrypted: клонировать его нельзя, но все признаки (голосовое,
+     * кружок, видео, стикер, имя файла) лежат в attributes, и новый документ
+     * собирается из них вместе с файлом на диске.
+     */
+    private static TLRPC.TL_document buildDocument(TLRPC.Document source, String path) {
+        if (source instanceof TLRPC.TL_document) {
+            return cloneAsNew((TLRPC.TL_document) source, path);
+        }
+        try {
+            final TLRPC.TL_document document = new TLRPC.TL_document();
+            document.id = 0;
+            document.access_hash = 0;
+            document.file_reference = new byte[0];
+            document.dc_id = 0;
+            document.date = ConnectionsManager.getInstance(UserConfig.selectedAccount).getCurrentTime();
+            document.mime_type = TextUtils.isEmpty(source.mime_type) ? "application/octet-stream" : source.mime_type;
+            if (source.attributes != null) {
+                document.attributes = new ArrayList<>(source.attributes);
+            }
+            final File file = new File(path);
+            document.size = file.exists() ? file.length() : source.size;
+            if (document.size <= 0) {
+                return null;
+            }
+            return document;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
     private static TLRPC.TL_document cloneAsNew(TLRPC.TL_document source, String path) {
         try {
             final NativeByteBuffer buffer = new NativeByteBuffer(source.getObjectSize());
@@ -457,9 +623,78 @@ public final class PengramCopySender {
         }
     }
 
+    /**
+     * Подпись автора над копией.
+     *
+     * Копия уходит от вашего лица, и из неё невозможно понять, чьё это было
+     * сообщение. Для пересылок из секретных и защищённых чатов это иногда
+     * важно — но включать такое по умолчанию нельзя: подпись раскрывает
+     * собеседника третьему человеку. Поэтому отдельная галочка, выключенная.
+     */
+    private static String authorName(MessageObject message) {
+        if (message == null || !PengramConfig.isCopySignAuthor()) {
+            return null;
+        }
+        try {
+            final int account = message.currentAccount;
+            final long from = message.getFromChatId();
+            if (from > 0) {
+                final TLRPC.User user = MessagesController.getInstance(account).getUser(from);
+                if (user != null) {
+                    final String name = ContactsController.formatName(user.first_name, user.last_name);
+                    if (!TextUtils.isEmpty(name)) {
+                        return name;
+                    }
+                    final String username = UserObject.getPublicUsername(user);
+                    if (!TextUtils.isEmpty(username)) {
+                        return "@" + username;
+                    }
+                }
+            } else if (from < 0) {
+                final TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-from);
+                if (chat != null && !TextUtils.isEmpty(chat.title)) {
+                    return chat.title;
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        return null;
+    }
+
+    /**
+     * Приклеить подпись к тексту или подписи медиа.
+     *
+     * Метки форматирования исходного текста считаются от его начала, поэтому
+     * при добавлении строки сверху их все нужно сдвинуть — иначе жирный и
+     * ссылки расползутся по сообщению.
+     */
+    private static String withAuthor(MessageObject message, String text, ArrayList<TLRPC.MessageEntity> entities) {
+        final String name = authorName(message);
+        if (TextUtils.isEmpty(name)) {
+            return text;
+        }
+        final String prefix = TextUtils.isEmpty(text) ? name : name + ":\n";
+        final int shift = prefix.length();
+        if (entities != null) {
+            for (int a = 0; a < entities.size(); a++) {
+                final TLRPC.MessageEntity entity = entities.get(a);
+                if (entity != null) {
+                    entity.offset += shift;
+                }
+            }
+            final TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
+            bold.offset = 0;
+            bold.length = name.length();
+            entities.add(0, bold);
+        }
+        return TextUtils.isEmpty(text) ? prefix : prefix + text;
+    }
+
     private static ArrayList<TLRPC.MessageEntity> copyEntities(ArrayList<TLRPC.MessageEntity> entities) {
         if (entities == null || entities.isEmpty()) {
-            return null;
+            // при включённой подписи список нужен даже пустой: в него ляжет жирное имя
+            return PengramConfig.isCopySignAuthor() ? new ArrayList<>() : null;
         }
         return new ArrayList<>(entities);
     }

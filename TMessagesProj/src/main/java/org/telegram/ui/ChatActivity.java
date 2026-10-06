@@ -1952,6 +1952,9 @@ public class ChatActivity extends BaseFragment implements
 
     private int pengramForwardTotal;
     private boolean pengramForwardActive;
+    /** копии отправляются в фоне — чат слушает их прогресс, чтобы показать статус */
+    private final org.telegram.messenger.PengramCopySender.ProgressListener pengramCopyListener =
+            () -> pengramForwardCheck(false);
     private boolean pengramForwardBackgrounded;
     private Runnable pengramForwardTicker;
     private CharSequence pengramForwardLastText;
@@ -1990,16 +1993,28 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private CharSequence pengramForwardStatusText() {
+        final boolean copying = org.telegram.messenger.PengramCopySender.isBusy(dialog_id);
         final int sending = pengramSendingCount();
-        final int total = Math.max(pengramForwardTotal, sending);
-        final int done = Math.max(0, total - sending);
+        int total;
+        int done;
+        if (copying) {
+            // у копий есть свой счётчик: сообщения в чате появляются уже после
+            // того, как файл собран, и считать по ленте тут нечего
+            total = Math.max(org.telegram.messenger.PengramCopySender.getTotal(), pengramForwardTotal);
+            done = Math.min(total, org.telegram.messenger.PengramCopySender.getDone());
+        } else {
+            total = Math.max(pengramForwardTotal, sending);
+            done = Math.max(0, total - sending);
+        }
         final SpannableStringBuilder sb = new SpannableStringBuilder();
         final String title = LocaleController.formatString(R.string.PengramForwardProgress, done, total);
         sb.append(title);
         sb.setSpan(new TypefaceSpan(AndroidUtilities.bold()), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.setSpan(new ForegroundColorSpan(getThemedColor(Theme.key_featuredStickers_addButton)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.append("\n");
-        sb.append(LocaleController.getString(R.string.PengramForwardHold));
+        sb.append(LocaleController.getString(org.telegram.messenger.PengramCopySender.isPreparing()
+                ? R.string.PengramForwardPreparing
+                : R.string.PengramForwardHold));
         return sb;
     }
 
@@ -2026,7 +2041,10 @@ public class ChatActivity extends BaseFragment implements
         // Обычные фото/видео и стандартная пересылка не блокируют поле ввода.
         // Статус относится только к явно запущенной отправке удалёнки/одноразки.
         final boolean specialTransfer = System.currentTimeMillis() < pengramSpecialForwardUntil;
-        final boolean active = specialTransfer && sending >= 1
+        // копия может долго готовиться (качается файл) — тогда в ленте ещё
+        // ничего не отправляется, но статус уже нужен
+        final boolean copying = org.telegram.messenger.PengramCopySender.isBusy(dialog_id);
+        final boolean active = (copying || specialTransfer && sending >= 1)
                 && org.telegram.messenger.PengramConfig.isForwardLockEnabled();
         if (active != pengramForwardActive) {
             final boolean wasBlocking = pengramForwardBlocking();
@@ -2047,7 +2065,7 @@ public class ChatActivity extends BaseFragment implements
         } else if (active) {
             pengramUpdateForwardText();
         }
-        pengramScheduleForwardTick(sending > 0);
+        pengramScheduleForwardTick(sending > 0 || copying);
     }
 
     private long pengramForwardLastCheck;
@@ -3548,6 +3566,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public boolean onFragmentCreate() {
+        org.telegram.messenger.PengramCopySender.addProgressListener(pengramCopyListener);
         final long chatId = arguments.getLong("chat_id", 0);
         final long userId = arguments.getLong("user_id", 0);
         final int encId = arguments.getInt("enc_id", 0);
@@ -4236,6 +4255,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        org.telegram.messenger.PengramCopySender.removeProgressListener(pengramCopyListener);
         if (messageMetricsView != null) {
             messageMetricsView.finish();
         }
