@@ -1,27 +1,3 @@
-R.raw.topics_list (0x7f0e0165) — fps=60, frames=100, mono=false
-R.raw.iphone_30 (0x7f0e0084) — fps=60, frames=180, mono=false
-R.raw.tsv_setup_monkey_close_and_peek_to_idle (0x7f0e0171) — fps=60, frames=33, mono=false
-R.raw.phone_dots_to_stars (0x7f0e00b9) — fps=60, frames=10, mono=false
-R.raw.download_finish (0x7f0e0043) — fps=60, frames=41, mono=false
-R.raw.ic_unmute (0x7f0e0077) — fps=60, frames=65, mono=false
-R.raw.camera_outline (0x7f0e001d) — fps=60, frames=86, mono=false
-R.raw.custom_emoji_reaction (0x7f0e003a) — fps=60, frames=89, mono=false
-R.raw.transcribe_out (0x7f0e016a) — fps=60, frames=20, mono=false
-R.raw.chats_archive (0x7f0e0029) — fps=60, frames=50, mono=false
-R.raw.smile_to_gif (0x7f0e0101) — fps=60, frames=12, mono=false
-R.raw.swipe_disabled (0x7f0e0132) — fps=60, frames=30, mono=false
-R.raw.voip_filled (0x7f0e0195) — fps=60, frames=404, mono=false
-R.raw.swipe_unpin (0x7f0e0137) — fps=60, frames=48, mono=false
-R.raw.star_reaction (0x7f0e0117) — fps=60, frames=163, mono=false
-R.raw.profile_leave (0x7f0e00e2) — fps=60, frames=48, mono=false
-R.raw.ic_save_to_gallery (0x7f0e0073) — fps=60, frames=65, mono=false
-R.raw.imported (0x7f0e007d) — fps=60, frames=120, mono=false
-R.raw.plane_logo_plain (0x7f0e00c7) — fps=60, frames=54, mono=false
-R.raw.timer_3 (0x7f0e0161) — fps=60, frames=66, mono=false
-R.raw.msg_emoji_food (0x7f0e009a) — fps=60, frames=60, mono=false
-R.raw.e_hand_2 (0x7f0e0046) — fps=60, frames=180, mono=false
-R.raw.sun_outline (0x7f0e012e) — fps=60, frames=36, mono=false
-R.raw.double_icon (0x7f0e0041) — fps=60, frames=120, mono=false
 R.raw.copy (0x7f0e0039) — fps=60, frames=61, mono=false
 R.raw.profile_unmuting (0x7f0e00e4) — fps=60, frames=57, mono=false
 R.raw.tab_article (0x7f0e0139) — fps=60, frames=16, mono=false
@@ -153,18 +129,28 @@ R.raw.code_laptop (0x7f0e0032) — fps=60, frames=64, mono=false
 R.raw.fire_off (0x7f0e0053) — fps=60, frames=120, mono=false
 
 > Task :TMessagesProj_AppStandalone:generateAfatStandaloneStringResourceIdsAsset
-Generated 12400 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
-Size: 99204 bytes
+Generated 12497 string resource IDs: /home/runner/work/Telegram/Telegram/TMessagesProj_AppStandalone/build/generated/stringResourceIds/afatStandalone/assets/string_resource_ids.bin
+Size: 99980 bytes
 
 > Task :TMessagesProj_AppStandalone:mergeAfatStandaloneAssets
 > Task :TMessagesProj_AppStandalone:compressAfatStandaloneAssets
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:4448: error: incompatible types: missing return value
+                return;
+                ^
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramMonet.java:113: error: constructor ThemeAccent in class ThemeAccent cannot be applied to given types;
+                    accent = new Theme.ThemeAccent();
+                             ^
+  required: no arguments
+  found:    no arguments
+  reason: ThemeAccent() is not public in ThemeAccent; cannot be accessed from outside package
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-1 error
+Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+2 errors
 
 > Task :TMessagesProj:compileStandaloneJavaWithJavac FAILED
 
@@ -175,14 +161,21 @@ FAILURE: Build failed with an exception.
 * What went wrong:
 Execution failed for task ':TMessagesProj:compileStandaloneJavaWithJavac'.
 > Compilation failed; see the compiler output below.
-  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:1977: error: method resetAll() is already defined in class PengramConfig
-      public static void resetAll() {
-                         ^
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:4448: error: incompatible types: missing return value
+                  return;
+                  ^
+  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramMonet.java:113: error: constructor ThemeAccent in class ThemeAccent cannot be applied to given types;
+                      accent = new Theme.ThemeAccent();
+                               ^
+    required: no arguments
+    found:    no arguments
+    reason: ThemeAccent() is not public in ThemeAccent; cannot be accessed from outside package
   Note: Some input files use or override a deprecated API.
   Note: Recompile with -Xlint:deprecation for details.
   Note: Some input files use unchecked or unsafe operations.
   Note: Recompile with -Xlint:unchecked for details.
-  1 error
+  Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+  2 errors
 
 * Try:
 > Check your code and dependencies to fix the compilation error(s)
@@ -223,14 +216,21 @@ org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':TMessag
 	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
 	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
 Caused by: org.gradle.api.internal.tasks.compile.CompilationFailedException: Compilation failed; see the compiler output below.
-/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:1977: error: method resetAll() is already defined in class PengramConfig
-    public static void resetAll() {
-                       ^
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:4448: error: incompatible types: missing return value
+                return;
+                ^
+/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramMonet.java:113: error: constructor ThemeAccent in class ThemeAccent cannot be applied to given types;
+                    accent = new Theme.ThemeAccent();
+                             ^
+  required: no arguments
+  found:    no arguments
+  reason: ThemeAccent() is not public in ThemeAccent; cannot be accessed from outside package
 Note: Some input files use or override a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
 Note: Some input files use unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
-1 error
+Note: Some messages have been simplified; recompile with -Xdiags:verbose to get full output
+2 errors
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:89)
 	at org.gradle.api.internal.tasks.compile.JdkJavaCompiler.execute(JdkJavaCompiler.java:50)
 	at org.gradle.api.internal.tasks.compile.NormalizingJavaCompiler.delegateAndHandleErrors(NormalizingJavaCompiler.java:98)
@@ -396,5 +396,5 @@ You can use '--warning-mode all' to show the individual deprecation warnings and
 
 For more on this, please refer to https://docs.gradle.org/8.13/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
 
-BUILD FAILED in 1m 55s
+BUILD FAILED in 2m 36s
 325 actionable tasks: 175 executed, 150 from cache
