@@ -57,7 +57,8 @@ public final class PengramDeletedReply {
                 return;
             }
             final String name = PengramConfig.isDeletedReplySigned() ? senderName(params.replyToMsg) : null;
-            final String head = TextUtils.isEmpty(name) ? quote : name + ":\n" + quote;
+            final ArrayList<TLRPC.MessageEntity> quoteEntities = new ArrayList<>();
+            final String head = signedBlock(name, quote, quoteEntities);
             final String prefix = head + "\n\n";
             if (prefix.length() + params.message.length() > MAX_TOTAL) {
                 return;   // вместе не влезают — лучше отправить как есть, чем обрезать мысль
@@ -76,14 +77,47 @@ public final class PengramDeletedReply {
             } else {
                 params.entities = new ArrayList<>();
             }
-            final TLRPC.TL_messageEntityBlockquote blockquote = new TLRPC.TL_messageEntityBlockquote();
-            blockquote.offset = 0;
-            blockquote.length = head.length();
-            params.entities.add(0, blockquote);
+            params.entities.addAll(0, quoteEntities);
             params.message = prefix + params.message;
         } catch (Throwable e) {
             FileLog.e(e);   // не даём украшательству сорвать саму отправку
         }
+    }
+
+    /**
+     * Чужой текст с подписью автора — один и тот же вид во всём приложении.
+     *
+     * И ответ на удалённое, и копия «от своего лица» показывают одно и то же:
+     * жирное имя, двоеточие, под ним текст, и всё это в блок-цитате. Вид
+     * собран здесь в одном месте, чтобы две фичи не разъезжались по мелочам.
+     *
+     * Метки форматирования самого текста, если они переданы, сдвигаются на
+     * длину добавленной строки с именем.
+     */
+    public static String signedBlock(String name, String text, ArrayList<TLRPC.MessageEntity> entities) {
+        if (TextUtils.isEmpty(name)) {
+            return text;
+        }
+        final String body = text == null ? "" : text;
+        final String head = body.isEmpty() ? name : name + ":\n" + body;
+        final int shift = head.length() - body.length();
+        if (entities != null) {
+            for (int a = 0; a < entities.size(); a++) {
+                final TLRPC.MessageEntity entity = entities.get(a);
+                if (entity != null) {
+                    entity.offset += shift;
+                }
+            }
+            final TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
+            bold.offset = 0;
+            bold.length = name.length();
+            entities.add(0, bold);
+            final TLRPC.TL_messageEntityBlockquote blockquote = new TLRPC.TL_messageEntityBlockquote();
+            blockquote.offset = 0;
+            blockquote.length = head.length();
+            entities.add(0, blockquote);
+        }
+        return head;
     }
 
     /** текст удалённого сообщения, подрезанный до разумной длины */

@@ -674,21 +674,8 @@ public final class PengramCopySender {
         if (TextUtils.isEmpty(name)) {
             return text;
         }
-        final String prefix = TextUtils.isEmpty(text) ? name : name + ":\n";
-        final int shift = prefix.length();
-        if (entities != null) {
-            for (int a = 0; a < entities.size(); a++) {
-                final TLRPC.MessageEntity entity = entities.get(a);
-                if (entity != null) {
-                    entity.offset += shift;
-                }
-            }
-            final TLRPC.TL_messageEntityBold bold = new TLRPC.TL_messageEntityBold();
-            bold.offset = 0;
-            bold.length = name.length();
-            entities.add(0, bold);
-        }
-        return TextUtils.isEmpty(text) ? prefix : prefix + text;
+        // тот же вид, что у ответа на удалённое: жирное имя и текст в цитате
+        return PengramDeletedReply.signedBlock(name, text, entities);
     }
 
     private static ArrayList<TLRPC.MessageEntity> copyEntities(ArrayList<TLRPC.MessageEntity> entities) {
