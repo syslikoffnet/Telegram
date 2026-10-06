@@ -330,6 +330,14 @@
     <string name="PengramFontSystem">Системный</string>
     <string name="PengramFontSerif">С засечками</string>
     <string name="PengramFontMono">Моноширинный</string>
+    <string name="PengramFontCondensed">Узкий</string>
+    <string name="PengramFontLight">Лёгкий</string>
+    <string name="PengramFontMedium">Средний</string>
+    <string name="PengramFontBlack">Жирный</string>
+    <string name="PengramFontThin">Тонкий</string>
+    <string name="PengramFontCasual">Неформальный</string>
+    <string name="PengramFontCursive">Рукописный</string>
+    <string name="PengramFontSerifMono">Серифный моноширинный</string>
     <string name="PengramChatMenu">Остров Pengram в меню чата</string>
     <string name="PengramChatMenuTop">Сверху меню</string>
     <string name="PengramChatMenuBottom">Снизу меню</string>

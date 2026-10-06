@@ -58,12 +58,7 @@ public class PengramFontPreviewView extends View {
     }
 
     public static Typeface typefaceFor(int font) {
-        switch (font) {
-            case PengramConfig.FONT_SYSTEM: return Typeface.DEFAULT;
-            case PengramConfig.FONT_SERIF: return Typeface.SERIF;
-            case PengramConfig.FONT_MONOSPACE: return Typeface.MONOSPACE;
-            default: return Typeface.DEFAULT;
-        }
+        return org.telegram.messenger.PengramFonts.typeface(font);
     }
 
     public void update() {
@@ -160,7 +155,7 @@ public class PengramFontPreviewView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_UP) {
-            PengramConfig.setAppFont((PengramConfig.appFont + 1) % 4);
+            PengramConfig.setAppFont(org.telegram.messenger.PengramFonts.next(PengramConfig.appFont));
             try {
                 performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, 2);
             } catch (Exception ignore) {

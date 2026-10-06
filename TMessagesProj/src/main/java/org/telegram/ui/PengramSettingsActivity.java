@@ -111,10 +111,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_KEEP_ONCE = 503;
     private static final int BTN_ADS = 510;
     private static final int BTN_LOCAL_PREMIUM = 520;
-    private static final int BTN_FONT_DEFAULT = 530;
-    private static final int BTN_FONT_SYSTEM = 531;
-    private static final int BTN_FONT_SERIF = 532;
-    private static final int BTN_FONT_MONO = 533;
+    private static final int BTN_FONT_PICK = 530;
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
@@ -1227,12 +1224,43 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private CharSequence fontName(int font) {
-        switch (font) {
-            case PengramConfig.FONT_SYSTEM: return getString(R.string.PengramFontSystem);
-            case PengramConfig.FONT_SERIF: return getString(R.string.PengramFontSerif);
-            case PengramConfig.FONT_MONOSPACE: return getString(R.string.PengramFontMono);
-            default: return getString(R.string.PengramFontDefault);
+        return org.telegram.messenger.PengramFonts.name(font);
+    }
+
+    /**
+     * Выбор шрифта списком.
+     *
+     * Показываем только те семейства, которые на этом телефоне действительно
+     * отличаются: системы без «casual» или «condensed» молча подменяют их
+     * обычным sans-serif, и пункт-обманка раздражал бы больше, чем его
+     * отсутствие.
+     */
+    private void showFontPicker() {
+        final int[] fonts = org.telegram.messenger.PengramFonts.available();
+        final CharSequence[] names = new CharSequence[fonts.length];
+        int selected = 0;
+        for (int a = 0; a < fonts.length; a++) {
+            final android.text.SpannableString name =
+                    new android.text.SpannableString(org.telegram.messenger.PengramFonts.name(fonts[a]));
+            final android.graphics.Typeface typeface = org.telegram.messenger.PengramFonts.typeface(fonts[a]);
+            if (typeface != null) {
+                name.setSpan(new org.telegram.ui.Components.TypefaceSpan(typeface), 0, name.length(),
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            names[a] = name;
+            if (fonts[a] == PengramConfig.appFont) {
+                selected = a;
+            }
         }
+        showChoicePicker(getString(R.string.PengramFont), names, selected, value -> {
+            PengramConfig.setAppFont(fonts[value]);
+            if (fontPreview != null) {
+                fontPreview.update();
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
     }
 
     /** Сколько пунктов интерфейса сейчас скрыто */
@@ -2537,10 +2565,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             fontPreview.update();
             items.add(UItem.asCustom(fontPreview));
         }
-        items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
-        items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
-        items.add(UItem.asRadio(BTN_FONT_SERIF, getString(R.string.PengramFontSerif)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SERIF));
-        items.add(UItem.asRadio(BTN_FONT_MONO, getString(R.string.PengramFontMono)).setChecked(PengramConfig.appFont == PengramConfig.FONT_MONOSPACE));
+        // Одна строка вместо столбика радиокнопок: шрифтов стало больше, а
+        // места они занимать стали меньше — выбор живёт в списке, превью выше
+        // показывает результат сразу.
+        items.add(UItem.asSettingsCell(BTN_FONT_PICK, R.drawable.msg_customize,
+                getString(R.string.PengramFont), fontName(PengramConfig.appFont)));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramTitleHeader)));
@@ -3987,12 +4016,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getUserConfig().pengramApplyLocalPremiumStatus();
                 updateAll = true;
                 break;
-            case BTN_FONT_DEFAULT:
-            case BTN_FONT_SYSTEM:
-            case BTN_FONT_SERIF:
-            case BTN_FONT_MONO:
-                PengramConfig.setAppFont(item.id - BTN_FONT_DEFAULT);
-                updateAll = true;
+            case BTN_FONT_PICK:
+                showFontPicker();
                 break;
             case BTN_CHAT_MENU:
                 PengramConfig.toggleChatMenu();

@@ -128,6 +128,7 @@ public final class PengramSearchIndex {
             {R.string.PengramMonetMessages, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramMonetStrength, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramQuickTiles, PengramSettingsActivity.SECTION_APPEARANCE},
+            {R.string.PengramFont, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleText, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleCustom, PengramSettingsActivity.SECTION_APPEARANCE},
             {R.string.PengramTitleCenter, PengramSettingsActivity.SECTION_APPEARANCE},

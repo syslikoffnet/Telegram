@@ -2417,15 +2417,7 @@ public class AndroidUtilities {
         final boolean bold = assetPath.contains("bold") || assetPath.contains("medium");
         final boolean italic = assetPath.contains("italic");
         final int style = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : Typeface.NORMAL;
-        switch (pengramFont) {
-            case PengramConfig.FONT_SYSTEM:
-                return Typeface.create(Typeface.DEFAULT, style);
-            case PengramConfig.FONT_SERIF:
-                return Typeface.create(Typeface.SERIF, style);
-            case PengramConfig.FONT_MONOSPACE:
-                return Typeface.create(Typeface.MONOSPACE, style);
-        }
-        return null;
+        return PengramFonts.typeface(pengramFont, style);
     }
 
     /** родной путь Telegram: шрифты из assets со своим кэшем */
