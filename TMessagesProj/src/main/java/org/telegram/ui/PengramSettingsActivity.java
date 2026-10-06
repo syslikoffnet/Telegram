@@ -173,6 +173,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     // AI: сервисы, роли и поведение ответа
     private static final int BTN_ORIGINAL_NAME = 1710;
+    private static final int BTN_MONET_STRENGTH = 1720;
     private static final int BTN_AI_ADD_SERVICE = 1700;
     private static final int BTN_AI_ADD_ROLE = 1701;
     private static final int BTN_AI_STREAM = 1702;
@@ -1165,6 +1166,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         AndroidUtilities.vibrateCursor(view);
         // слой Material 3 меняет отрисовку чужих экранов — просим их перерисоваться
         if (key.startsWith("md3")) {
+            if (key.startsWith("md3Monet")) {
+                org.telegram.messenger.PengramMonet.update(getContext());
+            }
             AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.NotificationCenter.getGlobalInstance()
                     .postNotificationName(org.telegram.messenger.NotificationCenter.reloadInterface));
         }
@@ -1177,6 +1181,33 @@ public class PengramSettingsActivity extends UniversalFragment {
             previewMessages.update();
         }
         return true;
+    }
+
+    private CharSequence monetStrengthName() {
+        switch (org.telegram.messenger.PengramMonet.strength()) {
+            case 0: return getString(R.string.PengramMonetStrengthCalm);
+            case 2: return getString(R.string.PengramMonetStrengthVivid);
+            default: return getString(R.string.PengramMonetStrengthNormal);
+        }
+    }
+
+    /** выбор насыщенности системной палитры */
+    private void showMonetStrengthPicker() {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramMonetStrengthCalm),
+                getString(R.string.PengramMonetStrengthNormal),
+                getString(R.string.PengramMonetStrengthVivid)
+        };
+        showChoicePicker(getString(R.string.PengramMonetStrength), options,
+                org.telegram.messenger.PengramMonet.strength(), value -> {
+                    PengramConfig.setIntValue(org.telegram.messenger.PengramMonet.KEY_STRENGTH, value);
+                    org.telegram.messenger.PengramMonet.update(getContext());
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                    org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                            .postNotificationName(org.telegram.messenger.NotificationCenter.reloadInterface);
+                });
     }
 
     /** «Вкл» / «Выкл» справа в строке раздела */
@@ -2425,9 +2456,28 @@ public class PengramSettingsActivity extends UniversalFragment {
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_TONAL_UNREAD, true, getString(R.string.PengramMD3Tonal)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_NO_DIVIDERS, true, getString(R.string.PengramMD3NoDividers)));
             }
+            items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true, getString(R.string.PengramMD3SearchBar)));
+            if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true)) {
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_SHADOW, false, getString(R.string.PengramMD3SearchShadow)));
+            }
             items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
         }
         items.add(UItem.asShadow(getString(R.string.PengramMD3Info)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramMonetHeader)));
+        if (org.telegram.messenger.PengramMonet.isSupported()) {
+            items.add(checkInfo(org.telegram.messenger.PengramMonet.KEY_ENABLED, false,
+                    getString(R.string.PengramMonet), getString(R.string.PengramMonetSubtitle)));
+            if (org.telegram.messenger.PengramMonet.isEnabled()) {
+                items.add(subCheck(org.telegram.messenger.PengramMonet.KEY_MESSAGES, true,
+                        getString(R.string.PengramMonetMessages)));
+                items.add(UItem.asSettingsCell(BTN_MONET_STRENGTH, R.drawable.msg_colors,
+                        getString(R.string.PengramMonetStrength), monetStrengthName()));
+            }
+            items.add(UItem.asShadow(getString(R.string.PengramMonetInfo)));
+        } else {
+            items.add(UItem.asShadow(getString(R.string.PengramMonetUnsupported)));
+        }
 
         items.add(UItem.asHeader(getString(R.string.PengramQuickTilesHeader)));
         items.add(UItem.asSettingsCell(BTN_QUICK_TILES, R.drawable.msg_customize,
@@ -3336,6 +3386,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             case BTN_QUICK_TILES:
                 showQuickTilesPicker();
+                return;
+            case BTN_MONET_STRENGTH:
+                showMonetStrengthPicker();
                 return;
             case BTN_TITLE_MODE: {
                 final CharSequence[] options = new CharSequence[]{

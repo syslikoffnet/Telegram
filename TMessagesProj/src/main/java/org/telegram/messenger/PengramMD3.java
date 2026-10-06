@@ -24,6 +24,10 @@ public final class PengramMD3 {
     public static final String KEY_NO_DIVIDERS = "md3NoDividers";
     /** кнопка «написать» со скруглённым квадратом вместо круга */
     public static final String KEY_FAB = "md3Fab";
+    /** строка поиска в стиле M3 Search Bar */
+    public static final String KEY_SEARCH_BAR = "md3SearchBar";
+    /** мягкая тень под строкой поиска (M3 elevated) */
+    public static final String KEY_SEARCH_SHADOW = "md3SearchShadow";
 
     private PengramMD3() {
     }
@@ -42,6 +46,26 @@ public final class PengramMD3 {
 
     public static boolean hideDividers() {
         return dialogs() && PengramConfig.getBool(KEY_NO_DIVIDERS, true);
+    }
+
+    public static boolean searchBar() {
+        return isEnabled() && PengramConfig.getBool(KEY_SEARCH_BAR, true);
+    }
+
+    public static boolean searchBarShadow() {
+        return searchBar() && PengramConfig.getBool(KEY_SEARCH_SHADOW, false);
+    }
+
+    /** заливка строки поиска: M3 Search Bar — тональная поверхность, а не серый прямоугольник */
+    public static int searchBarColor(Theme.ResourcesProvider resourcesProvider, boolean dark) {
+        final int base = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+        final int accent = Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider);
+        final int neutral = ColorUtils.blendARGB(base, dark ? 0xFFFFFFFF : 0xFF000000, dark ? 0.09f : 0.06f);
+        return ColorUtils.blendARGB(neutral, accent, 0.1f);
+    }
+
+    public static float searchBarRadius() {
+        return AndroidUtilities.dp(22);
     }
 
     public static boolean fab() {

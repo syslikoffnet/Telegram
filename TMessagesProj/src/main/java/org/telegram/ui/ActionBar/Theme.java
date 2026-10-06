@@ -5746,6 +5746,10 @@ public class Theme {
             FileLog.e(e);
         }
         BlurSettingsBottomSheet.onThemeApplyed();
+        // Pengram: Material You живёт поверх выбранной темы, поэтому переносим акцент и на новую
+        if (org.telegram.messenger.PengramMonet.isEnabled()) {
+            org.telegram.messenger.PengramMonet.update(ApplicationLoader.applicationContext);
+        }
         if (previousTheme == null && save && !switchingNightTheme) {
             MessagesController.getInstance(themeInfo.account).saveTheme(themeInfo, themeInfo.getAccent(false), nightTheme, false);
         }
