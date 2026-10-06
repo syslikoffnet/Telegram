@@ -848,6 +848,8 @@
     <string name="PengramCrashReportsMovedInfo">Настройки отчётов о сбоях живут в разделе «Свобода».</string>
     <string name="PengramSystemHeader">Поведение системы</string>
     <string name="PengramSystemInfo">Настройки, которые влияют на всё приложение, а не только на список чатов.</string>
+        <string name="PengramResendFailed">Не удалось собрать копию: файл недоступен</string>
+    <string name="PengramResendPartly">Отправлено %1$d, не удалось скопировать %2$d</string>
     <string name="PengramMD3Header">Material Design 3</string>
     <string name="PengramMD3">Стиль Material 3</string>
     <string name="PengramMD3Subtitle">Скруглённые контейнеры, тональные подложки, без линеек</string>

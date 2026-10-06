@@ -110,9 +110,7 @@ public final class PengramMonet {
                 }
                 Theme.ThemeAccent accent = theme.themeAccentsMap.get(ACCENT_ID);
                 if (accent == null) {
-                    accent = new Theme.ThemeAccent();
-                    accent.id = ACCENT_ID;
-                    accent.parentTheme = theme;
+                    accent = Theme.ThemeAccent.createPengramAccent(theme, ACCENT_ID);
                     theme.themeAccentsMap.put(ACCENT_ID, accent);
                     theme.themeAccents.add(accent);
                 }

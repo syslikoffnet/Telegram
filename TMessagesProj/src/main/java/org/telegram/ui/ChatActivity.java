@@ -2274,12 +2274,9 @@ public class ChatActivity extends BaseFragment implements
                 pengramSpecialForwardUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
                 pengramForwardTotal = Math.max(pengramForwardTotal, list.size());
             }
-            org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, list, targetDialogId);
-            if (targetDialogId != dialog_id) {
-                BulletinFactory.of(this)
-                        .createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramResendSent))
-                        .show();
-            }
+            final long targetId = targetDialogId;
+            org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, list, targetDialogId,
+                    (sent, failed) -> AndroidUtilities.runOnUIThread(() -> pengramCopyReport(sent, failed, targetId)));
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -2402,6 +2399,26 @@ public class ChatActivity extends BaseFragment implements
         chatActivityEnterView.openKeyboard();
     }
 
+    /**
+     * Честный отчёт о копиях: сколько ушло и сколько собрать не удалось.
+     * Молчаливо пропавшее сообщение раздражает сильнее, чем прямое «не вышло».
+     */
+    private void pengramCopyReport(int sent, int failed, long targetDialogId) {
+        try {
+            if (failed > 0 && sent == 0) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        LocaleController.getString(R.string.PengramResendFailed)).show();
+            } else if (failed > 0) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        LocaleController.formatString(R.string.PengramResendPartly, sent, failed)).show();
+            } else if (targetDialogId != dialog_id) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.forward,
+                        LocaleController.getString(R.string.PengramResendSent)).show();
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
     private void pengramResendToChat(MessageObject message) {
         if (message == null) {
             return;
@@ -2421,20 +2438,13 @@ public class ChatActivity extends BaseFragment implements
             for (int a = 0; a < dids.size(); a++) {
                 final long did = dids.get(a).dialogId;
                 try {
-                    org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, new ArrayList<>(list), did);
+                    org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, new ArrayList<>(list), did,
+                            (sent, failed) -> AndroidUtilities.runOnUIThread(() -> pengramCopyReport(sent, failed, did)));
                 } catch (Throwable e) {
                     FileLog.e(e);
                 }
             }
             dialogsFragment.finishFragment();
-            AndroidUtilities.runOnUIThread(() -> {
-                try {
-                    BulletinFactory.of(ChatActivity.this)
-                            .createSimpleBulletin(R.raw.forward, LocaleController.getString(R.string.PengramResendSent))
-                            .show();
-                } catch (Throwable ignore) {
-                }
-            }, 150);
             return true;
         });
         presentFragment(fragment);
@@ -13122,6 +13132,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private boolean hasSelectedNoforwardsMessage() {
+        // Pengram: с включённым обходом такие сообщения уходят копией от своего лица
+        if (org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()) {
+            return false;
+        }
         try {
             for (int i = 0; i < selectedMessagesIds.length; ++i) {
                 for (int j = 0; j < selectedMessagesIds[i].size(); ++j) {
@@ -13182,7 +13196,8 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openForward(boolean fromActionBar) {
-        if (isPeerNoForwards() || hasSelectedNoforwardsMessage()) {
+        if ((isPeerNoForwards() || hasSelectedNoforwardsMessage())
+                && !org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()) {
             // We should update text if user changed locale without re-opening chat activity
             String str;
             if (isPeerNoForwards()) {
@@ -20105,7 +20120,8 @@ public class ChatActivity extends BaseFragment implements
                         cantDeleteMessagesCount--;
                     }
                     boolean noforwards = isPeerNoForwards();
-                    if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || noforwards) {
+                    final boolean pengramCopy = org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions();
+                    if (chatMode == MODE_SCHEDULED || (!messageObject.canForwardMessage() && !pengramCopy) || noforwards) {
                         cantForwardMessagesCount--;
                     } else {
                         canForwardMessagesCount--;
@@ -20142,7 +20158,8 @@ public class ChatActivity extends BaseFragment implements
                         cantDeleteMessagesCount++;
                     }
                     boolean noforwards = isPeerNoForwards();
-                    if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || noforwards) {
+                    final boolean pengramCopy = org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions();
+                    if (chatMode == MODE_SCHEDULED || (!messageObject.canForwardMessage() && !pengramCopy) || noforwards) {
                         cantForwardMessagesCount++;
                     } else {
                         canForwardMessagesCount++;

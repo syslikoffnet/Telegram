@@ -11820,6 +11820,8 @@
     <string name="PengramCrashReportsMovedInfo">Crash reporting settings live in Freedom.</string>
     <string name="PengramSystemHeader">System behaviour</string>
     <string name="PengramSystemInfo">Settings that affect the whole app, not just the chat list.</string>
+        <string name="PengramResendFailed">Could not build a copy: the file is unavailable</string>
+    <string name="PengramResendPartly">Sent %1$d, could not copy %2$d</string>
     <string name="PengramMD3Header">Material Design 3</string>
     <string name="PengramMD3">Material 3 look</string>
     <string name="PengramMD3Subtitle">Rounded containers, tonal surfaces, no hairlines</string>

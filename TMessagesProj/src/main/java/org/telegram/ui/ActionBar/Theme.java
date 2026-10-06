@@ -525,6 +525,14 @@ public class Theme {
         public OverrideWallpaperInfo overrideWallpaper;
         public boolean isDefault;
 
+        /** Pengram: Material You создаёт служебный акцент из системной палитры */
+        public static ThemeAccent createPengramAccent(ThemeInfo parentTheme, int id) {
+            final ThemeAccent accent = new ThemeAccent();
+            accent.id = id;
+            accent.parentTheme = parentTheme;
+            return accent;
+        }
+
         ThemeAccent() {
 
         }

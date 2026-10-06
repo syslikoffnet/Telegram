@@ -4445,7 +4445,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             case BTN_SECTION_LYRICS:
                 presentFragment(new PengramSettingsActivity(SECTION_LYRICS));
-                return;
+                return true;
             case BTN_SECTION_AI:
                 presentFragment(new PengramSettingsActivity(SECTION_AI));
                 return true;
