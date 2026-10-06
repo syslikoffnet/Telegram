@@ -31,6 +31,7 @@ import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
+import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PengramConfig;
@@ -39,6 +40,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.audioinfo.AudioInfo;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
@@ -63,6 +65,16 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private android.widget.ScrollView queueScroll;
     private ImageView queueButton;
     private boolean queueShown;
+    /** что показываем в панели: очередь (0) или музыку этого чата (1) */
+    private int panelTab;
+    private TextView queueTabView;
+    private TextView chatTabView;
+    private TextView viewModeView;
+    private final java.util.ArrayList<MessageObject> chatTracks = new java.util.ArrayList<>();
+    private long chatTracksDialogId;
+    private boolean chatTracksLoading;
+    private boolean chatTracksLoaded;
+    private int chatTracksGuid;
     private PengramTrackButton prevTrackButton;
     private PengramTrackButton nextTrackButton;
     private TextView speedChip;
@@ -493,13 +505,21 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         queueContainer.addView(panel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT,
                 Gravity.FILL, 10, AndroidUtilities.statusBarHeight + 54, 10, 12));
 
-        final TextView title = new TextView(context);
-        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        title.setTypeface(AndroidUtilities.bold());
-        title.setTextColor(0xFFFFFFFF);
-        title.setText(getString(R.string.PengramPlayerTracks));
-        panel.addView(title, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
-                Gravity.LEFT | Gravity.TOP, 18, 16, 18, 0));
+        // две вкладки: очередь и вся музыка того чата, откуда играет трек
+        final LinearLayout tabs = new LinearLayout(context);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        panel.addView(tabs, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.LEFT | Gravity.TOP, 12, 10, 12, 0));
+
+        queueTabView = createPanelTab(context, getString(R.string.PengramPlayerTracks), () -> switchPanelTab(0));
+        chatTabView = createPanelTab(context, getString(R.string.PengramChatMusicTitle), () -> switchPanelTab(1));
+        tabs.addView(queueTabView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 34, 0, 0, 6, 0));
+        tabs.addView(chatTabView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 34));
+
+        viewModeView = createPanelTab(context, getString(PengramConfig.getTracksViewName(PengramConfig.getTracksView())),
+                this::cyclePanelView);
+        panel.addView(viewModeView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 34,
+                Gravity.RIGHT | Gravity.TOP, 12, 10, 12, 0));
 
         queueScroll = new android.widget.ScrollView(context);
         queueList = new LinearLayout(context);
@@ -507,7 +527,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         queueList.setPadding(0, 0, 0, dp(10));
         queueScroll.addView(queueList, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
         panel.addView(queueScroll, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT,
-                Gravity.FILL, 0, 44, 0, 0));
+                Gravity.FILL, 0, 52, 0, 0));
 
         cardLayout.addView(queueContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
     }
@@ -518,6 +538,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         queueShown = show;
         if (show) {
+            updatePanelTabs();
+            if (panelTab == 1) {
+                loadChatTracks();
+            }
             updateQueue();
             queueContainer.setVisibility(View.VISIBLE);
             queueContainer.setTranslationY(dp(28));
@@ -533,8 +557,87 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
     }
 
+    /** кнопка-таблетка в шапке панели */
+    private TextView createPanelTab(Context context, CharSequence text, Runnable onClick) {
+        final TextView view = new TextView(context);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        view.setTypeface(AndroidUtilities.bold());
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(14), 0, dp(14), 0);
+        view.setText(text);
+        view.setOnClickListener(v -> onClick.run());
+        return view;
+    }
+
+    /** подкрасить вкладки под текущее состояние */
+    private void updatePanelTabs() {
+        if (queueTabView == null || chatTabView == null) {
+            return;
+        }
+        final int active = ColorUtils.setAlphaComponent(accentColor, 58);
+        queueTabView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(17),
+                panelTab == 0 ? active : 0x16FFFFFF, 0x22FFFFFF));
+        queueTabView.setTextColor(panelTab == 0 ? 0xFFFFFFFF : 0x99FFFFFF);
+        chatTabView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(17),
+                panelTab == 1 ? active : 0x16FFFFFF, 0x22FFFFFF));
+        chatTabView.setTextColor(panelTab == 1 ? 0xFFFFFFFF : 0x99FFFFFF);
+        if (viewModeView != null) {
+            viewModeView.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(17), 0x16FFFFFF, 0x22FFFFFF));
+            viewModeView.setTextColor(0x99FFFFFF);
+            viewModeView.setText(getString(PengramConfig.getTracksViewName(PengramConfig.getTracksView())));
+        }
+    }
+
+    private void switchPanelTab(int tab) {
+        if (panelTab == tab) {
+            return;
+        }
+        panelTab = tab;
+        updatePanelTabs();
+        if (tab == 1) {
+            loadChatTracks();
+        }
+        updateQueue();
+    }
+
+    /** следующий вид списка по кругу: список, компактный, названия, сетка, карточки */
+    private void cyclePanelView() {
+        PengramConfig.setTracksView((PengramConfig.getTracksView() + 1) % PengramConfig.TRACKS_VIEW_COUNT);
+        updatePanelTabs();
+        updateQueue();
+    }
+
+    /** вся музыка того чата, откуда играет нынешний трек */
+    private void loadChatTracks() {
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        final long dialogId = playing == null ? 0 : playing.getDialogId();
+        if (dialogId == 0) {
+            return;
+        }
+        if (chatTracksDialogId != dialogId) {
+            chatTracksDialogId = dialogId;
+            chatTracks.clear();
+            chatTracksLoaded = false;
+            chatTracksLoading = false;
+        }
+        if (chatTracksLoaded || chatTracksLoading) {
+            return;
+        }
+        chatTracksLoading = true;
+        if (chatTracksGuid == 0) {
+            chatTracksGuid = ConnectionsManager.generateClassGuid();
+            NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.mediaDidLoad);
+        }
+        MediaDataController.getInstance(currentAccount).loadMedia(dialogId, 80, 0, 0,
+                MediaDataController.MEDIA_MUSIC, 0, 0, chatTracksGuid, 0, null, null);
+    }
+
     private void updateQueue() {
         if (queueList == null) {
+            return;
+        }
+        if (panelTab == 1) {
+            updateChatTracks();
             return;
         }
         queueList.removeAllViews();
@@ -570,12 +673,200 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (active) {
                 currentRow = a - from;
             }
-            queueList.addView(createQueueRow(messageObject, active), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 58, 8, 2, 8, 0));
+            addTrackView(messageObject, active, null);
         }
         final int scrollTo = Math.max(0, dp(56) * currentRow - dp(120));
         if (queueScroll != null) {
             queueScroll.post(() -> queueScroll.scrollTo(0, scrollTo));
         }
+    }
+
+    /** музыка чата в той же панели */
+    private void updateChatTracks() {
+        queueList.removeAllViews();
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (chatTracks.isEmpty()) {
+            final TextView empty = new TextView(getContext());
+            empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            empty.setTextColor(0x99FFFFFF);
+            empty.setGravity(Gravity.CENTER);
+            empty.setText(getString(chatTracksLoading ? R.string.Loading : R.string.PengramChatMusicEmpty));
+            queueList.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 80));
+            return;
+        }
+        final java.util.ArrayList<MessageObject> list = new java.util.ArrayList<>(chatTracks);
+        for (int a = 0; a < list.size(); ++a) {
+            final MessageObject track = list.get(a);
+            final boolean active = playing != null && track.getId() == playing.getId()
+                    && track.getDialogId() == playing.getDialogId();
+            addTrackView(track, active, list);
+        }
+    }
+
+    /**
+     * Одна строка списка в выбранном виде.
+     *
+     * Сетка и карточки складываются по две-три штуки в ряд, поэтому последний
+     * ряд достраивается на лету: так не нужен отдельный адаптер ради красоты.
+     */
+    private void addTrackView(MessageObject messageObject, boolean active, java.util.ArrayList<MessageObject> playlist) {
+        final int mode = PengramConfig.getTracksView();
+        if (mode == PengramConfig.TRACKS_VIEW_GRID || mode == PengramConfig.TRACKS_VIEW_CARDS) {
+            final int columns = mode == PengramConfig.TRACKS_VIEW_GRID ? 3 : 2;
+            LinearLayout row = null;
+            if (queueList.getChildCount() > 0) {
+                final View last = queueList.getChildAt(queueList.getChildCount() - 1);
+                if (last instanceof LinearLayout && last.getTag() instanceof Integer
+                        && (Integer) last.getTag() < columns) {
+                    row = (LinearLayout) last;
+                }
+            }
+            if (row == null) {
+                row = new LinearLayout(getContext());
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setTag(0);
+                queueList.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
+                        LayoutHelper.WRAP_CONTENT, 6, 4, 6, 0));
+            }
+            final View cell = createTrackCard(messageObject, active, playlist, mode == PengramConfig.TRACKS_VIEW_CARDS);
+            final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            lp.leftMargin = dp(3);
+            lp.rightMargin = dp(3);
+            row.addView(cell, lp);
+            row.setTag((Integer) row.getTag() + 1);
+            return;
+        }
+        final int height = mode == PengramConfig.TRACKS_VIEW_TITLES ? 38
+                : (mode == PengramConfig.TRACKS_VIEW_COMPACT ? 46 : 58);
+        queueList.addView(createTrackRow(messageObject, active, playlist, mode),
+                LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, height, 8, 2, 8, 0));
+    }
+
+    /** плитка с обложкой: мелкая сеткой или крупной карточкой */
+    private View createTrackCard(MessageObject messageObject, boolean active,
+                                 java.util.ArrayList<MessageObject> playlist, boolean big) {
+        final Context context = getContext();
+        final LinearLayout cell = new LinearLayout(context);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setPadding(dp(6), dp(6), dp(6), dp(8));
+        cell.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(14),
+                active ? ColorUtils.setAlphaComponent(accentColor, 38) : 0x10FFFFFF, 0x22FFFFFF));
+
+        final BackupImageView cover = new BackupImageView(context);
+        cover.setRoundRadius(dp(big ? 12 : 10));
+        loadTrackCover(cover, messageObject);
+        cell.addView(cover, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(big ? 128 : 84)));
+
+        final TextView title = new TextView(context);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, big ? 14 : 12);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setTextColor(active ? accentColor : 0xFFFFFFFF);
+        if (active) {
+            title.setTypeface(AndroidUtilities.bold());
+        }
+        title.setText(messageObject.getMusicTitle(false));
+        cell.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
+                LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+
+        final TextView author = new TextView(context);
+        author.setTextSize(TypedValue.COMPLEX_UNIT_DIP, big ? 12 : 10);
+        author.setMaxLines(1);
+        author.setEllipsize(TextUtils.TruncateAt.END);
+        author.setTextColor(0x99FFFFFF);
+        author.setText(messageObject.getMusicAuthor(false));
+        cell.addView(author, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        cell.setOnClickListener(v -> playTrack(messageObject, playlist));
+        return cell;
+    }
+
+    /** строка списка: обычная, компактная или только название */
+    private View createTrackRow(MessageObject messageObject, boolean active,
+                                java.util.ArrayList<MessageObject> playlist, int mode) {
+        final Context context = getContext();
+        final FrameLayout row = new FrameLayout(context);
+        row.setBackground(active
+                ? Theme.createSimpleSelectorRoundRectDrawable(dp(12), ColorUtils.setAlphaComponent(accentColor, 38), 0x22FFFFFF)
+                : Theme.createSimpleSelectorRoundRectDrawable(dp(12), 0x00000000, 0x22FFFFFF));
+
+        final boolean titlesOnly = mode == PengramConfig.TRACKS_VIEW_TITLES;
+        final boolean compactRow = mode == PengramConfig.TRACKS_VIEW_COMPACT;
+        int textLeft = 12;
+        if (!titlesOnly) {
+            final int size = compactRow ? 32 : 40;
+            final BackupImageView cover = new BackupImageView(context);
+            cover.setRoundRadius(dp(8));
+            loadTrackCover(cover, messageObject);
+            row.addView(cover, LayoutHelper.createFrame(size, size, Gravity.LEFT | Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
+            textLeft = 12 + size + 12;
+        }
+
+        final LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        row.addView(column, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.LEFT | Gravity.CENTER_VERTICAL, textLeft, 0, 58, 0));
+
+        final TextView title = new TextView(context);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compactRow || titlesOnly ? 14 : 15);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setTextColor(active ? accentColor : 0xFFFFFFFF);
+        if (active) {
+            title.setTypeface(AndroidUtilities.bold());
+        }
+        title.setText(messageObject.getMusicTitle(false));
+        column.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        if (!titlesOnly) {
+            final TextView author = new TextView(context);
+            author.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+            author.setMaxLines(1);
+            author.setEllipsize(TextUtils.TruncateAt.END);
+            author.setTextColor(0x99FFFFFF);
+            author.setText(messageObject.getMusicAuthor(false));
+            column.addView(author, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 1, 0, 0));
+        }
+
+        final TextView duration = new TextView(context);
+        duration.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        duration.setTextColor(0x80FFFFFF);
+        duration.setText(AndroidUtilities.formatShortDuration((int) messageObject.getDuration()));
+        row.addView(duration, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+
+        row.setOnClickListener(v -> playTrack(messageObject, playlist));
+        return row;
+    }
+
+    private void loadTrackCover(BackupImageView cover, MessageObject messageObject) {
+        final TLRPC.Document document = messageObject.getDocument();
+        final TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 90) : null;
+        final ImageLocation thumbLocation = thumb instanceof TLRPC.TL_photoSize || thumb instanceof TLRPC.TL_photoSizeProgressive
+                ? ImageLocation.getForDocument(thumb, document) : null;
+        final String artworkUrl = messageObject.getArtworkUrl(false);
+        if (!TextUtils.isEmpty(artworkUrl)) {
+            cover.setImage(ImageLocation.getForPath(artworkUrl), "200_200", thumbLocation, null, null, 0, 1, messageObject);
+        } else if (thumbLocation != null) {
+            cover.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
+        } else {
+            cover.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(8), 0x33FFFFFF, 0x33FFFFFF));
+        }
+    }
+
+    /** включить выбранный трек (для музыки чата — вместе со всем списком) */
+    private void playTrack(MessageObject messageObject, java.util.ArrayList<MessageObject> playlist) {
+        if (messageObject == null) {
+            return;
+        }
+        if (playlist == null) {
+            MediaController.getInstance().playMessage(messageObject);
+        } else {
+            MediaController.getInstance().setPlaylist(playlist, messageObject, 0, false, null);
+        }
+        AndroidUtilities.runOnUIThread(this::updateQueue, 120);
     }
 
     private View createQueueRow(MessageObject messageObject, boolean active) {
@@ -1155,6 +1446,23 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
         } else if (id == NotificationCenter.messagePlayingPlayStateChanged) {
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
+        } else if (id == NotificationCenter.mediaDidLoad) {
+            if (args.length > 4 && args[3] instanceof Integer && (Integer) args[3] == chatTracksGuid
+                    && args[4] instanceof Integer && (Integer) args[4] == MediaDataController.MEDIA_MUSIC) {
+                chatTracksLoading = false;
+                chatTracksLoaded = true;
+                chatTracks.clear();
+                if (args[2] instanceof java.util.ArrayList) {
+                    for (Object object : (java.util.ArrayList<?>) args[2]) {
+                        if (object instanceof MessageObject && ((MessageObject) object).isMusic()) {
+                            chatTracks.add((MessageObject) object);
+                        }
+                    }
+                }
+                if (queueShown && panelTab == 1) {
+                    updateQueue();
+                }
+            }
         } else if (id == NotificationCenter.messagePlayingDidReset) {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing == null) {
@@ -1183,6 +1491,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.mediaDidLoad);
     }
 
     /** какой плеер показывать — наш или оригинальный */

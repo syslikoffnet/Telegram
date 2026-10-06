@@ -1279,7 +1279,7 @@ public class PengramConfig {
 
     private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
             CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA,
-            CHAT_ITEM_CHAT_MUSIC, CHAT_ITEM_DELETE_MY_MESSAGES
+            CHAT_ITEM_DELETE_MY_MESSAGES
     };
 
     /** где живёт пункт: в самом меню «три точки» или внутри острова Pengram */
@@ -1858,7 +1858,7 @@ public class PengramConfig {
      * принимаем только то, что форк действительно умеет читать.
      */
     private static final java.util.HashSet<String> EXPORTABLE_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
-            "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled",
+            "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled", "playerTracksView",
             "appFont", "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
             "chatItemsOrder", "chatMenuEnabled", "chatMenuPosition", "copyIdOnTap",
             "copyToClipboard", "coverShape", "deleteEffect", "deleteEffectIncoming",
@@ -2313,6 +2313,35 @@ public class PengramConfig {
     public static final int PLAYER_STYLE_COMPACT = 3;
     public static final int PLAYER_STYLE_MINI_LYRICS = 4;
     public static final int PLAYER_STYLE_COUNT = 5;
+
+    /** виды списка треков внутри плеера: очередь и музыка чата */
+    public static final int TRACKS_VIEW_LIST = 0;
+    public static final int TRACKS_VIEW_COMPACT = 1;
+    public static final int TRACKS_VIEW_TITLES = 2;
+    public static final int TRACKS_VIEW_GRID = 3;
+    public static final int TRACKS_VIEW_CARDS = 4;
+    public static final int TRACKS_VIEW_COUNT = 5;
+
+    public static int getTracksView() {
+        init();
+        final int value = getIntCached("playerTracksView", TRACKS_VIEW_LIST);
+        return value < 0 || value >= TRACKS_VIEW_COUNT ? TRACKS_VIEW_LIST : value;
+    }
+
+    public static void setTracksView(int value) {
+        putInt("playerTracksView", value < 0 || value >= TRACKS_VIEW_COUNT ? TRACKS_VIEW_LIST : value);
+    }
+
+    public static int getTracksViewName(int value) {
+        switch (value) {
+            case TRACKS_VIEW_COMPACT: return org.telegram.messenger.R.string.PengramTracksViewCompact;
+            case TRACKS_VIEW_TITLES: return org.telegram.messenger.R.string.PengramTracksViewTitles;
+            case TRACKS_VIEW_GRID: return org.telegram.messenger.R.string.PengramTracksViewGrid;
+            case TRACKS_VIEW_CARDS: return org.telegram.messenger.R.string.PengramTracksViewCards;
+            case TRACKS_VIEW_LIST:
+            default: return org.telegram.messenger.R.string.PengramTracksViewList;
+        }
+    }
 
     public static int getPlayerStyle() {
         init();

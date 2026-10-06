@@ -813,6 +813,11 @@
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
     <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
+        <string name="PengramTracksViewList">Списком</string>
+    <string name="PengramTracksViewCompact">Компактно</string>
+    <string name="PengramTracksViewTitles">Только названия</string>
+    <string name="PengramTracksViewGrid">Сеткой</string>
+    <string name="PengramTracksViewCards">Карточками</string>
     <string name="PengramChatMusicTitle">Музыка чата</string>
     <string name="PengramChatMusicPlayAll">Слушать всё</string>
     <string name="PengramChatMusicShuffle">Перемешать</string>

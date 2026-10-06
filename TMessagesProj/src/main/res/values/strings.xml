@@ -11785,6 +11785,11 @@
     <string name="PengramPenguinTipHold">Hold me and I will dance</string>
     <string name="PengramPenguinSleeping">Shh, I am asleep…</string>
     <string name="PengramSearchHint">Start typing a feature name — it will be found in any section.</string>
+        <string name="PengramTracksViewList">List</string>
+    <string name="PengramTracksViewCompact">Compact</string>
+    <string name="PengramTracksViewTitles">Titles only</string>
+    <string name="PengramTracksViewGrid">Grid</string>
+    <string name="PengramTracksViewCards">Cards</string>
     <string name="PengramChatMusicTitle">Chat music</string>
     <string name="PengramChatMusicPlayAll">Play all</string>
     <string name="PengramChatMusicShuffle">Shuffle</string>
