@@ -22107,6 +22107,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawBackground(Canvas canvas, int left, int top, int right, int bottom, boolean pinnedTop, boolean pinnedBottom, boolean selected, int keyboardHeight) {
+        // Pengram: сюда приходит общий фон группы (музыка и файлы пачкой, альбомы),
+        // и он рисуется в обход drawPinnedBottom — иначе у таких сообщений
+        // «хвостик» оставался, даже когда его попросили убрать
+        if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {
+            pinnedBottom = true;
+        }
         if (currentMessageObject != null && currentMessageObject.isOutOwner()) {
             if (!mediaBackground && !pinnedBottom) {
                 currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(selected ? Theme.key_drawable_msgOutSelected : Theme.key_drawable_msgOut);
