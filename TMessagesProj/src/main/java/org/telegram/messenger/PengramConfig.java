@@ -2622,6 +2622,51 @@ public class PengramConfig {
     }
 
     /** фон плеера */
+    // ------------------------------------------------------------ цвет плеера
+
+    /** акцент берётся из обложки — как было всегда */
+    public static final int PLAYER_ACCENT_COVER = 0;
+    /** акцент темы Telegram: плеер живёт в одной гамме с остальным приложением */
+    public static final int PLAYER_ACCENT_THEME = 1;
+    /** Material You: цвет снимается с обоев системы (Android 12+) */
+    public static final int PLAYER_ACCENT_MONET = 2;
+    /** выбранный вручную цвет */
+    public static final int PLAYER_ACCENT_CUSTOM = 3;
+    private static final int PLAYER_ACCENT_COUNT = 4;
+
+    public static final String KEY_PLAYER_ACCENT = "playerAccent";
+    public static final String KEY_PLAYER_ACCENT_COLOR = "playerAccentColor";
+    /** цвет по умолчанию для «своего» варианта — фирменная зелёная вода Pengram */
+    public static final int PLAYER_ACCENT_DEFAULT_COLOR = 0xFF5FD0A0;
+
+    public static int getPlayerAccentMode() {
+        init();
+        final int value = getIntCached(KEY_PLAYER_ACCENT, PLAYER_ACCENT_COVER);
+        return value < 0 || value >= PLAYER_ACCENT_COUNT ? PLAYER_ACCENT_COVER : value;
+    }
+
+    public static void setPlayerAccentMode(int value) {
+        setIntValue(KEY_PLAYER_ACCENT, value < 0 || value >= PLAYER_ACCENT_COUNT ? PLAYER_ACCENT_COVER : value);
+    }
+
+    public static int getPlayerAccentColor() {
+        return getIntCached(KEY_PLAYER_ACCENT_COLOR, PLAYER_ACCENT_DEFAULT_COLOR);
+    }
+
+    public static void setPlayerAccentColor(int color) {
+        setIntValue(KEY_PLAYER_ACCENT_COLOR, color);
+    }
+
+    public static int getPlayerAccentName(int value) {
+        switch (value) {
+            case PLAYER_ACCENT_THEME: return org.telegram.messenger.R.string.PengramPlayerAccentTheme;
+            case PLAYER_ACCENT_MONET: return org.telegram.messenger.R.string.PengramPlayerAccentMonet;
+            case PLAYER_ACCENT_CUSTOM: return org.telegram.messenger.R.string.PengramPlayerAccentCustom;
+            case PLAYER_ACCENT_COVER:
+            default: return org.telegram.messenger.R.string.PengramPlayerAccentCover;
+        }
+    }
+
     public static final int PLAYER_BG_COVER = 0;
     public static final int PLAYER_BG_GRADIENT = 1;
     public static final int PLAYER_BG_DARK = 2;

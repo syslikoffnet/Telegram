@@ -114,6 +114,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_FONT_PICK = 530;
     private static final int BTN_SHARE_PHONE_MODE = 535;
     private static final int BTN_EMPTY_COVER = 536;
+    private static final int BTN_PLAYER_ACCENT = 537;
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
@@ -1225,6 +1226,95 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** «Вкл» / «Выкл» справа в строке раздела */
     private CharSequence onOff(boolean value) {
         return getString(value ? R.string.PengramValueOn : R.string.PengramValueOff);
+    }
+
+    /**
+     * Состояние раздела «Текст песни».
+     *
+     * Раньше здесь висело «выкл» у всех, кто выключил автоподбор и настроил
+     * источник руками, — хотя текст при этом прекрасно показывался. Теперь
+     * строка отвечает на тот вопрос, который человек и задаёт: показывает ли
+     * выбранное оформление плеера текст вообще, а уж как он ищется — уточнение.
+     */
+    private CharSequence lyricsSectionValue() {
+        if (!PengramConfig.isNewPlayer()
+                || !PengramConfig.playerStyleHasLyrics(PengramConfig.getPlayerStyle())) {
+            return onOff(false);
+        }
+        return getString(R.string.PengramValueOn) + " \u00b7 " + getString(PengramConfig.isLyricsAuto()
+                ? R.string.PengramLyricsModeAuto : R.string.PengramLyricsModeManual);
+    }
+
+    /** палитра «своего» цвета: без пипеток и HEX — двенадцать приятных оттенков */
+    private static final int[] PLAYER_PALETTE = {
+            0xFF5FD0A0, 0xFF4FC3F7, 0xFF7E8CF7, 0xFFB388FF,
+            0xFFFF8AB4, 0xFFFF6E6E, 0xFFFF9F43, 0xFFFFD166,
+            0xFF9CCC65, 0xFF26C6DA, 0xFFBCAAA4, 0xFFE0E0E0
+    };
+
+    /** значение строки «Цвет плеера»: название режима и сам цвет кружком */
+    private CharSequence playerAccentValue() {
+        final int mode = PengramConfig.getPlayerAccentMode();
+        final String name = getString(PengramConfig.getPlayerAccentName(mode));
+        if (mode != PengramConfig.PLAYER_ACCENT_CUSTOM) {
+            return name;
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("\u25CF  ");
+        sb.setSpan(new android.text.style.ForegroundColorSpan(PengramConfig.getPlayerAccentColor()),
+                0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.append(name);
+        return sb;
+    }
+
+    private void showPlayerAccentPicker() {
+        final boolean monetSupported = android.os.Build.VERSION.SDK_INT >= 31;
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramPlayerAccentCover),
+                getString(R.string.PengramPlayerAccentTheme),
+                monetSupported
+                        ? getString(R.string.PengramPlayerAccentMonet)
+                        : getString(R.string.PengramPlayerAccentMonet) + " \u00b7 " + getString(R.string.PengramMonetUnsupportedShort),
+                getString(R.string.PengramPlayerAccentCustom)
+        };
+        showChoicePicker(getString(R.string.PengramPlayerAccent), options,
+                PengramConfig.getPlayerAccentMode(), value -> {
+                    if (value == PengramConfig.PLAYER_ACCENT_MONET && !monetSupported) {
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                                getString(R.string.PengramMonetUnsupported)).show();
+                        return;
+                    }
+                    PengramConfig.setPlayerAccentMode(value);
+                    if (value == PengramConfig.PLAYER_ACCENT_CUSTOM) {
+                        showPlayerColorPicker();
+                        return;
+                    }
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
+    }
+
+    /** выбор оттенка: каждый пункт нарисован своим цветом, чтобы выбирать глазами */
+    private void showPlayerColorPicker() {
+        final CharSequence[] names = new CharSequence[PLAYER_PALETTE.length];
+        int selected = 0;
+        for (int a = 0; a < PLAYER_PALETTE.length; a++) {
+            final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("\u25CF   ");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(PLAYER_PALETTE[a]),
+                    0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.append(String.format(java.util.Locale.US, "#%06X", PLAYER_PALETTE[a] & 0xFFFFFF));
+            names[a] = sb;
+            if (PLAYER_PALETTE[a] == PengramConfig.getPlayerAccentColor()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramPlayerAccentCustom), names, selected, value -> {
+            PengramConfig.setPlayerAccentColor(PLAYER_PALETTE[value]);
+            PengramConfig.setPlayerAccentMode(PengramConfig.PLAYER_ACCENT_CUSTOM);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
     }
 
     private CharSequence sharePhoneModeName(int mode) {
@@ -2868,6 +2958,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_PLAYER_STYLE, R.drawable.msg_played, getString(R.string.PengramPlayerLook), getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()))));
         if (PengramConfig.isNewPlayer()) {
             items.add(UItem.asSettingsCell(BTN_PLAYER_BG, R.drawable.msg_theme, getString(R.string.PengramPlayerBg), getString(PengramConfig.getPlayerBgName(PengramConfig.getPlayerBg()))));
+            items.add(UItem.asSettingsCell(BTN_PLAYER_ACCENT, R.drawable.msg_palette,
+                    getString(R.string.PengramPlayerAccent), playerAccentValue()));
             items.add(UItem.asSettingsCell(BTN_COVER_SHAPE, R.drawable.msg_photos, getString(R.string.PengramCoverShape), getString(PengramConfig.getCoverShapeName(PengramConfig.getCoverShape()))));
             items.add(check(PengramConfig.KEY_PLAYER_BLUR, true, getString(R.string.PengramPlayerBlur)));
             // что показывать, когда у трека нет картинки
@@ -2879,8 +2971,13 @@ public class PengramSettingsActivity extends UniversalFragment {
                         getString(R.string.PengramPlayerPenguinDance), getString(R.string.PengramPlayerPenguinDanceInfo)));
             }
         }
-        items.add(UItem.asShadow(PengramConfig.isNewPlayer() && PengramConfig.isEmptyCoverPenguin()
-                ? getString(R.string.PengramEmptyCoverInfo) : null));
+        if (PengramConfig.isNewPlayer()) {
+            items.add(UItem.asShadow(PengramConfig.isEmptyCoverPenguin()
+                    ? getString(R.string.PengramEmptyCoverInfo)
+                    : getString(R.string.PengramPlayerAccentInfo)));
+        } else {
+            items.add(UItem.asShadow(null));
+        }
 
         // Свайп по свёрнутому плееру: листать треки прямо из шапки
         items.add(UItem.asHeader(getString(R.string.PengramPlayerSwipeHeader)));
@@ -2913,7 +3010,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(sectionRow(BTN_SECTION_LYRICS, IconBackgroundColors.ORANGE, R.drawable.msg_msgbubble3,
-                getString(R.string.PengramLyricsSection), onOff(PengramConfig.isNewPlayer() && PengramConfig.isLyricsAuto())));
+                getString(R.string.PengramLyricsSection), lyricsSectionValue()));
         items.add(UItem.asShadow(getString(R.string.PengramLyricsSectionInfo)));
 
     }
@@ -4052,6 +4149,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_SHARE_PHONE_MODE:
                 showSharePhonePicker();
+                break;
+            case BTN_PLAYER_ACCENT:
+                showPlayerAccentPicker();
                 break;
             case BTN_EMPTY_COVER: {
                 final CharSequence[] options = new CharSequence[]{

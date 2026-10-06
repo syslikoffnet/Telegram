@@ -113,6 +113,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         setApplyTopPadding(false);
         setUseLightStatusBar(false);
 
+        accentColor = resolveAccent(context, resourcesProvider);
         style = PengramConfig.getPlayerStyle();
         compact = style == PengramConfig.PLAYER_STYLE_COMPACT || style == PengramConfig.PLAYER_STYLE_MINI_LYRICS;
         final boolean lyricsAlways = style == PengramConfig.PLAYER_STYLE_LYRICS || style == PengramConfig.PLAYER_STYLE_MINI_LYRICS;
@@ -260,23 +261,41 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         coverView = new BackupImageView(context);
         applyCoverShape();
+        // Картинка может не приехать вовсе (битая ссылка артворка, нет сети) —
+        // тогда никто бы не сообщил, что обложки нет. Слушаем сам приёмник:
+        // пришла — прячем пингвина, не пришла — он остаётся на месте.
+        coverView.getImageReceiver().setDelegate((receiver, set, thumb, memCache) -> {
+            if (set) {
+                hideEmptyCover();
+            } else {
+                applyEmptyCover();
+            }
+        });
         lyricsContainer = new FrameLayout(context);
 
         if (style == PengramConfig.PLAYER_STYLE_MINI_LYRICS) {
             // мини-режим: слева обложка, справа текст
-            centerLayout.addView(coverView, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+            final FrameLayout coverSlot = new FrameLayout(context);
             penguinHolder = createPenguinHolder(context);
-            centerLayout.addView(penguinHolder, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
+            coverSlot.addView(penguinHolder, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            coverSlot.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            centerLayout.addView(coverSlot, LayoutHelper.createLinear(132, 132, Gravity.CENTER_VERTICAL, 0, 0, 14, 0));
             centerLayout.addView(lyricsContainer, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
         } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
-            // текст на весь экран, обложка маленькая у названия
-            centerLayout.addView(lyricsContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+            // текст на весь экран, обложка маленькая у названия, а пингвин —
+            // мягким силуэтом за строками: пустое место занято, читать не мешает
+            final FrameLayout lyricsOverlay = new FrameLayout(context);
+            penguinHolder = createPenguinHolder(context);
+            penguinHolder.setAlpha(0.55f);
+            lyricsOverlay.addView(penguinHolder, LayoutHelper.createFrame(160, 160, Gravity.CENTER));
+            lyricsOverlay.addView(lyricsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            centerLayout.addView(lyricsOverlay, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
         } else {
             // обложка во весь блок, текст открывается поверх неё
             final FrameLayout overlay = new FrameLayout(context);
-            overlay.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             penguinHolder = createPenguinHolder(context);
             overlay.addView(penguinHolder, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            overlay.addView(coverView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             overlay.addView(lyricsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
             centerLayout.addView(overlay, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
         }
@@ -997,7 +1016,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (bitmap != null) {
                 try {
                     final Bitmap small = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
-                    accentColor = pickAccent(small);
+                    if (PengramConfig.getPlayerAccentMode() == PengramConfig.PLAYER_ACCENT_COVER) {
+                        accentColor = pickAccent(small);
+                        AndroidUtilities.runOnUIThread(PengramMusicPlayerSheet.this::applyAccentToViews);
+                    }
                     if (PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER) {
                         Utilities.stackBlurBitmap(small, 6);
                         blurred = small;
@@ -1399,17 +1421,78 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final String artworkUrl = messageObject.getArtworkUrl(false);
         final ImageLocation thumbLocation = thumb != null ? ImageLocation.getForDocument(thumb, document) : null;
         if (!TextUtils.isEmpty(artworkUrl)) {
+            applyEmptyCover(true);
             coverView.setImage(ImageLocation.getForPath(artworkUrl), null, thumbLocation, null, null, 0, 1, messageObject);
             smallCoverView.setImage(ImageLocation.getForPath(artworkUrl), "44_44", thumbLocation, null, null, 0, 1, messageObject);
         } else if (thumbLocation != null) {
+            applyEmptyCover(true);
             coverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
             smallCoverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
             applyEmptyCover();
             return;
         }
-        hideEmptyCover();
         backgroundView.setCover(null);
+    }
+
+    /**
+     * Какого цвета плеер.
+     *
+     * «Из обложки» остаётся поведением по умолчанию, но когда картинки нет
+     * (а это ровно тот случай, ради которого появился пингвин), брать цвет
+     * неоткуда — тогда подхватывается акцент темы Telegram. Material You
+     * снимает цвет с обоев системы; на Android младше 12 такой возможности
+     * нет, и выбор молча падает обратно на тему.
+     */
+    private int resolveAccent(Context context, Theme.ResourcesProvider provider) {
+        final int mode = PengramConfig.getPlayerAccentMode();
+        if (mode == PengramConfig.PLAYER_ACCENT_CUSTOM) {
+            return PengramConfig.getPlayerAccentColor();
+        }
+        if (mode == PengramConfig.PLAYER_ACCENT_MONET) {
+            final int monet = monetAccent(context);
+            if (monet != 0) {
+                return monet;
+            }
+        }
+        if (mode == PengramConfig.PLAYER_ACCENT_THEME || mode == PengramConfig.PLAYER_ACCENT_MONET) {
+            return themeAccent(provider);
+        }
+        return themeAccent(provider);
+    }
+
+    /** акцент текущей темы, подтянутый до читаемого на тёмном фоне */
+    private static int themeAccent(Theme.ResourcesProvider provider) {
+        final int color = Theme.getColor(Theme.key_featuredStickers_addButton, provider);
+        final float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        hsv[1] = Math.min(1f, hsv[1] * 1.15f + 0.1f);
+        hsv[2] = Math.max(hsv[2], 0.85f);
+        return Color.HSVToColor(hsv);
+    }
+
+    /** цвет обоев системы, если устройство это умеет */
+    private static int monetAccent(Context context) {
+        if (android.os.Build.VERSION.SDK_INT < 31 || context == null) {
+            return 0;
+        }
+        try {
+            return context.getColor(android.R.color.system_accent1_200);
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
+    /** цвет мог измениться в настройках — обновляем всё, что его носит */
+    private void applyAccentToViews() {
+        try {
+            lyricsView.setColors(accentColor, 0xFFFFFFFF);
+            if (penguinHolder != null && penguinHolder.getVisibility() == View.VISIBLE) {
+                penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));
+            }
+            seekBarView.invalidate();
+        } catch (Throwable ignore) {
+        }
     }
 
     /**
@@ -1437,7 +1520,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private android.graphics.drawable.Drawable emptyCoverBackground(int radius) {
         final android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
         shape.setCornerRadius(radius);
-        shape.setColor(0x26FFFFFF);
+        // лёгкий оттенок акцента вместо серой пустоты: заглушка выглядит задуманной
+        shape.setColor(ColorUtils.setAlphaComponent(accentColor, 54));
+        shape.setStroke(dp(1), ColorUtils.setAlphaComponent(accentColor, 70));
         return shape;
     }
 
@@ -1449,6 +1534,30 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
      * высоты), «как в оригинале» оставляет прежнюю заливку.
      */
     private void applyEmptyCover() {
+        applyEmptyCover(false);
+    }
+
+    /**
+     * @param pending обложку ещё только грузим: пингвин уже на сцене, но место
+     *                под картинку остаётся — она появится поверх него сама.
+     *                Так пустой блок не висит, пока сеть думает, и не мигает,
+     *                если обложка в итоге не придёт.
+     */
+    private boolean applyingEmptyCover;
+
+    private void applyEmptyCover(boolean pending) {
+        if (applyingEmptyCover) {
+            return;   // заглушка сама дёргает приёмник картинки — второй заход не нужен
+        }
+        applyingEmptyCover = true;
+        try {
+            applyEmptyCoverInner(pending);
+        } finally {
+            applyingEmptyCover = false;
+        }
+    }
+
+    private void applyEmptyCoverInner(boolean pending) {
         final int mode = PengramConfig.getEmptyCoverMode();
         final boolean penguin = mode == PengramConfig.EMPTY_COVER_PENGUIN && penguinHolder != null;
         final boolean hide = mode == PengramConfig.EMPTY_COVER_HIDE;
@@ -1463,7 +1572,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 penguinCover.setPaused(true);
             }
         }
-        coverView.setVisibility(penguin || hide ? View.GONE : View.VISIBLE);
+        coverView.setVisibility((penguin && !pending) || (hide && !pending) ? View.GONE : View.VISIBLE);
         if (!penguin && !hide) {
             coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
         }

@@ -11966,6 +11966,15 @@
     <string name="PengramPlayerBlur">Blur the cover</string>
     <string name="PengramCoverShape">Cover shape</string>
     <string name="PengramEmptyCover">When there is no cover</string>
+    <string name="PengramPlayerAccent">Player color</string>
+    <string name="PengramPlayerAccentCover">From the cover</string>
+    <string name="PengramPlayerAccentTheme">Telegram theme</string>
+    <string name="PengramPlayerAccentMonet">Material You (wallpaper)</string>
+    <string name="PengramPlayerAccentCustom">Custom color</string>
+    <string name="PengramPlayerAccentInfo">Without a cover there is nothing to pick a color from, so the player follows your theme — or the color you choose here.</string>
+    <string name="PengramMonetUnsupportedShort">Android 12+</string>
+    <string name="PengramLyricsModeAuto">automatic</string>
+    <string name="PengramLyricsModeManual">manual</string>
     <string name="PengramEmptyCoverPenguin">Show the penguin</string>
     <string name="PengramEmptyCoverHide">Hide the cover block</string>
     <string name="PengramEmptyCoverPlain">Plain placeholder</string>

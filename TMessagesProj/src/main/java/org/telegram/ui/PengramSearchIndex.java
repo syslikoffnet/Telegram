@@ -171,6 +171,7 @@ public final class PengramSearchIndex {
             {R.string.PengramPenguinStraighten, PengramSettingsActivity.SECTION_PENGUIN},
             {R.string.PengramPlayerLook, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramPlayerBg, PengramSettingsActivity.SECTION_PLAYER},
+            {R.string.PengramPlayerAccent, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramCoverShape, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramPlayerBlur, PengramSettingsActivity.SECTION_PLAYER},
             {R.string.PengramEmptyCover, PengramSettingsActivity.SECTION_PLAYER},

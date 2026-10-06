@@ -994,6 +994,15 @@
     <string name="PengramPlayerBlur">Размывать обложку</string>
     <string name="PengramCoverShape">Форма обложки</string>
     <string name="PengramEmptyCover">Если нет обложки</string>
+    <string name="PengramPlayerAccent">Цвет плеера</string>
+    <string name="PengramPlayerAccentCover">Из обложки</string>
+    <string name="PengramPlayerAccentTheme">Тема Telegram</string>
+    <string name="PengramPlayerAccentMonet">Material You (обои)</string>
+    <string name="PengramPlayerAccentCustom">Свой цвет</string>
+    <string name="PengramPlayerAccentInfo">Когда обложки нет, брать цвет неоткуда — плеер берёт его из темы или из выбранного здесь оттенка.</string>
+    <string name="PengramMonetUnsupportedShort">Android 12+</string>
+    <string name="PengramLyricsModeAuto">автоматически</string>
+    <string name="PengramLyricsModeManual">вручную</string>
     <string name="PengramEmptyCoverPenguin">Показывать пингвина</string>
     <string name="PengramEmptyCoverHide">Скрывать блок обложки</string>
     <string name="PengramEmptyCoverPlain">Простая заглушка</string>
