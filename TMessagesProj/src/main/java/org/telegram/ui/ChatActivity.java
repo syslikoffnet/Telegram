@@ -3567,6 +3567,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public boolean onFragmentCreate() {
         org.telegram.messenger.PengramCopySender.addProgressListener(pengramCopyListener);
+        org.telegram.messenger.PengramCopySender.notifyProgressNow();
         final long chatId = arguments.getLong("chat_id", 0);
         final long userId = arguments.getLong("user_id", 0);
         final int encId = arguments.getInt("enc_id", 0);

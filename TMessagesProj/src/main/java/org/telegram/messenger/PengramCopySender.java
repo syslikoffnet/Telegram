@@ -58,6 +58,11 @@ public final class PengramCopySender {
     private PengramCopySender() {
     }
 
+    /** сразу оповестить о состоянии (например, открыли чат во время отправки) */
+    public static void notifyProgressNow() {
+        notifyProgress();
+    }
+
     public static void addProgressListener(ProgressListener listener) {
         if (listener == null) {
             return;
@@ -139,11 +144,12 @@ public final class PengramCopySender {
         if (message == null || message.messageOwner == null) {
             return false;
         }
+        // удалённое сообщение (pengramDeleted) сюда не светится отдельно:
+        // если у него есть медиа, localPath сразу не найдёт файл в кэше
+        // (он удалён вместе с сообщением), и download его не восстановит —
+        // копия выйдет только если файл уже лежал на диске вне кэша чата.
         if (message.messageOwner.noforwards) {
             return true;
-        }
-        if (message.pengramDeleted) {
-            return true;   // сообщения больше нет на сервере — пересылать нечего
         }
         if (message.isSecretMedia() || message.messageOwner.ttl_period != 0 || message.messageOwner.ttl != 0) {
             return true;
@@ -199,8 +205,11 @@ public final class PengramCopySender {
         if (!PengramConfig.isBypassingForwardRestrictions()) {
             return false;
         }
+        // В секретный чат нельзя ничего переслать — даже наше собственное.
+        // Если что-то защищено, а цель секретная, сюда даже не приходим:
+        // мы просто не можем. Это меню не показывает пункт «Переслать».
         if (DialogObject.isEncryptedDialog(targetDialogId)) {
-            return false;   // в секретный чат Telegram умеет отправлять сам
+            return false;
         }
         for (int a = 0; a < messages.size(); a++) {
             if (isProtected(messages.get(a))) {
@@ -277,10 +286,13 @@ public final class PengramCopySender {
         // В секретных чатах медиа приходит не как TL_photo/TL_document, а как
         // их «зашифрованные» родственники. Раньше такие сообщения сюда не
         // попадали и уходили без файла — то есть фактически не пересылались.
-        final boolean hasPhoto = media != null && media.photo != null;
+        // Документ приоритетнее фото: у веб-страницы одновременно есть и обложка
+        // (photo), и вложенный объект (document); забирать надо вместе с объектом,
+        // иначе потеряем голос/видео/файл, который пользователь на самом деле видит.
         final boolean hasDocument = media != null && media.document != null;
+        final boolean hasPhoto = media != null && media.photo != null;
 
-        if (!hasPhoto && !hasDocument) {
+        if (!hasDocument && !hasPhoto) {
             done.run(sendWithoutFile(account, message, dialogId));
             return;
         }
@@ -309,6 +321,8 @@ public final class PengramCopySender {
     private static boolean sendWithoutFile(int account, MessageObject message, long dialogId) {
         final SendMessagesHelper helper = SendMessagesHelper.getInstance(account);
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
+        // TTL и прочие атрибуты «одноразовости» сознательно не переносятся:
+        // копия должна остаться постоянной, в этом и смысл «переслать удалёнку».
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner != null
                 ? message.messageOwner.entities : null);
         final String text = withAuthor(message,
@@ -357,6 +371,7 @@ public final class PengramCopySender {
 
     /** собрать новое сообщение из лежащего на диске файла */
     private static boolean sendFile(int account, MessageObject message, long dialogId, String sourcePath) {
+
         final TLRPC.MessageMedia media = message.messageOwner.media;
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner.entities);
         final String caption = withAuthor(message, message.messageOwner.message, entities);
@@ -368,6 +383,10 @@ public final class PengramCopySender {
             return sendWithoutFile(account, message, dialogId);
         }
 
+        // Таймером файл не трогаем: отправка может ещё читать его после возврата
+        // из sendMessage (особенно для больших видео). Лишняя копия лежит в
+        // app-cache до тех пор, пока система/настройки хранилища не найдут её
+        // готовой к удалению.
         try {
             if (media != null && media.document != null) {
                 final TLRPC.TL_document document = buildDocument(media.document, path);
@@ -412,9 +431,13 @@ public final class PengramCopySender {
             if (TextUtils.isEmpty(extension)) {
                 extension = guessExtension(message);
             }
-            final File dir = FileLoader.getDirectory(FileLoader.MEDIA_DIR_CACHE);
-            final File target = new File(dir, "pengram_copy_" + Math.abs(message.getId())
-                    + "_" + System.currentTimeMillis() + extension);
+            // своя сим-папка внутри app-cache: чиститься штатной чисткой телеграма
+            // не будет, но можно без страха удалять из телеграма → хранилища
+            final File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), "pengram_copy");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            final File target = new File(dir, message.getId() + "_" + System.currentTimeMillis()
+                    + "_" + ((int) (Math.random() * 1000)) + extension);
             try (FileInputStream in = new FileInputStream(source);
                  FileOutputStream out = new FileOutputStream(target)) {
                 final byte[] buffer = new byte[64 * 1024];
@@ -541,14 +564,6 @@ public final class PengramCopySender {
 
     // ------------------------------------------------------------ мелочи
 
-    /**
-     * Копия документа без серверных опознавательных знаков.
-     *
-     * Обнулённый id и access_hash — это способ сказать отправке: «файл новый,
-     * залей его с диска». Превью тоже убираем: они ссылаются на чужое
-     * хранилище и ломают заливку. Все признаки (кружок, голосовое, стикер,
-     * видео) живут в attributes и переезжают вместе с копией.
-     */
     /**
      * Документ для копии — из чего угодно.
      *
