@@ -495,9 +495,33 @@ public final class PengramCopySender {
                     return file.getAbsolutePath();
                 }
             }
-            final File file = FileLoader.getInstance(account).getPathToMessage(message.messageOwner);
+            final FileLoader loader = FileLoader.getInstance(account);
+            final File file = loader.getPathToMessage(message.messageOwner);
             if (file != null && file.exists() && file.length() > 0) {
                 return file.getAbsolutePath();
+            }
+            // Одноразовые медиа getPathToMessage ищет в общем кэше, а загрузку
+            // FileLoadOperation делает в «типовые» папки (фото → image,
+            // документы → audio/video/document). Без этой ветки готовый файл
+            // просто не находится.
+            final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
+            if (media != null) {
+                if (media.document != null) {
+                    final File typed = loader.getPathToAttach(media.document);
+                    if (typed != null && typed.exists() && typed.length() > 0) {
+                        return typed.getAbsolutePath();
+                    }
+                }
+                if (media.photo != null) {
+                    final TLRPC.PhotoSize sizeFull = FileLoader.getClosestPhotoSizeWithSize(
+                            media.photo.sizes, AndroidUtilities.getPhotoSize());
+                    if (sizeFull != null) {
+                        final File typed = loader.getPathToAttach(sizeFull);
+                        if (typed != null && typed.exists() && typed.length() > 0) {
+                            return typed.getAbsolutePath();
+                        }
+                    }
+                }
             }
         } catch (Throwable e) {
             FileLog.e(e);
