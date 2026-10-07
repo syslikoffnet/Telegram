@@ -1439,9 +1439,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private String displayedCoverKey;
 
     private void updateCover(MessageObject messageObject) {
-        final String key = org.telegram.messenger.PengramCovers.keyFor(messageObject);
-        if (!TextUtils.equals(key, displayedCoverKey)) {
-            displayedCoverKey = key;
+        final String trackKey = org.telegram.messenger.PengramCovers.keyFor(messageObject);
+        if (!TextUtils.equals(trackKey, displayedCoverKey)) {
+            displayedCoverKey = trackKey;
             // Don't share the previous track's artwork while the new one loads.
             coverView.setImageDrawable(null);
             smallCoverView.setImageDrawable(null);

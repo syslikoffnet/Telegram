@@ -11935,7 +11935,7 @@
     <string name="PengramAIAutoCooldown">Time between replies in a chat</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
-    <string name="PengramAIAutoInfo">Selected private chats and direct mentions in selected groups only. Per-chat delay: 10–600 seconds. Everything is off by default. While the app process is alive, only one new text message (no history) is sent to the chosen AI service after obvious phone numbers, links and addresses are redacted. Responses containing those are blocked. This cannot guarantee privacy with an external provider and is not a 24/7 bot when the app is stopped.</string>
+    <string name="PengramAIAutoInfo">Selected private chats and direct mentions in selected groups only. Per-chat delay: 10–600 seconds. Everything is off by default. While the app process is alive, only one new text message (no history) is sent to the chosen AI service after obvious phone numbers, emails and links are redacted. Responses containing those are blocked. This cannot guarantee privacy with an external provider and is not a 24/7 bot when the app is stopped.</string>
     <string name="PengramAIAutoRangeInfo">Random delay in seconds from 10 to 600. Auto replies remain off until the master switch is enabled.</string>
     <string name="PengramAIAutoMin">Minimum seconds</string>
     <string name="PengramAIAutoMax">Maximum seconds</string>
@@ -11944,7 +11944,7 @@
     <string name="PengramAIAutoRangeError">Use 10 to 600 seconds; minimum must not exceed maximum</string>
     <string name="PengramAIAutoQuietError">Enter hours from 0 to 23, e.g. 23-8. Equal hours disable quiet time.</string>
     <string name="PengramAIAutoNeedsSetup">Configure an AI service and describe your reply style first</string>
-    <string name="PengramAIAutoWarning">AI will automatically write as you in connected chats after a delay. The new message (without history) will go to an external service. Numbers, links and addresses are filtered locally, but complete privacy cannot be guaranteed. You can stop everything with this switch. Enable?</string>
+    <string name="PengramAIAutoWarning">AI will automatically write as you in connected chats after a delay. The new message (without history) will go to an external service. Numbers, emails and links are filtered locally, but complete privacy cannot be guaranteed. You can stop everything with this switch. Enable?</string>
     <string name="PengramAIAutoEnable">Enable auto replies</string>
     <string name="PengramAICurrentLabel">ACTIVE IN EVERY CHAT</string>
     <string name="PengramAICurrentDetail">Messages and drafts · results are never sent automatically</string>
@@ -12484,6 +12484,7 @@
     <string name="PengramTrackCardLinkInfo">A public channel post links directly; otherwise the link searches for the track. Without it, only title and artist are sent.</string>
     <string name="PengramTrackCardBrand">Pengram label on image</string>
     <string name="PengramTrackCardInfo">The button only appears in a writable chat. Tap to send the preset format to that chat; long-press to preview and pick a format for this send. Sends title, artist and optionally a link; never sends chat contents.</string>
+    <string name="PengramNowPlayingNoRights">This chat does not allow the selected format. Check permissions or long-press the card button to pick the other format.</string>
     <string name="PengramNowPlayingSent">Sending card to this chat</string>
     <string name="PengramNowPlayingShare">Share now playing</string>
     <string name="PengramNowPlayingImage">Share image card</string>

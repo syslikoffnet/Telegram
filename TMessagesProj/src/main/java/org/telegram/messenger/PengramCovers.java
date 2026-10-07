@@ -46,11 +46,14 @@ public class PengramCovers {
         try {
             final String name = messageObject.getFileName();
             if (!TextUtils.isEmpty(name)) {
-                return name;
+                // A filename alone collides across chats/accounts and can show
+                // someone else's cached artwork on an unrelated message.
+                return messageObject.currentAccount + ":" + messageObject.getDialogId()
+                        + ":" + messageObject.getId() + ":" + name;
             }
         } catch (Throwable ignore) {
         }
-        return String.valueOf(messageObject.getId());
+        return messageObject.currentAccount + ":" + messageObject.getDialogId() + ":" + messageObject.getId();
     }
 
     public static Bitmap getCached(MessageObject messageObject) {

@@ -72,14 +72,20 @@ public final class PengramNowPlayingCard {
         final int account = chat.getCurrentAccount();
         try {
             if (format == org.telegram.messenger.PengramConfig.TRACK_CARD_TEXT) {
-                if (chat.getCurrentChat() != null && !ChatObject.canSendPlain(chat.getCurrentChat())) return;
+                if (chat.getCurrentChat() != null && !ChatObject.canSendPlain(chat.getCurrentChat())) {
+                    noRights(context, resourcesProvider);
+                    return;
+                }
                 final org.telegram.messenger.SendMessagesHelper.SendMessageParams params =
                         org.telegram.messenger.SendMessagesHelper.SendMessageParams.of(caption, did);
                 params.replyToTopMsg = chat.getThreadMessage();
                 params.sendMessageChatArguments = chat.getMessageChatSendParams();
                 org.telegram.messenger.SendMessagesHelper.getInstance(account).sendMessage(params);
             } else {
-                if (chat.getCurrentChat() != null && !ChatObject.canSendPhoto(chat.getCurrentChat())) return;
+                if (chat.getCurrentChat() != null && !ChatObject.canSendPhoto(chat.getCurrentChat())) {
+                    noRights(context, resourcesProvider);
+                    return;
+                }
                 final Bitmap cover = resolveCover(track, visibleCover);
                 final Bitmap card = render(title, artist, cover);
                 final File folder = new File(context.getCacheDir(), "pengram_cards");
@@ -107,6 +113,12 @@ public final class PengramNowPlayingCard {
                     .setMessage(getString(R.string.PengramNowPlayingError))
                     .setPositiveButton(getString(R.string.OK), null).show();
         }
+    }
+
+    private static void noRights(Context context, Theme.ResourcesProvider resourcesProvider) {
+        new org.telegram.ui.ActionBar.AlertDialog.Builder(context, resourcesProvider)
+                .setMessage(getString(R.string.PengramNowPlayingNoRights))
+                .setPositiveButton(getString(R.string.OK), null).show();
     }
 
     /** Long tap: preview and override the saved format for this single send. */
