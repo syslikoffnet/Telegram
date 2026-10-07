@@ -46,12 +46,12 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     }
 
     private static final class Pending {
-        final int messageId;
+        final MessageObject incoming;
         final String text;
         final long dialogId;
         Runnable runnable;
-        Pending(int messageId, String text, long dialogId) {
-            this.messageId = messageId;
+        Pending(MessageObject incoming, String text, long dialogId) {
+            this.incoming = incoming;
             this.text = text;
             this.dialogId = dialogId;
         }
@@ -109,6 +109,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         return url.startsWith("https://") || url.startsWith("http://127.0.0.1:")
                 || url.startsWith("http://localhost:");
     }
+    public static boolean canUseService() { return secureService(PengramAI.active()); }
+
     private static boolean isQuiet() {
         final int start = quietStart(), end = quietEnd();
         if (start == end) return false; // identical hours disable quiet hours
@@ -214,7 +216,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
             final long last = PengramAI.prefs().getLong("autoLast_" + account + "_" + did, 0);
             if (System.currentTimeMillis() - last < cooldownMinutes() * 60000L) continue;
             cancel(did);
-            final Pending task = new Pending(message.getId(), redacted(message.messageOwner.message), did);
+            final Pending task = new Pending(message, redacted(message.messageOwner.message), did);
             pending.put(did, task);
             final int delay = rule.minSeconds + random.nextInt(rule.maxSeconds - rule.minSeconds + 1);
             task.runnable = () -> request(task);
@@ -249,7 +251,9 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                         || !TextUtils.equals(PengramAI.activeId(), service.id)) return;
                 final String answer = result == null ? "" : result.trim();
                 if (answer.isEmpty() || answer.length() > 700 || PRIVATE_DATA.matcher(answer).find()
-                        || Pattern.compile("(?iu)\\b(?:телефон|номер|адрес|пароль|код)\\b").matcher(answer).find()) return;
+                        || Pattern.compile("(?iu)\\b(?:телефон|номер|адрес|пароль|код)\\b").matcher(answer).find()
+                        || Pattern.compile("(?iu)(?:меня зовут|мой адрес|мой телефон|я живу|my name is|i live at)")
+                                .matcher(answer).find()) return;
                 final long last = PengramAI.prefs().getLong("autoLast_" + account + "_" + task.dialogId, 0);
                 if (System.currentTimeMillis() - last < cooldownMinutes() * 60000L) return;
                 final MessagesController controller = MessagesController.getInstance(account);
@@ -263,6 +267,13 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 PengramAI.prefs().edit().putLong("autoLast_" + account + "_" + task.dialogId,
                         System.currentTimeMillis()).apply();
                 final SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(answer, task.dialogId);
+                if (task.dialogId < 0) {
+                    // Reply in the same group conversation, not a root post.
+                    params.replyToMsg = task.incoming;
+                    if (task.incoming.replyMessageObject != null && task.incoming.replyMessageObject.isTopicMainMessage) {
+                        params.replyToTopMsg = task.incoming.replyMessageObject;
+                    }
+                }
                 SendMessagesHelper.getInstance(account).sendMessage(params);
             }
         });

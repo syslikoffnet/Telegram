@@ -250,14 +250,20 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         shareCardButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing != null && playing.isMusic()) {
-                final android.graphics.Bitmap visible = coverView == null ? null : coverView.getImageReceiver().getBitmap();
-                PengramNowPlayingCard.send(context, resourcesProvider, playing, visible, PengramConfig.getTrackCardFormat());
+                final android.graphics.Bitmap mainCover = coverView == null ? null : coverView.getImageReceiver().getBitmap();
+                final android.graphics.Bitmap visible = mainCover != null ? mainCover :
+                        smallCoverView == null ? null : smallCoverView.getImageReceiver().getBitmap();
+                dismiss();
+                AndroidUtilities.runOnUIThread(() -> PengramNowPlayingCard.send(
+                        context, resourcesProvider, playing, visible, PengramConfig.getTrackCardFormat()), 120);
             }
         });
         shareCardButton.setOnLongClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing != null && playing.isMusic()) {
-                final android.graphics.Bitmap visible = coverView == null ? null : coverView.getImageReceiver().getBitmap();
+                final android.graphics.Bitmap mainCover = coverView == null ? null : coverView.getImageReceiver().getBitmap();
+                final android.graphics.Bitmap visible = mainCover != null ? mainCover :
+                        smallCoverView == null ? null : smallCoverView.getImageReceiver().getBitmap();
                 PengramNowPlayingCard.show(context, resourcesProvider, playing, visible);
             }
             return true;

@@ -11943,7 +11943,7 @@
     <string name="PengramAIAutoRemove">Disconnect chat</string>
     <string name="PengramAIAutoRangeError">Use 10 to 600 seconds; minimum must not exceed maximum</string>
     <string name="PengramAIAutoQuietError">Enter hours from 0 to 23, e.g. 23-8. Equal hours disable quiet time.</string>
-    <string name="PengramAIAutoNeedsSetup">Configure an AI service and describe your reply style first</string>
+    <string name="PengramAIAutoNeedsSetup">Configure an HTTPS AI service (or local HTTP) and describe your reply style first</string>
     <string name="PengramAIAutoWarning">AI will automatically write as you in connected chats after a delay. The new message (without history) will go to an external service. Numbers, emails and links are filtered locally, but complete privacy cannot be guaranteed. You can stop everything with this switch. Enable?</string>
     <string name="PengramAIAutoEnable">Enable auto replies</string>
     <string name="PengramAICurrentLabel">ACTIVE IN EVERY CHAT</string>

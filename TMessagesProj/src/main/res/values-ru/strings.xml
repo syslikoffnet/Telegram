@@ -971,7 +971,7 @@
     <string name="PengramAIAutoRemove">Отключить чат</string>
     <string name="PengramAIAutoRangeError">Укажите от 10 до 600 секунд, минимум не больше максимума</string>
     <string name="PengramAIAutoQuietError">Введите часы от 0 до 23, например 23-8. Одинаковые часы выключают тихий режим.</string>
-    <string name="PengramAIAutoNeedsSetup">Сначала настройте AI-сервис и опишите свой стиль ответа</string>
+    <string name="PengramAIAutoNeedsSetup">Настройте AI-сервис с HTTPS (или локальный HTTP) и опишите свой стиль ответа</string>
     <string name="PengramAIAutoWarning">ИИ будет автоматически писать от вашего имени только в подключённых чатах после задержки. Новое сообщение (без истории) уйдёт внешнему сервису. Номера, email и ссылки фильтруются локально, но абсолютной защиты от раскрытия личных данных нет. Остановить всё можно этим же переключателем. Включить?</string>
     <string name="PengramAIAutoEnable">Включить автоответы</string>
     <string name="PengramAICurrentLabel">АКТИВНО ВО ВСЕХ ЧАТАХ</string>

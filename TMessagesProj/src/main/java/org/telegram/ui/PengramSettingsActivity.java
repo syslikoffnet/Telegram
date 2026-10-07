@@ -4937,7 +4937,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_AI_AUTO_MASTER: {
                 if (org.telegram.messenger.PengramAIAutoReply.enabled()) {
                     org.telegram.messenger.PengramAIAutoReply.setEnabled(false);
-                } else if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) || !org.telegram.messenger.PengramAI.hasService()) {
+                } else if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) || !org.telegram.messenger.PengramAIAutoReply.canUseService()) {
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramAIAutoNeedsSetup)).show();
                     if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())) showAIAutoStyleDialog();
                 } else {
