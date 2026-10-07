@@ -14,6 +14,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Pengram: разговор с выбранным сервисом по OpenAI-совместимому протоколу.
@@ -49,6 +53,13 @@ public final class PengramAIClient {
     }
 
     private static volatile DispatchQueue queue;
+    // Auto replies must not sit behind a stalled manual request. Bound both workers and backlog.
+    private static final ThreadPoolExecutor autoQueue = new ThreadPoolExecutor(2, 2, 0,
+            TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(16), runnable -> {
+                Thread thread = new Thread(runnable, "pengramAutoAI");
+                thread.setDaemon(true);
+                return thread;
+            });
 
     private static DispatchQueue queue() {
         if (queue == null) {
@@ -75,6 +86,19 @@ public final class PengramAIClient {
             return;
         }
         queue().postRunnable(() -> run(service, systemPrompt, turns, stream, listener));
+    }
+
+    public static void askAuto(PengramAI.Service service, String systemPrompt, List<Turn> turns,
+                               Listener listener) {
+        if (service == null || !service.isReady()) {
+            post(() -> listener.onError(LocaleController.getString(R.string.PengramAINoService)));
+            return;
+        }
+        try {
+            autoQueue.execute(() -> run(service, systemPrompt, turns, false, listener));
+        } catch (RejectedExecutionException e) {
+            post(() -> listener.onError(LocaleController.getString(R.string.PengramAIErrorNetwork)));
+        }
     }
 
     private static void post(Runnable runnable) {

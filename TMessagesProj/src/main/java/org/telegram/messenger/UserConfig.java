@@ -266,6 +266,8 @@ public class UserConfig extends BaseController {
             currentUser = user;
             clientUserId = user.id;
             checkPremiumSelf(oldUser, user);
+            // An account added after app startup still needs its opt-in auto-reply observer.
+            AndroidUtilities.runOnUIThread(() -> PengramAIAutoReply.register(currentAccount));
         }
     }
 

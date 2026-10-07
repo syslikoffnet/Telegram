@@ -11928,23 +11928,23 @@
     <string name="PengramAIAutoOn">On · tap to stop immediately</string>
     <string name="PengramAIAutoOff">Off for all chats</string>
     <string name="PengramAIAutoStyle">My reply style</string>
-    <string name="PengramAIAutoNoStyle">Not set · no history is used</string>
+    <string name="PengramAIAutoNoStyle">Not set</string>
     <string name="PengramAIAutoStyleHint">For example: reply briefly and informally, without emoji. If unsure, say I will get back later.</string>
     <string name="PengramAIAutoStyleInfo">Describe your style manually. Chat history and your old messages are never read or sent. Do not put personal details here.</string>
     <string name="PengramAIAutoQuiet">Quiet hours</string>
-    <string name="PengramAIAutoCooldown">Time between replies in a chat</string>
+    <string name="PengramAIAutoCooldown">Optional pause between replies in a chat · 0 = off</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
-    <string name="PengramAIAutoInfo">Selected private chats and direct mentions in selected groups only. Per-chat delay: 10–600 seconds. Everything is off by default. While the app process is alive, only one new text message (no history) is sent to the chosen AI service after obvious phone numbers, emails and links are redacted. Responses containing those are blocked. This cannot guarantee privacy with an external provider and is not a 24/7 bot when the app is stopped.</string>
-    <string name="PengramAIAutoRangeInfo">Random delay in seconds from 10 to 600. Auto replies remain off until the master switch is enabled.</string>
+    <string name="PengramAIAutoInfo">Only new text messages are sent to the selected AI service (after local redaction); no history or prior messages are uploaded. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. 3 direct mentions from one sender within a minute pause auto-replies to that sender for 15 minutes across selected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops, and no external service guarantees absolute privacy.</string>
+    <string name="PengramAIAutoRangeInfo">Random delay before asking the AI service: 1–600 seconds. Network time is additional. Auto-replies also require the global switch.</string>
     <string name="PengramAIAutoMin">Minimum seconds</string>
     <string name="PengramAIAutoMax">Maximum seconds</string>
     <string name="PengramAIAutoEnableChat">Save chat</string>
     <string name="PengramAIAutoRemove">Disconnect chat</string>
-    <string name="PengramAIAutoRangeError">Use 10 to 600 seconds; minimum must not exceed maximum</string>
+    <string name="PengramAIAutoRangeError">Choose 1–600 seconds; minimum must not exceed maximum</string>
     <string name="PengramAIAutoQuietError">Enter hours from 0 to 23, e.g. 23-8. Equal hours disable quiet time.</string>
     <string name="PengramAIAutoNeedsSetup">Configure an HTTPS AI service (or local HTTP) and describe your reply style first</string>
-    <string name="PengramAIAutoWarning">AI will automatically write as you in connected chats after a delay. The new message (without history) will go to an external service. Numbers, emails and links are filtered locally, but complete privacy cannot be guaranteed. You can stop everything with this switch. Enable?</string>
+    <string name="PengramAIAutoWarning">AI will automatically send a reply in connected chats. New messages are shared with your selected external service (without history), with basic local redaction. Your identity cannot be perfectly protected. Quiet hours and spam pause apply. Enable?</string>
     <string name="PengramAIAutoEnable">Enable auto replies</string>
     <string name="PengramAICurrentLabel">ACTIVE IN EVERY CHAT</string>
     <string name="PengramAICurrentDetail">Messages and drafts · results are never sent automatically</string>
@@ -12515,4 +12515,28 @@
     <string name="PengramVoiceGate">Noise gate · 0 = off</string>
     <string name="PengramVoiceFormant">Timbre · 0 = neutral</string>
     <string name="PengramVoiceEcho">Echo · 0 = off</string>
+    <string name="PengramAICurrentAutoOn">Manual tools are ready · auto-replies in selected chats are enabled</string>
+    <string name="PengramAIAutoWatched">Connected chats: </string>
+    <string name="PengramAIAutoStatusService">Paused · configure an HTTPS AI service and model.</string>
+    <string name="PengramAIAutoStatusStyle">Paused · set your reply style first.</string>
+    <string name="PengramAIAutoStatusEmpty">Paused · connect a private chat or group below.</string>
+    <string name="PengramAIAutoStatusQuiet">Quiet hours · automatic replies are paused right now.</string>
+    <string name="PengramAIAutoStatusReady">Active while the app process runs · private messages, group mentions and replies to you.</string>
+    <string name="PengramAIAutoStateWaiting">Waiting for the selected delay</string>
+    <string name="PengramAIAutoStateRequest">Asking the AI service</string>
+    <string name="PengramAIAutoStateSent">Last reply queued for delivery</string>
+    <string name="PengramAIAutoStatePaused">Sender paused for 15 minutes after 3 mentions in a minute</string>
+    <string name="PengramAIAutoStateCooldown">Waiting for the optional chat cooldown</string>
+    <string name="PengramAIAutoStateError">Service returned an error or an empty reply · check its settings</string>
+    <string name="PengramAIAutoStateManual">You replied manually · pending AI reply cancelled</string>
+    <string name="PengramAIAutoStateReady">Ready for a new message</string>
+    <string name="PengramAIAutoWatching">Chats being watched</string>
+    <string name="PengramAIAutoNoChats">No chats connected yet. Add a private chat or a group to begin.</string>
+    <string name="PengramAIAutoGroup">Group</string>
+    <string name="PengramAIAutoPrivate">Private</string>
+    <string name="PengramAIAutoMinutes">min</string>
+    <string name="PengramAIAutoRefresh">Refresh auto-reply status</string>
+    <string name="PengramAIAutoChatsShort">chats</string>
+    <string name="PengramAIAutoLastEvent">Last event: </string>
+    <string name="PengramAIAutoJump">View watched chats</string>
 </resources>

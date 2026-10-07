@@ -97,6 +97,8 @@ def main():
     entries = []
     seen = set()
     for section, raw in statements:
+        if "UItem.asButton(BTN_AI_AUTO_RULE_BASE" in raw:
+            continue  # Dynamic chat names are not static setting labels.
         if any(marker in raw for marker in SKIP_MARKERS):
             continue
         if not any(marker in raw for marker in ROW_MARKERS):

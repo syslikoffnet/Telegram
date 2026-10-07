@@ -956,23 +956,23 @@
     <string name="PengramAIAutoOn">Включён · нажмите для немедленной остановки</string>
     <string name="PengramAIAutoOff">Выключен для всех чатов</string>
     <string name="PengramAIAutoStyle">Мой стиль ответа</string>
-    <string name="PengramAIAutoNoStyle">Не задан · история не используется</string>
+    <string name="PengramAIAutoNoStyle">Не задан</string>
     <string name="PengramAIAutoStyleHint">Например: отвечай коротко, на ты, без смайлов. Если не знаешь — скажи, что отвечу позже.</string>
     <string name="PengramAIAutoStyleInfo">Опишите стиль вручную. История и ваши старые сообщения не читаются и не передаются. Не вписывайте сюда личные данные.</string>
     <string name="PengramAIAutoQuiet">Тихие часы</string>
-    <string name="PengramAIAutoCooldown">Пауза между ответами в чате</string>
+    <string name="PengramAIAutoCooldown">Необязательная пауза между ответами в чате · 0 = выкл.</string>
     <string name="PengramAIAutoAdd">Подключить чат</string>
     <string name="PengramAIAutoSeconds">сек</string>
-    <string name="PengramAIAutoInfo">Только личные чаты и прямые упоминания в выбранных группах. У каждого чата своя задержка 10–600 секунд. По умолчанию всё выключено. Пока приложение живо, одно новое текстовое сообщение без истории отправляется выбранному AI-сервису после удаления очевидных номеров, email и ссылок. Ответ с такими данными блокируется. Это не гарантирует полной приватности у внешнего сервиса и не работает круглосуточно при остановленном приложении.</string>
-    <string name="PengramAIAutoRangeInfo">Случайная задержка ответа в секундах · от 10 до 600. Автоответы отключены, пока общий переключатель выключен.</string>
+    <string name="PengramAIAutoInfo">Во внешний AI-сервис передаётся только новое текстовое сообщение после локального удаления очевидных персональных данных: история и старые сообщения не передаются. ЛС: новые сообщения. Группы: @упоминания, ники-ссылки и ответы на ваши сообщения. Задержка: 1–600 секунд. Три обращения одного автора за минуту ставят его автоответы на паузу на 15 минут во всех выбранных группах (это не мут в Telegram). Тихие часы и необязательная пауза в чате остаются в силе. При остановленном приложении это не круглосуточный бот; абсолютная приватность внешнего сервиса не гарантируется.</string>
+    <string name="PengramAIAutoRangeInfo">Случайная задержка перед обращением к AI-сервису: 1–600 секунд. Время сети добавляется отдельно. Нужен также общий переключатель.</string>
     <string name="PengramAIAutoMin">Минимум секунд</string>
     <string name="PengramAIAutoMax">Максимум секунд</string>
     <string name="PengramAIAutoEnableChat">Сохранить чат</string>
     <string name="PengramAIAutoRemove">Отключить чат</string>
-    <string name="PengramAIAutoRangeError">Укажите от 10 до 600 секунд, минимум не больше максимума</string>
+    <string name="PengramAIAutoRangeError">Укажите 1–600 секунд; минимум не больше максимума</string>
     <string name="PengramAIAutoQuietError">Введите часы от 0 до 23, например 23-8. Одинаковые часы выключают тихий режим.</string>
     <string name="PengramAIAutoNeedsSetup">Настройте AI-сервис с HTTPS (или локальный HTTP) и опишите свой стиль ответа</string>
-    <string name="PengramAIAutoWarning">ИИ будет автоматически писать от вашего имени только в подключённых чатах после задержки. Новое сообщение (без истории) уйдёт внешнему сервису. Номера, email и ссылки фильтруются локально, но абсолютной защиты от раскрытия личных данных нет. Остановить всё можно этим же переключателем. Включить?</string>
+    <string name="PengramAIAutoWarning">ИИ автоматически отправляет ответы в подключённых чатах. Новое сообщение передаётся внешнему сервису без истории и с базовым скрытием личных данных. Полную защиту личности гарантировать нельзя. Тихие часы и пауза за спам действуют. Включить?</string>
     <string name="PengramAIAutoEnable">Включить автоответы</string>
     <string name="PengramAICurrentLabel">АКТИВНО ВО ВСЕХ ЧАТАХ</string>
     <string name="PengramAICurrentDetail">Для сообщений и черновиков · результат не отправляется автоматически</string>
@@ -1543,4 +1543,28 @@
     <string name="PengramVoiceGate">Шумоподавитель · 0 = выкл.</string>
     <string name="PengramVoiceFormant">Тембр · 0 = без изменений</string>
     <string name="PengramVoiceEcho">Эхо · 0 = выкл.</string>
+    <string name="PengramAICurrentAutoOn">Ручные инструменты готовы · автоответы включены в выбранных чатах</string>
+    <string name="PengramAIAutoWatched">Подключено чатов: </string>
+    <string name="PengramAIAutoStatusService">Пауза · настройте AI-сервис HTTPS и модель.</string>
+    <string name="PengramAIAutoStatusStyle">Пауза · задайте стиль ответа.</string>
+    <string name="PengramAIAutoStatusEmpty">Пауза · ниже выберите личный чат или группу.</string>
+    <string name="PengramAIAutoStatusQuiet">Тихие часы · автоответы сейчас не отправляются.</string>
+    <string name="PengramAIAutoStatusReady">Активно пока запущено приложение · личные сообщения, упоминания и ответы вам в группах.</string>
+    <string name="PengramAIAutoStateWaiting">Ожидание выбранной задержки</string>
+    <string name="PengramAIAutoStateRequest">Ожидание ответа AI-сервиса</string>
+    <string name="PengramAIAutoStateSent">Последний ответ передан на отправку</string>
+    <string name="PengramAIAutoStatePaused">Автор на паузе 15 минут после 3 обращений за минуту</string>
+    <string name="PengramAIAutoStateCooldown">Пауза между ответами в этом чате</string>
+    <string name="PengramAIAutoStateError">Сервис вернул ошибку или пустой ответ · проверьте настройки</string>
+    <string name="PengramAIAutoStateManual">Вы ответили сами · автоответ отменён</string>
+    <string name="PengramAIAutoStateReady">Ожидает новое сообщение</string>
+    <string name="PengramAIAutoWatching">Наблюдаемые чаты</string>
+    <string name="PengramAIAutoNoChats">Чаты ещё не подключены. Выберите личный чат или группу.</string>
+    <string name="PengramAIAutoGroup">Группа</string>
+    <string name="PengramAIAutoPrivate">ЛС</string>
+    <string name="PengramAIAutoMinutes">мин</string>
+    <string name="PengramAIAutoRefresh">Обновить состояние автоответов</string>
+    <string name="PengramAIAutoChatsShort">чатов</string>
+    <string name="PengramAIAutoLastEvent">Последнее событие: </string>
+    <string name="PengramAIAutoJump">Показать наблюдаемые чаты</string>
 </resources>

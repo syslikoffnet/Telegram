@@ -200,6 +200,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_AUTO_ADD = 1733;
     private static final int BTN_AI_AUTO_QUIET = 1734;
     private static final int BTN_AI_AUTO_COOLDOWN = 1735;
+    private static final int BTN_AI_AUTO_REFRESH = 1736;
+    private static final int BTN_AI_AUTO_JUMP = 1737;
     private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
@@ -783,7 +785,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_APPEARANCE:
                 return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
                         "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
-                        "tabBarSize", "hideTab*", "forceSnow", "md3*"};
+                        "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_CHATS:
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
@@ -4526,7 +4528,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** что показать в строке раздела на главном экране: активный сервис или «не настроено» */
     private CharSequence aiSectionValue() {
         final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
-        return service == null ? getString(R.string.PengramAIEmptyValue) : service.title;
+        if (service == null) return getString(R.string.PengramAIEmptyValue);
+        final int count = org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size();
+        return count == 0 ? service.title : service.title + " · " + count + " " + getString(R.string.PengramAIAutoChatsShort);
     }
 
     private FrameLayout aiCurrentCardContainer;
@@ -4568,9 +4572,63 @@ public class PengramSettingsActivity extends UniversalFragment {
         final org.telegram.messenger.PengramAIRoles.Role role = org.telegram.messenger.PengramAIRoles.active();
         aiCurrentTitle.setText((service == null ? getString(R.string.PengramAIEmptyValue) : service.title)
                 + "  ·  " + role.title);
-        aiCurrentDetail.setText(getString(R.string.PengramAICurrentDetail));
+        aiCurrentDetail.setText(org.telegram.messenger.PengramAIAutoReply.enabled()
+                ? getString(R.string.PengramAICurrentAutoOn) : getString(R.string.PengramAICurrentDetail));
         items.add(UItem.asCustom(aiCurrentCardContainer));
         items.add(UItem.asShadow(null));
+    }
+
+    private FrameLayout aiAutoStatusContainer;
+    private TextView aiAutoStatusTitle;
+    private TextView aiAutoStatusDetail;
+
+    /** One glance: whether anything is actually being watched, and why it may be idle. */
+    private void addAIAutoStatusCard(ArrayList<UItem> items, int watched) {
+        if (getContext() == null) return;
+        if (aiAutoStatusContainer == null) {
+            aiAutoStatusContainer = new FrameLayout(getContext());
+            final LinearLayout card = new LinearLayout(getContext());
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(20), dp(16), dp(20), dp(16));
+            card.setBackground(Theme.createRoundRectDrawable(dp(16),
+                    Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.09f)));
+            aiAutoStatusContainer.addView(card, LayoutHelper.createFrame(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 8, 16, 8));
+            aiAutoStatusTitle = new TextView(getContext());
+            aiAutoStatusTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+            aiAutoStatusTitle.setTypeface(AndroidUtilities.bold());
+            aiAutoStatusTitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            card.addView(aiAutoStatusTitle, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiAutoStatusDetail = new TextView(getContext());
+            aiAutoStatusDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            aiAutoStatusDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+            card.addView(aiAutoStatusDetail, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 5, 0, 0));
+        }
+        final boolean on = org.telegram.messenger.PengramAIAutoReply.enabled();
+        aiAutoStatusTitle.setText(getString(R.string.PengramAIAutoWatched) + watched);
+        aiAutoStatusDetail.setText(!on ? getString(R.string.PengramAIAutoOff)
+                : !org.telegram.messenger.PengramAIAutoReply.canUseService() ? getString(R.string.PengramAIAutoStatusService)
+                : TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) ? getString(R.string.PengramAIAutoStatusStyle)
+                : watched == 0 ? getString(R.string.PengramAIAutoStatusEmpty)
+                : org.telegram.messenger.PengramAIAutoReply.quietNow() ? getString(R.string.PengramAIAutoStatusQuiet)
+                : getString(R.string.PengramAIAutoStatusReady));
+        items.add(UItem.asCustom(aiAutoStatusContainer));
+        items.add(UItem.asShadow(null));
+    }
+
+    private String aiAutoState(long did) {
+        switch (org.telegram.messenger.PengramAIAutoReply.state(currentAccount, did)) {
+            case "waiting": return getString(R.string.PengramAIAutoStateWaiting);
+            case "request": return getString(R.string.PengramAIAutoStateRequest);
+            case "sent": return getString(R.string.PengramAIAutoStateSent);
+            case "paused": return getString(R.string.PengramAIAutoStatePaused);
+            case "cooldown": return getString(R.string.PengramAIAutoStateCooldown);
+            case "error": return getString(R.string.PengramAIAutoStateError);
+            case "manual": return getString(R.string.PengramAIAutoStateManual);
+            default: return getString(R.string.PengramAIAutoStateReady);
+        }
     }
 
     /** Экран «Нейросети»: свои сервисы вместо встроенных, роли и вид ответа */
@@ -4579,6 +4637,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         final String activeId = org.telegram.messenger.PengramAI.activeId();
 
         addAICurrentCard(items);
+        addAIAutoStatusCard(items, org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size());
+        items.add(UItem.asButton(BTN_AI_AUTO_JUMP, R.drawable.msg_message,
+                getString(R.string.PengramAIAutoJump)));
+        items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramAIServices)));
         if (services.isEmpty()) {
             items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
@@ -4587,10 +4649,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final org.telegram.messenger.PengramAI.Service service = services.get(i);
                 final boolean active = TextUtils.equals(service.id, activeId)
                         || (activeId == null && i == 0);
-                items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title, service.summary())
+                items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title)
                         .setChecked(active));
             }
         }
+        final org.telegram.messenger.PengramAI.Service selectedService = org.telegram.messenger.PengramAI.active();
+        if (selectedService != null) items.add(UItem.asShadow(selectedService.summary()));
         if (!services.isEmpty()) {
             items.add(UItem.asButton(BTN_AI_EDIT_SERVICE, R.drawable.msg_edit, getString(R.string.PengramAIEditService)));
         }
@@ -4635,25 +4699,39 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramAIAnswerInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramAIAutoHeader)));
+        final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> aiRules =
+                org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+        items.add(UItem.asButton(BTN_AI_AUTO_REFRESH, R.drawable.msg_retry,
+                getString(R.string.PengramAIAutoRefresh)));
         items.add(UItem.asButton(BTN_AI_AUTO_MASTER, R.drawable.msg_bot,
                 getString(R.string.PengramAIAutoMaster), getString(org.telegram.messenger.PengramAIAutoReply.enabled()
                         ? R.string.PengramAIAutoOn : R.string.PengramAIAutoOff)));
+        final String autoStyle = org.telegram.messenger.PengramAIAutoReply.style();
         items.add(UItem.asButton(BTN_AI_AUTO_STYLE, R.drawable.msg_edit,
-                getString(R.string.PengramAIAutoStyle),
-                TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
-                        ? getString(R.string.PengramAIAutoNoStyle) : org.telegram.messenger.PengramAIAutoReply.style()));
+                getString(R.string.PengramAIAutoStyle), TextUtils.isEmpty(autoStyle)
+                        ? getString(R.string.PengramAIAutoNoStyle)
+                        : autoStyle.length() > 40 ? autoStyle.substring(0, 40) + "…" : autoStyle));
         items.add(UItem.asButton(BTN_AI_AUTO_QUIET, getString(R.string.PengramAIAutoQuiet),
                 org.telegram.messenger.PengramAIAutoReply.quietStart() + ":00–" +
                         org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
         items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
-                org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " min"));
+                org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+        items.add(UItem.asHeader(getString(R.string.PengramAIAutoWatching)));
         items.add(UItem.asButton(BTN_AI_AUTO_ADD, R.drawable.msg_add, getString(R.string.PengramAIAutoAdd)));
-        final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> aiRules =
-                org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+        if (aiRules.isEmpty()) {
+            items.add(UItem.asShadow(getString(R.string.PengramAIAutoNoChats)));
+        }
         for (int i = 0; i < aiRules.size() && i < 100; ++i) {
             final org.telegram.messenger.PengramAIAutoReply.Rule rule = aiRules.get(i);
-            items.add(UItem.asButton(BTN_AI_AUTO_RULE_BASE + i, aiChatName(rule.dialogId),
-                    rule.minSeconds + "–" + rule.maxSeconds + " " + getString(R.string.PengramAIAutoSeconds)));
+            final String name = aiChatName(rule.dialogId);
+            items.add(UItem.asButton(BTN_AI_AUTO_RULE_BASE + i, R.drawable.msg_message,
+                    name.length() > 28 ? name.substring(0, 28) + "…" : name,
+                    (rule.dialogId < 0 ? getString(R.string.PengramAIAutoGroup) : getString(R.string.PengramAIAutoPrivate))
+                            + " · " + rule.minSeconds + "–" + rule.maxSeconds + getString(R.string.PengramAIAutoSeconds)));
+            final String state = aiAutoState(rule.dialogId);
+            if (!"idle".equals(org.telegram.messenger.PengramAIAutoReply.state(currentAccount, rule.dialogId))) {
+                items.add(UItem.asShadow(getString(R.string.PengramAIAutoLastEvent) + state));
+            }
         }
         items.add(UItem.asShadow(getString(R.string.PengramAIAutoInfo)));
 
@@ -4664,7 +4742,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private String aiChatName(long did) {
         if (did < 0) {
             final TLRPC.Chat chat = getMessagesController().getChat(-did);
-            return chat == null ? String.valueOf(did) : chat.title;
+            return chat == null || TextUtils.isEmpty(chat.title) ? String.valueOf(did) : chat.title;
         }
         final TLRPC.User user = getMessagesController().getUser(did);
         return user == null ? String.valueOf(did) : UserObject.getUserName(user);
@@ -4689,6 +4767,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
             org.telegram.messenger.PengramAIAutoReply.setStyle(field.getText().toString());
             if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            if (!org.telegram.messenger.PengramAIAutoReply.enabled()
+                    && !TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                    && org.telegram.messenger.PengramAIAutoReply.canUseService()
+                    && !org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).isEmpty()) {
+                AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 180);
+            }
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
@@ -4714,7 +4798,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final org.telegram.messenger.PengramAIAutoReply.Rule existing =
                         org.telegram.messenger.PengramAIAutoReply.rule(currentAccount, did);
                 showAIAutoRuleDialog(existing == null
-                        ? new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 30, 120) : existing);
+                        ? new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 2, 6) : existing);
                 break; // one explicit confirmation per selected chat
             }
             return true;
@@ -4745,10 +4829,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             try {
                 final int from = Integer.parseInt(min.getText().toString().trim());
                 final int to = Integer.parseInt(max.getText().toString().trim());
-                if (from < 10 || from > to || to > 600) throw new NumberFormatException();
+                if (from < 1 || from > to || to > 600) throw new NumberFormatException();
                 org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
                         rule.account, rule.dialogId, true, from, to));
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled())
+                    AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 180);
             } catch (NumberFormatException error) {
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
                         getString(R.string.PengramAIAutoRangeError)).show();
@@ -4870,6 +4956,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             public void onDone(String text) {
                 BulletinFactory.of(PengramSettingsActivity.this)
                         .createSimpleBulletin(R.raw.done, getString(R.string.PengramAICheckOk)).show();
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled()
+                        && !TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                        && !org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).isEmpty()) {
+                    promptEnableAutoReply();
+                }
             }
 
             @Override
@@ -4954,6 +5045,26 @@ public class PengramSettingsActivity extends UniversalFragment {
         });
     }
 
+    private void promptEnableAutoReply() {
+        if (getContext() == null || org.telegram.messenger.PengramAIAutoReply.enabled()) return;
+        if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                || !org.telegram.messenger.PengramAIAutoReply.canUseService()) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramAIAutoNeedsSetup)).show();
+            if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())) showAIAutoStyleDialog();
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(getString(R.string.PengramAIAutoMaster));
+        builder.setMessage(getString(R.string.PengramAIAutoWarning));
+        builder.setPositiveButton(getString(R.string.PengramAIAutoEnable), (d, w) -> {
+            org.telegram.messenger.PengramAIAutoReply.setEnabled(true);
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
     /** нажатия в разделе «Нейросети»; true — обработали */
     private boolean onAIClick(UItem item) {
         if (item.id >= BTN_AI_AUTO_RULE_BASE && item.id < BTN_AI_AUTO_RULE_BASE + 100) {
@@ -4991,23 +5102,18 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_AI_AUTO_MASTER: {
                 if (org.telegram.messenger.PengramAIAutoReply.enabled()) {
                     org.telegram.messenger.PengramAIAutoReply.setEnabled(false);
-                } else if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) || !org.telegram.messenger.PengramAIAutoReply.canUseService()) {
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramAIAutoNeedsSetup)).show();
-                    if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())) showAIAutoStyleDialog();
                 } else {
-                    final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-                    builder.setTitle(getString(R.string.PengramAIAutoMaster));
-                    builder.setMessage(getString(R.string.PengramAIAutoWarning));
-                    builder.setPositiveButton(getString(R.string.PengramAIAutoEnable), (d, w) -> {
-                        org.telegram.messenger.PengramAIAutoReply.setEnabled(true);
-                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
-                    });
-                    builder.setNegativeButton(getString(R.string.Cancel), null);
-                    showDialog(builder.create());
+                    promptEnableAutoReply();
                 }
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                 return true;
             }
+            case BTN_AI_AUTO_REFRESH:
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_AUTO_JUMP:
+                pengramJumpTo(R.string.PengramAIAutoWatching);
+                return true;
             case BTN_AI_AUTO_STYLE:
                 showAIAutoStyleDialog();
                 return true;
@@ -5033,7 +5139,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return true;
             case BTN_AI_AUTO_COOLDOWN:
                 showTextDialog(getString(R.string.PengramAIAutoCooldown),
-                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.cooldownMinutes()), "15", value -> {
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.cooldownMinutes()), "0", value -> {
                             try {
                                 org.telegram.messenger.PengramAIAutoReply.setCooldownMinutes(Integer.parseInt(value.trim()));
                                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
