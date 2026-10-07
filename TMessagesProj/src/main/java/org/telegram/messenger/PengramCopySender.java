@@ -1,5 +1,6 @@
 package org.telegram.messenger;
 
+import android.os.SystemClock;
 import android.text.TextUtils;
 
 import org.telegram.messenger.secretmedia.EncryptedFileInputStream;
@@ -528,10 +529,37 @@ public final class PengramCopySender {
                 candidates.add(attach);
                 candidates.add(attach + ".enc");
             }
+            final FileLoader loader = FileLoader.getInstance(account);
+            // getPathToMessage для ttl медиа отдаёт путь в общем кэше, но
+            // шифрованные файлы локальная загрузка кладёт в «типовые» папки
+            // (фото → image, видео → video, документы → document) — проверяем оба
             try {
-                final File plain = FileLoader.getInstance(account).getPathToMessage(message.messageOwner);
+                final File plain = loader.getPathToMessage(message.messageOwner);
                 if (plain != null) {
                     candidates.add(plain.getAbsolutePath() + ".enc");
+                }
+            } catch (Throwable ignore) {
+            }
+            try {
+                if (media.photo != null) {
+                    final TLRPC.PhotoSize sizeFull = FileLoader.getClosestPhotoSizeWithSize(
+                            media.photo.sizes, AndroidUtilities.getPhotoSize());
+                    if (sizeFull != null) {
+                        final File imageDirFile = loader.getPathToAttach(sizeFull);
+                        if (imageDirFile != null) {
+                            candidates.add(imageDirFile.getAbsolutePath() + ".enc");
+                        }
+                    }
+                }
+                if (media.document != null) {
+                    final File docFile = loader.getPathToAttach(media.document);
+                    if (docFile != null) {
+                        candidates.add(docFile.getAbsolutePath() + ".enc");
+                    }
+                    final File docCacheFile = loader.getPathToAttach(media.document, true);
+                    if (docCacheFile != null) {
+                        candidates.add(docCacheFile.getAbsolutePath() + ".enc");
+                    }
                 }
             } catch (Throwable ignore) {
             }
@@ -619,7 +647,16 @@ public final class PengramCopySender {
         }
     }
 
-    /** скачать вложение и позвать обратно, когда файл окажется на диске */
+    /**
+     * Скачать вложение и позвать обратно, когда файл окажется на диске.
+     *
+     * Важно: у FileLoader НЕТ события «файл готов» — fileLoaded/fileLoadFailed
+     * постит только ImageLoader, и они не про наши прямые загрузки. Раньше
+     * слушатели висели на событиях, которые не происходят, и каждая копия
+     * ждала полный таймаут. Поэтому здесь маленький опрашиватель: имя файла
+     * на диске появляется тогда и только тогда, когда загрузка завершена
+     * (промежуточные байты идут в .temp-файл).
+     */
     private static void download(int account, MessageObject message, Utilities.Callback<String> callback) {
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
         if (media == null) {
@@ -630,56 +667,54 @@ public final class PengramCopySender {
         final TLRPC.PhotoSize photoSize = media.photo != null
                 ? FileLoader.getClosestPhotoSizeWithSize(media.photo.sizes, AndroidUtilities.getPhotoSize())
                 : null;
-        final String fileName = document instanceof TLRPC.TL_document
-                ? FileLoader.getAttachFileName(document)
-                : (photoSize != null ? FileLoader.getAttachFileName(photoSize) : null);
-        if (TextUtils.isEmpty(fileName)) {
+        if (document == null && photoSize == null) {
             callback.run(null);
             return;
         }
 
-        final NotificationCenter center = NotificationCenter.getInstance(account);
-        final NotificationCenter.NotificationCenterDelegate[] holder = new NotificationCenter.NotificationCenterDelegate[1];
         final boolean[] finished = new boolean[1];
         final Runnable finish = () -> {
             if (finished[0]) {
                 return;
             }
             finished[0] = true;
-            if (holder[0] != null) {
-                center.removeObserver(holder[0], NotificationCenter.fileLoaded);
-                center.removeObserver(holder[0], NotificationCenter.fileLoadFailed);
-            }
             callback.run(localPath(account, message));
         };
 
-        holder[0] = (id, acc, args) -> {
-            if (args == null || args.length == 0 || !(args[0] instanceof String)) {
-                return;
-            }
-            if (fileName.equals(args[0])) {
-                finish.run();
-            }
-        };
-        center.addObserver(holder[0], NotificationCenter.fileLoaded);
-        center.addObserver(holder[0], NotificationCenter.fileLoadFailed);
-
         try {
-            if (document instanceof TLRPC.TL_document) {
+            if (document != null) {
                 FileLoader.getInstance(account).loadFile(document, message, FileLoader.PRIORITY_HIGH, 0);
-            } else if (photoSize != null) {
+            } else {
                 FileLoader.getInstance(account).loadFile(ImageLocation.getForObject(photoSize, media.photo),
                         message, null, FileLoader.PRIORITY_HIGH, 0);
-            } else {
-                finish.run();
-                return;
             }
         } catch (Throwable e) {
             FileLog.e(e);
             finish.run();
             return;
         }
-        AndroidUtilities.runOnUIThread(finish, DOWNLOAD_TIMEOUT);
+
+        final long deadline = SystemClock.elapsedRealtime() + DOWNLOAD_TIMEOUT;
+        Utilities.globalQueue.postRunnable(new Runnable() {
+            @Override
+            public void run() {
+                if (finished[0]) {
+                    return;
+                }
+                try {
+                    if (localPath(account, message) != null) {
+                        finish.run();
+                        return;
+                    }
+                } catch (Throwable ignore) {
+                }
+                if (SystemClock.elapsedRealtime() >= deadline) {
+                    finish.run();
+                    return;
+                }
+                Utilities.globalQueue.postRunnable(this, 250);
+            }
+        }, 250);
     }
 
     // ------------------------------------------------------------ мелочи
