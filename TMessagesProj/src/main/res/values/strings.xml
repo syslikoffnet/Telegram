@@ -12513,4 +12513,6 @@
     <string name="PengramVoiceCalls">Calls and video chats</string>
     <string name="PengramVoiceSourcesInfo">Calls and round videos are off by default. Only mono PCM16 microphone audio is supported; effects may add latency. If the device is too slow, processing stops until the next recording.</string>
     <string name="PengramVoiceGate">Noise gate · 0 = off</string>
+    <string name="PengramVoiceFormant">Timbre · 0 = neutral</string>
+    <string name="PengramVoiceEcho">Echo · 0 = off</string>
 </resources>

@@ -159,6 +159,8 @@ public class PengramConfig {
     public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
     public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
+    public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
+    public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
 
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
@@ -241,7 +243,7 @@ public class PengramConfig {
     public static boolean saveInBots = true;
     public static boolean saveReadDate = true;
     public static boolean saveLastOnline = true;
-    public static int voiceChangerMode;
+    public static volatile int voiceChangerMode;
     public static int voiceChangerPitch;
     public static int speedBoost = 1; // BOOST_FAST
     public static int mediaMaxSizeMb = 1024;   // 0 = без лимита
@@ -1780,6 +1782,8 @@ public class PengramConfig {
     public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, false); }
     public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, false); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
+    public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
+    public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
 
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }

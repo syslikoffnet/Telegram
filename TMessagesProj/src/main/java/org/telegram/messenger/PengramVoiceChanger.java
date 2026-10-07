@@ -94,6 +94,7 @@ public class PengramVoiceChanger {
     private static int slowFrames;
     private static boolean overloaded;
     private static float gateGain = 1f;
+    private static int frameFormant, frameEcho;
     private static float limiterGain = 1f;
     private static float dryEnv;
     private static float wetEnv;
@@ -142,6 +143,11 @@ public class PengramVoiceChanger {
         anonAllpass1.reset();
         anonAllpass2.reset();
         randomizeAnonymous();
+        if (PengramConfig.getVoiceChangerMode() == MODE_CUSTOM) {
+            final int formant = PengramConfig.getVoiceFormant();
+            formant1.setPeaking(sampleRate, 750f + formant * 35f, 1.0f, formant * 1.4f);
+            formant2.setPeaking(sampleRate, 2100f + formant * 75f, 1.3f, -formant * 0.8f);
+        }
         initialized = true;
     }
 
@@ -297,6 +303,8 @@ public class PengramVoiceChanger {
             final float basePitch = getPitchFactor(mode);
             final boolean anonymous = mode == MODE_ANONYMOUS;
             final int gate = PengramConfig.getVoiceGate();
+            frameFormant = PengramConfig.getVoiceFormant();
+            frameEcho = PengramConfig.getVoiceEcho();
 
             try {
             for (int i = 0; i < count; ++i) {
@@ -394,6 +402,18 @@ public class PengramVoiceChanger {
 
     private static float applyMode(int mode, float x, float dry) {
         switch (mode) {
+            case MODE_CUSTOM: {
+                if (frameFormant != 0) {
+                    x = formant2.process(formant1.process(x));
+                }
+                final int echoLevel = frameEcho;
+                if (echoLevel > 0) {
+                    final float delayed = echoRead(sampleRate / 6);
+                    echoWrite(x + delayed * 0.2f);
+                    x += delayed * echoLevel * 0.09f;
+                }
+                return x;
+            }
             case MODE_ANONYMOUS: {
                 // формантная окраска + фазовое скремблирование + шумовая подложка
                 x = formant1.process(x);

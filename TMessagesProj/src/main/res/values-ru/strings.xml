@@ -1541,4 +1541,6 @@
     <string name="PengramVoiceCalls">Звонки и видеочаты</string>
     <string name="PengramVoiceSourcesInfo">Звонки и кружочки по умолчанию выключены. Обрабатывается только моно PCM16; эффект может добавить задержку. На медленном устройстве обработка приостанавливается до следующей записи.</string>
     <string name="PengramVoiceGate">Шумоподавитель · 0 = выкл.</string>
+    <string name="PengramVoiceFormant">Тембр · 0 = без изменений</string>
+    <string name="PengramVoiceEcho">Эхо · 0 = выкл.</string>
 </resources>

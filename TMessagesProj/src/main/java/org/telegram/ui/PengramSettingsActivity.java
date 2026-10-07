@@ -2849,6 +2849,17 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
             ));
         }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceFormant)));
+            items.add(UItem.asIntSlideView(1, -6, PengramConfig.getVoiceFormant(), 6,
+                    value -> "" + value, value -> {
+                        PengramConfig.setIntValue(PengramConfig.KEY_VOICE_FORMANT, value);
+                        PengramVoiceChanger.reset();
+                    }));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceEcho)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceEcho(), 5,
+                    value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_ECHO, value)));
+        }
         if (mode == PengramVoiceChanger.MODE_ANONYMOUS) {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceAnonymousInfo)));
         } else {

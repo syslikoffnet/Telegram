@@ -45,6 +45,7 @@ public class SnowflakesEffect {
     private final CustomParticle[] customParticles = new CustomParticle[300];
     private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path customPath = new Path();
+    private static final char[] MATRIX_DIGITS = "0123456789".toCharArray();
     private long customTime;
     private int customMode = -1;
 
@@ -107,7 +108,7 @@ public class SnowflakesEffect {
                 canvas.drawPath(customPath, customPaint);
             } else if (mode == 2) {
                 customPaint.setTextSize(p.size * 3f);
-                canvas.drawText("0123456789".substring(i % 10, i % 10 + 1), 0, 0, customPaint);
+                canvas.drawText(MATRIX_DIGITS, i % 10, 1, 0, 0, customPaint);
             } else if (mode == 3) {
                 customPaint.setStrokeWidth(Math.max(1, p.size / 3));
                 canvas.drawLine(0, 0, -p.size / 3, p.size * 3, customPaint);
