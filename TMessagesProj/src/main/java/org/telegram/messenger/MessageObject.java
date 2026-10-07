@@ -11798,9 +11798,12 @@ public class MessageObject {
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
         if (PengramConfig.isBypassingForwardRestrictions()) {
-            // секретные и «размытые» сообщения пересылать нельзя и с обходом:
-            // объект получится битым, а протокол секретного чата это ломает
-            return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview()
+            // Одноразовые медиа (ttl_seconds) с обходом пересылать можно:
+            // SendMessagesHelper перехватит их и отправит копией с диска.
+            // Запрещены лишь секретные объекты и превью, размытые не по ttl.
+            final TLRPC.MessageMedia media = getMedia(messageOwner);
+            final boolean onceMedia = media != null && media.ttl_seconds != 0;
+            return !(messageOwner instanceof TLRPC.TL_message_secret) && (!needDrawBluredPreview() || onceMedia)
                     && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored();
         }
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;

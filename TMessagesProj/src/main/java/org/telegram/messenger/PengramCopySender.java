@@ -2,6 +2,7 @@ package org.telegram.messenger;
 
 import android.text.TextUtils;
 
+import org.telegram.messenger.secretmedia.EncryptedFileInputStream;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
@@ -9,6 +10,7 @@ import org.telegram.tgnet.TLRPC;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -289,8 +291,11 @@ public final class PengramCopySender {
         // Документ приоритетнее фото: у веб-страницы одновременно есть и обложка
         // (photo), и вложенный объект (document); забирать надо вместе с объектом,
         // иначе потеряем голос/видео/файл, который пользователь на самом деле видит.
-        final boolean hasDocument = media != null && media.document != null;
-        final boolean hasPhoto = media != null && media.photo != null;
+        // «пустые» заглушки — локально сгоревшее одноразовое медиа, файла нет
+        final boolean hasDocument = media != null && media.document != null
+                && !(media.document instanceof TLRPC.TL_documentEmpty);
+        final boolean hasPhoto = media != null && media.photo != null
+                && !(media.photo instanceof TLRPC.TL_photoEmpty);
 
         if (!hasDocument && !hasPhoto) {
             done.run(sendWithoutFile(account, message, dialogId));
@@ -496,7 +501,122 @@ public final class PengramCopySender {
         } catch (Throwable e) {
             FileLog.e(e);
         }
+        return localPathEncrypted(account, message);
+    }
+
+    /**
+     * Одноразовые медиа Telegram скачивает зашифрованными (cacheType 2):
+     * рядом с обычным именем лежит файл .enc, а его ключ — во внутреннем кэше.
+     * Отправка сырых байт такого файла даст собеседнику битую картинку.
+     * Поэтому снимаем шифрование во временный файл и работаем с ним.
+     */
+    private static String localPathEncrypted(int account, MessageObject message) {
+        try {
+            final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
+            if (media == null) {
+                return null;
+            }
+            final boolean ttl = media.ttl_seconds != 0;
+            final boolean secret = message.messageOwner instanceof TLRPC.TL_message_secret
+                    || DialogObject.isEncryptedDialog(message.getDialogId());
+            if (!ttl && !secret) {
+                return null;
+            }
+            final ArrayList<String> candidates = new ArrayList<>();
+            final String attach = message.messageOwner.attachPath;
+            if (!TextUtils.isEmpty(attach)) {
+                candidates.add(attach);
+                candidates.add(attach + ".enc");
+            }
+            try {
+                final File plain = FileLoader.getInstance(account).getPathToMessage(message.messageOwner);
+                if (plain != null) {
+                    candidates.add(plain.getAbsolutePath() + ".enc");
+                }
+            } catch (Throwable ignore) {
+            }
+            for (String candidate : candidates) {
+                final File file = candidate == null ? null : new File(candidate);
+                if (file == null || !file.exists() || file.length() == 0) {
+                    continue;
+                }
+                final String out = decryptToCache(file);
+                if (out != null) {
+                    return out;
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
         return null;
+    }
+
+    /** расшифровать .enc во временный файл в нашем кэше; null, если ключа нет */
+    private static String decryptToCache(File file) {
+        try {
+            final File keyDir = FileLoader.getInternalCacheDir();
+            // два имени встречаются в коде: FileLoadOperation пишет <имя>.key,
+            // ImageLoader — <имя>.enc.key; проверяем оба
+            final File[] keys = new File[]{
+                    new File(keyDir, file.getName() + ".key"),
+                    new File(keyDir, file.getName() + ".enc.key"),
+                    file.getName().endsWith(".enc")
+                            ? new File(keyDir, file.getName() + ".key")
+                            : null,
+            };
+            for (File key : keys) {
+                if (key == null || !key.exists() || key.length() < 48) {
+                    continue;
+                }
+                File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), "pengram_copy");
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                final File out = new File(dir, "dec_" + file.getName().replace(".enc", "")
+                        + "_" + System.currentTimeMillis());
+                try (InputStream in = new EncryptedFileInputStream(file, key);
+                     FileOutputStream o = new FileOutputStream(out)) {
+                    final byte[] buffer = new byte[64 * 1024];
+                    int read;
+                    int total = 0;
+                    while ((read = in.read(buffer)) > 0) {
+                        o.write(buffer, 0, read);
+                        total += read;
+                        if (total > 212 * 1024 * 1024) {
+                            break;   // потолок заливки, дальше здоровее не будет
+                        }
+                    }
+                    o.flush();
+                }
+                if (out.length() > 0 && looksLikeMedia(out)) {
+                    return out.getAbsolutePath();
+                }
+                //noinspection ResultOfMethodCallIgnored
+                out.delete();
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        return null;
+    }
+
+    /** санитарная проверка: похоже ли на медиа после снятия шифрования */
+    private static boolean looksLikeMedia(File file) {
+        try (FileInputStream in = new FileInputStream(file)) {
+            final byte[] head = new byte[12];
+            final int n = in.read(head);
+            if (n < 4) {
+                return false;
+            }
+            if (head[0] == (byte) 0xFF && head[1] == (byte) 0xD8) return true;              // JPEG
+            if (head[0] == (byte) 0x89 && head[1] == 0x50) return true;                    // PNG
+            if (head[0] == 0x47 && head[1] == 0x49 && head[2] == 0x46) return true;        // GIF
+            if (head[0] == 0x1A && head[1] == 0x45 && head[2] == (byte) 0xDF) return true; // WebM/MKV
+            if (n >= 8 && head[4] == 0x66 && head[5] == 0x74 && head[6] == 0x79 && head[7] == 0x70) return true; // MP4 "ftyp"
+            if (head[0] == 0x4F && head[1] == 0x67 && head[2] == 0x67 && head[3] == 0x53) return true; // Ogg
+            return false;
+        } catch (Throwable e) {
+            return false;
+        }
     }
 
     /** скачать вложение и позвать обратно, когда файл окажется на диске */

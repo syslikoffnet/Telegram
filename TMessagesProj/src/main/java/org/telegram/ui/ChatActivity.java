@@ -47393,10 +47393,14 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
+                // одноразовые медиа уходят копией с диска — пункт нужен
+                final boolean pengramOnceMedia = org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()
+                    && selectedObject.messageOwner != null && selectedObject.messageOwner.media != null
+                    && selectedObject.messageOwner.media.ttl_seconds != 0;
                 final boolean canForward = !selectedObject.isSponsored()
                     && !isQuickRepliesOrWelcomeMessagesMode()
                     && chatMode != MODE_SCHEDULED
-                    && (!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview())
+                    && ((!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview()) || pengramOnceMedia)
                     && !selectedObject.isLiveLocation()
                     && selectedObject.type != MessageObject.TYPE_PHONE_CALL
                     && !noforwards && selectedObject.type != MessageObject.TYPE_SHARING_OFFER
