@@ -28,6 +28,7 @@ import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramAntiCrash;
@@ -194,6 +195,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_RESET = 1707;
     private static final int BTN_AI_EDIT_SERVICE = 1708;
     private static final int BTN_AI_EDIT_ROLE = 1709;
+    private static final int BTN_AI_AUTO_MASTER = 1731;
+    private static final int BTN_AI_AUTO_STYLE = 1732;
+    private static final int BTN_AI_AUTO_ADD = 1733;
+    private static final int BTN_AI_AUTO_QUIET = 1734;
+    private static final int BTN_AI_AUTO_COOLDOWN = 1735;
+    private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
     private static final int BTN_AI_ROLE_BASE = 9500;
@@ -257,6 +264,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_LYRICS_CLEAR = 1430;
     private static final int BTN_PLAYER_STYLE = 1431;
     private static final int BTN_TRACK_FORWARD_MODE = 1446;
+    private static final int BTN_TRACK_CARD_FORMAT = 1447;
     private static final int BTN_QUICK_TILES = 1450;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
@@ -3035,6 +3043,17 @@ public class PengramSettingsActivity extends UniversalFragment {
                     getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
         }
         items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
+        items.add(UItem.asHeader(getString(R.string.PengramTrackCardSettings)));
+        items.add(UItem.asSettingsCell(BTN_TRACK_CARD_FORMAT, R.drawable.msg_share,
+                getString(R.string.PengramTrackCardFormat),
+                getString(PengramConfig.getTrackCardFormat() == PengramConfig.TRACK_CARD_IMAGE
+                        ? R.string.PengramTrackCardImage : R.string.PengramTrackCardText)));
+        items.add(checkInfo(PengramConfig.KEY_TRACK_CARD_LINK, true,
+                getString(R.string.PengramTrackCardLink), getString(R.string.PengramTrackCardLinkInfo)));
+        if (PengramConfig.getTrackCardFormat() == PengramConfig.TRACK_CARD_IMAGE) {
+            items.add(check(PengramConfig.KEY_TRACK_CARD_BRAND, true, getString(R.string.PengramTrackCardBrand)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramTrackCardInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramMusicMetaHeader)));
         items.add(checkInfo(PengramConfig.KEY_MUSIC_SMART_ARTIST, true,
                 getString(R.string.PengramMusicSmartArtist), getString(R.string.PengramMusicSmartArtistInfo)));
@@ -4054,6 +4073,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> PengramConfig.setLyricsAlign(value));
                 return;
             }
+            case BTN_TRACK_CARD_FORMAT: {
+                showChoicePicker(getString(R.string.PengramTrackCardFormat), new CharSequence[]{
+                        getString(R.string.PengramTrackCardImage), getString(R.string.PengramTrackCardText)
+                }, PengramConfig.getTrackCardFormat(), PengramConfig::setTrackCardFormat);
+                return;
+            }
             case BTN_TRACK_FORWARD_MODE: {
                 final CharSequence[] options = new CharSequence[]{
                         org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_ASK),
@@ -4555,8 +4580,133 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramAIAnswerInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramAIAutoHeader)));
+        items.add(UItem.asButton(BTN_AI_AUTO_MASTER, R.drawable.msg_bot,
+                getString(R.string.PengramAIAutoMaster), getString(org.telegram.messenger.PengramAIAutoReply.enabled()
+                        ? R.string.PengramAIAutoOn : R.string.PengramAIAutoOff)));
+        items.add(UItem.asButton(BTN_AI_AUTO_STYLE, R.drawable.msg_edit,
+                getString(R.string.PengramAIAutoStyle),
+                TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                        ? getString(R.string.PengramAIAutoNoStyle) : org.telegram.messenger.PengramAIAutoReply.style()));
+        items.add(UItem.asButton(BTN_AI_AUTO_QUIET, getString(R.string.PengramAIAutoQuiet),
+                org.telegram.messenger.PengramAIAutoReply.quietStart() + ":00–" +
+                        org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
+        items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
+                org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " min"));
+        items.add(UItem.asButton(BTN_AI_AUTO_ADD, R.drawable.msg_add, getString(R.string.PengramAIAutoAdd)));
+        final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> aiRules =
+                org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+        for (int i = 0; i < aiRules.size() && i < 100; ++i) {
+            final org.telegram.messenger.PengramAIAutoReply.Rule rule = aiRules.get(i);
+            items.add(UItem.asButton(BTN_AI_AUTO_RULE_BASE + i, aiChatName(rule.dialogId),
+                    rule.minSeconds + "–" + rule.maxSeconds + " " + getString(R.string.PengramAIAutoSeconds)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramAIAutoInfo)));
+
         items.add(UItem.asButton(BTN_AI_RESET, R.drawable.msg_reset, getString(R.string.PengramAIReset)).red());
         items.add(UItem.asShadow(getString(R.string.PengramAIResetInfo)));
+    }
+
+    private String aiChatName(long did) {
+        if (did < 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(-did);
+            return chat == null ? String.valueOf(did) : chat.title;
+        }
+        final TLRPC.User user = getMessagesController().getUser(did);
+        return user == null ? String.valueOf(did) : UserObject.getUserName(user);
+    }
+
+    private void showAIAutoStyleDialog() {
+        if (getContext() == null) return;
+        final EditTextBoldCursor field = new EditTextBoldCursor(getContext());
+        field.setText(org.telegram.messenger.PengramAIAutoReply.style());
+        field.setHint(getString(R.string.PengramAIAutoStyleHint));
+        field.setSingleLine(false);
+        field.setMaxLines(8);
+        field.setMinLines(4);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
+        field.setPadding(dp(22), dp(10), dp(22), dp(10));
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(getString(R.string.PengramAIAutoStyle));
+        builder.setMessage(getString(R.string.PengramAIAutoStyleInfo));
+        builder.setView(field);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            org.telegram.messenger.PengramAIAutoReply.setStyle(field.getText().toString());
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void showAIAutoPicker() {
+        final Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putBoolean("canSelectTopics", false);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        args.putBoolean("allowSwitchAccount", false);
+        final DialogsActivity picker = new DialogsActivity(args);
+        picker.setDelegate((fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            fragment.finishFragment();
+            for (org.telegram.messenger.MessagesStorage.TopicKey selected : dids) {
+                final long did = selected.dialogId;
+                final TLRPC.Chat chat = did < 0 ? getMessagesController().getChat(-did) : null;
+                final TLRPC.User user = did > 0 ? getMessagesController().getUser(did) : null;
+                if (did == 0 || did == UserConfig.getInstance(currentAccount).getClientUserId()
+                        || did < 0 && (chat == null || ChatObject.isChannelAndNotMegaGroup(chat)
+                                || !ChatObject.canSendPlain(chat))
+                        || did > 0 && (user == null || user.bot)) continue;
+                final org.telegram.messenger.PengramAIAutoReply.Rule existing =
+                        org.telegram.messenger.PengramAIAutoReply.rule(currentAccount, did);
+                showAIAutoRuleDialog(existing == null
+                        ? new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 30, 120) : existing);
+                break; // one explicit confirmation per selected chat
+            }
+            return true;
+        });
+        presentFragment(picker);
+    }
+
+    private void showAIAutoRuleDialog(org.telegram.messenger.PengramAIAutoReply.Rule rule) {
+        if (getContext() == null) return;
+        final LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(8));
+        final TextView label = new TextView(getContext());
+        label.setText(getString(R.string.PengramAIAutoRangeInfo));
+        label.setTextColor(Theme.getColor(Theme.key_dialogTextGray2, getResourceProvider()));
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        layout.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final EditTextBoldCursor min = aiField(getContext(), getString(R.string.PengramAIAutoMin),
+                String.valueOf(rule.minSeconds), layout);
+        final EditTextBoldCursor max = aiField(getContext(), getString(R.string.PengramAIAutoMax),
+                String.valueOf(rule.maxSeconds), layout);
+        min.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        max.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(aiChatName(rule.dialogId));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.PengramAIAutoEnableChat), (d, w) -> {
+            try {
+                final int from = Integer.parseInt(min.getText().toString().trim());
+                final int to = Integer.parseInt(max.getText().toString().trim());
+                if (from < 10 || from > to || to > 600) throw new NumberFormatException();
+                org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                        rule.account, rule.dialogId, true, from, to));
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            } catch (NumberFormatException error) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoRangeError)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        builder.setNeutralButton(getString(R.string.PengramAIAutoRemove), (d, w) -> {
+            org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                    rule.account, rule.dialogId, false, rule.minSeconds, rule.maxSeconds));
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
+        showDialog(builder.create());
     }
 
     /** список заготовок: выбрал шлюз — остались только ключ и модель */
@@ -4752,6 +4902,13 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** нажатия в разделе «Нейросети»; true — обработали */
     private boolean onAIClick(UItem item) {
+        if (item.id >= BTN_AI_AUTO_RULE_BASE && item.id < BTN_AI_AUTO_RULE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> rules =
+                    org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+            final int index = item.id - BTN_AI_AUTO_RULE_BASE;
+            if (index < rules.size()) showAIAutoRuleDialog(rules.get(index));
+            return true;
+        }
         if (item.id >= BTN_AI_SERVICE_BASE && item.id < BTN_AI_SERVICE_BASE + 100) {
             final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
             final int index = item.id - BTN_AI_SERVICE_BASE;
@@ -4777,6 +4934,58 @@ public class PengramSettingsActivity extends UniversalFragment {
             return true;
         }
         switch (item.id) {
+            case BTN_AI_AUTO_MASTER: {
+                if (org.telegram.messenger.PengramAIAutoReply.enabled()) {
+                    org.telegram.messenger.PengramAIAutoReply.setEnabled(false);
+                } else if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) || !org.telegram.messenger.PengramAI.hasService()) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramAIAutoNeedsSetup)).show();
+                    if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())) showAIAutoStyleDialog();
+                } else {
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+                    builder.setTitle(getString(R.string.PengramAIAutoMaster));
+                    builder.setMessage(getString(R.string.PengramAIAutoWarning));
+                    builder.setPositiveButton(getString(R.string.PengramAIAutoEnable), (d, w) -> {
+                        org.telegram.messenger.PengramAIAutoReply.setEnabled(true);
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    });
+                    builder.setNegativeButton(getString(R.string.Cancel), null);
+                    showDialog(builder.create());
+                }
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            }
+            case BTN_AI_AUTO_STYLE:
+                showAIAutoStyleDialog();
+                return true;
+            case BTN_AI_AUTO_ADD:
+                showAIAutoPicker();
+                return true;
+            case BTN_AI_AUTO_QUIET:
+                showTextDialog(getString(R.string.PengramAIAutoQuiet),
+                        org.telegram.messenger.PengramAIAutoReply.quietStart() + "-" +
+                        org.telegram.messenger.PengramAIAutoReply.quietEnd(), "23-8", value -> {
+                            try {
+                                final String[] parts = value.trim().split("-");
+                                final int from = Integer.parseInt(parts[0]);
+                                final int to = Integer.parseInt(parts[1]);
+                                if (from < 0 || from > 23 || to < 0 || to > 23) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setQuietHours(from, to);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (Exception ignore) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoQuietError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_AUTO_COOLDOWN:
+                showTextDialog(getString(R.string.PengramAIAutoCooldown),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.cooldownMinutes()), "15", value -> {
+                            try {
+                                org.telegram.messenger.PengramAIAutoReply.setCooldownMinutes(Integer.parseInt(value.trim()));
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException ignore) {}
+                        });
+                return true;
             case BTN_AI_EDIT_SERVICE:
                 showAIServiceDialog(org.telegram.messenger.PengramAI.active());
                 return true;

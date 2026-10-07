@@ -238,18 +238,29 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         queueButton.setVisibility(compact ? View.GONE : View.VISIBLE);
         topBar.addView(queueButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 54, 0));
 
-        // Карточка текущего трека: превью и выбор картинки или текста.
+        // One tap sends the configured card into THIS chat. Long tap lets the
+        // user preview and choose image or text just for this send.
         final ImageView shareCardButton = new ImageView(context);
         shareCardButton.setScaleType(ImageView.ScaleType.CENTER);
         shareCardButton.setImageResource(R.drawable.msg_share);
         shareCardButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         shareCardButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(20)));
         shareCardButton.setContentDescription(getString(R.string.PengramNowPlayingShare));
+        shareCardButton.setVisibility(PengramNowPlayingCard.currentChat() == null ? View.GONE : View.VISIBLE);
         shareCardButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing != null && playing.isMusic()) {
-                PengramNowPlayingCard.show(context, resourcesProvider, playing);
+                final android.graphics.Bitmap visible = coverView == null ? null : coverView.getImageReceiver().getBitmap();
+                PengramNowPlayingCard.send(context, resourcesProvider, playing, visible, PengramConfig.getTrackCardFormat());
             }
+        });
+        shareCardButton.setOnLongClickListener(v -> {
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing != null && playing.isMusic()) {
+                final android.graphics.Bitmap visible = coverView == null ? null : coverView.getImageReceiver().getBitmap();
+                PengramNowPlayingCard.show(context, resourcesProvider, playing, visible);
+            }
+            return true;
         });
         topBar.addView(shareCardButton, LayoutHelper.createFrame(42, 42,
                 Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, PengramConfig.isTrackForwardButton() ? 146 : 100, 0));
@@ -292,8 +303,14 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         coverView.getImageReceiver().setDelegate((receiver, set, thumb, memCache) -> {
             if (set) {
                 hideEmptyCover();
+                final android.graphics.Bitmap bitmap = receiver.getBitmap();
+                if (bitmap != null && !bitmap.isRecycled()) {
+                    backgroundView.setCover(bitmap);
+                }
             } else {
-                applyEmptyCover();
+                // A request is still in flight. Replacing the receiver image
+                // here cancels that request and leaves a false "missing" cover.
+                applyEmptyCover(true);
             }
         });
         lyricsContainer = new FrameLayout(context);
@@ -1419,11 +1436,20 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
     }
 
+    private String displayedCoverKey;
+
     private void updateCover(MessageObject messageObject) {
+        final String key = org.telegram.messenger.PengramCovers.keyFor(messageObject);
+        if (!TextUtils.equals(key, displayedCoverKey)) {
+            displayedCoverKey = key;
+            // Don't share the previous track's artwork while the new one loads.
+            coverView.setImageDrawable(null);
+            smallCoverView.setImageDrawable(null);
+        }
         final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
         applyCoverShape();
-        if (audioInfo != null && audioInfo.getCover() != null) {
-            applyCoverBitmap(audioInfo.getCover());
+        if (audioInfo != null && (audioInfo.getCover() != null || audioInfo.getSmallCover() != null)) {
+            applyCoverBitmap(audioInfo.getCover() != null ? audioInfo.getCover() : audioInfo.getSmallCover());
             return;
         }
         final android.graphics.Bitmap cached = org.telegram.messenger.PengramCovers.getCached(messageObject);
@@ -1610,9 +1636,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         coverView.setVisibility((penguin && !pending) || (hide && !pending) ? View.GONE : View.VISIBLE);
         if (!penguin && !hide) {
+            coverView.setBackground(emptyCoverBackground(coverCornerRadius()));
+        }
+        if (!pending && !penguin && !hide) {
             coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
         }
-        if (smallCoverView.getVisibility() != View.GONE || !hide) {
+        if (!pending && (smallCoverView.getVisibility() != View.GONE || !hide)) {
             if (hide) {
                 smallCoverView.setVisibility(View.GONE);
             } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
@@ -1676,6 +1705,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
         }
         coverView.setVisibility(View.VISIBLE);
+        coverView.setBackground(null);
         if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
             smallCoverView.setVisibility(View.VISIBLE);
         }

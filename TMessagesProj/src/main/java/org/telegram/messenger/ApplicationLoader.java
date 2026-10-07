@@ -272,6 +272,9 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+        // Observer only: by default it cannot send until master and each chat
+        // are explicitly enabled in AI settings.
+        PengramAIAutoReply.registerAll();
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();

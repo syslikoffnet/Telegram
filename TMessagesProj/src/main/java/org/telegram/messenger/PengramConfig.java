@@ -1354,6 +1354,21 @@ public class PengramConfig {
         putInt("trackForwardMode", mode < TRACK_FORWARD_ASK || mode > TRACK_FORWARD_WITH_AUTHOR ? TRACK_FORWARD_ASK : mode);
     }
 
+    // The share-card button sends to the currently open writable chat only.
+    public static final String KEY_TRACK_CARD_FORMAT = "trackCardFormat";
+    public static final String KEY_TRACK_CARD_LINK = "trackCardLink";
+    public static final String KEY_TRACK_CARD_BRAND = "trackCardBrand";
+    public static final int TRACK_CARD_IMAGE = 0;
+    public static final int TRACK_CARD_TEXT = 1;
+    public static int getTrackCardFormat() {
+        return getIntCached(KEY_TRACK_CARD_FORMAT, TRACK_CARD_IMAGE) == TRACK_CARD_TEXT ? TRACK_CARD_TEXT : TRACK_CARD_IMAGE;
+    }
+    public static void setTrackCardFormat(int format) {
+        putInt(KEY_TRACK_CARD_FORMAT, format == TRACK_CARD_TEXT ? TRACK_CARD_TEXT : TRACK_CARD_IMAGE);
+    }
+    public static boolean isTrackCardLink() { return getBool(KEY_TRACK_CARD_LINK, true); }
+    public static boolean isTrackCardBrand() { return getBool(KEY_TRACK_CARD_BRAND, true); }
+
     // ------------------------------- пункты меню чата -------------------------------
 
     public static final int CHAT_ITEM_PENGRAM = 1;

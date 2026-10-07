@@ -7,7 +7,8 @@ import android.util.LruCache;
 import org.telegram.messenger.audioinfo.AudioInfo;
 
 import java.io.File;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,8 +30,7 @@ public class PengramCovers {
         }
     };
 
-    private static final HashSet<String> loading = new HashSet<>();
-    private static final HashSet<String> missing = new HashSet<>();
+    private static final HashMap<String, ArrayList<Callback>> loading = new HashMap<>();
 
     private static final ExecutorService pool = Executors.newFixedThreadPool(2, runnable -> {
         final Thread thread = new Thread(runnable, "PengramCovers");
@@ -72,19 +72,21 @@ public class PengramCovers {
             callback.onCover(key, cached);
             return;
         }
+        final File file = pathOf(messageObject);
+        // A track can be streamed before its file is downloaded. Never cache
+        // "missing" permanently: retry after the file finishes downloading.
+        if (file == null) {
+            return;
+        }
         synchronized (loading) {
-            if (missing.contains(key) || loading.contains(key)) {
+            final ArrayList<Callback> waiting = loading.get(key);
+            if (waiting != null) {
+                waiting.add(callback);
                 return;
             }
-            loading.add(key);
-        }
-        final File file = pathOf(messageObject);
-        if (file == null) {
-            synchronized (loading) {
-                loading.remove(key);
-                missing.add(key);
-            }
-            return;
+            final ArrayList<Callback> callbacks = new ArrayList<>();
+            callbacks.add(callback);
+            loading.put(key, callbacks);
         }
         pool.execute(() -> {
             Bitmap bitmap = null;
@@ -100,15 +102,21 @@ public class PengramCovers {
             }
             final Bitmap result = bitmap;
             AndroidUtilities.runOnUIThread(() -> {
+                final ArrayList<Callback> waiting;
                 synchronized (loading) {
-                    loading.remove(key);
-                    if (result == null) {
-                        missing.add(key);
-                    }
+                    waiting = loading.remove(key);
                 }
                 if (result != null && !result.isRecycled()) {
                     cache.put(key, result);
-                    callback.onCover(key, result);
+                    if (waiting != null) {
+                        for (Callback listener : waiting) {
+                            try {
+                                listener.onCover(key, result);
+                            } catch (Throwable error) {
+                                FileLog.e(error);
+                            }
+                        }
+                    }
                 }
             });
         });
@@ -132,8 +140,6 @@ public class PengramCovers {
 
     public static void clear() {
         cache.evictAll();
-        synchronized (loading) {
-            missing.clear();
-        }
+
     }
 }
