@@ -192,6 +192,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_HISTORY = 1705;
     private static final int BTN_AI_DEPTH = 1706;
     private static final int BTN_AI_RESET = 1707;
+    private static final int BTN_AI_EDIT_SERVICE = 1708;
+    private static final int BTN_AI_EDIT_ROLE = 1709;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
     private static final int BTN_AI_ROLE_BASE = 9500;
@@ -4449,11 +4451,56 @@ public class PengramSettingsActivity extends UniversalFragment {
         return service == null ? getString(R.string.PengramAIEmptyValue) : service.title;
     }
 
+    private FrameLayout aiCurrentCardContainer;
+    private LinearLayout aiCurrentCard;
+    private TextView aiCurrentTitle;
+    private TextView aiCurrentDetail;
+
+    /** A compact, always-visible summary of the global configuration. */
+    private void addAICurrentCard(ArrayList<UItem> items) {
+        if (getContext() == null) {
+            return;
+        }
+        if (aiCurrentCard == null) {
+            aiCurrentCardContainer = new FrameLayout(getContext());
+            aiCurrentCard = new LinearLayout(getContext());
+            aiCurrentCard.setBackground(Theme.createRoundRectDrawable(dp(16),
+                    Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.09f)));
+            aiCurrentCardContainer.addView(aiCurrentCard, LayoutHelper.createFrame(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 8, 16, 8));
+            aiCurrentCard.setOrientation(LinearLayout.VERTICAL);
+            aiCurrentCard.setPadding(dp(20), dp(15), dp(20), dp(15));
+            final TextView eyebrow = new TextView(getContext());
+            eyebrow.setText(getString(R.string.PengramAICurrentLabel));
+            eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+            eyebrow.setTypeface(AndroidUtilities.bold());
+            eyebrow.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+            aiCurrentCard.addView(eyebrow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiCurrentTitle = new TextView(getContext());
+            aiCurrentTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
+            aiCurrentTitle.setTypeface(AndroidUtilities.bold());
+            aiCurrentTitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            aiCurrentCard.addView(aiCurrentTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 0));
+            aiCurrentDetail = new TextView(getContext());
+            aiCurrentDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            aiCurrentDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+            aiCurrentCard.addView(aiCurrentDetail, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 5, 0, 0));
+        }
+        final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
+        final org.telegram.messenger.PengramAIRoles.Role role = org.telegram.messenger.PengramAIRoles.active();
+        aiCurrentTitle.setText((service == null ? getString(R.string.PengramAIEmptyValue) : service.title)
+                + "  ·  " + role.title);
+        aiCurrentDetail.setText(getString(R.string.PengramAICurrentDetail));
+        items.add(UItem.asCustom(aiCurrentCardContainer));
+        items.add(UItem.asShadow(null));
+    }
+
     /** Экран «Нейросети»: свои сервисы вместо встроенных, роли и вид ответа */
     private void fillAI(ArrayList<UItem> items) {
         final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
         final String activeId = org.telegram.messenger.PengramAI.activeId();
 
+        addAICurrentCard(items);
         items.add(UItem.asHeader(getString(R.string.PengramAIServices)));
         if (services.isEmpty()) {
             items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
@@ -4466,6 +4513,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                         .setChecked(active));
             }
         }
+        if (!services.isEmpty()) {
+            items.add(UItem.asButton(BTN_AI_EDIT_SERVICE, R.drawable.msg_edit, getString(R.string.PengramAIEditService)));
+        }
         items.add(UItem.asButton(BTN_AI_ADD_SERVICE, R.drawable.msg_add, getString(R.string.PengramAIAddService)));
         items.add(UItem.asShadow(getString(R.string.PengramAIServicesInfo)));
 
@@ -4474,8 +4524,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         final String activeRole = org.telegram.messenger.PengramAIRoles.activeId();
         for (int i = 0; i < roles.size(); i++) {
             final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
-            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title)
+            final String preview = role.prompt.replace('\n', ' ');
+            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title,
+                    preview.length() > 95 ? preview.substring(0, 95) + "…" : preview)
                     .setChecked(TextUtils.equals(role.id, activeRole)));
+        }
+        final org.telegram.messenger.PengramAIRoles.Role chosenRole = org.telegram.messenger.PengramAIRoles.active();
+        if (!chosenRole.builtin) {
+            items.add(UItem.asButton(BTN_AI_EDIT_ROLE, R.drawable.msg_edit, getString(R.string.PengramAIEditRole)));
         }
         items.add(UItem.asButton(BTN_AI_ADD_ROLE, R.drawable.msg_add, getString(R.string.PengramAIAddRole)));
         items.add(UItem.asShadow(getString(R.string.PengramAIRolesInfo)));
@@ -4492,7 +4548,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_AS_QUOTE, false)));
         items.add(tgCheckInfo(BTN_AI_HISTORY, getString(R.string.PengramAIHistory), getString(R.string.PengramAIHistoryInfo),
                 org.telegram.messenger.PengramAI::isHistory,
-                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_HISTORY, true)));
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_HISTORY, false)));
         if (org.telegram.messenger.PengramAI.isHistory()) {
             items.add(UItem.asButton(BTN_AI_DEPTH, getString(R.string.PengramAIDepth),
                     String.valueOf(org.telegram.messenger.PengramAI.historyDepth())));
@@ -4562,6 +4618,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 source == null ? "" : source.model, layout);
         final EditTextBoldCursor key = aiField(context, getString(R.string.PengramAIFieldKey),
                 source == null ? "" : source.apiKey, layout);
+        key.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        key.setSelection(key.length());
 
         final AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(getString(editing ? R.string.PengramAIEditService : R.string.PengramAIAddService));
@@ -4632,10 +4690,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         final EditTextBoldCursor prompt = aiField(context, getString(R.string.PengramAIFieldPrompt),
                 source == null ? "" : source.prompt, layout);
         prompt.setSingleLine(false);
-        prompt.setMaxLines(6);
+        prompt.setMaxLines(10);
 
         final AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(getString(R.string.PengramAIAddRole));
+        builder.setTitle(getString(source == null ? R.string.PengramAIAddRole : R.string.PengramAIEditRole));
         builder.setView(layout);
         builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
             final String name = title.getText().toString().trim();
@@ -4699,11 +4757,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int index = item.id - BTN_AI_SERVICE_BASE;
             if (index < services.size()) {
                 final org.telegram.messenger.PengramAI.Service service = services.get(index);
-                if (TextUtils.equals(service.id, org.telegram.messenger.PengramAI.activeId())) {
-                    showAIServiceDialog(service);   // повторное нажатие — правка
-                } else {
-                    org.telegram.messenger.PengramAI.setActive(service.id);
-                }
+                org.telegram.messenger.PengramAI.setActive(service.id);
                 if (listView != null && listView.adapter != null) {
                     listView.adapter.update(true);
                 }
@@ -4715,11 +4769,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int index = item.id - BTN_AI_ROLE_BASE;
             if (index < roles.size()) {
                 final org.telegram.messenger.PengramAIRoles.Role role = roles.get(index);
-                if (TextUtils.equals(role.id, org.telegram.messenger.PengramAIRoles.activeId()) && !role.builtin) {
-                    showAIRoleDialog(role);
-                } else {
-                    org.telegram.messenger.PengramAIRoles.setActive(role.id);
-                }
+                org.telegram.messenger.PengramAIRoles.setActive(role.id);
                 if (listView != null && listView.adapter != null) {
                     listView.adapter.update(true);
                 }
@@ -4727,6 +4777,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             return true;
         }
         switch (item.id) {
+            case BTN_AI_EDIT_SERVICE:
+                showAIServiceDialog(org.telegram.messenger.PengramAI.active());
+                return true;
+            case BTN_AI_EDIT_ROLE:
+                final org.telegram.messenger.PengramAIRoles.Role editingRole = org.telegram.messenger.PengramAIRoles.active();
+                if (!editingRole.builtin) {
+                    showAIRoleDialog(editingRole);
+                }
+                return true;
             case BTN_AI_ADD_SERVICE:
                 showAIPresets();
                 return true;

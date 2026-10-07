@@ -5066,6 +5066,19 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         ItemOptions options = ItemOptions.makeOptions(this, resourcesProvider, sendButton);
 
+        // Work on the unsent text in place. This is a preview action, not a send action.
+        if (parentFragment != null && audioToSend == null && richDraftMessage == null
+                && messageEditText != null && !TextUtils.isEmpty(messageEditText.getTextToUse().toString().trim())) {
+            options.add(R.drawable.msg_bot, getString(R.string.PengramAIDraftAction), () -> {
+                final String draft = messageEditText.getText().toString();
+                if (messageSendPreview != null) {
+                    messageSendPreview.dismissInstant();
+                    messageSendPreview = null;
+                }
+                AndroidUtilities.runOnUIThread(() -> parentFragment.askPengramAIForDraft(draft), 60);
+            });
+        }
+
         final boolean self = parentFragment != null && UserObject.isUserSelf(parentFragment.getCurrentUser());
         boolean scheduleButtonValue = parentFragment != null && parentFragment.canScheduleMessage();
         boolean sendWithoutSoundButtonValue = !(self || slowModeTimer > 0 && !isInScheduleMode());

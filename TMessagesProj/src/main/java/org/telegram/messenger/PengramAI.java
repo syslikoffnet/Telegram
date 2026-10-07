@@ -254,7 +254,7 @@ public final class PengramAI {
     }
 
     public static boolean isHistory() {
-        return getBool(KEY_HISTORY, true);
+        return getBool(KEY_HISTORY, false);
     }
 
     public static int historyDepth() {

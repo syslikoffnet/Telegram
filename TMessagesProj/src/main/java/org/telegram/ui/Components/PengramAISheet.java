@@ -36,6 +36,10 @@ public class PengramAISheet extends BottomSheet {
         void insert(CharSequence text, boolean asQuote);
     }
 
+    public interface OnReplace {
+        boolean replace(CharSequence text, boolean asQuote);
+    }
+
     private final TextView answerView;
     private final TextView statusView;
     private final ScrollView scrollView;
@@ -46,7 +50,7 @@ public class PengramAISheet extends BottomSheet {
 
     public PengramAISheet(Context context, Theme.ResourcesProvider resourcesProvider,
                           CharSequence source, PengramAIRoles.Role role,
-                          List<PengramAIClient.Turn> turns, OnInsert onInsert) {
+                          List<PengramAIClient.Turn> turns, OnInsert onInsert, OnReplace onReplace) {
         super(context, false, resourcesProvider);
         setApplyBottomPadding(false);
 
@@ -59,13 +63,14 @@ public class PengramAISheet extends BottomSheet {
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
         title.setTypeface(AndroidUtilities.bold());
         title.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
-        title.setText(role != null ? role.title : getString(R.string.PengramAITitle));
+        title.setText(getString(R.string.PengramAIResultTitle));
         root.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         statusView = new TextView(context);
         statusView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         statusView.setTextColor(getThemedColor(Theme.key_dialogTextGray3));
-        statusView.setText(service == null ? getString(R.string.PengramAINoService) : service.summary());
+        statusView.setText((service == null ? getString(R.string.PengramAINoService) : service.title) + "  ·  " +
+                (role == null ? "" : role.title));
         root.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 10));
 
         // исходный текст показываем, только если не включено «показывать один ответ»
@@ -94,10 +99,25 @@ public class PengramAISheet extends BottomSheet {
         root.addView(scrollView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
 
         buttons = new LinearLayout(context);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setOrientation(onReplace == null ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
         buttons.setVisibility(View.GONE);
         root.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
 
+        if (onReplace != null) {
+            addButton(context, getString(R.string.PengramAIReplaceDraft), () -> {
+                if (onReplace.replace(answer.toString(), PengramAI.isAsQuote())) {
+                    dismiss();
+                } else {
+                    statusView.setText(getString(R.string.PengramAIDraftChanged));
+                }
+            });
+        }
+        if (onInsert != null) {
+            addButton(context, getString(onReplace == null ? R.string.PengramAIInsert : R.string.PengramAIAppendDraft), () -> {
+                onInsert.insert(answer.toString(), PengramAI.isAsQuote());
+                dismiss();
+            });
+        }
         addButton(context, getString(R.string.Copy), () -> {
             AndroidUtilities.addToClipboard(answer.toString());
             if (containerView instanceof android.widget.FrameLayout) {
@@ -105,12 +125,6 @@ public class PengramAISheet extends BottomSheet {
                         .createSimpleBulletin(R.raw.copy, getString(R.string.TextCopied)).show();
             }
         });
-        if (onInsert != null) {
-            addButton(context, getString(R.string.PengramAIInsert), () -> {
-                onInsert.insert(answer.toString(), PengramAI.isAsQuote());
-                dismiss();
-            });
-        }
 
         final FrameLayout contentRoot = new FrameLayout(context);
         contentRoot.addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
@@ -125,14 +139,21 @@ public class PengramAISheet extends BottomSheet {
         button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         button.setTypeface(AndroidUtilities.bold());
         button.setGravity(Gravity.CENTER);
-        button.setTextColor(getThemedColor(Theme.key_featuredStickers_buttonText));
+        final boolean primary = buttons.getChildCount() == 0;
+        final int accent = getThemedColor(Theme.key_featuredStickers_addButton);
+        button.setTextColor(getThemedColor(primary ? Theme.key_featuredStickers_buttonText : Theme.key_dialogTextBlack));
         button.setBackground(Theme.AdaptiveRipple.filledRect(
-                getThemedColor(Theme.key_featuredStickers_addButton), 8));
+                primary ? accent : Theme.multAlpha(accent, 0.13f), 10));
         button.setPadding(dp(14), dp(10), dp(14), dp(10));
         button.setText(text);
         button.setOnClickListener(v -> action.run());
-        buttons.addView(button, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f,
-                buttons.getChildCount() == 0 ? 0 : 8, 0, 0, 0));
+        if (buttons.getOrientation() == LinearLayout.VERTICAL) {
+            buttons.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44,
+                    0, buttons.getChildCount() == 0 ? 0 : 8, 0, 0));
+        } else {
+            buttons.addView(button, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f,
+                    buttons.getChildCount() == 0 ? 0 : 8, 0, 0, 0));
+        }
     }
 
     private void request(PengramAIRoles.Role role, List<PengramAIClient.Turn> turns) {
@@ -160,8 +181,12 @@ public class PengramAISheet extends BottomSheet {
                             answer.append(text);
                             answerView.setText(text);
                         }
-                        statusView.setText(service == null ? "" : service.summary());
-                        buttons.setVisibility(View.VISIBLE);
+                        statusView.setText((service == null ? "" : service.title) + "  ·  " +
+                                (role == null ? "" : role.title));
+                        buttons.setVisibility(answer.length() == 0 ? View.GONE : View.VISIBLE);
+                        if (answer.length() == 0) {
+                            answerView.setText(getString(R.string.PengramAIErrorEmpty));
+                        }
                     }
 
                     @Override
