@@ -146,7 +146,8 @@ public final class PengramNowPlayingCard {
             String username = chat == null ? null : ChatObject.getPublicUsername(chat);
             if (!TextUtils.isEmpty(username)) return "https://t.me/" + username + "/" + track.getId();
         }
-        return "https://music.youtube.com/search?q=" + Uri.encode(artist + " " + title);
+        return "https://music.youtube.com/search?q=" + Uri.encode(
+                track.getMusicAuthor() + " " + track.getMusicTitle());
     }
 
     private static Bitmap render(String title, String artist, Bitmap cover) {
@@ -164,7 +165,9 @@ public final class PengramNowPlayingCard {
         p.setAlpha(255);
         if (cover != null && !cover.isRecycled()) {
             int save = c.save();
-            c.clipRoundRect(art, 28, 28);
+            android.graphics.Path clip = new android.graphics.Path();
+            clip.addRoundRect(art, 28, 28, android.graphics.Path.Direction.CW);
+            c.clipPath(clip);
             c.drawBitmap(cover, null, art, p);
             c.restoreToCount(save);
         } else {
