@@ -10,6 +10,8 @@ import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.Handler;
+import android.os.Looper;
 import android.graphics.Shader;
 import android.net.Uri;
 import android.text.TextPaint;
@@ -35,10 +37,20 @@ import org.telegram.ui.ActionBar.Theme;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Native, self-contained share card for the track in Pengram's own player. */
 public final class PengramNowPlayingCard {
     private PengramNowPlayingCard() {}
+    private static final ExecutorService renderQueue = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "TrackCardRenderer");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final Handler main = new Handler(Looper.getMainLooper());
+    private static final AtomicBoolean sending = new AtomicBoolean();
 
     /** Only a real, writable chat may expose the send button. */
     public static org.telegram.ui.ChatActivity currentChat() {
@@ -86,33 +98,92 @@ public final class PengramNowPlayingCard {
                     noRights(context, resourcesProvider);
                     return;
                 }
-                final Bitmap cover = resolveCover(track, visibleCover);
-                final Bitmap card = render(title, artist, cover);
-                final File folder = new File(context.getCacheDir(), "pengram_cards");
-                if (!folder.exists() && !folder.mkdirs()) throw new java.io.IOException("Cannot create share cache");
-                final File[] old = folder.listFiles();
-                if (old != null) for (File stale : old) {
-                    if (System.currentTimeMillis() - stale.lastModified() > 86400000L) stale.delete();
+                if (!sending.compareAndSet(false, true)) return;
+                final long topic = chat.getTopicId();
+                final MessageObject replyTop = chat.getThreadMessage();
+                final org.telegram.messenger.SendMessageChatArguments sendArgs = chat.getMessageChatSendParams();
+                final Bitmap existing = resolveCover(track, visibleCover);
+                final AtomicBoolean dispatched = new AtomicBoolean();
+                final java.util.function.Consumer<Bitmap> prepare = artwork -> {
+                    if (!dispatched.compareAndSet(false, true)) return;
+                    try {
+                        renderQueue.execute(() -> {
+                            File file = null;
+                            try {
+                                Bitmap card = render(title, artist, artwork, 720);
+                                try {
+                                    File folder = new File(context.getCacheDir(), "pengram_cards");
+                                    if (!folder.exists() && !folder.mkdirs()) throw new java.io.IOException("Cannot create share cache");
+                                    File[] stale = folder.listFiles();
+                                    if (stale != null) for (File old : stale) {
+                                        if (System.currentTimeMillis() - old.lastModified() > 86400000L) old.delete();
+                                    }
+                                    file = new File(folder, "track_" + System.nanoTime() + ".jpg");
+                                    try (FileOutputStream stream = new FileOutputStream(file)) {
+                                        if (!card.compress(Bitmap.CompressFormat.JPEG, 88, stream)) throw new java.io.IOException("JPEG encode failed");
+                                    }
+                                } finally {
+                                    card.recycle();
+                                }
+                                final File ready = file;
+                                main.post(() -> {
+                                    try {
+                                        if (currentChat() != chat || chat.getDialogId() != did || chat.getTopicId() != topic) {
+                                            ready.delete();
+                                            return;
+                                        }
+                                        org.telegram.messenger.SendMessagesHelper.prepareSendingPhoto(
+                                                org.telegram.messenger.AccountInstance.getInstance(account), ready.getAbsolutePath(), null,
+                                                did, null, replyTop, null, caption, null, null, null, 0, null,
+                                                true, 0, chat.getChatMode(), sendArgs);
+                                        org.telegram.ui.Components.BulletinFactory.of(chat)
+                                                .createSimpleBulletin(R.raw.forward, getString(R.string.PengramNowPlayingSent)).show();
+                                    } catch (Throwable error) {
+                                        FileLog.e(error);
+                                        ready.delete();
+                                        showError(context, resourcesProvider);
+                                    } finally {
+                                        sending.set(false);
+                                    }
+                                });
+                            } catch (Throwable error) {
+                                FileLog.e(error);
+                                if (file != null) file.delete();
+                                main.post(() -> {
+                                    sending.set(false);
+                                    showError(context, resourcesProvider);
+                                });
+                            }
+                        });
+                    } catch (Throwable error) {
+                        sending.set(false);
+                        FileLog.e(error);
+                        showError(context, resourcesProvider);
+                    }
+                };
+                if (existing != null) {
+                    prepare.accept(existing);
+                } else {
+                    // The file may still be downloading. Wait briefly for its cover; never block sending.
+                    PengramCovers.request(track, (key, bitmap) -> {
+                        if (TextUtils.equals(key, PengramCovers.keyFor(track))) prepare.accept(bitmap);
+                    });
+                    main.postDelayed(() -> prepare.accept(resolveCover(track, null)), 450);
                 }
-                final File file = new File(folder, "track_" + System.nanoTime() + ".png");
-                try (FileOutputStream stream = new FileOutputStream(file)) {
-                    if (!card.compress(Bitmap.CompressFormat.PNG, 100, stream)) throw new java.io.IOException("PNG encode failed");
-                } finally {
-                    card.recycle();
-                }
-                org.telegram.messenger.SendMessagesHelper.prepareSendingPhoto(
-                        org.telegram.messenger.AccountInstance.getInstance(account), file.getAbsolutePath(), null,
-                        did, null, chat.getThreadMessage(), null, caption, null, null, null, 0, null,
-                        true, 0, chat.getChatMode(), chat.getMessageChatSendParams());
+                return;
             }
             org.telegram.ui.Components.BulletinFactory.of(chat)
                     .createSimpleBulletin(R.raw.forward, getString(R.string.PengramNowPlayingSent)).show();
         } catch (Throwable error) {
             FileLog.e(error);
-            new org.telegram.ui.ActionBar.AlertDialog.Builder(context, resourcesProvider)
-                    .setMessage(getString(R.string.PengramNowPlayingError))
-                    .setPositiveButton(getString(R.string.OK), null).show();
+            showError(context, resourcesProvider);
         }
+    }
+
+    private static void showError(Context context, Theme.ResourcesProvider resourcesProvider) {
+        new org.telegram.ui.ActionBar.AlertDialog.Builder(context, resourcesProvider)
+                .setMessage(getString(R.string.PengramNowPlayingError))
+                .setPositiveButton(getString(R.string.OK), null).show();
     }
 
     private static void noRights(Context context, Theme.ResourcesProvider resourcesProvider) {
@@ -141,12 +212,30 @@ public final class PengramNowPlayingCard {
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         preview.setContentDescription(title + " — " + artist);
         layout.addView(preview, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 290));
-        final Runnable redraw = () -> preview.setImageBitmap(render(title, artist, cover[0]));
-        redraw.run();
+        final int[] generation = {0};
+        final Runnable redraw = () -> {
+            final int request = ++generation[0];
+            final Bitmap artwork = cover[0];
+            renderQueue.execute(() -> {
+                Bitmap image = null;
+                try { image = render(title, artist, artwork, 480); } catch (Throwable error) { FileLog.e(error); }
+                final Bitmap result = image;
+                main.post(() -> {
+                    if (request == generation[0] && preview.isAttachedToWindow()) {
+                        Bitmap old = preview.getDrawable() instanceof android.graphics.drawable.BitmapDrawable
+                                ? ((android.graphics.drawable.BitmapDrawable) preview.getDrawable()).getBitmap() : null;
+                        preview.setImageBitmap(result);
+                        if (old != null && old != result && !old.isRecycled()) old.recycle();
+                    } else if (result != null) {
+                        result.recycle();
+                    }
+                });
+            });
+        };
         PengramCovers.request(track, (key, bitmap) -> {
-            if (!TextUtils.equals(key, PengramCovers.keyFor(track)) || !preview.isAttachedToWindow()) return;
+            if (!TextUtils.equals(key, PengramCovers.keyFor(track))) return;
             cover[0] = bitmap;
-            redraw.run();
+            if (preview.isAttachedToWindow()) redraw.run();
         });
         final BottomSheet[] sheet = new BottomSheet[1];
         final TextView imageButton = button(context, resourcesProvider, R.string.PengramNowPlayingImage);
@@ -164,6 +253,7 @@ public final class PengramNowPlayingCard {
         builder.setCustomView(layout);
         sheet[0] = builder.create();
         sheet[0].show();
+        redraw.run();
     }
 
     private static Bitmap resolveCover(MessageObject track, Bitmap visible) {
@@ -207,10 +297,12 @@ public final class PengramNowPlayingCard {
                 track.getMusicAuthor() + " " + track.getMusicTitle());
     }
 
-    private static Bitmap render(String title, String artist, Bitmap cover) {
-        final int w = 900, h = 1080;
-        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+    /** Square card with a square artwork crop and separate, non-overlapping text area. */
+    private static Bitmap render(String title, String artist, Bitmap cover, int size) {
+        final int w = 720, h = 720;
+        Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565);
         Canvas c = new Canvas(out);
+        c.scale(size / (float) w, size / (float) h);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         int accent = 0xFF48D5BC;
         if (cover != null && !cover.isRecycled()) {
@@ -228,44 +320,46 @@ public final class PengramNowPlayingCard {
         hsv[2] = .28f;
         final int darkAccent = Color.HSVToColor(hsv);
         p.setShader(new LinearGradient(0, 0, w, h, darkAccent, 0xFF121421, Shader.TileMode.CLAMP));
-        c.drawRoundRect(new RectF(0, 0, w, h), 42, 42, p);
+        c.drawRect(0, 0, w, h, p);
         p.setShader(null);
-        p.setColor((accent & 0x00FFFFFF) | 0x33000000);
-        c.drawCircle(790, 110, 270, p);
-        c.drawCircle(60, 840, 215, p);
-        p.setColor(Color.WHITE);
-        RectF art = new RectF(105, 105, 795, 795);
-        p.setAlpha(255);
+        RectF art = new RectF(104, 20, 616, 532);
         if (cover != null && !cover.isRecycled()) {
-            int save = c.save();
-            android.graphics.Path clip = new android.graphics.Path();
-            clip.addRoundRect(art, 28, 28, android.graphics.Path.Direction.CW);
-            c.clipPath(clip);
-            p.setAlpha(255);
-            c.drawBitmap(cover, null, art, p);
-            c.restoreToCount(save);
+            try {
+                int save = c.save();
+                android.graphics.Path clip = new android.graphics.Path();
+                clip.addRoundRect(art, 24, 24, android.graphics.Path.Direction.CW);
+                c.clipPath(clip);
+                int side = Math.min(cover.getWidth(), cover.getHeight());
+                c.drawBitmap(cover, new android.graphics.Rect((cover.getWidth() - side) / 2,
+                        (cover.getHeight() - side) / 2, (cover.getWidth() + side) / 2,
+                        (cover.getHeight() + side) / 2), art, p);
+                c.restoreToCount(save);
+            } catch (Throwable error) {
+                p.setColor(0xFF284F60);
+                c.drawRoundRect(art, 24, 24, p);
+            }
         } else {
             p.setColor(0xFF284F60);
-            c.drawRoundRect(art, 28, 28, p);
+            c.drawRoundRect(art, 24, 24, p);
             p.setColor(accent);
-            c.drawCircle(450, 450, 160, p);
+            c.drawCircle(360, 276, 130, p);
             p.setColor(0xFF20404C);
-            c.drawCircle(450, 450, 55, p);
+            c.drawCircle(360, 276, 50, p);
         }
         TextPaint text = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         text.setColor(Color.WHITE);
         text.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-        text.setTextSize(52);
-        CharSequence safeTitle = TextUtils.ellipsize(title, text, 700, TextUtils.TruncateAt.END);
-        c.drawText(safeTitle.toString(), 105, 885, text);
-        text.setColor(0xFFB5CED1);
-        text.setTextSize(32);
-        CharSequence safeArtist = TextUtils.ellipsize(artist, text, 700, TextUtils.TruncateAt.END);
-        c.drawText(safeArtist.toString(), 105, 945, text);
+        text.setTextSize(44);
+        CharSequence safeTitle = TextUtils.ellipsize(title, text, 580, TextUtils.TruncateAt.END);
+        c.drawText(safeTitle.toString(), 70, 598, text);
+        text.setColor(0xFFCFDEE0);
+        text.setTextSize(29);
+        CharSequence safeArtist = TextUtils.ellipsize(artist, text, 580, TextUtils.TruncateAt.END);
+        c.drawText(safeArtist.toString(), 70, 647, text);
         text.setColor(accent);
-        text.setTextSize(24);
+        text.setTextSize(20);
         if (org.telegram.messenger.PengramConfig.isTrackCardBrand()) {
-            c.drawText("NOW PLAYING  ·  PENGRAM", 105, 1020, text);
+            c.drawText("NOW PLAYING  ·  PENGRAM", 70, 694, text);
         }
         return out;
     }

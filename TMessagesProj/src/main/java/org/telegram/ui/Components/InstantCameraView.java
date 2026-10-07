@@ -2244,6 +2244,10 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                         ByteBuffer byteBuffer = buffer.buffer[a];
                         byteBuffer.rewind();
                         readResult = audioRecorder.read(byteBuffer, 2048);
+                        if (readResult > 1 && org.telegram.messenger.PengramVoiceChanger.isEnabledFor(org.telegram.messenger.PengramVoiceChanger.SOURCE_ROUND)) {
+                            org.telegram.messenger.PengramVoiceChanger.processForSource(byteBuffer, readResult,
+                                    audioSampleRate, org.telegram.messenger.PengramVoiceChanger.SOURCE_ROUND);
+                        }
                         if (readResult > 0 && a % 2 == 0) {
                             byteBuffer.limit(readResult);
                             double s = 0;
@@ -2302,6 +2306,7 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
                 }
                 try {
                     audioRecorder.release();
+                    org.telegram.messenger.PengramVoiceChanger.finishSource(org.telegram.messenger.PengramVoiceChanger.SOURCE_ROUND);
                 } catch (Exception e) {
                     FileLog.e(e);
                 }

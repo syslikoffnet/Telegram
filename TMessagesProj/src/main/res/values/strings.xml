@@ -12497,4 +12497,20 @@
     <string name="PengramNotifyBubble">Message</string>
     <string name="PengramNotifyBell">Bell</string>
     <string name="PengramNotifyStar">Star</string>
+    <string name="PengramParticleType">Particle type</string>
+    <string name="PengramParticleSnow">Snowflakes</string>
+    <string name="PengramParticleSakura">Sakura</string>
+    <string name="PengramParticleMatrix">Matrix</string>
+    <string name="PengramParticleRain">Rain</string>
+    <string name="PengramParticleLeaves">Autumn leaves</string>
+    <string name="PengramParticleCount">Particle count</string>
+    <string name="PengramParticleOpacity">Opacity</string>
+    <string name="PengramParticleSpeed">Fall speed</string>
+    <string name="PengramParticleRotation">Rotation speed</string>
+    <string name="PengramVoiceSources">Apply voice effects to</string>
+    <string name="PengramVoiceMessages">Voice messages</string>
+    <string name="PengramVoiceRound">Round video messages</string>
+    <string name="PengramVoiceCalls">Calls and video chats</string>
+    <string name="PengramVoiceSourcesInfo">Calls and round videos are off by default. Only mono PCM16 microphone audio is supported; effects may add latency. If the device is too slow, processing stops until the next recording.</string>
+    <string name="PengramVoiceGate">Noise gate · 0 = off</string>
 </resources>

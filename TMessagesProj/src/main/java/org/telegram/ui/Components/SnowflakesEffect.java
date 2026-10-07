@@ -14,6 +14,8 @@ import static org.telegram.messenger.AndroidUtilities.dpf2;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
+import org.telegram.messenger.PengramConfig;
 import android.view.View;
 
 import androidx.core.graphics.ColorUtils;
@@ -40,6 +42,83 @@ public class SnowflakesEffect {
     Bitmap particleBitmap;
 
     private long lastAnimationTime;
+    private final CustomParticle[] customParticles = new CustomParticle[300];
+    private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path customPath = new Path();
+    private long customTime;
+    private int customMode = -1;
+
+    private static class CustomParticle {
+        float x, y, size, speed, phase, spin;
+    }
+
+    /** Lightweight local particle renderer; no DEX, bitmaps or frame-time allocations. */
+    private void drawCustom(View parent, Canvas canvas) {
+        int mode = PengramConfig.getParticleMode();
+        int count = PengramConfig.getParticleCount();
+        float opacity = PengramConfig.getParticleAlpha() / 100f;
+        float speed = PengramConfig.getParticleSpeed();
+        float rotation = PengramConfig.getParticleRotation();
+        int width = parent.getMeasuredWidth(), height = parent.getMeasuredHeight();
+        if (width <= 0 || height <= 0) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        float dt = customTime == 0 ? 0 : Math.max(0, Math.min(40, now - customTime)) / 1000f;
+        customTime = now;
+        if (mode != customMode) {
+            customMode = mode;
+            java.util.Arrays.fill(customParticles, null);
+        }
+        customPaint.setShader(null);
+        customPaint.setStyle(Paint.Style.FILL);
+        for (int i = 0; i < count; i++) {
+            CustomParticle p = customParticles[i];
+            if (p == null) {
+                p = new CustomParticle();
+                customParticles[i] = p;
+                p.x = Utilities.random.nextFloat() * width;
+                p.y = Utilities.random.nextFloat() * height;
+                p.size = dp(2.5f + Utilities.random.nextFloat() * 3f);
+                p.speed = dp(12 + Utilities.random.nextFloat() * 22);
+                p.phase = Utilities.random.nextFloat() * 6.28f;
+                p.spin = Utilities.random.nextFloat() * 360f;
+            }
+            p.y += dt * p.speed * speed * (mode == 3 ? 2.3f : 1f);
+            p.x += dt * (float) Math.sin(p.phase + p.y / dp(35)) * dp(3) * speed;
+            p.spin += dt * rotation * 105f;
+            if (p.y > height + dp(12)) {
+                p.y = -dp(12);
+                p.x = Utilities.random.nextFloat() * width;
+            }
+            if (p.x < 0) p.x += width;
+            if (p.x > width) p.x -= width;
+            int tint = mode == 1 ? 0xffffa8cc : mode == 2 ? 0xff79f7b2 :
+                    mode == 4 ? 0xffffba63 : color;
+            customPaint.setColor(tint);
+            customPaint.setAlpha(Math.max(0, Math.min(255, (int) (255 * opacity * (0.6f + 0.4f *
+                    (float) Math.sin(p.phase + p.y / Math.max(1, height) * 3.14f))))));
+            canvas.save();
+            canvas.translate(p.x, p.y);
+            if (mode == 1 || mode == 4) {
+                canvas.rotate(p.spin);
+                customPath.reset();
+                customPath.moveTo(0, -p.size);
+                customPath.quadTo(p.size * 1.5f, 0, 0, p.size);
+                customPath.quadTo(-p.size * 0.8f, 0, 0, -p.size);
+                canvas.drawPath(customPath, customPaint);
+            } else if (mode == 2) {
+                customPaint.setTextSize(p.size * 3f);
+                canvas.drawText("0123456789".substring(i % 10, i % 10 + 1), 0, 0, customPaint);
+            } else if (mode == 3) {
+                customPaint.setStrokeWidth(Math.max(1, p.size / 3));
+                canvas.drawLine(0, 0, -p.size / 3, p.size * 3, customPaint);
+            } else {
+                canvas.drawCircle(0, 0, p.size / 2, customPaint);
+            }
+            canvas.restore();
+        }
+        parent.postInvalidateDelayed(32);
+    }
+
 
     private class Particle {
         float x;
@@ -165,6 +244,11 @@ public class SnowflakesEffect {
         if (parent == null || canvas == null || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
             return;
         }
+        if (PengramConfig.isForcedSnow()) {
+            drawCustom(parent, canvas);
+            return;
+        }
+        customTime = 0;
 
         if (batchParticlesBuffer != null) {
             final int count = Math.min(maxCount, particles.size());

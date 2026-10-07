@@ -2,7 +2,6 @@ package org.telegram.messenger;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.security.SecureRandom;
 
 /**
@@ -86,6 +85,15 @@ public class PengramVoiceChanger {
     private static float lowpassState;
     private static float highpassState;
     private static float highpassPrev;
+    public static final int SOURCE_VOICE = 1;
+    public static final int SOURCE_ROUND = 2;
+    public static final int SOURCE_CALL = 3;
+    private static int activeSource;
+    private static long lastSourceFrame;
+    private static int lastMode = MODE_OFF;
+    private static int slowFrames;
+    private static boolean overloaded;
+    private static float gateGain = 1f;
     private static float limiterGain = 1f;
     private static float dryEnv;
     private static float wetEnv;
@@ -120,6 +128,9 @@ public class PengramVoiceChanger {
         highpassState = 0;
         highpassPrev = 0;
         limiterGain = 1f;
+        gateGain = 1f;
+        slowFrames = 0;
+        overloaded = false;
         dryEnv = 0;
         wetEnv = 0;
         makeupGain = 1f;
@@ -177,7 +188,48 @@ public class PengramVoiceChanger {
     }
 
     public static boolean isEnabled() {
-        return PengramConfig.getVoiceChangerMode() != MODE_OFF;
+        return isEnabledFor(SOURCE_VOICE);
+    }
+
+    public static boolean isEnabledFor(int source) {
+        return PengramConfig.getVoiceChangerMode() != MODE_OFF &&
+                (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
+                        || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
+                        || source == SOURCE_CALL && PengramConfig.isVoiceCallsEnabled());
+    }
+
+    /** PCM16 mono only. A competing recorder is bypassed, never mixed into another session's state. */
+    public static synchronized void processForSource(ByteBuffer buffer, int len, int rate, int source) {
+        if (!isEnabledFor(source) || buffer == null || len < 2 || rate < 8000 || rate > 96000) return;
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (activeSource != source) {
+            if (activeSource != 0 && now - lastSourceFrame < 250) return;
+            activeSource = source;
+            initialized = false;
+        }
+        final int mode = PengramConfig.getVoiceChangerMode();
+        if (lastMode != mode) {
+            lastMode = mode;
+            initialized = false;
+        }
+        lastSourceFrame = now;
+        if (overloaded) return;
+        final long started = android.os.SystemClock.elapsedRealtimeNanos();
+        process(buffer, len, rate);
+        // Stop trying after repeated overruns rather than glitching a live call.
+        if ((android.os.SystemClock.elapsedRealtimeNanos() - started) / 1000000L >
+                Math.max(8, 1500L * len / (2L * rate))) {
+            if (++slowFrames >= 4) overloaded = true;
+        } else {
+            slowFrames = 0;
+        }
+    }
+
+    public static synchronized void finishSource(int source) {
+        if (activeSource == source) {
+            activeSource = 0;
+            initialized = false;
+        }
     }
 
     public static boolean isAnonymous() {
@@ -238,21 +290,26 @@ public class PengramVoiceChanger {
             if (!initialized) {
                 reset();
             }
-            final int oldPosition = buffer.position();
-            final int oldLimit = buffer.limit();
-            buffer.order(ByteOrder.nativeOrder());
-            buffer.position(0);
-            buffer.limit(len);
-            final ShortBuffer shorts = buffer.asShortBuffer();
-            final int count = shorts.limit();
+            final int count = Math.min(len, buffer.capacity()) / 2;
+            final ByteOrder previousOrder = buffer.order();
+            buffer.order(ByteOrder.LITTLE_ENDIAN);
 
             final float basePitch = getPitchFactor(mode);
             final boolean anonymous = mode == MODE_ANONYMOUS;
+            final int gate = PengramConfig.getVoiceGate();
 
+            try {
             for (int i = 0; i < count; ++i) {
-                final short in = shorts.get(i);
+                final short in = buffer.getShort(i * 2);
 
-                delay[writePos] = in;
+                if (gate > 0) {
+                    final int threshold = gate * 200;
+                    final float target = Math.abs(in) < threshold ? 0f : 1f;
+                    gateGain += (target - gateGain) * (target > gateGain ? 0.025f : 0.001f);
+                } else {
+                    gateGain = 1f;
+                }
+                delay[writePos] = (short) (in * gateGain);
                 writePos = (writePos + 1) % DELAY_SIZE;
 
                 float pitch = basePitch;
@@ -287,11 +344,12 @@ public class PengramVoiceChanger {
 
                 out = applyMode(mode, out, in);
                 out = limit(out);
-                shorts.put(i, (short) out);
+                buffer.putShort(i * 2, (short) (out * gateGain));
             }
 
-            buffer.limit(oldLimit);
-            buffer.position(oldPosition);
+            } finally {
+                buffer.order(previousOrder);
+            }
         } catch (Throwable e) {
             FileLog.e(e);
         }

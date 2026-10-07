@@ -1126,7 +1126,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (len > 0) {
                     buffer.limit(len);
                     if (PengramVoiceChanger.isEnabled()) {
-                        PengramVoiceChanger.process(buffer, len, sampleRate);
+                        PengramVoiceChanger.processForSource(buffer, len, sampleRate, PengramVoiceChanger.SOURCE_VOICE);
                         buffer.position(0);
                         buffer.limit(len);
                     }

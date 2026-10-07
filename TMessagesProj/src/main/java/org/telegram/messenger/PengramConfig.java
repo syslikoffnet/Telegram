@@ -150,6 +150,16 @@ public class PengramConfig {
     public static final String KEY_REG_TAP_TEXT = "regTapText";
     /** всегда идёт снег в шапке */
     public static final String KEY_FORCE_SNOW = "forceSnow";
+    public static final String KEY_PARTICLE_MODE = "particleMode";
+    public static final String KEY_PARTICLE_COUNT = "particleCount";
+    public static final String KEY_PARTICLE_ALPHA = "particleAlpha";
+    public static final String KEY_PARTICLE_SPEED = "particleSpeed";
+    public static final String KEY_PARTICLE_ROTATION = "particleRotation";
+    public static final String KEY_VOICE_ROUND = "voiceChangerRound";
+    public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
+    public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
+    public static final String KEY_VOICE_GATE = "voiceChangerGate";
+
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
     /** мини-аватарки отправителей в списке чатов */
@@ -1760,6 +1770,17 @@ public class PengramConfig {
     /** по нажатию на календарик показывать текст, а не открывать окно */
     public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
+    public static int getParticleMode() { return Math.max(0, Math.min(4, getIntCached(KEY_PARTICLE_MODE, 0))); }
+    public static int getParticleCount() { return Math.max(20, Math.min(300, getIntCached(KEY_PARTICLE_COUNT, 100))); }
+    public static int getParticleAlpha() { return Math.max(10, Math.min(100, getIntCached(KEY_PARTICLE_ALPHA, 100))); }
+    // Stored as tenths to keep sliders and backups deterministic.
+    public static float getParticleSpeed() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_SPEED, 10))) / 10f; }
+    public static float getParticleRotation() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_ROTATION, 10))) / 10f; }
+    public static boolean isVoiceMessagesEnabled() { return getBool(KEY_VOICE_MESSAGES, true); }
+    public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, false); }
+    public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, false); }
+    public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
+
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }

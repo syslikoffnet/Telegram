@@ -1525,4 +1525,20 @@
     <string name="PengramNotifyBubble">Сообщение</string>
     <string name="PengramNotifyBell">Колокольчик</string>
     <string name="PengramNotifyStar">Звезда</string>
+    <string name="PengramParticleType">Вид частиц</string>
+    <string name="PengramParticleSnow">Снежинки</string>
+    <string name="PengramParticleSakura">Сакура</string>
+    <string name="PengramParticleMatrix">Матрица</string>
+    <string name="PengramParticleRain">Дождь</string>
+    <string name="PengramParticleLeaves">Осенние листья</string>
+    <string name="PengramParticleCount">Количество частиц</string>
+    <string name="PengramParticleOpacity">Прозрачность</string>
+    <string name="PengramParticleSpeed">Скорость падения</string>
+    <string name="PengramParticleRotation">Скорость вращения</string>
+    <string name="PengramVoiceSources">Применять эффекты к</string>
+    <string name="PengramVoiceMessages">Голосовые сообщения</string>
+    <string name="PengramVoiceRound">Кружочки</string>
+    <string name="PengramVoiceCalls">Звонки и видеочаты</string>
+    <string name="PengramVoiceSourcesInfo">Звонки и кружочки по умолчанию выключены. Обрабатывается только моно PCM16; эффект может добавить задержку. На медленном устройстве обработка приостанавливается до следующей записи.</string>
+    <string name="PengramVoiceGate">Шумоподавитель · 0 = выкл.</string>
 </resources>

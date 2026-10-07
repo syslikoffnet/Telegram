@@ -244,6 +244,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_REG_STYLE_PICK = 1410;
     private static final int BTN_REG_PLACE = 1411;
     private static final int BTN_REG_ICON = 1412;
+    private static final int BTN_PARTICLE_MODE = 1460;
     private static final int BTN_TITLE_MODE = 1413;
     private static final int BTN_TITLE_CUSTOM = 1414;
     private static final int BTN_TABBAR_SIZE = 1415;
@@ -2732,6 +2733,24 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
         items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
+        if (PengramConfig.isForcedSnow()) {
+            items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
+                    getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
+            items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
+            items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
+                    value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_COUNT, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramParticleOpacity)));
+            items.add(UItem.asIntSlideView(1, 10, PengramConfig.getParticleAlpha(), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ALPHA, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramParticleSpeed)));
+            items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleSpeed() * 10), 30,
+                    value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                    value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_SPEED, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramParticleRotation)));
+            items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleRotation() * 10), 30,
+                    value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                    value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ROTATION, value)));
+        }
 
         // Пузыри и время сообщений живут в «Чаты и кнопки → Сообщения» — здесь только переход,
         // чтобы одна и та же настройка не лежала в двух местах.
@@ -2836,6 +2855,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
         }
 
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
+        items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
+        items.add(check(PengramConfig.KEY_VOICE_ROUND, false, getString(R.string.PengramVoiceRound)));
+        items.add(check(PengramConfig.KEY_VOICE_CALLS, false, getString(R.string.PengramVoiceCalls)));
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceSourcesInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceGate)));
+        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGate(), 3,
+                value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_GATE, value)));
+
         items.add(UItem.asHeader(getString(R.string.PengramStreamHeader)));
         items.add(tgCheck(BTN_EXTRA_BASE + 40, getString(R.string.EnableStreaming), () -> SharedConfig.streamMedia, SharedConfig::toggleStreamMedia));
         items.add(tgCheck(BTN_EXTRA_BASE + 41, getString(R.string.PengramStreamAllVideo), () -> SharedConfig.streamAllVideo, SharedConfig::toggleStreamAllVideo));
@@ -2872,6 +2900,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 || mode == PengramVoiceChanger.MODE_FEMALE
                 || mode == PengramVoiceChanger.MODE_MALE
                 || mode == PengramVoiceChanger.MODE_CHILD;
+    }
+
+    private CharSequence[] particleNames() {
+        return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
+                getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
+                getString(R.string.PengramParticleLeaves)};
     }
 
     private CharSequence voiceModeDescription(int mode) {
@@ -3717,6 +3751,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_MONET_STRENGTH:
                 showMonetStrengthPicker();
                 return;
+            case BTN_PARTICLE_MODE: {
+                showChoicePicker(getString(R.string.PengramParticleType), particleNames(),
+                        PengramConfig.getParticleMode(), value -> {
+                            PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_MODE, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            }
             case BTN_TITLE_MODE: {
                 final CharSequence[] options = new CharSequence[]{
                         getString(R.string.PengramTitleModeDefault),
@@ -4549,12 +4591,13 @@ public class PengramSettingsActivity extends UniversalFragment {
         final String activeRole = org.telegram.messenger.PengramAIRoles.activeId();
         for (int i = 0; i < roles.size(); i++) {
             final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
-            final String preview = role.prompt.replace('\n', ' ');
-            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title,
-                    preview.length() > 95 ? preview.substring(0, 95) + "…" : preview)
+            // Radio rows have fixed height; subtitles collide with long titles on narrow screens.
+            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title, null)
                     .setChecked(TextUtils.equals(role.id, activeRole)));
         }
         final org.telegram.messenger.PengramAIRoles.Role chosenRole = org.telegram.messenger.PengramAIRoles.active();
+        final String selectedPrompt = chosenRole.prompt.replace('\n', ' ');
+        items.add(UItem.asShadow(selectedPrompt.length() > 180 ? selectedPrompt.substring(0, 180) + "…" : selectedPrompt));
         if (!chosenRole.builtin) {
             items.add(UItem.asButton(BTN_AI_EDIT_ROLE, R.drawable.msg_edit, getString(R.string.PengramAIEditRole)));
         }
