@@ -1014,7 +1014,7 @@
     <string name="PengramAIDepth">Сколько сообщений</string>
     <string name="PengramAIAnswerInfo">Настройки действуют и для сообщения, и для черновика через долгое нажатие «Отправить». ИИ никогда не отправляет сообщение сам.</string>
     <string name="PengramAIReset">Забыть сервисы и ключи</string>
-    <string name="PengramAIResetInfo">Удаляет с устройства все сервисы, ключи и свои роли.</string>
+    <string name="PengramAIResetInfo">Удаляет с устройства все сервисы, ключи, свои роли и настройки автоответов.</string>
     <string name="PengramAINoService">Сервис ещё не настроен</string>
     <string name="PengramAIThinking">Думает…</string>
     <string name="PengramAIInsert">Добавить в поле</string>

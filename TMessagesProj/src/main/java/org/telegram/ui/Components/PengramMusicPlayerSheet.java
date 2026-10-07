@@ -250,9 +250,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         shareCardButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing != null && playing.isMusic()) {
-                final android.graphics.Bitmap mainCover = coverView == null ? null : coverView.getImageReceiver().getBitmap();
-                final android.graphics.Bitmap visible = mainCover != null ? mainCover :
-                        smallCoverView == null ? null : smallCoverView.getImageReceiver().getBitmap();
+                final android.graphics.Bitmap visible = shareCoverBitmap();
                 dismiss();
                 AndroidUtilities.runOnUIThread(() -> PengramNowPlayingCard.send(
                         context, resourcesProvider, playing, visible, PengramConfig.getTrackCardFormat()), 120);
@@ -261,9 +259,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         shareCardButton.setOnLongClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing != null && playing.isMusic()) {
-                final android.graphics.Bitmap mainCover = coverView == null ? null : coverView.getImageReceiver().getBitmap();
-                final android.graphics.Bitmap visible = mainCover != null ? mainCover :
-                        smallCoverView == null ? null : smallCoverView.getImageReceiver().getBitmap();
+                final android.graphics.Bitmap visible = shareCoverBitmap();
                 PengramNowPlayingCard.show(context, resourcesProvider, playing, visible);
             }
             return true;
@@ -1440,6 +1436,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         if (PengramConfig.playerStyleHasLyrics(style)) {
             loadLyrics(false);
         }
+    }
+
+    private android.graphics.Bitmap shareCoverBitmap() {
+        final android.graphics.Bitmap main = coverView.getImageReceiver().getBitmap();
+        return main != null ? main : smallCoverView.getImageReceiver().getBitmap();
     }
 
     private String displayedCoverKey;

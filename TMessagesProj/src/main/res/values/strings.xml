@@ -11986,7 +11986,7 @@
     <string name="PengramAIDepth">How many messages</string>
     <string name="PengramAIAnswerInfo">These settings apply both to messages and to drafts via long-press on Send. AI never sends a message for you.</string>
     <string name="PengramAIReset">Forget services and keys</string>
-    <string name="PengramAIResetInfo">Removes every service, key and custom role from this device.</string>
+    <string name="PengramAIResetInfo">Removes all services, keys, custom roles and auto-reply settings from this device.</string>
     <string name="PengramAINoService">No service set up yet</string>
     <string name="PengramAIThinking">Thinking…</string>
     <string name="PengramAIInsert">Add to input</string>
