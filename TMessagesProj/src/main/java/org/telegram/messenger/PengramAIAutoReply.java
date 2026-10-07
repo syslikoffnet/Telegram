@@ -244,11 +244,14 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         return redacted(text.toString());
     }
 
-    /** Is this one new group message directed to this account? No chat history is accessed. */
-    private boolean directedAtMe(MessageObject message) {
-        if (message.messageOwner.mentioned) return true;
-        if (message.replyMessageObject != null && message.replyMessageObject.isOutOwner()
-                && MessageObject.getReplyToDialogId(message.messageOwner) == message.getDialogId()) return true;
+    /** True for a tag or linked username, not for a plain reply to an old message. */
+    private boolean mentionsMe(MessageObject message) {
+        final boolean replyToMe = message.replyMessageObject != null
+                && message.replyMessageObject.isOutOwner()
+                && MessageObject.getReplyToDialogId(message.messageOwner) == message.getDialogId();
+        // Telegram also sets "mentioned" on replies to your messages. Count those as
+        // replies, not repeated explicit tags for the 3-per-minute spam threshold.
+        if (message.messageOwner.mentioned && !replyToMe) return true;
         if (TextUtils.isEmpty(message.messageOwner.message)) return false;
         final long myId = UserConfig.getInstance(account).getClientUserId();
         final TLRPC.User me = UserConfig.getInstance(account).getCurrentUser();
@@ -280,7 +283,13 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         return false;
     }
 
-    private boolean spamPaused(long senderId, long did) {
+    private boolean directedAtMe(MessageObject message) {
+        return message.messageOwner.mentioned || mentionsMe(message) || message.replyMessageObject != null
+                && message.replyMessageObject.isOutOwner()
+                && MessageObject.getReplyToDialogId(message.messageOwner) == message.getDialogId();
+    }
+
+    private boolean spamPaused(long senderId, long did, boolean countMention) {
         if (senderId <= 0) return false;
         final long now = SystemClock.elapsedRealtime();
         final Long until = mutedSenders.get(senderId);
@@ -289,6 +298,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
             return true;
         }
         if (until != null) mutedSenders.remove(senderId);
+        if (!countMention) return false;
         if (mentionTimes.size() > 256) {
             mentionTimes.entrySet().removeIf(entry -> entry.getValue().isEmpty()
                     || now - entry.getValue().peekLast() >= SPAM_WINDOW_MS);
@@ -393,7 +403,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         if (sender != null && sender.bot) return;
         // Ignore backlog after reconnect. The client is not an always-on bot.
         if (Math.abs(System.currentTimeMillis() / 1000 - message.messageOwner.date) > 180) return;
-        if (did < 0 && spamPaused(senderId, did)) return;
+        if (did < 0 && spamPaused(senderId, did, mentionsMe(message))) return;
         final long last = PengramAI.prefs().getLong(LAST_PREFIX + account + "_" + did, 0);
         if (System.currentTimeMillis() - last < cooldownMinutes() * 60000L) {
             states.put(did, "cooldown");
@@ -449,9 +459,14 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
             @Override public void onDone(String result) {
                 if (pending.get(task.dialogId) != task) return;
                 cancel(task.dialogId);
+                final PengramAI.Service stillActive = PengramAI.active();
                 if (!enabled() || isQuiet() || rule(account, task.dialogId) == null
-                        || !secureService(PengramAI.active()) || !TextUtils.equals(style(), currentStyle)
-                        || !TextUtils.equals(PengramAI.activeId(), service.id)) return;
+                        || !secureService(stillActive) || !TextUtils.equals(style(), currentStyle)
+                        || !TextUtils.equals(stillActive.id, service.id)) {
+                    // The first configured service may be active even without an explicit activeId.
+                    states.put(task.dialogId, "idle");
+                    return;
+                }
                 String answer = result == null ? "" : result.trim();
                 if (answer.isEmpty()) {
                     states.put(task.dialogId, "error");
@@ -467,7 +482,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                     final Long muted = mutedSenders.get(task.senderId);
                     if (muted != null && muted > SystemClock.elapsedRealtime()) return;
                 }
-                final long last = PengramAI.prefs().getLong("autoLast_" + account + "_" + task.dialogId, 0);
+                final long last = PengramAI.prefs().getLong(LAST_PREFIX + account + "_" + task.dialogId, 0);
                 if (System.currentTimeMillis() - last < cooldownMinutes() * 60000L) {
                     states.put(task.dialogId, "cooldown");
                     return;
