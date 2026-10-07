@@ -1466,4 +1466,22 @@
     <string name="PengramBackgroundChannel">Pengram в фоне</string>
     <string name="PengramBackgroundTitle">Pengram работает</string>
     <string name="PengramBackgroundText">Ловит удалённые и изменённые сообщения, пока приложение закрыто</string>
+    <string name="PengramTypingStatsTitle">Скорость набора</string>
+    <string name="PengramTypingStatsEnable">Собирать мою скорость набора</string>
+    <string name="PengramTypingStatsPrivacy">Только ваш ввод: на устройстве хранятся счётчики, но не текст. По умолчанию выключено.</string>
+    <string name="PengramTypingStatsBadge">Показывать WPM при наборе</string>
+    <string name="PengramTypingStatsClear">Очистить статистику набора</string>
+    <string name="PengramTypingStatsClearAsk">Удалить сохранённую статистику набора этого аккаунта?</string>
+    <string name="PengramTypingStatsLegend">Средняя · Пик · Самый долгий сеанс · Сеансы</string>
+    <string name="PengramNowPlayingShare">Поделиться тем, что слушаю</string>
+    <string name="PengramNowPlayingImage">Отправить картинку-карточку</string>
+    <string name="PengramNowPlayingText">Отправить текст и ссылку</string>
+    <string name="PengramNowPlayingError">Не удалось отправить карточку. Попробуйте ещё раз.</string>
+    <string name="PengramNowPlayingFind">Найти этот трек</string>
+    <string name="PengramNotificationIcon">Значок уведомлений</string>
+    <string name="PengramNotifyPlane">Самолётик</string>
+    <string name="PengramNotifyPenguin">Пингвин</string>
+    <string name="PengramNotifyBubble">Сообщение</string>
+    <string name="PengramNotifyBell">Колокольчик</string>
+    <string name="PengramNotifyStar">Звезда</string>
 </resources>

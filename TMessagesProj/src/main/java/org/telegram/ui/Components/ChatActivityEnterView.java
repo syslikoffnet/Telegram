@@ -5312,6 +5312,25 @@ public class ChatActivityEnterView extends FrameLayout implements
     private ArrayList<TextWatcher> messageEditTextWatchers;
     private boolean messageEditTextEnabled = true;
     private long pengramLastTypingHaptic;
+    private TextView pengramWpmBadge;
+    private final Runnable pengramWpmIdle = () -> {
+        org.telegram.messenger.PengramTypingStats.finishSession();
+        if (pengramWpmBadge != null) pengramWpmBadge.setVisibility(GONE);
+    };
+
+    private void pengramUpdateWpm(int before, int count) {
+        if (pengramWpmBadge == null) return;
+        final boolean active = org.telegram.messenger.PengramTypingStats.enabled();
+        final int speed = org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count,
+                active && !ignoreTextChange && innerTextChange == 0 && !isPaste
+                        && messageEditText != null && messageEditText.isFocused());
+        removeCallbacks(pengramWpmIdle);
+        if (active) postDelayed(pengramWpmIdle, 3000);
+        final boolean show = active && org.telegram.messenger.PengramConfig.getBool(
+                org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true) && speed > 0;
+        pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
+        if (show) pengramWpmBadge.setText(speed + " WPM");
+    }
 
     /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
     private void pengramAnimateTyping(int start, int before, int count) {
@@ -5869,6 +5888,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         richDraftPreview.setPadding(dp(8), dp(9), dp(8), dp(10));
         richDraftPreview.setOnClickListener(v -> openRichEditor());
         messageEditTextContainer.addView(richDraftPreview, 2, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 52 - 8, 0, (isChat ? 50 : 2) - 8, 1.5f));
+        // Небольшой индикатор живёт в зарезервированной правой части композера,
+        // а не поверх набираемых строк. По умолчанию полностью скрыт.
+        pengramWpmBadge = new TextView(getContext());
+        pengramWpmBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        pengramWpmBadge.setTextColor(getThemedColor(Theme.key_chat_messagePanelHint));
+        pengramWpmBadge.setGravity(Gravity.CENTER);
+        pengramWpmBadge.setVisibility(GONE);
+        messageEditTextContainer.addView(pengramWpmBadge,
+                LayoutHelper.createFrame(50, 20, Gravity.RIGHT | Gravity.TOP, 0, 0, 0, 0));
         messageEditText.setOnKeyListener(new OnKeyListener() {
 
             @Override
@@ -5960,6 +5988,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!ignoreTextChange && innerTextChange == 0 && !isPaste) {
                     pengramAnimateTyping(start, before, count);
                 }
+                pengramUpdateWpm(before, count);
 
                 boolean allowChangeToSmile = true;
                 int currentPage;
@@ -6534,6 +6563,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void onDestroy() {
+        removeCallbacks(pengramWpmIdle);
+        org.telegram.messenger.PengramTypingStats.finishSession();
         if (audioTimelineView != null) {
             audioTimelineView.destroy();
         }

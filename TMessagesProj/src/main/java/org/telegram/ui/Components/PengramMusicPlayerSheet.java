@@ -207,7 +207,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         headerView.setTextColor(0xCCFFFFFF);
         headerView.setGravity(Gravity.CENTER);
         headerView.setText(getString(R.string.PengramPlayerNowPlaying));
-        topBar.addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 60, 0, 60, 0));
+        headerView.setSingleLine(true);
+        headerView.setEllipsize(TextUtils.TruncateAt.END);
+        topBar.addView(headerView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
+                LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 54, 0,
+                PengramConfig.isTrackForwardButton() ? 196 : 150, 0));
 
         final ImageView settingsButton = new ImageView(context);
         settingsButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -233,6 +237,22 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         queueButton.setOnClickListener(v -> toggleQueue(!queueShown));
         queueButton.setVisibility(compact ? View.GONE : View.VISIBLE);
         topBar.addView(queueButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 54, 0));
+
+        // Карточка текущего трека: превью и выбор картинки или текста.
+        final ImageView shareCardButton = new ImageView(context);
+        shareCardButton.setScaleType(ImageView.ScaleType.CENTER);
+        shareCardButton.setImageResource(R.drawable.msg_share);
+        shareCardButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+        shareCardButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(20)));
+        shareCardButton.setContentDescription(getString(R.string.PengramNowPlayingShare));
+        shareCardButton.setOnClickListener(v -> {
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing != null && playing.isMusic()) {
+                PengramNowPlayingCard.show(context, resourcesProvider, playing);
+            }
+        });
+        topBar.addView(shareCardButton, LayoutHelper.createFrame(42, 42,
+                Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, PengramConfig.isTrackForwardButton() ? 146 : 100, 0));
 
         // Pengram: пересылка трека одной кнопкой — манера берётся из настроек
         if (PengramConfig.isTrackForwardButton()) {

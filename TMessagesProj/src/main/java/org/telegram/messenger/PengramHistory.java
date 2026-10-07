@@ -760,6 +760,64 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     // ------------------------------------------------------------------ чтение
 
+    /** Lightweight search for the ordinary chat search: scoped to account and dialog(s).
+     * No media BLOB is read or decoded on the UI thread. SQL wildcards are literal. */
+    public static ArrayList<Entry> searchDeleted(int account, long dialogId, long mergeDialogId, String query, int limit) {
+        ArrayList<Entry> result = new ArrayList<>();
+        PengramHistory history = getInstance();
+        if (history == null || dialogId == 0 || TextUtils.isEmpty(query)) return result;
+        Cursor c = null;
+        try {
+            String escaped = query.replace("\\", "\\\\").replace("%", "\\%")
+                    .replace("_", "\\_");
+            boolean unicode = false;
+            for (int i = 0; i < query.length(); i++) {
+                if (query.charAt(i) > 127) { unicode = true; break; }
+            }
+            // Android SQLite LIKE folds ASCII only. For Cyrillic and other scripts,
+            // filter on the worker thread using Java's Unicode-aware lowercase.
+            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out " +
+                    "FROM " + TABLE + " WHERE account = ? AND (dialog_id = ? OR dialog_id = ?) AND action = ? " +
+                    (unicode ? "" : "AND (text LIKE ? ESCAPE '\\' OR prev_text LIKE ? ESCAPE '\\') ") +
+                    "ORDER BY date DESC, id DESC" + (unicode ? "" : " LIMIT " + Math.max(1, Math.min(200, limit)));
+            ArrayList<String> arguments = new ArrayList<>();
+            arguments.add(String.valueOf(account));
+            arguments.add(String.valueOf(dialogId));
+            arguments.add(String.valueOf(mergeDialogId));
+            arguments.add(String.valueOf(ACTION_DELETED));
+            if (!unicode) {
+                arguments.add("%" + escaped + "%");
+                arguments.add("%" + escaped + "%");
+            }
+            c = history.getReadableDatabase().rawQuery(sql, arguments.toArray(new String[0]));
+            String needle = query.toLowerCase(Locale.ROOT);
+            while (c.moveToNext() && result.size() < Math.max(1, Math.min(200, limit))) {
+                if (unicode && !(c.getString(8) != null && c.getString(8).toLowerCase(Locale.ROOT).contains(needle))
+                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))) {
+                    continue;
+                }
+                Entry e = new Entry();
+                e.rowId = c.getLong(0);
+                e.account = c.getInt(1);
+                e.dialogId = c.getLong(2);
+                e.messageId = c.getInt(3);
+                e.fromId = c.getLong(4);
+                e.date = c.getInt(5);
+                e.savedAt = c.getInt(6);
+                e.action = c.getInt(7);
+                e.text = c.getString(8);
+                e.prevText = c.getString(9);
+                e.out = c.getInt(10) != 0;
+                result.add(e);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (c != null) c.close();
+        }
+        return result;
+    }
+
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {
         return getEntries(dialogId, filter, limit, null, 0, false);
     }
@@ -769,6 +827,11 @@ public class PengramHistory extends SQLiteOpenHelper {
      * @param ascending true — от старых к новым (как в чате)
      */
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending) {
+        return getEntries(dialogId, filter, limit, query, messageId, ascending, -1);
+    }
+
+    /** account >= 0 limits archive results to the active Telegram account. */
+    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending, int account) {
         ArrayList<Entry> result = new ArrayList<>();
         final PengramHistory history = getInstance();
         if (history == null) return result;
@@ -776,7 +839,12 @@ public class PengramHistory extends SQLiteOpenHelper {
         try {
             StringBuilder where = new StringBuilder();
             ArrayList<String> args = new ArrayList<>();
+            if (account >= 0) {
+                where.append("account = ?");
+                args.add(String.valueOf(account));
+            }
             if (dialogId != 0) {
+                if (where.length() > 0) where.append(" AND ");
                 where.append("dialog_id = ?");
                 args.add(String.valueOf(dialogId));
             }

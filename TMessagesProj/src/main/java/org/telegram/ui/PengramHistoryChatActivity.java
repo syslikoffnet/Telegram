@@ -171,7 +171,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
 
     private CharSequence getTitleText() {
         if (singleMessageId != 0) {
-            return getString(R.string.PengramEditHistoryTitle);
+            return getString(mode == MODE_DELETED ? R.string.PengramDeletedTitle : R.string.PengramEditHistoryTitle);
         }
         switch (mode) {
             case MODE_DELETED: return getString(R.string.PengramDeletedTitle);
@@ -232,7 +232,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         // база может быть большой — читаем её не на главном потоке
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final ArrayList<PengramHistory.Entry> entries =
-                    PengramHistory.getEntries(dialogId, filter, 1000, query, singleMessageId, true);
+                    PengramHistory.getEntries(dialogId, filter, 1000, query, singleMessageId, true, currentAccount);
             AndroidUtilities.runOnUIThread(() -> applyEntries(entries, query));
         });
     }
@@ -242,7 +242,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             return; // пока читали, запрос успел измениться
         }
         items.clear();
-        if (singleMessageId != 0) {
+        if (singleMessageId != 0 && mode == MODE_EDITED) {
             // история правок: сначала самый первый известный текст, потом все версии
             for (int i = 0; i < entries.size(); ++i) {
                 final PengramHistory.Entry entry = entries.get(i);

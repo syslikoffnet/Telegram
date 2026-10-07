@@ -12438,4 +12438,22 @@
     <string name="PengramBackgroundChannel">Pengram in background</string>
     <string name="PengramBackgroundTitle">Pengram is running</string>
     <string name="PengramBackgroundText">Catching deleted and edited messages while the app is closed</string>
+    <string name="PengramTypingStatsTitle">Typing speed</string>
+    <string name="PengramTypingStatsEnable">Collect my typing speed</string>
+    <string name="PengramTypingStatsPrivacy">Only your own typing; stored on this device as counters, never text. Off by default.</string>
+    <string name="PengramTypingStatsBadge">Show WPM while typing</string>
+    <string name="PengramTypingStatsClear">Clear typing statistics</string>
+    <string name="PengramTypingStatsClearAsk">Delete the stored typing statistics for this account?</string>
+    <string name="PengramTypingStatsLegend">Average · Peak · Longest session · Sessions</string>
+    <string name="PengramNowPlayingShare">Share now playing</string>
+    <string name="PengramNowPlayingImage">Share image card</string>
+    <string name="PengramNowPlayingText">Share text and link</string>
+    <string name="PengramNowPlayingError">Could not share the card. Please try again.</string>
+    <string name="PengramNowPlayingFind">Find this track</string>
+    <string name="PengramNotificationIcon">Status-bar notification icon</string>
+    <string name="PengramNotifyPlane">Paper plane</string>
+    <string name="PengramNotifyPenguin">Penguin</string>
+    <string name="PengramNotifyBubble">Message</string>
+    <string name="PengramNotifyBell">Bell</string>
+    <string name="PengramNotifyStar">Star</string>
 </resources>

@@ -124,6 +124,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_INPUT_ANIMATION_SPEED = 549;
     private static final int BTN_INPUT_ANIMATION_INTENSITY = 550;
     private static final int BTN_TYPING_DELETE_STYLE = 552;
+    private static final int BTN_TYPING_STATS_CLEAR = 553;
+    private static final int BTN_NOTIFICATION_ICON = 554;
+    private static final int[] notificationIconNames = {
+            R.string.PengramNotifyPlane, R.string.PengramNotifyPenguin,
+            R.string.PengramNotifyBubble, R.string.PengramNotifyBell, R.string.PengramNotifyStar
+    };
     private static final int BTN_QUICK_ADD = 543;
     private static final int BTN_QUICK_ACTION_BASE = 560;
 
@@ -773,12 +779,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS:
                 return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
-                        "pengramCardOnTop", "inputAnimation*", "sendTextStyle", "sendStyleCaptions",
+                        "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions",
                         "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
                         "forward*", "trackForward*"};
             case SECTION_FREEDOM:
                 return new String[]{"allowForwards", "allowScreenshots", "noScreenshotNotify", "hideAds",
-                        "localPremium*", "backgroundMode", "backgroundSilentIcon", "antiCrash*"};
+                        "localPremium*", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle", "antiCrash*"};
             case SECTION_MEDIA:
                 return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "trackForward*"};
             case SECTION_GENERAL:
@@ -2612,6 +2618,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramPremiumInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramBackgroundHeader)));
+        int iconStyle = Math.max(0, Math.min(4, PengramConfig.getIntCached(
+                org.telegram.messenger.PengramNotificationIcon.KEY, 0)));
+        items.add(UItem.asSettingsCell(BTN_NOTIFICATION_ICON,
+                org.telegram.messenger.PengramNotificationIcon.drawable(),
+                getString(R.string.PengramNotificationIcon), getString(notificationIconNames[iconStyle])));
         items.add(check(PengramConfig.KEY_BACKGROUND_MODE, false, getString(R.string.PengramBackgroundMode)));
         if (PengramConfig.isBackgroundMode()) {
             items.add(check(PengramConfig.KEY_BACKGROUND_SILENT, true, getString(R.string.PengramBackgroundSilent)));
@@ -3228,6 +3239,16 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
         items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramTypingStatsTitle)));
+        items.add(checkInfo(org.telegram.messenger.PengramTypingStats.KEY_ENABLED, false,
+                getString(R.string.PengramTypingStatsEnable), getString(R.string.PengramTypingStatsPrivacy)));
+        if (org.telegram.messenger.PengramTypingStats.enabled()) {
+            items.add(check(org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true,
+                    getString(R.string.PengramTypingStatsBadge)));
+            items.add(UItem.asSettingsCell(BTN_TYPING_STATS_CLEAR, getString(R.string.PengramTypingStatsClear),
+                    org.telegram.messenger.PengramTypingStats.summary(currentAccount)));
+            items.add(UItem.asShadow(getString(R.string.PengramTypingStatsLegend)));
+        }
         items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
         items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
         items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
@@ -3866,6 +3887,30 @@ public class PengramSettingsActivity extends UniversalFragment {
                 AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVersion.report());
                 BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramAboutCopied)).show();
                 return;
+            case BTN_NOTIFICATION_ICON: {
+                CharSequence[] names = new CharSequence[notificationIconNames.length];
+                for (int i = 0; i < names.length; i++) names[i] = getString(notificationIconNames[i]);
+                showChoicePicker(getString(R.string.PengramNotificationIcon), names,
+                        Math.max(0, Math.min(4, PengramConfig.getIntCached(
+                                org.telegram.messenger.PengramNotificationIcon.KEY, 0))), value -> {
+                            org.telegram.messenger.PengramNotificationIcon.setStyle(value);
+                            updateList();
+                        });
+                return;
+            }
+            case BTN_TYPING_STATS_CLEAR: {
+                if (getParentActivity() == null) return;
+                AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramTypingStatsClear));
+                b.setMessage(getString(R.string.PengramTypingStatsClearAsk));
+                b.setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                    org.telegram.messenger.PengramTypingStats.clear(currentAccount);
+                    updateList();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
             case BTN_RESET_SECTION: {
                 final String[] keys = sectionKeys(section);
                 if (keys == null || getParentActivity() == null) {

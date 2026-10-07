@@ -80,6 +80,13 @@ public final class PengramTypingEffects {
         final int mode = PengramConfig.getInputAnimation();
         final boolean deleteAnimations = PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE
                 && PengramConfig.isTypingDeleteAnim();
+        // Любая правка сдвигает спаны в Editable. Убираем старые ДО следующего
+        // кадра: иначе на длинных сообщениях спрятанная буква окажется на другом
+        // символе и появится только после завершения таймера.
+        State previous = states.get(edit);
+        if (previous != null && (before > 0 || count > PASTE_THRESHOLD)) {
+            previous.clearGlyphs();
+        }
         // удаление: символов больше не стало — разлетаются частицы из снапшота
         if (before > count && deleteAnimations) {
             State s = states.get(edit);
@@ -217,6 +224,7 @@ public final class PengramTypingEffects {
 
         /** отложенная пачка символов из последнего изменения текста */
         int pendingStart = -1, pendingEnd = -1, pendingMode;
+        String pendingText;
         boolean pendingPosted;
 
         /** снапшот стираемых символов из beforeTextChanged */
@@ -246,10 +254,15 @@ public final class PengramTypingEffects {
         // ---------------------------------------------------------- еnqueue ввод
 
         void enqueue(int start, int end, int mode) {
-            pendingStart = pendingStart < 0 ? start : Math.min(pendingStart, start);
-            pendingEnd = Math.max(pendingEnd, end);
+            // Latest edit wins: a pending offset from an earlier layout must
+            // never hide unrelated letters after an IME rewrites the line.
+            pendingStart = start;
+            pendingEnd = end;
             pendingMode = mode;
             final EditText edit = ref.get();
+            final Editable value = edit == null ? null : edit.getText();
+            pendingText = value != null && start >= 0 && end <= value.length()
+                    ? value.subSequence(start, end).toString() : null;
             if (edit != null && !pendingPosted) {
                 pendingPosted = true;
                 edit.post(applyRunnable);
@@ -275,13 +288,16 @@ public final class PengramTypingEffects {
         void applyPending() {
             pendingPosted = false;
             final int start = pendingStart, end = pendingEnd, mode = pendingMode;
+            final String expected = pendingText;
             pendingStart = pendingEnd = -1;
+            pendingText = null;
             final EditText edit = ref.get();
             if (edit == null || start < 0) {
                 return;
             }
             final Editable text = edit.getText();
-            if (text == null || end > text.length()) {
+            if (text == null || end > text.length() || !edit.isAttachedToWindow()
+                    || expected == null || !android.text.TextUtils.equals(expected, text.subSequence(start, end))) {
                 return;
             }
             final long now = SystemClock.uptimeMillis();
@@ -553,9 +569,21 @@ public final class PengramTypingEffects {
             scheduled = false;
             pendingPosted = false;
             pendingStart = pendingEnd = -1;
+            pendingText = null;
             particles.clear();
             removedCount = 0;
             removedStart = -1;
+            clearGlyphs();
+        }
+
+        void clearGlyphs() {
+            final EditText edit = ref.get();
+            if (edit != null) {
+                edit.removeCallbacks(applyRunnable);
+            }
+            pendingPosted = false;
+            pendingStart = pendingEnd = -1;
+            pendingText = null;
             while (!glyphs.isEmpty()) {
                 finish(glyphs.get(0));
             }
@@ -623,8 +651,15 @@ public final class PengramTypingEffects {
             if (now - cursorEventTime < 260 && cursorEvent == CURSOR_EVENT_DIVE) {
                 ease *= .55f;   // «присаживаемся» на переносе строки
             }
-            cursorX += dx * ease;
-            cursorY += dy * ease;
+            // При переходе на другую строку (или при скролле длинного текста)
+            // не протаскиваем каретку через соседние строки.
+            if (Math.abs(dy) > dp(28) || Math.abs(dx) > dp(120)) {
+                cursorX = targetX;
+                cursorY = targetY;
+            } else {
+                cursorX += dx * ease;
+                cursorY += dy * ease;
+            }
             if (Math.abs(dx) < .4f) {
                 cursorX = targetX;
             }
@@ -685,6 +720,8 @@ public final class PengramTypingEffects {
 
             if (layout != null) {
                 drawGlyphs(canvas, edit, text, layout, paddingLeft, paddingTop, scrollX, scrollY);
+            } else {
+                clearGlyphs(); // don't leave invisible spans when a long edit rebuilds Layout
             }
             drawParticles(canvas, edit);
             final boolean cursorDrawn = drawCursor(canvas, edit, nowMs);
@@ -704,17 +741,19 @@ public final class PengramTypingEffects {
             }
             final boolean blurOn = PengramConfig.isTypingBlur();
             final float blurMax = PengramConfig.getTypingBlurRadius();
-            for (int a = 0; a < glyphs.size(); ++a) {
+            for (int a = glyphs.size() - 1; a >= 0; --a) {
                 final Glyph glyph = glyphs.get(a);
                 final int from = text.getSpanStart(glyph.span);
                 final int to = text.getSpanEnd(glyph.span);
                 if (from < 0 || to <= from || to > text.length()) {
+                    finish(glyph);
                     continue;
                 }
                 final int line;
                 try {
                     line = layout.getLineForOffset(from);
                 } catch (Exception e) {
+                    finish(glyph);
                     continue;
                 }
                 // рисуем ровно тем же пером, что и сам текст: жирный, курсив, цвет,
@@ -729,6 +768,12 @@ public final class PengramTypingEffects {
                 } catch (Exception ignore) {
                 }
                 final int baseAlpha = paint.getAlpha();
+                if (baseAlpha == 0) {
+                    // Тема или TextView оставили Paint прозрачным: нельзя скрывать
+                    // оригинал спаном, если его оверлей не будет нарисован.
+                    finish(glyph);
+                    continue;
+                }
                 final float x = layout.getPrimaryHorizontal(from) + paddingLeft - scrollX;
                 final float baseline = layout.getLineBaseline(line) + paddingTop - scrollY;
                 final float width = paint.measureText(text, from, to);

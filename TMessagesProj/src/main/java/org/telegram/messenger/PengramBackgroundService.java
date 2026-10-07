@@ -1,8 +1,6 @@
 package org.telegram.messenger;
 
 import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
 
 import org.telegram.tgnet.ConnectionsManager;
 
@@ -21,34 +19,22 @@ public class PengramBackgroundService {
 
     /** Применить текущее состояние настройки. */
     public static void update(Context context) {
-        final boolean enabled = PengramConfig.isBackgroundMode();
-        try {
-            SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-            preferences.edit().putBoolean("pushService", enabled).apply();
-        } catch (Throwable ignore) {
-        }
-        applyPushConnection(enabled);
-        try {
-            Context appContext = context != null ? context.getApplicationContext() : ApplicationLoader.applicationContext;
-            if (appContext == null) {
-                return;
-            }
-            Intent intent = new Intent(appContext, NotificationsService.class);
-            if (enabled) {
-                // сервис сразу уходит в foreground, поэтому и запускать его надо соответствующе
-                androidx.core.content.ContextCompat.startForegroundService(appContext, intent);
-            } else {
-                appContext.stopService(intent);
-            }
-        } catch (Throwable ignore) {
-        }
+        // Do not overwrite Telegram's per-account pushService preference.
+        applyPushConnection(PengramConfig.isBackgroundMode());
+        ApplicationLoader.startPushService();
     }
 
-    /** Вызывается при старте приложения. */
+    /** Called on startup; also repairs the old global preference. */
     public static void onApplicationStart() {
-        if (PengramConfig.isBackgroundMode()) {
-            applyPushConnection(true);
+        // Old Pengram versions overwrote account 0's pushService setting when
+        // switching this mode. Migrate once; later user choices remain intact.
+        final String migration = "migratedBackgroundPushService";
+        if (!PengramConfig.getBool(migration, false)) {
+            MessagesController.getGlobalNotificationsSettings().edit().remove("pushService").apply();
+            PengramConfig.setBool(migration, true);
         }
+        applyPushConnection(PengramConfig.isBackgroundMode());
+        ApplicationLoader.startPushService();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             try {
                 if (UserConfig.getInstance(a).isClientActivated()) {
@@ -62,11 +48,14 @@ public class PengramBackgroundService {
     private static void applyPushConnection(boolean enabled) {
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             try {
-                if (!UserConfig.getInstance(a).isClientActivated()) {
-                    continue;
-                }
-                ConnectionsManager.getInstance(a).setPushConnectionEnabled(enabled);
-            } catch (Throwable ignore) {
+                if (!UserConfig.getInstance(a).isClientActivated()) continue;
+                // Restore the user's Telegram preference instead of forcing the
+                // connection OFF whenever the optional Pengram mode is disabled.
+                boolean preferred = MessagesController.getNotificationsSettings(a).getBoolean("pushConnection",
+                        MessagesController.getMainSettings(a).getBoolean("backgroundConnection", false));
+                ConnectionsManager.getInstance(a).setPushConnectionEnabled(enabled || preferred);
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
         }
     }

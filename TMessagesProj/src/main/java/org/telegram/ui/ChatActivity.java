@@ -8542,8 +8542,8 @@ public class ChatActivity extends BaseFragment implements
         messagesSearchListView.setItemAnimator(itemAnimator);
         messagesSearchListContainer.addView(messagesSearchListView, LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT);
         messagesSearchListView.setOnItemClickListener((view, position) -> {
+            Object obj = messagesSearchAdapter.getItem(position);
             if (chatMode == MODE_SEARCH) {
-                Object obj = messagesSearchAdapter.getItem(position);
                 if (position == 0 && messagesSearchAdapter.containsStories && messagesSearchAdapter.storiesList != null) {
                     Bundle args = new Bundle();
                     args.putInt("type", MediaActivity.TYPE_STORIES_SEARCH);
@@ -8554,8 +8554,18 @@ public class ChatActivity extends BaseFragment implements
                     args.putInt("storiesCount", messagesSearchAdapter.storiesList.getCount());
                     presentFragment(new MediaActivity(args, null));
                 } else if (obj instanceof MessageObject) {
-                    openMessageInOriginalDialog((MessageObject) obj);
+                    org.telegram.messenger.PengramHistory.Entry deleted = messagesSearchAdapter.getDeletedResult((MessageObject) obj);
+                    if (deleted != null) {
+                        presentFragment(new PengramHistoryChatActivity(deleted.dialogId,
+                                PengramHistoryChatActivity.MODE_DELETED, deleted.messageId));
+                    } else {
+                        openMessageInOriginalDialog((MessageObject) obj);
+                    }
                 }
+            } else if (obj instanceof MessageObject && messagesSearchAdapter.getDeletedResult((MessageObject) obj) != null) {
+                org.telegram.messenger.PengramHistory.Entry deleted = messagesSearchAdapter.getDeletedResult((MessageObject) obj);
+                presentFragment(new PengramHistoryChatActivity(deleted.dialogId,
+                        PengramHistoryChatActivity.MODE_DELETED, deleted.messageId));
             } else if (searchingReaction != null) {
                 if (position < 0 || position >= getMediaDataController().searchResultMessages.size())
                     return;
@@ -36237,6 +36247,11 @@ public class ChatActivity extends BaseFragment implements
             searchItem.setSearchFieldText(text, false);
         }
         getMediaDataController().searchMessagesInChat(searchingQuery = (text == null ? "" : text), dialog_id, mergeDialogId, classGuid, 0, threadMessageId, false, searchingUserMessages, searchingChatMessages, !TextUtils.isEmpty(text), searchingReaction);
+        if (messagesSearchAdapter != null) {
+            messagesSearchAdapter.searchLocalDeleted(searchingQuery, dialog_id, mergeDialogId,
+                    threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
+                    () -> showMessagesSearchListView(true));
+        }
         updatePinnedMessageView(true);
     }
 
@@ -39761,6 +39776,7 @@ public class ChatActivity extends BaseFragment implements
                 HashtagSearchController.getInstance(currentAccount).clearSearchResults();
             }
             if (messagesSearchAdapter != null) {
+                messagesSearchAdapter.searchLocalDeleted("", dialog_id, mergeDialogId, false, null);
                 messagesSearchAdapter.notifyDataSetChanged();
             }
             removeSelectedMessageHighlight();
@@ -39894,11 +39910,21 @@ public class ChatActivity extends BaseFragment implements
                 hashtagSearchTabs.tabs.scrollToTab(defaultSearchPage, defaultSearchPage);
             }
 
+            if (messagesSearchAdapter != null) {
+                messagesSearchAdapter.searchLocalDeleted(searchingQuery, dialog_id, mergeDialogId,
+                        threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
+                        () -> showMessagesSearchListView(true));
+            }
             getMediaDataController().searchMessagesInChat(searchingQuery, dialog_id, mergeDialogId, classGuid, 0, threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
         }
 
         @Override
         public void onTextChanged(EditText editText) {
+            if (messagesSearchAdapter != null && editText != null) {
+                messagesSearchAdapter.searchLocalDeleted(editText.getText().toString(), dialog_id, mergeDialogId,
+                        threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
+                        () -> showMessagesSearchListView(true));
+            }
             if (searchingHashtag == null) {
                 showMessagesSearchListView(false);
             }

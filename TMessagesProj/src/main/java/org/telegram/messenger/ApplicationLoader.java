@@ -392,24 +392,26 @@ public class ApplicationLoader extends Application {
         NotificationCenter.sanitize();
     });
 
-    public static void startPushService() {
-        SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (PengramConfig.isBackgroundMode()) {
-            enabled = true;
-        } else if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
+    /** Keep-alive is separate from FCM delivery and is opt-in per account. */
+    public static boolean shouldStartNotificationService() {
+        if (PengramConfig.isBackgroundMode()) return true;
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).isClientActivated()
+                    && MessagesController.getNotificationsSettings(a).getBoolean("pushService",
+                        MessagesController.getMainSettings(a).getBoolean("keepAliveService", false))) {
+                return true;
+            }
         }
-        if (enabled) {
+        return false;
+    }
+
+    public static void startPushService() {
+        if (shouldStartNotificationService()) {
             try {
-                // сервис сразу поднимает себя в foreground — запускаем его правильно,
-                // иначе Android 8+ прибьёт его через несколько секунд
                 androidx.core.content.ContextCompat.startForegroundService(applicationContext,
                         new Intent(applicationContext, NotificationsService.class));
-            } catch (Throwable ignore) {
-
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));

@@ -1966,7 +1966,8 @@ public class PengramConfig {
      */
     private static final java.util.HashSet<String> EXPORTABLE_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
             "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled", "playerTracksView",
-            "appFont", "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
+            "appFont", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle",
+            "typingStatsEnabled", "typingStatsBadge", "bypassEnabled",
             "chatItemsOrder", "chatMenuEnabled", "chatMenuPosition", "copyIdOnTap",
             "copyToClipboard", "coverShape", "deleteEffect", "deleteEffectIncoming",
             "deletedMark", "dialogAvatarShape", "dialogSenderAvatarPosition", "dialogSenderAvatars",
