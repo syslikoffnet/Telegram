@@ -100,7 +100,7 @@ public final class PengramTypingEffects {
         if (end - start > PASTE_THRESHOLD) {
             final State existing = states.get(edit);
             if (existing != null) {
-                existing.clear();
+                existing.clearAll();
             }
             return;
         }

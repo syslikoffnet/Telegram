@@ -1812,7 +1812,6 @@ public class PengramConfig {
     public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, false); }
     public static boolean isTypingIgnoreSpaces() { return getBool(KEY_TYPING_IGNORE_SPACES, true); }
     public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, false); }
-    public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
     public static boolean isInputAnimationHaptic() { return getBool(KEY_INPUT_ANIMATION_HAPTIC, false); }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
