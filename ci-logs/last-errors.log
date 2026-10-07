@@ -7,7 +7,7 @@
 159:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:660:57: note: place parentheses around the '&&' expression to silence this warning
 166:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:62: note: place parentheses around the '&&' expression to silence this warning
 173:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Connection.cpp:715:147: note: place parentheses around the '&&' expression to silence this warning
-217:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:704:29: note: place parentheses around the '&&' expression to silence this warning
+181:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/ConnectionSocket.cpp:704:29: note: place parentheses around the '&&' expression to silence this warning
 225:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:200:62: note: place parentheses around the '&&' expression to silence this warning
 231:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:258:62: note: place parentheses around the '&&' expression to silence this warning
 237:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/tgnet/Datacenter.cpp:378:62: note: place parentheses around the '&&' expression to silence this warning
@@ -22,97 +22,61 @@
 353:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
 367:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/tgcalls/v2wasm/CallCoreHost.cpp:600:64: note: in instantiation of function template specialization 'std::make_unique<webrtc::RtcEventLogFactory, webrtc::TaskQueueFactory *>' requested here
 370:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/api/rtc_event_log/rtc_event_log_factory.h:29:5: note: 'RtcEventLogFactory' has been explicitly marked deprecated here
-422:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
-425:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
-431:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-447:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
-450:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
-456:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-465:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
-468:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
-474:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-483:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
-486:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
-492:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-500:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
-503:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
-508:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
-515:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:652:15: note: initializer of 'div' is not a constant expression
-516:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:647:15: note: declared here
-522:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:19: note: expanded from macro 'MAX'
-525:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:655:14: note: read of non-const variable 'w' is not allowed in a constant expression
-526:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:20: note: expanded from macro 'MAX'
-529:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:633:9: note: declared here
-538:C/C++: /usr/local/lib/android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/stdlib.h:132:18: note: expanded from macro 'RAND_MAX'
-548:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/.cxx/RelWithDebInfo/315u2d5t/arm64-v8a/<command line>:45:9: note: previous definition is here
-555:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:407:88: note: use array indexing to silence this warning
-562:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:557:34: note: read of non-const variable 'size' is not allowed in a constant expression
-563:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-569:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:558:38: note: read of non-const variable 'size' is not allowed in a constant expression
-570:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-576:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:559:39: note: read of non-const variable 'size' is not allowed in a constant expression
-577:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
-583:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
-584:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
-598:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-601:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: note: treat the string as an argument to avoid this
-605:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-611:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-618:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
-633:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: note: place parentheses around the '&&' expression to silence this warning
-640:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: note: place parentheses around the '&&' expression to silence this warning
-1347:Size: 100084 bytes
-1352:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java:67: error: cannot find symbol
-1357:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:59: error: cannot find symbol
-1362:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:76: error: cannot find symbol
-1367:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:79: error: cannot find symbol
-1372:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ContactAddActivity.java:554: error: cannot find symbol
-1377:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1232: error: cannot find symbol
-1382:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1233: error: cannot find symbol
-1387:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1234: error: cannot find symbol
-1392:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1240: error: cannot find symbol
-1397:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1241: error: cannot find symbol
-1402:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1242: error: cannot find symbol
-1407:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1244: error: cannot find symbol
-1412:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2337: error: cannot find symbol
-1417:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2338: error: cannot find symbol
-1422:Note: Some input files use or override a deprecated API.
-1423:Note: Recompile with -Xlint:deprecation for details.
-1424:Note: Some input files use unchecked or unsafe operations.
-1425:Note: Recompile with -Xlint:unchecked for details.
-1437:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java:67: error: cannot find symbol
-1442:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:59: error: cannot find symbol
-1447:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:76: error: cannot find symbol
-1452:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:79: error: cannot find symbol
-1457:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ContactAddActivity.java:554: error: cannot find symbol
-1462:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1232: error: cannot find symbol
-1467:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1233: error: cannot find symbol
-1472:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1234: error: cannot find symbol
-1477:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1240: error: cannot find symbol
-1482:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1241: error: cannot find symbol
-1487:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1242: error: cannot find symbol
-1492:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1244: error: cannot find symbol
-1497:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2337: error: cannot find symbol
-1502:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2338: error: cannot find symbol
-1507:  Note: Some input files use or override a deprecated API.
-1508:  Note: Recompile with -Xlint:deprecation for details.
-1509:  Note: Some input files use unchecked or unsafe operations.
-1510:  Note: Recompile with -Xlint:unchecked for details.
-1552:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java:67: error: cannot find symbol
-1557:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:59: error: cannot find symbol
-1562:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:76: error: cannot find symbol
-1567:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSharePhoneBadge.java:79: error: cannot find symbol
-1572:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/ContactAddActivity.java:554: error: cannot find symbol
-1577:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1232: error: cannot find symbol
-1582:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1233: error: cannot find symbol
-1587:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1234: error: cannot find symbol
-1592:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1240: error: cannot find symbol
-1597:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1241: error: cannot find symbol
-1602:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1242: error: cannot find symbol
-1607:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1244: error: cannot find symbol
-1612:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2337: error: cannot find symbol
-1617:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:2338: error: cannot find symbol
-1622:Note: Some input files use or override a deprecated API.
-1623:Note: Recompile with -Xlint:deprecation for details.
-1624:Note: Some input files use unchecked or unsafe operations.
-1625:Note: Recompile with -Xlint:unchecked for details.
+459:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+462:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+468:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+484:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+487:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+493:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+502:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+505:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+511:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+520:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+523:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+529:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+537:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:27: note: expanded from macro 'RTC_GUARDED_BY'
+540:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:23:46: note: expanded from macro 'RTC_THREAD_ANNOTATION_ATTRIBUTE__'
+545:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/webrtc/rtc_base/thread_annotations.h:31:71: note: expanded from macro 'RTC_GUARDED_BY'
+552:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:407:88: note: use array indexing to silence this warning
+559:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:557:34: note: read of non-const variable 'size' is not allowed in a constant expression
+560:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+566:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:558:38: note: read of non-const variable 'size' is not allowed in a constant expression
+567:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+573:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:559:39: note: read of non-const variable 'size' is not allowed in a constant expression
+574:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:552:34: note: declared here
+580:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:608:30: note: read of non-const variable 'size' is not allowed in a constant expression
+581:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/voip/org_telegram_messenger_voip_Instance.cpp:605:30: note: declared here
+592:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:652:15: note: initializer of 'div' is not a constant expression
+593:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:647:15: note: declared here
+599:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:19: note: expanded from macro 'MAX'
+602:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:655:14: note: read of non-const variable 'w' is not allowed in a constant expression
+603:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:21:20: note: expanded from macro 'MAX'
+606:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/image.cpp:633:9: note: declared here
+615:C/C++: /usr/local/lib/android/sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/stdlib.h:132:18: note: expanded from macro 'RAND_MAX'
+628:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+631:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:143:10: note: treat the string as an argument to avoid this
+635:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+641:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+648:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/c_utils.h:11:67: note: expanded from macro 'LOGE'
+663:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:39: note: place parentheses around the '&&' expression to silence this warning
+670:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/jni/gifvideo.cpp:768:104: note: place parentheses around the '&&' expression to silence this warning
+681:C/C++: /home/runner/work/Telegram/Telegram/TMessagesProj/.cxx/RelWithDebInfo/315u2d5t/arm64-v8a/<command line>:45:9: note: previous definition is here
+979:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:1815: error: method setInputAnimationIntensity(int) is already defined in class PengramConfig
+1353:Size: 100516 bytes
+1359:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:103: error: cannot find symbol
+1364:Note: Some input files use or override a deprecated API.
+1365:Note: Recompile with -Xlint:deprecation for details.
+1366:Note: Some input files use unchecked or unsafe operations.
+1367:Note: Recompile with -Xlint:unchecked for details.
+1379:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:1815: error: method setInputAnimationIntensity(int) is already defined in class PengramConfig
+1382:  /home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:103: error: cannot find symbol
+1387:  Note: Some input files use or override a deprecated API.
+1388:  Note: Recompile with -Xlint:deprecation for details.
+1389:  Note: Some input files use unchecked or unsafe operations.
+1390:  Note: Recompile with -Xlint:unchecked for details.
+1432:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java:1815: error: method setInputAnimationIntensity(int) is already defined in class PengramConfig
+1435:/home/runner/work/Telegram/Telegram/TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:103: error: cannot find symbol
+1440:Note: Some input files use or override a deprecated API.
+1441:Note: Recompile with -Xlint:deprecation for details.
+1442:Note: Some input files use unchecked or unsafe operations.
+1443:Note: Recompile with -Xlint:unchecked for details.
