@@ -79,6 +79,14 @@ public final class PengramDeletedReply {
             }
             params.entities.addAll(0, quoteEntities);
             params.message = prefix + params.message;
+
+            // Цитата теперь лежит прямо в тексте, поэтому нативный «ответ»
+            // снимаем: иначе у отправителя сообщение рисовалось бы дважды —
+            // шапка-ответ (удалённое система отображает только локально) плюс
+            // втиснутая цитата. Собеседник и так не видел ответ на удалённое,
+            // для него ничего не меняется.
+            params.replyToMsg = null;
+            params.replyQuote = null;
         } catch (Throwable e) {
             FileLog.e(e);   // не даём украшательству сорвать саму отправку
         }

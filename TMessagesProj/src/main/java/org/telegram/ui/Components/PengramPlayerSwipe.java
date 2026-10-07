@@ -47,6 +47,19 @@ public final class PengramPlayerSwipe {
     private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path arrow = new Path();
 
+    /**
+     * Собственная (статичная) прозрачность каждой строки содержимого.
+     *
+     * В шапке проигрывателя заголовок трека и бегущая строка текста песни
+     * делят одно место: когда бегущая строка видна, заголовок должен быть
+     * невидим, и наоборот. Простой view.setAlpha() на этом месте ломается:
+     * свайп каждый кадр перезаписывает альфу и «воскрешает» спрятанную
+     * строку — поверх песни проступает название трека, они накладываются.
+     * Поэтому свайп считает итоговую альфу как rest(view) * коэффициент
+     * затухания, а внешние переключатели меняют только rest.
+     */
+    private final java.util.HashMap<View, Float> restAlpha = new java.util.HashMap<>();
+
     private final int touchSlop;
     private VelocityTracker velocity;
     private boolean tracking;
@@ -195,15 +208,46 @@ public final class PengramPlayerSwipe {
 
     private void setShift(float value) {
         shift = value;
-        final float progress = Math.min(1f, Math.abs(value) / dp(LIMIT));
         for (View view : content) {
             if (view == null) {
                 continue;
             }
             view.setTranslationX(value);
-            view.setAlpha(1f - 0.55f * progress);
+            applyAlpha(view);
         }
         root.invalidate();
+    }
+
+    /** текущий коэффициент затухания от смещения свайпа (0.45 .. 1) */
+    private float fade() {
+        final float progress = Math.min(1f, Math.abs(shift) / dp(LIMIT));
+        return 1f - 0.55f * progress;
+    }
+
+    private float rest(View view) {
+        final Float v = restAlpha.get(view);
+        return v != null ? v : 1f;
+    }
+
+    private void applyAlpha(View view) {
+        view.setAlpha(rest(view) * fade());
+    }
+
+    /**
+     * Базовая прозрачность строки содержимого (заголовок/строка песни делят
+     * место и гасят друг друга только через этот вызов). Применяется сразу,
+     * с учётом того, насколько сейчас содержимое вытянуто свайпом.
+     */
+    public void setRestAlpha(View view, float alpha) {
+        if (view == null) {
+            return;
+        }
+        restAlpha.put(view, alpha);
+        applyAlpha(view);
+    }
+
+    public float getRestAlpha(View view) {
+        return rest(view);
     }
 
     private void springBack() {

@@ -187,6 +187,27 @@ public class PengramConfig {
     public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
     public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
     public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
+    public static final String KEY_TYPING_BLUR = "typingBlur";
+    public static final String KEY_TYPING_BLUR_RADIUS = "typingBlurRadius";
+    public static final String KEY_TYPING_DELETE = "typingDeleteAnim";
+    public static final String KEY_TYPING_DELETE_STYLE = "typingDeleteStyle";
+    public static final String KEY_TYPING_DELETE_COUNT = "typingDeleteCount";
+    public static final String KEY_TYPING_DELETE_SPEED = "typingDeleteSpeed";
+    public static final String KEY_TYPING_DELETE_SPREAD = "typingDeleteSpread";
+    public static final String KEY_TYPING_DELETE_SIZE = "typingDeleteSize";
+    public static final String KEY_TYPING_CURSOR = "typingCursorSmooth";
+    public static final String KEY_TYPING_CURSOR_SPEED = "typingCursorSpeed";
+    public static final String KEY_TYPING_CURSOR_WIDTH = "typingCursorWidth";
+    public static final String KEY_TYPING_CURSOR_LIQUID = "typingCursorLiquid";
+    public static final String KEY_TYPING_CURSOR_LIQUID_SCALE = "typingCursorLiquidScale";
+    public static final String KEY_TYPING_SELECTION = "typingSelectionLiquid";
+    public static final String KEY_TYPING_IGNORE_SPACES = "typingIgnoreSpaces";
+    public static final String KEY_TYPING_ALL_LINES = "typingAnimateAllLines";
+    public static final int DELETE_PARTICLE_DUST = 0;
+    public static final int DELETE_PARTICLE_SPARKS = 1;
+    public static final int DELETE_PARTICLE_SNOW = 2;
+    public static final int DELETE_PARTICLE_PETALS = 3;
+    public static final int DELETE_PARTICLE_LETTERS = 4;
     public static final int INPUT_ANIM_NONE = 0;
     public static final int INPUT_ANIM_FADE = 1;
     public static final int INPUT_ANIM_POP = 2;
@@ -1773,6 +1794,25 @@ public class PengramConfig {
     public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
     public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
     public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
+
+    // ------------------------------------------------- анимация ввода: детали
+    public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }
+    public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 10))); }
+    public static boolean isTypingDeleteAnim() { return getBool(KEY_TYPING_DELETE, true); }
+    public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_DUST))); }
+    public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 5))); }
+    public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 50))); }
+    public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 50))); }
+    public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 50))); }
+    public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, true); }
+    public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 25))); }
+    public static int getTypingCursorWidth() { return Math.max(1, Math.min(12, getIntCached(KEY_TYPING_CURSOR_WIDTH, 2))); }
+    public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, false); }
+    public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 15))); }
+    public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, false); }
+    public static boolean isTypingIgnoreSpaces() { return getBool(KEY_TYPING_IGNORE_SPACES, true); }
+    public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, false); }
+    public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
     public static boolean isInputAnimationHaptic() { return getBool(KEY_INPUT_ANIMATION_HAPTIC, false); }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
@@ -1945,6 +1985,10 @@ public class PengramConfig {
             "historyKeepDays", "historyMaxEntries", "historyRowInProfile", "idFormat",
             "idStyle", "inAppVibration", "inputAnimation", "inputAnimationHaptic",
             "inputAnimationIntensity", "inputAnimationSpeed", "keepDeletedInChat", "keepFormatting",
+            "typingAnimateAllLines", "typingBlur", "typingBlurRadius", "typingCursorLiquid",
+            "typingCursorLiquidScale", "typingCursorSmooth", "typingCursorSpeed", "typingCursorWidth",
+            "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize", "typingDeleteSpeed",
+            "typingDeleteSpread", "typingDeleteStyle", "typingIgnoreSpaces", "typingSelectionLiquid",
             "keepOnceMedia", "localPremium", "localPremiumStatus", "lyricsAlign",
             "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",

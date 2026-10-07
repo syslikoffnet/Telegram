@@ -30,7 +30,7 @@ public class PengramTypingPreviewView extends FrameLayout {
         caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         addView(caption, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 24, Gravity.TOP | Gravity.LEFT));
 
-        input = new EditText(context) {
+        input = new EditTextBoldCursor(context) {
             @Override
             protected void onDraw(android.graphics.Canvas canvas) {
                 super.onDraw(canvas);
@@ -47,7 +47,11 @@ public class PengramTypingPreviewView extends FrameLayout {
         input.setBackground(createBackground());
         addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 28, 0, 0));
         input.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                if (count > 0) {
+                    PengramTypingEffects.captureBefore(input, s, start, count);
+                }
+            }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 PengramTypingEffects.apply(input, input.getText(), start, before, count);
             }

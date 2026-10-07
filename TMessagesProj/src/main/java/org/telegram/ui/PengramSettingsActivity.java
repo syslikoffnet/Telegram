@@ -123,6 +123,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_INPUT_ANIMATION = 548;
     private static final int BTN_INPUT_ANIMATION_SPEED = 549;
     private static final int BTN_INPUT_ANIMATION_INTENSITY = 550;
+    private static final int BTN_TYPING_DELETE_STYLE = 552;
     private static final int BTN_QUICK_ADD = 543;
     private static final int BTN_QUICK_ACTION_BASE = 560;
 
@@ -3182,6 +3183,49 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_SPEED, getString(R.string.PengramInputAnimationSpeed), inputAnimationSpeedName()));
             items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_INTENSITY, getString(R.string.PengramInputAnimationIntensity), inputAnimationIntensityName()));
             items.add(check(PengramConfig.KEY_INPUT_ANIMATION_HAPTIC, false, getString(R.string.PengramInputAnimationHaptic)));
+            items.add(check(PengramConfig.KEY_TYPING_BLUR, true, getString(R.string.PengramTypingBlur)));
+            if (PengramConfig.isTypingBlur()) {
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingBlurRadius(), 30,
+                        value -> getString(R.string.PengramTypingBlurRadius) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_BLUR_RADIUS, value)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTypingBehaviorHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_IGNORE_SPACES, true, getString(R.string.PengramTypingIgnoreSpaces)));
+            items.add(check(PengramConfig.KEY_TYPING_ALL_LINES, false, getString(R.string.PengramTypingAllLines)));
+            items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_DELETE, true, getString(R.string.PengramTypingDelete)));
+            if (PengramConfig.isTypingDeleteAnim()) {
+                items.add(UItem.asSettingsCell(BTN_TYPING_DELETE_STYLE, getString(R.string.PengramTypingDeleteStyle), typingDeleteStyleName()));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteCount(), 12,
+                        value -> getString(R.string.PengramTypingDeleteCount) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_COUNT, value)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpeed(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSpeed) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPEED, value)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpread(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSpread) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPREAD, value)));
+                items.add(UItem.asIntSlideView(1, 10, PengramConfig.getTypingDeleteSize(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSize) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SIZE, value)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
+            if (PengramConfig.isTypingCursorSmooth()) {
+                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
+                        value -> getString(R.string.PengramTypingCursorSpeed) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_SPEED, value)));
+                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
+                        value -> getString(R.string.PengramTypingCursorWidth) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
+                items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
+                if (PengramConfig.isTypingCursorLiquid()) {
+                    items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
+                            value -> getString(R.string.PengramTypingCursorStretch) + ": " + value,
+                            value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
+                }
+                items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));
+            }
         }
         items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
@@ -3335,6 +3379,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private CharSequence inputAnimationIntensityName() {
         return getString(new int[]{R.string.PengramInputIntensitySoft, R.string.PengramInputIntensityMedium, R.string.PengramInputIntensityStrong}[PengramConfig.getInputAnimationIntensity() - 1]);
+    }
+
+    private CharSequence typingDeleteStyleName() {
+        final int[] names = {R.string.PengramTypingParticleDust, R.string.PengramTypingParticleSparks,
+                R.string.PengramTypingParticleSnow, R.string.PengramTypingParticlePetals, R.string.PengramTypingParticleLetters};
+        return getString(names[PengramConfig.getTypingDeleteStyle()]);
     }
 
     private CharSequence senderAvatarPositionName() {
@@ -3531,6 +3581,15 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final CharSequence[] options = {getString(R.string.PengramInputIntensitySoft), getString(R.string.PengramInputIntensityMedium), getString(R.string.PengramInputIntensityStrong)};
                 showChoicePicker(getString(R.string.PengramInputAnimationIntensity), options, PengramConfig.getInputAnimationIntensity() - 1, value -> {
                     PengramConfig.setInputAnimationIntensity(value + 1);
+                    if (typingPreview != null) typingPreview.update();
+                });
+                return;
+            }
+            case BTN_TYPING_DELETE_STYLE: {
+                final CharSequence[] options = {getString(R.string.PengramTypingParticleDust), getString(R.string.PengramTypingParticleSparks),
+                        getString(R.string.PengramTypingParticleSnow), getString(R.string.PengramTypingParticlePetals), getString(R.string.PengramTypingParticleLetters)};
+                showChoicePicker(getString(R.string.PengramTypingDeleteStyle), options, PengramConfig.getTypingDeleteStyle(), value -> {
+                    PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_STYLE, value);
                     if (typingPreview != null) typingPreview.update();
                 });
                 return;

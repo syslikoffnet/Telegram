@@ -5327,6 +5327,24 @@ public class ChatActivityEnterView extends FrameLayout implements
     private class ChatActivityEditTextCaption extends EditTextCaption {
         public ChatActivityEditTextCaption(Context context, Theme.ResourcesProvider resourcesProvider) {
             super(context, resourcesProvider);
+            // Pengram: координаты стираемых символов известны только ДО удаления —
+            // запоминаем их тут, чтобы частицы разлетались ровно из снятого текста
+            addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    if (count > 0) {
+                        PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
+                    }
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                }
+            });
         }
 
         CanvasButton canvasButton;

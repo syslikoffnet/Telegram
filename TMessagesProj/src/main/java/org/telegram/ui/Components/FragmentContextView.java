@@ -2133,6 +2133,60 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     /** строка песни сейчас показана (или как раз выезжает) */
     private boolean pengramTickerShown;
 
+    /**
+     * Pengram: плавный кроссфейд «название трека ⇄ строка песни».
+     *
+     * Альфа меняется только через PengramPlayerSwipe.setRestAlpha — тогда
+     * свайп, потянувший шапку во время смены, умножает затухание на
+     * актуальную базовую яркость каждой строки, а не воскрешает спрятанную
+     * поверх показанной (раньше они налезали друг на друга).
+     */
+    private android.animation.ValueAnimator pengramHeaderFade;
+
+    private void pengramFadeHeader(boolean tickerVisible, long duration, Runnable endAction) {
+        if (titleTextView == null || pengramTicker == null) {
+            if (endAction != null) {
+                endAction.run();
+            }
+            return;
+        }
+        final float titleFrom = pengramSwipe != null ? pengramSwipe.getRestAlpha(titleTextView) : titleTextView.getAlpha();
+        final float tickerFrom = pengramSwipe != null ? pengramSwipe.getRestAlpha(pengramTicker) : pengramTicker.getAlpha();
+        final float titleTo = tickerVisible ? 0f : 1f;
+        final float tickerTo = tickerVisible ? 1f : 0f;
+        if (pengramSwipe == null) {
+            titleTextView.setAlpha(titleTo);
+            pengramTicker.setAlpha(tickerTo);
+            if (endAction != null) {
+                endAction.run();
+            }
+            return;
+        }
+        if (pengramHeaderFade != null) {
+            pengramHeaderFade.cancel();
+        }
+        pengramHeaderFade = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        pengramHeaderFade.setDuration(duration);
+        final android.animation.ValueAnimator fade = pengramHeaderFade;
+        pengramHeaderFade.addUpdateListener(a -> {
+            final float t = (float) a.getAnimatedValue();
+            pengramSwipe.setRestAlpha(titleTextView, titleFrom + (titleTo - titleFrom) * t);
+            pengramSwipe.setRestAlpha(pengramTicker, tickerFrom + (tickerTo - tickerFrom) * t);
+        });
+        pengramHeaderFade.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (pengramHeaderFade == fade) {
+                    pengramHeaderFade = null;
+                }
+                if (endAction != null) {
+                    endAction.run();
+                }
+            }
+        });
+        pengramHeaderFade.start();
+    }
+
     private void pengramShowTicker() {
         if (pengramTicker == null || pengramTickerShown) {
             return;
@@ -2143,40 +2197,40 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         pengramTicker.animate().cancel();
         pengramTicker.setVisibility(VISIBLE);
         pengramTicker.setTranslationY(dp(6));
-        pengramTicker.animate().alpha(1f).translationY(0).setDuration(220).start();
-        if (titleTextView != null) {
-            titleTextView.animate().cancel();
-            titleTextView.animate().alpha(0f).setDuration(220).start();
-        }
+        pengramTicker.animate().translationY(0).setDuration(220).start();
+        pengramFadeHeader(true, 220, null);
     }
 
     private void pengramHideTicker() {
         if (pengramTicker == null) {
             if (titleTextView != null) {
-                titleTextView.animate().cancel();
-                titleTextView.setAlpha(1f);
+                if (pengramSwipe != null) {
+                    pengramSwipe.setRestAlpha(titleTextView, 1f);
+                } else {
+                    titleTextView.animate().cancel();
+                    titleTextView.setAlpha(1f);
+                }
             }
             return;
         }
         if (!pengramTickerShown && pengramTicker.getVisibility() != VISIBLE) {
             if (titleTextView != null) {
-                titleTextView.animate().cancel();
-                titleTextView.setAlpha(1f);
+                if (pengramSwipe != null) {
+                    pengramSwipe.setRestAlpha(titleTextView, 1f);
+                } else {
+                    titleTextView.animate().cancel();
+                    titleTextView.setAlpha(1f);
+                }
             }
             return;
         }
         pengramTickerShown = false;
         pengramTicker.animate().cancel();
-        pengramTicker.animate().alpha(0f).setDuration(180)
-                .withEndAction(() -> {
-                    if (!pengramTickerShown && pengramTicker != null) {
-                        pengramTicker.setVisibility(GONE);
-                    }
-                }).start();
-        if (titleTextView != null) {
-            titleTextView.animate().cancel();
-            titleTextView.animate().alpha(1f).setDuration(220).start();
-        }
+        pengramFadeHeader(false, 180, () -> {
+            if (!pengramTickerShown && pengramTicker != null) {
+                pengramTicker.setVisibility(GONE);
+            }
+        });
     }
 
     public void checkImport(boolean create) {
