@@ -47132,8 +47132,8 @@ public class ChatActivity extends BaseFragment implements
             icons.add(R.drawable.msg_copy);
         }
 
-        if (message.isPhoto() && !message.isSponsored() && currentEncryptedChat == null && !isPeerNoForwards()
-                && !message.messageOwner.noforwards && !message.isSecretMedia()) {
+        if (message.isPhoto() && !message.isSponsored() && message.messageOwner != null
+                && !org.telegram.ui.Components.PengramPhotoClipboard.isSensitive(message)) {
             items.add(LocaleController.getString(R.string.PengramPhotoCopy));
             options.add(OPTION_PENGRAM_COPY_PHOTO);
             icons.add(R.drawable.msg_copy);

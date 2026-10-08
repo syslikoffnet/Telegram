@@ -201,9 +201,9 @@ public final class PengramCrashReport {
 
     public static boolean isCopyEnabled() {
         try {
-            return prefs() == null || prefs().getBoolean(KEY_COPY, true);
+            return prefs() != null && prefs().getBoolean(KEY_COPY, false);
         } catch (Throwable ignore) {
-            return true;
+            return false;
         }
     }
 

@@ -1574,7 +1574,7 @@
     <string name="PengramProfileScopeContacts">Контакты и существующие чаты</string>
     <string name="PengramProfileScopeAll">Все встреченные пользователи</string>
     <string name="PengramCrashReports">Отчёты о вылетах</string>
-    <string name="PengramCrashReportsInfo">Если Pengram вылетит, причина сразу окажется в буфере обмена — останется вставить её в чат с разработчиком. Последние %1$s отчётов хранятся на устройстве и сами никуда не уходят.</string>
+    <string name="PengramCrashReportsInfo">Последние %1$s отчётов о сбоях остаются на устройстве и никуда не отправляются автоматически. Их можно скопировать вручную или включить автокопирование выше.</string>
     <string name="PengramCrashAutoCopy">Копировать причину в буфер обмена</string>
     <string name="PengramCrashTitle">Pengram вылетел</string>
     <string name="PengramCrashReportTitle">Отчёт о вылете</string>
@@ -1700,8 +1700,10 @@
     <string name="PengramAIAutoJump">Показать наблюдаемые чаты</string>
     <string name="PengramPhotoCopy">Копировать фото</string>
     <string name="PengramPhotoCopied">Фото скопировано</string>
-    <string name="PengramPhotoCopyDownload">Сначала скачайте фото</string>
-    <string name="PengramPhotoCopyRestricted">Защищённое фото нельзя скопировать</string>
+    <string name="PengramPhotoCopiedPreview">Скопирована доступная версия фото</string>
+    <string name="PengramPhotoCopyLoading">Скачиваем фото…</string>
+    <string name="PengramPhotoCopyDownload">Фото не скачано или уже удалено с устройства</string>
+    <string name="PengramPhotoCopyRestricted">Нельзя копировать секретное или одноразовое фото</string>
     <string name="PengramPhotoCopyError">Не удалось скопировать фото</string>
     <string name="PengramHistoryResendCopy">Отправить копию в чат</string>
     <string name="PengramHistoryCopyUnavailable">Не удалось отправить копию: файл уже недоступен</string>

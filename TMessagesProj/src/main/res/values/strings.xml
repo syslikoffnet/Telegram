@@ -12546,7 +12546,7 @@
     <string name="PengramProfileScopeContacts">Contacts and existing chats</string>
     <string name="PengramProfileScopeAll">All encountered users</string>
     <string name="PengramCrashReports">Crash reports</string>
-    <string name="PengramCrashReportsInfo">If Pengram crashes, the reason is copied to the clipboard right away — just paste it into the chat with the developer. The last %1$s reports are kept on the device and never leave it on their own.</string>
+    <string name="PengramCrashReportsInfo">The last %1$s crash reports stay on your device and are never sent automatically. You can copy a report manually, or enable automatic clipboard copying above.</string>
     <string name="PengramCrashAutoCopy">Copy the reason to the clipboard</string>
     <string name="PengramCrashTitle">Pengram crashed</string>
     <string name="PengramCrashReportTitle">Crash report</string>
@@ -12672,8 +12672,10 @@
     <string name="PengramAIAutoJump">View watched chats</string>
     <string name="PengramPhotoCopy">Copy photo</string>
     <string name="PengramPhotoCopied">Photo copied</string>
-    <string name="PengramPhotoCopyDownload">Download the photo first</string>
-    <string name="PengramPhotoCopyRestricted">Copying is unavailable for protected photos</string>
+    <string name="PengramPhotoCopiedPreview">Available photo preview copied</string>
+    <string name="PengramPhotoCopyLoading">Downloading photo…</string>
+    <string name="PengramPhotoCopyDownload">Photo not downloaded or no longer on this device</string>
+    <string name="PengramPhotoCopyRestricted">Cannot copy secret or disappearing photos</string>
     <string name="PengramPhotoCopyError">Could not copy the photo</string>
     <string name="PengramHistoryResendCopy">Send a copy to chat</string>
     <string name="PengramHistoryCopyUnavailable">Could not send this archived message; the original media may be unavailable</string>

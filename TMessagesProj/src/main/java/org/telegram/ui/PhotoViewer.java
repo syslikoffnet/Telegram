@@ -265,6 +265,7 @@ import org.telegram.ui.Components.LoadingDrawable;
 import org.telegram.ui.Components.MediaActivity;
 import org.telegram.ui.Components.MuteDrawable;
 import org.telegram.ui.Components.OtherDocumentPlaceholderDrawable;
+import org.telegram.ui.Components.PengramPhotoClipboard;
 import org.telegram.ui.Components.Paint.Views.LPhotoPaintView;
 import org.telegram.ui.Components.Paint.Views.MaskPaintView;
 import org.telegram.ui.Components.Paint.Views.StickerCutOutBtn;
@@ -2194,6 +2195,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private final static int gallery_menu_chromecast = 24;
     private final static int gallery_menu_create_sticker = 25;
     private final static int gallery_menu_delete2 = 26;
+    private final static int gallery_menu_copyphoto = 27;
 
     private final static int ads_sponsor_info = 101;
     private final static int ads_about = 102;
@@ -5520,6 +5522,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     if (button != null) {
                         button.setTextColor(getThemedColor(Theme.key_text_RedBold));
                     }
+                } else if (id == gallery_menu_copyphoto) {
+                    copyCurrentPhotoToClipboard();
                 } else if (id == gallery_menu_share || id == gallery_menu_share2) {
                     onSharePressed();
                 } else if (id == gallery_menu_openin) {
@@ -5913,6 +5917,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         menuItem.addSubItem(gallery_menu_reply, R.drawable.menu_reply, getString(R.string.Reply)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_report, R.drawable.msg_report, getString(R.string.ReportProfilePhoto)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_share, R.drawable.msg_shareout, getString(R.string.ShareFile)).setColors(0xfffafafa, 0xfffafafa);
+        menuItem.addSubItem(gallery_menu_copyphoto, R.drawable.msg_copy, getString(R.string.PengramPhotoCopy)).setColors(0xfffafafa, 0xfffafafa);
+        menuItem.hideSubItem(gallery_menu_copyphoto);
         menuItem.addSubItem(gallery_menu_masks2, R.drawable.msg_sticker, getString(R.string.ShowStickers)).setColors(0xfffafafa, 0xfffafafa);
         //menuItem.addSubItem(gallery_menu_edit_avatar, R.drawable.photo_paint, LocaleController.getString(R.string.EditPhoto)).setColors(0xfffafafa, 0xfffafafa);
         menuItem.addSubItem(gallery_menu_set_as_main, R.drawable.msg_openprofile, getString(R.string.SetAsMain)).setColors(0xfffafafa, 0xfffafafa);
@@ -13986,6 +13992,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         menuItem.hideSubItem(gallery_menu_create_sticker);
         menuItem.hideSubItem(gallery_menu_reply);
         menuItem.hideSubItem(gallery_menu_report);
+        menuItem.hideSubItem(gallery_menu_copyphoto);
         menuItem.hideSubItem(gallery_menu_share);
         menuItem.hideSubItem(gallery_menu_openin);
         menuItem.hideSubItem(gallery_menu_savegif);
@@ -14510,6 +14517,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             TransitionManager.beginDelayedTransition(itemsLayout, transitionSet);
         }
         menuItem.hideSubItem(gallery_menu_report);
+        menuItem.hideSubItem(gallery_menu_copyphoto);
 
         CharSequence title = null;
         editing = false;
@@ -14521,6 +14529,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             newMessageObject.updateTranslation();
             isLivePhoto = newMessageObject.isLivePhoto();
             isVideo = newMessageObject.isVideo();
+            if (newMessageObject.isPhoto() && !PengramPhotoClipboard.isSensitive(newMessageObject)) {
+                menuItem.showSubItem(gallery_menu_copyphoto);
+            }
 
             title = FilteredSearchView.createFromInfoString(newMessageObject, opennedFromMedia && !openedFromProfile, 0);
             CharSequence subtitle = null;
@@ -14800,6 +14811,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
             menuItem.hideSubItem(gallery_menu_translate);
             menuItem.hideSubItem(gallery_menu_hide_translation);
+            // Profile and chat avatars are not message media, but can still be copied locally.
+            menuItem.showSubItem(gallery_menu_copyphoto);
             if (canEditAvatar && !avatarsArr.isEmpty()) {
                 menuItem.showSubItem(gallery_menu_edit_avatar);
                 boolean currentSet = isCurrentAvatarSet();
@@ -15199,6 +15212,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             menuItem.hideSubItem(gallery_menu_translate);
             menuItem.hideSubItem(gallery_menu_hide_translation);
         }
+        menuItem.checkHideMenuItem();
         fancyShadows = editing && setAvatarFor == null || sendPhotoType == SELECT_TYPE_STICKER;
         actionBar.setBackgroundColor(sendPhotoTypeIsPollMedia || fancyShadows || setAvatarFor != null ? 0 : Theme.ACTION_BAR_PHOTO_VIEWER_COLOR);
         checkActionBarStyle();
@@ -15219,6 +15233,28 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
         }
         setCurrentCaption(newMessageObject, caption, captionTranslating, animateCaption);
+    }
+
+    private void copyCurrentPhotoToClipboard() {
+        if (parentActivity == null || containerView == null) return;
+        MessageObject message = currentMessageObject;
+        if (message != null && (!message.isPhoto() || PengramPhotoClipboard.isSensitive(message))) return;
+        File source = null;
+        if (message == null) {
+            if (imagesArrLocations.isEmpty() || currentIndex < 0 || currentIndex >= imagesArrLocations.size()) return;
+            ImageLocation location = imagesArrLocations.get(currentIndex);
+            if (location != null && location.location != null) {
+                source = FileLoader.getInstance(currentAccount).getPathToAttach(location.location, getFileLocationExt(location), false);
+            }
+        }
+        // Keep the currently visible (possibly reduced-resolution) image alive while the
+        // background worker resolves the original or encodes the preview as a fallback.
+        ImageReceiver.BitmapHolder snapshot = centerImage.getBitmapSafe();
+        PengramPhotoClipboard.copy(parentActivity, message, source, snapshot, text -> {
+            if (containerView.getParent() != null) {
+                BulletinFactory.of(containerView, resourcesProvider).createSimpleBulletin(R.raw.copy, text).show();
+            }
+        });
     }
 
     private void checkActionBarStyle() {

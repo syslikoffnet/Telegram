@@ -378,7 +378,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             labels.add(getString(R.string.Copy));
             actions.add(() -> AndroidUtilities.addToClipboard(message.messageText));
         }
-        if (message.isPhoto() && !restricted) {
+        if (message.isPhoto() && !org.telegram.ui.Components.PengramPhotoClipboard.isSensitive(message)) {
             labels.add(getString(R.string.PengramPhotoCopy));
             actions.add(() -> org.telegram.ui.Components.PengramPhotoClipboard.copy(this, message));
         }
