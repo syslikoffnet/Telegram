@@ -4785,22 +4785,42 @@ public class PengramSettingsActivity extends UniversalFragment {
         args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
         args.putBoolean("allowSwitchAccount", false);
         final DialogsActivity picker = new DialogsActivity(args);
+        picker.setCurrentAccount(currentAccount);
         picker.setDelegate((fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
-            fragment.finishFragment();
-            for (org.telegram.messenger.MessagesStorage.TopicKey selected : dids) {
-                final long did = selected.dialogId;
-                final TLRPC.Chat chat = did < 0 ? getMessagesController().getChat(-did) : null;
-                final TLRPC.User user = did > 0 ? getMessagesController().getUser(did) : null;
-                if (did == 0 || did == UserConfig.getInstance(currentAccount).getClientUserId()
-                        || did < 0 && (chat == null || ChatObject.isChannelAndNotMegaGroup(chat)
-                                || !ChatObject.canSendPlain(chat))
-                        || did > 0 && (user == null || user.bot)) continue;
-                final org.telegram.messenger.PengramAIAutoReply.Rule existing =
-                        org.telegram.messenger.PengramAIAutoReply.rule(currentAccount, did);
-                showAIAutoRuleDialog(existing == null
-                        ? new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 2, 6) : existing);
-                break; // one explicit confirmation per selected chat
+            if (dids == null || dids.isEmpty()) return false;
+            final org.telegram.messenger.MessagesStorage.TopicKey selected = dids.get(0);
+            if (selected == null) return false;
+            final long did = selected.dialogId;
+            final TLRPC.Chat chat = did < 0 ? getMessagesController().getChat(-did) : null;
+            final TLRPC.User user = did > 0 ? getMessagesController().getUser(did) : null;
+            if (did == 0 || selected.topicId != 0
+                    || did == UserConfig.getInstance(currentAccount).getClientUserId()
+                    || did < 0 && (chat == null || ChatObject.isChannelAndNotMegaGroup(chat)
+                            || !ChatObject.canSendPlain(chat))
+                    || did > 0 && (user == null || user.bot)) {
+                BulletinFactory.of(fragment).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoUnsupportedChat)).show();
+                return false;
             }
+            final org.telegram.messenger.PengramAIAutoReply.Rule existing =
+                    org.telegram.messenger.PengramAIAutoReply.rule(currentAccount, did);
+            if (existing == null && !org.telegram.messenger.PengramAIAutoReply.put(
+                    new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 2, 6))) {
+                BulletinFactory.of(fragment).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoSaveError)).show();
+                return false;
+            }
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            fragment.finishFragment();
+            AndroidUtilities.runOnUIThread(() -> {
+                if (getContext() == null) return;
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
+                        getString(existing == null ? R.string.PengramAIAutoConnected
+                                : R.string.PengramAIAutoAlreadyConnected)).show();
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled()) {
+                    AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 900);
+                }
+            }, 280);
             return true;
         });
         presentFragment(picker);
@@ -4830,8 +4850,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final int from = Integer.parseInt(min.getText().toString().trim());
                 final int to = Integer.parseInt(max.getText().toString().trim());
                 if (from < 1 || from > to || to > 600) throw new NumberFormatException();
-                org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
-                        rule.account, rule.dialogId, true, from, to));
+                if (!org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                        rule.account, rule.dialogId, true, from, to))) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                            getString(R.string.PengramAIAutoSaveError)).show();
+                    return;
+                }
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                 if (!org.telegram.messenger.PengramAIAutoReply.enabled())
                     AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 180);
@@ -4842,8 +4866,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         builder.setNeutralButton(getString(R.string.PengramAIAutoRemove), (d, w) -> {
-            org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
-                    rule.account, rule.dialogId, false, rule.minSeconds, rule.maxSeconds));
+            if (!org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                    rule.account, rule.dialogId, false, rule.minSeconds, rule.maxSeconds))) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoSaveError)).show();
+                return;
+            }
             if (listView != null && listView.adapter != null) listView.adapter.update(true);
         });
         showDialog(builder.create());

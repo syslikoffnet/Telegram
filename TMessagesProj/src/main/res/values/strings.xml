@@ -11933,6 +11933,10 @@
     <string name="PengramAIAutoStyleInfo">Describe your style manually. Chat history and your old messages are never read or sent. Do not put personal details here.</string>
     <string name="PengramAIAutoQuiet">Quiet hours</string>
     <string name="PengramAIAutoCooldown">Optional pause between replies in a chat · 0 = off</string>
+    <string name="PengramAIAutoConnected">Chat connected · tap it to change the 2–6 second delay</string>
+    <string name="PengramAIAutoAlreadyConnected">Chat is already connected · tap it to change the delay</string>
+    <string name="PengramAIAutoUnsupportedChat">Choose a private chat or a group where you can send messages. Bots, channels and Saved Messages are not supported.</string>
+    <string name="PengramAIAutoSaveError">Could not save this chat. Please try again.</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
     <string name="PengramAIAutoInfo">Only new text messages are sent to the selected AI service (after local redaction); no history or prior messages are uploaded. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. 3 direct mentions from one sender within a minute pause auto-replies to that sender for 15 minutes across selected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops, and no external service guarantees absolute privacy.</string>

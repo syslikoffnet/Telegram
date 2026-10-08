@@ -184,7 +184,9 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         return null;
     }
 
-    public static void put(Rule rule) {
+    /** Persists an explicit chat change before reporting it as connected in the UI. */
+    public static boolean put(Rule rule) {
+        if (rule == null || rule.account < 0 || rule.account >= instances.length || rule.dialogId == 0) return false;
         try {
             final JSONArray old = new JSONArray(PengramAI.prefs().getString(KEY_RULES, "[]"));
             final JSONArray next = new JSONArray();
@@ -201,7 +203,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 o.put("max", rule.maxSeconds);
                 next.put(o);
             }
-            PengramAI.prefs().edit().putString(KEY_RULES, next.toString()).apply();
+            if (!PengramAI.prefs().edit().putString(KEY_RULES, next.toString()).commit()) return false;
             register(rule.account);
             final PengramAIAutoReply instance = instances[rule.account];
             if (instance != null) {
@@ -209,8 +211,10 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 instance.awaitingReply.remove(rule.dialogId);
                 instance.states.remove(rule.dialogId);
             }
+            return true;
         } catch (Exception e) {
             FileLog.e(e);
+            return false;
         }
     }
 
