@@ -396,7 +396,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
+        if (supportsHolidayImage && !org.telegram.messenger.PengramConfig.isForcedSnow()
+                && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
             Drawable drawable = Theme.getCurrentHolidayDrawable();
             if (drawable != null && drawable.getBounds().contains((int) ev.getX(), (int) ev.getY())) {
                 manualStart = true;
@@ -435,46 +436,29 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
         }
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (supportsHolidayImage && (child == titleTextView[0] || child == titleTextView[1]
-                || child == titlesContainer && useContainerForTitles)) {
-            final boolean forcedSnow = org.telegram.messenger.PengramConfig.isForcedSnow();
-            if (!titleOverlayShown && !LocaleController.isRTL) {
-                Drawable drawable = Theme.getCurrentHolidayDrawable();
-                if (drawable != null) {
-                    SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
-                    if (titleView != null && titleView.getVisibility() == View.VISIBLE && titleView.getText() instanceof String) {
-                        TextPaint textPaint = titleView.getTextPaint();
-                        textPaint.getFontMetricsInt(fontMetricsInt);
-                        textPaint.getTextBounds((String) titleView.getText(), 0, 1, rect);
-                        int x = titleView.getTextStartX() + Theme.getCurrentHolidayDrawableXOffset() + (rect.width() - (drawable.getIntrinsicWidth() + Theme.getCurrentHolidayDrawableXOffset())) / 2;
-                        int y = titleView.getTextStartY() + Theme.getCurrentHolidayDrawableYOffset() + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titlesContainer.getScaleY()));
-                        drawable.setBounds(x, y - drawable.getIntrinsicHeight(), x + drawable.getIntrinsicWidth(), y);
-                        drawable.setAlpha((int) (255 * titlesContainer.getAlpha() * titleView.getAlpha()));
-                        drawable.draw(canvas);
-                        if (overlayTitleAnimationInProgress) {
-                            child.invalidate();
-                            invalidate();
-                        }
+        // The holiday icon belongs to the expanded title. Particles are drawn from
+        // dispatchDraw instead: the title container is INVISIBLE in the collapsed
+        // stories header, while the ActionBar itself remains on screen.
+        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL
+                && (child == titleTextView[0] || child == titleTextView[1]
+                    || child == titlesContainer && useContainerForTitles)) {
+            Drawable drawable = Theme.getCurrentHolidayDrawable();
+            if (drawable != null) {
+                SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
+                if (titleView != null && titleView.getVisibility() == View.VISIBLE && titleView.getText() instanceof String) {
+                    TextPaint textPaint = titleView.getTextPaint();
+                    textPaint.getFontMetricsInt(fontMetricsInt);
+                    textPaint.getTextBounds((String) titleView.getText(), 0, 1, rect);
+                    int x = titleView.getTextStartX() + Theme.getCurrentHolidayDrawableXOffset() + (rect.width() - (drawable.getIntrinsicWidth() + Theme.getCurrentHolidayDrawableXOffset())) / 2;
+                    int y = titleView.getTextStartY() + Theme.getCurrentHolidayDrawableYOffset() + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titlesContainer.getScaleY()));
+                    drawable.setBounds(x, y - drawable.getIntrinsicHeight(), x + drawable.getIntrinsicWidth(), y);
+                    drawable.setAlpha((int) (255 * titlesContainer.getAlpha() * titleView.getAlpha()));
+                    drawable.draw(canvas);
+                    if (overlayTitleAnimationInProgress) {
+                        child.invalidate();
+                        invalidate();
                     }
                 }
-                // The particle effect must not depend on a holiday icon or title text type.
-                if (Theme.canStartHolidayAnimation() || forcedSnow) {
-                    if (snowflakesEffect == null) {
-                        snowflakesEffect = new SnowflakesEffect(0);
-                    }
-                } else if (!manualStart) {
-                    snowflakesEffect = null;
-                }
-                if (snowflakesEffect != null) {
-                    snowflakesEffect.onDraw(this, canvas);
-                } else if (fireworksEffect != null) {
-                    fireworksEffect.onDraw(this, canvas);
-                }
-            } else if (forcedSnow) {
-                if (snowflakesEffect == null) {
-                    snowflakesEffect = new SnowflakesEffect(0);
-                }
-                snowflakesEffect.onDraw(this, canvas);
             }
         }
         if (clip) {
@@ -2330,7 +2314,40 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
 
+        // Keep the effect alive when DialogsActivity hides its title view and draws
+        // the collapsed stories title in a separate view above this ActionBar.
+        drawHolidayParticles(canvas);
         super.dispatchDraw(canvas);
+    }
+
+    private void drawHolidayParticles(Canvas canvas) {
+        if (!supportsHolidayImage || getMeasuredWidth() == 0 || getMeasuredHeight() == 0
+                || isSearchFieldVisible() || actionModeVisible
+                || parentFragment != null && parentFragment.getParentLayout() != null
+                        && parentFragment.getParentLayout().isActionBarInCrossfade()) return;
+        final boolean forced = org.telegram.messenger.PengramConfig.isForcedSnow();
+        final boolean holiday = !titleOverlayShown && !LocaleController.isRTL
+                && Theme.getCurrentHolidayDrawable() != null;
+        if (forced) {
+            fireworksEffect = null;
+            if (snowflakesEffect == null) snowflakesEffect = new SnowflakesEffect(0);
+        } else if (holiday && Theme.canStartHolidayAnimation()) {
+            // A manual tap switches to fireworks; don't immediately replace them with snow.
+            if (snowflakesEffect == null && fireworksEffect == null) snowflakesEffect = new SnowflakesEffect(0);
+        } else if (!manualStart || !holiday) {
+            snowflakesEffect = null;
+            if (!holiday) fireworksEffect = null;
+        }
+        if ((!forced && !holiday) || (snowflakesEffect == null && fireworksEffect == null)) return;
+        canvas.save();
+        canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0),
+                getMeasuredWidth(), getMeasuredHeight());
+        if (snowflakesEffect != null) {
+            snowflakesEffect.onDraw(this, canvas);
+        } else {
+            fireworksEffect.onDraw(this, canvas);
+        }
+        canvas.restore();
     }
 
     public void setForceSkipTouches(boolean forceSkipTouches) {
