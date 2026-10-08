@@ -674,7 +674,7 @@
     <string name="PengramTitleModeUsername">@username</string>
     <string name="PengramTitleModeCustom">Свой текст</string>
     <string name="PengramSnow">Всегда идёт снег</string>
-    <string name="PengramSnowInfo">Анимированные частицы в развёрнутой и свёрнутой шапке списка и на фоне открытых чатов круглый год</string>
+    <string name="PengramSnowInfo">Выбранный эффект виден в развёрнутой и свёрнутой шапке списка и на фоне открытых чатов круглый год. Плотность в маленькой шапке адаптируется автоматически.</string>
     <string name="PengramBubblesHeader">Пузыри сообщений</string>
     <string name="PengramHideTail">Без хвостика у сообщений</string>
     <string name="PengramHideTailInfo">Пузыри рисуются без «хвостика»</string>
@@ -1546,9 +1546,11 @@
     <string name="PengramParticleMatrix">Матрица</string>
     <string name="PengramParticleRain">Дождь</string>
     <string name="PengramParticleLeaves">Осенние листья</string>
+    <string name="PengramParticleSun">Солнышки</string>
+    <string name="PengramParticleSunInfo">Тёплые солнышки с мягким свечением поднимаются вверх, мерцают и медленно вращаются. Ниже можно настроить их плотность, прозрачность и движение.</string>
     <string name="PengramParticleCount">Количество частиц</string>
     <string name="PengramParticleOpacity">Прозрачность</string>
-    <string name="PengramParticleSpeed">Скорость падения</string>
+    <string name="PengramParticleSpeed">Скорость движения</string>
     <string name="PengramParticleRotation">Скорость вращения</string>
     <string name="PengramVoiceSources">Применять эффекты к</string>
     <string name="PengramVoiceMessages">Голосовые сообщения</string>

@@ -2741,6 +2741,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (PengramConfig.isForcedSnow()) {
             items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
                     getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
+            if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUN) {
+                items.add(UItem.asShadow(getString(R.string.PengramParticleSunInfo)));
+            }
             items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
             items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
                     value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_COUNT, value)));
@@ -2921,7 +2924,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private CharSequence[] particleNames() {
         return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
                 getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
-                getString(R.string.PengramParticleLeaves)};
+                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSun)};
     }
 
     private CharSequence voiceModeDescription(int mode) {

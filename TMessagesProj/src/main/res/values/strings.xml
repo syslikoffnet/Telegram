@@ -11646,7 +11646,7 @@
     <string name="PengramTitleModeUsername">@username</string>
     <string name="PengramTitleModeCustom">Custom text</string>
     <string name="PengramSnow">Always snowing</string>
-    <string name="PengramSnowInfo">Animated particles in the expanded and collapsed chat list header, and on open chat backgrounds, all year round</string>
+    <string name="PengramSnowInfo">The selected particle effect appears in expanded and collapsed chat list headers and open chat backgrounds all year round. Header density adapts to its smaller size.</string>
     <string name="PengramBubblesHeader">Message bubbles</string>
     <string name="PengramHideTail">No bubble tail</string>
     <string name="PengramHideTailInfo">Bubbles are drawn without the little tail</string>
@@ -12518,9 +12518,11 @@
     <string name="PengramParticleMatrix">Matrix</string>
     <string name="PengramParticleRain">Rain</string>
     <string name="PengramParticleLeaves">Autumn leaves</string>
+    <string name="PengramParticleSun">Little suns</string>
+    <string name="PengramParticleSunInfo">Warm, softly glowing suns drift upward, shimmer and slowly rotate. Adjust their density, opacity and motion below.</string>
     <string name="PengramParticleCount">Particle count</string>
     <string name="PengramParticleOpacity">Opacity</string>
-    <string name="PengramParticleSpeed">Fall speed</string>
+    <string name="PengramParticleSpeed">Movement speed</string>
     <string name="PengramParticleRotation">Rotation speed</string>
     <string name="PengramVoiceSources">Apply voice effects to</string>
     <string name="PengramVoiceMessages">Voice messages</string>
