@@ -3458,6 +3458,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true,
                 getString(R.string.PengramQuoteNames), getString(R.string.PengramQuoteNamesInfo)));
         if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true)) {
+            items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true,
+                    getString(R.string.PengramQuoteAvatar), getString(R.string.PengramQuoteAvatarInfo)));
             items.add(UItem.asSettingsCell(BTN_QUOTE_FAKE_NAME, R.drawable.msg_edit,
                     getString(R.string.PengramQuoteFakeName),
                     TextUtils.isEmpty(PengramConfig.getQuoteFakeName()) ? getString(R.string.PengramQuoteOriginalName)

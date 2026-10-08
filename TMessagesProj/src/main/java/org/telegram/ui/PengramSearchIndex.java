@@ -228,6 +228,7 @@ public final class PengramSearchIndex {
             {R.string.PengramMenuCopyMessageId, PengramSettingsActivity.SECTION_CHAT_MESSAGES},
             {R.string.PengramMenuSaveToSaved, PengramSettingsActivity.SECTION_CHAT_MESSAGES},
             {R.string.PengramQuoteNames, PengramSettingsActivity.SECTION_QUOTES},
+            {R.string.PengramQuoteAvatar, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramQuoteFakeName, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramQuoteAnonMentions, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramQuoteTimes, PengramSettingsActivity.SECTION_QUOTES},

@@ -69,6 +69,7 @@ public final class PengramQuoteMaker {
     private PengramQuoteMaker() { }
 
     public static final String KEY_NAME = "quoteShowName";
+    public static final String KEY_AVATAR = "quoteShowAvatar";
     public static final String KEY_TIME = "quoteShowTime";
     public static final String KEY_MEDIA = "quoteIncludeMedia";
     public static final String KEY_DARK = "quoteDarkCard";
@@ -167,6 +168,21 @@ public final class PengramQuoteMaker {
             entry.text = !TextUtils.isEmpty(message.caption) ? message.caption.toString()
                     : message.isPhoto() && PengramConfig.getBool(KEY_MEDIA, true) ? ""
                     : message.messageText == null ? "" : message.messageText.toString();
+            if (MessageObject.getMedia(message.messageOwner) instanceof TLRPC.TL_messageMediaPoll) {
+                TLRPC.TL_messageMediaPoll poll = (TLRPC.TL_messageMediaPoll) MessageObject.getMedia(message.messageOwner);
+                if (poll.poll != null && poll.poll.question != null) {
+                    StringBuilder question = new StringBuilder(poll.poll.question.text);
+                    if (poll.poll.answers != null) {
+                        int number = 1;
+                        for (TLRPC.PollAnswer answer : poll.poll.answers) {
+                            if (answer != null && answer.text != null) {
+                                question.append("\n").append(number++).append(". ").append(answer.text.text);
+                            }
+                        }
+                    }
+                    entry.text = question.toString();
+                }
+            }
             if (message.isPhoto() && !PengramConfig.getBool(KEY_MEDIA, true) && TextUtils.isEmpty(entry.text)) {
                 entry.text = activity.getString(R.string.PengramQuotePhoto);
             } else if (TextUtils.isEmpty(entry.text) && message.isVideo()) {
@@ -354,7 +370,23 @@ public final class PengramQuoteMaker {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                     paint.setTextSize(25 * fontScale);
                     paint.setColor(accent);
-                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint), contentWidth, TextUtils.TruncateAt.END).toString(), contentLeft, inner + 24 * fontScale, paint);
+                    boolean avatar = PengramConfig.getBool(KEY_AVATAR, true);
+                    int nameInset = avatar ? Math.round(33 * fontScale) : 0;
+                    if (avatar && !e.name.isEmpty()) {
+                        float cx = contentLeft + 13 * fontScale, cy = inner + 13 * fontScale;
+                        canvas.drawCircle(cx, cy, 13 * fontScale, paint);
+                        String initial = e.name.substring(0, Character.charCount(e.name.codePointAt(0)));
+                        paint.setColor(Color.WHITE);
+                        paint.setTextSize(16 * fontScale);
+                        paint.setTextAlign(Paint.Align.CENTER);
+                        canvas.drawText(initial, cx, cy + 5 * fontScale, paint);
+                        paint.setTextAlign(Paint.Align.LEFT);
+                        paint.setColor(accent);
+                        paint.setTextSize(25 * fontScale);
+                    }
+                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint),
+                            Math.max(20, contentWidth - nameInset), TextUtils.TruncateAt.END).toString(),
+                            contentLeft + nameInset, inner + 24 * fontScale, paint);
                     inner += nameHeight;
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
                 }
@@ -561,13 +593,14 @@ public final class PengramQuoteMaker {
         quick.setHorizontalScrollBarEnabled(false);
         LinearLayout toggles = new LinearLayout(activity);
         toggles.setOrientation(LinearLayout.HORIZONTAL);
-        int[] keys = {R.string.PengramQuoteNames, R.string.PengramQuoteTimes,
+        int[] keys = {R.string.PengramQuoteNames, R.string.PengramQuoteAvatar, R.string.PengramQuoteTimes,
                 R.string.PengramQuoteMedia, R.string.PengramQuoteAnonMentions,
                 R.string.PengramQuoteDark, R.string.PengramQuoteJpeg, R.string.PengramQuoteWatermark};
-        String[] config = {KEY_NAME, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS,
+        String[] config = {KEY_NAME, KEY_AVATAR, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS,
                 KEY_DARK, KEY_JPEG, KEY_WATERMARK};
-        boolean[] defaults = {true, true, true, false, false, false, false};
+        boolean[] defaults = {true, true, true, true, false, false, false, false};
         for (int i = 0; i < keys.length; i++) {
+            if (i == 1 && !PengramConfig.getBool(KEY_NAME, true)) continue;
             final int idx = i;
             boolean enabled = PengramConfig.getBool(config[i], defaults[i]);
             TextView chip = action(activity, keys[i], enabled, () -> {

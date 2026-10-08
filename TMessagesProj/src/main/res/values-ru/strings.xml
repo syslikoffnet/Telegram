@@ -1055,6 +1055,8 @@
     <string name="PengramQuoteLogoClear">Убрать логотип</string>
     <string name="PengramQuoteLogoSize">Размер логотипа</string>
     <string name="PengramQuoteLogoError">Не удалось открыть изображение. Выберите PNG или JPEG до 4 МБ.</string>
+    <string name="PengramQuoteAvatar">Инициалы отправителей</string>
+    <string name="PengramQuoteAvatarInfo">Декоративные инициалы, не фото профиля. Скрываются вместе с именами.</string>
     <string name="PengramQuoteSection">Создание цитат</string>
     <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
     <string name="PengramQuoteNames">Показывать имена отправителей</string>

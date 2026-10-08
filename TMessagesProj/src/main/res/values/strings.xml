@@ -12027,6 +12027,8 @@
     <string name="PengramQuoteLogoClear">Remove logo</string>
     <string name="PengramQuoteLogoSize">Logo size</string>
     <string name="PengramQuoteLogoError">Could not open this image. Choose a PNG or JPEG up to 4 MB.</string>
+    <string name="PengramQuoteAvatar">Sender initials</string>
+    <string name="PengramQuoteAvatarInfo">Decorative initials, not a downloaded profile picture. Hidden when sender names are hidden.</string>
     <string name="PengramQuoteSection">Create quotes</string>
     <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>
     <string name="PengramQuoteNames">Show sender names</string>
