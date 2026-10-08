@@ -320,6 +320,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_TYPING = 1018;
     private static final int BTN_SECTION_QUOTES = 1019;
     private static final int BTN_QUOTE_STYLE = 1020;
+    private static final int BTN_QUOTE_BACKGROUND = 1021;
+    private static final int BTN_QUOTE_COLOR = 1022;
+    private static final int BTN_QUOTE_SCALE = 1023;
+    private static final int BTN_QUOTE_FAKE_NAME = 1024;
+    private static final int BTN_QUOTE_WATERMARK_TEXT = 1025;
+    private static final int BTN_QUOTE_WATERMARK_POS = 1026;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
     private static final int GROUP_MENU_CHAT = 3;
@@ -786,6 +792,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         addResetRow(items);
         compactSectionDescriptions(items);
+        for (UItem item : items) {
+            if (item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_SETTINGS
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_CHECKRIPPLE) {
+                item.adaptiveLayout = true;
+            }
+        }
     }
 
     /** Keep full guidance available without filling each section with paragraphs. */
@@ -3384,15 +3399,38 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillQuotes(ArrayList<UItem> items) {
-        items.add(UItem.asHeader(getString(R.string.PengramQuoteSection)));
-        items.add(UItem.asShadow(getString(R.string.PengramQuoteIntro)));
+        items.add(UItem.asHeader(getString(R.string.PengramQuotePrivacyHeader)));
         items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true,
                 getString(R.string.PengramQuoteNames), getString(R.string.PengramQuoteNamesInfo)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true)) {
+            items.add(UItem.asSettingsCell(BTN_QUOTE_FAKE_NAME, R.drawable.msg_edit,
+                    getString(R.string.PengramQuoteFakeName),
+                    TextUtils.isEmpty(PengramConfig.getQuoteFakeName()) ? getString(R.string.PengramQuoteOriginalName)
+                            : PengramConfig.getQuoteFakeName()));
+        }
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_ANON_MENTIONS, false,
+                getString(R.string.PengramQuoteAnonMentions), getString(R.string.PengramQuoteAnonMentionsInfo)));
         items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_TIME, true,
                 getString(R.string.PengramQuoteTimes)));
         items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_MEDIA, true,
                 getString(R.string.PengramQuoteMedia), getString(R.string.PengramQuoteMediaInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuotePrivacyInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteBackgroundHeader)));
+        final int bg = Math.max(0, Math.min(2, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_BACKGROUND, R.drawable.msg_theme,
+                getString(R.string.PengramQuoteBackground),
+                getContext().getResources().getStringArray(R.array.pengram_quote_backgrounds)[bg]));
+        if (bg == 2) {
+            int color = PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, 0xffeef3ff);
+            items.add(UItem.asSettingsCell(BTN_QUOTE_COLOR, R.drawable.msg_palette,
+                    getString(R.string.PengramQuoteBackgroundColor), String.format(java.util.Locale.US, "#%06X", color & 0xffffff)));
+        }
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_STICKER_TRANSPARENT, true,
+                getString(R.string.PengramQuoteStickerTransparent)));
         items.add(UItem.asShadow(null));
+
         items.add(UItem.asHeader(getString(R.string.PengramQuoteStyleHeader)));
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(
                 org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, 0)));
@@ -3401,9 +3439,66 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramQuoteAccent), styles[style]));
         items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false,
                 getString(R.string.PengramQuoteDark)));
+        final int scale = Math.max(0, Math.min(2, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, 0)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_SCALE, R.drawable.msg_photo_settings,
+                getString(R.string.PengramQuoteScale), new String[]{"1×", "1.5×", "2×"}[scale]));
+        items.add(UItem.asHeader(getString(R.string.PengramQuotePadding)));
+        items.add(UItem.asIntSlideView(1, 0, Math.max(0, Math.min(72,
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, 24))), 72,
+                value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, value)));
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteRadius)));
+        items.add(UItem.asIntSlideView(1, 0, Math.max(0, Math.min(64,
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, 28))), 64,
+                value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, value)));
         items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG, false,
                 getString(R.string.PengramQuoteJpeg), getString(R.string.PengramQuoteJpegInfo)));
-        items.add(UItem.asShadow(getString(R.string.PengramQuotePrivacyInfo)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG, false)) {
+            items.add(UItem.asHeader(getString(R.string.PengramQuoteQuality)));
+            items.add(UItem.asIntSlideView(1, 40, Math.max(40, Math.min(100,
+                            PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG_QUALITY, 92))), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG_QUALITY, value)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuoteSizeInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteWatermarkHeader)));
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK, false,
+                getString(R.string.PengramQuoteWatermark)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK, false)) {
+            items.add(UItem.asSettingsCell(BTN_QUOTE_WATERMARK_TEXT, R.drawable.msg_edit,
+                    getString(R.string.PengramQuoteWatermarkText), PengramConfig.getQuoteWatermarkText()));
+            int position = Math.max(0, Math.min(5, PengramConfig.getIntCached(
+                    org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, 0)));
+            items.add(UItem.asSettingsCell(BTN_QUOTE_WATERMARK_POS, R.drawable.msg_openprofile,
+                    getString(R.string.PengramQuoteWatermarkPosition),
+                    getContext().getResources().getStringArray(R.array.pengram_quote_positions)[position]));
+            items.add(UItem.asHeader(getString(R.string.PengramQuoteWatermarkOpacity)));
+            items.add(UItem.asIntSlideView(1, 10, Math.max(10, Math.min(100,
+                            PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_OPACITY, 72))), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_OPACITY, value)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuoteWatermarkInfo)));
+    }
+
+    private void showQuoteTextDialog(CharSequence title, String current, boolean color,
+                                     Utilities.Callback<String> onSave) {
+        if (getContext() == null) return;
+        EditTextBoldCursor input = new EditTextBoldCursor(getContext());
+        input.setText(current);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
+        input.setSingleLine(true);
+        input.setSelectAllOnFocus(true);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(color ? 9 : 80)});
+        android.widget.FrameLayout container = new android.widget.FrameLayout(getContext());
+        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        container.addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48));
+        showDialog(new AlertDialog.Builder(getContext(), getResourceProvider())
+                .setTitle(title).setView(container)
+                .setPositiveButton(getString(R.string.Save), (dialog, which) -> {
+                    onSave.run(input.getText().toString().trim());
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                })
+                .setNegativeButton(getString(R.string.Cancel), null).create());
     }
 
     private void fillTyping(ArrayList<UItem> items) {
@@ -3773,6 +3868,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                     NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
                 }
             }
+            if (item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME)
+                    || item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG)
+                    || item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
             if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
@@ -4099,6 +4199,50 @@ public class PengramSettingsActivity extends UniversalFragment {
                             PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, which);
                             if (listView != null && listView.adapter != null) listView.adapter.update(true);
                         }).show();
+                return;
+            case BTN_QUOTE_BACKGROUND:
+                showChoicePicker(getString(R.string.PengramQuoteBackground),
+                        getContext().getResources().getStringArray(R.array.pengram_quote_backgrounds),
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_QUOTE_COLOR:
+                showQuoteTextDialog(getString(R.string.PengramQuoteBackgroundColor),
+                        String.format(java.util.Locale.US, "#%06X", PengramConfig.getIntCached(
+                                org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, 0xffeef3ff) & 0xffffff),
+                        true, value -> {
+                            try {
+                                int color = android.graphics.Color.parseColor(value);
+                                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, color);
+                            } catch (IllegalArgumentException e) {
+                                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteInvalidColor)).show();
+                            }
+                        });
+                return;
+            case BTN_QUOTE_SCALE:
+                showChoicePicker(getString(R.string.PengramQuoteScale), new CharSequence[]{"1×", "1.5×", "2×"},
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_QUOTE_FAKE_NAME:
+                showQuoteTextDialog(getString(R.string.PengramQuoteFakeName), PengramConfig.getQuoteFakeName(),
+                        false, PengramConfig::setQuoteFakeName);
+                return;
+            case BTN_QUOTE_WATERMARK_TEXT:
+                showQuoteTextDialog(getString(R.string.PengramQuoteWatermarkText), PengramConfig.getQuoteWatermarkText(),
+                        false, PengramConfig::setQuoteWatermarkText);
+                return;
+            case BTN_QUOTE_WATERMARK_POS:
+                showChoicePicker(getString(R.string.PengramQuoteWatermarkPosition),
+                        getContext().getResources().getStringArray(R.array.pengram_quote_positions),
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
                 return;
             case BTN_SECTION_TYPING:
                 presentFragment(new PengramSettingsActivity(SECTION_TYPING));

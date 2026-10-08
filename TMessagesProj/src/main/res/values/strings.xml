@@ -11978,6 +11978,49 @@
         <item>Rose</item>
         <item>Amber</item>
     </string-array>
+    <string name="PengramQuoteSticker">Sticker</string>
+    <string name="PengramQuotePrivacyHeader">Content and privacy</string>
+    <string name="PengramQuoteFakeName">Replace sender name</string>
+    <string name="PengramQuoteOriginalName">Original name</string>
+    <string name="PengramQuoteAnonMentions">Hide @mentions in text</string>
+    <string name="PengramQuoteAnonMentionsInfo">Only @usernames are hidden. Check phone numbers, links and other personal data yourself.</string>
+    <string name="PengramQuoteBackgroundHeader">Background</string>
+    <string name="PengramQuoteBackground">Background type</string>
+    <string name="PengramQuoteBackgroundColor">Custom background color</string>
+    <string name="PengramQuoteStickerTransparent">Transparent sticker background</string>
+    <string name="PengramQuoteScale">Image resolution</string>
+    <string name="PengramQuotePadding">Outer padding</string>
+    <string name="PengramQuoteRadius">Card corner radius</string>
+    <string name="PengramQuoteQuality">JPEG quality</string>
+    <string name="PengramQuoteSizeInfo">Larger images may be refused if they exceed the safe memory limit. Select fewer messages or lower the resolution.</string>
+    <string name="PengramQuoteWatermarkHeader">Watermark</string>
+    <string name="PengramQuoteWatermark">Add watermark</string>
+    <string name="PengramQuoteWatermarkText">Watermark text</string>
+    <string name="PengramQuoteWatermarkPosition">Position</string>
+    <string name="PengramQuoteWatermarkOpacity">Opacity</string>
+    <string name="PengramQuoteWatermarkInfo">In the text you can use {date}, {chat} and {count}. Check the preview before sharing.</string>
+    <string name="PengramQuoteInvalidColor">Enter a hex color, for example #AABBCC.</string>
+    <string-array name="pengram_quote_backgrounds">
+        <item>Chat theme</item>
+        <item>Transparent PNG</item>
+        <item>Custom color</item>
+    </string-array>
+    <string-array name="pengram_quote_positions">
+        <item>Bottom right</item>
+        <item>Bottom left</item>
+        <item>Top right</item>
+        <item>Top left</item>
+        <item>Center</item>
+        <item>Tile</item>
+    </string-array>
+    <string name="PengramQuoteSendFile">Send as file</string>
+    <string name="PengramQuoteSendSticker">Send as sticker</string>
+    <string name="PengramQuoteOtherChat">Send to another chat</string>
+    <string name="PengramQuoteShare">Share…</string>
+    <string name="PengramQuoteCopy">Copy image</string>
+    <string name="PengramQuoteShareError">Could not share the image.</string>
+    <string name="PengramQuoteCopyError">Could not copy the image.</string>
+    <string name="PengramQuoteStickerError">Could not create a sticker. Select fewer messages or reduce the image size.</string>
     <string name="PengramQuoteSection">Create quotes</string>
     <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>
     <string name="PengramQuoteNames">Show sender names</string>

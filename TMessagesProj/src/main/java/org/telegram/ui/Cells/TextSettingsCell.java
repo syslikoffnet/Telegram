@@ -112,6 +112,34 @@ public class TextSettingsCell extends FrameLayout {
         return valueImageView;
     }
 
+    private boolean adaptiveLayout;
+    private TextView adaptiveValueView;
+
+    /** Pengram's text/value rows use vertical layout rather than overlapping at large font scale. */
+    public void setAdaptiveLayout(boolean adaptive, CharSequence value) {
+        adaptiveLayout = adaptive;
+        textView.setSingleLine(!adaptive);
+        textView.setMaxLines(adaptive ? Integer.MAX_VALUE : 1);
+        textView.setEllipsize(adaptive ? null : TextUtils.TruncateAt.END);
+        FrameLayout.LayoutParams title = (FrameLayout.LayoutParams) textView.getLayoutParams();
+        title.height = adaptive ? LayoutParams.WRAP_CONTENT : LayoutParams.MATCH_PARENT;
+        title.topMargin = adaptive ? AndroidUtilities.dp(9) : 0;
+        if (adaptive && adaptiveValueView == null) {
+            adaptiveValueView = new TextView(getContext());
+            adaptiveValueView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            adaptiveValueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteValueText, resourcesProvider));
+            adaptiveValueView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP);
+            addView(adaptiveValueView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                    (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, padding, 0, padding, 0));
+        }
+        if (adaptiveValueView != null) {
+            adaptiveValueView.setText(adaptive ? value : null);
+            adaptiveValueView.setVisibility(adaptive && !TextUtils.isEmpty(value) ? VISIBLE : GONE);
+        }
+        if (adaptive) valueTextView.setVisibility(INVISIBLE);
+        requestLayout();
+    }
+
     private boolean betterLayout = BuildVars.DEBUG_PRIVATE_VERSION;
     public void setBetterLayout(boolean betterLayout) {
         // I might break something with this, gonna need to further test
@@ -120,6 +148,34 @@ public class TextSettingsCell extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (adaptiveLayout) {
+            final int width = MeasureSpec.getSize(widthMeasureSpec);
+            final FrameLayout.LayoutParams labelParams = (FrameLayout.LayoutParams) textView.getLayoutParams();
+            final int labelWidth = Math.max(1, width - labelParams.leftMargin - labelParams.rightMargin);
+            textView.measure(MeasureSpec.makeMeasureSpec(labelWidth, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            int used = AndroidUtilities.dp(9) + textView.getMeasuredHeight();
+            if (adaptiveValueView != null && adaptiveValueView.getVisibility() == VISIBLE) {
+                FrameLayout.LayoutParams valueParams = (FrameLayout.LayoutParams) adaptiveValueView.getLayoutParams();
+                valueParams.leftMargin = labelParams.leftMargin;
+                valueParams.rightMargin = labelParams.rightMargin;
+                valueParams.topMargin = used + AndroidUtilities.dp(3);
+                adaptiveValueView.measure(MeasureSpec.makeMeasureSpec(labelWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                used += AndroidUtilities.dp(3) + adaptiveValueView.getMeasuredHeight();
+            }
+            final int height = Math.max(AndroidUtilities.dp(50), used + AndroidUtilities.dp(10)) + (needDivider ? 1 : 0);
+            if (imageView.getVisibility() == VISIBLE) {
+                imageView.measure(MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(28), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(28), MeasureSpec.EXACTLY));
+            }
+            if (valueImageView.getVisibility() == VISIBLE) {
+                valueImageView.measure(MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(28), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(28), MeasureSpec.EXACTLY));
+            }
+            setMeasuredDimension(width, height);
+            return;
+        }
         setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(50) + (needDivider ? 1 : 0));
 
         int availableWidth = getMeasuredWidth() - getPaddingLeft() - getPaddingRight() - AndroidUtilities.dp(34);

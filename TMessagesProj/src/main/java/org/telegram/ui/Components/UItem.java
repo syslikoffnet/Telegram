@@ -56,6 +56,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
     public long longValue;
     public Utilities.Callback<Integer> intCallback;
 
+    public boolean adaptiveLayout;
     public View.OnClickListener clickCallback;
     public View.OnClickListener clickCallback2;
     public Utilities.Callback<View> bind;

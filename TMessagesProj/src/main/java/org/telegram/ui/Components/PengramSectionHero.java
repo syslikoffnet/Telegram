@@ -45,6 +45,9 @@ public class PengramSectionHero extends FrameLayout {
     private final int colorTop;
     private final int colorBottom;
     private final ImageView iconView;
+    private final TextView titleView;
+    private final TextView subtitleView;
+    private boolean narrow;
 
     private int shaderHeight = -1;
     private float appear;
@@ -63,22 +66,20 @@ public class PengramSectionHero extends FrameLayout {
         iconView.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
         addView(iconView, LayoutHelper.createFrame(30, 30, Gravity.LEFT | Gravity.CENTER_VERTICAL, 41, 0, 0, 0));
 
-        final TextView titleView = new TextView(context);
+        titleView = new TextView(context);
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
         titleView.setTypeface(AndroidUtilities.bold());
         titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        titleView.setMaxLines(1);
-        titleView.setEllipsize(TextUtils.TruncateAt.END);
+        titleView.setMaxLines(Integer.MAX_VALUE);
         titleView.setText(title);
         addView(titleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
                 Gravity.LEFT | Gravity.TOP, 100, 27, 26, 0));
 
-        final TextView subtitleView = new TextView(context);
+        subtitleView = new TextView(context);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         subtitleView.setLineSpacing(dp(2), 1f);
-        subtitleView.setMaxLines(3);
-        subtitleView.setEllipsize(TextUtils.TruncateAt.END);
+        subtitleView.setMaxLines(Integer.MAX_VALUE);
         subtitleView.setText(subtitle);
         addView(subtitleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
                 Gravity.LEFT | Gravity.TOP, 100, 52, 26, 0));
@@ -88,8 +89,23 @@ public class PengramSectionHero extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        setMeasuredDimension(getMeasuredWidth(), Math.max(dp(112), getMeasuredHeight()));
+        int width = MeasureSpec.getSize(widthMeasureSpec);
+        narrow = width < dp(330) || getResources().getConfiguration().fontScale > 1.4f;
+        FrameLayout.LayoutParams iconParams = (FrameLayout.LayoutParams) iconView.getLayoutParams();
+        iconParams.gravity = Gravity.LEFT | (narrow ? Gravity.TOP : Gravity.CENTER_VERTICAL);
+        iconParams.topMargin = narrow ? dp(37) : 0;
+        FrameLayout.LayoutParams titleParams = (FrameLayout.LayoutParams) titleView.getLayoutParams();
+        FrameLayout.LayoutParams subtitleParams = (FrameLayout.LayoutParams) subtitleView.getLayoutParams();
+        titleParams.leftMargin = subtitleParams.leftMargin = dp(narrow ? 28 : 100);
+        titleParams.topMargin = dp(narrow ? 92 : 24);
+        titleView.measure(MeasureSpec.makeMeasureSpec(Math.max(1, width - dp(narrow ? 56 : 126)), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        subtitleParams.topMargin = titleParams.topMargin + titleView.getMeasuredHeight() + dp(5);
+        subtitleView.measure(MeasureSpec.makeMeasureSpec(Math.max(1, width - dp(narrow ? 56 : 126)), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        int height = Math.max(dp(narrow ? 170 : 112), subtitleParams.topMargin + subtitleView.getMeasuredHeight() + dp(22));
+        super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY));
     }
 
     @Override
@@ -144,7 +160,8 @@ public class PengramSectionHero extends FrameLayout {
                 Theme.getColor(Theme.key_windowBackgroundWhite), colorTop, 0.10f));
         canvas.drawRoundRect(rect, dp(16), dp(16), cardPaint);
 
-        icon.set(dp(28), (height - dp(56)) / 2f, dp(84), (height + dp(56)) / 2f);
+        icon.set(dp(28), narrow ? dp(24) : (height - dp(56)) / 2f,
+                dp(84), narrow ? dp(80) : (height + dp(56)) / 2f);
 
         // дышащее свечение под значком
         final float glowRadius = dp(36) + dp(6) * breath;

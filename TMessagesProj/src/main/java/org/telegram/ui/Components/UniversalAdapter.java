@@ -649,6 +649,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                     }
                 }
                 settingsCell.setIcon(item.iconResId);
+                settingsCell.setAdaptiveLayout(item.adaptiveLayout, item.subtext);
                 break;
             case VIEW_TYPE_TOPVIEW:
                 TopViewCell topCell = (TopViewCell) holder.itemView;
@@ -710,6 +711,7 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 }
                 checkCell.setEnabled(item.enabled, null);
                 checkCell.setTextAndCheck(item.text, item.checked, divider);
+                checkCell.setAdaptiveLayout(item.adaptiveLayout);
                 checkCell.itemId = item.id;
                 if (viewType == VIEW_TYPE_CHECKRIPPLE) {
                     holder.itemView.setBackgroundColor(Theme.getColor(item.checked ? Theme.key_windowBackgroundChecked : Theme.key_windowBackgroundUnchecked));
@@ -739,12 +741,14 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
             }
             case VIEW_TYPE_TEXT_CHECK:
                 NotificationsCheckCell checkCell1 = (NotificationsCheckCell) holder.itemView;
-                final boolean multiline = item.subtext != null && item.subtext.toString().contains("\n");
+                checkCell1.setAdaptiveLayout(item.adaptiveLayout);
+                final boolean multiline = item.adaptiveLayout || item.subtext != null && item.subtext.toString().contains("\n");
                 checkCell1.setTextAndValueAndCheck(item.text, item.subtext, item.checked, 0, multiline, divider);
                 break;
             case VIEW_TYPE_ICON_TEXT_CHECK: {
                 NotificationsCheckCell iconCheckCell = (NotificationsCheckCell) holder.itemView;
-                final boolean iconMultiline = item.subtext != null && item.subtext.toString().contains("\n");
+                iconCheckCell.setAdaptiveLayout(item.adaptiveLayout);
+                final boolean iconMultiline = item.adaptiveLayout || item.subtext != null && item.subtext.toString().contains("\n");
                 iconCheckCell.setTextAndValueAndIconAndCheck(item.text, item.subtext, item.iconResId, item.checked, 0, iconMultiline, divider);
                 break;
             }

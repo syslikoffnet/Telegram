@@ -923,6 +923,24 @@ public class PengramConfig {
         if (p != null) p.edit().putBoolean(key, value).apply();
     }
 
+    public static String getQuoteFakeName() {
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString("quoteFakeName", "");
+    }
+
+    public static void setQuoteFakeName(String name) {
+        putString("quoteFakeName", name == null ? "" : name.trim().substring(0, Math.min(50, name.trim().length())));
+    }
+
+    public static String getQuoteWatermarkText() {
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString("quoteWatermarkText", "");
+    }
+
+    public static void setQuoteWatermarkText(String text) {
+        putString("quoteWatermarkText", text == null ? "" : text.trim().substring(0, Math.min(80, text.trim().length())));
+    }
+
     private static void putString(String key, String value) {
         SharedPreferences p = prefs();
         if (p != null) p.edit().putString(key, value).apply();

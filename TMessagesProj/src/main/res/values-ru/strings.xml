@@ -1006,6 +1006,49 @@
         <item>Розовый</item>
         <item>Янтарный</item>
     </string-array>
+    <string name="PengramQuoteSticker">Стикер</string>
+    <string name="PengramQuotePrivacyHeader">Содержание и приватность</string>
+    <string name="PengramQuoteFakeName">Подменить имя отправителя</string>
+    <string name="PengramQuoteOriginalName">Исходное имя</string>
+    <string name="PengramQuoteAnonMentions">Скрывать @упоминания в тексте</string>
+    <string name="PengramQuoteAnonMentionsInfo">Скрываются только @юзернеймы. Номера, ссылки и другие личные данные проверьте сами.</string>
+    <string name="PengramQuoteBackgroundHeader">Фон</string>
+    <string name="PengramQuoteBackground">Тип фона</string>
+    <string name="PengramQuoteBackgroundColor">Свой цвет фона</string>
+    <string name="PengramQuoteStickerTransparent">Прозрачный фон стикера</string>
+    <string name="PengramQuoteScale">Разрешение изображения</string>
+    <string name="PengramQuotePadding">Внешние поля</string>
+    <string name="PengramQuoteRadius">Скругление карточек</string>
+    <string name="PengramQuoteQuality">Качество JPEG</string>
+    <string name="PengramQuoteSizeInfo">Слишком большое изображение не создаётся ради экономии памяти. Выберите меньше сообщений или снизьте разрешение.</string>
+    <string name="PengramQuoteWatermarkHeader">Водяной знак</string>
+    <string name="PengramQuoteWatermark">Добавлять водяной знак</string>
+    <string name="PengramQuoteWatermarkText">Текст водяного знака</string>
+    <string name="PengramQuoteWatermarkPosition">Положение</string>
+    <string name="PengramQuoteWatermarkOpacity">Непрозрачность</string>
+    <string name="PengramQuoteWatermarkInfo">В тексте доступны {date}, {chat} и {count}. Проверьте предпросмотр перед отправкой.</string>
+    <string name="PengramQuoteInvalidColor">Введите цвет в формате #AABBCC.</string>
+    <string-array name="pengram_quote_backgrounds">
+        <item>Тема чата</item>
+        <item>Прозрачный PNG</item>
+        <item>Свой цвет</item>
+    </string-array>
+    <string-array name="pengram_quote_positions">
+        <item>Низ справа</item>
+        <item>Низ слева</item>
+        <item>Верх справа</item>
+        <item>Верх слева</item>
+        <item>Центр</item>
+        <item>Повторять</item>
+    </string-array>
+    <string name="PengramQuoteSendFile">Отправить файлом</string>
+    <string name="PengramQuoteSendSticker">Отправить стикером</string>
+    <string name="PengramQuoteOtherChat">Отправить в другой чат</string>
+    <string name="PengramQuoteShare">Поделиться…</string>
+    <string name="PengramQuoteCopy">Копировать изображение</string>
+    <string name="PengramQuoteShareError">Не удалось поделиться изображением.</string>
+    <string name="PengramQuoteCopyError">Не удалось скопировать изображение.</string>
+    <string name="PengramQuoteStickerError">Не удалось создать стикер. Выберите меньше сообщений или снизьте размер изображения.</string>
     <string name="PengramQuoteSection">Создание цитат</string>
     <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
     <string name="PengramQuoteNames">Показывать имена отправителей</string>

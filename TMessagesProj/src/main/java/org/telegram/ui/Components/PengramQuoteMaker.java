@@ -2,6 +2,15 @@ package org.telegram.ui.Components;
 
 import android.app.Activity;
 import android.content.ContentValues;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Bundle;
+import android.graphics.Matrix;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
+import android.widget.HorizontalScrollView;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -26,6 +35,8 @@ import android.widget.TextView;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MediaController;
@@ -40,6 +51,10 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ChatActivity;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.DialogsActivity;
+import androidx.core.content.FileProvider;
+import java.util.HashMap;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -59,14 +74,30 @@ public final class PengramQuoteMaker {
     public static final String KEY_DARK = "quoteDarkCard";
     public static final String KEY_JPEG = "quoteUseJpeg";
     public static final String KEY_STYLE = "quoteAccentStyle";
+    public static final String KEY_ANON_MENTIONS = "quoteAnonMentions";
+    public static final String KEY_WATERMARK = "quoteWatermarkEnabled";
+    public static final String KEY_BACKGROUND = "quoteBackground";
+    public static final String KEY_BACKGROUND_COLOR = "quoteBackgroundColor";
+    public static final String KEY_PADDING = "quotePadding";
+    public static final String KEY_RADIUS = "quoteRadius";
+    public static final String KEY_SCALE = "quoteScale";
+    public static final String KEY_JPEG_QUALITY = "quoteJpegQuality";
+    public static final String KEY_WATERMARK_POSITION = "quoteWatermarkPosition";
+    public static final String KEY_WATERMARK_OPACITY = "quoteWatermarkOpacity";
+    public static final String KEY_FAKE_NAME = "quoteFakeName";
+    public static final String KEY_WATERMARK_TEXT = "quoteWatermarkText";
+    public static final String KEY_STICKER_TRANSPARENT = "quoteStickerTransparent";
     public static final int MAX_MESSAGES = 12;
     private static final int WIDTH = 720;
     private static final long MAX_PIXELS = 7_000_000L;
 
     private static final class Entry {
         String name, text, time;
+        long groupId, senderId;
         StaticLayout layout;
         Bitmap media;
+        final ArrayList<File> albumPaths = new ArrayList<>();
+        final ArrayList<Bitmap> albumImages = new ArrayList<>();
         int imageHeight, height;
     }
 
@@ -75,6 +106,25 @@ public final class PengramQuoteMaker {
         Bitmap preview;
         boolean jpeg;
     }
+
+    private static boolean active(Activity activity) {
+        return activity != null && !activity.isFinishing()
+                && (Build.VERSION.SDK_INT < 17 || !activity.isDestroyed());
+    }
+
+    private static MessageObject topMessage(int account, long dialogId, long topicId) {
+        if (topicId <= 0 || topicId > Integer.MAX_VALUE) return null;
+        TLRPC.TL_message topic = new TLRPC.TL_message();
+        topic.id = (int) topicId;
+        topic.message = "";
+        topic.peer_id = MessagesController.getInstance(account).getPeer(dialogId);
+        return new MessageObject(account, topic, false, false);
+    }
+
+    private static Uri shareUri(Activity activity, File file) {
+        return FileProvider.getUriForFile(activity, ApplicationLoader.getApplicationId() + ".provider", file);
+    }
+
 
     public static void show(ChatActivity chat, ArrayList<MessageObject> selected) {
         final Activity activity = chat.getParentActivity();
@@ -89,14 +139,18 @@ public final class PengramQuoteMaker {
         final ArrayList<File> imagePaths = new ArrayList<>();
         for (MessageObject message : selected) {
             if (message == null || message.messageOwner == null || message.isSponsored()
-                    || message.messageOwner.action != null) {
+                    ) {
                 error(chat, R.string.PengramQuoteUnsupported);
                 return;
             }
             final Entry entry = new Entry();
             final long senderId = message.getSenderId();
+            entry.senderId = senderId;
+            entry.groupId = message.getGroupId();
             if (names) {
-                if (senderId > 0) {
+                final String fakeName = PengramConfig.getQuoteFakeName().trim();
+                if (!fakeName.isEmpty()) entry.name = fakeName;
+                else if (senderId > 0) {
                     TLRPC.User user = controller.getUser(senderId);
                     entry.name = user == null ? null : UserObject.getUserName(user);
                 } else if (senderId < 0) {
@@ -106,6 +160,7 @@ public final class PengramQuoteMaker {
                 if (TextUtils.isEmpty(entry.name)) entry.name = activity.getString(R.string.PengramQuoteUnknown);
             }
             entry.text = !TextUtils.isEmpty(message.caption) ? message.caption.toString()
+                    : message.isPhoto() && PengramConfig.getBool(KEY_MEDIA, true) ? ""
                     : message.messageText == null ? "" : message.messageText.toString();
             if (message.isPhoto() && !PengramConfig.getBool(KEY_MEDIA, true) && TextUtils.isEmpty(entry.text)) {
                 entry.text = activity.getString(R.string.PengramQuotePhoto);
@@ -113,12 +168,17 @@ public final class PengramQuoteMaker {
                 entry.text = activity.getString(R.string.PengramQuoteVideo);
             } else if (TextUtils.isEmpty(entry.text) && message.isVoice()) {
                 entry.text = activity.getString(R.string.PengramQuoteVoice);
+            } else if (TextUtils.isEmpty(entry.text) && message.isSticker()) {
+                entry.text = activity.getString(R.string.PengramQuoteSticker);
             } else if (TextUtils.isEmpty(entry.text) && message.isDocument()) {
                 entry.text = activity.getString(R.string.PengramQuoteDocument);
             }
             if (TextUtils.isEmpty(entry.text) && !message.isPhoto()) {
                 error(chat, R.string.PengramQuoteUnsupported);
                 return;
+            }
+            if (PengramConfig.getBool(KEY_ANON_MENTIONS, false)) {
+                entry.text = entry.text.replaceAll("(?<![\\w@])@[A-Za-z0-9_]{3,32}", "@•••");
             }
             if (entry.text.length() > 5000) {
                 error(chat, R.string.PengramQuoteTooLong);
@@ -128,21 +188,46 @@ public final class PengramQuoteMaker {
                 entry.time = new SimpleDateFormat("d MMM · HH:mm", Locale.getDefault())
                         .format(new Date(message.messageOwner.date * 1000L));
             }
-            // Resolve the path on the UI thread, but decode the media on the worker below.
-            if (message.isPhoto() && PengramConfig.getBool(KEY_MEDIA, true)) {
-                File local = FileLoader.getInstance(chat.getCurrentAccount()).getPathToMessage(message.messageOwner);
-                if (local == null || !local.isFile() || local.length() == 0) {
-                    error(chat, R.string.PengramQuoteDownload);
-                    return;
+            // Resolve local media before queuing work; missing photos fail explicitly.
+            File local = null;
+            if (PengramConfig.getBool(KEY_MEDIA, true) && (message.isPhoto() || message.isVideo()
+                    || message.isGif() || message.isSticker() || message.isRoundVideo())) {
+                final FileLoader loader = FileLoader.getInstance(chat.getCurrentAccount());
+                if (message.isPhoto() || message.isSticker()) {
+                    local = loader.getPathToMessage(message.messageOwner);
                 }
-                entry.text = (entry.text == null ? "" : entry.text);
-                imagePaths.add(local); // matched to the same entry below
-            } else {
-                imagePaths.add(null);
+                if ((local == null || !local.isFile() || local.length() == 0)
+                        && message.photoThumbs != null && !message.photoThumbs.isEmpty()) {
+                    TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 640);
+                    if (thumb != null) local = loader.getPathToAttach(thumb, true);
+                }
+                if (local == null || !local.isFile() || local.length() == 0) {
+                    if (message.isPhoto()) {
+                        error(chat, R.string.PengramQuoteDownload);
+                        return;
+                    }
+                    local = null; // Video and sticker still have a visible type label.
+                }
             }
+            if (local != null && entry.groupId != 0 && !entries.isEmpty()) {
+                Entry previous = entries.get(entries.size() - 1);
+                if (previous.groupId == entry.groupId && previous.senderId == entry.senderId
+                        && imagePaths.get(imagePaths.size() - 1) != null) {
+                    previous.albumPaths.add(local);
+                    if (!TextUtils.isEmpty(entry.text)) {
+                        previous.text = TextUtils.isEmpty(previous.text) ? entry.text : previous.text + "\n" + entry.text;
+                    }
+                    previous.time = entry.time;
+                    continue;
+                }
+            }
+            imagePaths.add(local);
             entries.add(entry);
         }
         final boolean jpeg = PengramConfig.getBool(KEY_JPEG, false);
+        final String chatName = chat.getCurrentChat() != null ? chat.getCurrentChat().title
+                : chat.getCurrentUser() != null ? UserObject.getUserName(chat.getCurrentUser()) : "";
+        final int themedBackground = Theme.getColor(Theme.key_chat_wallpaper, chat.getResourceProvider());
         final boolean dark = PengramConfig.getBool(KEY_DARK, false);
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
         final AlertDialog spinner = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER, chat.getResourceProvider());
@@ -150,23 +235,26 @@ public final class PengramQuoteMaker {
         Utilities.globalQueue.postRunnable(() -> {
             Result result = null;
             try {
-                result = render(activity, entries, imagePaths, dark, style, jpeg);
+                result = render(activity, entries, imagePaths, dark, style, jpeg, false,
+                        themedBackground, chatName);
             } catch (Throwable ex) {
                 FileLog.e(ex);
             } finally {
                 for (Entry e : entries) {
                     if (e.media != null && !e.media.isRecycled()) e.media.recycle();
+                    for (Bitmap tile : e.albumImages) if (tile != null && !tile.isRecycled()) tile.recycle();
+                    e.albumImages.clear();
                 }
             }
             final Result ready = result;
             AndroidUtilities.runOnUIThread(() -> {
                 spinner.dismiss();
-                if (activity.isFinishing() || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed())) {
+                if (!active(activity)) {
                     if (ready != null && ready.preview != null) ready.preview.recycle();
                     return;
                 }
                 if (ready == null) error(chat, R.string.PengramQuoteRenderError);
-                else preview(chat, ready);
+                else preview(chat, ready, new ArrayList<>(selected), entries, imagePaths);
             });
         });
     }
@@ -186,9 +274,21 @@ public final class PengramQuoteMaker {
     }
 
     private static Result render(Activity activity, ArrayList<Entry> entries, ArrayList<File> paths,
-                                 boolean dark, int style, boolean jpeg) throws Exception {
+                                 boolean dark, int style, boolean jpeg, boolean sticker,
+                                 int themedBackground, String chatName) throws Exception {
         final int accent = new int[]{0xff5685f8, 0xff23ad85, 0xffd26496, 0xffeda546}[style];
-        final int background = dark ? 0xff141a28 : 0xffeef3ff;
+        int bgType = sticker && PengramConfig.getBool(KEY_STICKER_TRANSPARENT, true) ? 1
+                : Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0)));
+        final int background = bgType == 1 && !jpeg ? Color.TRANSPARENT
+                : bgType == 2 ? PengramConfig.getIntCached(KEY_BACKGROUND_COLOR, 0xffeef3ff) | 0xff000000
+                : bgType == 0 ? themedBackground | 0xff000000
+                : dark ? 0xff141a28 : 0xffeef3ff;
+        final int pad = Math.max(0, Math.min(72, PengramConfig.getIntCached(KEY_PADDING, 24)));
+        final int radius = Math.max(0, Math.min(64, PengramConfig.getIntCached(KEY_RADIUS, 28)));
+        final int contentLeft = pad + 36;
+        final int contentWidth = WIDTH - contentLeft * 2;
+        final float scale = sticker ? 1f : new float[]{1f, 1.5f, 2f}[
+                Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_SCALE, 0)))];
         final int surface = dark ? 0xff222b3b : Color.WHITE;
         final int ink = dark ? Color.WHITE : 0xff1e293b;
         final int muted = dark ? 0xffa6b4ca : 0xff77869c;
@@ -196,63 +296,76 @@ public final class PengramQuoteMaker {
         body.setColor(ink);
         body.setTextSize(27);
         final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        int total = 32;
+        int total = pad + 8;
         for (int i = 0; i < entries.size(); i++) {
             final Entry e = entries.get(i);
             if (paths.get(i) != null) {
                 e.media = decode(paths.get(i));
                 if (e.media == null) throw new IllegalStateException("Photo is unavailable");
-                e.imageHeight = Math.min(320, Math.max(110, 624 * e.media.getHeight() / Math.max(1, e.media.getWidth())));
+                e.imageHeight = Math.min(320, Math.max(110, contentWidth * e.media.getHeight() / Math.max(1, e.media.getWidth())));
+                if (!e.albumPaths.isEmpty()) {
+                    for (File tile : e.albumPaths) {
+                        Bitmap media = decode(tile);
+                        if (media == null) throw new IllegalStateException("Album media is unavailable");
+                        e.albumImages.add(media);
+                    }
+                    int cell = (contentWidth - 8) / 2;
+                    e.imageHeight = ((1 + e.albumImages.size() + 1) / 2) * (cell + 8) - 8;
+                }
             }
-            e.layout = TextUtils.isEmpty(e.text) ? null : new StaticLayout(e.text, body, 600,
+            e.layout = TextUtils.isEmpty(e.text) ? null : new StaticLayout(e.text, body, contentWidth,
                     Layout.Alignment.ALIGN_NORMAL, 1.18f, 0, false);
             final int textHeight = e.layout == null ? 0 : e.layout.getHeight();
             e.height = 30 + (e.name == null ? 0 : 34) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
                     + textHeight + (e.time == null ? 0 : 28) + 26;
             total += e.height + 16;
         }
-        total += 16;
-        if (total < 1 || (long) WIDTH * total > MAX_PIXELS) throw new IllegalStateException("Quote too large");
-        Bitmap bitmap = Bitmap.createBitmap(WIDTH, total, Bitmap.Config.ARGB_8888);
+        total += pad + 8;
+        final int outWidth = Math.round(WIDTH * scale);
+        final int outHeight = Math.round(total * scale);
+        if (total < 1 || (long) outWidth * outHeight > MAX_PIXELS)
+            throw new IllegalStateException("Quote too large");
+        Bitmap bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888);
         try {
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(background);
-            int y = 32;
+            canvas.scale(scale, scale);
+            int y = pad + 8;
             for (Entry e : entries) {
                 paint.setColor(surface);
-                canvas.drawRoundRect(new RectF(24, y, WIDTH - 24, y + e.height), 28, 28, paint);
+                canvas.drawRoundRect(new RectF(pad, y, WIDTH - pad, y + e.height), radius, radius, paint);
                 paint.setColor(accent);
-                canvas.drawRoundRect(new RectF(24, y + 20, 30, y + e.height - 20), 3, 3, paint);
+                canvas.drawRoundRect(new RectF(pad + 6, y + 20, pad + 12, y + e.height - 20), 3, 3, paint);
                 int inner = y + 30;
                 if (e.name != null) {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                     paint.setTextSize(25);
                     paint.setColor(accent);
-                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint), 590, TextUtils.TruncateAt.END).toString(), 60, inner + 24, paint);
+                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint), contentWidth, TextUtils.TruncateAt.END).toString(), contentLeft, inner + 24, paint);
                     inner += 34;
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
                 }
                 if (e.media != null) {
-                    canvas.save();
-                    RectF dest = new RectF(60, inner, WIDTH - 60, inner + e.imageHeight);
-                    android.graphics.Path clip = new android.graphics.Path();
-                    clip.addRoundRect(dest, 15, 15, android.graphics.Path.Direction.CW);
-                    canvas.clipPath(clip);
-                    paint.setColor(0xffd8e0ed);
-                    canvas.drawRect(dest, paint);
-                    int mw = e.media.getWidth(), mh = e.media.getHeight();
-                    float scale = Math.max(dest.width() / mw, dest.height() / mh);
-                    float drawnW = mw * scale, drawnH = mh * scale;
-                    paint.setColor(Color.WHITE);
-                    canvas.drawBitmap(e.media, new Rect(0, 0, mw, mh),
-                            new RectF(dest.centerX() - drawnW / 2, dest.centerY() - drawnH / 2,
-                                    dest.centerX() + drawnW / 2, dest.centerY() + drawnH / 2), paint);
-                    canvas.restore();
+                    if (!e.albumImages.isEmpty()) {
+                        int cell = (contentWidth - 8) / 2;
+                        drawImage(canvas, paint, e.media, new RectF(contentLeft, inner,
+                                contentLeft + cell, inner + cell));
+                        for (int j = 0; j < e.albumImages.size(); j++) {
+                            int index = j + 1;
+                            int x = contentLeft + (index % 2) * (cell + 8);
+                            int top = inner + (index / 2) * (cell + 8);
+                            drawImage(canvas, paint, e.albumImages.get(j),
+                                    new RectF(x, top, x + cell, top + cell));
+                        }
+                    } else {
+                        drawImage(canvas, paint, e.media,
+                                new RectF(contentLeft, inner, WIDTH - contentLeft, inner + e.imageHeight));
+                    }
                     inner += e.imageHeight + 14;
                 }
                 if (e.layout != null) {
                     canvas.save();
-                    canvas.translate(60, inner);
+                    canvas.translate(contentLeft, inner);
                     e.layout.draw(canvas);
                     canvas.restore();
                     inner += e.layout.getHeight();
@@ -261,9 +374,12 @@ public final class PengramQuoteMaker {
                     paint.setColor(muted);
                     paint.setTextSize(19);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                    canvas.drawText(e.time, 60, inner + 24, paint);
+                    canvas.drawText(e.time, contentLeft, inner + 24, paint);
                 }
                 y += e.height + 16;
+            }
+            if (PengramConfig.getBool(KEY_WATERMARK, false)) {
+                drawWatermark(canvas, total, chatName, entries.size(), dark);
             }
             File directory = activity.getExternalCacheDir();
             if (directory == null) directory = activity.getCacheDir();
@@ -279,12 +395,13 @@ public final class PengramQuoteMaker {
             }
             final File file = new File(directory, "pengram-quote-" + System.nanoTime() + (jpeg ? ".jpg" : ".png"));
             try (FileOutputStream out = new FileOutputStream(file)) {
-                if (!bitmap.compress(jpeg ? Bitmap.CompressFormat.JPEG : Bitmap.CompressFormat.PNG, 94, out)) {
+                if (!bitmap.compress(jpeg ? Bitmap.CompressFormat.JPEG : Bitmap.CompressFormat.PNG,
+                        Math.max(40, Math.min(100, PengramConfig.getIntCached(KEY_JPEG_QUALITY, 92))), out)) {
                     throw new IllegalStateException("Image compression failed");
                 }
             }
             BitmapFactory.Options previewOptions = new BitmapFactory.Options();
-            previewOptions.inSampleSize = total > 1500 ? (total > 3000 ? 4 : 2) : 1;
+            previewOptions.inSampleSize = outHeight > 1500 ? (outHeight > 3000 ? 4 : 2) : 1;
             Result result = new Result();
             result.file = file;
             result.jpeg = jpeg;
@@ -296,37 +413,194 @@ public final class PengramQuoteMaker {
         }
     }
 
-    private static void preview(ChatActivity chat, Result result) {
+    private static void drawImage(Canvas canvas, Paint paint, Bitmap media, RectF dest) {
+        canvas.save();
+        android.graphics.Path clip = new android.graphics.Path();
+        clip.addRoundRect(dest, 15, 15, android.graphics.Path.Direction.CW);
+        canvas.clipPath(clip);
+        paint.setColor(0xffd8e0ed);
+        canvas.drawRect(dest, paint);
+        int mw = media.getWidth(), mh = media.getHeight();
+        float scale = Math.max(dest.width() / mw, dest.height() / mh);
+        float w = mw * scale, h = mh * scale;
+        paint.setColor(Color.WHITE);
+        canvas.drawBitmap(media, new Rect(0, 0, mw, mh),
+                new RectF(dest.centerX() - w / 2, dest.centerY() - h / 2,
+                        dest.centerX() + w / 2, dest.centerY() + h / 2), paint);
+        canvas.restore();
+    }
+
+    private static void drawWatermark(Canvas canvas, int total, String chatName, int count, boolean dark) {
+        String text = PengramConfig.getQuoteWatermarkText();
+        if (TextUtils.isEmpty(text)) return;
+        text = text.replace("{date}", new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date()))
+                .replace("{chat}", chatName == null ? "" : chatName)
+                .replace("{count}", String.valueOf(count));
+        TextPaint p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        p.setTextSize(20);
+        int alpha = Math.max(10, Math.min(100, PengramConfig.getIntCached(KEY_WATERMARK_OPACITY, 72)));
+        p.setColor((Math.round(alpha * 2.55f) << 24) | (dark ? 0x00ffffff : 0x00203040));
+        String label = TextUtils.ellipsize(text, p, WIDTH - 80, TextUtils.TruncateAt.END).toString();
+        float measured = p.measureText(label);
+        final int position = Math.max(0, Math.min(5, PengramConfig.getIntCached(KEY_WATERMARK_POSITION, 0)));
+        if (position == 5) {
+            int drawn = 0;
+            for (int y = 48; y < total - 20 && drawn < 150; y += 130) {
+                for (int x = -80; x < WIDTH - 30 && drawn < 150; x += (int) Math.max(160, measured + 48)) {
+                    canvas.save();
+                    canvas.rotate(-20, x, y);
+                    canvas.drawText(label, x, y, p);
+                    canvas.restore();
+                    drawn++;
+                }
+            }
+            return;
+        }
+        float x = position == 1 || position == 3 ? 32 : WIDTH - 32 - measured;
+        float y = position == 2 || position == 3 ? 58 : total - 28;
+        if (position == 4) {
+            x = (WIDTH - measured) / 2;
+            y = total / 2f;
+        }
+        canvas.drawText(label, Math.max(8, x), y, p);
+    }
+
+    private static TextView action(Activity activity, int title, boolean primary, Runnable callback) {
+        TextView button = new TextView(activity);
+        button.setText(title);
+        button.setGravity(Gravity.CENTER);
+        button.setTextSize(15);
+        button.setTypeface(AndroidUtilities.bold());
+        button.setTextColor(primary ? Color.WHITE : 0xff4873c8);
+        button.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(12), AndroidUtilities.dp(14), AndroidUtilities.dp(12));
+        button.setMinHeight(AndroidUtilities.dp(48));
+        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(12),
+                primary ? 0xff5685f8 : 0xffecf2ff, primary ? 0xff416ad4 : 0xffdce8ff));
+        button.setOnClickListener(v -> callback.run());
+        return button;
+    }
+
+    private static void addAction(Activity activity, LinearLayout root, int title,
+                                  boolean primary, Runnable callback) {
+        TextView button = action(activity, title, primary, callback);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = AndroidUtilities.dp(7);
+        root.addView(button, lp);
+    }
+
+    private static void preview(ChatActivity chat, Result result,
+                                ArrayList<MessageObject> selected, ArrayList<Entry> entries, ArrayList<File> paths) {
         final Activity activity = chat.getParentActivity();
-        if (activity == null) return;
-        ScrollView scroll = new ScrollView(activity);
-        scroll.setFillViewport(false);
+        if (!active(activity)) return;
+        final AlertDialog[] ref = new AlertDialog[1];
+        ScrollView outer = new ScrollView(activity);
+        outer.setFillViewport(false);
+        outer.setVerticalScrollBarEnabled(false);
+        LinearLayout root = new LinearLayout(activity);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(8), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
+        outer.addView(root, new ScrollView.LayoutParams(-1, -2));
+        TextView hint = new TextView(activity);
+        hint.setText(R.string.PengramQuotePrivacyHint);
+        hint.setTextSize(14);
+        hint.setTextColor(0xff77869c);
+        hint.setGravity(Gravity.CENTER);
+        hint.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(9));
+        root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        ScrollView pictureScroll = new ScrollView(activity);
+        pictureScroll.setFillViewport(false);
+        pictureScroll.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(12), 0xffd9e2f0));
         ImageView image = new ImageView(activity);
         image.setImageBitmap(result.preview);
         image.setAdjustViewBounds(true);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        scroll.addView(image, new ScrollView.LayoutParams(-1, -2));
-        LinearLayout container = new LinearLayout(activity);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(8), AndroidUtilities.dp(16), 0);
-        TextView hint = new TextView(activity);
-        hint.setText(R.string.PengramQuotePrivacyHint);
-        hint.setTextSize(12);
-        hint.setGravity(Gravity.CENTER);
-        container.addView(hint, new LinearLayout.LayoutParams(-1, AndroidUtilities.dp(40)));
-        container.addView(scroll, new LinearLayout.LayoutParams(-1, Math.min(AndroidUtilities.dp(420), AndroidUtilities.displaySize.y / 2)));
-        final boolean canSend = chat.getCurrentChat() == null ||
-                ChatObject.canWriteToChat(chat.getCurrentChat()) && ChatObject.canSendPhoto(chat.getCurrentChat());
+        pictureScroll.addView(image, new ScrollView.LayoutParams(-1, -2));
+        pictureScroll.setOnClickListener(v -> zoom(activity, result.preview));
+        image.setOnClickListener(v -> zoom(activity, result.preview));
+        int previewHeight = Math.max(AndroidUtilities.dp(140),
+                Math.min(AndroidUtilities.dp(390), activity.getResources().getDisplayMetrics().heightPixels / 3));
+        root.addView(pictureScroll, new LinearLayout.LayoutParams(-1, previewHeight));
+
+        HorizontalScrollView quick = new HorizontalScrollView(activity);
+        quick.setHorizontalScrollBarEnabled(false);
+        LinearLayout toggles = new LinearLayout(activity);
+        toggles.setOrientation(LinearLayout.HORIZONTAL);
+        int[] keys = {R.string.PengramQuoteNames, R.string.PengramQuoteTimes,
+                R.string.PengramQuoteMedia, R.string.PengramQuoteAnonMentions};
+        String[] config = {KEY_NAME, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS};
+        boolean[] defaults = {true, true, true, false};
+        for (int i = 0; i < keys.length; i++) {
+            final int idx = i;
+            boolean enabled = PengramConfig.getBool(config[i], defaults[i]);
+            TextView chip = action(activity, keys[i], enabled, () -> {
+                PengramConfig.setBool(config[idx], !PengramConfig.getBool(config[idx], defaults[idx]));
+                if (ref[0] != null) ref[0].dismiss();
+                show(chat, selected);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = AndroidUtilities.dp(6);
+            toggles.addView(chip, lp);
+        }
+        quick.addView(toggles);
+        LinearLayout.LayoutParams quickParams = new LinearLayout.LayoutParams(-1, -2);
+        quickParams.topMargin = AndroidUtilities.dp(8);
+        root.addView(quick, quickParams);
+
+        boolean canSend = chat.getCurrentChat() == null || ChatObject.canWriteToChat(chat.getCurrentChat())
+                && ChatObject.canSendPhoto(chat.getCurrentChat());
+        if (canSend) {
+            addAction(activity, root, R.string.PengramQuoteSend, true, () -> {
+                send(chat, result);
+                if (ref[0] != null) ref[0].dismiss();
+            });
+            addAction(activity, root, R.string.PengramQuoteSendFile, false, () -> {
+                sendDocument(chat, result);
+                if (ref[0] != null) ref[0].dismiss();
+            });
+            if (chat.getCurrentChat() == null || ChatObject.canSendStickers(chat.getCurrentChat())) {
+                addAction(activity, root, R.string.PengramQuoteSendSticker, false, () -> {
+                    if (ref[0] != null) ref[0].dismiss();
+                    sticker(chat, entries, paths);
+                });
+            }
+        }
+        addAction(activity, root, R.string.PengramQuoteOtherChat, false, () -> {
+            if (ref[0] != null) ref[0].dismiss();
+            sendOtherChat(chat, result);
+        });
+        addAction(activity, root, R.string.PengramQuoteSave, false, () -> save(chat, result));
+        addAction(activity, root, R.string.PengramQuoteShare, false, () -> share(chat, result));
+        addAction(activity, root, R.string.PengramQuoteCopy, false, () -> copy(chat, result));
         AlertDialog.Builder builder = new AlertDialog.Builder(activity, chat.getResourceProvider());
         builder.setTitle(activity.getString(R.string.PengramQuotePreview));
-        builder.setView(container);
-        if (canSend) builder.setPositiveButton(activity.getString(R.string.PengramQuoteSend), (d, which) -> send(chat, result));
-        builder.setNeutralButton(activity.getString(R.string.PengramQuoteSave), (d, which) -> save(chat, result));
+        builder.setView(outer);
         builder.setNegativeButton(activity.getString(R.string.Cancel), null);
-        AlertDialog dialog = builder.create();
-        // Let the ImageView release its bitmap with the dialog after the exit animation.
+        ref[0] = builder.create();
+        chat.showDialog(ref[0]);
+    }
 
-        chat.showDialog(dialog);
+    private static void zoom(Activity activity, Bitmap bitmap) {
+        if (!active(activity) || bitmap == null || bitmap.isRecycled()) return;
+        ImageView picture = new ImageView(activity);
+        picture.setImageBitmap(bitmap);
+        picture.setScaleType(ImageView.ScaleType.MATRIX);
+        Matrix matrix = new Matrix();
+        ScaleGestureDetector detector = new ScaleGestureDetector(activity,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    float factor = 1f;
+                    @Override public boolean onScale(ScaleGestureDetector d) {
+                        factor = Math.max(1f, Math.min(4f, factor * d.getScaleFactor()));
+                        matrix.setScale(factor, factor, d.getFocusX(), d.getFocusY());
+                        picture.setImageMatrix(matrix);
+                        return true;
+                    }
+                });
+        picture.setOnTouchListener((v, event) -> {
+            detector.onTouchEvent(event);
+            return true;
+        });
+        new AlertDialog.Builder(activity).setTitle(activity.getString(R.string.PengramQuotePreview))
+                .setView(picture).setPositiveButton(activity.getString(R.string.OK), null).show();
     }
 
     private static void send(ChatActivity chat, Result result) {
@@ -341,13 +615,7 @@ public final class PengramQuoteMaker {
         }
         try {
             MessageObject replyToTop = chat.getThreadMessage();
-            if (replyToTop == null && chat.getTopicId() > 0 && chat.getTopicId() <= Integer.MAX_VALUE) {
-                TLRPC.TL_message topic = new TLRPC.TL_message();
-                topic.id = (int) chat.getTopicId();
-                topic.message = "";
-                topic.peer_id = MessagesController.getInstance(chat.getCurrentAccount()).getPeer(chat.getDialogId());
-                replyToTop = new MessageObject(chat.getCurrentAccount(), topic, false, false);
-            }
+            if (replyToTop == null) replyToTop = topMessage(chat.getCurrentAccount(), chat.getDialogId(), chat.getTopicId());
             SendMessagesHelper.prepareSendingPhoto(AccountInstance.getInstance(chat.getCurrentAccount()),
                     result.file.getAbsolutePath(), null, chat.getDialogId(), null, replyToTop,
                     null, null, null, null, null, 0, null, true, 0, 0, SendMessageChatArguments.EMPTY);
@@ -355,6 +623,199 @@ public final class PengramQuoteMaker {
             FileLog.e(e);
             error(chat, R.string.PengramQuoteCannotSend);
         }
+    }
+
+    private static void sendDocument(ChatActivity chat, Result result) {
+        if (!result.file.isFile()) {
+            error(chat, R.string.PengramQuoteRenderError);
+            return;
+        }
+        try {
+            MessageObject top = chat.getThreadMessage();
+            if (top == null) top = topMessage(chat.getCurrentAccount(), chat.getDialogId(), chat.getTopicId());
+            SendMessagesHelper.prepareSendingDocument(AccountInstance.getInstance(chat.getCurrentAccount()),
+                    result.file.getAbsolutePath(), result.file.getAbsolutePath(), null, null,
+                    result.jpeg ? "image/jpeg" : "image/png", chat.getDialogId(), null, top,
+                    null, null, null, true, 0, null, SendMessageChatArguments.EMPTY, false);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            error(chat, R.string.PengramQuoteCannotSend);
+        }
+    }
+
+    private static void sendOtherChat(ChatActivity chat, Result result) {
+        if (!result.file.isFile() || chat.getParentActivity() == null) {
+            error(chat, R.string.PengramQuoteRenderError);
+            return;
+        }
+        try {
+            Bundle args = new Bundle();
+            args.putBoolean("onlySelect", true);
+            args.putBoolean("closeFragment", false);
+            args.putBoolean("canSelectTopics", true);
+            args.putBoolean("checkCanWrite", true);
+            args.putBoolean("allowGlobalSearch", true);
+            args.putBoolean("allowUsers", true);
+            args.putBoolean("allowBots", true);
+            args.putBoolean("allowGroups", true);
+            args.putBoolean("allowMegagroups", true);
+            args.putBoolean("allowChannels", true);
+            DialogsActivity picker = new DialogsActivity(args);
+            picker.setDelegate((fragment, dids, message, param, notify, scheduleDate, repeat, topicsFragment) -> {
+                if (dids == null || dids.isEmpty() || dids.get(0) == null || dids.get(0).dialogId == 0) {
+                    return false;
+                }
+                MessagesStorage.TopicKey destination = dids.get(0);
+                TLRPC.Chat peer = destination.dialogId < 0
+                        ? MessagesController.getInstance(chat.getCurrentAccount()).getChat(-destination.dialogId) : null;
+                if (peer != null && (!ChatObject.canWriteToChat(peer) || !ChatObject.canSendPhoto(peer))) {
+                    error(chat, R.string.PengramQuoteCannotSend);
+                    return false;
+                }
+                MessageObject top = topMessage(chat.getCurrentAccount(), destination.dialogId, destination.topicId);
+                try {
+                    SendMessagesHelper.prepareSendingPhoto(AccountInstance.getInstance(chat.getCurrentAccount()),
+                            result.file.getAbsolutePath(), null, destination.dialogId, null, top,
+                            null, null, null, null, null, 0, null, notify, scheduleDate, 0,
+                            SendMessageChatArguments.EMPTY);
+                    fragment.finishFragment();
+                    return true;
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    error(chat, R.string.PengramQuoteCannotSend);
+                    return false;
+                }
+            });
+            chat.presentFragment(picker);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            error(chat, R.string.PengramQuoteCannotSend);
+        }
+    }
+
+    private static void share(ChatActivity chat, Result result) {
+        Activity activity = chat.getParentActivity();
+        if (!active(activity) || !result.file.isFile()) return;
+        try {
+            Uri uri = shareUri(activity, result.file);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType(result.jpeg ? "image/jpeg" : "image/png");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.setClipData(ClipData.newUri(activity.getContentResolver(), "Quote", uri));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            activity.startActivity(Intent.createChooser(intent, activity.getString(R.string.PengramQuoteShare)));
+        } catch (Throwable e) {
+            FileLog.e(e);
+            error(chat, R.string.PengramQuoteShareError);
+        }
+    }
+
+    private static void copy(ChatActivity chat, Result result) {
+        Activity activity = chat.getParentActivity();
+        if (!active(activity) || !result.file.isFile()) return;
+        try {
+            ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) throw new IllegalStateException("Clipboard unavailable");
+            Uri uri = shareUri(activity, result.file);
+            clipboard.setPrimaryClip(ClipData.newUri(activity.getContentResolver(), "Quote", uri));
+        } catch (Throwable e) {
+            FileLog.e(e);
+            error(chat, R.string.PengramQuoteCopyError);
+        }
+    }
+
+    private static void sticker(ChatActivity chat, ArrayList<Entry> entries, ArrayList<File> paths) {
+        Activity activity = chat.getParentActivity();
+        if (!active(activity)) return;
+        final int account = chat.getCurrentAccount();
+        final long dialogId = chat.getDialogId();
+        final long topicId = chat.getTopicId();
+        final String chatName = chat.getCurrentChat() == null ? "" : chat.getCurrentChat().title;
+        final int themeBackground = Theme.getColor(Theme.key_chat_wallpaper, chat.getResourceProvider());
+        final boolean dark = PengramConfig.getBool(KEY_DARK, false);
+        final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
+        final AlertDialog spinner = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER, chat.getResourceProvider());
+        chat.showDialog(spinner);
+        Utilities.globalQueue.postRunnable(() -> {
+            File webp = null;
+            try {
+                Result source = render(activity, entries, paths, dark, style, false, true,
+                        themeBackground, chatName);
+                if (source.preview != null) source.preview.recycle();
+                Bitmap bitmap = BitmapFactory.decodeFile(source.file.getAbsolutePath());
+                if (bitmap == null) throw new IllegalStateException("Sticker decode failed");
+                int w = Math.max(1, Math.round(512f * bitmap.getWidth() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
+                int h = Math.max(1, Math.round(512f * bitmap.getHeight() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, w, h, true);
+                if (scaled != bitmap) bitmap.recycle();
+                webp = new File(source.file.getParentFile(), "pengram-quote-" + System.nanoTime() + ".webp");
+                try {
+                    for (int quality : new int[]{100, 85, 70, 55, 40}) {
+                        try (FileOutputStream out = new FileOutputStream(webp)) {
+                            Bitmap.CompressFormat format = Build.VERSION.SDK_INT >= 30 && quality == 100
+                                    ? Bitmap.CompressFormat.WEBP_LOSSLESS : Bitmap.CompressFormat.WEBP;
+                            if (!scaled.compress(format, quality, out)) throw new IllegalStateException("WebP compression failed");
+                        }
+                        if (webp.length() > 0 && webp.length() <= 512 * 1024) break;
+                    }
+                } finally {
+                    scaled.recycle();
+                }
+                if (webp.length() == 0 || webp.length() > 512 * 1024) throw new IllegalStateException("Sticker over 512 KB");
+                final File file = webp;
+                final int finalW = w, finalH = h;
+                AndroidUtilities.runOnUIThread(() -> {
+                    spinner.dismiss();
+                    if (!active(chat.getParentActivity()) || !file.isFile()) return;
+                    if (chat.getCurrentChat() != null && !ChatObject.canSendStickers(chat.getCurrentChat())) {
+                        error(chat, R.string.PengramQuoteCannotSend);
+                        return;
+                    }
+                    try {
+                        TLRPC.TL_document document = new TLRPC.TL_document();
+                        document.file_reference = new byte[0];
+                        document.date = (int) (System.currentTimeMillis() / 1000);
+                        document.mime_type = "image/webp";
+                        document.size = file.length();
+                        TLRPC.TL_documentAttributeFilename filename = new TLRPC.TL_documentAttributeFilename();
+                        filename.file_name = file.getName();
+                        document.attributes.add(filename);
+                        TLRPC.TL_documentAttributeSticker stickerAttr = new TLRPC.TL_documentAttributeSticker();
+                        stickerAttr.alt = "";
+                        stickerAttr.stickerset = new TLRPC.TL_inputStickerSetEmpty();
+                        document.attributes.add(stickerAttr);
+                        TLRPC.TL_documentAttributeImageSize sizeAttr = new TLRPC.TL_documentAttributeImageSize();
+                        sizeAttr.w = finalW;
+                        sizeAttr.h = finalH;
+                        document.attributes.add(sizeAttr);
+                        HashMap<String, String> params = new HashMap<>();
+                        params.put("originalPath", file.getAbsolutePath());
+                        SendMessagesHelper.SendMessageParams message = SendMessagesHelper.SendMessageParams.of(
+                                document, null, file.getAbsolutePath(), dialogId, null,
+                                topMessage(account, dialogId, topicId), null, null, null, params,
+                                true, 0, 0, 0, null, null, false);
+                        SendMessagesHelper.getInstance(account).sendMessage(message);
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                        error(chat, R.string.PengramQuoteStickerError);
+                    }
+                });
+            } catch (Throwable e) {
+                FileLog.e(e);
+                if (webp != null) webp.delete();
+                AndroidUtilities.runOnUIThread(() -> {
+                    spinner.dismiss();
+                    error(chat, R.string.PengramQuoteStickerError);
+                });
+            } finally {
+                for (Entry entry : entries) {
+                    if (entry.media != null && !entry.media.isRecycled()) entry.media.recycle();
+                    entry.media = null;
+                    for (Bitmap tile : entry.albumImages) if (tile != null && !tile.isRecycled()) tile.recycle();
+                    entry.albumImages.clear();
+                }
+            }
+        });
     }
 
     private static void save(ChatActivity chat, Result result) {
