@@ -242,14 +242,18 @@ public class SnowflakesEffect {
     }
 
     public void onDraw(View parent, Canvas canvas) {
-        if (parent == null || canvas == null || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
+        if (parent == null || canvas == null) {
             return;
         }
+        // This is an explicit visual preference; Lite Mode only controls the seasonal animation.
         if (PengramConfig.isForcedSnow()) {
             drawCustom(parent, canvas);
             return;
         }
         customTime = 0;
+        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
+            return;
+        }
 
         if (batchParticlesBuffer != null) {
             final int count = Math.min(maxCount, particles.size());

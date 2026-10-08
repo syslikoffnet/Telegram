@@ -11646,7 +11646,7 @@
     <string name="PengramTitleModeUsername">@username</string>
     <string name="PengramTitleModeCustom">Custom text</string>
     <string name="PengramSnow">Always snowing</string>
-    <string name="PengramSnowInfo">Snowflakes in the chat list header all year round</string>
+    <string name="PengramSnowInfo">Animated particles in the chat list header and open chat backgrounds all year round</string>
     <string name="PengramBubblesHeader">Message bubbles</string>
     <string name="PengramHideTail">No bubble tail</string>
     <string name="PengramHideTailInfo">Bubbles are drawn without the little tail</string>

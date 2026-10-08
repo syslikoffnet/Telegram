@@ -674,7 +674,7 @@
     <string name="PengramTitleModeUsername">@username</string>
     <string name="PengramTitleModeCustom">Свой текст</string>
     <string name="PengramSnow">Всегда идёт снег</string>
-    <string name="PengramSnowInfo">Снежинки в шапке списка чатов круглый год</string>
+    <string name="PengramSnowInfo">Анимированные частицы в шапке списка и на фоне открытых чатов круглый год</string>
     <string name="PengramBubblesHeader">Пузыри сообщений</string>
     <string name="PengramHideTail">Без хвостика у сообщений</string>
     <string name="PengramHideTailInfo">Пузыри рисуются без «хвостика»</string>

@@ -89,6 +89,7 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
     private boolean animationInProgress;
     private boolean skipBackgroundDrawing;
     SnowflakesEffect snowflakesEffect;
+    private boolean pengramSnowInChat;
     public View backgroundView;
     boolean attached;
 
@@ -239,7 +240,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                         canvas.clipRect(0, actionBarHeight, width, getMeasuredHeight() - bottomClip);
                         drawable.setBounds(x, y, x + width, y + height);
                         drawable.draw(canvas);
-                        checkSnowflake(canvas);
                         canvas.restore();
                     } else {
                         if (bottomClip != 0) {
@@ -261,7 +261,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                     }
                     drawable.setBounds(0, 0, getMeasuredWidth(), getRootView().getMeasuredHeight());
                     drawable.draw(canvas);
-                    checkSnowflake(canvas);
                     if (bottomClip != 0) {
                         canvas.restore();
                     }
@@ -272,7 +271,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                     }
                     drawable.setBounds(0, backgroundTranslationY, getMeasuredWidth(), backgroundTranslationY + getRootView().getMeasuredHeight());
                     drawable.draw(canvas);
-                    checkSnowflake(canvas);
                     if (bottomClip != 0) {
                         canvas.restore();
                     }
@@ -284,7 +282,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                         canvas.scale(scale, scale);
                         drawable.setBounds(0, 0, (int) Math.ceil(getMeasuredWidth() / scale), (int) Math.ceil(getRootView().getMeasuredHeight() / scale));
                         drawable.draw(canvas);
-                        checkSnowflake(canvas);
                         canvas.restore();
                     } else {
                         int actionBarHeight = (isActionBarVisible() ? ActionBar.getCurrentActionBarHeight() : 0) + (isStatusBarVisible() && occupyStatusBar ? AndroidUtilities.statusBarHeight : 0);
@@ -300,7 +297,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                         canvas.clipRect(0, actionBarHeight, width, getMeasuredHeight() - bottomClip);
                         drawable.setBounds(x, y, x + width, y + height);
                         drawable.draw(canvas);
-                        checkSnowflake(canvas);
                         canvas.restore();
                     }
                 } else {
@@ -321,7 +317,6 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                     );
 
                     drawable.draw(canvas);
-                    checkSnowflake(canvas);
                     if (bottomClip != 0) {
                         canvas.restore();
                     }
@@ -339,6 +334,12 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
                     backgroundView.invalidate();
                 }
             }
+            // Render particles once, in view coordinates, over every wallpaper type.
+            // Do not animate the outgoing wallpaper separately during theme transitions.
+            canvas.save();
+            canvas.clipRect(0, 0, getMeasuredWidth(), getMeasuredHeight() - bottomClip);
+            checkSnowflake(canvas);
+            canvas.restore();
             if (themeAnimationValue != 1f) {
                 backgroundView.invalidate();
             }
@@ -557,8 +558,16 @@ public class SizeNotifierFrameLayout extends FrameLayout implements Theme.Colora
         }
     }
 
+    /** Limit the always-on effect to actual conversations, not every wallpaper preview or sheet. */
+    public void setPengramSnowInChat(boolean enabled) {
+        pengramSnowInChat = enabled;
+        invalidateBackground();
+    }
+
     private void checkSnowflake(Canvas canvas) {
-        if (backgroundView != null && Theme.canStartHolidayAnimation() && LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
+        boolean forced = pengramSnowInChat && org.telegram.messenger.PengramConfig.isForcedSnow();
+        if (backgroundView != null && (forced || Theme.canStartHolidayAnimation()
+                && LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND))) {
             if (snowflakesEffect == null) {
                 snowflakesEffect = new SnowflakesEffect(1);
                 snowflakesEffect.setForcedColor(0xFFFFFFFF);

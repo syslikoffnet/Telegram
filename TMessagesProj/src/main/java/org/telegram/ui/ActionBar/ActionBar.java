@@ -435,41 +435,42 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
         }
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && (child == titleTextView[0] || child == titleTextView[1] || child == titlesContainer && useContainerForTitles)) {
-            Drawable drawable = Theme.getCurrentHolidayDrawable();
-            if (drawable != null) {
-                SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
-                if (titleView != null && titleView.getVisibility() == View.VISIBLE && titleView.getText() instanceof String) {
-                    TextPaint textPaint = titleView.getTextPaint();
-                    textPaint.getFontMetricsInt(fontMetricsInt);
-                    textPaint.getTextBounds((String) titleView.getText(), 0, 1, rect);
-                    int x = titleView.getTextStartX() + Theme.getCurrentHolidayDrawableXOffset() + (rect.width() - (drawable.getIntrinsicWidth() + Theme.getCurrentHolidayDrawableXOffset())) / 2;
-                    int y = titleView.getTextStartY() + Theme.getCurrentHolidayDrawableYOffset() + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titlesContainer.getScaleY()));
-                    drawable.setBounds(x, y - drawable.getIntrinsicHeight(), x + drawable.getIntrinsicWidth(), y);
-                    drawable.setAlpha((int) (255 * titlesContainer.getAlpha() * titleView.getAlpha()));
-                    drawable.draw(canvas);
-                    if (overlayTitleAnimationInProgress) {
-                        child.invalidate();
-                        invalidate();
+        if (supportsHolidayImage && (child == titleTextView[0] || child == titleTextView[1]
+                || child == titlesContainer && useContainerForTitles)) {
+            final boolean forcedSnow = org.telegram.messenger.PengramConfig.isForcedSnow();
+            if (!titleOverlayShown && !LocaleController.isRTL) {
+                Drawable drawable = Theme.getCurrentHolidayDrawable();
+                if (drawable != null) {
+                    SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
+                    if (titleView != null && titleView.getVisibility() == View.VISIBLE && titleView.getText() instanceof String) {
+                        TextPaint textPaint = titleView.getTextPaint();
+                        textPaint.getFontMetricsInt(fontMetricsInt);
+                        textPaint.getTextBounds((String) titleView.getText(), 0, 1, rect);
+                        int x = titleView.getTextStartX() + Theme.getCurrentHolidayDrawableXOffset() + (rect.width() - (drawable.getIntrinsicWidth() + Theme.getCurrentHolidayDrawableXOffset())) / 2;
+                        int y = titleView.getTextStartY() + Theme.getCurrentHolidayDrawableYOffset() + (int) Math.ceil((titleView.getTextHeight() - rect.height()) / 2.0f) + (int) (dp(8) * (1f - titlesContainer.getScaleY()));
+                        drawable.setBounds(x, y - drawable.getIntrinsicHeight(), x + drawable.getIntrinsicWidth(), y);
+                        drawable.setAlpha((int) (255 * titlesContainer.getAlpha() * titleView.getAlpha()));
+                        drawable.draw(canvas);
+                        if (overlayTitleAnimationInProgress) {
+                            child.invalidate();
+                            invalidate();
+                        }
                     }
                 }
-
-                if (Theme.canStartHolidayAnimation()) {
+                // The particle effect must not depend on a holiday icon or title text type.
+                if (Theme.canStartHolidayAnimation() || forcedSnow) {
                     if (snowflakesEffect == null) {
                         snowflakesEffect = new SnowflakesEffect(0);
                     }
-                } else if (!manualStart && !org.telegram.messenger.PengramConfig.isForcedSnow()) {
-                    if (snowflakesEffect != null) {
-                        snowflakesEffect = null;
-                    }
+                } else if (!manualStart) {
+                    snowflakesEffect = null;
                 }
                 if (snowflakesEffect != null) {
                     snowflakesEffect.onDraw(this, canvas);
                 } else if (fireworksEffect != null) {
                     fireworksEffect.onDraw(this, canvas);
                 }
-            } else if (org.telegram.messenger.PengramConfig.isForcedSnow()) {
-                // Pengram: снег включён принудительно, праздничной картинки нет
+            } else if (forcedSnow) {
                 if (snowflakesEffect == null) {
                     snowflakesEffect = new SnowflakesEffect(0);
                 }
