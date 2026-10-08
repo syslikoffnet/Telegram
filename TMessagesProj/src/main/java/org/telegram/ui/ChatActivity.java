@@ -45431,6 +45431,13 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /** Current chat's wallpaper, including per-chat themes (not just the app-wide color). */
+    public Drawable getPengramQuoteWallpaper() {
+        Drawable current = contentView != null ? contentView.getBackgroundImage() : null;
+        if (current == null && themeDelegate != null) current = themeDelegate.getWallpaperDrawable();
+        return current != null ? current : Theme.getCachedWallpaperNonBlocking();
+    }
+
     private void updateBackground() {
         if (contentView == null || parentThemeDelegate != null) {
             return;

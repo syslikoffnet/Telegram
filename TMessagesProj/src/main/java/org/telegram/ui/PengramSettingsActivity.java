@@ -3517,13 +3517,17 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramQuoteStyleHeader)));
+        final boolean quoteThemeStyle = PengramConfig.getBool(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(
                 org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, 0)));
         final String[] styles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);
         items.add(UItem.asSettingsCell(BTN_QUOTE_STYLE, R.drawable.msg_palette,
-                getString(R.string.PengramQuoteAccent), styles[style]));
-        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false,
-                getString(R.string.PengramQuoteDark)));
+                getString(R.string.PengramQuoteAccent), styles[quoteThemeStyle ? 0 : style + 1]));
+        if (!quoteThemeStyle) {
+            items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false,
+                    getString(R.string.PengramQuoteDark)));
+        }
         final int scale = Math.max(0, Math.min(2, PengramConfig.getIntCached(
                 org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, 0)));
         items.add(UItem.asSettingsCell(BTN_QUOTE_SCALE, R.drawable.msg_photo_settings,
@@ -4296,7 +4300,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 new AlertDialog.Builder(getContext(), getResourceProvider())
                         .setTitle(getString(R.string.PengramQuoteAccent))
                         .setItems(quoteStyles, (dialog, which) -> {
-                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, which);
+                            PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, which == 0);
+                            if (which > 0) PengramConfig.setIntValue(
+                                    org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, which - 1);
                             if (listView != null && listView.adapter != null) listView.adapter.update(true);
                         }).show();
                 return;

@@ -13,6 +13,7 @@ import android.view.ScaleGestureDetector;
 import android.widget.HorizontalScrollView;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -54,6 +55,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ChatActivity;
+import org.telegram.ui.ChatBackgroundDrawable;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.DialogsActivity;
 import androidx.core.content.FileProvider;
@@ -73,6 +75,7 @@ public final class PengramQuoteMaker {
 
     /** 0: compact preview, 1: render and send to the current chat immediately. */
     public static final String KEY_ACTION_MODE = "quoteActionMode";
+    public static final String KEY_THEME_STYLE = "quoteFollowChatTheme";
     public static final String KEY_NAME = "quoteShowName";
     public static final String KEY_AVATAR = "quoteShowAvatar";
     public static final String KEY_TIME = "quoteShowTime";
@@ -111,13 +114,78 @@ public final class PengramQuoteMaker {
         File avatarFile;
         final ArrayList<File> albumPaths = new ArrayList<>();
         final ArrayList<Bitmap> albumImages = new ArrayList<>();
-        int imageHeight, height;
+        int imageHeight, height, width;
     }
 
     private static final class Result {
         File file;
         Bitmap preview;
         boolean jpeg;
+    }
+
+    /** Immutable UI-thread snapshot: never draw the live wallpaper or read a changing theme on a worker. */
+    private static final class QuotePalette {
+        Bitmap wallpaper;
+        int background, bubble, ink, muted;
+    }
+
+    private static QuotePalette capturePalette(ChatActivity chat, boolean includeWallpaper) {
+        QuotePalette palette = new QuotePalette();
+        Theme.ResourcesProvider provider = chat.getResourceProvider();
+        int wallpaperColor = Theme.getColor(Theme.key_chat_wallpaper, provider);
+        palette.background = wallpaperColor != 0 ? wallpaperColor | 0xff000000
+                : Theme.getColor(Theme.key_windowBackgroundGray, provider) | 0xff000000;
+        palette.bubble = Theme.getColor(Theme.key_chat_inBubble, provider);
+        palette.ink = Theme.getColor(Theme.key_chat_messageTextIn, provider);
+        palette.muted = Theme.getColor(Theme.key_chat_inTimeText, provider);
+        if (includeWallpaper) {
+            Drawable drawable = chat.getPengramQuoteWallpaper();
+            if (drawable instanceof ChatBackgroundDrawable) {
+                drawable = ((ChatBackgroundDrawable) drawable).getDrawable(true);
+            }
+            if (drawable != null) {
+                try {
+                    int height = Math.max(WIDTH, Math.min(1600,
+                            Math.round(chat.getParentActivity().getResources().getDisplayMetrics().heightPixels
+                                    * WIDTH / (float) chat.getParentActivity().getResources().getDisplayMetrics().widthPixels)));
+                    palette.wallpaper = Bitmap.createBitmap(WIDTH, height, Bitmap.Config.RGB_565);
+                    Canvas canvas = new Canvas(palette.wallpaper);
+                    canvas.drawColor(palette.background);
+                    if (drawable instanceof BitmapDrawable && ((BitmapDrawable) drawable).getBitmap() != null) {
+                        Bitmap photo = ((BitmapDrawable) drawable).getBitmap();
+                        float crop = Math.min(photo.getWidth() / (float) WIDTH, photo.getHeight() / (float) height);
+                        int sourceW = Math.max(1, Math.min(photo.getWidth(), Math.round(WIDTH * crop)));
+                        int sourceH = Math.max(1, Math.min(photo.getHeight(), Math.round(height * crop)));
+                        canvas.drawBitmap(photo, new Rect((photo.getWidth() - sourceW) / 2,
+                                (photo.getHeight() - sourceH) / 2, (photo.getWidth() + sourceW) / 2,
+                                (photo.getHeight() + sourceH) / 2), new Rect(0, 0, WIDTH, height),
+                                new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG));
+                    } else {
+                        Rect old = new Rect(drawable.getBounds());
+                        try {
+                            drawable.setBounds(0, 0, WIDTH, height);
+                            drawable.draw(canvas);
+                        } finally {
+                            drawable.setBounds(old);
+                        }
+                    }
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    if (palette.wallpaper != null) palette.wallpaper.recycle();
+                    palette.wallpaper = null;
+                }
+            }
+        }
+        return palette;
+    }
+
+    private static void drawWallpaper(Canvas canvas, Bitmap wallpaper, int height, Paint paint) {
+        int tile = wallpaper.getHeight();
+        for (int y = 0; y < height; y += tile) {
+            int chunk = Math.min(tile, height - y);
+            canvas.drawBitmap(wallpaper, new Rect(0, 0, WIDTH, chunk),
+                    new Rect(0, y, WIDTH, y + chunk), paint);
+        }
     }
 
     private static boolean active(Activity activity) {
@@ -304,7 +372,7 @@ public final class PengramQuoteMaker {
                 && PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 1;
         final String chatName = chat.getCurrentChat() != null ? chat.getCurrentChat().title
                 : chat.getCurrentUser() != null ? UserObject.getUserName(chat.getCurrentUser()) : "";
-        final int themedBackground = Theme.getColor(Theme.key_chat_wallpaper, chat.getResourceProvider());
+        final QuotePalette palette = capturePalette(chat, PengramConfig.getIntCached(KEY_BACKGROUND, 0) == 0);
         final boolean dark = PengramConfig.getBool(KEY_DARK, false);
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
         final AlertDialog spinner = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER, chat.getResourceProvider());
@@ -322,10 +390,11 @@ public final class PengramQuoteMaker {
             Result result = null;
             try {
                 result = render(activity, entries, imagePaths, dark, style, jpeg, false,
-                        themedBackground, chatName);
+                        palette, chatName);
             } catch (Throwable ex) {
                 FileLog.e(ex);
             } finally {
+                if (palette.wallpaper != null) palette.wallpaper.recycle();
                 for (Entry e : entries) {
                     if (e.media != null && !e.media.isRecycled()) e.media.recycle();
                     for (Bitmap tile : e.albumImages) if (tile != null && !tile.isRecycled()) tile.recycle();
@@ -380,13 +449,15 @@ public final class PengramQuoteMaker {
 
     private static Result render(Activity activity, ArrayList<Entry> entries, ArrayList<File> paths,
                                  boolean dark, int style, boolean jpeg, boolean sticker,
-                                 int themedBackground, String chatName) throws Exception {
-        final int accent = new int[]{0xff5685f8, 0xff23ad85, 0xffd26496, 0xffeda546}[style];
+                                 QuotePalette palette, String chatName) throws Exception {
+        final boolean followTheme = PengramConfig.getBool(KEY_THEME_STYLE, true);
+        final int accent = followTheme ? palette.ink
+                : new int[]{0xff5685f8, 0xff23ad85, 0xffd26496, 0xffeda546}[style];
         int bgType = sticker && PengramConfig.getBool(KEY_STICKER_TRANSPARENT, true) ? 1
                 : Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0)));
         final int background = bgType == 1 && !jpeg ? Color.TRANSPARENT
                 : bgType == 2 ? PengramConfig.getIntCached(KEY_BACKGROUND_COLOR, 0xffeef3ff) | 0xff000000
-                : bgType == 0 ? themedBackground | 0xff000000
+                : bgType == 0 ? palette.background
                 : dark ? 0xff141a28 : 0xffeef3ff;
         final int pad = Math.max(0, Math.min(72, PengramConfig.getIntCached(KEY_PADDING, 24)));
         final int radius = Math.max(0, Math.min(64, PengramConfig.getIntCached(KEY_RADIUS, 28)));
@@ -394,9 +465,11 @@ public final class PengramQuoteMaker {
         final int contentWidth = WIDTH - contentLeft * 2;
         final float scale = sticker ? 1f : new float[]{1f, 1.5f, 2f}[
                 Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_SCALE, 0)))];
-        final int surface = dark ? 0xff222b3b : Color.WHITE;
-        final int ink = dark ? Color.WHITE : 0xff1e293b;
-        final int muted = dark ? 0xffa6b4ca : 0xff77869c;
+        final int surface = followTheme ? palette.bubble : dark ? 0xff222b3b : Color.WHITE;
+        final int ink = followTheme ? palette.ink : dark ? Color.WHITE : 0xff1e293b;
+        final int muted = followTheme ? palette.muted : dark ? 0xffa6b4ca : 0xff77869c;
+        final boolean darkSurface = (Color.red(surface) * 299 + Color.green(surface) * 587
+                + Color.blue(surface) * 114) < 128000;
         float fontScale = Math.max(1f, Math.min(1.55f, activity.getResources().getConfiguration().fontScale));
         final int nameHeight = (int) Math.ceil(34 * fontScale);
         final int timeHeight = (int) Math.ceil(28 * fontScale);
@@ -424,9 +497,17 @@ public final class PengramQuoteMaker {
             e.layout = TextUtils.isEmpty(e.text) ? null : new StaticLayout(e.text, body, contentWidth,
                     Layout.Alignment.ALIGN_NORMAL, 1.18f, 0, false);
             final int textHeight = e.layout == null ? 0 : e.layout.getHeight();
-            e.height = 30 + (e.name == null ? 0 : nameHeight) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
-                    + textHeight + (e.time == null ? 0 : timeHeight) + 26;
-            total += e.height + 16;
+            e.height = 26 + (e.name == null ? 0 : nameHeight) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
+                    + textHeight + (e.time == null ? 0 : timeHeight) + 23;
+            float lineWidth = 0;
+            if (e.layout != null) for (int line = 0; line < e.layout.getLineCount(); line++) {
+                lineWidth = Math.max(lineWidth, e.layout.getLineWidth(line));
+            }
+            float nameWidth = e.name == null ? 0 : body.measureText(e.name) + (PengramConfig.getBool(KEY_AVATAR, true) ? 48 : 0);
+            float timeWidth = e.time == null ? 0 : body.measureText(e.time) * .76f;
+            e.width = e.imageHeight > 0 ? WIDTH - pad * 2 : Math.min(WIDTH - pad * 2,
+                    Math.max(230, Math.round(Math.max(lineWidth, Math.max(nameWidth, timeWidth)) + 76)));
+            total += e.height + 13;
         }
         total += pad + 8;
         final int outWidth = Math.round(WIDTH * scale);
@@ -438,13 +519,14 @@ public final class PengramQuoteMaker {
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(background);
             canvas.scale(scale, scale);
+            if (bgType == 0 && palette.wallpaper != null && !palette.wallpaper.isRecycled()) {
+                drawWallpaper(canvas, palette.wallpaper, total, paint);
+            }
             int y = pad + 8;
             for (Entry e : entries) {
                 paint.setColor(surface);
-                canvas.drawRoundRect(new RectF(pad, y, WIDTH - pad, y + e.height), radius, radius, paint);
-                paint.setColor(accent);
-                canvas.drawRoundRect(new RectF(pad + 6, y + 20, pad + 12, y + e.height - 20), 3, 3, paint);
-                int inner = y + 30;
+                canvas.drawRoundRect(new RectF(pad, y, pad + e.width, y + e.height), radius, radius, paint);
+                int inner = y + 26;
                 if (e.name != null) {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                     paint.setTextSize(25 * fontScale);
@@ -466,15 +548,15 @@ public final class PengramQuoteMaker {
                             canvas.restore();
                             if (face != e.avatar) face.recycle();
                         } else {
-                        canvas.drawCircle(cx, cy, 13 * fontScale, paint);
-                        String initial = e.name.substring(0, Character.charCount(e.name.codePointAt(0)));
-                        paint.setColor(Color.WHITE);
-                        paint.setTextSize(16 * fontScale);
-                        paint.setTextAlign(Paint.Align.CENTER);
-                        canvas.drawText(initial, cx, cy + 5 * fontScale, paint);
-                        paint.setTextAlign(Paint.Align.LEFT);
-                        paint.setColor(accent);
-                        paint.setTextSize(25 * fontScale);
+                            canvas.drawCircle(cx, cy, 13 * fontScale, paint);
+                            String initial = e.name.substring(0, Character.charCount(e.name.codePointAt(0)));
+                            paint.setColor(darkSurface ? Color.BLACK : Color.WHITE);
+                            paint.setTextSize(16 * fontScale);
+                            paint.setTextAlign(Paint.Align.CENTER);
+                            canvas.drawText(initial, cx, cy + 5 * fontScale, paint);
+                            paint.setTextAlign(Paint.Align.LEFT);
+                            paint.setColor(accent);
+                            paint.setTextSize(25 * fontScale);
                         }
                     }
                     canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint),
@@ -512,13 +594,14 @@ public final class PengramQuoteMaker {
                     paint.setColor(muted);
                     paint.setTextSize(19 * fontScale);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                    canvas.drawText(e.time, contentLeft, inner + 24 * fontScale, paint);
+                    canvas.drawText(e.time, Math.max(contentLeft,
+                            pad + e.width - 20 - paint.measureText(e.time)), inner + 24 * fontScale, paint);
                 }
-                y += e.height + 16;
+                y += e.height + 13;
             }
             if (PengramConfig.getBool(KEY_WATERMARK, false)) {
                 drawWatermark(canvas, total, PengramConfig.getBool(KEY_NAME, true) ? chatName : "",
-                        entries.size(), dark);
+                        entries.size(), darkSurface);
                 File logo = logoFile(activity);
                 if (logo.isFile()) {
                     Bitmap mark = decode(logo, true);
@@ -647,7 +730,7 @@ public final class PengramQuoteMaker {
             if (resId == R.string.PengramQuoteRenderError) return ru ? "Не удалось создать цитату. Попробуйте выбрать меньше сообщений." : "Could not create the quote. Try selecting fewer messages.";
             if (resId == R.string.PengramQuotePrivacyHint) return ru ? "Проверьте имена и текст перед отправкой." : "Check names and message text before sharing.";
             if (resId == R.string.PengramQuoteNames) return ru ? "Показывать имена отправителей" : "Show sender names";
-            if (resId == R.string.PengramQuoteAvatar) return ru ? "Инициалы отправителей" : "Sender initials";
+            if (resId == R.string.PengramQuoteAvatar) return ru ? "Аватарки отправителей" : "Sender avatars";
             if (resId == R.string.PengramQuoteTimes) return ru ? "Показывать время сообщений" : "Show message times";
             if (resId == R.string.PengramQuoteMedia) return ru ? "Добавлять фотографии" : "Include photos";
             if (resId == R.string.PengramQuoteAnonMentions) return ru ? "Скрывать @упоминания в тексте" : "Hide @mentions in text";
@@ -675,27 +758,105 @@ public final class PengramQuoteMaker {
         }
     }
 
-    private static TextView action(Activity activity, int title, boolean primary, Runnable callback) {
+    private static void styleAction(TextView button, Theme.ResourcesProvider provider, boolean primary) {
+        int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, provider);
+        int neutral = Theme.getColor(Theme.key_dialogBackgroundGray, provider);
+        int background = primary ? accent : neutral;
+        int pressed = Theme.blendOver(background, 0x18000000);
+        int lightness = Color.red(background) * 299 + Color.green(background) * 587 + Color.blue(background) * 114;
+        button.setTextColor(primary ? (lightness < 154000 ? Color.WHITE : Color.BLACK)
+                : Theme.getColor(Theme.key_dialogTextBlack, provider));
+        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(13),
+                background, pressed));
+    }
+
+    private static void styleChip(TextView chip, Theme.ResourcesProvider provider, boolean enabled) {
+        int base = Theme.getColor(Theme.key_dialogBackgroundGray, provider);
+        int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, provider);
+        int background = enabled ? Theme.blendOver(base, (accent & 0x00ffffff) | 0x18000000) : base;
+        chip.setTextColor(enabled ? accent : Theme.getColor(Theme.key_dialogTextBlack, provider));
+        chip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(12),
+                background, Theme.blendOver(background, 0x18000000)));
+    }
+
+    private static TextView action(Activity activity, Theme.ResourcesProvider provider,
+                                   int title, boolean primary, Runnable callback) {
         TextView button = new TextView(activity);
         button.setText(safeString(activity, title));
         button.setGravity(Gravity.CENTER);
-        button.setTextSize(15);
+        button.setTextSize(14);
         button.setTypeface(AndroidUtilities.bold());
-        button.setTextColor(primary ? Color.WHITE : 0xff4873c8);
-        button.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(12), AndroidUtilities.dp(14), AndroidUtilities.dp(12));
-        button.setMinHeight(AndroidUtilities.dp(48));
-        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(12),
-                primary ? 0xff5685f8 : 0xffecf2ff, primary ? 0xff416ad4 : 0xffdce8ff));
+        button.setPadding(AndroidUtilities.dp(13), AndroidUtilities.dp(10),
+                AndroidUtilities.dp(13), AndroidUtilities.dp(10));
+        button.setMinHeight(AndroidUtilities.dp(44));
+        styleAction(button, provider, primary);
         button.setOnClickListener(v -> callback.run());
         return button;
     }
 
-    private static void addAction(Activity activity, LinearLayout root, int title,
-                                  boolean primary, Runnable callback) {
-        TextView button = action(activity, title, primary, callback);
+    private static void addAction(Activity activity, Theme.ResourcesProvider provider,
+                                  LinearLayout root, int title, boolean primary, Runnable callback) {
+        TextView button = action(activity, provider, title, primary, callback);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = AndroidUtilities.dp(7);
         root.addView(button, lp);
+    }
+
+    /** Re-render in place; stale chip taps never replace a newer preview. */
+    private static void refreshPreview(ChatActivity chat, Result current, ImageView image,
+                                       ArrayList<Entry> entries, ArrayList<File> paths,
+                                       java.util.concurrent.atomic.AtomicInteger version) {
+        if (!active(chat.getParentActivity())) return;
+        final int expected = version.incrementAndGet();
+        Activity activity = chat.getParentActivity();
+        final QuotePalette palette = capturePalette(chat, PengramConfig.getIntCached(KEY_BACKGROUND, 0) == 0);
+        final boolean dark = PengramConfig.getBool(KEY_DARK, false);
+        final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
+        final boolean jpeg = PengramConfig.getBool(KEY_JPEG, false)
+                && PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 1;
+        final String chatName = chat.getCurrentChat() != null ? chat.getCurrentChat().title
+                : chat.getCurrentUser() != null ? UserObject.getUserName(chat.getCurrentUser()) : "";
+        image.animate().cancel();
+        image.setAlpha(.55f);
+        Utilities.globalQueue.postRunnable(() -> {
+            Result updated = null;
+            try {
+                updated = render(activity, entries, paths, dark, style, jpeg, false, palette, chatName);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            } finally {
+                if (palette.wallpaper != null) palette.wallpaper.recycle();
+                for (Entry entry : entries) {
+                    if (entry.media != null && !entry.media.isRecycled()) entry.media.recycle();
+                    entry.media = null;
+                    for (Bitmap tile : entry.albumImages) if (tile != null && !tile.isRecycled()) tile.recycle();
+                    entry.albumImages.clear();
+                }
+            }
+            Result ready = updated;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (ready == null) {
+                    if (version.get() == expected) {
+                        image.animate().alpha(1f).setDuration(160).start();
+                        error(chat, R.string.PengramQuoteRenderError);
+                    }
+                    return;
+                }
+                if (version.get() != expected || !active(chat.getParentActivity())) {
+                    ready.preview.recycle();
+                    ready.file.delete();
+                    return;
+                }
+                Bitmap old = current.preview;
+                current.file = ready.file;
+                current.preview = ready.preview;
+                current.jpeg = ready.jpeg;
+                image.setImageBitmap(ready.preview);
+                image.animate().alpha(1f).setDuration(180).withEndAction(() -> {
+                    if (old != null && old != ready.preview && !old.isRecycled()) old.recycle();
+                }).start();
+            });
+        });
     }
 
     private static void preview(ChatActivity chat, Result result,
@@ -713,13 +874,14 @@ public final class PengramQuoteMaker {
         TextView hint = new TextView(activity);
         hint.setText(safeString(activity, R.string.PengramQuotePrivacyHint));
         hint.setTextSize(14);
-        hint.setTextColor(0xff77869c);
+        hint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, chat.getResourceProvider()));
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, AndroidUtilities.dp(6), 0, AndroidUtilities.dp(9));
         root.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         ScrollView pictureScroll = new ScrollView(activity);
         pictureScroll.setFillViewport(false);
-        pictureScroll.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(12), 0xffd9e2f0));
+        pictureScroll.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(12),
+                Theme.getColor(Theme.key_windowBackgroundGray, chat.getResourceProvider())));
         ImageView image = new ImageView(activity);
         image.setImageBitmap(result.preview);
         image.setAdjustViewBounds(true);
@@ -741,26 +903,33 @@ public final class PengramQuoteMaker {
         String[] config = {KEY_NAME, KEY_AVATAR, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS,
                 KEY_DARK, KEY_JPEG, KEY_WATERMARK};
         boolean[] defaults = {true, true, true, true, false, false, false, false};
+        final java.util.concurrent.atomic.AtomicInteger previewVersion = new java.util.concurrent.atomic.AtomicInteger();
         for (int i = 0; i < keys.length; i++) {
             if (i == 1 && !PengramConfig.getBool(KEY_NAME, true)) continue;
+            if (i == 5 && PengramConfig.getBool(KEY_THEME_STYLE, true)) continue;
             final int idx = i;
             boolean enabled = PengramConfig.getBool(config[i], defaults[i]);
-            TextView chip = action(activity, keys[i], enabled, () -> {
-                PengramConfig.setBool(config[idx], !PengramConfig.getBool(config[idx], defaults[idx]));
-                if (ref[0] != null) ref[0].dismiss();
-                show(chat, selected);
+            TextView chip = action(activity, chat.getResourceProvider(), keys[i], false, () -> {});
+            styleChip(chip, chat.getResourceProvider(), enabled);
+            chip.setOnClickListener(v -> {
+                boolean next = !PengramConfig.getBool(config[idx], defaults[idx]);
+                PengramConfig.setBool(config[idx], next);
+                styleChip(chip, chat.getResourceProvider(), next);
+                refreshPreview(chat, result, image, entries, paths, previewVersion);
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
             lp.rightMargin = AndroidUtilities.dp(6);
             toggles.addView(chip, lp);
         }
-        TextView bgChip = action(activity, R.string.PengramQuoteBackground,
-                PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 0, () -> {
-                    int next = (Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0))) + 1) % 3;
-                    PengramConfig.setIntValue(KEY_BACKGROUND, next);
-                    if (ref[0] != null) ref[0].dismiss();
-                    show(chat, selected);
-                });
+        TextView bgChip = action(activity, chat.getResourceProvider(), R.string.PengramQuoteBackground,
+                false, () -> {});
+        styleChip(bgChip, chat.getResourceProvider(), PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 0);
+        bgChip.setOnClickListener(v -> {
+            int next = (Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0))) + 1) % 3;
+            PengramConfig.setIntValue(KEY_BACKGROUND, next);
+            styleChip(bgChip, chat.getResourceProvider(), next != 0);
+            refreshPreview(chat, result, image, entries, paths, previewVersion);
+        });
         toggles.addView(bgChip, new LinearLayout.LayoutParams(-2, -2));
         quick.addView(toggles);
         LinearLayout.LayoutParams quickParams = new LinearLayout.LayoutParams(-1, -2);
@@ -770,7 +939,7 @@ public final class PengramQuoteMaker {
         boolean canSend = chat.getCurrentChat() == null || ChatObject.canWriteToChat(chat.getCurrentChat())
                 && ChatObject.canSendPhoto(chat.getCurrentChat());
         if (canSend) {
-            addAction(activity, root, R.string.PengramQuoteSend, true, () -> {
+            addAction(activity, chat.getResourceProvider(), root, R.string.PengramQuoteSend, true, () -> {
                 send(chat, result);
                 if (ref[0] != null) ref[0].dismiss();
             });
@@ -806,7 +975,7 @@ public final class PengramQuoteMaker {
                 }
         };
         for (int i = 0; i < secondaryLabels.length; i++) {
-            TextView button = action(activity, secondaryLabels[i], false, secondaryActions[i]);
+            TextView button = action(activity, chat.getResourceProvider(), secondaryLabels[i], false, secondaryActions[i]);
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
             params.leftMargin = i == 0 ? 0 : AndroidUtilities.dp(5);
             secondary.addView(button, params);
@@ -819,6 +988,7 @@ public final class PengramQuoteMaker {
         builder.setView(outer);
         builder.setNegativeButton(safeString(activity, R.string.Cancel), null);
         ref[0] = builder.create();
+        ref[0].setOnDismissListener(dialog -> previewVersion.incrementAndGet());
         chat.showDialog(ref[0]);
     }
 
@@ -1024,7 +1194,8 @@ public final class PengramQuoteMaker {
         final long dialogId = chat.getDialogId();
         final long topicId = chat.getTopicId();
         final String chatName = chat.getCurrentChat() == null ? "" : chat.getCurrentChat().title;
-        final int themeBackground = Theme.getColor(Theme.key_chat_wallpaper, chat.getResourceProvider());
+        final QuotePalette palette = capturePalette(chat, !PengramConfig.getBool(KEY_STICKER_TRANSPARENT, true)
+                && PengramConfig.getIntCached(KEY_BACKGROUND, 0) == 0);
         final boolean dark = PengramConfig.getBool(KEY_DARK, false);
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
         final AlertDialog spinner = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER, chat.getResourceProvider());
@@ -1034,7 +1205,7 @@ public final class PengramQuoteMaker {
             File sourceFile = null;
             try {
                 Result source = render(activity, entries, paths, dark, style, false, true,
-                        themeBackground, chatName);
+                        palette, chatName);
                 sourceFile = source.file;
                 if (source.preview != null) source.preview.recycle();
                 BitmapFactory.Options bounds = new BitmapFactory.Options();
@@ -1116,6 +1287,7 @@ public final class PengramQuoteMaker {
                     error(chat, R.string.PengramQuoteStickerError);
                 });
             } finally {
+                if (palette.wallpaper != null) palette.wallpaper.recycle();
                 // Only the WebP is sent; the full-size temporary PNG is never needed again.
                 if (sourceFile != null) sourceFile.delete();
                 for (Entry entry : entries) {

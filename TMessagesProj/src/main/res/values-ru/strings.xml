@@ -1011,6 +1011,7 @@
     <string name="PengramAIEmptyValue">не настроено</string>
     <string name="PengramTypingSection">Ввод, эффекты и скорость</string>
     <string-array name="pengram_quote_styles">
+        <item>По теме чата</item>
         <item>Синий</item>
         <item>Зелёный</item>
         <item>Розовый</item>
@@ -1039,7 +1040,7 @@
     <string name="PengramQuoteWatermarkInfo">В тексте доступны {date}, {chat} и {count}. Проверьте предпросмотр перед отправкой.</string>
     <string name="PengramQuoteInvalidColor">Введите цвет в формате #AABBCC.</string>
     <string-array name="pengram_quote_backgrounds">
-        <item>Тема чата</item>
+        <item>Обои текущего чата</item>
         <item>Прозрачный PNG</item>
         <item>Свой цвет</item>
     </string-array>

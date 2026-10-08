@@ -11983,6 +11983,7 @@
     <string name="PengramAIEmptyValue">not set up</string>
     <string name="PengramTypingSection">Typing, effects and speed</string>
     <string-array name="pengram_quote_styles">
+        <item>Match chat theme</item>
         <item>Blue</item>
         <item>Green</item>
         <item>Rose</item>
@@ -12011,7 +12012,7 @@
     <string name="PengramQuoteWatermarkInfo">In the text you can use {date}, {chat} and {count}. Check the preview before sharing.</string>
     <string name="PengramQuoteInvalidColor">Enter a hex color, for example #AABBCC.</string>
     <string-array name="pengram_quote_backgrounds">
-        <item>Chat theme</item>
+        <item>Current chat wallpaper</item>
         <item>Transparent PNG</item>
         <item>Custom color</item>
     </string-array>
