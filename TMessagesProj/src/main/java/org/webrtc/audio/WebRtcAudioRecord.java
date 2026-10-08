@@ -142,11 +142,6 @@ public class WebRtcAudioRecord {
             byteBuffer.clear();
             byteBuffer.put(emptyBytes);
           }
-          if (audioRecord.getChannelCount() == 1 && audioRecord.getAudioFormat() == AudioFormat.ENCODING_PCM_16BIT
-              && !microphoneMute && org.telegram.messenger.PengramVoiceChanger.isEnabledFor(org.telegram.messenger.PengramVoiceChanger.SOURCE_CALL)) {
-            org.telegram.messenger.PengramVoiceChanger.processForSource(byteBuffer, bytesRead,
-                audioRecord.getSampleRate(), org.telegram.messenger.PengramVoiceChanger.SOURCE_CALL);
-          }
           // It's possible we've been shut down during the read, and stopRecording() tried and
           // failed to join this thread. To be a bit safer, try to avoid calling any native methods
           // in case they've been unregistered after stopRecording() returned.

@@ -233,6 +233,8 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects() {
       audio_layer = kAndroidJavaAudio;
     }
   }
+  audio_device_buffer_.SetVoiceModMicrophoneInput(
+      audio_layer != kAndroidScreenAudio && audio_layer != kAndroidMergedScreenAudio);
   AudioManager* audio_manager = audio_manager_android_.get();
   if (audio_layer == kAndroidJavaAudio) {
     // Java audio for both input and output audio.

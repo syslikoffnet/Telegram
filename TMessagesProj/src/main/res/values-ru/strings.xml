@@ -474,7 +474,7 @@
     <string name="PengramVoiceRobot">Робот</string>
     <string name="PengramVoiceCustom">Свой сдвиг</string>
     <string name="PengramVoicePitch">Высота тона, полутона</string>
-    <string name="PengramVoiceInfo">Эффект применяется прямо при записи, поэтому собеседник слышит изменённый голос. Работает для голосовых сообщений.</string>
+    <string name="PengramVoiceInfo">Эффект применяется к микрофону до кодирования. Ниже можно выбрать, какие записи и звонки обрабатывать.</string>
     <string name="PengramRegDateSelf">Вы создали свой аккаунт примерно в %s.</string>
     <string name="PengramRegDateOther">Этот аккаунт создан примерно в %s.</string>
     <string name="PengramRegDateAge">Возраст аккаунта: %s.</string>
@@ -600,7 +600,7 @@
     <string name="PengramVoiceUnderwaterValue">Глухо, с покачиванием</string>
     <string name="PengramVoiceWhisper">Шёпот</string>
     <string name="PengramVoiceWhisperValue">Голос заменяется дыханием</string>
-    <string name="PengramVoiceAnonymousInfo">В режиме «Аноним» высота тона, тембр, микро-дрожание и фаза выбираются случайно при каждой записи и плавают прямо во время неё. Параметры нигде не сохраняются, поэтому вернуть исходный голос обратной обработкой невозможно — при этом речь остаётся чёткой и разборчивой.</string>
+    <string name="PengramVoiceAnonymousInfo">В режиме «Аноним» тон, тембр и фаза меняются случайным образом при каждой записи. Это меняет звучание, но не гарантирует анонимность и защиту от распознавания голоса.</string>
     <string name="PengramValueOn">Вкл</string>
     <string name="PengramValueOff">Выкл</string>
     <string name="PengramHiddenItems_one">%1$d скрыт</string>
@@ -1669,8 +1669,8 @@
     <string name="PengramVoiceSources">Применять эффекты к</string>
     <string name="PengramVoiceMessages">Голосовые сообщения</string>
     <string name="PengramVoiceRound">Кружочки</string>
-    <string name="PengramVoiceCalls">Звонки и видеочаты</string>
-    <string name="PengramVoiceSourcesInfo">Звонки и кружочки по умолчанию выключены. Обрабатывается только моно PCM16; эффект может добавить задержку. На медленном устройстве обработка приостанавливается до следующей записи.</string>
+    <string name="PengramVoiceCalls">Звонки и групповые голосовые чаты</string>
+    <string name="PengramVoiceSourcesInfo">Звонки и кружочки изначально выключены. Сдвиг тона добавляет около 16–32 мс буферизации; задержка устройства и сети зависит от условий. Звук демонстрации экрана не меняется.</string>
     <string name="PengramVoiceGate">Шумоподавитель · 0 = выкл.</string>
     <string name="PengramVoiceFormant">Тембр · 0 = без изменений</string>
     <string name="PengramVoiceEcho">Эхо · 0 = выкл.</string>

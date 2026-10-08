@@ -23,6 +23,11 @@
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/metrics.h"
 
+#if defined(WEBRTC_ANDROID)
+#include "sdk/android/native_api/jni/class_loader.h"
+#include "sdk/android/native_api/jni/jvm.h"
+#endif
+
 namespace webrtc {
 
 static const char kTimerQueueName[] = "AudioDeviceBufferTimer";
@@ -37,6 +42,46 @@ static const size_t kTimerIntervalInMilliseconds =
 static const size_t kMinValidCallTimeTimeInSeconds = 10;
 static const size_t kMinValidCallTimeTimeInMilliseconds =
     kMinValidCallTimeTimeInSeconds * rtc::kNumMillisecsPerSec;
+
+#if defined(WEBRTC_ANDROID)
+namespace {
+// Shared audio-device handoff: Java AudioRecord, OpenSL ES and AAudio all
+// deliver microphone PCM here. One JNI call per 10 ms packet, in place; no
+// extra queue or encode/decode pass. The Java method is kept by proguard.
+void ProcessPengramMicrophone(int16_t* samples, size_t frames, int rate) {
+  JNIEnv* env = AttachCurrentThreadIfNeeded();
+  if (!env) return;
+  struct Bridge {
+    jclass clazz;
+    jmethodID process;
+  };
+  static const Bridge bridge = [env]() {
+    auto local = GetClass(env, "org/telegram/messenger/PengramVoiceChanger");
+    if (local.is_null()) return Bridge{nullptr, nullptr};
+    jclass global = static_cast<jclass>(env->NewGlobalRef(local.obj()));
+    jmethodID method = global ? env->GetStaticMethodID(global, "processCallAudio",
+                                                        "(Ljava/nio/ByteBuffer;II)V") : nullptr;
+    if (env->ExceptionCheck()) {
+      env->ExceptionClear();
+      method = nullptr;
+    }
+    return Bridge{global, method};
+  }();
+  if (!bridge.process) return;
+  jobject buffer = env->NewDirectByteBuffer(samples, frames * sizeof(int16_t));
+  if (!buffer) {
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    return;
+  }
+  env->CallStaticVoidMethod(bridge.clazz, bridge.process, buffer,
+                            static_cast<jint>(frames * sizeof(int16_t)),
+                            static_cast<jint>(rate));
+  // A voice effect must never take the call down if the JVM reports an error.
+  if (env->ExceptionCheck()) env->ExceptionClear();
+  env->DeleteLocalRef(buffer);
+}
+}  // namespace
+#endif
 #ifdef AUDIO_DEVICE_PLAYS_SINUS_TONE
 static const double k2Pi = 6.28318530717959;
 #endif
@@ -304,6 +349,12 @@ int32_t AudioDeviceBuffer::DeliverRecordedData() {
   const size_t bytes_per_frame = rec_channels_ * sizeof(int16_t);
   uint32_t new_mic_level_dummy = 0;
   uint32_t total_delay_ms = play_delay_ms_ + rec_delay_ms_;
+#if defined(WEBRTC_ANDROID)
+  if (voice_mod_microphone_input_ && rec_channels_ == 1 && rec_sample_rate_ >= 8000 &&
+      rec_sample_rate_ <= 96000 && frames > 0) {
+    ProcessPengramMicrophone(rec_buffer_.data(), frames, rec_sample_rate_);
+  }
+#endif
   int32_t res = audio_transport_cb_->RecordedDataIsAvailable(
       rec_buffer_.data(), frames, bytes_per_frame, rec_channels_,
       rec_sample_rate_, total_delay_ms, 0, 0, typing_status_,

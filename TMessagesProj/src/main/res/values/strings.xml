@@ -11446,7 +11446,7 @@
     <string name="PengramVoiceRobot">Robot</string>
     <string name="PengramVoiceCustom">Custom pitch</string>
     <string name="PengramVoicePitch">Pitch, semitones</string>
-    <string name="PengramVoiceInfo">The effect is applied while recording, so the recipient hears the changed voice. Works for voice messages.</string>
+    <string name="PengramVoiceInfo">Effects are applied to microphone audio before encoding. Choose which recording and call types to change below.</string>
     <string name="PengramRegDateSelf">You created your account approximately in %s.</string>
     <string name="PengramRegDateOther">This account was created approximately in %s.</string>
     <string name="PengramRegDateAge">Account age: %s.</string>
@@ -11572,7 +11572,7 @@
     <string name="PengramVoiceUnderwaterValue">Muffled, with wobble</string>
     <string name="PengramVoiceWhisper">Whisper</string>
     <string name="PengramVoiceWhisperValue">Voice replaced with breath</string>
-    <string name="PengramVoiceAnonymousInfo">In Anonymous mode pitch, timbre, micro-jitter and phase are picked randomly for every recording and keep drifting while you speak. Nothing is stored, so the original voice cannot be restored by reverse processing — yet speech stays clear and intelligible.</string>
+    <string name="PengramVoiceAnonymousInfo">Anonymous mode randomizes pitch, tone and phase for each recording. This changes the sound, but it cannot guarantee anonymity or prevent voice identification.</string>
     <string name="PengramValueOn">On</string>
     <string name="PengramValueOff">Off</string>
     <string name="PengramHiddenItems_one">%1$d hidden</string>
@@ -12641,8 +12641,8 @@
     <string name="PengramVoiceSources">Apply voice effects to</string>
     <string name="PengramVoiceMessages">Voice messages</string>
     <string name="PengramVoiceRound">Round video messages</string>
-    <string name="PengramVoiceCalls">Calls and video chats</string>
-    <string name="PengramVoiceSourcesInfo">Calls and round videos are off by default. Only mono PCM16 microphone audio is supported; effects may add latency. If the device is too slow, processing stops until the next recording.</string>
+    <string name="PengramVoiceCalls">Calls and group voice chats</string>
+    <string name="PengramVoiceSourcesInfo">Calls and video messages are off by default. Pitch shift adds about 16–32 ms of buffering; device and network delay varies. Screen-share audio is unchanged.</string>
     <string name="PengramVoiceGate">Noise gate · 0 = off</string>
     <string name="PengramVoiceFormant">Timbre · 0 = neutral</string>
     <string name="PengramVoiceEcho">Echo · 0 = off</string>
