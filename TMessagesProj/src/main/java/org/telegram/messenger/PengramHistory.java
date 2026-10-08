@@ -490,7 +490,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
             if (set == null) {
                 set = new java.util.HashSet<>();
-                marksCache.put(marksKey(account, dialogId));
+                accountMarks(account).put(dialogId, set);
             }
             set.addAll(copy);
         }
@@ -583,7 +583,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 if (existing != null) {
                     set.addAll(existing);
                 }
-                marksCache.put(marksKey(account, dialogId));
+                accountMarks(account).put(dialogId, set);
             }
             if (done != null) {
                 AndroidUtilities.runOnUIThread(done);
