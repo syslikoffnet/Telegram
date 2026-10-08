@@ -999,6 +999,45 @@
     <string name="PengramAIDraftChanged">Черновик изменился. Скопируйте ответ или добавьте его к текущему тексту.</string>
     <string name="PengramAITitle">ИИ · настройки</string>
     <string name="PengramAIEmptyValue">не настроено</string>
+    <string name="PengramTypingSection">Ввод, эффекты и скорость</string>
+    <string-array name="pengram_quote_styles">
+        <item>Синий</item>
+        <item>Зелёный</item>
+        <item>Розовый</item>
+        <item>Янтарный</item>
+    </string-array>
+    <string name="PengramQuoteSection">Создание цитат</string>
+    <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
+    <string name="PengramQuoteNames">Показывать имена отправителей</string>
+    <string name="PengramQuoteNamesInfo">Если выключить, имена не появятся на карточке. Упоминания в тексте сохранятся.</string>
+    <string name="PengramQuoteTimes">Показывать время сообщений</string>
+    <string name="PengramQuoteMedia">Добавлять фотографии</string>
+    <string name="PengramQuoteMediaInfo">Перед созданием цитаты фото нужно скачать.</string>
+    <string name="PengramQuoteStyleHeader">Оформление</string>
+    <string name="PengramQuoteAccent">Цвет акцента</string>
+    <string name="PengramQuoteDark">Тёмный фон</string>
+    <string name="PengramQuoteJpeg">JPEG вместо PNG</string>
+    <string name="PengramQuoteJpegInfo">JPEG занимает меньше места; PNG лучше сохраняет чёткость текста.</string>
+    <string name="PengramQuotePrivacyInfo">Цитаты создаются на устройстве. Текст сообщений может содержать личные данные; перед отправкой проверьте изображение. Недоступное медиа не подменяется незаметно.</string>
+    <string name="PengramQuoteTooMany">Выберите не более 12 сообщений.</string>
+    <string name="PengramQuoteUnsupported">Этот тип сообщения нельзя преобразовать в цитату.</string>
+    <string name="PengramQuoteUnknown">Неизвестный отправитель</string>
+    <string name="PengramQuotePhoto">Фото</string>
+    <string name="PengramQuoteVideo">Видео</string>
+    <string name="PengramQuoteVoice">Голосовое сообщение</string>
+    <string name="PengramQuoteDocument">Документ</string>
+    <string name="PengramQuoteTooLong">Сообщение слишком длинное для цитаты-изображения.</string>
+    <string name="PengramQuoteDownload">Скачайте фото перед созданием цитаты или отключите фотографии в настройках цитат.</string>
+    <string name="PengramQuoteRenderError">Не удалось создать цитату. Попробуйте выбрать меньше сообщений.</string>
+    <string name="PengramQuotePrivacyHint">Проверьте имена и текст перед отправкой.</string>
+    <string name="PengramQuotePreview">Предпросмотр цитаты</string>
+    <string name="PengramQuoteSend">Отправить в чат</string>
+    <string name="PengramQuoteSave">Сохранить в галерею</string>
+    <string name="PengramQuoteCannotSend">В этот чат сейчас нельзя отправить фото.</string>
+    <string name="PengramQuoteSaveError">Не удалось сохранить цитату в галерею.</string>
+    <string name="PengramQuoteMenu">Создать цитату</string>
+    <string name="PengramQuickNavigate">Быстрый доступ</string>
+    <string name="PengramSectionGuide">Пояснения и важные детали</string>
     <string name="PengramAISetupHeader">Настройка AI</string>
     <string name="PengramAIConfiguredCount">Настроено</string>
     <string name="PengramAIMoreInfo">О ручных запросах AI</string>

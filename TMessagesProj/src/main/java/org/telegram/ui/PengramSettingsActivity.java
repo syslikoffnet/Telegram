@@ -163,6 +163,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_ABOUT = 16;
     public static final int SECTION_AI = 17;
     public static final int SECTION_LYRICS = 18;
+    public static final int SECTION_TYPING = 19;
+    public static final int SECTION_QUOTES = 20;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -314,6 +316,10 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
     private static final int BTN_COLLAPSE_BASE = 3000;
+    private static final int BTN_SECTION_GUIDE = 12000;
+    private static final int BTN_SECTION_TYPING = 1018;
+    private static final int BTN_SECTION_QUOTES = 1019;
+    private static final int BTN_QUOTE_STYLE = 1020;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
     private static final int GROUP_MENU_CHAT = 3;
@@ -531,7 +537,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
             case SECTION_CHAT_INTERFACE:
-            case SECTION_CHAT_MENUS: return IconBackgroundColors.BLUE_ALT;
+            case SECTION_CHAT_MENUS:
+            case SECTION_TYPING:
+            case SECTION_QUOTES: return IconBackgroundColors.BLUE_ALT;
             case SECTION_GHOST: return IconBackgroundColors.GREEN;
             case SECTION_HISTORY: return IconBackgroundColors.RED;
             case SECTION_MEDIA: return IconBackgroundColors.BLUE_DEEP;
@@ -582,6 +590,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_MESSAGES:
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS: return R.drawable.settings_chat;
+            case SECTION_TYPING: return R.drawable.msg_customize;
+            case SECTION_QUOTES: return R.drawable.msg_copy;
             case SECTION_GHOST: return R.drawable.msg_secret;
             case SECTION_HISTORY: return R.drawable.msg_viewchats;
             case SECTION_MEDIA: return R.drawable.settings_data;
@@ -605,6 +615,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHATS: return getString(R.string.PengramSectionChats);
             case SECTION_CHAT_ACTIONS: return getString(R.string.PengramSubsectionActions);
             case SECTION_CHAT_MESSAGES: return getString(R.string.PengramSubsectionMessages);
+            case SECTION_TYPING: return getString(R.string.PengramTypingSection);
+            case SECTION_QUOTES: return getString(R.string.PengramQuoteSection);
             case SECTION_CHAT_INTERFACE: return getString(R.string.PengramSubsectionInterface);
             case SECTION_CHAT_MENUS: return getString(R.string.PengramSubsectionMenus);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
@@ -757,6 +769,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHATS: fillChats(items); break;
             case SECTION_CHAT_ACTIONS: fillChatActions(items); break;
             case SECTION_CHAT_MESSAGES: fillChatMessages(items); break;
+            case SECTION_TYPING: fillTyping(items); break;
+            case SECTION_QUOTES: fillQuotes(items); break;
             case SECTION_CHAT_INTERFACE: fillChatInterface(items); break;
             case SECTION_CHAT_MENUS: fillChatMenus(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
@@ -771,6 +785,58 @@ public class PengramSettingsActivity extends UniversalFragment {
             default: fillRoot(items); break;
         }
         addResetRow(items);
+        compactSectionDescriptions(items);
+    }
+
+    /** Keep full guidance available without filling each section with paragraphs. */
+    private String sectionGuide;
+
+    private static String shortDescription(String text, int max) {
+        if (text.length() <= max) return text;
+        int end = text.lastIndexOf(' ', max);
+        if (end < max / 2) end = max;
+        return text.substring(0, end).trim() + "…";
+    }
+
+    private void compactSectionDescriptions(ArrayList<UItem> items) {
+        sectionGuide = null;
+        if (section == SECTION_ROOT || section == SECTION_ABOUT || section == SECTION_AI) return;
+        final StringBuilder details = new StringBuilder();
+        String group = String.valueOf(sectionTitle(section));
+        String setting = group;
+        for (int i = 0; i < items.size(); i++) {
+            final UItem item = items.get(i);
+            if (item.viewType == UniversalAdapter.VIEW_TYPE_HEADER && !TextUtils.isEmpty(item.text)) {
+                group = item.text.toString();
+            } else if (!TextUtils.isEmpty(item.text) && item.viewType != UniversalAdapter.VIEW_TYPE_SHADOW) {
+                setting = item.text.toString();
+            }
+            if ((item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK)
+                    && !TextUtils.isEmpty(item.subtext) && item.subtext.length() > 48) {
+                details.append(setting).append("
+").append(item.subtext).append("
+
+");
+                item.subtext = shortDescription(item.subtext.toString(), 40);
+            }
+            if (item.viewType == UniversalAdapter.VIEW_TYPE_SHADOW
+                    && !TextUtils.isEmpty(item.text) && item.text.length() > 150) {
+                details.append(group).append(" · ").append(setting).append("
+")
+                        .append(item.text).append("
+
+");
+                items.set(i, UItem.asShadow(null));
+            }
+        }
+        if (details.length() == 0) return;
+        sectionGuide = details.toString().trim();
+        final UItem guide = UItem.asButton(BTN_SECTION_GUIDE, R.drawable.msg_info,
+                getString(R.string.PengramSectionGuide));
+        // Right after the section cover, before the first settings group.
+        final int first = !items.isEmpty() && items.get(0).viewType == UniversalAdapter.VIEW_TYPE_CUSTOM ? 2 : 0;
+        items.add(Math.min(first, items.size()), guide);
     }
 
     // ------------------------------------------------------------ сброс настроек
@@ -796,6 +862,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
                         "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
+            case SECTION_TYPING:
+                return new String[]{"inputAnimation*", "typing*"};
+            case SECTION_QUOTES:
+                return new String[]{"quote*"};
             case SECTION_CHATS:
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
@@ -1777,6 +1847,39 @@ public class PengramSettingsActivity extends UniversalFragment {
         } catch (Throwable ignore) {}
     }
 
+    private void addRootNavigation(ArrayList<UItem> items) {
+        if (getContext() == null) return;
+        final int[] sections = {SECTION_CHATS, SECTION_AI, SECTION_APPEARANCE,
+                SECTION_PLAYER, SECTION_HISTORY, SECTION_GENERAL};
+        final android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(getContext());
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(dp(12), dp(3), dp(12), dp(3));
+        final LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider());
+        for (int target : sections) {
+            final TextView chip = new TextView(getContext());
+            chip.setText(sectionTitle(target));
+            chip.setSingleLine(true);
+            chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            chip.setTypeface(AndroidUtilities.bold());
+            chip.setGravity(Gravity.CENTER);
+            chip.setTextColor(accent);
+            chip.setPadding(dp(15), dp(10), dp(15), dp(10));
+            chip.setBackground(Theme.createRoundRectDrawable(dp(14), Theme.multAlpha(accent, 0.10f)));
+            chip.setOnClickListener(v -> presentFragment(new PengramSettingsActivity(target)));
+            final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
+            params.rightMargin = dp(6);
+            row.addView(chip, params);
+        }
+        scroll.addView(row);
+        items.add(UItem.asHeader(getString(R.string.PengramQuickNavigate)));
+        items.add(UItem.asCustom(scroll));
+        items.add(UItem.asShadow(null));
+    }
+
     private void fillRoot(ArrayList<UItem> items) {
         if (headerView == null) {
             headerView = new PengramHeaderView(getContext());
@@ -1788,6 +1891,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCustom(quickToggles()));
             items.add(UItem.asShadow(null));
         }
+
+        addRootNavigation(items);
 
         // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
         // потом чаты, потом медиа. Пояснений под группами нет намеренно — заголовка
@@ -1813,9 +1918,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramGroupChats)));
         items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat,
                 getString(R.string.PengramSectionChats), hiddenCountValue()));
-        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
-                getString(R.string.PengramSectionGeneral),
-                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+        items.add(sectionRow(BTN_SECTION_AI, IconBackgroundColors.PURPLE, R.drawable.msg_bot,
+                getString(R.string.PengramSectionAI), aiSectionValue()));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupMedia)));
@@ -1828,8 +1932,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
                 getString(R.string.PengramSectionFreedom), null));
-        items.add(sectionRow(BTN_SECTION_AI, IconBackgroundColors.PURPLE, R.drawable.msg_bot,
-                getString(R.string.PengramSectionAI), aiSectionValue()));
+        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
+                getString(R.string.PengramSectionGeneral),
+                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
                 getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
@@ -3218,7 +3323,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_CHAT_ACTIONS, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
                 getString(R.string.PengramSubsectionActions), String.valueOf(PengramConfig.getQuickActionCount())));
         items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
-                getString(R.string.PengramSubsectionMessages), inputAnimationName()));
+                getString(R.string.PengramSubsectionMessages), ""));
+        items.add(sectionRow(BTN_SECTION_TYPING, IconBackgroundColors.GREEN, R.drawable.msg_customize,
+                getString(R.string.PengramTypingSection), inputAnimationName()));
+        items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
+                getString(R.string.PengramQuoteSection), ""));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
                 getString(R.string.PengramSubsectionInterface), hiddenCountValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
@@ -3269,6 +3378,41 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         // --- время, которое лежит поверх стикера/медиа ---
         fillMediaTime(items);
+        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
+        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
+        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
+        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
+        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
+        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
+        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+    }
+
+    private void fillQuotes(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteSection)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuoteIntro)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true,
+                getString(R.string.PengramQuoteNames), getString(R.string.PengramQuoteNamesInfo)));
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_TIME, true,
+                getString(R.string.PengramQuoteTimes)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_MEDIA, true,
+                getString(R.string.PengramQuoteMedia), getString(R.string.PengramQuoteMediaInfo)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteStyleHeader)));
+        final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, 0)));
+        final String[] styles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);
+        items.add(UItem.asSettingsCell(BTN_QUOTE_STYLE, R.drawable.msg_palette,
+                getString(R.string.PengramQuoteAccent), styles[style]));
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false,
+                getString(R.string.PengramQuoteDark)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG, false,
+                getString(R.string.PengramQuoteJpeg), getString(R.string.PengramQuoteJpegInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuotePrivacyInfo)));
+    }
+
+    private void fillTyping(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
         if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
         if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }
@@ -3333,15 +3477,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                     org.telegram.messenger.PengramTypingStats.summary(currentAccount)));
             items.add(UItem.asShadow(getString(R.string.PengramTypingStatsLegend)));
         }
-        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
-        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
-        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
-        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
-        items.add(UItem.asShadow(null));
-        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
-        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
-        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
-        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
     }
 
     /**
@@ -3583,6 +3718,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (headerView != null) {
                 headerView.doAction(item.id);
             }
+            return;
+        }
+        if (item.id == BTN_SECTION_GUIDE && sectionGuide != null && getContext() != null) {
+            final AlertDialog.Builder guide = new AlertDialog.Builder(getContext());
+            guide.setTitle(getString(R.string.PengramSectionGuide));
+            guide.setMessage(sectionGuide);
+            guide.setPositiveButton(getString(R.string.OK), null);
+            showDialog(guide.create());
             return;
         }
         if (onAIClick(item)) {
@@ -3950,6 +4093,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_CHAT_MESSAGES:
                 presentFragment(new PengramSettingsActivity(SECTION_CHAT_MESSAGES));
+                return;
+            case BTN_SECTION_QUOTES:
+                presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
+                return;
+            case BTN_QUOTE_STYLE:
+                final String[] quoteStyles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);
+                new AlertDialog.Builder(getContext(), getResourceProvider())
+                        .setTitle(getString(R.string.PengramQuoteAccent))
+                        .setItems(quoteStyles, (dialog, which) -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, which);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        }).show();
+                return;
+            case BTN_SECTION_TYPING:
+                presentFragment(new PengramSettingsActivity(SECTION_TYPING));
                 return;
             case BTN_SECTION_CHAT_INTERFACE:
                 presentFragment(new PengramSettingsActivity(SECTION_CHAT_INTERFACE));

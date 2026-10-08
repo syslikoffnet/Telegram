@@ -1255,6 +1255,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_COPY_ID = 922;
     public final static int OPTION_PENGRAM_SAVE = 923;
     public final static int OPTION_PENGRAM_AI = 924;
+    public final static int OPTION_PENGRAM_QUOTE = 925;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -9093,6 +9094,7 @@ public class ChatActivity extends BaseFragment implements
 
         actionsButtonsLayout = new ChatActivityActionsButtonsLayout(context, resourceProvider, blurredBackgroundColorProvider, glassBackgroundDrawableFactory);
         actionsButtonsLayout.setForwardButtonOnClickListener(v -> openForward(false));
+        actionsButtonsLayout.setQuoteButtonOnClickListener(v -> pengramQuoteSelected());
         actionsButtonsLayout.setReplyButtonOnClickListener(v -> {
             MessageObject messageObject = null;
             for (int a = 1; a >= 0; a--) {
@@ -11270,6 +11272,24 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public INavigationLayout.BackButtonState getBackButtonState() {
         return INavigationLayout.BackButtonState.BACK;
+    }
+
+    private void pengramQuoteSelected() {
+        if (isPeerNoForwards() || currentEncryptedChat != null) return;
+        ArrayList<MessageObject> messages = new ArrayList<>();
+        for (int a = 0; a < 2; a++) {
+            for (int i = 0; i < selectedMessagesIds[a].size(); i++) {
+                MessageObject message = selectedMessagesIds[a].valueAt(i);
+                if (message != null && message.messageOwner != null && !message.messageOwner.noforwards
+                        && !message.isVoiceOnce() && !message.isRoundOnce()) messages.add(message);
+                else return;
+            }
+        }
+        messages.sort((a, b) -> {
+            int byDate = Integer.compare(a.messageOwner.date, b.messageOwner.date);
+            return byDate != 0 ? byDate : Integer.compare(a.getId(), b.getId());
+        });
+        org.telegram.ui.Components.PengramQuoteMaker.show(this, messages);
     }
 
     private void createActionMode() {
@@ -20385,6 +20405,8 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                     actionsButtonsLayout.showReplyButton(newVisibility == View.VISIBLE, true);
+                    actionsButtonsLayout.showQuoteButton(!noforwards && currentEncryptedChat == null
+                            && selectedCount > 0 && selectedCount <= org.telegram.ui.Components.PengramQuoteMaker.MAX_MESSAGES, true);
                 }
 
                 if (editItem != null) {
@@ -34513,6 +34535,12 @@ public class ChatActivity extends BaseFragment implements
                 pengramAskAI(selectedObject);
                 break;
             }
+            case OPTION_PENGRAM_QUOTE: {
+                ArrayList<MessageObject> quote = new ArrayList<>();
+                if (selectedObject != null) quote.add(selectedObject);
+                org.telegram.ui.Components.PengramQuoteMaker.show(this, quote);
+                break;
+            }
             case OPTION_FORWARD: {
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
@@ -47076,6 +47104,13 @@ public class ChatActivity extends BaseFragment implements
             items.add(LocaleController.getString(R.string.PengramAIMenu));
             options.add(OPTION_PENGRAM_AI);
             icons.add(R.drawable.msg_bot);
+        }
+
+        if (!isPeerNoForwards() && currentEncryptedChat == null && !message.isSponsored()
+                && !message.isVoiceOnce() && !message.isRoundOnce() && !message.messageOwner.noforwards) {
+            items.add(LocaleController.getString(R.string.PengramQuoteMenu));
+            options.add(OPTION_PENGRAM_QUOTE);
+            icons.add(R.drawable.msg_copy);
         }
 
         // Pengram: удалёнки и одноразки отправляем копией от своего лица

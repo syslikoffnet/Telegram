@@ -112,20 +112,24 @@ public class SnowflakesEffect {
     /** Reuses particles, paints and the solar sprites across frames. */
     private void drawCustom(View parent, Canvas canvas) {
         final int mode = PengramConfig.getParticleMode();
+        final int width = parent.getMeasuredWidth(), height = parent.getMeasuredHeight();
+        if (width <= 0 || height <= 0) return;
         final int requestedCount = PengramConfig.getParticleCount();
-        // Keep the small header readable at high density; solar symbols are larger.
         final boolean isSunwheel = mode == PengramConfig.PARTICLE_SUNWHEEL;
         final boolean isSolarCross = mode == PengramConfig.PARTICLE_SOLAR_CROSS;
         final boolean isSolarSymbol = isSunwheel || isSolarCross;
+        // Bound work by the available surface. Full chat backgrounds retain the
+        // chosen density; small headers never spend a frame drawing hidden dots.
+        final int areaCount = (int) Math.min(300L, (long) width * height /
+                Math.max(1L, (long) dp(16) * dp(16)));
         final int count = isSolarSymbol
                 ? (viewType == 0 ? Math.min(24, Math.max(8, requestedCount / 4))
                         : Math.max(10, requestedCount / 2))
-                : (viewType == 0 ? Math.min(120, requestedCount) : requestedCount);
+                : viewType == 0 ? Math.min(requestedCount, Math.max(20, Math.min(120, areaCount)))
+                : Math.min(requestedCount, Math.max(20, areaCount));
         final float opacity = PengramConfig.getParticleAlpha() / 100f;
         final float speed = PengramConfig.getParticleSpeed();
         final float rotation = PengramConfig.getParticleRotation();
-        final int width = parent.getMeasuredWidth(), height = parent.getMeasuredHeight();
-        if (width <= 0 || height <= 0) return;
         final long now = android.os.SystemClock.uptimeMillis();
         final float dt = customTime == 0 ? 0 : Math.max(0, Math.min(40, now - customTime)) / 1000f;
         customTime = now;
@@ -180,30 +184,35 @@ public class SnowflakesEffect {
             final float shimmer = (float) Math.sin(p.phase + p.y * invHeight * 3.14f);
             customPaint.setAlpha(Math.max(0, Math.min(255,
                     (int) (alphaBase * (isSolarSymbol ? 0.75f + 0.25f * shimmer : 0.6f + 0.4f * shimmer)))));
-            canvas.save();
-            canvas.translate(p.x, p.y);
-            if (isSolarSymbol) {
-                canvas.rotate(p.spin);
-                final float scale = p.size * wheelScaleBase;
-                canvas.scale(scale, scale);
-                canvas.drawBitmap(symbolBitmap, -symbolBitmap.getWidth() / 2f, -symbolBitmap.getHeight() / 2f, customPaint);
-            } else if (mode == 1 || mode == 4) {
-                canvas.rotate(p.spin);
-                customPath.reset();
-                customPath.moveTo(0, -p.size);
-                customPath.quadTo(p.size * 1.5f, 0, 0, p.size);
-                customPath.quadTo(-p.size * 0.8f, 0, 0, -p.size);
-                canvas.drawPath(customPath, customPaint);
+            // Only rotating shapes need a canvas matrix stack. The other styles
+            // keep exactly the same geometry while avoiding hundreds of save/restores.
+            if (isSolarSymbol || mode == 1 || mode == 4) {
+                canvas.save();
+                canvas.translate(p.x, p.y);
+                if (isSolarSymbol) {
+                    canvas.rotate(p.spin);
+                    final float scale = p.size * wheelScaleBase;
+                    canvas.scale(scale, scale);
+                    canvas.drawBitmap(symbolBitmap, -symbolBitmap.getWidth() / 2f,
+                            -symbolBitmap.getHeight() / 2f, customPaint);
+                } else {
+                    canvas.rotate(p.spin);
+                    customPath.reset();
+                    customPath.moveTo(0, -p.size);
+                    customPath.quadTo(p.size * 1.5f, 0, 0, p.size);
+                    customPath.quadTo(-p.size * 0.8f, 0, 0, -p.size);
+                    canvas.drawPath(customPath, customPaint);
+                }
+                canvas.restore();
             } else if (mode == 2) {
                 customPaint.setTextSize(p.size * 3f);
-                canvas.drawText(MATRIX_DIGITS, i % 10, 1, 0, 0, customPaint);
+                canvas.drawText(MATRIX_DIGITS, i % 10, 1, p.x, p.y, customPaint);
             } else if (mode == 3) {
                 customPaint.setStrokeWidth(Math.max(1, p.size / 3));
-                canvas.drawLine(0, 0, -p.size / 3, p.size * 3, customPaint);
+                canvas.drawLine(p.x, p.y, p.x - p.size / 3, p.y + p.size * 3, customPaint);
             } else {
-                canvas.drawCircle(0, 0, p.size / 2, customPaint);
+                canvas.drawCircle(p.x, p.y, p.size / 2, customPaint);
             }
-            canvas.restore();
         }
         parent.postInvalidateDelayed(32);
     }

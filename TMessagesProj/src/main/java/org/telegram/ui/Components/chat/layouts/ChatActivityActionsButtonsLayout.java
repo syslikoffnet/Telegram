@@ -38,6 +38,7 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
 
     private final ButtonHolder replyButton = new ButtonHolder();
     private final ButtonHolder forwardButton = new ButtonHolder();
+    private final ButtonHolder quoteButton = new ButtonHolder();
 
     public ChatActivityActionsButtonsLayout(@NonNull Context context,
                                             Theme.ResourcesProvider resourcesProvider,
@@ -58,18 +59,34 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         forwardButton.button.setOnClickListener(v -> {});
         ScaleStateListAnimator.apply(forwardButton.button, .065f, 2f);
 
+        quoteButton.button = ChatActivityBlurredRoundButton.create(
+            context, blurredBackgroundDrawableViewFactory, colorProvider, resourcesProvider
+        );
+        quoteButton.button.setOnClickListener(v -> {});
+        ScaleStateListAnimator.apply(quoteButton.button, .065f, 2f);
+
         addTextView(replyButton, LocaleController.getString(R.string.Reply), R.drawable.input_reply, false);
+        addTextView(quoteButton, LocaleController.getString(R.string.PengramQuoteMenu), R.drawable.msg_copy, false);
         addTextView(forwardButton, LocaleController.getString(R.string.Forward), R.drawable.input_forward, true);
 
         setOrientation(HORIZONTAL);
         setClipChildren(false);
 
         addView(replyButton.button, LayoutHelper.createLinear(0, 56, 1f, 1, 0, -1, 0));
+        addView(quoteButton.button, LayoutHelper.createLinear(0, 56, 1f, 0, 0, 0, 0));
         addView(forwardButton.button, LayoutHelper.createLinear(0, 56, 1f, -1, 0, 1, 0));
     }
 
     public void setReplyButtonOnClickListener(View.OnClickListener listener) {
         replyButton.button.setOnClickListener(listener);
+    }
+
+    public void setQuoteButtonOnClickListener(View.OnClickListener listener) {
+        quoteButton.button.setOnClickListener(listener);
+    }
+
+    public void showQuoteButton(boolean visible, boolean animated) {
+        quoteButton.visibilityAnimator.setValue(visible, animated);
     }
 
     public void setForwardButtonOnClickListener(View.OnClickListener listener) {
@@ -85,8 +102,10 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         forwardButton.setText(text);
         forwardButton.setGravity(Gravity.CENTER_VERTICAL);
         forwardButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        forwardButton.setPadding(AndroidUtilities.dp(21), 0, AndroidUtilities.dp(21), 0);
-        forwardButton.setCompoundDrawablePadding(AndroidUtilities.dp(6));
+        forwardButton.setPadding(AndroidUtilities.dp(6), 0, AndroidUtilities.dp(6), 0);
+        forwardButton.setSingleLine(true);
+        forwardButton.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        forwardButton.setCompoundDrawablePadding(AndroidUtilities.dp(4));
         forwardButton.setTextColor(Theme.getColor(Theme.key_glass_defaultText, resourcesProvider));
         forwardButton.setTypeface(AndroidUtilities.bold());
         Drawable image = getContext().getResources().getDrawable(iconRes).mutate();
@@ -94,7 +113,7 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         forwardButton.setCompoundDrawablesWithIntrinsicBounds(iconLeft ? image : null, null, iconLeft ? null : image, null);
 
         button.textView = forwardButton;
-        button.button.addView(forwardButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
+        button.button.addView(forwardButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
         /*if (getDialogId() == UserObject.VERIFY) {
             forwardButton.setVisibility(View.GONE);
         }*/
@@ -145,6 +164,7 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
 
     private void checkButtonsPositionsAndVisibility() {
         checkHolderPositionsAndVisibility(forwardButton);
+        checkHolderPositionsAndVisibility(quoteButton);
         checkHolderPositionsAndVisibility(replyButton);
     }
 
@@ -154,6 +174,8 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         float offsetX = getMeasuredWidth() / 2f * (1f - AnimatorUtils.DECELERATE_INTERPOLATOR.getInterpolation(visibility));
         if (holder == replyButton) {
             offsetX *= -1;
+        } else if (holder == quoteButton) {
+            offsetX = 0;
         }
 
         holder.button.setTranslationX(offsetX);

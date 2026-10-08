@@ -11971,6 +11971,45 @@
     <string name="PengramAIDraftChanged">Draft changed. Copy the answer or append it to the current text.</string>
     <string name="PengramAITitle">AI · settings</string>
     <string name="PengramAIEmptyValue">not set up</string>
+    <string name="PengramTypingSection">Typing, effects and speed</string>
+    <string-array name="pengram_quote_styles">
+        <item>Blue</item>
+        <item>Green</item>
+        <item>Rose</item>
+        <item>Amber</item>
+    </string-array>
+    <string name="PengramQuoteSection">Create quotes</string>
+    <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>
+    <string name="PengramQuoteNames">Show sender names</string>
+    <string name="PengramQuoteNamesInfo">Turn off to omit sender names. Mentions within messages remain visible.</string>
+    <string name="PengramQuoteTimes">Show message times</string>
+    <string name="PengramQuoteMedia">Include photos</string>
+    <string name="PengramQuoteMediaInfo">A photo must be downloaded before creating the quote.</string>
+    <string name="PengramQuoteStyleHeader">Appearance</string>
+    <string name="PengramQuoteAccent">Accent color</string>
+    <string name="PengramQuoteDark">Dark background</string>
+    <string name="PengramQuoteJpeg">JPEG instead of PNG</string>
+    <string name="PengramQuoteJpegInfo">JPEG uses less space; PNG keeps image and text sharp.</string>
+    <string name="PengramQuotePrivacyInfo">Quotes are created on your device. The image can contain personal information from the message text; check the preview before sharing. Unsupported or unavailable media is not silently replaced.</string>
+    <string name="PengramQuoteTooMany">Select no more than 12 messages.</string>
+    <string name="PengramQuoteUnsupported">This type of message cannot be quoted.</string>
+    <string name="PengramQuoteUnknown">Unknown sender</string>
+    <string name="PengramQuotePhoto">Photo</string>
+    <string name="PengramQuoteVideo">Video</string>
+    <string name="PengramQuoteVoice">Voice message</string>
+    <string name="PengramQuoteDocument">Document</string>
+    <string name="PengramQuoteTooLong">This message is too long for an image quote.</string>
+    <string name="PengramQuoteDownload">Download the photo before creating the quote, or turn off photos in quote settings.</string>
+    <string name="PengramQuoteRenderError">Could not create the quote. Try selecting fewer messages.</string>
+    <string name="PengramQuotePrivacyHint">Check names and message text before sharing.</string>
+    <string name="PengramQuotePreview">Quote preview</string>
+    <string name="PengramQuoteSend">Send to chat</string>
+    <string name="PengramQuoteSave">Save to gallery</string>
+    <string name="PengramQuoteCannotSend">This chat is not available for sending photos.</string>
+    <string name="PengramQuoteSaveError">Could not save the quote to the gallery.</string>
+    <string name="PengramQuoteMenu">Create quote</string>
+    <string name="PengramQuickNavigate">Quick access</string>
+    <string name="PengramSectionGuide">Explanations and important details</string>
     <string name="PengramAISetupHeader">AI setup</string>
     <string name="PengramAIConfiguredCount">Configured</string>
     <string name="PengramAIMoreInfo">How manual AI works</string>
