@@ -1859,39 +1859,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         } catch (Throwable ignore) {}
     }
 
-    private void addRootNavigation(ArrayList<UItem> items) {
-        if (getContext() == null) return;
-        final int[] sections = {SECTION_CHATS, SECTION_AI, SECTION_APPEARANCE,
-                SECTION_PLAYER, SECTION_HISTORY, SECTION_GENERAL};
-        final android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(getContext());
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setClipToPadding(false);
-        scroll.setPadding(dp(12), dp(3), dp(12), dp(3));
-        final LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider());
-        for (int target : sections) {
-            final TextView chip = new TextView(getContext());
-            chip.setText(sectionTitle(target));
-            chip.setSingleLine(true);
-            chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            chip.setTypeface(AndroidUtilities.bold());
-            chip.setGravity(Gravity.CENTER);
-            chip.setTextColor(accent);
-            chip.setPadding(dp(15), dp(10), dp(15), dp(10));
-            chip.setBackground(Theme.createRoundRectDrawable(dp(14), Theme.multAlpha(accent, 0.10f)));
-            chip.setOnClickListener(v -> presentFragment(new PengramSettingsActivity(target)));
-            final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT);
-            params.rightMargin = dp(6);
-            row.addView(chip, params);
-        }
-        scroll.addView(row);
-        items.add(UItem.asHeader(getString(R.string.PengramQuickNavigate)));
-        items.add(UItem.asCustom(scroll, 52));
-        items.add(UItem.asShadow(null));
-    }
-
     private void fillRoot(ArrayList<UItem> items) {
         if (headerView == null) {
             headerView = new PengramHeaderView(getContext());
@@ -1903,8 +1870,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCustom(quickToggles()));
             items.add(UItem.asShadow(null));
         }
-
-        addRootNavigation(items);
 
         // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
         // потом чаты, потом медиа. Пояснений под группами нет намеренно — заголовка

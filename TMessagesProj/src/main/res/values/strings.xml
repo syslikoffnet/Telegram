@@ -12059,7 +12059,6 @@
     <string name="PengramQuoteCannotSend">This chat is not available for sending photos.</string>
     <string name="PengramQuoteSaveError">Could not save the quote to the gallery.</string>
     <string name="PengramQuoteMenu">Create quote</string>
-    <string name="PengramQuickNavigate">Quick access</string>
     <string name="PengramSectionGuide">Explanations and important details</string>
     <string name="PengramAISetupHeader">AI setup</string>
     <string name="PengramAIConfiguredCount">Configured</string>

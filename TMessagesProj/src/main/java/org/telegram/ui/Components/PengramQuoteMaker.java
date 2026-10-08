@@ -533,9 +533,38 @@ public final class PengramQuoteMaker {
         canvas.drawText(label, Math.max(8, x), y, p);
     }
 
+    private static String safeString(Activity activity, int resId) {
+        try {
+            return activity.getString(resId);
+        } catch (android.content.res.Resources.NotFoundException e) {
+            FileLog.e(e);
+            // Keep preview controls usable if an installed resource table is inconsistent.
+            Locale currentLocale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
+            boolean ru = currentLocale != null && "ru".equals(currentLocale.getLanguage());
+            if (resId == R.string.PengramQuotePrivacyHint) return ru ? "Проверьте имена и текст перед отправкой." : "Check names and message text before sharing.";
+            if (resId == R.string.PengramQuoteNames) return ru ? "Показывать имена отправителей" : "Show sender names";
+            if (resId == R.string.PengramQuoteAvatar) return ru ? "Инициалы отправителей" : "Sender initials";
+            if (resId == R.string.PengramQuoteTimes) return ru ? "Показывать время сообщений" : "Show message times";
+            if (resId == R.string.PengramQuoteMedia) return ru ? "Добавлять фотографии" : "Include photos";
+            if (resId == R.string.PengramQuoteAnonMentions) return ru ? "Скрывать @упоминания в тексте" : "Hide @mentions in text";
+            if (resId == R.string.PengramQuoteDark) return ru ? "Тёмный фон" : "Dark background";
+            if (resId == R.string.PengramQuoteJpeg) return ru ? "JPEG вместо PNG" : "JPEG instead of PNG";
+            if (resId == R.string.PengramQuoteWatermark) return ru ? "Добавлять водяной знак" : "Add watermark";
+            if (resId == R.string.PengramQuoteBackground) return ru ? "Тип фона" : "Background type";
+            if (resId == R.string.PengramQuoteSend) return ru ? "Отправить в чат" : "Send to chat";
+            if (resId == R.string.PengramQuoteSendFile) return ru ? "Отправить файлом" : "Send as file";
+            if (resId == R.string.PengramQuoteSendSticker) return ru ? "Отправить стикером" : "Send as sticker";
+            if (resId == R.string.PengramQuoteOtherChat) return ru ? "Отправить в другой чат" : "Send to another chat";
+            if (resId == R.string.PengramQuoteSave) return ru ? "Сохранить в галерею" : "Save to gallery";
+            if (resId == R.string.PengramQuoteShare) return ru ? "Поделиться…" : "Share…";
+            if (resId == R.string.PengramQuoteCopy) return ru ? "Копировать изображение" : "Copy image";
+            return ru ? "Цитата" : "Quote";
+        }
+    }
+
     private static TextView action(Activity activity, int title, boolean primary, Runnable callback) {
         TextView button = new TextView(activity);
-        button.setText(title);
+        button.setText(safeString(activity, title));
         button.setGravity(Gravity.CENTER);
         button.setTextSize(15);
         button.setTypeface(AndroidUtilities.bold());
@@ -569,7 +598,7 @@ public final class PengramQuoteMaker {
         root.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(8), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
         outer.addView(root, new ScrollView.LayoutParams(-1, -2));
         TextView hint = new TextView(activity);
-        hint.setText(R.string.PengramQuotePrivacyHint);
+        hint.setText(safeString(activity, R.string.PengramQuotePrivacyHint));
         hint.setTextSize(14);
         hint.setTextColor(0xff77869c);
         hint.setGravity(Gravity.CENTER);

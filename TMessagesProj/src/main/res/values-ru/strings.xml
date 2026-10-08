@@ -1087,7 +1087,6 @@
     <string name="PengramQuoteCannotSend">В этот чат сейчас нельзя отправить фото.</string>
     <string name="PengramQuoteSaveError">Не удалось сохранить цитату в галерею.</string>
     <string name="PengramQuoteMenu">Создать цитату</string>
-    <string name="PengramQuickNavigate">Быстрый доступ</string>
     <string name="PengramSectionGuide">Пояснения и важные детали</string>
     <string name="PengramAISetupHeader">Настройка AI</string>
     <string name="PengramAIConfiguredCount">Настроено</string>
