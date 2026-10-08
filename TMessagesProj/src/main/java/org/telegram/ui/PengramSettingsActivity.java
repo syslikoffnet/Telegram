@@ -330,6 +330,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_QUOTE_LOGO = 1027;
     private static final int BTN_QUOTE_LOGO_CLEAR = 1028;
     private static final int BTN_QUOTE_ACTION_MODE = 1029;
+    private static final int BTN_QUOTE_RESET_APPEARANCE = 1030;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
@@ -3502,6 +3503,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramQuotePrivacyInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramQuoteBackgroundHeader)));
+        items.add(UItem.asButton(BTN_QUOTE_RESET_APPEARANCE, R.drawable.msg_theme,
+                getString(R.string.PengramQuoteResetAppearance)));
         final int bg = Math.max(0, Math.min(2, PengramConfig.getIntCached(
                 org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0)));
         items.add(UItem.asSettingsCell(BTN_QUOTE_BACKGROUND, R.drawable.msg_theme,
@@ -4288,6 +4291,14 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_QUOTES:
                 presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
+                return;
+            case BTN_QUOTE_RESET_APPEARANCE:
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, 24);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, 28);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
                 return;
             case BTN_QUOTE_ACTION_MODE:
                 showChoicePicker(getString(R.string.PengramQuoteTapAction), new CharSequence[]{

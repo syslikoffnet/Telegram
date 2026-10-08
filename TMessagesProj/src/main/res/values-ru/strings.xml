@@ -1711,4 +1711,5 @@
     <string name="PengramQuoteTapAction">После нажатия «Создать цитату»</string>
     <string name="PengramQuoteTapPreview">Показать компактный предпросмотр</string>
     <string name="PengramQuoteTapSend">Сразу отправить в этот чат</string>
+    <string name="PengramQuoteResetAppearance">Вернуть оформление по теме чата</string>
 </resources>

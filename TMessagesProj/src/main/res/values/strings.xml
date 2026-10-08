@@ -12683,4 +12683,5 @@
     <string name="PengramQuoteTapAction">After tapping Create quote</string>
     <string name="PengramQuoteTapPreview">Open compact preview</string>
     <string name="PengramQuoteTapSend">Send to this chat immediately</string>
+    <string name="PengramQuoteResetAppearance">Restore chat theme appearance</string>
 </resources>
