@@ -55,7 +55,6 @@ import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ChatActivity;
-import org.telegram.ui.ChatBackgroundDrawable;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.DialogsActivity;
 import androidx.core.content.FileProvider;
@@ -140,9 +139,6 @@ public final class PengramQuoteMaker {
         palette.muted = Theme.getColor(Theme.key_chat_inTimeText, provider);
         if (includeWallpaper) {
             Drawable drawable = chat.getPengramQuoteWallpaper();
-            if (drawable instanceof ChatBackgroundDrawable) {
-                drawable = ((ChatBackgroundDrawable) drawable).getDrawable(true);
-            }
             if (drawable != null) {
                 try {
                     int height = Math.max(WIDTH, Math.min(1600,
