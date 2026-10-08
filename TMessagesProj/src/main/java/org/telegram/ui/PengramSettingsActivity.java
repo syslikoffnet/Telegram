@@ -814,19 +814,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             if ((item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
                     || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK)
                     && !TextUtils.isEmpty(item.subtext) && item.subtext.length() > 48) {
-                details.append(setting).append("
-").append(item.subtext).append("
-
-");
+                details.append(setting).append("\n").append(item.subtext).append("\n\n");
                 item.subtext = shortDescription(item.subtext.toString(), 40);
             }
             if (item.viewType == UniversalAdapter.VIEW_TYPE_SHADOW
                     && !TextUtils.isEmpty(item.text) && item.text.length() > 150) {
-                details.append(group).append(" · ").append(setting).append("
-")
-                        .append(item.text).append("
-
-");
+                details.append(group).append(" · ").append(setting).append("\n")
+                        .append(item.text).append("\n\n");
                 items.set(i, UItem.asShadow(null));
             }
         }
