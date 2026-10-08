@@ -26,6 +26,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     private static final String KEY_QUIET_START = "autoQuietStart";
     private static final String KEY_QUIET_END = "autoQuietEnd";
     private static final String KEY_COOLDOWN = "autoCooldown";
+    private static final String KEY_SPAM_THRESHOLD = "autoSpamThreshold";
+    private static final String KEY_SPAM_PAUSE_MINUTES = "autoSpamPauseMinutes";
     private static final String KEY_RULES = "autoRules";
     private static final String KEY_DELAY_MIGRATED = "autoDelayV2";
     private static final Pattern PRIVATE_DATA = Pattern.compile(
@@ -97,18 +99,28 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     private final HashMap<Long, ArrayList<MessageObject>> awaitingReply = new HashMap<>();
     private final HashMap<Long, ArrayDeque<Long>> mentionTimes = new HashMap<>();
     private final HashMap<Long, Long> mutedSenders = new HashMap<>();
+    private final HashMap<Long, Long> pausedDialogSenders = new HashMap<>();
     private final HashMap<Long, String> states = new HashMap<>();
     private final HashMap<Long, Integer> lastSeen = new HashMap<>();
     // Only fresh notifications from explicitly selected chats, never a database/history scan.
     private final LinkedHashMap<Long, ArrayDeque<ContextLine>> recent = new LinkedHashMap<>(16, 0.75f, true);
     private static final long SPAM_WINDOW_MS = 60000L;
-    private static final long SPAM_PAUSE_MS = 15 * 60000L;
     private static final String LAST_PREFIX = "autoLast_";
 
     /** Short non-sensitive status for the settings screen. UI thread only. */
     public static String state(int account, long did) {
         if (account < 0 || account >= instances.length || instances[account] == null) return "idle";
-        String value = instances[account].states.get(did);
+        final PengramAIAutoReply instance = instances[account];
+        String value = instance.states.get(did);
+        if ("paused".equals(value)) {
+            final Long sender = instance.pausedDialogSenders.get(did);
+            final Long until = sender == null ? null : instance.mutedSenders.get(sender);
+            if (until == null || until <= SystemClock.elapsedRealtime()) {
+                instance.states.remove(did);
+                instance.pausedDialogSenders.remove(did);
+                return "idle";
+            }
+        }
         return value == null ? "idle" : value;
     }
 
@@ -169,6 +181,24 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     public static void setQuietHours(int start, int end) {
         PengramAI.prefs().edit().putInt(KEY_QUIET_START, Math.max(0, Math.min(23, start)))
                 .putInt(KEY_QUIET_END, Math.max(0, Math.min(23, end))).apply();
+    }
+    /** Number of direct group mentions from one sender in a rolling minute. */
+    public static int spamThreshold() {
+        return Math.max(1, Math.min(20, PengramAI.prefs().getInt(KEY_SPAM_THRESHOLD, 3)));
+    }
+    public static void setSpamThreshold(int value) {
+        PengramAI.prefs().edit().putInt(KEY_SPAM_THRESHOLD, Math.max(1, Math.min(20, value))).apply();
+        // Counts collected with the previous limit must not trigger the new one.
+        for (PengramAIAutoReply instance : instances) {
+            if (instance != null) instance.mentionTimes.clear();
+        }
+    }
+    /** A pause is set when the threshold is reached; changing this affects future pauses. */
+    public static int spamPauseMinutes() {
+        return Math.max(1, Math.min(1440, PengramAI.prefs().getInt(KEY_SPAM_PAUSE_MINUTES, 15)));
+    }
+    public static void setSpamPauseMinutes(int value) {
+        PengramAI.prefs().edit().putInt(KEY_SPAM_PAUSE_MINUTES, Math.max(1, Math.min(1440, value))).apply();
     }
     public static int cooldownMinutes() { return Math.max(0, Math.min(120, PengramAI.prefs().getInt(KEY_COOLDOWN, 0))); }
     public static void setCooldownMinutes(int value) {
@@ -252,6 +282,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 instance.cancel(rule.dialogId);
                 instance.awaitingReply.remove(rule.dialogId);
                 instance.states.remove(rule.dialogId);
+                instance.pausedDialogSenders.remove(rule.dialogId);
                 instance.recent.remove(rule.dialogId);
             }
             return true;
@@ -344,7 +375,10 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 && MessageObject.getReplyToDialogId(message.messageOwner) == message.getDialogId();
         // Telegram also sets "mentioned" on replies to your messages. Count those as
         // replies, not repeated explicit tags for the 3-per-minute spam threshold.
-        if (message.messageOwner.mentioned && !replyToMe) return true;
+        // If a reply target has not loaded, Telegram's "mentioned" bit may mean
+        // a plain reply to us. Only count verifiable tags in this ambiguous case.
+        if (message.messageOwner.mentioned && !replyToMe
+                && (message.messageOwner.reply_to == null || message.replyMessageObject != null)) return true;
         if (TextUtils.isEmpty(message.messageOwner.message)) return false;
         final long myId = UserConfig.getInstance(account).getClientUserId();
         final TLRPC.User me = UserConfig.getInstance(account).getCurrentUser();
@@ -382,12 +416,17 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 && MessageObject.getReplyToDialogId(message.messageOwner) == message.getDialogId();
     }
 
+    private void markSpamPaused(long did, long senderId) {
+        states.put(did, "paused");
+        pausedDialogSenders.put(did, senderId);
+    }
+
     private boolean spamPaused(long senderId, long did, boolean countMention) {
         if (senderId <= 0) return false;
         final long now = SystemClock.elapsedRealtime();
         final Long until = mutedSenders.get(senderId);
         if (until != null && until > now) {
-            states.put(did, "paused");
+            markSpamPaused(did, senderId);
             return true;
         }
         if (until != null) mutedSenders.remove(senderId);
@@ -400,18 +439,18 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         final ArrayDeque<Long> times = mentionTimes.computeIfAbsent(senderId, ignored -> new ArrayDeque<>());
         while (!times.isEmpty() && now - times.peekFirst() >= SPAM_WINDOW_MS) times.removeFirst();
         times.addLast(now);
-        if (times.size() < 3) return false;
+        if (times.size() < spamThreshold()) return false;
         times.clear();
-        mutedSenders.put(senderId, now + SPAM_PAUSE_MS);
+        mutedSenders.put(senderId, now + spamPauseMinutes() * 60_000L);
         // Silence *all* pending requests from this sender across selected groups.
         for (Long chatId : new ArrayList<>(pending.keySet())) {
             Pending task = pending.get(chatId);
             if (task != null && task.senderId == senderId) {
                 cancel(chatId);
-                states.put(chatId, "paused");
+                markSpamPaused(chatId, senderId);
             }
         }
-        states.put(did, "paused");
+        markSpamPaused(did, senderId);
         return true;
     }
 
@@ -525,7 +564,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
             final Long muted = mutedSenders.get(task.senderId);
             if (muted != null && muted > SystemClock.elapsedRealtime()) {
                 cancel(task.dialogId);
-                states.put(task.dialogId, "paused");
+                markSpamPaused(task.dialogId, task.senderId);
                 return;
             }
         }

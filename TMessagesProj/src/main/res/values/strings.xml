@@ -11934,6 +11934,12 @@
     <string name="PengramAIAutoStyleHint">For example: reply briefly and informally, without emoji. If unsure, say I will get back later.</string>
     <string name="PengramAIAutoStyleInfo">Describe your reply style manually. If you opt into recent context, only short text seen while the app is running in connected chats is used; no profile is built. Do not include personal details.</string>
     <string name="PengramAIAutoQuiet">Quiet hours</string>
+    <string name="PengramAIAutoSpamHeader">Group mention pause</string>
+    <string name="PengramAIAutoSpamCount">Direct mentions in one minute before pause</string>
+    <string name="PengramAIAutoSpamPause">Pause duration for this sender</string>
+    <string name="PengramAIAutoSpamInfo">Counts explicit @mentions and linked usernames from the same sender across connected groups within a rolling minute; replies to your messages do not count toward the limit. Setting 1 pauses from the first direct mention. This only pauses AI replies to that sender, not Telegram messages. A changed limit starts a fresh count; a changed duration applies to new pauses, while existing pauses retain their original end time.</string>
+    <string name="PengramAIAutoSpamCountError">Enter a number of mentions from 1 to 20.</string>
+    <string name="PengramAIAutoSpamPauseError">Enter a pause from 1 to 1440 minutes.</string>
     <string name="PengramAIAutoCooldown">Optional pause between replies in a chat · 0 = off</string>
     <string name="PengramAIAutoConnected">Chat connected · tap it to change the 2–6 second delay</string>
     <string name="PengramAIAutoAlreadyConnected">Chat is already connected · tap it to change the delay</string>
@@ -11941,7 +11947,7 @@
     <string name="PengramAIAutoSaveError">Could not save this chat. Please try again.</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
-    <string name="PengramAIAutoInfo">A new text message is sent to the selected AI service after basic local redaction. Optional recent context (off by default): up to 3 previous short text messages seen while the app is running, only from connected chats; in groups, only the same sender and your replies. No history is fetched from storage, and context is not saved. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. 3 direct mentions from one sender within a minute pause auto-replies to that sender for 15 minutes across selected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops. Redaction is imperfect; no external service guarantees absolute privacy.</string>
+    <string name="PengramAIAutoInfo">A new text message is sent to the selected AI service after basic local redaction. Optional recent context (off by default): up to 3 previous short text messages seen while the app is running, only from connected chats; in groups, only the same sender and your replies. No history is fetched from storage, and context is not saved. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. The configurable direct-mention limit and pause duration apply per sender across connected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops. Redaction is imperfect; no external service guarantees absolute privacy.</string>
     <string name="PengramAIAutoRangeInfo">Random delay before asking the AI service: 1–600 seconds. Network time is additional. Auto-replies also require the global switch.</string>
     <string name="PengramAIAutoMin">Minimum seconds</string>
     <string name="PengramAIAutoMax">Maximum seconds</string>
@@ -12534,7 +12540,7 @@
     <string name="PengramAIAutoStateWaiting">Waiting for the selected delay</string>
     <string name="PengramAIAutoStateRequest">Asking the AI service</string>
     <string name="PengramAIAutoStateSent">Last reply queued for delivery</string>
-    <string name="PengramAIAutoStatePaused">Sender paused for 15 minutes after 3 mentions in a minute</string>
+    <string name="PengramAIAutoStatePaused">AI replies to this sender are paused after the group mention limit</string>
     <string name="PengramAIAutoStateCooldown">Waiting for the optional chat cooldown</string>
     <string name="PengramAIAutoStateError">Service returned an error or an empty reply · check its settings</string>
     <string name="PengramAIAutoStateManual">You replied manually · pending AI reply cancelled</string>

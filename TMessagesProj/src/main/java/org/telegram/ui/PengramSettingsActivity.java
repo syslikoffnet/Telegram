@@ -203,6 +203,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_AUTO_REFRESH = 1736;
     private static final int BTN_AI_AUTO_JUMP = 1737;
     private static final int BTN_AI_AUTO_CONTEXT = 1738;
+    private static final int BTN_AI_AUTO_SPAM_COUNT = 1739;
+    private static final int BTN_AI_AUTO_SPAM_PAUSE = 1740;
     private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
@@ -4722,6 +4724,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                         org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
         items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
                 org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+        items.add(UItem.asHeader(getString(R.string.PengramAIAutoSpamHeader)));
+        items.add(UItem.asButton(BTN_AI_AUTO_SPAM_COUNT, getString(R.string.PengramAIAutoSpamCount),
+                String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold())));
+        items.add(UItem.asButton(BTN_AI_AUTO_SPAM_PAUSE, getString(R.string.PengramAIAutoSpamPause),
+                org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+        items.add(UItem.asShadow(getString(R.string.PengramAIAutoSpamInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramAIAutoWatching)));
         items.add(UItem.asButton(BTN_AI_AUTO_ADD, R.drawable.msg_add, getString(R.string.PengramAIAutoAdd)));
         if (aiRules.isEmpty()) {
@@ -5178,6 +5186,34 @@ public class PengramSettingsActivity extends UniversalFragment {
                                 org.telegram.messenger.PengramAIAutoReply.setCooldownMinutes(Integer.parseInt(value.trim()));
                                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                             } catch (NumberFormatException ignore) {}
+                        });
+                return true;
+            case BTN_AI_AUTO_SPAM_COUNT:
+                showTextDialog(getString(R.string.PengramAIAutoSpamCount),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold()), "3", value -> {
+                            try {
+                                final int count = Integer.parseInt(value.trim());
+                                if (count < 1 || count > 20) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setSpamThreshold(count);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoSpamCountError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_AUTO_SPAM_PAUSE:
+                showTextDialog(getString(R.string.PengramAIAutoSpamPause),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes()), "15", value -> {
+                            try {
+                                final int minutes = Integer.parseInt(value.trim());
+                                if (minutes < 1 || minutes > 1440) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setSpamPauseMinutes(minutes);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoSpamPauseError)).show();
+                            }
                         });
                 return true;
             case BTN_AI_EDIT_SERVICE:
