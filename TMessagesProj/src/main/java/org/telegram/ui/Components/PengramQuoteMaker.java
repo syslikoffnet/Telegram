@@ -6,8 +6,10 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.media.MediaMetadataRetriever;
 import android.os.Bundle;
 import android.graphics.Matrix;
+import androidx.exifinterface.media.ExifInterface;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.widget.HorizontalScrollView;
@@ -105,12 +107,16 @@ public final class PengramQuoteMaker {
     private static final long MAX_PIXELS = 7_000_000L;
 
     private static final class Entry {
-        String name, text, time;
+        String name, text, time, missingMediaLabel;
+        boolean motion;
         long groupId, senderId;
         StaticLayout layout;
         Bitmap media;
         Bitmap avatar;
         File avatarFile;
+        File videoFile;
+        byte[] cachedImage;
+        boolean sticker;
         final ArrayList<File> albumPaths = new ArrayList<>();
         final ArrayList<Bitmap> albumImages = new ArrayList<>();
         int imageHeight, height, width;
@@ -244,6 +250,9 @@ public final class PengramQuoteMaker {
             final long senderId = message.getSenderId();
             entry.senderId = senderId;
             entry.groupId = message.getGroupId();
+            entry.sticker = message.isSticker();
+            entry.motion = message.isVideo() || message.isRoundVideo() || message.isGif();
+            entry.missingMediaLabel = safeString(activity, R.string.PengramQuotePhoto);
             if (names) {
                 final String fakeName = PengramConfig.getQuoteFakeName().trim();
                 if (!fakeName.isEmpty()) entry.name = fakeName;
@@ -304,12 +313,14 @@ public final class PengramQuoteMaker {
             }
             if (message.isPhoto() && !PengramConfig.getBool(KEY_MEDIA, true) && TextUtils.isEmpty(entry.text)) {
                 entry.text = safeString(activity, R.string.PengramQuotePhoto);
-            } else if (TextUtils.isEmpty(entry.text) && message.isVideo()) {
+            } else if (TextUtils.isEmpty(entry.text) && (message.isVideo() || message.isRoundVideo() || message.isGif())) {
                 entry.text = safeString(activity, R.string.PengramQuoteVideo);
             } else if (TextUtils.isEmpty(entry.text) && message.isVoice()) {
                 entry.text = safeString(activity, R.string.PengramQuoteVoice);
             } else if (TextUtils.isEmpty(entry.text) && message.isSticker()) {
                 entry.text = safeString(activity, R.string.PengramQuoteSticker);
+            } else if (TextUtils.isEmpty(entry.text) && message.isMusic()) {
+                entry.text = safeString(activity, R.string.PengramQuoteMusic);
             } else if (TextUtils.isEmpty(entry.text) && message.isDocument()) {
                 entry.text = safeString(activity, R.string.PengramQuoteDocument);
             }
@@ -328,25 +339,22 @@ public final class PengramQuoteMaker {
                 entry.time = new SimpleDateFormat("d MMM · HH:mm", Locale.getDefault())
                         .format(new Date(message.messageOwner.date * 1000L));
             }
-            // Resolve local media before queuing work; missing photos fail explicitly.
+            // Prefer the original, then a real locally cached thumbnail. Photos can
+            // live in either Telegram's media directory or its internal cache.
             File local = null;
             if (PengramConfig.getBool(KEY_MEDIA, true) && (message.isPhoto() || message.isVideo()
                     || message.isGif() || message.isSticker() || message.isRoundVideo())) {
-                final FileLoader loader = FileLoader.getInstance(chat.getCurrentAccount());
-                if (message.isPhoto() || message.isSticker()) {
-                    local = loader.getPathToMessage(message.messageOwner);
-                }
-                if ((local == null || !local.isFile() || local.length() == 0)
-                        && message.photoThumbs != null && !message.photoThumbs.isEmpty()) {
-                    TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 640);
-                    if (thumb != null) local = loader.getPathToAttach(thumb, true);
-                }
-                if (local == null || !local.isFile() || local.length() == 0) {
-                    if (message.isPhoto()) {
+                local = findLocalImage(chat.getCurrentAccount(), message);
+                if (local == null && message.isPhoto()) {
+                    entry.cachedImage = cachedPhotoBytes(message);
+                    if (entry.cachedImage == null) {
                         error(chat, R.string.PengramQuoteDownload);
                         return;
                     }
-                    local = null; // Video and sticker still have a visible type label.
+                }
+                if (local == null && (message.isVideo() || message.isRoundVideo() || message.isGif())) {
+                    File video = FileLoader.getInstance(chat.getCurrentAccount()).getPathToMessage(message.messageOwner);
+                    if (video != null && video.isFile() && video.length() > 0) entry.videoFile = video;
                 }
             }
             if (local != null && entry.groupId != 0 && !entries.isEmpty()) {
@@ -425,11 +433,124 @@ public final class PengramQuoteMaker {
         }, awaitingAvatar ? 1400 : 0);
     }
 
+    /** Pick a decodable local image rather than assuming that getPathToMessage is in the cache. */
+    private static File findLocalImage(int account, MessageObject message) {
+        FileLoader loader = FileLoader.getInstance(account);
+        if (!TextUtils.isEmpty(message.messageOwner.attachPath)) {
+            File attached = new File(message.messageOwner.attachPath);
+            if (isImageFile(attached)) return attached;
+        }
+        File original = loader.getPathToMessage(message.messageOwner);
+        if (isImageFile(original)) return original;
+        TLRPC.MessageMedia media = MessageObject.getMedia(message.messageOwner);
+        if (media != null && media.photo != null && media.photo.sizes != null) {
+            File photo = findInSizes(loader, media.photo.sizes);
+            if (photo != null) return photo;
+        }
+        if (message.photoThumbs != null) {
+            File thumb = findInSizes(loader, message.photoThumbs);
+            if (thumb != null) return thumb;
+        }
+        return null;
+    }
+
+    private static File findInSizes(FileLoader loader, ArrayList<TLRPC.PhotoSize> sizes) {
+        // Try higher-quality sizes first, but do not assume they have finished downloading.
+        ArrayList<TLRPC.PhotoSize> ordered = new ArrayList<>(sizes);
+        ordered.sort((a, b) -> Long.compare(b == null ? 0L : (long) b.w * b.h,
+                a == null ? 0L : (long) a.w * a.h));
+        for (TLRPC.PhotoSize size : ordered) {
+            if (size == null || size instanceof TLRPC.TL_photoStrippedSize
+                    || size instanceof TLRPC.TL_photoPathSize || size instanceof TLRPC.TL_photoSizeEmpty) continue;
+            File media = loader.getPathToAttach(size, false);
+            if (isImageFile(media)) return media;
+            File cached = loader.getPathToAttach(size, true);
+            if (isImageFile(cached)) return cached;
+        }
+        return null;
+    }
+
+    private static boolean isImageFile(File file) {
+        if (file == null || !file.isFile() || file.length() == 0 || file.length() > 40L * 1024 * 1024) return false;
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
+            return bounds.outWidth > 0 && bounds.outHeight > 0;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
+    /** Telegram may embed a complete small JPEG even when no downloaded file remains. */
+    private static byte[] cachedPhotoBytes(MessageObject message) {
+        byte[] best = null;
+        if (message.photoThumbs != null) {
+            for (TLRPC.PhotoSize size : message.photoThumbs) {
+                if (size instanceof TLRPC.TL_photoCachedSize) {
+                    byte[] bytes = ((TLRPC.TL_photoCachedSize) size).bytes;
+                    if (bytes != null && bytes.length > 0 && bytes.length < 2_000_000
+                            && (best == null || bytes.length > best.length)) best = bytes;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** A bounded video frame when Telegram has no cached poster image. */
+    private static Bitmap decodeVideo(File file) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        try {
+            retriever.setDataSource(file.getAbsolutePath());
+            if (Build.VERSION.SDK_INT >= 27) {
+                String width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+                String height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+                if (width != null && height != null) {
+                    int w = Integer.parseInt(width), h = Integer.parseInt(height);
+                    if (w > 0 && h > 0) {
+                        float scale = Math.min(1f, 720f / Math.max(w, h));
+                        Bitmap small = retriever.getScaledFrameAtTime(0,
+                                MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                                Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)));
+                        if (small != null) return small;
+                    }
+                }
+            }
+            Bitmap frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            if (frame == null) return null;
+            int max = Math.max(frame.getWidth(), frame.getHeight());
+            if (max <= 720) return frame;
+            Bitmap scaled = Bitmap.createScaledBitmap(frame,
+                    Math.max(1, Math.round(frame.getWidth() * 720f / max)),
+                    Math.max(1, Math.round(frame.getHeight() * 720f / max)), true);
+            if (scaled != frame) frame.recycle();
+            return scaled;
+        } finally {
+            retriever.release();
+        }
+    }
+
+    private static Bitmap decodeBytes(byte[] bytes) {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+        if (bounds.outWidth < 1 || bounds.outHeight < 1) return null;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = 1;
+        while (bounds.outWidth / options.inSampleSize > 1100 || bounds.outHeight / options.inSampleSize > 1100) {
+            options.inSampleSize *= 2;
+        }
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
+    }
+
     private static Bitmap decode(File file) {
         return decode(file, false);
     }
 
     private static Bitmap decode(File file, boolean alpha) {
+        if (file == null || !file.isFile()) return null;
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
@@ -439,8 +560,33 @@ public final class PengramQuoteMaker {
         while (bounds.outWidth / options.inSampleSize > 1100 || bounds.outHeight / options.inSampleSize > 1100) {
             options.inSampleSize *= 2;
         }
-        options.inPreferredConfig = alpha ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
-        return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+        options.inPreferredConfig = alpha || "image/png".equals(bounds.outMimeType)
+                || "image/webp".equals(bounds.outMimeType) ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+        Bitmap image = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+        if (image == null || !("image/jpeg".equals(bounds.outMimeType)
+                || "image/heif".equals(bounds.outMimeType)
+                || "image/heic".equals(bounds.outMimeType))) return image;
+        try {
+            int orientation = new ExifInterface(file.getAbsolutePath()).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            Matrix matrix = new Matrix();
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_FLIP_HORIZONTAL: matrix.setScale(-1, 1); break;
+                case ExifInterface.ORIENTATION_ROTATE_180: matrix.setRotate(180); break;
+                case ExifInterface.ORIENTATION_FLIP_VERTICAL: matrix.setScale(1, -1); break;
+                case ExifInterface.ORIENTATION_TRANSPOSE: matrix.setRotate(90); matrix.postScale(-1, 1); break;
+                case ExifInterface.ORIENTATION_ROTATE_90: matrix.setRotate(90); break;
+                case ExifInterface.ORIENTATION_TRANSVERSE: matrix.setRotate(-90); matrix.postScale(-1, 1); break;
+                case ExifInterface.ORIENTATION_ROTATE_270: matrix.setRotate(270); break;
+                default: return image;
+            }
+            Bitmap rotated = Bitmap.createBitmap(image, 0, 0, image.getWidth(), image.getHeight(), matrix, true);
+            if (rotated != image) image.recycle();
+            return rotated;
+        } catch (Exception e) {
+            FileLog.e(e);
+            return image;
+        }
     }
 
     private static Result render(Activity activity, ArrayList<Entry> entries, ArrayList<File> paths,
@@ -459,7 +605,7 @@ public final class PengramQuoteMaker {
         final int radius = Math.max(0, Math.min(64, PengramConfig.getIntCached(KEY_RADIUS, 28)));
         final int contentLeft = pad + 36;
         final int contentWidth = WIDTH - contentLeft * 2;
-        final float scale = sticker ? 1f : new float[]{1f, 1.5f, 2f}[
+        final float requestedScale = sticker ? 1f : new float[]{1f, 1.5f, 2f}[
                 Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_SCALE, 0)))];
         final int surface = followTheme ? palette.bubble : dark ? 0xff222b3b : Color.WHITE;
         final int ink = followTheme ? palette.ink : dark ? Color.WHITE : 0xff1e293b;
@@ -476,20 +622,30 @@ public final class PengramQuoteMaker {
         int total = pad + 8;
         for (int i = 0; i < entries.size(); i++) {
             final Entry e = entries.get(i);
+            e.imageHeight = 0;
             if (paths.get(i) != null) {
-                e.media = decode(paths.get(i));
-                if (e.media == null) throw new IllegalStateException("Photo is unavailable");
-                e.imageHeight = Math.min(320, Math.max(110, contentWidth * e.media.getHeight() / Math.max(1, e.media.getWidth())));
+                e.media = decode(paths.get(i), e.sticker);
+            } else if (e.cachedImage != null) {
+                e.media = decodeBytes(e.cachedImage);
+            } else if (e.videoFile != null) {
+                try {
+                    e.media = decodeVideo(e.videoFile);
+                } catch (Throwable ex) {
+                    FileLog.e(ex); // Keep the video label; never fail the entire quote.
+                }
+            }
+            if (e.media != null) {
+                e.imageHeight = Math.min(420, Math.max(120, contentWidth * e.media.getHeight() / Math.max(1, e.media.getWidth())));
                 if (!e.albumPaths.isEmpty()) {
                     for (File tile : e.albumPaths) {
                         Bitmap media = decode(tile);
-                        if (media == null) throw new IllegalStateException("Album media is unavailable");
-                        e.albumImages.add(media);
+                        if (media != null) e.albumImages.add(media);
                     }
                     int cell = (contentWidth - 8) / 2;
                     e.imageHeight = ((1 + e.albumImages.size() + 1) / 2) * (cell + 8) - 8;
                 }
             }
+            if (e.media == null && TextUtils.isEmpty(e.text)) e.text = e.missingMediaLabel;
             e.layout = TextUtils.isEmpty(e.text) ? null : new StaticLayout(e.text, body, contentWidth,
                     Layout.Alignment.ALIGN_NORMAL, 1.18f, 0, false);
             final int textHeight = e.layout == null ? 0 : e.layout.getHeight();
@@ -506,10 +662,14 @@ public final class PengramQuoteMaker {
             total += e.height + 13;
         }
         total += pad + 8;
-        final int outWidth = Math.round(WIDTH * scale);
-        final int outHeight = Math.round(total * scale);
-        if (total < 1 || (long) outWidth * outHeight > MAX_PIXELS)
+        // Long albums should still render: reduce only the requested export scale,
+        // never the layout, and stay inside the bitmap memory budget.
+        if (total < 1 || (long) WIDTH * total > MAX_PIXELS)
             throw new IllegalStateException("Quote too large");
+        final float scale = Math.min(requestedScale,
+                (float) Math.sqrt(MAX_PIXELS / ((double) WIDTH * total)));
+        final int outWidth = Math.max(1, (int) (WIDTH * scale));
+        final int outHeight = Math.max(1, (int) (total * scale));
         Bitmap bitmap = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888);
         try {
             Canvas canvas = new Canvas(bitmap);
@@ -565,17 +725,28 @@ public final class PengramQuoteMaker {
                     if (!e.albumImages.isEmpty()) {
                         int cell = (contentWidth - 8) / 2;
                         drawImage(canvas, paint, e.media, new RectF(contentLeft, inner,
-                                contentLeft + cell, inner + cell));
+                                contentLeft + cell, inner + cell), true);
                         for (int j = 0; j < e.albumImages.size(); j++) {
                             int index = j + 1;
                             int x = contentLeft + (index % 2) * (cell + 8);
                             int top = inner + (index / 2) * (cell + 8);
                             drawImage(canvas, paint, e.albumImages.get(j),
-                                    new RectF(x, top, x + cell, top + cell));
+                                    new RectF(x, top, x + cell, top + cell), true);
                         }
                     } else {
                         drawImage(canvas, paint, e.media,
-                                new RectF(contentLeft, inner, WIDTH - contentLeft, inner + e.imageHeight));
+                                new RectF(contentLeft, inner, WIDTH - contentLeft, inner + e.imageHeight), false);
+                    }
+                    if (e.motion) {
+                        // A still quote cannot play a clip. Distinguish video from a photo.
+                        paint.setColor(0xB3000000);
+                        float cx = contentLeft + 32, cy = inner + 32;
+                        canvas.drawCircle(cx, cy, 23, paint);
+                        paint.setColor(Color.WHITE);
+                        paint.setTextSize(24);
+                        paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                        canvas.drawText("▶", cx - 10, cy + 8, paint);
+                        paint.setTypeface(android.graphics.Typeface.DEFAULT);
                     }
                     inner += e.imageHeight + 14;
                 }
@@ -653,7 +824,7 @@ public final class PengramQuoteMaker {
         }
     }
 
-    private static void drawImage(Canvas canvas, Paint paint, Bitmap media, RectF dest) {
+    private static void drawImage(Canvas canvas, Paint paint, Bitmap media, RectF dest, boolean crop) {
         canvas.save();
         android.graphics.Path clip = new android.graphics.Path();
         clip.addRoundRect(dest, 15, 15, android.graphics.Path.Direction.CW);
@@ -661,7 +832,10 @@ public final class PengramQuoteMaker {
         paint.setColor(0xffd8e0ed);
         canvas.drawRect(dest, paint);
         int mw = media.getWidth(), mh = media.getHeight();
-        float scale = Math.max(dest.width() / mw, dest.height() / mh);
+        // A single image must not lose people's faces or caption content to centre-cropping.
+        // Collage cells deliberately crop to keep a regular grid.
+        float scale = crop ? Math.max(dest.width() / mw, dest.height() / mh)
+                : Math.min(dest.width() / mw, dest.height() / mh);
         float w = mw * scale, h = mh * scale;
         paint.setColor(Color.WHITE);
         canvas.drawBitmap(media, new Rect(0, 0, mw, mh),
@@ -721,14 +895,15 @@ public final class PengramQuoteMaker {
             if (resId == R.string.PengramQuoteVoice) return ru ? "Голосовое сообщение" : "Voice message";
             if (resId == R.string.PengramQuoteSticker) return ru ? "Стикер" : "Sticker";
             if (resId == R.string.PengramQuoteDocument) return ru ? "Документ" : "Document";
+            if (resId == R.string.PengramQuoteMusic) return ru ? "Музыка" : "Music";
             if (resId == R.string.PengramQuoteTooLong) return ru ? "Сообщение слишком длинное для цитаты-изображения." : "This message is too long for an image quote.";
-            if (resId == R.string.PengramQuoteDownload) return ru ? "Скачайте фото перед созданием цитаты или отключите фотографии в настройках цитат." : "Download the photo before creating the quote, or turn off photos in quote settings.";
+            if (resId == R.string.PengramQuoteDownload) return ru ? "Скачайте фото или отключите показ медиа в цитате." : "Download the photo or turn off media in quote settings.";
             if (resId == R.string.PengramQuoteRenderError) return ru ? "Не удалось создать цитату. Попробуйте выбрать меньше сообщений." : "Could not create the quote. Try selecting fewer messages.";
             if (resId == R.string.PengramQuotePrivacyHint) return ru ? "Проверьте имена и текст перед отправкой." : "Check names and message text before sharing.";
             if (resId == R.string.PengramQuoteNames) return ru ? "Показывать имена отправителей" : "Show sender names";
             if (resId == R.string.PengramQuoteAvatar) return ru ? "Аватарки отправителей" : "Sender avatars";
             if (resId == R.string.PengramQuoteTimes) return ru ? "Показывать время сообщений" : "Show message times";
-            if (resId == R.string.PengramQuoteMedia) return ru ? "Добавлять фотографии" : "Include photos";
+            if (resId == R.string.PengramQuoteMedia) return ru ? "Показывать медиа" : "Include media";
             if (resId == R.string.PengramQuoteAnonMentions) return ru ? "Скрывать @упоминания в тексте" : "Hide @mentions in text";
             if (resId == R.string.PengramQuoteDark) return ru ? "Тёмный фон" : "Dark background";
             if (resId == R.string.PengramQuoteJpeg) return ru ? "JPEG вместо PNG" : "JPEG instead of PNG";

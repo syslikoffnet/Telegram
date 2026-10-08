@@ -1073,8 +1073,8 @@
     <string name="PengramQuoteNames">Показывать имена отправителей</string>
     <string name="PengramQuoteNamesInfo">Если выключить, имена не появятся на карточке. Упоминания в тексте сохранятся.</string>
     <string name="PengramQuoteTimes">Показывать время сообщений</string>
-    <string name="PengramQuoteMedia">Добавлять фотографии</string>
-    <string name="PengramQuoteMediaInfo">Перед созданием цитаты фото нужно скачать.</string>
+    <string name="PengramQuoteMedia">Показывать медиа</string>
+    <string name="PengramQuoteMediaInfo">Для фото используется доступный файл или сохранённое превью.</string>
     <string name="PengramQuoteStyleHeader">Оформление</string>
     <string name="PengramQuoteAccent">Цвет акцента</string>
     <string name="PengramQuoteDark">Тёмный фон</string>
@@ -1089,8 +1089,9 @@
     <string name="PengramQuoteVideo">Видео</string>
     <string name="PengramQuoteVoice">Голосовое сообщение</string>
     <string name="PengramQuoteDocument">Документ</string>
+    <string name="PengramQuoteMusic">Музыка</string>
     <string name="PengramQuoteTooLong">Сообщение слишком длинное для цитаты-изображения.</string>
-    <string name="PengramQuoteDownload">Скачайте фото перед созданием цитаты или отключите фотографии в настройках цитат.</string>
+    <string name="PengramQuoteDownload">Скачайте фото или отключите показ медиа в цитате.</string>
     <string name="PengramQuoteRenderError">Не удалось создать цитату. Попробуйте выбрать меньше сообщений.</string>
     <string name="PengramQuotePrivacyHint">Проверьте имена и текст перед отправкой.</string>
     <string name="PengramQuotePreview">Предпросмотр цитаты</string>

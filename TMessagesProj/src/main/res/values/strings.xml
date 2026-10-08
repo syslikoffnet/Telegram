@@ -12045,8 +12045,8 @@
     <string name="PengramQuoteNames">Show sender names</string>
     <string name="PengramQuoteNamesInfo">Turn off to omit sender names. Mentions within messages remain visible.</string>
     <string name="PengramQuoteTimes">Show message times</string>
-    <string name="PengramQuoteMedia">Include photos</string>
-    <string name="PengramQuoteMediaInfo">A photo must be downloaded before creating the quote.</string>
+    <string name="PengramQuoteMedia">Include media</string>
+    <string name="PengramQuoteMediaInfo">Photos use an available local image or cached preview.</string>
     <string name="PengramQuoteStyleHeader">Appearance</string>
     <string name="PengramQuoteAccent">Accent color</string>
     <string name="PengramQuoteDark">Dark background</string>
@@ -12061,8 +12061,9 @@
     <string name="PengramQuoteVideo">Video</string>
     <string name="PengramQuoteVoice">Voice message</string>
     <string name="PengramQuoteDocument">Document</string>
+    <string name="PengramQuoteMusic">Music</string>
     <string name="PengramQuoteTooLong">This message is too long for an image quote.</string>
-    <string name="PengramQuoteDownload">Download the photo before creating the quote, or turn off photos in quote settings.</string>
+    <string name="PengramQuoteDownload">Download the photo or turn off media in quote settings.</string>
     <string name="PengramQuoteRenderError">Could not create the quote. Try selecting fewer messages.</string>
     <string name="PengramQuotePrivacyHint">Check names and message text before sharing.</string>
     <string name="PengramQuotePreview">Quote preview</string>

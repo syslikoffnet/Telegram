@@ -1,2 +1,2 @@
 <resources xmlns:tools="http://schemas.android.com/tools"
-    tools:keep="@string/com.google.firebase.crashlytics.*,@string/PengramPhotoCopy*" />
+    tools:keep="@string/com.google.firebase.crashlytics.*,@string/PengramPhotoCopy*,@string/PengramQuote*" />
