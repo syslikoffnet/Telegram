@@ -202,6 +202,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_AUTO_COOLDOWN = 1735;
     private static final int BTN_AI_AUTO_REFRESH = 1736;
     private static final int BTN_AI_AUTO_JUMP = 1737;
+    private static final int BTN_AI_AUTO_CONTEXT = 1738;
     private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
@@ -4706,6 +4707,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asButton(BTN_AI_AUTO_MASTER, R.drawable.msg_bot,
                 getString(R.string.PengramAIAutoMaster), getString(org.telegram.messenger.PengramAIAutoReply.enabled()
                         ? R.string.PengramAIAutoOn : R.string.PengramAIAutoOff)));
+        items.add(tgCheckInfo(BTN_AI_AUTO_CONTEXT, getString(R.string.PengramAIAutoContext),
+                getString(R.string.PengramAIAutoContextInfo),
+                org.telegram.messenger.PengramAIAutoReply::contextEnabled,
+                () -> org.telegram.messenger.PengramAIAutoReply.setContextEnabled(
+                        !org.telegram.messenger.PengramAIAutoReply.contextEnabled())));
         final String autoStyle = org.telegram.messenger.PengramAIAutoReply.style();
         items.add(UItem.asButton(BTN_AI_AUTO_STYLE, R.drawable.msg_edit,
                 getString(R.string.PengramAIAutoStyle), TextUtils.isEmpty(autoStyle)

@@ -267,6 +267,9 @@ public final class PengramAI {
 
     /** полный сброс раздела — на случай «начать с чистого листа» */
     public static void resetAll() {
+        // Stop pending auto replies and discard ephemeral context before removing consent.
+        PengramAIAutoReply.setEnabled(false);
+        PengramAIAutoReply.setContextEnabled(false);
         prefs().edit().clear().apply();
         PengramAIRoles.resetAll();
     }

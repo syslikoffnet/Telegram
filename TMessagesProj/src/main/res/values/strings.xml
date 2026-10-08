@@ -11924,13 +11924,15 @@
     <string name="PengramOriginalNameUsername">Public username</string>
     <string name="PengramOriginalNameNothing">Pengram has not seen the official name of this person yet</string>
     <string name="PengramAIAutoHeader">Auto replies · selected chats only</string>
+    <string name="PengramAIAutoContext">Recent context for auto-replies</string>
+    <string name="PengramAIAutoContextInfo">Off by default. If enabled, up to 3 previous short texts from connected chats seen while the app runs may go to the AI service. Groups: only that sender and your replies to them. No stored history.</string>
     <string name="PengramAIAutoMaster">Auto-reply</string>
     <string name="PengramAIAutoOn">On · tap to stop immediately</string>
     <string name="PengramAIAutoOff">Off for all chats</string>
     <string name="PengramAIAutoStyle">My reply style</string>
     <string name="PengramAIAutoNoStyle">Not set</string>
     <string name="PengramAIAutoStyleHint">For example: reply briefly and informally, without emoji. If unsure, say I will get back later.</string>
-    <string name="PengramAIAutoStyleInfo">Describe your style manually. Chat history and your old messages are never read or sent. Do not put personal details here.</string>
+    <string name="PengramAIAutoStyleInfo">Describe your reply style manually. If you opt into recent context, only short text seen while the app is running in connected chats is used; no profile is built. Do not include personal details.</string>
     <string name="PengramAIAutoQuiet">Quiet hours</string>
     <string name="PengramAIAutoCooldown">Optional pause between replies in a chat · 0 = off</string>
     <string name="PengramAIAutoConnected">Chat connected · tap it to change the 2–6 second delay</string>
@@ -11939,7 +11941,7 @@
     <string name="PengramAIAutoSaveError">Could not save this chat. Please try again.</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
-    <string name="PengramAIAutoInfo">Only new text messages are sent to the selected AI service (after local redaction); no history or prior messages are uploaded. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. 3 direct mentions from one sender within a minute pause auto-replies to that sender for 15 minutes across selected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops, and no external service guarantees absolute privacy.</string>
+    <string name="PengramAIAutoInfo">A new text message is sent to the selected AI service after basic local redaction. Optional recent context (off by default): up to 3 previous short text messages seen while the app is running, only from connected chats; in groups, only the same sender and your replies. No history is fetched from storage, and context is not saved. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. 3 direct mentions from one sender within a minute pause auto-replies to that sender for 15 minutes across selected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops. Redaction is imperfect; no external service guarantees absolute privacy.</string>
     <string name="PengramAIAutoRangeInfo">Random delay before asking the AI service: 1–600 seconds. Network time is additional. Auto-replies also require the global switch.</string>
     <string name="PengramAIAutoMin">Minimum seconds</string>
     <string name="PengramAIAutoMax">Maximum seconds</string>
@@ -11948,7 +11950,7 @@
     <string name="PengramAIAutoRangeError">Choose 1–600 seconds; minimum must not exceed maximum</string>
     <string name="PengramAIAutoQuietError">Enter hours from 0 to 23, e.g. 23-8. Equal hours disable quiet time.</string>
     <string name="PengramAIAutoNeedsSetup">Configure an HTTPS AI service (or local HTTP) and describe your reply style first</string>
-    <string name="PengramAIAutoWarning">AI will automatically send a reply in connected chats. New messages are shared with your selected external service (without history), with basic local redaction. Your identity cannot be perfectly protected. Quiet hours and spam pause apply. Enable?</string>
+    <string name="PengramAIAutoWarning">AI automatically sends replies in connected chats. New messages, and up to 3 previous short messages if you enabled recent context, go to your selected service with basic local redaction. Personal data can still be exposed; an external service cannot guarantee privacy. Quiet hours and spam pause apply. Enable?</string>
     <string name="PengramAIAutoEnable">Enable auto replies</string>
     <string name="PengramAICurrentLabel">ACTIVE IN EVERY CHAT</string>
     <string name="PengramAICurrentDetail">Messages and drafts · results are never sent automatically</string>
@@ -11985,10 +11987,13 @@
     <string name="PengramAIOnlyAnswerInfo">Hide the original text in the window</string>
     <string name="PengramAIAsQuote">Insert as a quote</string>
     <string name="PengramAIAsQuoteInfo">The answer lands in the input field as quoted text</string>
+    <string name="PengramAIFollowUpHint">Ask a follow-up in this AI conversation</string>
+    <string name="PengramAIFollowUpSend">Ask</string>
+    <string name="PengramAIFollowUpYou">You:</string>
     <string name="PengramAIHistory">Send chat history</string>
-    <string name="PengramAIHistoryInfo">Also send earlier chat messages to the selected service. Off by default.</string>
+    <string name="PengramAIHistoryInfo">Manual AI requests can include recent messages from this chat as context (bounded to 4,800 characters). Off by default; context is sent to the selected service.</string>
     <string name="PengramAIDepth">How many messages</string>
-    <string name="PengramAIAnswerInfo">These settings apply both to messages and to drafts via long-press on Send. AI never sends a message for you.</string>
+    <string name="PengramAIAnswerInfo">These settings apply to messages and drafts via long-press on Send. You can ask follow-up questions in the AI window; that conversation stays in memory until you close it. Manual AI does not send chat messages for you.</string>
     <string name="PengramAIReset">Forget services and keys</string>
     <string name="PengramAIResetInfo">Removes all services, keys, custom roles and auto-reply settings from this device.</string>
     <string name="PengramAINoService">No service set up yet</string>
