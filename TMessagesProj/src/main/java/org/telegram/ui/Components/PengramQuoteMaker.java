@@ -527,7 +527,11 @@ public final class PengramQuoteMaker {
             if (scaled != frame) frame.recycle();
             return scaled;
         } finally {
-            retriever.release();
+            try {
+                retriever.release();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
         }
     }
 
