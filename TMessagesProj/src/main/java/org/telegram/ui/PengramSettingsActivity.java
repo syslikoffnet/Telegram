@@ -1870,7 +1870,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         scroll.addView(row);
         items.add(UItem.asHeader(getString(R.string.PengramQuickNavigate)));
-        items.add(UItem.asCustom(scroll));
+        items.add(UItem.asCustom(scroll, 52));
         items.add(UItem.asShadow(null));
     }
 

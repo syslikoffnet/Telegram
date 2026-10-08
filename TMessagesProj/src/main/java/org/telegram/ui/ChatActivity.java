@@ -20406,7 +20406,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                     actionsButtonsLayout.showReplyButton(newVisibility == View.VISIBLE, true);
                     actionsButtonsLayout.showQuoteButton(!noforwards && currentEncryptedChat == null
-                            && selectedCount > 0 && selectedCount <= org.telegram.ui.Components.PengramQuoteMaker.MAX_MESSAGES, true);
+                            && selectedCount > 0, true);
                 }
 
                 if (editItem != null) {

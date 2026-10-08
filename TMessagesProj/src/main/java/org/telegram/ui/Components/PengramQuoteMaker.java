@@ -105,8 +105,8 @@ public final class PengramQuoteMaker {
                 }
                 if (TextUtils.isEmpty(entry.name)) entry.name = activity.getString(R.string.PengramQuoteUnknown);
             }
-            entry.text = message.messageText == null ? "" : message.messageText.toString();
-            if (TextUtils.isEmpty(entry.text) && message.caption != null) entry.text = message.caption.toString();
+            entry.text = !TextUtils.isEmpty(message.caption) ? message.caption.toString()
+                    : message.messageText == null ? "" : message.messageText.toString();
             if (message.isPhoto() && !PengramConfig.getBool(KEY_MEDIA, true) && TextUtils.isEmpty(entry.text)) {
                 entry.text = activity.getString(R.string.PengramQuotePhoto);
             } else if (TextUtils.isEmpty(entry.text) && message.isVideo()) {
