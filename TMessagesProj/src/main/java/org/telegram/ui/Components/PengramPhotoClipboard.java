@@ -60,13 +60,13 @@ public final class PengramPhotoClipboard {
         }
         if (message != null && isSensitive(message)) {
             release(preview);
-            notify(activity, result, R.string.PengramPhotoCopyRestricted);
+            reportResult(activity, result, R.string.PengramPhotoCopyRestricted);
             return;
         }
         if (message != null && (!message.isPhoto() || message.messageOwner == null)
                 || message == null && preferred == null && preview == null) {
             release(preview);
-            notify(activity, result, R.string.PengramPhotoCopyError);
+            reportResult(activity, result, R.string.PengramPhotoCopyError);
             return;
         }
         copyAvailable(activity, message, preferred, preview, result, true);
@@ -83,7 +83,7 @@ public final class PengramPhotoClipboard {
                     return;
                 }
                 if (source == null && (preview == null || preview.bitmap == null || preview.bitmap.isRecycled())) {
-                    notify(activity, result, R.string.PengramPhotoCopyDownload);
+                    reportResult(activity, result, R.string.PengramPhotoCopyDownload);
                     return;
                 }
                 File dir = new File(activity.getFilesDir(), "cache/pengram_photo_clipboard");
@@ -125,7 +125,7 @@ public final class PengramPhotoClipboard {
                         if (scaled != visible) scaled.recycle();
                     }
                 } else {
-                    notify(activity, result, R.string.PengramPhotoCopyDownload);
+                    reportResult(activity, result, R.string.PengramPhotoCopyDownload);
                     return;
                 }
                 if (!target.isFile() || target.length() == 0) throw new IllegalStateException("Empty photo copy");
@@ -137,16 +137,16 @@ public final class PengramPhotoClipboard {
                         ClipboardManager clipboard = (ClipboardManager) activity.getSystemService(Context.CLIPBOARD_SERVICE);
                         if (clipboard == null) throw new IllegalStateException("Clipboard unavailable");
                         clipboard.setPrimaryClip(ClipData.newUri(activity.getContentResolver(), "Photo", uri));
-                        notify(activity, result, copiedPreview ? R.string.PengramPhotoCopiedPreview : R.string.PengramPhotoCopied);
+                        reportResult(activity, result, copiedPreview ? R.string.PengramPhotoCopiedPreview : R.string.PengramPhotoCopied);
                     } catch (Throwable e) {
                         FileLog.e(e);
                         target.delete();
-                        notify(activity, result, R.string.PengramPhotoCopyError);
+                        reportResult(activity, result, R.string.PengramPhotoCopyError);
                     }
                 });
             } catch (Throwable e) {
                 FileLog.e(e);
-                notify(activity, result, R.string.PengramPhotoCopyError);
+                reportResult(activity, result, R.string.PengramPhotoCopyError);
             } finally {
                 release(preview);
             }
@@ -163,7 +163,7 @@ public final class PengramPhotoClipboard {
             try {
                 FileLoader.getInstance(message.currentAccount).loadFile(
                         ImageLocation.getForObject(size, media.photo), message, null, FileLoader.PRIORITY_HIGH, 0);
-                notify(activity, result, R.string.PengramPhotoCopyLoading);
+                reportResult(activity, result, R.string.PengramPhotoCopyLoading);
                 long deadline = SystemClock.elapsedRealtime() + 20000;
                 Utilities.globalQueue.postRunnable(new Runnable() {
                     @Override
@@ -174,13 +174,13 @@ public final class PengramPhotoClipboard {
                         } else if (SystemClock.elapsedRealtime() < deadline) {
                             Utilities.globalQueue.postRunnable(this, 350);
                         } else {
-                            notify(activity, result, R.string.PengramPhotoCopyDownload);
+                            reportResult(activity, result, R.string.PengramPhotoCopyDownload);
                         }
                     }
                 }, 350);
             } catch (Throwable e) {
                 FileLog.e(e);
-                notify(activity, result, R.string.PengramPhotoCopyDownload);
+                reportResult(activity, result, R.string.PengramPhotoCopyDownload);
             }
         });
         return true;
@@ -230,7 +230,7 @@ public final class PengramPhotoClipboard {
         if (holder != null) holder.release();
     }
 
-    private static void notify(Activity activity, Consumer<CharSequence> result, int stringId) {
+    private static void reportResult(Activity activity, Consumer<CharSequence> result, int stringId) {
         AndroidUtilities.runOnUIThread(() -> {
             if (result == null || activity.isFinishing() || activity.isDestroyed()) return;
             try {
