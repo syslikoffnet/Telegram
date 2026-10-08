@@ -1256,6 +1256,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_SAVE = 923;
     public final static int OPTION_PENGRAM_AI = 924;
     public final static int OPTION_PENGRAM_QUOTE = 925;
+    public final static int OPTION_PENGRAM_COPY_PHOTO = 926;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -34540,6 +34541,10 @@ public class ChatActivity extends BaseFragment implements
                 pengramAskAI(selectedObject);
                 break;
             }
+            case OPTION_PENGRAM_COPY_PHOTO: {
+                org.telegram.ui.Components.PengramPhotoClipboard.copy(this, selectedObject);
+                break;
+            }
             case OPTION_PENGRAM_QUOTE: {
                 ArrayList<MessageObject> quote = new ArrayList<>();
                 if (selectedObject != null) quote.add(selectedObject);
@@ -47105,7 +47110,7 @@ public class ChatActivity extends BaseFragment implements
             icons.add(R.drawable.msg_copy);
         }
         // Pengram: отдать текст сообщения своей нейросети
-        if (!message.isSponsored() && !TextUtils.isEmpty(pengramAIText(message))) {
+        if (PengramConfig.getBool("messageMenuAskAI", false) && !message.isSponsored() && !TextUtils.isEmpty(pengramAIText(message))) {
             items.add(LocaleController.getString(R.string.PengramAIMenu));
             options.add(OPTION_PENGRAM_AI);
             icons.add(R.drawable.msg_bot);
@@ -47120,12 +47125,20 @@ public class ChatActivity extends BaseFragment implements
             icons.add(R.drawable.msg_copy);
         }
 
+        if (message.isPhoto() && !message.isSponsored() && currentEncryptedChat == null && !isPeerNoForwards()
+                && !message.messageOwner.noforwards && !message.isSecretMedia()) {
+            items.add(LocaleController.getString(R.string.PengramPhotoCopy));
+            options.add(OPTION_PENGRAM_COPY_PHOTO);
+            icons.add(R.drawable.msg_copy);
+        }
+
         // Pengram: удалёнки и одноразки отправляем копией от своего лица
-        if (pengramCanResend(message)) {
+        if (pengramCanResend(message) && PengramConfig.getBool("messageMenuResendHere", false)) {
             items.add(LocaleController.getString(R.string.PengramResendHere));
             options.add(OPTION_PENGRAM_RESEND);
             icons.add(R.drawable.msg_send);
-
+        }
+        if (pengramCanResend(message) && PengramConfig.getBool("messageMenuResendTo", false)) {
             items.add(LocaleController.getString(R.string.PengramResendTo));
             options.add(OPTION_PENGRAM_RESEND_TO);
             icons.add(R.drawable.msg_forward);

@@ -1065,8 +1065,8 @@
     <string name="PengramQuoteLogoClear">Убрать логотип</string>
     <string name="PengramQuoteLogoSize">Размер логотипа</string>
     <string name="PengramQuoteLogoError">Не удалось открыть изображение. Выберите PNG или JPEG до 4 МБ.</string>
-    <string name="PengramQuoteAvatar">Инициалы отправителей</string>
-    <string name="PengramQuoteAvatarInfo">Декоративные инициалы, не фото профиля. Скрываются вместе с именами.</string>
+    <string name="PengramQuoteAvatar">Аватарки отправителей</string>
+    <string name="PengramQuoteAvatarInfo">Фото профиля при наличии, иначе инициалы. Скрываются вместе с именами.</string>
     <string name="PengramQuoteSection">Создание цитат</string>
     <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
     <string name="PengramQuoteNames">Показывать имена отправителей</string>
@@ -1697,4 +1697,17 @@
     <string name="PengramAIAutoChatsShort">чатов</string>
     <string name="PengramAIAutoLastEvent">Последнее событие: </string>
     <string name="PengramAIAutoJump">Показать наблюдаемые чаты</string>
+    <string name="PengramPhotoCopy">Копировать фото</string>
+    <string name="PengramPhotoCopied">Фото скопировано</string>
+    <string name="PengramPhotoCopyDownload">Сначала скачайте фото</string>
+    <string name="PengramPhotoCopyRestricted">Защищённое фото нельзя скопировать</string>
+    <string name="PengramPhotoCopyError">Не удалось скопировать фото</string>
+    <string name="PengramHistoryResendCopy">Отправить копию в чат</string>
+    <string name="PengramHistoryCopyUnavailable">Не удалось отправить копию: файл уже недоступен</string>
+    <string name="PengramHistoryMediaUnavailable">Медиафайл больше не доступен на устройстве</string>
+    <string name="PengramQuoteMore">Ещё</string>
+    <string name="PengramQuoteBehavior">Создание цитаты</string>
+    <string name="PengramQuoteTapAction">После нажатия «Создать цитату»</string>
+    <string name="PengramQuoteTapPreview">Показать компактный предпросмотр</string>
+    <string name="PengramQuoteTapSend">Сразу отправить в этот чат</string>
 </resources>

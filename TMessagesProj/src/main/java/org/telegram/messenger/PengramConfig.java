@@ -1873,7 +1873,7 @@ public class PengramConfig {
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
     /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
     public static boolean isResendDeletedAsMine() { return true; }
-    public static boolean isResendMenuVisible() { return true; }
+    public static boolean isResendMenuVisible() { return getBool("messageMenuResendHere", false) || getBool("messageMenuResendTo", false); }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
     /** подпись автора в копиях; по умолчанию выключена — она раскрывает собеседника */

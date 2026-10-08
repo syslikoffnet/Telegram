@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -21,6 +22,10 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.FileLog;
+import org.telegram.messenger.MediaController;
+import org.telegram.messenger.PengramCopySender;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
@@ -39,6 +44,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 
+import java.io.File;
 import java.util.ArrayList;
 
 /**
@@ -152,6 +158,11 @@ public class PengramHistoryChatActivity extends BaseFragment {
         listView.setLayoutManager(layoutManager);
         adapter = new Adapter();
         listView.setAdapter(adapter);
+        listView.setOnItemClickListener((view, position) -> showActions(position));
+        listView.setOnItemLongClickListener((view, position) -> {
+            showActions(position);
+            return true;
+        });
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
         contentView.addView(actionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
 
@@ -353,11 +364,89 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
     }
 
+    /** Archived messages are local snapshots; never ask the server to forward a deleted original. */
+    private void showActions(int position) {
+        if (position < 0 || position >= items.size() || getParentActivity() == null) return;
+        MessageObject message = items.get(position).message;
+        if (message == null) return;
+        final boolean restricted = message.isSecretMedia() || DialogObject.isEncryptedDialog(message.getDialogId())
+                || message.messageOwner.noforwards
+                || getMessagesController().isPeerNoForwards(message.getDialogId());
+        ArrayList<CharSequence> labels = new ArrayList<>();
+        ArrayList<Runnable> actions = new ArrayList<>();
+        if (!restricted && !TextUtils.isEmpty(message.messageText)) {
+            labels.add(getString(R.string.Copy));
+            actions.add(() -> AndroidUtilities.addToClipboard(message.messageText));
+        }
+        if (message.isPhoto() && !restricted) {
+            labels.add(getString(R.string.PengramPhotoCopy));
+            actions.add(() -> org.telegram.ui.Components.PengramPhotoClipboard.copy(this, message));
+        }
+        if (!restricted) {
+            labels.add(getString(R.string.PengramHistoryResendCopy));
+            actions.add(() -> forwardCopy(message));
+        }
+        if (labels.isEmpty()) return;
+        showDialog(new AlertDialog.Builder(getParentActivity())
+                .setItems(labels.toArray(new CharSequence[0]), (dialog, which) -> actions.get(which).run())
+                .create());
+    }
+
+    private void forwardCopy(MessageObject message) {
+        Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putBoolean("canSelectTopics", true);
+        args.putBoolean("checkCanWrite", true);
+        args.putBoolean("allowGlobalSearch", true);
+        DialogsActivity picker = new DialogsActivity(args);
+        picker.setDelegate((fragment, dids, text, param, notify, scheduleDate, repeat, topicsFragment) -> {
+            if (dids == null || dids.isEmpty() || dids.get(0) == null || dids.get(0).dialogId == 0) return false;
+            long target = dids.get(0).dialogId;
+            ArrayList<MessageObject> copies = new ArrayList<>();
+            copies.add(message);
+            PengramCopySender.sendCopies(currentAccount, copies, target, (sent, failed) -> {
+                if (getParentActivity() != null && failed > 0) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                            getString(R.string.PengramHistoryCopyUnavailable)).show();
+                }
+            });
+            fragment.finishFragment();
+            return true;
+        });
+        presentFragment(picker);
+    }
+
+    private void openArchivedMedia(MessageObject message) {
+        if (message == null || message.messageOwner == null || getParentActivity() == null) return;
+        File local = FileLoader.getInstance(currentAccount).getPathToMessage(message.messageOwner);
+        if ((local == null || !local.isFile()) && !TextUtils.isEmpty(message.messageOwner.attachPath)) {
+            local = new File(message.messageOwner.attachPath);
+        }
+        if (local == null || !local.isFile() || local.length() == 0) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                    getString(R.string.PengramHistoryMediaUnavailable)).show();
+            return;
+        }
+        try {
+            if (message.isVoice() || message.isMusic()) {
+                MediaController.getInstance().playMessage(message);
+            } else if (message.isPhoto() || message.isVideo() || message.isRoundVideo()) {
+                PhotoViewer.getInstance().setParentActivity(this);
+                PhotoViewer.getInstance().openPhoto(message, null, 0, 0, 0,
+                        new PhotoViewer.EmptyPhotoViewerProvider());
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                    getString(R.string.PengramHistoryMediaUnavailable)).show();
+        }
+    }
+
     private class Adapter extends RecyclerListView.SelectionAdapter {
 
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
-            return false;
+            return true;
         }
 
         @NonNull
@@ -384,7 +473,24 @@ public class PengramHistoryChatActivity extends BaseFragment {
             cell.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {
                 @Override
                 public boolean canPerformActions() {
-                    return false;
+                    return true;
+                }
+
+                @Override
+                public boolean needPlayMessage(ChatMessageCell cell, MessageObject message, boolean muted) {
+                    openArchivedMedia(message);
+                    return MediaController.getInstance().isPlayingMessage(message);
+                }
+
+                @Override
+                public void didPressImage(ChatMessageCell cell, float x, float y, boolean fullPreview) {
+                    openArchivedMedia(cell.getMessageObject());
+                }
+
+                @Override
+                public void didLongPress(ChatMessageCell cell, float x, float y) {
+                    int index = listView.getChildAdapterPosition((View) cell.getParent());
+                    showActions(index);
                 }
             });
             layout.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));

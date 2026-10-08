@@ -329,6 +329,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_QUOTE_WATERMARK_POS = 1026;
     private static final int BTN_QUOTE_LOGO = 1027;
     private static final int BTN_QUOTE_LOGO_CLEAR = 1028;
+    private static final int BTN_QUOTE_ACTION_MODE = 1029;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
@@ -3468,10 +3469,19 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
         items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
         items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
+        items.add(check("messageMenuResendHere", false, getString(R.string.PengramResendHere)));
+        items.add(check("messageMenuAskAI", false, getString(R.string.PengramAIMenu)));
+        items.add(check("messageMenuResendTo", false, getString(R.string.PengramResendTo)));
         items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
     }
 
     private void fillQuotes(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteBehavior)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_ACTION_MODE, R.drawable.msg_send,
+                getString(R.string.PengramQuoteTapAction), getString(
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, 0) == 1
+                                ? R.string.PengramQuoteTapSend : R.string.PengramQuoteTapPreview)));
+        items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramQuotePrivacyHeader)));
         items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true,
                 getString(R.string.PengramQuoteNames), getString(R.string.PengramQuoteNamesInfo)));
@@ -4274,6 +4284,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_QUOTES:
                 presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
+                return;
+            case BTN_QUOTE_ACTION_MODE:
+                showChoicePicker(getString(R.string.PengramQuoteTapAction), new CharSequence[]{
+                        getString(R.string.PengramQuoteTapPreview), getString(R.string.PengramQuoteTapSend)
+                }, PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, 0),
+                        value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, value));
                 return;
             case BTN_QUOTE_STYLE:
                 final String[] quoteStyles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);

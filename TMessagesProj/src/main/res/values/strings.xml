@@ -12037,8 +12037,8 @@
     <string name="PengramQuoteLogoClear">Remove logo</string>
     <string name="PengramQuoteLogoSize">Logo size</string>
     <string name="PengramQuoteLogoError">Could not open this image. Choose a PNG or JPEG up to 4 MB.</string>
-    <string name="PengramQuoteAvatar">Sender initials</string>
-    <string name="PengramQuoteAvatarInfo">Decorative initials, not a downloaded profile picture. Hidden when sender names are hidden.</string>
+    <string name="PengramQuoteAvatar">Sender avatars</string>
+    <string name="PengramQuoteAvatarInfo">Profile photos when available, initials otherwise. Hidden with names.</string>
     <string name="PengramQuoteSection">Create quotes</string>
     <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>
     <string name="PengramQuoteNames">Show sender names</string>
@@ -12669,4 +12669,17 @@
     <string name="PengramAIAutoChatsShort">chats</string>
     <string name="PengramAIAutoLastEvent">Last event: </string>
     <string name="PengramAIAutoJump">View watched chats</string>
+    <string name="PengramPhotoCopy">Copy photo</string>
+    <string name="PengramPhotoCopied">Photo copied</string>
+    <string name="PengramPhotoCopyDownload">Download the photo first</string>
+    <string name="PengramPhotoCopyRestricted">Copying is unavailable for protected photos</string>
+    <string name="PengramPhotoCopyError">Could not copy the photo</string>
+    <string name="PengramHistoryResendCopy">Send a copy to chat</string>
+    <string name="PengramHistoryCopyUnavailable">Could not send this archived message; the original media may be unavailable</string>
+    <string name="PengramHistoryMediaUnavailable">Media is no longer available locally</string>
+    <string name="PengramQuoteMore">More options</string>
+    <string name="PengramQuoteBehavior">When creating a quote</string>
+    <string name="PengramQuoteTapAction">After tapping Create quote</string>
+    <string name="PengramQuoteTapPreview">Open compact preview</string>
+    <string name="PengramQuoteTapSend">Send to this chat immediately</string>
 </resources>
