@@ -205,6 +205,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_AUTO_CONTEXT = 1738;
     private static final int BTN_AI_AUTO_SPAM_COUNT = 1739;
     private static final int BTN_AI_AUTO_SPAM_PAUSE = 1740;
+    private static final int BTN_AI_AUTO_CONTEXT_LIMIT = 1741;
     private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
@@ -2741,8 +2742,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (PengramConfig.isForcedSnow()) {
             items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
                     getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
-            if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUN) {
-                items.add(UItem.asShadow(getString(R.string.PengramParticleSunInfo)));
+            if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUNWHEEL) {
+                items.add(UItem.asShadow(getString(R.string.PengramParticleSunwheelInfo)));
             }
             items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
             items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
@@ -2924,7 +2925,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private CharSequence[] particleNames() {
         return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
                 getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
-                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSun)};
+                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSunwheel)};
     }
 
     private CharSequence voiceModeDescription(int mode) {
@@ -4717,6 +4718,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 org.telegram.messenger.PengramAIAutoReply::contextEnabled,
                 () -> org.telegram.messenger.PengramAIAutoReply.setContextEnabled(
                         !org.telegram.messenger.PengramAIAutoReply.contextEnabled())));
+        if (org.telegram.messenger.PengramAIAutoReply.contextEnabled()) {
+            items.add(UItem.asButton(BTN_AI_AUTO_CONTEXT_LIMIT, getString(R.string.PengramAIAutoContextLimit),
+                    String.valueOf(org.telegram.messenger.PengramAIAutoReply.contextLimit())));
+        }
         final String autoStyle = org.telegram.messenger.PengramAIAutoReply.style();
         items.add(UItem.asButton(BTN_AI_AUTO_STYLE, R.drawable.msg_edit,
                 getString(R.string.PengramAIAutoStyle), TextUtils.isEmpty(autoStyle)
@@ -5189,6 +5194,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                                 org.telegram.messenger.PengramAIAutoReply.setCooldownMinutes(Integer.parseInt(value.trim()));
                                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                             } catch (NumberFormatException ignore) {}
+                        });
+                return true;
+            case BTN_AI_AUTO_CONTEXT_LIMIT:
+                showTextDialog(getString(R.string.PengramAIAutoContextLimit),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.contextLimit()), "3", value -> {
+                            try {
+                                final int count = Integer.parseInt(value.trim());
+                                if (count < 1 || count > org.telegram.messenger.PengramAIAutoReply.MAX_CONTEXT_LINES)
+                                    throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setContextLimit(count);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoContextLimitError)).show();
+                            }
                         });
                 return true;
             case BTN_AI_AUTO_SPAM_COUNT:

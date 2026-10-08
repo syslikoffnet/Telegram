@@ -11925,7 +11925,9 @@
     <string name="PengramOriginalNameNothing">Pengram has not seen the official name of this person yet</string>
     <string name="PengramAIAutoHeader">Auto replies · selected chats only</string>
     <string name="PengramAIAutoContext">Recent context for auto-replies</string>
-    <string name="PengramAIAutoContextInfo">Off by default. If enabled, up to 3 previous short texts from connected chats seen while the app runs may go to the AI service. Groups: only that sender and your replies to them. No stored history.</string>
+    <string name="PengramAIAutoContextInfo">Off by default. If enabled, up to the selected number of recent short texts seen while the app runs may go to the AI service, in addition to the new message. Only selected chats; in groups, only that sender and your replies to them. No stored history is read.</string>
+    <string name="PengramAIAutoContextLimit">Previous messages for auto-reply</string>
+    <string name="PengramAIAutoContextLimitError">Enter a limit from 1 to 20 messages.</string>
     <string name="PengramAIAutoMaster">Auto-reply</string>
     <string name="PengramAIAutoOn">On · tap to stop immediately</string>
     <string name="PengramAIAutoOff">Off for all chats</string>
@@ -12518,8 +12520,8 @@
     <string name="PengramParticleMatrix">Matrix</string>
     <string name="PengramParticleRain">Rain</string>
     <string name="PengramParticleLeaves">Autumn leaves</string>
-    <string name="PengramParticleSun">Little suns</string>
-    <string name="PengramParticleSunInfo">Warm, softly glowing suns drift upward, shimmer and slowly rotate. Adjust their density, opacity and motion below.</string>
+    <string name="PengramParticleSunwheel">Sunwheel</string>
+    <string name="PengramParticleSunwheelInfo">Eight bent golden spokes form a glowing sunwheel that drifts upward and rotates. Adjust its density, opacity and movement below.</string>
     <string name="PengramParticleCount">Particle count</string>
     <string name="PengramParticleOpacity">Opacity</string>
     <string name="PengramParticleSpeed">Movement speed</string>

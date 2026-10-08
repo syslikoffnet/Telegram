@@ -953,7 +953,9 @@
     <string name="PengramOriginalNameNothing">Pengram ещё не видел официального имени этого человека</string>
     <string name="PengramAIAutoHeader">Автоответы · только выбранные чаты</string>
     <string name="PengramAIAutoContext">Недавний контекст для автоответов</string>
-    <string name="PengramAIAutoContextInfo">По умолчанию выключено. При включении до 3 коротких предыдущих текстов из подключённых чатов, увиденных при работе приложения, могут передаваться AI-сервису. Группы: только этот автор и ваши ответы ему. История из хранилища не читается.</string>
+    <string name="PengramAIAutoContextInfo">По умолчанию выключено. При включении до заданного числа коротких предыдущих сообщений, увиденных при работе приложения, могут передаваться AI-сервису вместе с новым сообщением. Только выбранные чаты; в группах — лишь этот автор и ваши ответы ему. История из хранилища не читается.</string>
+    <string name="PengramAIAutoContextLimit">Предыдущих сообщений для автоответа</string>
+    <string name="PengramAIAutoContextLimitError">Введите лимит от 1 до 20 сообщений.</string>
     <string name="PengramAIAutoMaster">Автоответчик</string>
     <string name="PengramAIAutoOn">Включён · нажмите для немедленной остановки</string>
     <string name="PengramAIAutoOff">Выключен для всех чатов</string>
@@ -1546,8 +1548,8 @@
     <string name="PengramParticleMatrix">Матрица</string>
     <string name="PengramParticleRain">Дождь</string>
     <string name="PengramParticleLeaves">Осенние листья</string>
-    <string name="PengramParticleSun">Солнышки</string>
-    <string name="PengramParticleSunInfo">Тёплые солнышки с мягким свечением поднимаются вверх, мерцают и медленно вращаются. Ниже можно настроить их плотность, прозрачность и движение.</string>
+    <string name="PengramParticleSunwheel">Солнцеворот</string>
+    <string name="PengramParticleSunwheelInfo">Светящийся солнцеворот с восемью загнутыми лучами поднимается и вращается. Ниже можно настроить плотность, прозрачность и движение.</string>
     <string name="PengramParticleCount">Количество частиц</string>
     <string name="PengramParticleOpacity">Прозрачность</string>
     <string name="PengramParticleSpeed">Скорость движения</string>

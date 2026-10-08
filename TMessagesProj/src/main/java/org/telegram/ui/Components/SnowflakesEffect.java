@@ -47,7 +47,7 @@ public class SnowflakesEffect {
     private final CustomParticle[] customParticles = new CustomParticle[300];
     private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path customPath = new Path();
-    private Bitmap sunBitmap; // Created once, only if the Sun style is selected.
+    private Bitmap sunwheelBitmap; // Built once on demand and shared by every particle.
     private static final char[] MATRIX_DIGITS = "0123456789".toCharArray();
     private long customTime;
     private int customMode = -1;
@@ -56,47 +56,53 @@ public class SnowflakesEffect {
         float x, y, size, speed, phase, spin;
     }
 
-    /** Draw one stylized sun into a tiny reusable sprite; no font/emoji dependencies. */
-    private static Bitmap createSunBitmap() {
+    /** Eight bent spokes form a rotating sunwheel, independent of emoji/fonts. */
+    private static Bitmap createSunwheelBitmap() {
         final int size = Math.max(1, dp(40));
         final float center = size / 2f;
         final Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         final Canvas canvas = new Canvas(bitmap);
         final Paint halo = new Paint(Paint.ANTI_ALIAS_FLAG);
         halo.setShader(new RadialGradient(center, center, dp(17),
-                new int[]{0x60ffcf65, 0x24ffb944, 0x00ffb944},
-                new float[]{0f, 0.52f, 1f}, Shader.TileMode.CLAMP));
+                new int[]{0x48ffca59, 0x20ffae35, 0x00ffae35},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawCircle(center, center, dp(17), halo);
 
-        final Paint sun = new Paint(Paint.ANTI_ALIAS_FLAG);
-        sun.setStrokeCap(Paint.Cap.ROUND);
+        final Paint spoke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        spoke.setStyle(Paint.Style.STROKE);
+        spoke.setStrokeCap(Paint.Cap.ROUND);
+        spoke.setStrokeJoin(Paint.Join.ROUND);
+        final Path ray = new Path();
         for (int layer = 0; layer < 2; layer++) {
-            sun.setColor(layer == 0 ? 0xb986440d : 0xffffbd42);
-            sun.setStrokeWidth(dp(layer == 0 ? 3f : 1.8f));
+            spoke.setColor(layer == 0 ? 0xcf8e440e : 0xffffd06a);
+            spoke.setStrokeWidth(dp(layer == 0 ? 3.5f : 2.2f));
             for (int i = 0; i < 8; i++) {
                 final double angle = i * Math.PI / 4;
                 final float dx = (float) Math.cos(angle);
                 final float dy = (float) Math.sin(angle);
-                canvas.drawLine(center + dx * dp(10), center + dy * dp(10),
-                        center + dx * dp(14), center + dy * dp(14), sun);
+                // All tips bend in the same direction, rather than radiating straight out.
+                ray.reset();
+                ray.moveTo(center + dx * dp(4.5f), center + dy * dp(4.5f));
+                ray.lineTo(center + dx * dp(11f), center + dy * dp(11f));
+                ray.lineTo(center + dx * dp(12f) - dy * dp(4.5f),
+                        center + dy * dp(12f) + dx * dp(4.5f));
+                canvas.drawPath(ray, spoke);
             }
         }
-        sun.setStyle(Paint.Style.FILL);
-        sun.setColor(0xffad601c);
-        canvas.drawCircle(center, center, dp(8), sun);
-        sun.setColor(0xffffc84d);
-        canvas.drawCircle(center, center, dp(6.6f), sun);
-        sun.setColor(0xfffff2a9);
-        canvas.drawCircle(center - dp(1.6f), center - dp(1.8f), dp(2.2f), sun);
+        spoke.setStyle(Paint.Style.FILL);
+        spoke.setColor(0xff9a4b13);
+        canvas.drawCircle(center, center, dp(4.7f), spoke);
+        spoke.setColor(0xffffd06a);
+        canvas.drawCircle(center, center, dp(3.4f), spoke);
         return bitmap;
     }
 
-    /** Reuses particles, paints and the sun sprite across frames. */
+    /** Reuses particles, paints and the sunwheel sprite across frames. */
     private void drawCustom(View parent, Canvas canvas) {
         final int mode = PengramConfig.getParticleMode();
         final int requestedCount = PengramConfig.getParticleCount();
-        // Keep the small header readable at high density; suns are deliberately larger.
-        final int count = mode == PengramConfig.PARTICLE_SUN
+        // Keep the small header readable at high density; sunwheels are deliberately larger.
+        final int count = mode == PengramConfig.PARTICLE_SUNWHEEL
                 ? (viewType == 0 ? Math.min(24, Math.max(8, requestedCount / 4))
                         : Math.max(10, requestedCount / 2))
                 : (viewType == 0 ? Math.min(120, requestedCount) : requestedCount);
@@ -112,17 +118,17 @@ public class SnowflakesEffect {
             customMode = mode;
             java.util.Arrays.fill(customParticles, null);
         }
-        if (mode == PengramConfig.PARTICLE_SUN && sunBitmap == null) {
-            sunBitmap = createSunBitmap();
+        if (mode == PengramConfig.PARTICLE_SUNWHEEL && sunwheelBitmap == null) {
+            sunwheelBitmap = createSunwheelBitmap();
         }
         final float invSwayHeight = 1f / Math.max(1, dp(35));
-        final float sway = dp(mode == PengramConfig.PARTICLE_SUN ? 9 : 3) * speed;
-        final float edge = dp(mode == PengramConfig.PARTICLE_SUN ? 20 : 12);
-        final boolean isSun = mode == PengramConfig.PARTICLE_SUN;
-        final float verticalSpeed = speed * (isSun ? -0.65f : mode == 3 ? 2.3f : 1f);
-        final float angularSpeed = rotation * (isSun ? 30f : 105f);
+        final float sway = dp(mode == PengramConfig.PARTICLE_SUNWHEEL ? 9 : 3) * speed;
+        final float edge = dp(mode == PengramConfig.PARTICLE_SUNWHEEL ? 20 : 12);
+        final boolean isSunwheel = mode == PengramConfig.PARTICLE_SUNWHEEL;
+        final float verticalSpeed = speed * (isSunwheel ? -0.65f : mode == 3 ? 2.3f : 1f);
+        final float angularSpeed = rotation * (isSunwheel ? 30f : 105f);
         final float alphaBase = 255f * opacity;
-        final float sunScaleBase = 1f / Math.max(1, dp(20));
+        final float wheelScaleBase = 1f / Math.max(1, dp(20));
         final float invHeight = 1f / height;
         final int tint = mode == 1 ? 0xffffa8cc : mode == 2 ? 0xff79f7b2
                 : mode == 4 ? 0xffffba63 : color;
@@ -136,10 +142,10 @@ public class SnowflakesEffect {
                 customParticles[i] = p;
                 p.x = Utilities.random.nextFloat() * width;
                 p.y = Utilities.random.nextFloat() * height;
-                p.size = mode == PengramConfig.PARTICLE_SUN
+                p.size = mode == PengramConfig.PARTICLE_SUNWHEEL
                         ? dp(8f + Utilities.random.nextFloat() * 4f)
                         : dp(2.5f + Utilities.random.nextFloat() * 3f);
-                p.speed = dp(mode == PengramConfig.PARTICLE_SUN
+                p.speed = dp(mode == PengramConfig.PARTICLE_SUNWHEEL
                         ? 9 + Utilities.random.nextFloat() * 10
                         : 12 + Utilities.random.nextFloat() * 22);
                 p.phase = Utilities.random.nextFloat() * 6.28f;
@@ -148,22 +154,22 @@ public class SnowflakesEffect {
             p.y += dt * p.speed * verticalSpeed;
             p.x += dt * (float) Math.sin(p.phase + p.y * invSwayHeight) * sway;
             p.spin += dt * angularSpeed;
-            if (isSun ? p.y < -edge : p.y > height + edge) {
-                p.y = isSun ? height + edge : -edge;
+            if (isSunwheel ? p.y < -edge : p.y > height + edge) {
+                p.y = isSunwheel ? height + edge : -edge;
                 p.x = Utilities.random.nextFloat() * width;
             }
             if (p.x < 0) p.x += width;
             if (p.x > width) p.x -= width;
             final float shimmer = (float) Math.sin(p.phase + p.y * invHeight * 3.14f);
             customPaint.setAlpha(Math.max(0, Math.min(255,
-                    (int) (alphaBase * (isSun ? 0.75f + 0.25f * shimmer : 0.6f + 0.4f * shimmer)))));
+                    (int) (alphaBase * (isSunwheel ? 0.75f + 0.25f * shimmer : 0.6f + 0.4f * shimmer)))));
             canvas.save();
             canvas.translate(p.x, p.y);
-            if (isSun) {
+            if (isSunwheel) {
                 canvas.rotate(p.spin);
-                final float scale = p.size * sunScaleBase;
+                final float scale = p.size * wheelScaleBase;
                 canvas.scale(scale, scale);
-                canvas.drawBitmap(sunBitmap, -sunBitmap.getWidth() / 2f, -sunBitmap.getHeight() / 2f, customPaint);
+                canvas.drawBitmap(sunwheelBitmap, -sunwheelBitmap.getWidth() / 2f, -sunwheelBitmap.getHeight() / 2f, customPaint);
             } else if (mode == 1 || mode == 4) {
                 canvas.rotate(p.spin);
                 customPath.reset();

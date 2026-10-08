@@ -23,6 +23,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     private static final String KEY_MASTER = "autoEnabled";
     private static final String KEY_STYLE = "autoStyle";
     private static final String KEY_CONTEXT = "autoRecentContext";
+    private static final String KEY_CONTEXT_LIMIT = "autoRecentContextLimit";
     private static final String KEY_QUIET_START = "autoQuietStart";
     private static final String KEY_QUIET_END = "autoQuietEnd";
     private static final String KEY_COOLDOWN = "autoCooldown";
@@ -35,7 +36,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     private static final int MIN_DELAY = 1;
     private static final int MAX_DELAY = 600;
     private static final int MAX_CONTEXT_CHATS = 48;
-    private static final int MAX_CONTEXT_LINES = 5;
+    public static final int MAX_CONTEXT_LINES = 20;
     private static final long CONTEXT_TTL_MS = 10 * 60_000L;
     private static final PengramAIAutoReply[] instances = new PengramAIAutoReply[UserConfig.MAX_ACCOUNT_COUNT];
 
@@ -168,6 +169,22 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         for (PengramAIAutoReply instance : instances) {
             if (instance != null) {
                 instance.cancelAll(); // Discard snapshots made under the previous consent state.
+                instance.recent.clear();
+            }
+        }
+    }
+    /** Previous text messages per auto-reply; never fetches stored chat history. */
+    public static int contextLimit() {
+        return Math.max(1, Math.min(MAX_CONTEXT_LINES, PengramAI.prefs().getInt(KEY_CONTEXT_LIMIT, 3)));
+    }
+    public static void setContextLimit(int value) {
+        final int bounded = Math.max(1, Math.min(MAX_CONTEXT_LINES, value));
+        if (bounded == contextLimit()) return;
+        PengramAI.prefs().edit().putInt(KEY_CONTEXT_LIMIT, bounded).apply();
+        // Pending requests contain a snapshot made with the old limit.
+        for (PengramAIAutoReply instance : instances) {
+            if (instance != null) {
+                instance.cancelAll();
                 instance.recent.clear();
             }
         }
@@ -322,7 +339,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         return redacted(text.toString());
     }
 
-    /** Collect at most five sanitized, fresh text events while explicitly enabled. */
+    /** Collect only the selected number of fresh, sanitized text events. */
     private void remember(long did, MessageObject message) {
         if (!enabled() || !contextEnabled() || rule(account, did) == null
                 || DialogObject.isEncryptedDialog(did) || message == null || message.getDialogId() != did
@@ -339,7 +356,9 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         final String text = safeIncomingText(message);
         if (TextUtils.isEmpty(text)) return;
         lines.addLast(new ContextLine(message, text.substring(0, Math.min(text.length(), 350))));
-        while (!lines.isEmpty() && (lines.size() > MAX_CONTEXT_LINES
+        final int limit = contextLimit();
+        // The triggering message is remembered before contextFor() excludes it.
+        while (!lines.isEmpty() && (lines.size() > limit + 1
                 || now - lines.peekFirst().time > CONTEXT_TTL_MS)) lines.removeFirst();
         while (recent.size() > MAX_CONTEXT_CHATS) {
             Iterator<Long> it = recent.keySet().iterator();
@@ -355,7 +374,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         if (lines == null) return "";
         final ArrayList<String> tail = new ArrayList<>();
         final long now = System.currentTimeMillis();
-        for (Iterator<ContextLine> it = lines.descendingIterator(); it.hasNext() && tail.size() < 3; ) {
+        final int limit = contextLimit();
+        for (Iterator<ContextLine> it = lines.descendingIterator(); it.hasNext() && tail.size() < limit; ) {
             ContextLine line = it.next();
             if (line.messageId >= incoming.getId() || now - line.time > CONTEXT_TTL_MS
                     || line.time > now + 30_000L
