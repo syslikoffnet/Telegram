@@ -242,6 +242,8 @@ public final class PengramSearchIndex {
             {R.string.PengramQuoteWatermark, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramQuoteWatermarkText, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramQuoteWatermarkPosition, PengramSettingsActivity.SECTION_QUOTES},
+            {R.string.PengramQuoteLogo, PengramSettingsActivity.SECTION_QUOTES},
+            {R.string.PengramQuoteLogoClear, PengramSettingsActivity.SECTION_QUOTES},
             {R.string.PengramInputAnimation, PengramSettingsActivity.SECTION_TYPING},
             {R.string.PengramInputAnimationSpeed, PengramSettingsActivity.SECTION_TYPING},
             {R.string.PengramInputAnimationIntensity, PengramSettingsActivity.SECTION_TYPING},

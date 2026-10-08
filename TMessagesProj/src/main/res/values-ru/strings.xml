@@ -1049,6 +1049,12 @@
     <string name="PengramQuoteShareError">Не удалось поделиться изображением.</string>
     <string name="PengramQuoteCopyError">Не удалось скопировать изображение.</string>
     <string name="PengramQuoteStickerError">Не удалось создать стикер. Выберите меньше сообщений или снизьте размер изображения.</string>
+    <string name="PengramQuoteLogo">Логотип водяного знака</string>
+    <string name="PengramQuoteLogoChosen">Изображение выбрано</string>
+    <string name="PengramQuoteLogoNotChosen">Выберите PNG или JPEG</string>
+    <string name="PengramQuoteLogoClear">Убрать логотип</string>
+    <string name="PengramQuoteLogoSize">Размер логотипа</string>
+    <string name="PengramQuoteLogoError">Не удалось открыть изображение. Выберите PNG или JPEG до 4 МБ.</string>
     <string name="PengramQuoteSection">Создание цитат</string>
     <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
     <string name="PengramQuoteNames">Показывать имена отправителей</string>
@@ -1060,7 +1066,7 @@
     <string name="PengramQuoteAccent">Цвет акцента</string>
     <string name="PengramQuoteDark">Тёмный фон</string>
     <string name="PengramQuoteJpeg">JPEG вместо PNG</string>
-    <string name="PengramQuoteJpegInfo">JPEG занимает меньше места; PNG лучше сохраняет чёткость текста.</string>
+    <string name="PengramQuoteJpegInfo">JPEG экономит место; при прозрачном фоне автоматически используется PNG.</string>
     <string name="PengramQuotePrivacyInfo">Цитаты создаются на устройстве. Текст сообщений может содержать личные данные; перед отправкой проверьте изображение. Недоступное медиа не подменяется незаметно.</string>
     <string name="PengramQuoteTooMany">Выберите не более 12 сообщений.</string>
     <string name="PengramQuoteUnsupported">Этот тип сообщения нельзя преобразовать в цитату.</string>

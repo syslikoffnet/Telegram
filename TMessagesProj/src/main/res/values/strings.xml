@@ -12021,6 +12021,12 @@
     <string name="PengramQuoteShareError">Could not share the image.</string>
     <string name="PengramQuoteCopyError">Could not copy the image.</string>
     <string name="PengramQuoteStickerError">Could not create a sticker. Select fewer messages or reduce the image size.</string>
+    <string name="PengramQuoteLogo">Watermark logo</string>
+    <string name="PengramQuoteLogoChosen">Image selected</string>
+    <string name="PengramQuoteLogoNotChosen">Select PNG or JPEG</string>
+    <string name="PengramQuoteLogoClear">Remove logo</string>
+    <string name="PengramQuoteLogoSize">Logo size</string>
+    <string name="PengramQuoteLogoError">Could not open this image. Choose a PNG or JPEG up to 4 MB.</string>
     <string name="PengramQuoteSection">Create quotes</string>
     <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>
     <string name="PengramQuoteNames">Show sender names</string>
@@ -12032,7 +12038,7 @@
     <string name="PengramQuoteAccent">Accent color</string>
     <string name="PengramQuoteDark">Dark background</string>
     <string name="PengramQuoteJpeg">JPEG instead of PNG</string>
-    <string name="PengramQuoteJpegInfo">JPEG uses less space; PNG keeps image and text sharp.</string>
+    <string name="PengramQuoteJpegInfo">JPEG saves space; transparent background automatically uses PNG.</string>
     <string name="PengramQuotePrivacyInfo">Quotes are created on your device. The image can contain personal information from the message text; check the preview before sharing. Unsupported or unavailable media is not silently replaced.</string>
     <string name="PengramQuoteTooMany">Select no more than 12 messages.</string>
     <string name="PengramQuoteUnsupported">This type of message cannot be quoted.</string>

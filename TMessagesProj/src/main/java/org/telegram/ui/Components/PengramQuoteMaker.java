@@ -87,6 +87,11 @@ public final class PengramQuoteMaker {
     public static final String KEY_FAKE_NAME = "quoteFakeName";
     public static final String KEY_WATERMARK_TEXT = "quoteWatermarkText";
     public static final String KEY_STICKER_TRANSPARENT = "quoteStickerTransparent";
+    public static final String KEY_LOGO_SIZE = "quoteLogoSize";
+
+    public static File logoFile(Context context) {
+        return new File(context.getFilesDir(), "pengram_quote_logo.png");
+    }
     public static final int MAX_MESSAGES = 12;
     private static final int WIDTH = 720;
     private static final long MAX_PIXELS = 7_000_000L;
@@ -224,7 +229,8 @@ public final class PengramQuoteMaker {
             imagePaths.add(local);
             entries.add(entry);
         }
-        final boolean jpeg = PengramConfig.getBool(KEY_JPEG, false);
+        final boolean jpeg = PengramConfig.getBool(KEY_JPEG, false)
+                && PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 1;
         final String chatName = chat.getCurrentChat() != null ? chat.getCurrentChat().title
                 : chat.getCurrentUser() != null ? UserObject.getUserName(chat.getCurrentUser()) : "";
         final int themedBackground = Theme.getColor(Theme.key_chat_wallpaper, chat.getResourceProvider());
@@ -260,6 +266,10 @@ public final class PengramQuoteMaker {
     }
 
     private static Bitmap decode(File file) {
+        return decode(file, false);
+    }
+
+    private static Bitmap decode(File file, boolean alpha) {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
@@ -269,7 +279,7 @@ public final class PengramQuoteMaker {
         while (bounds.outWidth / options.inSampleSize > 1100 || bounds.outHeight / options.inSampleSize > 1100) {
             options.inSampleSize *= 2;
         }
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        options.inPreferredConfig = alpha ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
         return BitmapFactory.decodeFile(file.getAbsolutePath(), options);
     }
 
@@ -292,9 +302,12 @@ public final class PengramQuoteMaker {
         final int surface = dark ? 0xff222b3b : Color.WHITE;
         final int ink = dark ? Color.WHITE : 0xff1e293b;
         final int muted = dark ? 0xffa6b4ca : 0xff77869c;
+        float fontScale = Math.max(1f, Math.min(1.55f, activity.getResources().getConfiguration().fontScale));
+        final int nameHeight = (int) Math.ceil(34 * fontScale);
+        final int timeHeight = (int) Math.ceil(28 * fontScale);
         final TextPaint body = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         body.setColor(ink);
-        body.setTextSize(27);
+        body.setTextSize(27 * fontScale);
         final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         int total = pad + 8;
         for (int i = 0; i < entries.size(); i++) {
@@ -316,8 +329,8 @@ public final class PengramQuoteMaker {
             e.layout = TextUtils.isEmpty(e.text) ? null : new StaticLayout(e.text, body, contentWidth,
                     Layout.Alignment.ALIGN_NORMAL, 1.18f, 0, false);
             final int textHeight = e.layout == null ? 0 : e.layout.getHeight();
-            e.height = 30 + (e.name == null ? 0 : 34) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
-                    + textHeight + (e.time == null ? 0 : 28) + 26;
+            e.height = 30 + (e.name == null ? 0 : nameHeight) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
+                    + textHeight + (e.time == null ? 0 : timeHeight) + 26;
             total += e.height + 16;
         }
         total += pad + 8;
@@ -339,10 +352,10 @@ public final class PengramQuoteMaker {
                 int inner = y + 30;
                 if (e.name != null) {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(25);
+                    paint.setTextSize(25 * fontScale);
                     paint.setColor(accent);
-                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint), contentWidth, TextUtils.TruncateAt.END).toString(), contentLeft, inner + 24, paint);
-                    inner += 34;
+                    canvas.drawText(TextUtils.ellipsize(e.name, new TextPaint(paint), contentWidth, TextUtils.TruncateAt.END).toString(), contentLeft, inner + 24 * fontScale, paint);
+                    inner += nameHeight;
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
                 }
                 if (e.media != null) {
@@ -372,16 +385,39 @@ public final class PengramQuoteMaker {
                 }
                 if (e.time != null) {
                     paint.setColor(muted);
-                    paint.setTextSize(19);
+                    paint.setTextSize(19 * fontScale);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                    canvas.drawText(e.time, contentLeft, inner + 24, paint);
+                    canvas.drawText(e.time, contentLeft, inner + 24 * fontScale, paint);
                 }
                 y += e.height + 16;
             }
             if (PengramConfig.getBool(KEY_WATERMARK, false)) {
-                drawWatermark(canvas, total, chatName, entries.size(), dark);
+                drawWatermark(canvas, total, PengramConfig.getBool(KEY_NAME, true) ? chatName : "",
+                        entries.size(), dark);
+                File logo = logoFile(activity);
+                if (logo.isFile()) {
+                    Bitmap mark = decode(logo, true);
+                    if (mark != null) {
+                        try {
+                            int size = Math.max(16, Math.min(128, PengramConfig.getIntCached(KEY_LOGO_SIZE, 48)));
+                            int width = Math.max(1, Math.round(size * mark.getWidth() / (float) Math.max(mark.getWidth(), mark.getHeight())));
+                            int height = Math.max(1, Math.round(size * mark.getHeight() / (float) Math.max(mark.getWidth(), mark.getHeight())));
+                            int position = Math.max(0, Math.min(5, PengramConfig.getIntCached(KEY_WATERMARK_POSITION, 0)));
+                            int x = position == 1 || position == 3 ? 30 : WIDTH - 30 - width;
+                            int top = position == 2 || position == 3 ? 24 : total - 24 - height;
+                            if (position == 4 || position == 5) { x = (WIDTH - width) / 2; top = (total - height) / 2; }
+                            paint.setAlpha(Math.round(255 * Math.max(10, Math.min(100,
+                                    PengramConfig.getIntCached(KEY_WATERMARK_OPACITY, 72))) / 100f));
+                            canvas.drawBitmap(mark, null, new Rect(x, top, x + width, top + height), paint);
+                            paint.setAlpha(255);
+                        } finally {
+                            mark.recycle();
+                        }
+                    }
+                }
             }
             File directory = activity.getExternalCacheDir();
+            if (directory == null) directory = FileLoader.getDirectory(FileLoader.MEDIA_DIR_CACHE);
             if (directory == null) directory = activity.getCacheDir();
             // Quotes are temporary and may contain personal data. Clear expired
             // render files, but keep recent ones until Telegram finishes uploading.
@@ -445,8 +481,8 @@ public final class PengramQuoteMaker {
         final int position = Math.max(0, Math.min(5, PengramConfig.getIntCached(KEY_WATERMARK_POSITION, 0)));
         if (position == 5) {
             int drawn = 0;
-            for (int y = 48; y < total - 20 && drawn < 150; y += 130) {
-                for (int x = -80; x < WIDTH - 30 && drawn < 150; x += (int) Math.max(160, measured + 48)) {
+            for (int y = 48; y < total - 20 && drawn < 400; y += 130) {
+                for (int x = -80; x < WIDTH - 30 && drawn < 400; x += (int) Math.max(160, measured + 48)) {
                     canvas.save();
                     canvas.rotate(-20, x, y);
                     canvas.drawText(label, x, y, p);
@@ -526,9 +562,11 @@ public final class PengramQuoteMaker {
         LinearLayout toggles = new LinearLayout(activity);
         toggles.setOrientation(LinearLayout.HORIZONTAL);
         int[] keys = {R.string.PengramQuoteNames, R.string.PengramQuoteTimes,
-                R.string.PengramQuoteMedia, R.string.PengramQuoteAnonMentions};
-        String[] config = {KEY_NAME, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS};
-        boolean[] defaults = {true, true, true, false};
+                R.string.PengramQuoteMedia, R.string.PengramQuoteAnonMentions,
+                R.string.PengramQuoteDark, R.string.PengramQuoteJpeg, R.string.PengramQuoteWatermark};
+        String[] config = {KEY_NAME, KEY_TIME, KEY_MEDIA, KEY_ANON_MENTIONS,
+                KEY_DARK, KEY_JPEG, KEY_WATERMARK};
+        boolean[] defaults = {true, true, true, false, false, false, false};
         for (int i = 0; i < keys.length; i++) {
             final int idx = i;
             boolean enabled = PengramConfig.getBool(config[i], defaults[i]);
@@ -541,6 +579,14 @@ public final class PengramQuoteMaker {
             lp.rightMargin = AndroidUtilities.dp(6);
             toggles.addView(chip, lp);
         }
+        TextView bgChip = action(activity, R.string.PengramQuoteBackground,
+                PengramConfig.getIntCached(KEY_BACKGROUND, 0) != 0, () -> {
+                    int next = (Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0))) + 1) % 3;
+                    PengramConfig.setIntValue(KEY_BACKGROUND, next);
+                    if (ref[0] != null) ref[0].dismiss();
+                    show(chat, selected);
+                });
+        toggles.addView(bgChip, new LinearLayout.LayoutParams(-2, -2));
         quick.addView(toggles);
         LinearLayout.LayoutParams quickParams = new LinearLayout.LayoutParams(-1, -2);
         quickParams.topMargin = AndroidUtilities.dp(8);
@@ -553,10 +599,12 @@ public final class PengramQuoteMaker {
                 send(chat, result);
                 if (ref[0] != null) ref[0].dismiss();
             });
-            addAction(activity, root, R.string.PengramQuoteSendFile, false, () -> {
-                sendDocument(chat, result);
-                if (ref[0] != null) ref[0].dismiss();
-            });
+            if (chat.getCurrentChat() == null || ChatObject.canSendDocument(chat.getCurrentChat())) {
+                addAction(activity, root, R.string.PengramQuoteSendFile, false, () -> {
+                    sendDocument(chat, result);
+                    if (ref[0] != null) ref[0].dismiss();
+                });
+            }
             if (chat.getCurrentChat() == null || ChatObject.canSendStickers(chat.getCurrentChat())) {
                 addAction(activity, root, R.string.PengramQuoteSendSticker, false, () -> {
                     if (ref[0] != null) ref[0].dismiss();
@@ -579,28 +627,74 @@ public final class PengramQuoteMaker {
         chat.showDialog(ref[0]);
     }
 
+    private static final class ZoomImageView extends ImageView {
+        private final Bitmap image;
+        private final Matrix transform = new Matrix();
+        private final ScaleGestureDetector detector;
+        private float scale = 1f;
+        private float dx, dy, lastX, lastY;
+
+        ZoomImageView(Activity activity, Bitmap bitmap) {
+            super(activity);
+            image = bitmap;
+            setImageBitmap(bitmap);
+            setScaleType(ScaleType.MATRIX);
+            detector = new ScaleGestureDetector(activity, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                @Override public boolean onScale(ScaleGestureDetector gesture) {
+                    scale = Math.max(1f, Math.min(5f, scale * gesture.getScaleFactor()));
+                    redraw();
+                    return true;
+                }
+            });
+        }
+
+        @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            redraw();
+        }
+
+        private void redraw() {
+            if (getWidth() <= 0 || getHeight() <= 0 || image.isRecycled()) return;
+            float fit = Math.min(getWidth() / (float) image.getWidth(), getHeight() / (float) image.getHeight());
+            float w = image.getWidth() * fit * scale, h = image.getHeight() * fit * scale;
+            dx = Math.max((getWidth() - w) / 2, Math.min((w - getWidth()) / 2, dx));
+            dy = Math.max((getHeight() - h) / 2, Math.min((h - getHeight()) / 2, dy));
+            if (w <= getWidth()) dx = 0;
+            if (h <= getHeight()) dy = 0;
+            transform.setScale(fit * scale, fit * scale);
+            transform.postTranslate((getWidth() - w) / 2 + dx, (getHeight() - h) / 2 + dy);
+            setImageMatrix(transform);
+        }
+
+        @Override public boolean onTouchEvent(MotionEvent event) {
+            detector.onTouchEvent(event);
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                lastX = event.getX();
+                lastY = event.getY();
+            } else if (event.getActionMasked() == MotionEvent.ACTION_MOVE && event.getPointerCount() == 1
+                    && !detector.isInProgress()) {
+                dx += event.getX() - lastX;
+                dy += event.getY() - lastY;
+                redraw();
+                lastX = event.getX();
+                lastY = event.getY();
+            } else if (event.getActionMasked() == MotionEvent.ACTION_POINTER_UP) {
+                lastX = event.getX(0);
+                lastY = event.getY(0);
+            }
+            return true;
+        }
+    }
+
     private static void zoom(Activity activity, Bitmap bitmap) {
         if (!active(activity) || bitmap == null || bitmap.isRecycled()) return;
-        ImageView picture = new ImageView(activity);
-        picture.setImageBitmap(bitmap);
-        picture.setScaleType(ImageView.ScaleType.MATRIX);
-        Matrix matrix = new Matrix();
-        ScaleGestureDetector detector = new ScaleGestureDetector(activity,
-                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                    float factor = 1f;
-                    @Override public boolean onScale(ScaleGestureDetector d) {
-                        factor = Math.max(1f, Math.min(4f, factor * d.getScaleFactor()));
-                        matrix.setScale(factor, factor, d.getFocusX(), d.getFocusY());
-                        picture.setImageMatrix(matrix);
-                        return true;
-                    }
-                });
-        picture.setOnTouchListener((v, event) -> {
-            detector.onTouchEvent(event);
-            return true;
-        });
+        ZoomImageView image = new ZoomImageView(activity, bitmap);
+        android.widget.FrameLayout frame = new android.widget.FrameLayout(activity);
+        int height = Math.max(AndroidUtilities.dp(180),
+                (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.68f));
+        frame.addView(image, new android.widget.FrameLayout.LayoutParams(-1, height));
         new AlertDialog.Builder(activity).setTitle(activity.getString(R.string.PengramQuotePreview))
-                .setView(picture).setPositiveButton(activity.getString(R.string.OK), null).show();
+                .setView(frame).setPositiveButton(activity.getString(R.string.OK), null).show();
     }
 
     private static void send(ChatActivity chat, Result result) {
@@ -628,6 +722,10 @@ public final class PengramQuoteMaker {
     private static void sendDocument(ChatActivity chat, Result result) {
         if (!result.file.isFile()) {
             error(chat, R.string.PengramQuoteRenderError);
+            return;
+        }
+        if (chat.getCurrentChat() != null && !ChatObject.canSendDocument(chat.getCurrentChat())) {
+            error(chat, R.string.PengramQuoteCannotSend);
             return;
         }
         try {
@@ -742,7 +840,14 @@ public final class PengramQuoteMaker {
                 Result source = render(activity, entries, paths, dark, style, false, true,
                         themeBackground, chatName);
                 if (source.preview != null) source.preview.recycle();
-                Bitmap bitmap = BitmapFactory.decodeFile(source.file.getAbsolutePath());
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(source.file.getAbsolutePath(), bounds);
+                BitmapFactory.Options sampled = new BitmapFactory.Options();
+                sampled.inSampleSize = 1;
+                while (bounds.outWidth / sampled.inSampleSize > 1024 || bounds.outHeight / sampled.inSampleSize > 1024)
+                    sampled.inSampleSize *= 2;
+                Bitmap bitmap = BitmapFactory.decodeFile(source.file.getAbsolutePath(), sampled);
                 if (bitmap == null) throw new IllegalStateException("Sticker decode failed");
                 int w = Math.max(1, Math.round(512f * bitmap.getWidth() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
                 int h = Math.max(1, Math.round(512f * bitmap.getHeight() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
@@ -854,7 +959,10 @@ public final class PengramQuoteMaker {
                 activity.getContentResolver().update(uri, visible, null, null);
             } catch (Throwable e) {
                 FileLog.e(e);
-                if (uri != null) activity.getContentResolver().delete(uri, null, null);
+                if (uri != null) {
+                    try { activity.getContentResolver().delete(uri, null, null); }
+                    catch (Throwable cleanupError) { FileLog.e(cleanupError); }
+                }
                 AndroidUtilities.runOnUIThread(() -> error(chat, R.string.PengramQuoteSaveError));
             }
         });

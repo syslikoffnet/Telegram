@@ -326,6 +326,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_QUOTE_FAKE_NAME = 1024;
     private static final int BTN_QUOTE_WATERMARK_TEXT = 1025;
     private static final int BTN_QUOTE_WATERMARK_POS = 1026;
+    private static final int BTN_QUOTE_LOGO = 1027;
+    private static final int BTN_QUOTE_LOGO_CLEAR = 1028;
+    private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
     private static final int GROUP_MENU_CHAT = 3;
@@ -2208,6 +2211,58 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_QUOTE_LOGO) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                final android.net.Uri uri = data.getData();
+                Utilities.globalQueue.postRunnable(() -> {
+                    boolean saved = false;
+                    final java.io.File temp = new java.io.File(ApplicationLoader.applicationContext.getCacheDir(),
+                            "pengram-quote-logo-in-" + System.nanoTime());
+                    try (java.io.InputStream input = ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
+                        if (input == null) throw new java.io.IOException("Image unavailable");
+                        byte[] buffer = new byte[16384];
+                        long total = 0;
+                        int n;
+                        while ((n = input.read(buffer)) != -1) {
+                            total += n;
+                            if (total > 4 * 1024 * 1024) throw new java.io.IOException("Image too large");
+                            out.write(buffer, 0, n);
+                        }
+                        android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+                        options.inJustDecodeBounds = true;
+                        android.graphics.BitmapFactory.decodeFile(temp.getAbsolutePath(), options);
+                        if (options.outWidth < 1 || options.outHeight < 1 || options.outWidth > 8192 || options.outHeight > 8192)
+                            throw new java.io.IOException("Unsupported image");
+                        options.inJustDecodeBounds = false;
+                        options.inSampleSize = 1;
+                        while (options.outWidth / options.inSampleSize > 512 || options.outHeight / options.inSampleSize > 512)
+                            options.inSampleSize *= 2;
+                        android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(temp.getAbsolutePath(), options);
+                        if (bitmap == null) throw new java.io.IOException("Image decode failed");
+                        try (java.io.FileOutputStream logoOut = new java.io.FileOutputStream(
+                                org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext))) {
+                            if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, logoOut))
+                                throw new java.io.IOException("Image save failed");
+                            saved = true;
+                        } finally {
+                            bitmap.recycle();
+                        }
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                    } finally {
+                        temp.delete();
+                        if (!saved) org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext).delete();
+                    }
+                    final boolean success = saved;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!success) BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteLogoError)).show();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    });
+                });
+            }
+            return;
+        }
         if (requestCode != REQUEST_PICK_BACKUP || data == null || data.getData() == null) {
             return;
         }
@@ -3472,6 +3527,18 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_QUOTE_WATERMARK_POS, R.drawable.msg_openprofile,
                     getString(R.string.PengramQuoteWatermarkPosition),
                     getContext().getResources().getStringArray(R.array.pengram_quote_positions)[position]));
+            final java.io.File logo = org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext());
+            items.add(UItem.asSettingsCell(BTN_QUOTE_LOGO, R.drawable.msg_photo_settings,
+                    getString(R.string.PengramQuoteLogo), logo.isFile() ? getString(R.string.PengramQuoteLogoChosen)
+                            : getString(R.string.PengramQuoteLogoNotChosen)));
+            if (logo.isFile()) {
+                items.add(UItem.asButton(BTN_QUOTE_LOGO_CLEAR, R.drawable.msg_delete,
+                        getString(R.string.PengramQuoteLogoClear)).red());
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteLogoSize)));
+                items.add(UItem.asIntSlideView(1, 16, Math.max(16, Math.min(128,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_LOGO_SIZE, 48))), 128,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_LOGO_SIZE, value)));
+            }
             items.add(UItem.asHeader(getString(R.string.PengramQuoteWatermarkOpacity)));
             items.add(UItem.asIntSlideView(1, 10, Math.max(10, Math.min(100,
                             PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_OPACITY, 72))), 100,
@@ -4236,6 +4303,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                 showQuoteTextDialog(getString(R.string.PengramQuoteWatermarkText), PengramConfig.getQuoteWatermarkText(),
                         false, PengramConfig::setQuoteWatermarkText);
                 return;
+            case BTN_QUOTE_LOGO:
+                try {
+                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("image/*");
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(intent, REQUEST_PICK_QUOTE_LOGO);
+                } catch (Throwable e) {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteLogoError)).show();
+                }
+                return;
+            case BTN_QUOTE_LOGO_CLEAR:
+                org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
             case BTN_QUOTE_WATERMARK_POS:
                 showChoicePicker(getString(R.string.PengramQuoteWatermarkPosition),
                         getContext().getResources().getStringArray(R.array.pengram_quote_positions),
@@ -4309,6 +4391,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 b.setMessage(LocaleController.formatString(R.string.PengramResetSectionAsk, sectionTitle(section)));
                 b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
                     PengramConfig.resetKeys(keys);
+                    if (section == SECTION_QUOTES && getContext() != null)
+                        org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
                     rebuildAfterReset();
                 });
                 b.setNegativeButton(getString(R.string.Cancel), null);
@@ -4324,6 +4408,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 b.setMessage(getString(R.string.PengramResetAllAsk));
                 b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
                     PengramConfig.resetAll();
+                    if (getContext() != null) org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
                     rebuildAfterReset();
                 });
                 b.setNegativeButton(getString(R.string.Cancel), null);
