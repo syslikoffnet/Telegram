@@ -249,6 +249,11 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     public static TLRPC.Message deserialize(byte[] stored) {
+        return deserialize(stored, UserConfig.selectedAccount);
+    }
+
+    /** Deserialise against the specified account, even if the user switches accounts mid-export. */
+    public static TLRPC.Message deserialize(byte[] stored, int account) {
         final byte[] data = unpack(stored);
         if (data == null || data.length == 0) {
             return null;
@@ -260,7 +265,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             buffer.position(0);
             TLRPC.Message message = TLRPC.Message.TLdeserialize(buffer, buffer.readInt32(false), false);
             if (message != null) {
-                message.readAttachPath(buffer, UserConfig.getInstance(UserConfig.selectedAccount).clientUserId);
+                message.readAttachPath(buffer, UserConfig.getInstance(account).clientUserId);
             }
             return message;
         } catch (Throwable e) {
@@ -865,6 +870,51 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (c != null) c.close();
         }
         return result;
+    }
+
+    /** Stream deleted snapshots for one account/dialog without materialising the whole history. */
+    public interface DeletedVisitor {
+        void visit(Entry entry) throws Exception;
+    }
+
+    public static void forEachDeleted(int account, long dialogId, DeletedVisitor visitor) throws Exception {
+        PengramHistory history = getInstance();
+        if (history == null) return;
+        long lastRow = 0;
+        while (true) {
+            // Release the SQLite cursor before the visitor downloads media. Holding a read
+            // transaction across a long download would block local history writes.
+            ArrayList<Entry> batch = new ArrayList<>(64);
+            Cursor c = null;
+            try {
+                c = history.getReadableDatabase().rawQuery(
+                        "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data FROM " + TABLE +
+                        " WHERE account = ? AND dialog_id = ? AND action = ? AND id > ? ORDER BY id ASC LIMIT 64",
+                        new String[]{String.valueOf(account), String.valueOf(dialogId),
+                                String.valueOf(ACTION_DELETED), String.valueOf(lastRow)});
+                while (c.moveToNext()) {
+                    Entry e = new Entry();
+                    e.rowId = c.getLong(0);
+                    e.account = c.getInt(1);
+                    e.dialogId = c.getLong(2);
+                    e.messageId = c.getInt(3);
+                    e.fromId = c.getLong(4);
+                    e.date = c.getInt(5);
+                    e.savedAt = c.getInt(6);
+                    e.action = c.getInt(7);
+                    e.text = c.getString(8);
+                    e.prevText = c.getString(9);
+                    e.out = c.getInt(10) != 0;
+                    e.data = c.getBlob(11);
+                    batch.add(e);
+                }
+            } finally {
+                if (c != null) c.close();
+            }
+            if (batch.isEmpty()) break;
+            for (Entry entry : batch) visitor.visit(entry);
+            lastRow = batch.get(batch.size() - 1).rowId;
+        }
     }
 
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {

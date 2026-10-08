@@ -124,6 +124,8 @@ public class PengramConfig {
     /** убрать «хвостик» у пузырей сообщений */
     /** скрыть круглую кнопку «Написать» в списке чатов */
     public static final String KEY_HIDE_WRITE_BUTTON = "hideWriteButton";
+    /** Opt-in: export the opened chat history via the system document picker. */
+    public static final String KEY_EXPORT_CHAT = "exportChatEnabled";
     /** пункт «Копировать ID сообщения» в меню сообщения */
     public static final String KEY_MENU_COPY_MESSAGE_ID = "menuCopyMessageId";
     /** пункт «Сохранить в Избранное» в меню сообщения */

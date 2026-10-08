@@ -1947,6 +1947,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramIdSearchInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramBackupHeader)));
+        items.add(check(PengramConfig.KEY_EXPORT_CHAT, false, getString(R.string.PengramExportChatSetting)));
         items.add(UItem.asSettingsCell(BTN_CFG_EXPORT, R.drawable.msg_shareout, getString(R.string.PengramBackupExport),
                 LocaleController.formatString(R.string.PengramBackupCount, org.telegram.messenger.PengramBackup.countTransferable())));
         items.add(UItem.asSettingsCell(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport), null));

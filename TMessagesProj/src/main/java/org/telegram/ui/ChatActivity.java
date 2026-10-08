@@ -2627,6 +2627,40 @@ public class ChatActivity extends BaseFragment implements
     private final static int pengram_saved_media = 904;
     private final static int pengram_delete_my_messages = 905;
     private final static int pengram_chat_music = 906;
+    private long pengramExportMergeId() {
+        if (mergeDialogId != 0) return mergeDialogId;
+        if (chatInfo != null && chatInfo.migrated_from_chat_id != 0) return -chatInfo.migrated_from_chat_id;
+        if (currentChat != null && currentChat.migrated_to != null) return -currentChat.migrated_to.channel_id;
+        return 0;
+    }
+
+    /** Ignore the local forward-restriction bypass: protected peers must not be exported. */
+    public boolean pengramCanExportChat() {
+        if (chatMode != MODE_DEFAULT || dialog_id == 0 || currentEncryptedChat != null) return false;
+        if (currentChat != null) {
+            TLRPC.Chat chat = currentChat;
+            if (chat.migrated_to != null) {
+                TLRPC.Chat migrated = getMessagesController().getChat(chat.migrated_to.channel_id);
+                if (migrated != null) chat = migrated;
+            }
+            if (chat.noforwards) return false;
+        }
+        long migratedId = pengramExportMergeId();
+        if (migratedId < 0 && migratedId != dialog_id) {
+            TLRPC.Chat migratedHistory = getMessagesController().getChat(-migratedId);
+            if (migratedHistory != null && migratedHistory.noforwards) return false;
+        }
+        if (currentUser != null) {
+            TLRPC.UserFull full = userInfo != null ? userInfo : getMessagesController().getUserFull(currentUser.id);
+            if (full != null && (full.noforwards_peer_enabled || full.noforwards_my_enabled)) return false;
+        }
+        return !isPeerNoForwards();
+    }
+
+    private final static int pengram_export_chat = 907;
+    private org.telegram.ui.Components.PengramChatExport pengramChatExport;
+    private int pengramSavedExportFormat = -1;
+    private boolean pengramSavedExportMedia;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -4295,6 +4329,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onFragmentDestroy() {
+        if (pengramChatExport != null) pengramChatExport.cancel();
         super.onFragmentDestroy();
         org.telegram.messenger.PengramCopySender.removeProgressListener(pengramCopyListener);
         if (messageMetricsView != null) {
@@ -4644,7 +4679,14 @@ public class ChatActivity extends BaseFragment implements
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(final int id) {
-                if (id == pengram_deleted) {
+                if (id == pengram_export_chat) {
+                    if (org.telegram.messenger.PengramConfig.getBool(org.telegram.messenger.PengramConfig.KEY_EXPORT_CHAT, false) && pengramCanExportChat()) {
+                        final String name = currentChat != null ? currentChat.title : (currentUser != null ? org.telegram.messenger.UserObject.getUserName(currentUser) : String.valueOf(dialog_id));
+                        pengramChatExport = new org.telegram.ui.Components.PengramChatExport(ChatActivity.this, currentAccount, dialog_id, isComments ? getThreadId() : getTopicId(), pengramExportMergeId(), name);
+                        pengramChatExport.choose();
+                    }
+                    return;
+                } else if (id == pengram_deleted) {
                     openPengramHistory();
                     return;
                 } else if (id == pengram_clear_deleted) {
@@ -5276,6 +5318,9 @@ public class ChatActivity extends BaseFragment implements
             headerItem.setSubMenuDelegate(new ActionBarMenuItem.ActionBarSubMenuItemDelegate() {
                 @Override
                 public void onShowSubMenu() {
+                    if (headerItem != null) {
+                        headerItem.setSubItemShown(pengram_export_chat, org.telegram.messenger.PengramConfig.getBool(org.telegram.messenger.PengramConfig.KEY_EXPORT_CHAT, false) && pengramCanExportChat());
+                    }
                     updateScrimSourceBitmap();
                 }
 
@@ -5288,6 +5333,10 @@ public class ChatActivity extends BaseFragment implements
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
             pengramMenuAdded = false;
+            if (pengramCanExportChat()) {
+                headerItem.lazilyAddSubItem(pengram_export_chat, R.drawable.msg_download, getString(R.string.PengramExportChat))
+                        .setVisibility(org.telegram.messenger.PengramConfig.getBool(org.telegram.messenger.PengramConfig.KEY_EXPORT_CHAT, false) ? View.VISIBLE : View.GONE);
+            }
 
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
                 savedChatsItem = headerItem.lazilyAddSubItem(view_as_topics, R.drawable.msg_topics, LocaleController.getString(R.string.SavedViewAsChats));
@@ -21412,6 +21461,20 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode == org.telegram.ui.Components.PengramChatExport.REQUEST_CODE) {
+            if (pengramChatExport == null && pengramSavedExportFormat >= 0) {
+                final String name = currentChat != null ? currentChat.title : (currentUser != null ? org.telegram.messenger.UserObject.getUserName(currentUser) : String.valueOf(dialog_id));
+                pengramChatExport = new org.telegram.ui.Components.PengramChatExport(this, currentAccount, dialog_id, isComments ? getThreadId() : getTopicId(), pengramExportMergeId(), name);
+                pengramChatExport.restoreSelection(pengramSavedExportFormat, pengramSavedExportMedia);
+            }
+            if (pengramChatExport != null) {
+                pengramChatExport.onPickerResult(resultCode, data);
+            } else if (resultCode == Activity.RESULT_OK && data != null && data.getData() != null) {
+                try { getContext().getContentResolver().delete(data.getData(), null, null); } catch (Exception e) { FileLog.e(e); }
+            }
+            pengramSavedExportFormat = -1;
+            return;
+        }
         if (resultCode == Activity.RESULT_OK) {
             if (requestCode == 0 || requestCode == 2) {
                 createChatAttachView();
@@ -21521,11 +21584,17 @@ public class ChatActivity extends BaseFragment implements
         if (currentPicturePath != null) {
             args.putString("path", currentPicturePath);
         }
+        if (pengramChatExport != null) {
+            args.putInt("pengramExportFormat", pengramChatExport.selectedFormat());
+            args.putBoolean("pengramExportMedia", pengramChatExport.includesMedia());
+        }
     }
 
     @Override
     public void restoreSelfArgs(Bundle args) {
         currentPicturePath = args.getString("path");
+        pengramSavedExportFormat = args.getInt("pengramExportFormat", -1);
+        pengramSavedExportMedia = args.getBoolean("pengramExportMedia", false);
     }
 
     private boolean isSkeletonVisible() {
