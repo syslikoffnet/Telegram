@@ -50,8 +50,12 @@ public class PengramSectionHero extends FrameLayout {
     private boolean narrow;
 
     private int shaderHeight = -1;
+    private RadialGradient glowShader;
+    private float glowShaderX = Float.NaN;
+    private float glowShaderY = Float.NaN;
     private float appear;
     private float breath;
+    private ValueAnimator appearAnimator;
     private ValueAnimator breathAnimator;
 
     public PengramSectionHero(Context context, int iconRes, CharSequence title, CharSequence subtitle, int colorTop, int colorBottom) {
@@ -118,13 +122,14 @@ public class PengramSectionHero extends FrameLayout {
         iconView.animate().scaleX(1f).scaleY(1f).setDuration(420)
                 .setInterpolator(new OvershootInterpolator(2.2f)).start();
 
-        final ValueAnimator in = ValueAnimator.ofFloat(0f, 1f);
-        in.setDuration(380);
-        in.addUpdateListener(a -> {
+        if (appearAnimator != null) appearAnimator.cancel();
+        appearAnimator = ValueAnimator.ofFloat(0f, 1f);
+        appearAnimator.setDuration(380);
+        appearAnimator.addUpdateListener(a -> {
             appear = (float) a.getAnimatedValue();
             invalidate();
         });
-        in.start();
+        appearAnimator.start();
 
         if (breathAnimator == null) {
             breathAnimator = ValueAnimator.ofFloat(0f, 1f);
@@ -143,10 +148,10 @@ public class PengramSectionHero extends FrameLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        iconView.animate().cancel();
+        if (appearAnimator != null) appearAnimator.cancel();
+        if (breathAnimator != null) breathAnimator.cancel();
         super.onDetachedFromWindow();
-        if (breathAnimator != null) {
-            breathAnimator.cancel();
-        }
     }
 
     @Override
@@ -163,12 +168,23 @@ public class PengramSectionHero extends FrameLayout {
         icon.set(dp(28), narrow ? dp(24) : (height - dp(56)) / 2f,
                 dp(84), narrow ? dp(80) : (height + dp(56)) / 2f);
 
-        // дышащее свечение под значком
-        final float glowRadius = dp(36) + dp(6) * breath;
-        glowPaint.setShader(new RadialGradient(icon.centerX(), icon.centerY(), glowRadius,
-                new int[]{ColorUtils.setAlphaComponent(colorTop, (int) ((42 + 26 * breath) * appear)), 0},
-                null, Shader.TileMode.CLAMP));
-        canvas.drawCircle(icon.centerX(), icon.centerY(), glowRadius, glowPaint);
+        // Reuse the gradient: the old path allocated a shader and colors on every frame.
+        final float cx = icon.centerX(), cy = icon.centerY();
+        final float baseRadius = dp(36);
+        if (glowShader == null || glowShaderX != cx || glowShaderY != cy) {
+            glowShaderX = cx;
+            glowShaderY = cy;
+            glowShader = new RadialGradient(cx, cy, baseRadius,
+                    new int[]{ColorUtils.setAlphaComponent(colorTop, 255), 0},
+                    null, Shader.TileMode.CLAMP);
+            glowPaint.setShader(glowShader);
+        }
+        glowPaint.setAlpha((int) ((42 + 26 * breath) * appear));
+        canvas.save();
+        float glowScale = (baseRadius + dp(6) * breath) / baseRadius;
+        canvas.scale(glowScale, glowScale, cx, cy);
+        canvas.drawCircle(cx, cy, baseRadius, glowPaint);
+        canvas.restore();
 
         if (shaderHeight != height) {
             shaderHeight = height;

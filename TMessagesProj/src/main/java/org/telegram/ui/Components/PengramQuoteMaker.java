@@ -898,9 +898,11 @@ public final class PengramQuoteMaker {
         chat.showDialog(spinner);
         Utilities.globalQueue.postRunnable(() -> {
             File webp = null;
+            File sourceFile = null;
             try {
                 Result source = render(activity, entries, paths, dark, style, false, true,
                         themeBackground, chatName);
+                sourceFile = source.file;
                 if (source.preview != null) source.preview.recycle();
                 BitmapFactory.Options bounds = new BitmapFactory.Options();
                 bounds.inJustDecodeBounds = true;
@@ -913,10 +915,10 @@ public final class PengramQuoteMaker {
                 if (bitmap == null) throw new IllegalStateException("Sticker decode failed");
                 int w = Math.max(1, Math.round(512f * bitmap.getWidth() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
                 int h = Math.max(1, Math.round(512f * bitmap.getHeight() / Math.max(bitmap.getWidth(), bitmap.getHeight())));
-                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, w, h, true);
-                if (scaled != bitmap) bitmap.recycle();
-                webp = new File(source.file.getParentFile(), "pengram-quote-" + System.nanoTime() + ".webp");
+                Bitmap scaled = null;
                 try {
+                    scaled = Bitmap.createScaledBitmap(bitmap, w, h, true);
+                    webp = new File(source.file.getParentFile(), "pengram-quote-" + System.nanoTime() + ".webp");
                     for (int quality : new int[]{100, 85, 70, 55, 40}) {
                         try (FileOutputStream out = new FileOutputStream(webp)) {
                             Bitmap.CompressFormat format = Build.VERSION.SDK_INT >= 30 && quality == 100
@@ -926,15 +928,20 @@ public final class PengramQuoteMaker {
                         if (webp.length() > 0 && webp.length() <= 512 * 1024) break;
                     }
                 } finally {
-                    scaled.recycle();
+                    if (scaled != null && scaled != bitmap) scaled.recycle();
+                    bitmap.recycle();
                 }
                 if (webp.length() == 0 || webp.length() > 512 * 1024) throw new IllegalStateException("Sticker over 512 KB");
                 final File file = webp;
                 final int finalW = w, finalH = h;
                 AndroidUtilities.runOnUIThread(() -> {
                     spinner.dismiss();
-                    if (!active(chat.getParentActivity()) || !file.isFile()) return;
+                    if (!active(chat.getParentActivity()) || !file.isFile()) {
+                        file.delete();
+                        return;
+                    }
                     if (chat.getCurrentChat() != null && !ChatObject.canSendStickers(chat.getCurrentChat())) {
+                        file.delete();
                         error(chat, R.string.PengramQuoteCannotSend);
                         return;
                     }
@@ -964,6 +971,7 @@ public final class PengramQuoteMaker {
                         SendMessagesHelper.getInstance(account).sendMessage(message);
                     } catch (Throwable e) {
                         FileLog.e(e);
+                        file.delete();
                         error(chat, R.string.PengramQuoteStickerError);
                     }
                 });
@@ -975,6 +983,8 @@ public final class PengramQuoteMaker {
                     error(chat, R.string.PengramQuoteStickerError);
                 });
             } finally {
+                // Only the WebP is sent; the full-size temporary PNG is never needed again.
+                if (sourceFile != null) sourceFile.delete();
                 for (Entry entry : entries) {
                     if (entry.media != null && !entry.media.isRecycled()) entry.media.recycle();
                     entry.media = null;

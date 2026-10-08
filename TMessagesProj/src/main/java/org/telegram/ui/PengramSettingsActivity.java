@@ -2205,19 +2205,25 @@ public class PengramSettingsActivity extends UniversalFragment {
                             options.inSampleSize *= 2;
                         android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(temp.getAbsolutePath(), options);
                         if (bitmap == null) throw new java.io.IOException("Image decode failed");
-                        try (java.io.FileOutputStream logoOut = new java.io.FileOutputStream(
-                                org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext))) {
-                            if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, logoOut))
-                                throw new java.io.IOException("Image save failed");
+                        final java.io.File logo = org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext);
+                        final java.io.File replacement = new java.io.File(logo.getParentFile(),
+                                logo.getName() + "." + System.nanoTime() + ".tmp");
+                        try {
+                            try (java.io.FileOutputStream logoOut = new java.io.FileOutputStream(replacement)) {
+                                if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, logoOut))
+                                    throw new java.io.IOException("Image save failed");
+                            }
+                            // Rename on the same filesystem replaces the old logo atomically.
+                            if (!replacement.renameTo(logo)) throw new java.io.IOException("Image replace failed");
                             saved = true;
                         } finally {
                             bitmap.recycle();
+                            replacement.delete();
                         }
                     } catch (Throwable e) {
                         FileLog.e(e);
                     } finally {
                         temp.delete();
-                        if (!saved) org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext).delete();
                     }
                     final boolean success = saved;
                     AndroidUtilities.runOnUIThread(() -> {
