@@ -14173,7 +14173,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     } else if (position == pengramHistoryRow) {
                         final long did = userId != 0 ? userId : -chatId;
                         // счётчик из кэша: COUNT(*) прямо в onBindViewHolder подлагивал при прокрутке профиля
-                        final int savedCount = PengramHistory.getCountCached(did, () -> {
+                        final int savedCount = PengramHistory.getCountCached(currentAccount, did, () -> {
                             if (listAdapter != null && pengramHistoryRow >= 0) {
                                 listAdapter.notifyItemChanged(pengramHistoryRow);
                             }

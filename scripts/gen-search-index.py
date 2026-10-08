@@ -31,7 +31,6 @@ FILL_TO_SECTION = {
     "fillFreedom": "SECTION_FREEDOM",
     "fillAppearance": "SECTION_APPEARANCE",
     "fillMedia": "SECTION_MEDIA",
-    "fillPenguin": "SECTION_PENGUIN",
     "fillPlayer": "SECTION_PLAYER",
     "fillChats": "SECTION_CHATS",
     "fillChatActions": "SECTION_CHAT_ACTIONS",

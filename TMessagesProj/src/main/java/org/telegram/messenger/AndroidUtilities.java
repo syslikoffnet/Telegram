@@ -3004,7 +3004,7 @@ public class AndroidUtilities {
     }
 
     public static boolean isTablet() {
-        return isTabletInternal() && !SharedConfig.forceDisableTabletMode;
+        return !SharedConfig.forceDisableTabletMode && (SharedConfig.forceEnableTabletMode || isTabletInternal());
     }
 
     public static boolean isFold() {

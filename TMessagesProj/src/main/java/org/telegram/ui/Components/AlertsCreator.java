@@ -8125,7 +8125,7 @@ public class AlertsCreator {
         // Pengram: «Сохранить у себя» — сообщение удаляется у всех, но остаётся локально
         if (!scheduled && !isSavedMessages && !quickReplies && encryptedChat == null
                 && org.telegram.messenger.PengramConfig.isSaveForMyselfVisible()
-                && org.telegram.messenger.PengramConfig.isSavingDeleted()) {
+                && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount)) {
             final FrameLayout saveFrame = new FrameLayout(activity);
             final CheckBoxCell saveCell = new CheckBoxCell(activity, 1, resourcesProvider);
             saveCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));

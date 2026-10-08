@@ -11258,6 +11258,13 @@
     <string name="PengramGhostInfo">While ghost mode is on, others will not see that you are online, that you read their messages or that you are typing.</string>
     <string name="PengramIdCopied">ID copied to clipboard</string>
     <string name="PengramHistoryTitle">Deleted and edited</string>
+    <string name="PengramSpyAccount">Spy settings for</string>
+    <string name="PengramSpyAccountNumber">Account</string>
+    <string name="PengramSpyAllAccounts">All accounts · shared defaults</string>
+    <string name="PengramSpyOwnSettings">Individual settings for this account</string>
+    <string name="PengramSpyInherits">This account inherits the shared settings. Enable individual settings to override collection and tracking.</string>
+    <string name="PengramSpyMore">Storage, media and in-chat options</string>
+    <string name="PengramSpyScopeInfo">Storage limits, saved media and chat appearance remain shared across accounts.</string>
     <string name="PengramHistoryHeader">Message history</string>
     <string name="PengramHistorySaveDeleted">Save deleted messages</string>
     <string name="PengramHistorySaveEdited">Save edited messages</string>
@@ -11487,7 +11494,6 @@
     <string name="PengramDeletedReplyQuote">Quote deleted text in replies</string>
     <string name="PengramDeletedReplySign">Sign the quote with the author name</string>
     <string name="PengramDeletedReplyInfo">A deleted message is already gone from the server, so in private chats Pengram attaches its text to your reply as a quote — otherwise the other side sees an answer to nothing. The author name above the quote can be turned off.</string>
-    <string name="PengramPreviewInfo">This is how messages will look in chats.</string>
     <string name="PengramPreviewIncoming">Hey! Shall we go for a walk tonight?</string>
     <string name="PengramPreviewDeleted">This message was deleted, but you still see it.</string>
     <string name="PengramPreviewEdited">Sure, see you at eight 🙂</string>
@@ -11708,6 +11714,10 @@
     <string name="PengramHideWriteButton">Hide the «Write» button</string>
     <string name="PengramThreeLines">Three lines in the chat list</string>
     <string name="PengramHideArchive">Keep the archive hidden</string>
+    <string name="PengramTabletMode">Tablet layout</string>
+    <string name="PengramTabletAuto">Automatic</string>
+    <string name="PengramTabletOff">Force phone layout</string>
+    <string name="PengramTabletOn">Force tablet layout</string>
     <string name="PengramNoTabletMode">Disable tablet mode</string>
     <string name="PengramInterfaceInfo">Hidden Telegram options collected in one place.</string>
     <string name="PengramGesturesHeader">Gestures and list</string>
@@ -12060,7 +12070,6 @@
     <string name="PengramQuoteCannotSend">This chat is not available for sending photos.</string>
     <string name="PengramQuoteSaveError">Could not save the quote to the gallery.</string>
     <string name="PengramQuoteMenu">Create quote</string>
-    <string name="PengramSectionGuide">Explanations and important details</string>
     <string name="PengramAISetupHeader">AI setup</string>
     <string name="PengramAIConfiguredCount">Configured</string>
     <string name="PengramAIMoreInfo">How manual AI works</string>

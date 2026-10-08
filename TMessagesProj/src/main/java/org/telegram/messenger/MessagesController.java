@@ -11493,14 +11493,14 @@ public class MessagesController extends BaseController implements NotificationCe
     /** Pengram: сохраняем предыдущую версию отредактированного сообщения */
     private void pengramSaveEdited(TLRPC.Message message) {
         try {
-            if (message == null || !PengramConfig.isSavingEdited()) {
+            if (message == null || !PengramConfig.isSavingEdited(currentAccount)) {
                 return;
             }
-            if (message.out && !PengramConfig.isSavingOutgoing()) {
+            if (message.out && !PengramConfig.isSavingOutgoing(currentAccount)) {
                 return;
             }
             final long dialogId = MessageObject.getDialogId(message);
-            if (!PengramConfig.isSavingInBots() && getMessagesStorage().pengramIsBotDialog(dialogId)) {
+            if (!PengramConfig.isSavingInBots(currentAccount) && getMessagesStorage().pengramIsBotDialog(dialogId)) {
                 return;
             }
             final int messageId = message.id;
@@ -18974,8 +18974,8 @@ public class MessagesController extends BaseController implements NotificationCe
                         interfaceUpdateMask |= UPDATE_MASK_STATUS;
                     }
                 }
-                if (PengramConfig.isSavingReadDate()) {
-                    PengramHistory.saveReadDate(dialogId, getConnectionsManager().getCurrentTime());
+                if (PengramConfig.isSavingReadDate(currentAccount)) {
+                    PengramHistory.saveReadDate(currentAccount, dialogId, getConnectionsManager().getCurrentTime());
                 }
                 Integer value = dialogs_read_outbox_max.get(dialogId);
                 if (value == null) {
@@ -20079,11 +20079,11 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateUserStatus) {
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
-                        if (PengramConfig.isSavingLastOnline() && update.user_id != getUserConfig().getClientUserId()) {
+                        if (PengramConfig.isSavingLastOnline(currentAccount) && update.user_id != getUserConfig().getClientUserId()) {
                             if (update.status instanceof TLRPC.TL_userStatusOnline) {
-                                PengramHistory.saveLastOnline(update.user_id, getConnectionsManager().getCurrentTime());
+                                PengramHistory.saveLastOnline(currentAccount, update.user_id, getConnectionsManager().getCurrentTime());
                             } else if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
-                                PengramHistory.saveLastOnline(update.user_id, update.status.expires);
+                                PengramHistory.saveLastOnline(currentAccount, update.user_id, update.status.expires);
                             }
                         }
 

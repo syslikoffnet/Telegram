@@ -387,6 +387,7 @@ public class PengramConfig {
     }
 
     public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
+    public static boolean isKeepingDeletedInChat(int account) { return isSavingDeleted(account) && getBool(KEY_KEEP_DELETED, true); }
     public static boolean isFadingDeleted() { return getBool(KEY_FADE_DELETED, true); }
     /** ответ на удалённое в личке уходит с цитатой самого удалённого текста */
     public static boolean isDeletedReplyQuote() { return isKeepingDeletedInChat() && getBool(KEY_DELETED_REPLY_QUOTE, true); }
@@ -1026,6 +1027,66 @@ public class PengramConfig {
         historyRowInProfile = !historyRowInProfile;
         putBoolean("historyRowInProfile", historyRowInProfile);
     }
+
+    // Spy collection: global by default; an account profile overrides only explicitly set flags.
+    // Use account slot IDs, never a user ID, so a logged-out account cannot leak its settings.
+    private static String spyProfileKey(int account) { return "spyProfile_" + account; }
+    private static String spyKey(int account, String key) { return "spyAccount_" + account + "_" + key; }
+
+    public static boolean hasSpyProfile(int account) {
+        return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
+                && getBool(spyProfileKey(account), false);
+    }
+
+    public static void setSpyProfile(int account, boolean enabled) {
+        if (account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT) setBool(spyProfileKey(account), enabled);
+    }
+
+    /** Account slot reuse must never inherit a previous user's spy collection preferences. */
+    public static void clearSpyProfile(int account) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return;
+        final String[] keys = {"saveDeleted", "saveEdited", "saveOutgoing2", "saveInBots",
+                "saveReadDate", "saveLastOnline"};
+        final SharedPreferences p = prefs();
+        if (p == null) return;
+        SharedPreferences.Editor editor = p.edit().remove(spyProfileKey(account));
+        boolCache.remove(spyProfileKey(account));
+        for (String key : keys) {
+            boolCache.remove(spyKey(account, key));
+            editor.remove(spyKey(account, key));
+        }
+        editor.apply();
+    }
+
+    public static boolean getSpyOption(int account, String key) {
+        init();
+        final boolean global;
+        switch (key) {
+            case "saveDeleted": global = saveDeleted; break;
+            case "saveEdited": global = saveEdited; break;
+            case "saveOutgoing2": global = saveOutgoing; break;
+            case "saveInBots": global = saveInBots; break;
+            case "saveReadDate": global = saveReadDate; break;
+            case "saveLastOnline": global = saveLastOnline; break;
+            default: throw new IllegalArgumentException("Unknown spy option");
+        }
+        return hasSpyProfile(account) ? getBool(spyKey(account, key), global) : global;
+    }
+
+    public static void setSpyOption(int account, String key, boolean enabled) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || !hasSpyProfile(account)) return;
+        // Validate the option before writing any preference.
+        getSpyOption(account, key);
+        setBool(spyKey(account, key), enabled);
+    }
+
+    public static boolean isSavingDeleted(int account) { return getSpyOption(account, "saveDeleted"); }
+    public static boolean isSavingEdited(int account) { return getSpyOption(account, "saveEdited"); }
+    public static boolean isSavingOutgoing(int account) { return getSpyOption(account, "saveOutgoing2"); }
+    public static boolean isSavingInBots(int account) { return getSpyOption(account, "saveInBots"); }
+    public static boolean isSavingReadDate(int account) { return getSpyOption(account, "saveReadDate"); }
+    public static boolean isSavingLastOnline(int account) { return getSpyOption(account, "saveLastOnline"); }
+    public static boolean isSavingDeletedMedia(int account) { return isSavingDeleted(account) && saveDeletedMedia; }
 
     public static boolean isSavingDeleted() {
         init();

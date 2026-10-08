@@ -14546,7 +14546,7 @@ public class MessagesStorage extends BaseController {
     /** Pengram: копирует медиа удалённого сообщения в выбранную папку */
     private void pengramSaveDeletedMedia(long dialogId, TLRPC.Message message) {
         try {
-            if (!PengramConfig.isSavingDeletedMedia() || message == null || message.media == null) {
+            if (!PengramConfig.isSavingDeletedMedia(currentAccount) || message == null || message.media == null) {
                 return;
             }
             final boolean isImage = message.media instanceof TLRPC.TL_messageMediaPhoto;
@@ -14611,7 +14611,7 @@ public class MessagesStorage extends BaseController {
      * всегда берём из самой таблицы — иначе удалёнки сохранялись бы только в каналах.
      */
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
-        if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
+        if (!PengramConfig.isSavingDeleted(currentAccount) || messages == null || messages.isEmpty()) {
             return;
         }
         SQLiteCursor cursor = null;
@@ -14637,12 +14637,12 @@ public class MessagesStorage extends BaseController {
                         if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
                             continue; // «Избранное» — там ничего не пропадает
                         }
-                        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(did)) {
+                        if (!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did)) {
                             continue;
                         }
                         final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
                         final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
-                        if (message.out && !PengramConfig.isSavingOutgoing() && !forceSave) {
+                        if (message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave) {
                             continue;
                         }
                         final String text = PengramHistory.describe(message);
@@ -14747,7 +14747,7 @@ public class MessagesStorage extends BaseController {
 
                 pengramSaveDeleted(dialogId, messages);
 
-                if (currentUser != dialogId && PengramHistory.shouldKeep(messages)) {
+                if (currentUser != dialogId && PengramHistory.shouldKeep(currentAccount, messages)) {
                     // Pengram: сообщение остаётся в базе и в чате, мы только помечаем его удалённым
                     return dialogsIds;
                 }

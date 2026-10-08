@@ -29,7 +29,7 @@ public class PengramChatMenuWrapper {
         void onItem(int itemId);
     }
 
-    public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, long dialogId,
+    public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, int account, long dialogId,
                                   List<Integer> items, Theme.ResourcesProvider resourcesProvider, Callback callback) {
         windowLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, 0, resourcesProvider);
         windowLayout.setFitItems(true);
@@ -54,8 +54,8 @@ public class PengramChatMenuWrapper {
                 if (id == PengramConfig.CHAT_ITEM_VIEW_DELETED) {
                     // меню должно открыться мгновенно, поэтому число берём из кэша
                     // и дорисовываем подпись, когда счётчик досчитается в фоне
-                    final int count = PengramHistory.getCountCached(dialogId, () -> {
-                        final int fresh = PengramHistory.getCountCached(dialogId, null);
+                    final int count = PengramHistory.getCountCached(account, dialogId, () -> {
+                        final int fresh = PengramHistory.getCountCached(account, dialogId, null);
                         if (fresh > 0 && item.isAttachedToWindow()) {
                             item.setSubtext(LocaleController.formatPluralString("PengramSavedMessagesCount", fresh));
                         }

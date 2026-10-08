@@ -463,6 +463,8 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        PengramConfig.clearSpyProfile(currentAccount);
+        PengramHistory.clearAccount(currentAccount);
         getPreferences().edit().clear().apply();
 
         sharingMyLocationUntil = 0;

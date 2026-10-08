@@ -175,7 +175,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_MEDIA = 1007;
     private static final int BTN_SECTION_GENERAL = 1008;
     private static final int BTN_SECTION_CUSTOM = 1009;
-    private static final int BTN_SECTION_PENGUIN = 1010;
     private static final int BTN_SECTION_PLAYER = 1011;
     private static final int BTN_SECTION_CHAT_ACTIONS = 1012;
     private static final int BTN_SECTION_CHAT_MESSAGES = 1013;
@@ -280,6 +279,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TRACK_FORWARD_MODE = 1446;
     private static final int BTN_TRACK_CARD_FORMAT = 1447;
     private static final int BTN_QUICK_TILES = 1450;
+    private static final int BTN_TABLET_MODE = 1451;
+    private static final int BTN_SPY_ACCOUNT = 1452;
+    private static final int BTN_SPY_PROFILE = 1453;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
@@ -316,7 +318,6 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
     private static final int BTN_COLLAPSE_BASE = 3000;
-    private static final int BTN_SECTION_GUIDE = 12000;
     private static final int BTN_SECTION_TYPING = 1018;
     private static final int BTN_SECTION_QUOTES = 1019;
     private static final int BTN_QUOTE_STYLE = 1020;
@@ -336,6 +337,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_EFFECTS = 5;
     private static final int GROUP_MD3 = 6;
     private static final int GROUP_MONET = 7;
+    private static final int GROUP_SNOW = 8;
+    private static final int GROUP_TEXT = 9;
+    private static final int GROUP_SPY_ADVANCED = 10;
 
     /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
     private static String expandedKey(int group) {
@@ -375,10 +379,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
     private PengramHeaderView headerView;
-    /** раскрыт ли список подпунктов режима призрака (помним между заходами) */
-    private static boolean isGhostExpanded() {
-        return PengramConfig.getBool("uiGhostExpanded", true);
-    }
+    /** UI-only disclosure state. Reopening the section always starts compact. */
+    private boolean ghostExpanded;
+    /** -1 edits the shared defaults, otherwise edits an account override. */
+    private int spySelectedAccount = -1;
+    private final java.util.HashSet<Integer> temporaryExpanded = new java.util.HashSet<>();
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
     private org.telegram.ui.Components.PengramVoicePickerView voicePicker;
@@ -806,9 +811,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
-    /** Keep full guidance available without filling each section with paragraphs. */
-    private String sectionGuide;
-
+    /** Compact long explanations without adding another button or an extra dialog. */
     private static String shortDescription(String text, int max) {
         if (text.length() <= max) return text;
         int end = text.lastIndexOf(' ', max);
@@ -817,38 +820,19 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void compactSectionDescriptions(ArrayList<UItem> items) {
-        sectionGuide = null;
         if (section == SECTION_ROOT || section == SECTION_ABOUT || section == SECTION_AI) return;
-        final StringBuilder details = new StringBuilder();
-        String group = String.valueOf(sectionTitle(section));
-        String setting = group;
         for (int i = 0; i < items.size(); i++) {
-            final UItem item = items.get(i);
-            if (item.viewType == UniversalAdapter.VIEW_TYPE_HEADER && !TextUtils.isEmpty(item.text)) {
-                group = item.text.toString();
-            } else if (!TextUtils.isEmpty(item.text) && item.viewType != UniversalAdapter.VIEW_TYPE_SHADOW) {
-                setting = item.text.toString();
-            }
+            UItem item = items.get(i);
             if ((item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
                     || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK)
                     && !TextUtils.isEmpty(item.subtext) && item.subtext.length() > 48) {
-                details.append(setting).append("\n").append(item.subtext).append("\n\n");
                 item.subtext = shortDescription(item.subtext.toString(), 40);
             }
             if (item.viewType == UniversalAdapter.VIEW_TYPE_SHADOW
                     && !TextUtils.isEmpty(item.text) && item.text.length() > 150) {
-                details.append(group).append(" · ").append(setting).append("\n")
-                        .append(item.text).append("\n\n");
                 items.set(i, UItem.asShadow(null));
             }
         }
-        if (details.length() == 0) return;
-        sectionGuide = details.toString().trim();
-        final UItem guide = UItem.asButton(BTN_SECTION_GUIDE, R.drawable.msg_info,
-                getString(R.string.PengramSectionGuide));
-        // Right after the section cover, before the first settings group.
-        final int first = !items.isEmpty() && items.get(0).viewType == UniversalAdapter.VIEW_TYPE_CUSTOM ? 2 : 0;
-        items.add(Math.min(first, items.size()), guide);
     }
 
     // ------------------------------------------------------------ сброс настроек
@@ -1257,6 +1241,10 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** раскрыт ли блок */
     private boolean expanded(int group) {
+        if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
+                || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
+            return temporaryExpanded.contains(group);
+        }
         return PengramConfig.getBool(expandedKey(group), false);
     }
 
@@ -1534,7 +1522,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             return onOff(false);
         }
         // счётчик берём из кэша: SELECT COUNT(*) на UI-потоке подвешивал открытие настроек
-        final int count = PengramHistory.getCountCached(0, this::refreshList);
+        final int count = PengramHistory.getCountCached(-1, 0, this::refreshList);
         return count > 0 ? (getString(R.string.PengramValueOn) + " \u00b7 " + count) : onOff(true);
     }
 
@@ -1879,8 +1867,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
         items.add(sectionRow(BTN_SECTION_CUSTOM, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
                 getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
-        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph,
-                getString(R.string.PengramSectionPenguin), getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramGroupPrivacy)));
@@ -2505,15 +2491,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         previewMessages.update();
         items.add(UItem.asCustom(previewMessages));
-        items.add(UItem.asShadow(getString(R.string.PengramPreviewInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeletedLookHeader)));
-        items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
         items.add(UItem.asSettingsCell(BTN_DELETED_MARK, R.drawable.msg_delete, getString(R.string.PengramDeletedMark), markName(PengramConfig.getDeletedMark())));
+        items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
+        items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
         items.add(check(PengramConfig.KEY_MARK_EDITED, false, getString(R.string.PengramMarkEditedOption)));
-        if (PengramConfig.isMarkingEdited()) {
-            items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
-        }
         items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeleteEffectHeader)));
@@ -2602,7 +2585,63 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramHidePhoneInfo)));
     }
 
+    private String spyAccountName(int account) {
+        if (account < 0) return getString(R.string.PengramSpyAllAccounts);
+        TLRPC.User user = org.telegram.messenger.UserConfig.getInstance(account).getCurrentUser();
+        return user == null ? getString(R.string.PengramSpyAccountNumber) + " " + (account + 1)
+                : UserObject.getUserName(user);
+    }
+
+    private void showSpyAccountPicker() {
+        ArrayList<Integer> accounts = new ArrayList<>();
+        ArrayList<CharSequence> labels = new ArrayList<>();
+        accounts.add(-1);
+        labels.add(getString(R.string.PengramSpyAllAccounts));
+        for (int account = 0; account < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; account++) {
+            if (org.telegram.messenger.UserConfig.getInstance(account).isClientActivated()) {
+                accounts.add(account);
+                labels.add(spyAccountName(account));
+            }
+        }
+        int selected = accounts.indexOf(spySelectedAccount);
+        showChoicePicker(getString(R.string.PengramSpyAccount), labels.toArray(new CharSequence[0]),
+                Math.max(0, selected), value -> spySelectedAccount = accounts.get(value));
+    }
+
     private void fillHistory(ArrayList<UItem> items) {
+        if (spySelectedAccount >= 0 && !org.telegram.messenger.UserConfig.getInstance(spySelectedAccount).isClientActivated()) {
+            spySelectedAccount = -1;
+        }
+        items.add(UItem.asSettingsCell(BTN_SPY_ACCOUNT, R.drawable.msg_contacts,
+                getString(R.string.PengramSpyAccount), spyAccountName(spySelectedAccount)));
+        if (spySelectedAccount >= 0) {
+            final int account = spySelectedAccount;
+            final boolean own = PengramConfig.hasSpyProfile(account);
+            items.add(UItem.asCheck(BTN_SPY_PROFILE, getString(R.string.PengramSpyOwnSettings)).setChecked(own));
+            if (!own) {
+                items.add(UItem.asShadow(getString(R.string.PengramSpyInherits)));
+                return;
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
+            items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted))
+                    .setChecked(PengramConfig.isSavingDeleted(account)));
+            items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited))
+                    .setChecked(PengramConfig.isSavingEdited(account)));
+            if (PengramConfig.isSavingDeleted(account) || PengramConfig.isSavingEdited(account)) {
+                items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
+                        .setChecked(PengramConfig.isSavingOutgoing(account)));
+                items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots))
+                        .setChecked(PengramConfig.isSavingInBots(account)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
+            items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate))
+                    .setChecked(PengramConfig.isSavingReadDate(account)));
+            items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline))
+                    .setChecked(PengramConfig.isSavingLastOnline(account)));
+            items.add(UItem.asShadow(getString(R.string.PengramSpyScopeInfo)));
+            return;
+        }
+
         items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
         items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
@@ -2615,6 +2654,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
         }
         items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo2)));
+        items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
+        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
+        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
+        items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
+        items.add(moreButton(GROUP_SPY_ADVANCED, getString(R.string.PengramSpyMore)));
+        if (expanded(GROUP_SPY_ADVANCED)) fillHistoryAdvanced(items);
+    }
+
+    private void fillHistoryAdvanced(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramProfileHistory)));
         items.add(UItem.asSettingsCell(BTN_PROFILE_HISTORY, R.drawable.msg_contacts,
                 getString(R.string.PengramProfileHistory),
@@ -2683,7 +2731,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(
             UItem.asExpandableSwitch(BTN_GHOST, getString(R.string.PengramGhostMode), enabled + "/7")
                 .setChecked(PengramConfig.ghostMode)
-                .setCollapsed(!isGhostExpanded())
+                .setCollapsed(!ghostExpanded)
                 .setClickCallback(v -> {
                     PengramConfig.toggleGhostMode();
                     AndroidUtilities.vibrateCursor(v);
@@ -2695,7 +2743,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
                 })
         );
-        if (isGhostExpanded()) {
+        if (ghostExpanded) {
             items.add(UItem.asRoundCheckbox(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead).setPad(1));
             items.add(UItem.asRoundCheckbox(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews).setPad(1));
             items.add(UItem.asRoundCheckbox(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline).setPad(1));
@@ -2709,14 +2757,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 + getString(R.string.PengramGhostWhatInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramGhostExtraHeader)));
-        items.add(checkInfo(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn), getString(R.string.PengramGhostStoriesWarnInfo)));
+        items.add(check(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn)));
         items.add(checkInfo(PengramConfig.KEY_GHOST_SEND_DELAY, false, getString(R.string.PengramGhostSendDelay), getString(R.string.PengramGhostSendDelayInfo)));
         items.add(UItem.asShadow(null));
 
-        items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
-        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
-        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
-        items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
     }
 
     /** короткое состояние обхода для строки настроек */
@@ -2886,27 +2930,30 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
         items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
         if (PengramConfig.isForcedSnow()) {
-            items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
-                    getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
-            if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUNWHEEL) {
-                items.add(UItem.asShadow(getString(R.string.PengramParticleSunwheelInfo)));
-            } else if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SOLAR_CROSS) {
-                items.add(UItem.asShadow(getString(R.string.PengramParticleSolarCrossInfo)));
+            items.add(moreButton(GROUP_SNOW, getString(R.string.PengramMD3Tune)));
+            if (expanded(GROUP_SNOW)) {
+                items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
+                        getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
+                if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUNWHEEL) {
+                    items.add(UItem.asShadow(getString(R.string.PengramParticleSunwheelInfo)));
+                } else if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SOLAR_CROSS) {
+                    items.add(UItem.asShadow(getString(R.string.PengramParticleSolarCrossInfo)));
+                }
+                items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
+                items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
+                        value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_COUNT, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleOpacity)));
+                items.add(UItem.asIntSlideView(1, 10, PengramConfig.getParticleAlpha(), 100,
+                        value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ALPHA, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleSpeed)));
+                items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleSpeed() * 10), 30,
+                        value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_SPEED, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleRotation)));
+                items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleRotation() * 10), 30,
+                        value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ROTATION, value)));
             }
-            items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
-            items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
-                    value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_COUNT, value)));
-            items.add(UItem.asHeader(getString(R.string.PengramParticleOpacity)));
-            items.add(UItem.asIntSlideView(1, 10, PengramConfig.getParticleAlpha(), 100,
-                    value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ALPHA, value)));
-            items.add(UItem.asHeader(getString(R.string.PengramParticleSpeed)));
-            items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleSpeed() * 10), 30,
-                    value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
-                    value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_SPEED, value)));
-            items.add(UItem.asHeader(getString(R.string.PengramParticleRotation)));
-            items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleRotation() * 10), 30,
-                    value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
-                    value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ROTATION, value)));
         }
 
         // Пузыри и время сообщений живут в «Чаты и кнопки → Сообщения» — здесь только переход,
@@ -2915,30 +2962,28 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSubsectionMessages), null));
         items.add(UItem.asShadow(getString(R.string.PengramBubblesMovedInfo)));
 
-        items.add(sectionRow(BTN_SECTION_PENGUIN, IconBackgroundColors.BLUE_LIGHT, R.drawable.pengram_penguin_glyph,
-                getString(R.string.PengramSectionPenguin),
-                getString(PengramConfig.getPenguinSkinName(PengramConfig.getPenguinSkin()))));
-        items.add(UItem.asShadow(getString(R.string.PengramPenguinMovedInfo)));
-
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
-        items.add(UItem.asSettingsCell(BTN_FONT_SIZE, R.drawable.msg_customize, getString(R.string.TextSizeHeader), String.valueOf(SharedConfig.fontSize)));
-        items.add(UItem.asSettingsCell(BTN_BUBBLE_RADIUS, R.drawable.msg_message, getString(R.string.BubbleRadius), String.valueOf(SharedConfig.bubbleRadius)));
-        items.add(tgCheck(BTN_EXTRA_BASE + 1, getString(R.string.LargeEmoji), () -> SharedConfig.allowBigEmoji, SharedConfig::toggleBigEmoji));
-        items.add(tgCheck(BTN_EXTRA_BASE + 2, getString(R.string.PengramSystemEmoji), () -> SharedConfig.useSystemEmoji, this::toggleSystemEmoji));
-        items.add(tgCheck(BTN_EXTRA_BASE + 3, getString(R.string.LoopAnimatedStickers), SharedConfig::loopStickers, SharedConfig::toggleLoopStickers));
+        items.add(moreButton(GROUP_TEXT, getString(R.string.PengramMD3Tune)));
+        if (expanded(GROUP_TEXT)) {
+            items.add(UItem.asSettingsCell(BTN_FONT_SIZE, R.drawable.msg_customize, getString(R.string.TextSizeHeader), String.valueOf(SharedConfig.fontSize)));
+            items.add(UItem.asSettingsCell(BTN_BUBBLE_RADIUS, R.drawable.msg_message, getString(R.string.BubbleRadius), String.valueOf(SharedConfig.bubbleRadius)));
+            items.add(tgCheck(BTN_EXTRA_BASE + 1, getString(R.string.LargeEmoji), () -> SharedConfig.allowBigEmoji, SharedConfig::toggleBigEmoji));
+            items.add(tgCheck(BTN_EXTRA_BASE + 2, getString(R.string.PengramSystemEmoji), () -> SharedConfig.useSystemEmoji, this::toggleSystemEmoji));
+            items.add(tgCheck(BTN_EXTRA_BASE + 3, getString(R.string.LoopAnimatedStickers), SharedConfig::loopStickers, SharedConfig::toggleLoopStickers));
+        }
         items.add(UItem.asShadow(null));
 
-        // девять одинаковых галочек подряд читаются тяжело: три самых нужных сверху,
-        // остальное — под «Показать ещё»
+        // Secondary visual effects stay available without taking up the default screen.
         items.add(UItem.asHeader(getString(R.string.PengramEffectsHeader)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
-        items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
-        items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
+        items.add(moreButton(GROUP_EFFECTS, getString(R.string.PengramMD3Tune)));
         if (expanded(GROUP_EFFECTS)) {
+            items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
+            items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
             items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
             items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
             items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
@@ -2946,13 +2991,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(liteCheck(BTN_EXTRA_BASE + 16, LiteMode.FLAG_CALLS_ANIMATIONS, getString(R.string.LiteOptionsCalls)));
             items.add(liteCheck(BTN_EXTRA_BASE + 17, LiteMode.FLAG_CHAT_BACKGROUND, getString(R.string.PengramChatBackgroundAnim)));
         }
-        items.add(moreButton(GROUP_EFFECTS));
         items.add(UItem.asShadow(getString(R.string.PengramEffectsInfo)));
 
         // Всё, что про список чатов, собрано в «Чаты и кнопки → Интерфейс».
         // Здесь остаётся только то, что меняет приложение целиком.
         items.add(UItem.asHeader(getString(R.string.PengramInterfaceHeader)));
-        items.add(tgCheck(BTN_EXTRA_BASE + 22, getString(R.string.PengramNoTabletMode), () -> SharedConfig.forceDisableTabletMode, SharedConfig::toggleForceDisableTabletMode));
+        items.add(UItem.asSettingsCell(BTN_TABLET_MODE, R.drawable.msg_customize,
+                getString(R.string.PengramTabletMode), getString(new int[]{
+                        R.string.PengramTabletAuto, R.string.PengramTabletOff, R.string.PengramTabletOn
+                }[SharedConfig.getTabletMode()])));
         items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
     }
 
@@ -3849,14 +3896,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        if (item.id == BTN_SECTION_GUIDE && sectionGuide != null && getContext() != null) {
-            final AlertDialog.Builder guide = new AlertDialog.Builder(getContext());
-            guide.setTitle(getString(R.string.PengramSectionGuide));
-            guide.setMessage(sectionGuide);
-            guide.setPositiveButton(getString(R.string.OK), null);
-            showDialog(guide.create());
-            return;
-        }
         if (onAIClick(item)) {
             return;
         }
@@ -3879,7 +3918,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
             final int group = item.id - BTN_COLLAPSE_BASE;
-            PengramConfig.setBool(expandedKey(group), !expanded(group));
+            if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
+                    || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
+                if (!temporaryExpanded.add(group)) temporaryExpanded.remove(group);
+            } else {
+                PengramConfig.setBool(expandedKey(group), !expanded(group));
+            }
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
             }
@@ -4320,9 +4364,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_CUSTOM:
                 presentFragment(new PengramSettingsActivity(SECTION_CUSTOM));
                 return;
-            case BTN_SECTION_PENGUIN:
-                presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
-                return;
             case BTN_SECTION_ABOUT:
                 presentFragment(new PengramSettingsActivity(SECTION_ABOUT));
                 return;
@@ -4498,6 +4539,23 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> PengramConfig.setLyricsAlign(value));
                 return;
             }
+            case BTN_SPY_ACCOUNT:
+                showSpyAccountPicker();
+                return;
+            case BTN_SPY_PROFILE:
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyProfile(spySelectedAccount,
+                            !PengramConfig.hasSpyProfile(spySelectedAccount));
+                    updateAll = true;
+                }
+                break;
+            case BTN_TABLET_MODE: {
+                showChoicePicker(getString(R.string.PengramTabletMode), new CharSequence[]{
+                        getString(R.string.PengramTabletAuto), getString(R.string.PengramTabletOff),
+                        getString(R.string.PengramTabletOn)
+                }, SharedConfig.getTabletMode(), SharedConfig::setTabletMode);
+                return;
+            }
             case BTN_TRACK_CARD_FORMAT: {
                 showChoicePicker(getString(R.string.PengramTrackCardFormat), new CharSequence[]{
                         getString(R.string.PengramTrackCardImage), getString(R.string.PengramTrackCardText)
@@ -4562,16 +4620,22 @@ public class PengramSettingsActivity extends UniversalFragment {
                 if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hidePhoneNumber);
                 break;
             case BTN_SAVE_IN_BOTS:
-                PengramConfig.toggleSaveInBots();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveInBots);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveInBots", !PengramConfig.isSavingInBots(spySelectedAccount));
+                } else PengramConfig.toggleSaveInBots();
+                updateAll = true;
                 break;
             case BTN_SAVE_READ_DATE:
-                PengramConfig.toggleSaveReadDate();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveReadDate);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveReadDate", !PengramConfig.isSavingReadDate(spySelectedAccount));
+                } else PengramConfig.toggleSaveReadDate();
+                updateAll = true;
                 break;
             case BTN_SAVE_LAST_ONLINE:
-                PengramConfig.toggleSaveLastOnline();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveLastOnline);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveLastOnline", !PengramConfig.isSavingLastOnline(spySelectedAccount));
+                } else PengramConfig.toggleSaveLastOnline();
+                updateAll = true;
                 break;
             case BTN_MEDIA_CLEAR:
                 PengramHistory.clearSavedMedia();
@@ -4593,7 +4657,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 toggleHideFlag(item.id, view);
                 break;
             case BTN_GHOST:
-                PengramConfig.setBool("uiGhostExpanded", !isGhostExpanded());
+                ghostExpanded = !ghostExpanded;
                 if (view instanceof TextCheckCell2) {
                     ((TextCheckCell2) view).setChecked(PengramConfig.ghostMode);
                 }
@@ -4668,16 +4732,22 @@ public class PengramSettingsActivity extends UniversalFragment {
                 updateAll = true;
                 break;
             case BTN_HIST_DELETED:
-                PengramConfig.toggleSaveDeleted();
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveDeleted", !PengramConfig.isSavingDeleted(spySelectedAccount));
+                } else PengramConfig.toggleSaveDeleted();
                 updateAll = true;
                 break;
             case BTN_HIST_EDITED:
-                PengramConfig.toggleSaveEdited();
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveEdited", !PengramConfig.isSavingEdited(spySelectedAccount));
+                } else PengramConfig.toggleSaveEdited();
                 updateAll = true;
                 break;
             case BTN_HIST_OUTGOING:
-                PengramConfig.toggleSaveOutgoing();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.isSavingOutgoing());
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveOutgoing2", !PengramConfig.isSavingOutgoing(spySelectedAccount));
+                } else PengramConfig.toggleSaveOutgoing();
+                updateAll = true;
                 break;
             case BTN_HIST_OPEN:
                 presentFragment(new PengramHistoryActivity(0));

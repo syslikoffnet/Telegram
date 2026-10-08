@@ -1583,6 +1583,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 scheduled = true;
             }
             dialogId = object.getDialogId();
+            pengramCancelPendingSend(object.getId());
             messageIds.add(object.getId());
             if (object.isQuickReply()) {
                 topicId = object.getQuickReplyId();
@@ -7631,7 +7632,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     protected void performSendMessageRequestMulti(final TLObject request, final ArrayList<MessageObject> msgObjs, final ArrayList<String> originalPaths, final ArrayList<Object> parentObjects, DelayedMessage delayedMessage, boolean scheduled) {
-        if (pengramDelaySend(request, scheduled, () -> performSendMessageRequestMulti(request, msgObjs, originalPaths, parentObjects, delayedMessage, scheduled))) {
+        if (pengramDelaySend(request, scheduled, () -> performSendMessageRequestMulti(request, msgObjs, originalPaths, parentObjects, delayedMessage, scheduled), 0)) {
             return;
         }
         getMessagesController().pengramSendOfflineStatus();
@@ -7975,8 +7976,19 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
 
     /* Pengram: «отложка» — придерживаем отправку, чтобы не светиться онлайн */
     private final java.util.Set<Object> pengramDelayedRequests = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+    private final SparseArray<Runnable> pengramPendingSingleSends = new SparseArray<>();
+    private final SparseArray<TLObject> pengramPendingSingleRequests = new SparseArray<>();
 
-    private boolean pengramDelaySend(TLObject req, boolean scheduled, Runnable retry) {
+    private void pengramCancelPendingSend(int messageId) {
+        Runnable task = pengramPendingSingleSends.get(messageId);
+        if (task == null) return;
+        AndroidUtilities.cancelRunOnUIThread(task);
+        pengramPendingSingleSends.remove(messageId);
+        pengramDelayedRequests.remove(pengramPendingSingleRequests.get(messageId));
+        pengramPendingSingleRequests.remove(messageId);
+    }
+
+    private boolean pengramDelaySend(TLObject req, boolean scheduled, Runnable retry, int messageId) {
         if (req == null || scheduled || !PengramConfig.isGhostSendDelay()) {
             return false;
         }
@@ -7988,17 +8000,25 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
         final boolean withMedia = !(req instanceof TLRPC.TL_messages_sendMessage);
         pengramDelayedRequests.add(req);
-        AndroidUtilities.runOnUIThread(() -> {
-            if (!PengramConfig.isGhostSendDelay()) {
-                pengramDelayedRequests.remove(req);
+        Runnable task = () -> {
+            if (messageId != 0 && pengramPendingSingleRequests.get(messageId) == req) {
+                pengramPendingSingleRequests.remove(messageId);
+                pengramPendingSingleSends.remove(messageId);
             }
+            // Retry exactly once even if the switch was changed during the wait.
+            if (!PengramConfig.isGhostSendDelay()) pengramDelayedRequests.remove(req);
             retry.run();
-        }, withMedia ? 20000 : 12000);
+        };
+        if (messageId != 0) {
+            pengramPendingSingleSends.put(messageId, task);
+            pengramPendingSingleRequests.put(messageId, req);
+        }
+        AndroidUtilities.runOnUIThread(task, withMedia ? 20000 : 12000);
         return true;
     }
 
     protected void performSendMessageRequest(final TLObject req, final MessageObject msgObj, final String originalPath, DelayedMessage parentMessage, boolean check, DelayedMessage delayedMessage, Object parentObject, HashMap<String, String> params, boolean scheduled) {
-        if (pengramDelaySend(req, scheduled, () -> performSendMessageRequest(req, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled))) {
+        if (pengramDelaySend(req, scheduled, () -> performSendMessageRequest(req, msgObj, originalPath, parentMessage, check, delayedMessage, parentObject, params, scheduled), msgObj == null ? 0 : msgObj.getId())) {
             return;
         }
         if (req instanceof TLRPC.TL_messages_addPollAnswer) {

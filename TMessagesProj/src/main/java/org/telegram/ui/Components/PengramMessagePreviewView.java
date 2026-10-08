@@ -162,7 +162,7 @@ public class PengramMessagePreviewView extends LinearLayout {
 
     @Override
     public boolean onTouchEvent(android.view.MotionEvent event) {
-        return false;
+        return true;
     }
 
     @Override

@@ -1711,6 +1711,7 @@ public class ChatActivity extends BaseFragment implements
                 final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
                         getContext(),
                         headerItem.getPopupLayout().getSwipeBack(),
+                        currentAccount,
                         dialogId,
                         island,
                         themeDelegate,
@@ -1890,9 +1891,9 @@ public class ChatActivity extends BaseFragment implements
         boolean deleted = false;
         boolean known = false;
         try {
-            final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramConfig.isSavingDeleted();
-            known = !enabled || org.telegram.messenger.PengramHistory.marksLoaded(dialog_id);
-            deleted = enabled && org.telegram.messenger.PengramHistory.isMarkedDeleted(dialog_id, message.getId());
+            final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount);
+            known = !enabled || org.telegram.messenger.PengramHistory.marksLoaded(currentAccount, dialog_id);
+            deleted = enabled && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, message.getId());
         } catch (Throwable ignore) {}
         // пока метки диалога не подгружены, «не удалено» ещё ничего не значит —
         // раньше из-за этого сообщения теряли прозрачность до перезахода в чат
@@ -1913,12 +1914,12 @@ public class ChatActivity extends BaseFragment implements
     private int pengramMarksSignature = -1;
 
     /** Pengram: сигнатура настроек меток — чтобы ловить их изменение на лету */
-    private static int pengramMarksSignatureNow() {
+    private int pengramMarksSignatureNow() {
         int v = org.telegram.messenger.PengramConfig.getDeletedMark();
         v = v * 31 + org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
         v = v * 31 + (org.telegram.messenger.PengramConfig.isFadingDeleted() ? 1 : 0);
-        v = v * 31 + (org.telegram.messenger.PengramConfig.isKeepingDeletedInChat() ? 1 : 0);
-        v = v * 31 + (org.telegram.messenger.PengramConfig.isSavingDeleted() ? 1 : 0);
+        v = v * 31 + (org.telegram.messenger.PengramConfig.isKeepingDeletedInChat(currentAccount) ? 1 : 0);
+        v = v * 31 + (org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount) ? 1 : 0);
         return v;
     }
 
@@ -2192,7 +2193,7 @@ public class ChatActivity extends BaseFragment implements
         if (getUserConfig().getClientUserId() == dialog_id) {
             return false;
         }
-        if (!org.telegram.messenger.PengramHistory.shouldKeep(ids)) {
+        if (!org.telegram.messenger.PengramHistory.shouldKeep(currentAccount, ids)) {
             return false;
         }
         org.telegram.messenger.PengramHistory.markDeleted(currentAccount, dialog_id, ids);
@@ -4509,8 +4510,8 @@ public class ChatActivity extends BaseFragment implements
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
 
-        if (dialog_id != 0 && org.telegram.messenger.PengramConfig.isSavingDeleted()) {
-            org.telegram.messenger.PengramHistory.loadMarks(dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
+        if (dialog_id != 0 && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount)) {
+            org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
                 try {
                     if (chatAdapter != null) {
                         chatAdapter.notifyDataSetChanged();

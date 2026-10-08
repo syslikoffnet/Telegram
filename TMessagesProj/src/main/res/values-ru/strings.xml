@@ -286,6 +286,13 @@
     <string name="PengramGhostInfo">Пока включён режим призрака, другие не увидят, что вы онлайн, что прочитали их сообщения и что печатаете.</string>
     <string name="PengramIdCopied">ID скопирован в буфер обмена</string>
     <string name="PengramHistoryTitle">Удалённые и изменённые</string>
+    <string name="PengramSpyAccount">Настройки шпиона для</string>
+    <string name="PengramSpyAccountNumber">Аккаунт</string>
+    <string name="PengramSpyAllAccounts">Все аккаунты · общие настройки</string>
+    <string name="PengramSpyOwnSettings">Свои настройки для этого аккаунта</string>
+    <string name="PengramSpyInherits">Аккаунт наследует общие настройки. Включите свои настройки, чтобы изменить сбор и отслеживание.</string>
+    <string name="PengramSpyMore">Хранение, медиа и отображение в чате</string>
+    <string name="PengramSpyScopeInfo">Лимиты хранения, медиа и оформление чатов остаются общими для всех аккаунтов.</string>
     <string name="PengramHistoryHeader">История сообщений</string>
     <string name="PengramHistorySaveDeleted">Сохранять удалённые</string>
     <string name="PengramHistorySaveEdited">Сохранять изменённые</string>
@@ -515,7 +522,6 @@
     <string name="PengramDeletedReplyQuote">Цитировать удалённое в ответе</string>
     <string name="PengramDeletedReplySign">Подписывать цитату именем автора</string>
     <string name="PengramDeletedReplyInfo">Удалённого сообщения на сервере уже нет, поэтому в личных чатах Pengram подклеивает его текст к вашему ответу цитатой — иначе собеседник увидит ответ в пустоту. Подпись с именем над цитатой можно отключить.</string>
-    <string name="PengramPreviewInfo">Так сообщения будут выглядеть в чатах.</string>
     <string name="PengramPreviewIncoming">Привет! Пойдём сегодня гулять?</string>
     <string name="PengramPreviewDeleted">Это сообщение удалили, но вы его всё ещё видите.</string>
     <string name="PengramPreviewEdited">Конечно, встретимся в восемь 🙂</string>
@@ -736,6 +742,10 @@
     <string name="PengramHideWriteButton">Скрыть кнопку «Написать»</string>
     <string name="PengramThreeLines">Три строки в списке чатов</string>
     <string name="PengramHideArchive">Прятать архив наверху</string>
+    <string name="PengramTabletMode">Планшетный режим</string>
+    <string name="PengramTabletAuto">Автоматически</string>
+    <string name="PengramTabletOff">Принудительно выключить</string>
+    <string name="PengramTabletOn">Принудительно включить</string>
     <string name="PengramNoTabletMode">Отключить планшетный режим</string>
     <string name="PengramInterfaceInfo">Скрытые настройки Telegram, собранные в одном месте.</string>
     <string name="PengramGesturesHeader">Жесты и список</string>
@@ -1088,7 +1098,6 @@
     <string name="PengramQuoteCannotSend">В этот чат сейчас нельзя отправить фото.</string>
     <string name="PengramQuoteSaveError">Не удалось сохранить цитату в галерею.</string>
     <string name="PengramQuoteMenu">Создать цитату</string>
-    <string name="PengramSectionGuide">Пояснения и важные детали</string>
     <string name="PengramAISetupHeader">Настройка AI</string>
     <string name="PengramAIConfiguredCount">Настроено</string>
     <string name="PengramAIMoreInfo">О ручных запросах AI</string>

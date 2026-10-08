@@ -260,6 +260,7 @@ public class SharedConfig {
     public static boolean storiesIntroShown;
     public static boolean disableVoiceAudioEffects;
     public static boolean forceDisableTabletMode;
+    public static boolean forceEnableTabletMode;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -625,6 +626,7 @@ public class SharedConfig {
             pauseMusicOnRecord = preferences.getBoolean("pauseMusicOnRecord", true);
             pauseMusicOnMedia = preferences.getBoolean("pauseMusicOnMedia", false);
             forceDisableTabletMode = preferences.getBoolean("forceDisableTabletMode", false);
+            forceEnableTabletMode = preferences.getBoolean("forceEnableTabletMode", false);
             streamAllVideo = preferences.getBoolean("streamAllVideo", BuildVars.DEBUG_VERSION);
             streamMkv = preferences.getBoolean("streamMkv", false);
             suggestStickers = preferences.getInt("suggestStickers", 0);
@@ -1380,12 +1382,24 @@ public class SharedConfig {
         LiteMode.toggleFlag(LiteMode.FLAG_CHAT_BLUR);
     }
 
+    /** 0 = automatic, 1 = force phone, 2 = force tablet. Keep the old preference compatible. */
+    public static int getTabletMode() {
+        return forceDisableTabletMode ? 1 : forceEnableTabletMode ? 2 : 0;
+    }
+
+    public static void setTabletMode(int mode) {
+        forceDisableTabletMode = mode == 1;
+        forceEnableTabletMode = mode == 2;
+        MessagesController.getGlobalMainSettings().edit()
+                .putBoolean("forceDisableTabletMode", forceDisableTabletMode)
+                .putBoolean("forceEnableTabletMode", forceEnableTabletMode).apply();
+        AndroidUtilities.resetTabletFlag();
+        AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance()
+                .postNotificationName(NotificationCenter.reloadInterface));
+    }
+
     public static void toggleForceDisableTabletMode() {
-        forceDisableTabletMode = !forceDisableTabletMode;
-        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putBoolean("forceDisableTabletMode", forceDisableTabletMode);
-        editor.apply();
+        setTabletMode(forceDisableTabletMode ? 0 : 1);
     }
 
     public static void toggleInappCamera() {
