@@ -203,8 +203,8 @@ public final class PengramQuoteMaker {
                     avatarLocation = ((TLRPC.Chat) avatarPeer).photo.photo_small;
                 if (avatarLocation != null) {
                     File file = FileLoader.getInstance(chat.getCurrentAccount()).getPathToAttach(avatarLocation, true);
-                    if (file != null && file.isFile() && file.length() > 0) entry.avatarFile = file;
-                    else {
+                    entry.avatarFile = file; // FileLoader writes to this path; recheck it when rendering.
+                    if (file == null || !file.isFile() || file.length() == 0) {
                         BitmapDrawable cached = ImageLoader.getInstance().getImageFromMemory(avatarLocation, null, "50_50");
                         if (cached != null && cached.getBitmap() != null && !cached.getBitmap().isRecycled()) {
                             try { entry.avatar = cached.getBitmap().copy(Bitmap.Config.ARGB_8888, false); }
@@ -309,6 +309,15 @@ public final class PengramQuoteMaker {
         final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(KEY_STYLE, 0)));
         final AlertDialog spinner = new AlertDialog(activity, AlertDialog.ALERT_TYPE_SPINNER, chat.getResourceProvider());
         chat.showDialog(spinner);
+        boolean awaitingAvatar = false;
+        for (Entry entry : entries) {
+            if (entry.avatarFile != null && !entry.avatarFile.isFile() && entry.avatar == null) {
+                awaitingAvatar = true;
+                break;
+            }
+        }
+        // Give a just-requested avatar a brief chance to reach the disk. Never block
+        // the worker queue indefinitely or fail the quote if the user is offline.
         Utilities.globalQueue.postRunnable(() -> {
             Result result = null;
             try {
@@ -348,7 +357,7 @@ public final class PengramQuoteMaker {
                     }
                 }
             });
-        });
+        }, awaitingAvatar ? 1400 : 0);
     }
 
     private static Bitmap decode(File file) {
@@ -770,8 +779,7 @@ public final class PengramQuoteMaker {
         // not six full-width buttons occupying the entire screen.
         LinearLayout secondary = new LinearLayout(activity);
         secondary.setOrientation(LinearLayout.HORIZONTAL);
-        int[] secondaryLabels = {R.string.PengramQuoteCopy, R.string.PengramQuoteSave,
-                R.string.PengramQuoteMore};
+        int[] secondaryLabels = {R.string.Copy, R.string.Save, R.string.PengramQuoteMore};
         Runnable[] secondaryActions = {
                 () -> copy(chat, result),
                 () -> save(chat, result),
