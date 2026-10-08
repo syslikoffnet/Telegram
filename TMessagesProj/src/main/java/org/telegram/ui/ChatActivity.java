@@ -11275,14 +11275,18 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void pengramQuoteSelected() {
-        if (isPeerNoForwards() || currentEncryptedChat != null) return;
         ArrayList<MessageObject> messages = new ArrayList<>();
         for (int a = 0; a < 2; a++) {
             for (int i = 0; i < selectedMessagesIds[a].size(); i++) {
-                MessageObject message = selectedMessagesIds[a].valueAt(i);
-                if (message != null && message.messageOwner != null && !message.messageOwner.noforwards
-                        && !message.isVoiceOnce() && !message.isRoundOnce()) messages.add(message);
-                else return;
+                messages.add(selectedMessagesIds[a].valueAt(i));
+            }
+        }
+        if (messages.isEmpty()) return;
+        // Let the maker validate every message and show an error instead of silently returning.
+        for (MessageObject message : messages) {
+            if (message == null || message.messageOwner == null) {
+                org.telegram.ui.Components.PengramQuoteMaker.show(this, messages);
+                return;
             }
         }
         messages.sort((a, b) -> {
@@ -47107,7 +47111,9 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (!isPeerNoForwards() && currentEncryptedChat == null && !message.isSponsored()
-                && !message.isVoiceOnce() && !message.isRoundOnce() && !message.messageOwner.noforwards) {
+                && !message.isVoiceOnce() && !message.isRoundOnce() && !message.isSecretMedia()
+                && !message.needDrawBluredPreview() && message.type != MessageObject.TYPE_PAID_MEDIA
+                && (PengramConfig.isBypassingForwardRestrictions() || !message.messageOwner.noforwards)) {
             items.add(LocaleController.getString(R.string.PengramQuoteMenu));
             options.add(OPTION_PENGRAM_QUOTE);
             icons.add(R.drawable.msg_copy);

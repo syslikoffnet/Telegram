@@ -1071,6 +1071,7 @@
     <string name="PengramQuoteJpegInfo">JPEG экономит место; при прозрачном фоне автоматически используется PNG.</string>
     <string name="PengramQuotePrivacyInfo">Цитаты создаются на устройстве. Текст сообщений может содержать личные данные; перед отправкой проверьте изображение. Недоступное медиа не подменяется незаметно.</string>
     <string name="PengramQuoteTooMany">Выберите не более 12 сообщений.</string>
+    <string name="PengramQuoteRestricted">Для защищённого содержимого создание цитат недоступно.</string>
     <string name="PengramQuoteUnsupported">Этот тип сообщения нельзя преобразовать в цитату.</string>
     <string name="PengramQuoteUnknown">Неизвестный отправитель</string>
     <string name="PengramQuotePhoto">Фото</string>

@@ -132,11 +132,31 @@ public final class PengramQuoteMaker {
     }
 
 
+    /** Protection is checked here, not only when the menu was built: permissions can change. */
+    private static boolean isRestricted(ChatActivity chat, ArrayList<MessageObject> selected) {
+        if (chat.getCurrentEncryptedChat() != null || chat.isPeerNoForwards()) return true;
+        boolean bypass = PengramConfig.isBypassingForwardRestrictions();
+        MessagesController controller = MessagesController.getInstance(chat.getCurrentAccount());
+        for (MessageObject message : selected) {
+            if (message == null || message.messageOwner == null) continue;
+            if (message.messageOwner instanceof TLRPC.TL_message_secret
+                    || message.isVoiceOnce() || message.isRoundOnce() || message.isSecretMedia()
+                    || message.needDrawBluredPreview() || message.type == MessageObject.TYPE_PAID_MEDIA
+                    || !bypass && (message.messageOwner.noforwards
+                    || controller.isPeerNoForwards(message.getDialogId()))) return true;
+        }
+        return false;
+    }
+
     public static void show(ChatActivity chat, ArrayList<MessageObject> selected) {
         final Activity activity = chat.getParentActivity();
-        if (activity == null || selected == null || selected.isEmpty()) return;
+        if (!active(activity) || selected == null || selected.isEmpty()) return;
         if (selected.size() > MAX_MESSAGES) {
             error(chat, R.string.PengramQuoteTooMany);
+            return;
+        }
+        if (isRestricted(chat, selected)) {
+            error(chat, R.string.PengramQuoteRestricted);
             return;
         }
         final ArrayList<Entry> entries = new ArrayList<>();
@@ -163,7 +183,7 @@ public final class PengramQuoteMaker {
                     TLRPC.Chat sender = controller.getChat(-senderId);
                     entry.name = sender == null ? null : sender.title;
                 }
-                if (TextUtils.isEmpty(entry.name)) entry.name = activity.getString(R.string.PengramQuoteUnknown);
+                if (TextUtils.isEmpty(entry.name)) entry.name = safeString(activity, R.string.PengramQuoteUnknown);
             }
             entry.text = !TextUtils.isEmpty(message.caption) ? message.caption.toString()
                     : message.isPhoto() && PengramConfig.getBool(KEY_MEDIA, true) ? ""
@@ -184,15 +204,15 @@ public final class PengramQuoteMaker {
                 }
             }
             if (message.isPhoto() && !PengramConfig.getBool(KEY_MEDIA, true) && TextUtils.isEmpty(entry.text)) {
-                entry.text = activity.getString(R.string.PengramQuotePhoto);
+                entry.text = safeString(activity, R.string.PengramQuotePhoto);
             } else if (TextUtils.isEmpty(entry.text) && message.isVideo()) {
-                entry.text = activity.getString(R.string.PengramQuoteVideo);
+                entry.text = safeString(activity, R.string.PengramQuoteVideo);
             } else if (TextUtils.isEmpty(entry.text) && message.isVoice()) {
-                entry.text = activity.getString(R.string.PengramQuoteVoice);
+                entry.text = safeString(activity, R.string.PengramQuoteVoice);
             } else if (TextUtils.isEmpty(entry.text) && message.isSticker()) {
-                entry.text = activity.getString(R.string.PengramQuoteSticker);
+                entry.text = safeString(activity, R.string.PengramQuoteSticker);
             } else if (TextUtils.isEmpty(entry.text) && message.isDocument()) {
-                entry.text = activity.getString(R.string.PengramQuoteDocument);
+                entry.text = safeString(activity, R.string.PengramQuoteDocument);
             }
             if (TextUtils.isEmpty(entry.text) && !message.isPhoto()) {
                 error(chat, R.string.PengramQuoteUnsupported);
@@ -275,8 +295,16 @@ public final class PengramQuoteMaker {
                     if (ready != null && ready.preview != null) ready.preview.recycle();
                     return;
                 }
-                if (ready == null) error(chat, R.string.PengramQuoteRenderError);
-                else preview(chat, ready, new ArrayList<>(selected), entries, imagePaths);
+                if (ready == null) {
+                    error(chat, R.string.PengramQuoteRenderError);
+                } else if (isRestricted(chat, selected)) {
+                    // A chat can turn on content protection while the background render runs.
+                    ready.preview.recycle();
+                    ready.file.delete();
+                    error(chat, R.string.PengramQuoteRestricted);
+                } else {
+                    preview(chat, ready, new ArrayList<>(selected), entries, imagePaths);
+                }
             });
         });
     }
@@ -533,14 +561,25 @@ public final class PengramQuoteMaker {
         canvas.drawText(label, Math.max(8, x), y, p);
     }
 
+    /** Guard every string used by quote creation, including its error dialogs. */
     private static String safeString(Activity activity, int resId) {
         try {
             return activity.getString(resId);
         } catch (android.content.res.Resources.NotFoundException e) {
             FileLog.e(e);
-            // Keep preview controls usable if an installed resource table is inconsistent.
             Locale currentLocale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
             boolean ru = currentLocale != null && "ru".equals(currentLocale.getLanguage());
+            if (resId == R.string.PengramQuoteTooMany) return ru ? "Выберите не более 12 сообщений." : "Select no more than 12 messages.";
+            if (resId == R.string.PengramQuoteUnsupported) return ru ? "Этот тип сообщения нельзя преобразовать в цитату." : "This type of message cannot be quoted.";
+            if (resId == R.string.PengramQuoteUnknown) return ru ? "Неизвестный отправитель" : "Unknown sender";
+            if (resId == R.string.PengramQuotePhoto) return ru ? "Фото" : "Photo";
+            if (resId == R.string.PengramQuoteVideo) return ru ? "Видео" : "Video";
+            if (resId == R.string.PengramQuoteVoice) return ru ? "Голосовое сообщение" : "Voice message";
+            if (resId == R.string.PengramQuoteSticker) return ru ? "Стикер" : "Sticker";
+            if (resId == R.string.PengramQuoteDocument) return ru ? "Документ" : "Document";
+            if (resId == R.string.PengramQuoteTooLong) return ru ? "Сообщение слишком длинное для цитаты-изображения." : "This message is too long for an image quote.";
+            if (resId == R.string.PengramQuoteDownload) return ru ? "Скачайте фото перед созданием цитаты или отключите фотографии в настройках цитат." : "Download the photo before creating the quote, or turn off photos in quote settings.";
+            if (resId == R.string.PengramQuoteRenderError) return ru ? "Не удалось создать цитату. Попробуйте выбрать меньше сообщений." : "Could not create the quote. Try selecting fewer messages.";
             if (resId == R.string.PengramQuotePrivacyHint) return ru ? "Проверьте имена и текст перед отправкой." : "Check names and message text before sharing.";
             if (resId == R.string.PengramQuoteNames) return ru ? "Показывать имена отправителей" : "Show sender names";
             if (resId == R.string.PengramQuoteAvatar) return ru ? "Инициалы отправителей" : "Sender initials";
@@ -558,6 +597,15 @@ public final class PengramQuoteMaker {
             if (resId == R.string.PengramQuoteSave) return ru ? "Сохранить в галерею" : "Save to gallery";
             if (resId == R.string.PengramQuoteShare) return ru ? "Поделиться…" : "Share…";
             if (resId == R.string.PengramQuoteCopy) return ru ? "Копировать изображение" : "Copy image";
+            if (resId == R.string.PengramQuotePreview) return ru ? "Предпросмотр цитаты" : "Quote preview";
+            if (resId == R.string.Cancel) return ru ? "Отмена" : "Cancel";
+            if (resId == R.string.OK) return ru ? "ОК" : "OK";
+            if (resId == R.string.PengramQuoteCannotSend) return ru ? "В этот чат сейчас нельзя отправить фото." : "This chat is not available for sending photos.";
+            if (resId == R.string.PengramQuoteShareError) return ru ? "Не удалось поделиться изображением." : "Could not share the image.";
+            if (resId == R.string.PengramQuoteCopyError) return ru ? "Не удалось скопировать изображение." : "Could not copy the image.";
+            if (resId == R.string.PengramQuoteStickerError) return ru ? "Не удалось создать стикер. Выберите меньше сообщений или снизьте размер изображения." : "Could not create a sticker. Select fewer messages or reduce the image size.";
+            if (resId == R.string.PengramQuoteSaveError) return ru ? "Не удалось сохранить цитату в галерею." : "Could not save the quote to the gallery.";
+            if (resId == R.string.PengramQuoteRestricted) return ru ? "Для защищённого содержимого создание цитат недоступно." : "Quotes are unavailable for protected content.";
             return ru ? "Цитата" : "Quote";
         }
     }
@@ -682,9 +730,9 @@ public final class PengramQuoteMaker {
         addAction(activity, root, R.string.PengramQuoteShare, false, () -> share(chat, result));
         addAction(activity, root, R.string.PengramQuoteCopy, false, () -> copy(chat, result));
         AlertDialog.Builder builder = new AlertDialog.Builder(activity, chat.getResourceProvider());
-        builder.setTitle(activity.getString(R.string.PengramQuotePreview));
+        builder.setTitle(safeString(activity, R.string.PengramQuotePreview));
         builder.setView(outer);
-        builder.setNegativeButton(activity.getString(R.string.Cancel), null);
+        builder.setNegativeButton(safeString(activity, R.string.Cancel), null);
         ref[0] = builder.create();
         chat.showDialog(ref[0]);
     }
@@ -755,8 +803,8 @@ public final class PengramQuoteMaker {
         int height = Math.max(AndroidUtilities.dp(180),
                 (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.68f));
         frame.addView(image, new android.widget.FrameLayout.LayoutParams(-1, height));
-        new AlertDialog.Builder(activity).setTitle(activity.getString(R.string.PengramQuotePreview))
-                .setView(frame).setPositiveButton(activity.getString(R.string.OK), null).show();
+        new AlertDialog.Builder(activity).setTitle(safeString(activity, R.string.PengramQuotePreview))
+                .setView(frame).setPositiveButton(safeString(activity, R.string.OK), null).show();
     }
 
     private static void send(ChatActivity chat, Result result) {
@@ -863,7 +911,7 @@ public final class PengramQuoteMaker {
             intent.putExtra(Intent.EXTRA_STREAM, uri);
             intent.setClipData(ClipData.newUri(activity.getContentResolver(), "Quote", uri));
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            activity.startActivity(Intent.createChooser(intent, activity.getString(R.string.PengramQuoteShare)));
+            activity.startActivity(Intent.createChooser(intent, safeString(activity, R.string.PengramQuoteShare)));
         } catch (Throwable e) {
             FileLog.e(e);
             error(chat, R.string.PengramQuoteShareError);
@@ -1042,10 +1090,15 @@ public final class PengramQuoteMaker {
 
     private static void error(ChatActivity chat, int stringId) {
         Activity activity = chat.getParentActivity();
-        if (activity != null && !activity.isFinishing()) {
-            chat.showDialog(new AlertDialog.Builder(activity, chat.getResourceProvider())
-                    .setMessage(activity.getString(stringId))
-                    .setPositiveButton(activity.getString(R.string.OK), null).create());
+        if (active(activity)) {
+            try {
+                chat.showDialog(new AlertDialog.Builder(activity, chat.getResourceProvider())
+                        .setMessage(safeString(activity, stringId))
+                        .setPositiveButton(safeString(activity, R.string.OK), null).create());
+            } catch (RuntimeException e) {
+                // A fragment can detach between validation and showing its dialog.
+                FileLog.e(e);
+            }
         }
     }
 }
