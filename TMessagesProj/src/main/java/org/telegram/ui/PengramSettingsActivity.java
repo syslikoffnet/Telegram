@@ -195,6 +195,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_RESET = 1707;
     private static final int BTN_AI_EDIT_SERVICE = 1708;
     private static final int BTN_AI_EDIT_ROLE = 1709;
+    private static final int BTN_AI_SERVICES_EXPAND = 1744;
+    private static final int BTN_AI_ROLES_EXPAND = 1745;
+    private static final int BTN_AI_MANUAL_INFO = 1746;
     private static final int BTN_AI_AUTO_MASTER = 1731;
     private static final int BTN_AI_AUTO_STYLE = 1732;
     private static final int BTN_AI_AUTO_ADD = 1733;
@@ -206,6 +209,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_AI_AUTO_SPAM_COUNT = 1739;
     private static final int BTN_AI_AUTO_SPAM_PAUSE = 1740;
     private static final int BTN_AI_AUTO_CONTEXT_LIMIT = 1741;
+    private static final int BTN_AI_AUTO_ADVANCED = 1742;
+    private static final int BTN_AI_AUTO_INFO = 1743;
     private static final int BTN_AI_AUTO_RULE_BASE = 9700;
     /** строки сервисов и ролей: к базе прибавляется номер в списке */
     private static final int BTN_AI_SERVICE_BASE = 9000;
@@ -498,7 +503,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         // в разделах, которые и так открываются большим превью или шапкой с пингвином,
         // вторая крупная карточка подряд только мешает
         if (section == SECTION_ROOT || section == SECTION_PENGUIN
-                || section == SECTION_PROFILE || section == SECTION_CUSTOM) {
+                || section == SECTION_PROFILE || section == SECTION_CUSTOM
+                || section == SECTION_AI) {
             return;
         }
         final int info = sectionInfo(section);
@@ -4543,89 +4549,84 @@ public class PengramSettingsActivity extends UniversalFragment {
         return count == 0 ? service.title : service.title + " · " + count + " " + getString(R.string.PengramAIAutoChatsShort);
     }
 
-    private FrameLayout aiCurrentCardContainer;
-    private LinearLayout aiCurrentCard;
-    private TextView aiCurrentTitle;
-    private TextView aiCurrentDetail;
+    private boolean aiServicesExpanded;
+    private boolean aiRolesExpanded;
+    private boolean aiAutoAdvancedExpanded;
+    private FrameLayout aiOverviewContainer;
+    private LinearLayout aiOverviewCard;
+    private TextView aiOverviewService;
+    private TextView aiOverviewRole;
+    private TextView aiOverviewStatus;
+    private TextView aiOverviewDetail;
 
-    /** A compact, always-visible summary of the global configuration. */
-    private void addAICurrentCard(ArrayList<UItem> items) {
-        if (getContext() == null) {
-            return;
-        }
-        if (aiCurrentCard == null) {
-            aiCurrentCardContainer = new FrameLayout(getContext());
-            aiCurrentCard = new LinearLayout(getContext());
-            aiCurrentCard.setBackground(Theme.createRoundRectDrawable(dp(16),
-                    Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.09f)));
-            aiCurrentCardContainer.addView(aiCurrentCard, LayoutHelper.createFrame(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 8, 16, 8));
-            aiCurrentCard.setOrientation(LinearLayout.VERTICAL);
-            aiCurrentCard.setPadding(dp(20), dp(15), dp(20), dp(15));
-            final TextView eyebrow = new TextView(getContext());
+    /** One theme-aware overview in place of two tall, competing status cards. */
+    private void addAIOverview(ArrayList<UItem> items, int watched) {
+        if (getContext() == null) return;
+        if (aiOverviewCard == null) {
+            final Context context = getContext();
+            aiOverviewContainer = new FrameLayout(context);
+            aiOverviewCard = new LinearLayout(context);
+            aiOverviewCard.setOrientation(LinearLayout.VERTICAL);
+            aiOverviewCard.setPadding(dp(20), dp(18), dp(20), dp(18));
+            aiOverviewContainer.addView(aiOverviewCard, LayoutHelper.createFrame(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 10, 16, 4));
+            final TextView eyebrow = new TextView(context);
             eyebrow.setText(getString(R.string.PengramAICurrentLabel));
-            eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+            eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
             eyebrow.setTypeface(AndroidUtilities.bold());
             eyebrow.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
-            aiCurrentCard.addView(eyebrow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-            aiCurrentTitle = new TextView(getContext());
-            aiCurrentTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
-            aiCurrentTitle.setTypeface(AndroidUtilities.bold());
-            aiCurrentTitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            aiCurrentCard.addView(aiCurrentTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 0));
-            aiCurrentDetail = new TextView(getContext());
-            aiCurrentDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            aiCurrentDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
-            aiCurrentCard.addView(aiCurrentDetail, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 5, 0, 0));
+            aiOverviewCard.addView(eyebrow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiOverviewService = new TextView(context);
+            aiOverviewService.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+            aiOverviewService.setTypeface(AndroidUtilities.bold());
+            aiOverviewService.setSingleLine(true);
+            aiOverviewService.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewService, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 0));
+            aiOverviewRole = new TextView(context);
+            aiOverviewRole.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            aiOverviewRole.setSingleLine(true);
+            aiOverviewRole.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewRole, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
+            final View divider = new View(context);
+            divider.setBackgroundColor(Theme.multAlpha(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.16f));
+            aiOverviewCard.addView(divider, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, 1, 0, 16, 0, 14));
+            aiOverviewStatus = new TextView(context);
+            aiOverviewStatus.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            aiOverviewStatus.setTypeface(AndroidUtilities.bold());
+            aiOverviewCard.addView(aiOverviewStatus, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiOverviewDetail = new TextView(context);
+            aiOverviewDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            aiOverviewDetail.setMaxLines(3);
+            aiOverviewDetail.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewDetail, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
         }
+        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider());
+        aiOverviewCard.setBackground(Theme.createRoundRectDrawable(dp(18), Theme.multAlpha(accent, 0.10f)));
+        aiOverviewService.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+        aiOverviewRole.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+        aiOverviewDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
         final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
         final org.telegram.messenger.PengramAIRoles.Role role = org.telegram.messenger.PengramAIRoles.active();
-        aiCurrentTitle.setText((service == null ? getString(R.string.PengramAIEmptyValue) : service.title)
-                + "  ·  " + role.title);
-        aiCurrentDetail.setText(org.telegram.messenger.PengramAIAutoReply.enabled()
-                ? getString(R.string.PengramAICurrentAutoOn) : getString(R.string.PengramAICurrentDetail));
-        items.add(UItem.asCustom(aiCurrentCardContainer));
-        items.add(UItem.asShadow(null));
-    }
-
-    private FrameLayout aiAutoStatusContainer;
-    private TextView aiAutoStatusTitle;
-    private TextView aiAutoStatusDetail;
-
-    /** One glance: whether anything is actually being watched, and why it may be idle. */
-    private void addAIAutoStatusCard(ArrayList<UItem> items, int watched) {
-        if (getContext() == null) return;
-        if (aiAutoStatusContainer == null) {
-            aiAutoStatusContainer = new FrameLayout(getContext());
-            final LinearLayout card = new LinearLayout(getContext());
-            card.setOrientation(LinearLayout.VERTICAL);
-            card.setPadding(dp(20), dp(16), dp(20), dp(16));
-            card.setBackground(Theme.createRoundRectDrawable(dp(16),
-                    Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.09f)));
-            aiAutoStatusContainer.addView(card, LayoutHelper.createFrame(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 8, 16, 8));
-            aiAutoStatusTitle = new TextView(getContext());
-            aiAutoStatusTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
-            aiAutoStatusTitle.setTypeface(AndroidUtilities.bold());
-            aiAutoStatusTitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            card.addView(aiAutoStatusTitle, LayoutHelper.createLinear(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-            aiAutoStatusDetail = new TextView(getContext());
-            aiAutoStatusDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            aiAutoStatusDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
-            card.addView(aiAutoStatusDetail, LayoutHelper.createLinear(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 5, 0, 0));
-        }
+        aiOverviewService.setText(service == null ? getString(R.string.PengramAIEmptyValue) : service.title);
+        aiOverviewRole.setText(getString(R.string.PengramAIRoles) + " · " + role.title);
         final boolean on = org.telegram.messenger.PengramAIAutoReply.enabled();
-        aiAutoStatusTitle.setText(getString(R.string.PengramAIAutoWatched) + watched);
-        aiAutoStatusDetail.setText(!on ? getString(R.string.PengramAIAutoOff)
+        aiOverviewStatus.setTextColor(on ? accent : Theme.getColor(
+                Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+        aiOverviewStatus.setText(getString(R.string.PengramAIAutoWatched) + watched + " · " +
+                getString(on ? R.string.PengramAIAutoEnabledShort : R.string.PengramAIAutoDisabledShort));
+        aiOverviewDetail.setText(!on ? getString(R.string.PengramAIAutoOff)
                 : !org.telegram.messenger.PengramAIAutoReply.canUseService() ? getString(R.string.PengramAIAutoStatusService)
                 : TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) ? getString(R.string.PengramAIAutoStatusStyle)
                 : watched == 0 ? getString(R.string.PengramAIAutoStatusEmpty)
                 : org.telegram.messenger.PengramAIAutoReply.quietNow() ? getString(R.string.PengramAIAutoStatusQuiet)
                 : getString(R.string.PengramAIAutoStatusReady));
-        items.add(UItem.asCustom(aiAutoStatusContainer));
-        items.add(UItem.asShadow(null));
+        items.add(UItem.asCustom(aiOverviewContainer));
     }
 
     private String aiAutoState(long did) {
@@ -4646,48 +4647,53 @@ public class PengramSettingsActivity extends UniversalFragment {
         final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
         final String activeId = org.telegram.messenger.PengramAI.activeId();
 
-        addAICurrentCard(items);
-        addAIAutoStatusCard(items, org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size());
+        addAIOverview(items, org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size());
         items.add(UItem.asButton(BTN_AI_AUTO_JUMP, R.drawable.msg_message,
                 getString(R.string.PengramAIAutoJump)));
         items.add(UItem.asShadow(null));
-        items.add(UItem.asHeader(getString(R.string.PengramAIServices)));
-        if (services.isEmpty()) {
-            items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
-        } else {
-            for (int i = 0; i < services.size(); i++) {
-                final org.telegram.messenger.PengramAI.Service service = services.get(i);
-                final boolean active = TextUtils.equals(service.id, activeId)
-                        || (activeId == null && i == 0);
-                items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title)
-                        .setChecked(active));
+        items.add(UItem.asHeader(getString(R.string.PengramAISetupHeader)));
+        items.add(UItem.asButton(BTN_AI_SERVICES_EXPAND, R.drawable.msg_bot,
+                getString(R.string.PengramAIServices), getString(R.string.PengramAIConfiguredCount) + ": " + services.size()));
+        if (aiServicesExpanded || services.isEmpty()) {
+            if (services.isEmpty()) {
+                items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
+            } else {
+                for (int i = 0; i < services.size(); i++) {
+                    final org.telegram.messenger.PengramAI.Service service = services.get(i);
+                    final boolean active = TextUtils.equals(service.id, activeId)
+                            || (activeId == null && i == 0);
+                    items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title).setChecked(active));
+                }
             }
+            final org.telegram.messenger.PengramAI.Service selectedService = org.telegram.messenger.PengramAI.active();
+            if (selectedService != null) items.add(UItem.asShadow(selectedService.summary()));
+            if (!services.isEmpty()) {
+                items.add(UItem.asButton(BTN_AI_EDIT_SERVICE, R.drawable.msg_edit, getString(R.string.PengramAIEditService)));
+            }
+            items.add(UItem.asButton(BTN_AI_ADD_SERVICE, R.drawable.msg_add, getString(R.string.PengramAIAddService)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIServicesInfo)));
         }
-        final org.telegram.messenger.PengramAI.Service selectedService = org.telegram.messenger.PengramAI.active();
-        if (selectedService != null) items.add(UItem.asShadow(selectedService.summary()));
-        if (!services.isEmpty()) {
-            items.add(UItem.asButton(BTN_AI_EDIT_SERVICE, R.drawable.msg_edit, getString(R.string.PengramAIEditService)));
-        }
-        items.add(UItem.asButton(BTN_AI_ADD_SERVICE, R.drawable.msg_add, getString(R.string.PengramAIAddService)));
-        items.add(UItem.asShadow(getString(R.string.PengramAIServicesInfo)));
 
-        items.add(UItem.asHeader(getString(R.string.PengramAIRoles)));
         final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
         final String activeRole = org.telegram.messenger.PengramAIRoles.activeId();
-        for (int i = 0; i < roles.size(); i++) {
-            final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
-            // Radio rows have fixed height; subtitles collide with long titles on narrow screens.
-            items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title, null)
-                    .setChecked(TextUtils.equals(role.id, activeRole)));
-        }
         final org.telegram.messenger.PengramAIRoles.Role chosenRole = org.telegram.messenger.PengramAIRoles.active();
-        final String selectedPrompt = chosenRole.prompt.replace('\n', ' ');
-        items.add(UItem.asShadow(selectedPrompt.length() > 180 ? selectedPrompt.substring(0, 180) + "…" : selectedPrompt));
-        if (!chosenRole.builtin) {
-            items.add(UItem.asButton(BTN_AI_EDIT_ROLE, R.drawable.msg_edit, getString(R.string.PengramAIEditRole)));
+        items.add(UItem.asButton(BTN_AI_ROLES_EXPAND, R.drawable.msg_theme,
+                getString(R.string.PengramAIRoles), chosenRole.title));
+        if (aiRolesExpanded) {
+            for (int i = 0; i < roles.size(); i++) {
+                final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
+                items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title, null)
+                        .setChecked(TextUtils.equals(role.id, activeRole)));
+            }
+            final String selectedPrompt = chosenRole.prompt.replace('\n', ' ');
+            items.add(UItem.asShadow(selectedPrompt.length() > 140 ? selectedPrompt.substring(0, 140) + "…" : selectedPrompt));
+            if (!chosenRole.builtin) {
+                items.add(UItem.asButton(BTN_AI_EDIT_ROLE, R.drawable.msg_edit, getString(R.string.PengramAIEditRole)));
+            }
+            items.add(UItem.asButton(BTN_AI_ADD_ROLE, R.drawable.msg_add, getString(R.string.PengramAIAddRole)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIRolesInfo)));
         }
-        items.add(UItem.asButton(BTN_AI_ADD_ROLE, R.drawable.msg_add, getString(R.string.PengramAIAddRole)));
-        items.add(UItem.asShadow(getString(R.string.PengramAIRolesInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramAIAnswer)));
         items.add(tgCheckInfo(BTN_AI_STREAM, getString(R.string.PengramAIStream), getString(R.string.PengramAIStreamInfo),
@@ -4706,18 +4712,18 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asButton(BTN_AI_DEPTH, getString(R.string.PengramAIDepth),
                     String.valueOf(org.telegram.messenger.PengramAI.historyDepth())));
         }
-        items.add(UItem.asShadow(getString(R.string.PengramAIAnswerInfo)));
+        items.add(UItem.asButton(BTN_AI_MANUAL_INFO, R.drawable.msg_info,
+                getString(R.string.PengramAIMoreInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramAIAutoHeader)));
         final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> aiRules =
                 org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
-        items.add(UItem.asButton(BTN_AI_AUTO_REFRESH, R.drawable.msg_retry,
-                getString(R.string.PengramAIAutoRefresh)));
         items.add(UItem.asButton(BTN_AI_AUTO_MASTER, R.drawable.msg_bot,
                 getString(R.string.PengramAIAutoMaster), getString(org.telegram.messenger.PengramAIAutoReply.enabled()
-                        ? R.string.PengramAIAutoOn : R.string.PengramAIAutoOff)));
+                        ? R.string.PengramAIAutoEnabledShort : R.string.PengramAIAutoDisabledShort)));
         items.add(tgCheckInfo(BTN_AI_AUTO_CONTEXT, getString(R.string.PengramAIAutoContext),
-                getString(R.string.PengramAIAutoContextInfo),
+                getString(R.string.PengramAIAutoContextBrief),
                 org.telegram.messenger.PengramAIAutoReply::contextEnabled,
                 () -> org.telegram.messenger.PengramAIAutoReply.setContextEnabled(
                         !org.telegram.messenger.PengramAIAutoReply.contextEnabled())));
@@ -4730,17 +4736,23 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramAIAutoStyle), TextUtils.isEmpty(autoStyle)
                         ? getString(R.string.PengramAIAutoNoStyle)
                         : autoStyle.length() > 40 ? autoStyle.substring(0, 40) + "…" : autoStyle));
-        items.add(UItem.asButton(BTN_AI_AUTO_QUIET, getString(R.string.PengramAIAutoQuiet),
-                org.telegram.messenger.PengramAIAutoReply.quietStart() + ":00–" +
-                        org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
-        items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
-                org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
-        items.add(UItem.asHeader(getString(R.string.PengramAIAutoSpamHeader)));
-        items.add(UItem.asButton(BTN_AI_AUTO_SPAM_COUNT, getString(R.string.PengramAIAutoSpamCount),
-                String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold())));
-        items.add(UItem.asButton(BTN_AI_AUTO_SPAM_PAUSE, getString(R.string.PengramAIAutoSpamPause),
-                org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
-        items.add(UItem.asShadow(getString(R.string.PengramAIAutoSpamInfo)));
+        items.add(UItem.asButton(BTN_AI_AUTO_ADVANCED, R.drawable.msg_settings,
+                getString(R.string.PengramAIAutoAdvanced), getString(aiAutoAdvancedExpanded
+                        ? R.string.PengramAICollapse : R.string.PengramAIExpand)));
+        if (aiAutoAdvancedExpanded) {
+            items.add(UItem.asButton(BTN_AI_AUTO_QUIET, getString(R.string.PengramAIAutoQuiet),
+                    org.telegram.messenger.PengramAIAutoReply.quietStart() + ":00–" +
+                            org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
+            items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
+                    org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+            items.add(UItem.asHeader(getString(R.string.PengramAIAutoSpamHeader)));
+            items.add(UItem.asButton(BTN_AI_AUTO_SPAM_COUNT, getString(R.string.PengramAIAutoSpamCount),
+                    String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold())));
+            items.add(UItem.asButton(BTN_AI_AUTO_SPAM_PAUSE, getString(R.string.PengramAIAutoSpamPause),
+                    org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIAutoSpamInfo)));
+        }
+        items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramAIAutoWatching)));
         items.add(UItem.asButton(BTN_AI_AUTO_ADD, R.drawable.msg_add, getString(R.string.PengramAIAutoAdd)));
         if (aiRules.isEmpty()) {
@@ -4758,7 +4770,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 items.add(UItem.asShadow(getString(R.string.PengramAIAutoLastEvent) + state));
             }
         }
-        items.add(UItem.asShadow(getString(R.string.PengramAIAutoInfo)));
+        items.add(UItem.asButton(BTN_AI_AUTO_REFRESH, R.drawable.msg_retry,
+                getString(R.string.PengramAIAutoRefresh)));
+        items.add(UItem.asButton(BTN_AI_AUTO_INFO, R.drawable.msg_info,
+                getString(R.string.PengramAIAutoMoreInfo)));
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asButton(BTN_AI_RESET, R.drawable.msg_reset, getString(R.string.PengramAIReset)).red());
         items.add(UItem.asShadow(getString(R.string.PengramAIResetInfo)));
@@ -4784,11 +4800,21 @@ public class PengramSettingsActivity extends UniversalFragment {
         field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
         field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
-        field.setPadding(dp(22), dp(10), dp(22), dp(10));
+        field.setPadding(dp(14), dp(12), dp(14), dp(12));
+        field.setBackground(Theme.createRoundRectDrawable(dp(12), Theme.multAlpha(
+                Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()), 0.06f)));
+        final LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(6), dp(22), dp(4));
+        layout.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextView note = new TextView(getContext());
+        note.setText(getString(R.string.PengramAIAutoStyleInfo));
+        note.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        note.setTextColor(Theme.getColor(Theme.key_dialogTextGray2, getResourceProvider()));
+        layout.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
         final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle(getString(R.string.PengramAIAutoStyle));
-        builder.setMessage(getString(R.string.PengramAIAutoStyleInfo));
-        builder.setView(field);
+        builder.setView(layout);
         builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
             org.telegram.messenger.PengramAIAutoReply.setStyle(field.getText().toString());
             if (listView != null && listView.adapter != null) listView.adapter.update(true);
@@ -4938,7 +4964,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
         field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
         field.setBackgroundDrawable(null);
-        field.setPadding(0, dp(8), 0, dp(8));
+        final TextView label = new TextView(context);
+        label.setText(hint);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        label.setTypeface(AndroidUtilities.bold());
+        label.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+        parent.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                0, 12, 0, 5));
+        field.setPadding(dp(12), dp(10), dp(12), dp(10));
+        field.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.multAlpha(
+                Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()), 0.06f)));
         parent.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         return field;
     }
@@ -5159,6 +5194,31 @@ public class PengramSettingsActivity extends UniversalFragment {
                     promptEnableAutoReply();
                 }
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            }
+            case BTN_AI_SERVICES_EXPAND:
+                aiServicesExpanded = !aiServicesExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_ROLES_EXPAND:
+                aiRolesExpanded = !aiRolesExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_AUTO_ADVANCED:
+                aiAutoAdvancedExpanded = !aiAutoAdvancedExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_MANUAL_INFO:
+            case BTN_AI_AUTO_INFO: {
+                if (getContext() != null) {
+                    final AlertDialog.Builder info = new AlertDialog.Builder(getContext());
+                    info.setTitle(getString(item.id == BTN_AI_MANUAL_INFO
+                            ? R.string.PengramAIAnswer : R.string.PengramAIAutoHeader));
+                    info.setMessage(getString(item.id == BTN_AI_MANUAL_INFO
+                            ? R.string.PengramAIAnswerInfo : R.string.PengramAIAutoInfo));
+                    info.setPositiveButton(getString(R.string.OK), null);
+                    showDialog(info.create());
+                }
                 return true;
             }
             case BTN_AI_AUTO_REFRESH:

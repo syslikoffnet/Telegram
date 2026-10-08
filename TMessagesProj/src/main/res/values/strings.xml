@@ -11925,6 +11925,7 @@
     <string name="PengramOriginalNameNothing">Pengram has not seen the official name of this person yet</string>
     <string name="PengramAIAutoHeader">Auto replies · selected chats only</string>
     <string name="PengramAIAutoContext">Recent context for auto-replies</string>
+    <string name="PengramAIAutoContextBrief">Previous messages from selected chats may go to the AI service · off by default</string>
     <string name="PengramAIAutoContextInfo">Off by default. If enabled, up to the selected number of recent short texts seen while the app runs may go to the AI service, in addition to the new message. Only selected chats; in groups, only that sender and your replies to them. No stored history is read.</string>
     <string name="PengramAIAutoContextLimit">Previous messages for auto-reply</string>
     <string name="PengramAIAutoContextLimitError">Enter a limit from 1 to 20 messages.</string>
@@ -11949,7 +11950,7 @@
     <string name="PengramAIAutoSaveError">Could not save this chat. Please try again.</string>
     <string name="PengramAIAutoAdd">Connect a chat</string>
     <string name="PengramAIAutoSeconds">sec</string>
-    <string name="PengramAIAutoInfo">A new text message is sent to the selected AI service after basic local redaction. Optional recent context (off by default): up to 3 previous short text messages seen while the app is running, only from connected chats; in groups, only the same sender and your replies. No history is fetched from storage, and context is not saved. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. The configurable direct-mention limit and pause duration apply per sender across connected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops. Redaction is imperfect; no external service guarantees absolute privacy.</string>
+    <string name="PengramAIAutoInfo">A new text message is sent to the selected AI service after basic local redaction. Optional recent context (off by default): up to your selected number of previous short text messages seen while the app is running, only from connected chats; in groups, only the same sender and your replies. No history is fetched from storage, and context is not saved. Private chats: new messages. Groups: @mentions, linked usernames and replies to your messages. Delay: 1–600 seconds. The configurable direct-mention limit and pause duration apply per sender across connected groups (no Telegram mute). Quiet hours and any optional per-chat cooldown still apply. This is not a 24/7 bot when the app stops. Redaction is imperfect; no external service guarantees absolute privacy.</string>
     <string name="PengramAIAutoRangeInfo">Random delay before asking the AI service: 1–600 seconds. Network time is additional. Auto-replies also require the global switch.</string>
     <string name="PengramAIAutoMin">Minimum seconds</string>
     <string name="PengramAIAutoMax">Maximum seconds</string>
@@ -11958,9 +11959,9 @@
     <string name="PengramAIAutoRangeError">Choose 1–600 seconds; minimum must not exceed maximum</string>
     <string name="PengramAIAutoQuietError">Enter hours from 0 to 23, e.g. 23-8. Equal hours disable quiet time.</string>
     <string name="PengramAIAutoNeedsSetup">Configure an HTTPS AI service (or local HTTP) and describe your reply style first</string>
-    <string name="PengramAIAutoWarning">AI automatically sends replies in connected chats. New messages, and up to 3 previous short messages if you enabled recent context, go to your selected service with basic local redaction. Personal data can still be exposed; an external service cannot guarantee privacy. Quiet hours and spam pause apply. Enable?</string>
+    <string name="PengramAIAutoWarning">AI automatically sends replies in connected chats. New messages, and up to your selected number of previous short messages if you enabled recent context, go to your selected service with basic local redaction. Personal data can still be exposed; an external service cannot guarantee privacy. Quiet hours and spam pause apply. Enable?</string>
     <string name="PengramAIAutoEnable">Enable auto replies</string>
-    <string name="PengramAICurrentLabel">ACTIVE IN EVERY CHAT</string>
+    <string name="PengramAICurrentLabel">AI · SERVICE &amp; ROLE</string>
     <string name="PengramAICurrentDetail">Messages and drafts · results are never sent automatically</string>
     <string name="PengramAIEditRole">Edit selected role</string>
     <string name="PengramAIResultTitle">AI result</string>
@@ -11970,6 +11971,15 @@
     <string name="PengramAIDraftChanged">Draft changed. Copy the answer or append it to the current text.</string>
     <string name="PengramAITitle">AI · settings</string>
     <string name="PengramAIEmptyValue">not set up</string>
+    <string name="PengramAISetupHeader">AI setup</string>
+    <string name="PengramAIConfiguredCount">Configured</string>
+    <string name="PengramAIMoreInfo">How manual AI works</string>
+    <string name="PengramAIAutoMoreInfo">How auto-replies work &amp; privacy</string>
+    <string name="PengramAIAutoAdvanced">Timing and safeguards</string>
+    <string name="PengramAIExpand">Show</string>
+    <string name="PengramAICollapse">Hide</string>
+    <string name="PengramAIAutoEnabledShort">Auto-replies on</string>
+    <string name="PengramAIAutoDisabledShort">Auto-replies off</string>
     <string name="PengramAIServices">Services</string>
     <string name="PengramAIServicesEmpty">No services yet. Add one — any OpenAI-compatible gateway will do.</string>
     <string name="PengramAIServicesInfo">Requests go directly from your device to the chosen service. One service is active in all chats.</string>

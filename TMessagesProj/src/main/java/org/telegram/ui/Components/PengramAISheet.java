@@ -72,7 +72,14 @@ public class PengramAISheet extends BottomSheet {
         initialTurnCount = Math.min(2, conversation.size());
         final LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(16), dp(20), dp(10));
+        root.setPadding(dp(18), dp(10), dp(18), dp(12));
+        final View handle = new View(context);
+        handle.setBackground(Theme.createRoundRectDrawable(dp(3),
+                Theme.multAlpha(getThemedColor(Theme.key_dialogTextGray3), 0.5f)));
+        final LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(36), dp(4));
+        handleParams.gravity = Gravity.CENTER_HORIZONTAL;
+        handleParams.bottomMargin = dp(14);
+        root.addView(handle, handleParams);
 
         final TextView title = new TextView(context);
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
@@ -86,7 +93,9 @@ public class PengramAISheet extends BottomSheet {
         statusView.setTextColor(getThemedColor(Theme.key_dialogTextGray3));
         statusView.setText((service == null ? getString(R.string.PengramAINoService) : service.title) + "  ·  " +
                 (role == null ? "" : role.title));
-        root.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 10));
+        statusView.setSingleLine(true);
+        statusView.setEllipsize(TextUtils.TruncateAt.END);
+        root.addView(statusView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 14));
 
         // исходный текст показываем, только если не включено «показывать один ответ»
         if (!PengramAI.isOnlyAnswer() && !TextUtils.isEmpty(source)) {
@@ -109,9 +118,15 @@ public class PengramAISheet extends BottomSheet {
         answerView.setText(getString(R.string.PengramAIThinking));
 
         scrollView = new ScrollView(context);
+        scrollView.setFillViewport(true);
         transcript = new LinearLayout(context);
         transcript.setOrientation(LinearLayout.VERTICAL);
-        transcript.addView(answerView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final LinearLayout answerCard = new LinearLayout(context);
+        answerCard.setPadding(dp(14), dp(12), dp(14), dp(12));
+        answerCard.setBackground(Theme.createRoundRectDrawable(dp(14),
+                Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), 0.10f)));
+        answerCard.addView(answerView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        transcript.addView(answerCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         scrollView.addView(transcript, new FrameLayout.LayoutParams(
                 LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         root.addView(scrollView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
@@ -125,6 +140,9 @@ public class PengramAISheet extends BottomSheet {
         followUp.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
         followUp.setHintTextColor(getThemedColor(Theme.key_dialogTextGray3));
         followUp.setHint(getString(R.string.PengramAIFollowUpHint));
+        followUp.setBackground(Theme.createRoundRectDrawable(dp(12),
+                Theme.multAlpha(getThemedColor(Theme.key_dialogTextBlack), 0.06f)));
+        followUp.setPadding(dp(12), dp(10), dp(12), dp(10));
         inputRow.addView(followUp, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
         sendFollowUp = new TextView(context);
         sendFollowUp.setText(getString(R.string.PengramAIFollowUpSend));
@@ -139,12 +157,14 @@ public class PengramAISheet extends BottomSheet {
         sendFollowUp.setAlpha(.5f);
 
         buttons = new LinearLayout(context);
-        buttons.setOrientation(onReplace == null ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        buttons.setOrientation(LinearLayout.VERTICAL);
         buttons.setVisibility(View.GONE);
         root.addView(buttons, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        final LinearLayout secondaryActions = new LinearLayout(context);
+        secondaryActions.setOrientation(LinearLayout.HORIZONTAL);
 
         if (onReplace != null) {
-            addButton(context, getString(R.string.PengramAIReplaceDraft), () -> {
+            addButton(context, buttons, getString(R.string.PengramAIReplaceDraft), true, () -> {
                 if (onReplace.replace(answer.toString(), PengramAI.isAsQuote())) {
                     dismiss();
                 } else {
@@ -153,46 +173,52 @@ public class PengramAISheet extends BottomSheet {
             });
         }
         if (onInsert != null) {
-            addButton(context, getString(onReplace == null ? R.string.PengramAIInsert : R.string.PengramAIAppendDraft), () -> {
-                onInsert.insert(answer.toString(), PengramAI.isAsQuote());
-                dismiss();
-            });
+            addButton(context, onReplace == null ? buttons : secondaryActions,
+                    getString(onReplace == null ? R.string.PengramAIInsert : R.string.PengramAIAppendDraft),
+                    onReplace == null, () -> {
+                        onInsert.insert(answer.toString(), PengramAI.isAsQuote());
+                        dismiss();
+                    });
         }
-        addButton(context, getString(R.string.Copy), () -> {
+        addButton(context, secondaryActions, getString(R.string.Copy), false, () -> {
             AndroidUtilities.addToClipboard(answer.toString());
             if (containerView instanceof android.widget.FrameLayout) {
                 BulletinFactory.of((android.widget.FrameLayout) containerView, resourcesProvider)
                         .createSimpleBulletin(R.raw.copy, getString(R.string.TextCopied)).show();
             }
         });
+        buttons.addView(secondaryActions, LayoutHelper.createLinear(
+                LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 0, 0));
 
         final FrameLayout contentRoot = new FrameLayout(context);
         contentRoot.addView(root, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
-                Math.min(AndroidUtilities.displaySize.y * 0.6f / AndroidUtilities.density, 420f), Gravity.TOP));
+                Math.min(AndroidUtilities.displaySize.y * 0.68f / AndroidUtilities.density, 500f), Gravity.TOP));
         setCustomView(contentRoot);
 
         request();
     }
 
-    private void addButton(Context context, CharSequence text, Runnable action) {
+    private void addButton(Context context, LinearLayout target, CharSequence text,
+                           boolean primary, Runnable action) {
         final TextView button = new TextView(context);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         button.setTypeface(AndroidUtilities.bold());
         button.setGravity(Gravity.CENTER);
-        final boolean primary = buttons.getChildCount() == 0;
         final int accent = getThemedColor(Theme.key_featuredStickers_addButton);
         button.setTextColor(getThemedColor(primary ? Theme.key_featuredStickers_buttonText : Theme.key_dialogTextBlack));
         button.setBackground(Theme.AdaptiveRipple.filledRect(
-                primary ? accent : Theme.multAlpha(accent, 0.13f), 10));
-        button.setPadding(dp(14), dp(10), dp(14), dp(10));
+                primary ? accent : Theme.multAlpha(accent, 0.12f), 12));
+        button.setPadding(dp(8), dp(8), dp(8), dp(8));
         button.setText(text);
+        button.setMaxLines(2);
+        button.setEllipsize(TextUtils.TruncateAt.END);
         button.setOnClickListener(v -> action.run());
-        if (buttons.getOrientation() == LinearLayout.VERTICAL) {
-            buttons.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44,
-                    0, buttons.getChildCount() == 0 ? 0 : 8, 0, 0));
+        if (primary) {
+            target.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 46));
         } else {
-            buttons.addView(button, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f,
-                    buttons.getChildCount() == 0 ? 0 : 8, 0, 0, 0));
+            final LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(52), 1f);
+            if (target.getChildCount() > 0) params.leftMargin = dp(8);
+            target.addView(button, params);
         }
     }
 
@@ -206,12 +232,18 @@ public class PengramAISheet extends BottomSheet {
         oldAnswer.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         oldAnswer.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
         oldAnswer.setText(answer.toString());
+        oldAnswer.setPadding(dp(14), dp(12), dp(14), dp(12));
+        oldAnswer.setBackground(Theme.createRoundRectDrawable(dp(14),
+                Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), 0.10f)));
         transcript.addView(oldAnswer, transcript.getChildCount() - 1,
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 8, 0, 0));
         final TextView questionView = new TextView(getContext());
         questionView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         questionView.setTextColor(getThemedColor(Theme.key_dialogTextGray2));
         questionView.setText(getString(R.string.PengramAIFollowUpYou) + " " + question);
+        questionView.setPadding(dp(14), dp(10), dp(14), dp(10));
+        questionView.setBackground(Theme.createRoundRectDrawable(dp(14),
+                Theme.multAlpha(getThemedColor(Theme.key_dialogTextBlack), 0.06f)));
         transcript.addView(questionView, transcript.getChildCount() - 1,
                 LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 4));
         conversation.add(new PengramAIClient.Turn("assistant",
