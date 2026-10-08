@@ -12522,6 +12522,8 @@
     <string name="PengramParticleLeaves">Autumn leaves</string>
     <string name="PengramParticleSunwheel">Sunwheel</string>
     <string name="PengramParticleSunwheelInfo">Eight bent golden spokes form a glowing sunwheel that drifts upward and rotates. Adjust its density, opacity and movement below.</string>
+    <string name="PengramParticleSolarCross">Swastika · solar motif</string>
+    <string name="PengramParticleSolarCrossInfo">A four-armed hooked solar motif with a soft golden glow, drifting upward and rotating. Density, opacity and movement are adjustable below.</string>
     <string name="PengramParticleCount">Particle count</string>
     <string name="PengramParticleOpacity">Opacity</string>
     <string name="PengramParticleSpeed">Movement speed</string>

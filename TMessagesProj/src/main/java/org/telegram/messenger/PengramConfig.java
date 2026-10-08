@@ -1772,9 +1772,10 @@ public class PengramConfig {
     /** по нажатию на календарик показывать текст, а не открывать окно */
     public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
-    /** Stable stored IDs: 0 snow, 1 sakura, 2 matrix, 3 rain, 4 leaves, 5 sunwheel. */
+    /** Stable stored IDs: 0 snow, 1 sakura, 2 matrix, 3 rain, 4 leaves, 5 sunwheel, 6 solar cross. */
     public static final int PARTICLE_SUNWHEEL = 5;
-    public static int getParticleMode() { return Math.max(0, Math.min(PARTICLE_SUNWHEEL, getIntCached(KEY_PARTICLE_MODE, 0))); }
+    public static final int PARTICLE_SOLAR_CROSS = 6;
+    public static int getParticleMode() { return Math.max(0, Math.min(PARTICLE_SOLAR_CROSS, getIntCached(KEY_PARTICLE_MODE, 0))); }
     public static int getParticleCount() { return Math.max(20, Math.min(300, getIntCached(KEY_PARTICLE_COUNT, 100))); }
     public static int getParticleAlpha() { return Math.max(10, Math.min(100, getIntCached(KEY_PARTICLE_ALPHA, 100))); }
     // Stored as tenths to keep sliders and backups deterministic.

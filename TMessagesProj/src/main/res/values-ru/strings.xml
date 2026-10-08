@@ -1550,6 +1550,8 @@
     <string name="PengramParticleLeaves">Осенние листья</string>
     <string name="PengramParticleSunwheel">Солнцеворот</string>
     <string name="PengramParticleSunwheelInfo">Светящийся солнцеворот с восемью загнутыми лучами поднимается и вращается. Ниже можно настроить плотность, прозрачность и движение.</string>
+    <string name="PengramParticleSolarCross">Свастика · солярный знак</string>
+    <string name="PengramParticleSolarCrossInfo">Четырёхлучевой солярный знак с мягким золотистым свечением поднимается и вращается. Ниже можно настроить плотность, прозрачность и движение.</string>
     <string name="PengramParticleCount">Количество частиц</string>
     <string name="PengramParticleOpacity">Прозрачность</string>
     <string name="PengramParticleSpeed">Скорость движения</string>

@@ -2744,6 +2744,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
             if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUNWHEEL) {
                 items.add(UItem.asShadow(getString(R.string.PengramParticleSunwheelInfo)));
+            } else if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SOLAR_CROSS) {
+                items.add(UItem.asShadow(getString(R.string.PengramParticleSolarCrossInfo)));
             }
             items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
             items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
@@ -2925,7 +2927,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private CharSequence[] particleNames() {
         return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
                 getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
-                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSunwheel)};
+                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSunwheel),
+                getString(R.string.PengramParticleSolarCross)};
     }
 
     private CharSequence voiceModeDescription(int mode) {
