@@ -14,7 +14,7 @@ public class PengramVersion {
     private PengramVersion() {
     }
 
-    /** «1.0.0 beta 1» */
+    /** «1.0.0 beta 3» */
     public static String name() {
         try {
             final String value = BuildConfig.PENGRAM_VERSION;
@@ -35,7 +35,7 @@ public class PengramVersion {
         }
     }
 
-    /** «1.0.0 beta 1 (1)» — короткая строка для шапок и подписей */
+    /** «1.0.0 beta 3 (3)» — короткая строка для шапок и подписей */
     public static String shortLine() {
         return name() + " (" + code() + ")";
     }
