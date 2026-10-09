@@ -1086,6 +1086,7 @@
     <string name="PengramQuoteUnsupported">Этот тип сообщения нельзя преобразовать в цитату.</string>
     <string name="PengramQuoteUnknown">Неизвестный отправитель</string>
     <string name="PengramQuotePhoto">Фото</string>
+    <string name="PengramQuoteMediaUnavailable">Превью недоступно</string>
     <string name="PengramQuoteVideo">Видео</string>
     <string name="PengramQuoteVoice">Голосовое сообщение</string>
     <string name="PengramQuoteDocument">Документ</string>
