@@ -11,7 +11,8 @@
 -keep class org.webrtc.* { *; }
 -keep class org.webrtc.audio.* { *; }
 -keep class org.webrtc.voiceengine.* { *; }
--keep class org.telegram.messenger.* { *; }
+# Telegram core is preserved below. Do not keep this whole package here:
+# PengramAI/PengramConfig/etc. live in it and must be eligible for R8 renaming.
 -keep class org.telegram.messenger.camera.* { *; }
 -keep class org.telegram.messenger.secretmedia.* { *; }
 -keep class org.telegram.messenger.support.* { *; }
@@ -64,10 +65,13 @@
 -dontoptimize
 -dontwarn **
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions
-# строки стектрейсов остаются читаемыми — иначе не разобрать падения беты
+# Keep line numbers for private retracing, but do not reveal original Java
+# source filenames in production stack traces or decompiler metadata.
 -keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# всё, кроме классов форка, сохраняем целиком
+# Keep upstream Telegram/JNI/reflection contracts intact; rename Pengram*
+# classes in every package, including org.telegram.messenger.
 -keep class !**.Pengram**, ** { *; }
 -keepclassmembers class !**.Pengram**, ** { *; }
 

@@ -256,6 +256,29 @@ jobs:
           fi
           exit $STATUS
 
+      - name: Verify Pengram code is obfuscated
+        if: env.BUILD_TYPE == 'standalone'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Never publish mapping.txt: it reverses the R8 renaming. A compile
+          # success alone does not prove our broad Telegram keep rules are safe.
+          found=0
+          while IFS= read -r map; do
+            if grep -q '^org\.telegram\.messenger\.PengramAIClient -> ' "$map"; then
+              found=1
+              if grep -q '^org\.telegram\.messenger\.PengramAIClient -> org\.telegram\.messenger\.PengramAIClient:' "$map"; then
+                echo "::error::PengramAIClient was kept unobfuscated by R8 rules"
+                exit 1
+              fi
+            fi
+          done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+          if [ "$found" != 1 ]; then
+            echo "::error::Cannot verify PengramAIClient in R8 mapping"
+            exit 1
+          fi
+          echo 'Pengram class names are obfuscated (mapping remains on runner only).'
+
       - name: ccache stats
         if: always()
         run: |

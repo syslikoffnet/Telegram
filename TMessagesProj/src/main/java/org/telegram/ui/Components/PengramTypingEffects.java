@@ -80,6 +80,9 @@ public final class PengramTypingEffects {
         // Индексы эффектов действительны лишь пока правка не сдвинула их.
         // При обычном добавлении в конце старые следы могут доиграть.
         State previous = states.get(edit);
+        // A pending 500 ms blink timer must not delay the caret after an IME edit,
+        // including auto-correction and backspace (which may not add glyphs).
+        if (previous != null) previous.onTextChanged();
         if (previous != null && (mode == PengramConfig.INPUT_ANIM_NONE || before > 0
                 || count > PASTE_THRESHOLD || previous.overlapsInsertion(start))) {
             previous.clearGlyphs();
@@ -235,6 +238,7 @@ public final class PengramTypingEffects {
         // ---------------------------------------------------------- курсор
         float cursorX = -1, cursorY;
         long lastCursorMove;                 // последнее изменение позиции/текста
+        long lastTextEdit;                   // реальная правка IME, не кадр анимации
         long forceVisibleUntil;              // не мигаем сразу после набора
         int cursorEvent = CURSOR_EVENT_NONE;
         long cursorEventTime;
@@ -269,8 +273,23 @@ public final class PengramTypingEffects {
             }
         }
 
+        void onTextChanged() {
+            final EditText edit = ref.get();
+            lastTextEdit = SystemClock.uptimeMillis();
+            lastCursorMove = lastTextEdit;
+            forceVisibleUntil = lastTextEdit + 1400;
+            if (edit != null && cursorActive()) {
+                // Cancel any delayed blink callback; request a frame for this edit.
+                edit.removeCallbacks(this);
+                scheduled = false;
+                schedule();
+                edit.invalidate();
+            }
+        }
+
         void noteTyping() {
             lastCursorMove = SystemClock.uptimeMillis();
+            lastTextEdit = lastCursorMove;
             forceVisibleUntil = lastCursorMove + 1400;
         }
 
@@ -600,7 +619,11 @@ public final class PengramTypingEffects {
             }
             final int selStart = edit.getSelectionStart();
             final int selEnd = edit.getSelectionEnd();
-            if (selStart < 0 || selEnd < 0 || !edit.isCursorVisible()) {
+            if (selStart < 0 || selEnd < 0 || !edit.isCursorVisible()
+                    || layout.getText() == null || selStart > layout.getText().length()
+                    || selEnd > layout.getText().length()) {
+                // IME may update selection before the matching TextView layout.
+                // Leave the native caret enabled until the next valid frame.
                 return;
             }
             final int line = layout.getLineForOffset(selStart);
@@ -630,30 +653,31 @@ public final class PengramTypingEffects {
             }
             final int selStart = edit.getSelectionStart();
             final int selEnd = edit.getSelectionEnd();
-            if (selStart != lastSelStart || selEnd != lastSelEnd) {
+            final boolean selectionChanged = selStart != lastSelStart || selEnd != lastSelEnd;
+            if (selectionChanged) {
                 lastSelStart = selStart;
                 lastSelEnd = selEnd;
                 lastCursorMove = now;
                 forceVisibleUntil = now + 1400;
             }
 
-            final float speed = PengramConfig.getTypingCursorSpeed() / 100f;   // 0.25 по умолчанию
+            final float speed = PengramConfig.getTypingCursorSpeed() / 100f;
             if (cursorX < 0) {
                 cursorX = targetX;
                 cursorY = targetY;
             }
-            float ease = Math.max(.08f, Math.min(.9f, speed));
             float dx = targetX - cursorX;
             float dy = targetY - cursorY;
-            if (now - cursorEventTime < 260 && cursorEvent == CURSOR_EVENT_DIVE) {
-                ease *= .55f;   // «присаживаемся» на переносе строки
-            }
-            // При переходе на другую строку (или при скролле длинного текста)
-            // не протаскиваем каретку через соседние строки.
-            if (Math.abs(dy) > dp(28) || Math.abs(dx) > dp(120)) {
+            // The caret must point at the actual insertion/selection position on
+            // the very first draw after an edit, tap or IME correction. Smoothing
+            // a whole character at 25% per frame looks like keyboard input lag.
+            if (now - lastTextEdit < 180 || selectionChanged
+                    || Math.abs(dy) > dp(12) || Math.abs(dx) > dp(12)) {
                 cursorX = targetX;
                 cursorY = targetY;
             } else {
+                // Only ease tiny layout/scroll adjustments, never full glyphs.
+                float ease = Math.max(.65f, Math.min(.95f, speed * 2.5f));
                 cursorX += dx * ease;
                 cursorY += dy * ease;
             }
@@ -720,6 +744,9 @@ public final class PengramTypingEffects {
                 clearGlyphs(); // layout was rebuilt; original text stays visible
             }
             drawParticles(canvas, edit);
+            // TextView has completed its layout in super.onDraw. Sample the real
+            // caret here rather than waiting for the next scheduled frame.
+            advanceCursor(nowMs);
             final boolean cursorDrawn = drawCursor(canvas, edit, nowMs);
             syncNativeCursor(edit, cursorDrawn);
 
