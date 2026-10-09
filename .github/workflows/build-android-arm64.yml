@@ -264,20 +264,29 @@ jobs:
           # Never publish mapping.txt: it reverses the R8 renaming. A compile
           # success alone does not prove our broad Telegram keep rules are safe.
           found=0
-          while IFS= read -r map; do
-            if grep -q '^org\.telegram\.messenger\.PengramAIClient -> ' "$map"; then
-              found=1
-              if grep -q '^org\.telegram\.messenger\.PengramAIClient -> org\.telegram\.messenger\.PengramAIClient:' "$map"; then
-                echo "::error::PengramAIClient was kept unobfuscated by R8 rules"
-                exit 1
-              fi
+          for class in \
+            org.telegram.messenger.PengramAIClient \
+            org.telegram.messenger.PengramAntiCrash \
+            org.telegram.ui.Components.PengramQuoteMaker; do
+            original="${class//./\\.}"
+            line=''
+            while IFS= read -r map; do
+              line=$(grep -m1 -E "^${original} -> " "$map" || true)
+              if [ -n "$line" ]; then break; fi
+            done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+            if [ -z "$line" ]; then
+              echo "::error::No R8 mapping for $class"
+              exit 1
             fi
-          done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
-          if [ "$found" != 1 ]; then
-            echo "::error::Cannot verify PengramAIClient in R8 mapping"
-            exit 1
-          fi
-          echo 'Pengram class names are obfuscated (mapping remains on runner only).'
+            mapped="${line#* -> }"
+            mapped="${mapped%:}"
+            if [ "$mapped" = "$class" ] || [[ "$mapped" != p.* ]]; then
+              echo "::error::$class was not repackaged and obfuscated"
+              exit 1
+            fi
+            found=$((found + 1))
+          done
+          echo "$found fork classes renamed by R8; mapping stays on the runner."
 
       - name: ccache stats
         if: always()
