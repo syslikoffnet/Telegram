@@ -73,9 +73,8 @@
 # org.telegram.* hierarchy. Kept upstream classes remain in their packages.
 -repackageclasses 'p'
 
-# WebRTC AudioDeviceBuffer looks up this exact class and method by JNI name.
-# Keep only the native bridge stable; the remaining voice DSP is still eligible
-# for R8 shrinking/renaming. A missing class aborts WebRTC's GetClass lookup.
--keep class org.telegram.messenger.PengramVoiceChanger {
+# WebRTC looks up only this tiny stable bridge by JNI name. The actual voice
+# DSP remains renameable; keeping its old Pengram class name is unnecessary.
+-keep class org.telegram.messenger.AudioEffectBridge {
     public static void processCallAudio(java.nio.ByteBuffer, int, int);
 }

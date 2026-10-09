@@ -15926,11 +15926,13 @@ public class ChatActivity extends BaseFragment implements
         loadTarget();
         if (targetMode != TARGET_FIXED && targetMode != TARGET_LATEST) return explicitReply;
         MessageObject best = messagesDict[0].get(targetMessageId);
-        if (best != null && (best.getDialogId() != dialog_id || best.getSenderId() != targetSenderId)) best = null;
+        if (best != null && (best.deleted || best.getDialogId() != dialog_id
+                || best.getSenderId() != targetSenderId)) best = null;
         if (targetMode == TARGET_LATEST) {
             for (MessageObject candidate : messages) {
-                if (candidate == null || candidate.getDialogId() != dialog_id || candidate.getId() <= 0
-                        || candidate.getSenderId() != targetSenderId || candidate.scheduled) continue;
+                if (candidate == null || candidate.deleted || candidate.getDialogId() != dialog_id
+                        || candidate.getId() <= 0 || candidate.getSenderId() != targetSenderId
+                        || candidate.scheduled) continue;
                 if (getTopicId() != 0 && MessageObject.getTopicId(currentAccount, candidate.messageOwner,
                         currentChat != null && ChatObject.isForum(currentChat)) != getTopicId()) continue;
                 if (best == null || candidate.getId() > best.getId()) best = candidate;
@@ -15951,6 +15953,16 @@ public class ChatActivity extends BaseFragment implements
         if (getParentActivity() != null) android.widget.Toast.makeText(getParentActivity(),
                 getString(R.string.PengramTargetUnavailable), android.widget.Toast.LENGTH_SHORT).show();
         return false;
+    }
+
+    public int pengramTargetMentionLength(MessageObject explicitReply) {
+        loadTarget();
+        if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject) return 0;
+        TLRPC.User user = getMessagesController().getUser(targetSenderId);
+        if (user == null && currentUser != null && currentUser.id == targetSenderId) user = currentUser;
+        if (user == null) return 0;
+        String username = UserObject.getPublicUsername(user);
+        return 2 + (TextUtils.isEmpty(username) ? UserObject.getUserName(user) : username).length();
     }
 
     public CharSequence pengramTargetTextForSend(CharSequence text, MessageObject explicitReply) {

@@ -267,6 +267,7 @@ jobs:
           for class in \
             org.telegram.messenger.PengramAIClient \
             org.telegram.messenger.PengramAntiCrash \
+            org.telegram.messenger.PengramVoiceChanger \
             org.telegram.ui.Components.PengramQuoteMaker; do
             original="${class//./\\.}"
             line=''
@@ -294,7 +295,7 @@ jobs:
           echo "$found fork classes renamed by R8; mapping stays on the runner."
           # Unlike ordinary fork classes, WebRTC loads this JNI bridge by its
           # literal Java name. Renaming it makes an audio call abort in native code.
-          bridge='org.telegram.messenger.PengramVoiceChanger'
+          bridge='org.telegram.messenger.AudioEffectBridge'
           found_bridge=0
           while IFS= read -r map; do
             line=$(grep -m1 -F "${bridge} -> " "$map" || true)

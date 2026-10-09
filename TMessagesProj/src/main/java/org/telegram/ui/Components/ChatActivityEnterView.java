@@ -7872,14 +7872,12 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         if (parentFragment != null && editingMessageObject == null && text.length() > 0) {
             if (!parentFragment.pengramTargetCanSendText(replyingMessageObject)) return false;
-            CharSequence addressed = parentFragment.pengramTargetTextForSend(text, replyingMessageObject);
-            if (addressed != text) {
-                text = addressed;
-                hasOnlyEmoji = false;
-            }
         }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
+        if (parentFragment != null && editingMessageObject == null) {
+            maxLength = Math.max(128, maxLength - parentFragment.pengramTargetMentionLength(replyingMessageObject));
+        }
         if (text.length() != 0) {
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
@@ -7925,6 +7923,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 CharSequence part = text.subSequence(start, end);
                 if (!hasOnlyEmoji) {
                     part = AndroidUtilities.getTrimmedString(part);
+                }
+                if (parentFragment != null && editingMessageObject == null) {
+                    part = parentFragment.pengramTargetTextForSend(part, replyingMessageObject);
                 }
                 CharSequence[] message = new CharSequence[]{ part };
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);

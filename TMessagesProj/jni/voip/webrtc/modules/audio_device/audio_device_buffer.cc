@@ -56,7 +56,7 @@ void ProcessPengramMicrophone(int16_t* samples, size_t frames, int rate) {
     jmethodID process;
   };
   static const Bridge bridge = [env]() {
-    auto local = GetClass(env, "org/telegram/messenger/PengramVoiceChanger");
+    auto local = GetClass(env, "org/telegram/messenger/AudioEffectBridge");
     if (local.is_null()) return Bridge{nullptr, nullptr};
     jclass global = static_cast<jclass>(env->NewGlobalRef(local.obj()));
     jmethodID method = global ? env->GetStaticMethodID(global, "processCallAudio",
