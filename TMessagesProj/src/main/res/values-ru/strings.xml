@@ -1095,6 +1095,11 @@
     <string name="PengramQuoteDownload">Скачайте фото или отключите показ медиа в цитате.</string>
     <string name="PengramQuoteRenderError">Не удалось создать цитату. Попробуйте выбрать меньше сообщений.</string>
     <string name="PengramQuotePrivacyHint">Проверьте имена и текст перед отправкой.</string>
+    <string name="PengramQuoteZoomHint">Нажмите, чтобы увеличить</string>
+    <string name="PengramQuoteQuickSettings">Оформление цитаты</string>
+    <string name="PengramQuoteCount">Сообщений: %1$d</string>
+    <string name="PengramQuoteUpdating">Обновляем предпросмотр…</string>
+    <string name="PengramQuoteUpdateFailed">Снимок не обновился · попробуйте ещё раз</string>
     <string name="PengramQuotePreview">Предпросмотр цитаты</string>
     <string name="PengramQuoteSend">Отправить в чат</string>
     <string name="PengramQuoteSave">Сохранить в галерею</string>

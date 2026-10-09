@@ -12067,6 +12067,11 @@
     <string name="PengramQuoteDownload">Download the photo or turn off media in quote settings.</string>
     <string name="PengramQuoteRenderError">Could not create the quote. Try selecting fewer messages.</string>
     <string name="PengramQuotePrivacyHint">Check names and message text before sharing.</string>
+    <string name="PengramQuoteZoomHint">Tap to zoom</string>
+    <string name="PengramQuoteQuickSettings">Customize quote</string>
+    <string name="PengramQuoteCount">%1$d messages</string>
+    <string name="PengramQuoteUpdating">Updating preview…</string>
+    <string name="PengramQuoteUpdateFailed">Preview unchanged · try again</string>
     <string name="PengramQuotePreview">Quote preview</string>
     <string name="PengramQuoteSend">Send to chat</string>
     <string name="PengramQuoteSave">Save to gallery</string>
