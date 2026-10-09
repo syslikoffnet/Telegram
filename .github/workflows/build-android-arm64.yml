@@ -292,6 +292,26 @@ jobs:
             found=$((found + 1))
           done
           echo "$found fork classes renamed by R8; mapping stays on the runner."
+          # Unlike ordinary fork classes, WebRTC loads this JNI bridge by its
+          # literal Java name. Renaming it makes an audio call abort in native code.
+          bridge='org.telegram.messenger.PengramVoiceChanger'
+          found_bridge=0
+          while IFS= read -r map; do
+            line=$(grep -m1 -F "${bridge} -> " "$map" || true)
+            if [ -n "$line" ]; then
+              mapped="${line#* -> }"
+              mapped="${mapped%:}"
+              if [ "$mapped" != "$bridge" ]; then
+                echo "::error::WebRTC JNI voice bridge was renamed by R8"
+                exit 1
+              fi
+              found_bridge=1
+            fi
+          done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+          if [ "$found_bridge" -ne 1 ]; then
+            echo "::error::No R8 mapping for WebRTC JNI voice bridge"
+            exit 1
+          fi
 
       - name: ccache stats
         if: always()

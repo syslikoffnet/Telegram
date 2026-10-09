@@ -2,6 +2,7 @@ package org.telegram.ui.Components;
 
 import static org.telegram.messenger.LocaleController.getString;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.PorterDuff;
@@ -42,14 +43,11 @@ public final class PengramCrashDialogs {
 
     /** окно после вылета — один раз за запуск */
     public static void showPendingIfNeeded(Context context) {
-        if (shownThisSession || context == null || !PengramCrashReport.hasPending()) {
-            return;
-        }
-        shownThisSession = true;
-        final String report = PengramCrashReport.consumePending();
-        if (report == null) {
-            return;
-        }
+        if (shownThisSession || !(context instanceof Activity)) return;
+        Activity activity = (Activity) context;
+        if (activity.isFinishing() || activity.isDestroyed()) return;
+        final String report = PengramCrashReport.pendingReport();
+        if (report == null) return;
         // отчёт уже в буфере, но его могли затереть, пока приложение было закрыто
         final boolean copied = PengramCrashReport.isCopyEnabled() && PengramCrashReport.copy(report);
         final String reason = PengramCrashReport.shortReason(report);
@@ -59,13 +57,27 @@ public final class PengramCrashDialogs {
         }
         message.append(getString(copied ? R.string.PengramCrashCopiedInfo : R.string.PengramCrashNotCopiedInfo));
 
-        new AlertDialog.Builder(context)
-                .setTitle(getString(R.string.PengramCrashTitle))
-                .setMessage(message.toString())
-                .setPositiveButton(getString(R.string.PengramCrashCopy), (d, w) -> copyWithToast(context, report))
-                .setNeutralButton(getString(R.string.PengramCrashDetails), (d, w) -> showReport(context, report))
-                .setNegativeButton(getString(R.string.Close), null)
-                .show();
+        try {
+            AlertDialog dialog = new AlertDialog.Builder(context)
+                    .setTitle(getString(R.string.PengramCrashTitle))
+                    .setMessage(message.toString())
+                    .setPositiveButton(getString(R.string.PengramCrashCopy), (d, w) -> {
+                        PengramCrashReport.acknowledgePending(report);
+                        copyWithToast(context, report);
+                    })
+                    .setNeutralButton(getString(R.string.PengramCrashDetails), (d, w) -> {
+                        PengramCrashReport.acknowledgePending(report);
+                        showReport(context, report);
+                    })
+                    .setNegativeButton(getString(R.string.Close), (d, w) ->
+                            PengramCrashReport.acknowledgePending(report))
+                    .show();
+            shownThisSession = dialog.isShowing();
+        } catch (Throwable error) {
+            // A destroyed Activity or an overlay may prevent the dialog; retry
+            // on the next resume instead of losing the only copy of the report.
+            org.telegram.messenger.FileLog.e(error);
+        }
     }
 
     /** полный текст одного отчёта */

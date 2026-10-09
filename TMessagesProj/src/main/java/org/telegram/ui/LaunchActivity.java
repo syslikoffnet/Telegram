@@ -1481,6 +1481,13 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 rightActionBarLayout.getView().setVisibility(View.VISIBLE);
             }
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.passcodeDismissed, view);
+            if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(this);
+                    }
+                }, 350);
+            }
             try {
                 NotificationsController.getInstance(UserConfig.selectedAccount).showNotifications();
             } catch (Exception e) {
@@ -7009,9 +7016,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         checkFreeDiscSpace(0);
         MediaController.checkGallery();
         onPasscodeResume();
-        // Pengram: если прошлый запуск закончился вылетом, покажем отчёт —
-        // причина к этому моменту уже лежит в буфере обмена
-        if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+        // Recover native audio/JNI exits (Java's uncaught handler cannot see
+        // SIGABRT/SIGSEGV) before checking for a pending report.
+        org.telegram.messenger.PengramCrashReport.install();
+        org.telegram.messenger.PengramCrashReport.recoverNativeCrashIfAny();
+        if (org.telegram.messenger.PengramCrashReport.hasPending()
+                && (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE)) {
             AndroidUtilities.runOnUIThread(() -> {
                 if (!isFinishing() && !isDestroyed()) {
                     org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(LaunchActivity.this);

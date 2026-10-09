@@ -1,5 +1,7 @@
 package org.telegram.messenger;
 
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -8,6 +10,7 @@ import android.os.Build;
 import android.os.Debug;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
@@ -41,9 +44,11 @@ public final class PengramCrashReport {
     private static final String KEY_PENDING = "pending";
     private static final String KEY_PENDING_TIME = "pendingTime";
     private static final String KEY_COPY = "copyToClipboard";
+    private static final String KEY_NATIVE_EXIT_SEEN = "nativeExitSeen";
     private static final String SEPARATOR = "\n=== pengram crash ===\n";
 
-    private static volatile boolean installed;
+    private static volatile Thread.UncaughtExceptionHandler installedHandler;
+    private static final ThreadLocal<Boolean> handling = new ThreadLocal<>();
     private static ArrayList<String> cache;
 
     private PengramCrashReport() {}
@@ -51,24 +56,71 @@ public final class PengramCrashReport {
     // ------------------------------------------------------------------ установка
 
     /** вызывается один раз при старте приложения, до всего остального */
-    public static void install() {
-        if (installed) {
-            return;
-        }
-        installed = true;
+    public static synchronized void install() {
         try {
             final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
-            Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            if (previous == installedHandler) return;
+            final Thread.UncaughtExceptionHandler wrapper = (thread, error) -> {
+                if (!Boolean.TRUE.equals(handling.get())) {
+                    handling.set(true);
+                    try {
+                        handle(thread, error);
+                    } catch (Throwable ignore) {
+                        // Reporting must never replace the original crash.
+                    }
+                }
                 try {
-                    handle(thread, error);
-                } catch (Throwable ignore) {
-                    // отчёт не должен мешать падению: что угодно пошло не так — просто идём дальше
+                    if (previous != null) previous.uncaughtException(thread, error);
+                } finally {
+                    handling.remove();
                 }
-                if (previous != null) {
-                    previous.uncaughtException(thread, error);
-                }
-            });
+            };
+            Thread.setDefaultUncaughtExceptionHandler(wrapper);
+            installedHandler = wrapper;
         } catch (Throwable ignore) {
+        }
+    }
+
+    /** A native SIGABRT/SIGSEGV bypasses Java's uncaught-exception handler.
+     * Android 11+ exposes the previous process exit (and sometimes its tombstone).
+     * This is best effort; earlier Android versions need an adb/logcat report. */
+    public static void recoverNativeCrashIfAny() {
+        if (Build.VERSION.SDK_INT < 30 || hasPending()) return;
+        try {
+            final Context context = ApplicationLoader.applicationContext;
+            final SharedPreferences p = prefs();
+            if (context == null || p == null) return;
+            ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            if (manager == null) return;
+            for (ApplicationExitInfo info : manager.getHistoricalProcessExitReasons(context.getPackageName(), 0, 5)) {
+                if (!context.getPackageName().equals(info.getProcessName())) continue;
+                long timestamp = info.getTimestamp();
+                if (timestamp <= p.getLong(KEY_NATIVE_EXIT_SEEN, 0) || timestamp > System.currentTimeMillis()
+                        || System.currentTimeMillis() - timestamp > 7L * 86400000L) break;
+                // Mark this exit before writing: do not redisplay a stale crash on every launch.
+                p.edit().putLong(KEY_NATIVE_EXIT_SEEN, timestamp).commit();
+                if (info.getReason() != ApplicationExitInfo.REASON_CRASH_NATIVE) break;
+                StringBuilder sb = new StringBuilder("Pengram native crash report\n");
+                sb.append("Время: ").append(new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US)
+                        .format(new Date(timestamp))).append('\n');
+                sb.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ")
+                        .append(Build.VERSION.SDK_INT).append(")\n");
+                sb.append("Устройство: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
+                sb.append("Причина: native crash (signal / JNI), status ").append(info.getStatus()).append("\n\n");
+                try (InputStream trace = info.getTraceInputStream()) {
+                    if (trace != null) {
+                        byte[] bytes = new byte[16384];
+                        int count = trace.read(bytes);
+                        if (count > 0) sb.append(new String(bytes, 0, count, "UTF-8"));
+                    }
+                } catch (Throwable ignore) {
+                    sb.append("Tombstone unavailable; collect adb logcat for details.\n");
+                }
+                store(sb.toString());
+                return;
+            }
+        } catch (Throwable ignore) {
+            // getHistoricalProcessExitReasons is not consistently available on all OEMs.
         }
     }
 
@@ -241,6 +293,7 @@ public final class PengramCrashReport {
                 list.remove(0);
             }
             write(list);
+            cache = new ArrayList<>(list);
             final SharedPreferences p = prefs();
             if (p != null) {
                 // commit, а не apply: процесс умирает прямо сейчас
@@ -345,17 +398,17 @@ public final class PengramCrashReport {
         return p != null && p.getString(KEY_PENDING, null) != null;
     }
 
-    /** забрать отчёт и пометить показанным */
-    public static String consumePending() {
+    /** Do not acknowledge until the crash dialog has actually opened. */
+    public static String pendingReport() {
         final SharedPreferences p = prefs();
-        if (p == null) {
-            return null;
+        return p == null ? null : p.getString(KEY_PENDING, null);
+    }
+
+    public static void acknowledgePending(String report) {
+        final SharedPreferences p = prefs();
+        if (p != null && report != null && report.equals(p.getString(KEY_PENDING, null))) {
+            p.edit().remove(KEY_PENDING).remove(KEY_PENDING_TIME).commit();
         }
-        final String report = p.getString(KEY_PENDING, null);
-        if (report != null) {
-            p.edit().remove(KEY_PENDING).remove(KEY_PENDING_TIME).apply();
-        }
-        return report;
     }
 
     public static long pendingTime() {
