@@ -1105,6 +1105,12 @@
     <string name="PengramQuoteSave">Сохранить в галерею</string>
     <string name="PengramQuoteCannotSend">В этот чат сейчас нельзя отправить фото.</string>
     <string name="PengramQuoteSaveError">Не удалось сохранить цитату в галерею.</string>
+    <string name="PengramTargetMenu">Таргет</string>
+    <string name="PengramTargetFixed">Отвечать на выбранное сообщение</string>
+    <string name="PengramTargetLatest">Отвечать на последнее сообщение</string>
+    <string name="PengramTargetMention">Упоминать в каждом новом тексте</string>
+    <string name="PengramTargetOff">Выключить таргет</string>
+    <string name="PengramTargetUnavailable">Сообщение или пользователь недоступны. Откройте чат и выберите сообщение заново.</string>
     <string name="PengramQuoteMenu">Создать цитату</string>
     <string name="PengramAISetupHeader">Настройка AI</string>
     <string name="PengramAIConfiguredCount">Настроено</string>
@@ -1629,8 +1635,10 @@
     <string name="PengramHistoryMaxValue">%1$d записей</string>
     <string name="PengramHistoryMaxUnlimited">Без лимита</string>
     <string name="PengramBackgroundChannel">Pengram в фоне</string>
-    <string name="PengramBackgroundTitle">Pengram работает</string>
-    <string name="PengramBackgroundText">Ловит удалённые и изменённые сообщения, пока приложение закрыто</string>
+    <string name="PengramBackgroundTitle">🐧✨</string>
+    <string name="PengramBackgroundText">👀📡</string>
+    <string name="PengramBackgroundSleepTitle">🐧💤</string>
+    <string name="PengramBackgroundSleepText">🌙☁️</string>
     <string name="PengramTypingStatsTitle">Скорость набора</string>
     <string name="PengramTypingStatsEnable">Собирать мою скорость набора</string>
     <string name="PengramTypingStatsPrivacy">Только ваш ввод: на устройстве хранятся счётчики, но не текст. По умолчанию выключено.</string>

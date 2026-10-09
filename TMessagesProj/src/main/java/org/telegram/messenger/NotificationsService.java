@@ -71,10 +71,15 @@ public class NotificationsService extends Service {
             final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, open,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
+            // The notification is deliberately visual: no description of the
+            // background activity in the lock screen or notification shade.
+            final boolean penguinAwake = PengramConfig.isBackgroundMode();
             final NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                     .setSmallIcon(PengramNotificationIcon.drawable())
-                    .setContentTitle(LocaleController.getString(R.string.PengramBackgroundTitle))
-                    .setContentText(LocaleController.getString(R.string.PengramBackgroundText))
+                    .setContentTitle(LocaleController.getString(penguinAwake
+                            ? R.string.PengramBackgroundTitle : R.string.PengramBackgroundSleepTitle))
+                    .setContentText(LocaleController.getString(penguinAwake
+                            ? R.string.PengramBackgroundText : R.string.PengramBackgroundSleepText))
                     .setContentIntent(contentIntent)
                     .setOngoing(true)
                     .setShowWhen(false)

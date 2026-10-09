@@ -12077,6 +12077,12 @@
     <string name="PengramQuoteSave">Save to gallery</string>
     <string name="PengramQuoteCannotSend">This chat is not available for sending photos.</string>
     <string name="PengramQuoteSaveError">Could not save the quote to the gallery.</string>
+    <string name="PengramTargetMenu">Target</string>
+    <string name="PengramTargetFixed">Reply to selected message</string>
+    <string name="PengramTargetLatest">Reply to their latest message</string>
+    <string name="PengramTargetMention">Mention in each new text</string>
+    <string name="PengramTargetOff">Turn target off</string>
+    <string name="PengramTargetUnavailable">Target message or user is unavailable. Open the chat and choose a message again.</string>
     <string name="PengramQuoteMenu">Create quote</string>
     <string name="PengramAISetupHeader">AI setup</string>
     <string name="PengramAIConfiguredCount">Configured</string>
@@ -12601,8 +12607,10 @@
     <string name="PengramHistoryMaxValue">%1$d entries</string>
     <string name="PengramHistoryMaxUnlimited">No limit</string>
     <string name="PengramBackgroundChannel">Pengram in background</string>
-    <string name="PengramBackgroundTitle">Pengram is running</string>
-    <string name="PengramBackgroundText">Catching deleted and edited messages while the app is closed</string>
+    <string name="PengramBackgroundTitle">🐧✨</string>
+    <string name="PengramBackgroundText">👀📡</string>
+    <string name="PengramBackgroundSleepTitle">🐧💤</string>
+    <string name="PengramBackgroundSleepText">🌙☁️</string>
     <string name="PengramTypingStatsTitle">Typing speed</string>
     <string name="PengramTypingStatsEnable">Collect my typing speed</string>
     <string name="PengramTypingStatsPrivacy">Only your own typing; stored on this device as counters, never text. Off by default.</string>

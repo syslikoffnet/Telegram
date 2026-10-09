@@ -1257,6 +1257,13 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_AI = 924;
     public final static int OPTION_PENGRAM_QUOTE = 925;
     public final static int OPTION_PENGRAM_COPY_PHOTO = 926;
+    public final static int OPTION_PENGRAM_TARGET = 927;
+    private static final int TARGET_FIXED = 1, TARGET_LATEST = 2, TARGET_MENTION = 3;
+    private int targetMode, targetMessageId;
+    private long targetSenderId;
+    private String targetName;
+    private boolean targetLoaded;
+    private TextView targetBadge;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -9206,6 +9213,7 @@ public class ChatActivity extends BaseFragment implements
             }
         };
         chatActivityEnterView.addTopView(chatActivityEnterTopView, 48);
+        updateTargetBadge();
 
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
             chatActivityEnterView.setEditingBusinessLink(businessLink);
@@ -13954,6 +13962,7 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         hideFieldPanel(false);
+        if (targetMode != 0) AndroidUtilities.runOnUIThread(this::updateTargetBadge, 80);
         if (chatMode == 0) {
             getMediaDataController().cleanDraft(dialog_id, threadMessageId, true);
         }
@@ -15810,6 +15819,158 @@ public class ChatActivity extends BaseFragment implements
         showFieldPanel(show, null, null, messageObjectsToForward, null, true, 0, null, false, 0, true);
     }
 
+    private String targetKey() {
+        return dialog_id + ":" + getTopicId() + ":" + getUserConfig().getClientUserId();
+    }
+
+    private android.content.SharedPreferences targetPrefs() {
+        return org.telegram.messenger.ApplicationLoader.applicationContext.getSharedPreferences(
+                "pengram_chat_targets_" + currentAccount, Context.MODE_PRIVATE);
+    }
+
+    private void loadTarget() {
+        if (targetLoaded) return;
+        targetLoaded = true;
+        try {
+            android.content.SharedPreferences prefs = targetPrefs();
+            String key = targetKey();
+            targetMode = prefs.getInt(key + ":mode", 0);
+            if (targetMode < TARGET_FIXED || targetMode > TARGET_MENTION) targetMode = 0;
+            targetSenderId = prefs.getLong(key + ":sender", 0);
+            targetMessageId = prefs.getInt(key + ":message", 0);
+            targetName = prefs.getString(key + ":name", "");
+            if (targetSenderId <= 0 || targetMessageId <= 0) targetMode = 0;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            targetMode = 0;
+        }
+    }
+
+    private void setTarget(int mode, MessageObject message) {
+        loadTarget();
+        targetMode = mode;
+        if (mode != 0 && message != null) {
+            targetSenderId = message.getSenderId();
+            targetMessageId = message.getId();
+            TLRPC.User user = getMessagesController().getUser(targetSenderId);
+            targetName = user == null ? String.valueOf(targetSenderId) : UserObject.getUserName(user);
+        }
+        try {
+            String key = targetKey();
+            android.content.SharedPreferences.Editor edit = targetPrefs().edit();
+            if (mode == 0) {
+                edit.remove(key + ":mode").remove(key + ":sender")
+                        .remove(key + ":message").remove(key + ":name");
+            } else {
+                edit.putInt(key + ":mode", mode).putLong(key + ":sender", targetSenderId)
+                        .putInt(key + ":message", targetMessageId).putString(key + ":name", targetName);
+            }
+            edit.apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        updateTargetBadge();
+    }
+
+    private void showTargetChooser(MessageObject message) {
+        if (message == null || getParentActivity() == null || message.getSenderId() <= 0) return;
+        loadTarget();
+        ArrayList<CharSequence> labels = new ArrayList<>();
+        labels.add(getString(R.string.PengramTargetFixed));
+        labels.add(getString(R.string.PengramTargetLatest));
+        labels.add(getString(R.string.PengramTargetMention));
+        if (targetMode != 0) labels.add(getString(R.string.PengramTargetOff));
+        showDialog(new AlertDialog.Builder(getParentActivity(), themeDelegate)
+                .setTitle(getString(R.string.PengramTargetMenu))
+                .setItems(labels.toArray(new CharSequence[0]), (dialog, which) -> {
+                    if (which == 3) setTarget(0, null);
+                    else setTarget(which + 1, message);
+                }).create());
+    }
+
+    private void updateTargetBadge() {
+        if (chatActivityEnterTopView == null || chatActivityEnterView == null) return;
+        loadTarget();
+        if (targetMode == 0 || chatMode != MODE_DEFAULT) {
+            if (targetBadge != null) targetBadge.setVisibility(View.GONE);
+            if (fieldPanelShown == 0) chatActivityEnterView.hideTopView(false);
+            return;
+        }
+        if (targetBadge == null) {
+            targetBadge = new TextView(chatActivityEnterView.getContext());
+            targetBadge.setTextSize(14);
+            targetBadge.setSingleLine(true);
+            targetBadge.setEllipsize(TextUtils.TruncateAt.END);
+            targetBadge.setGravity(Gravity.CENTER_VERTICAL);
+            targetBadge.setPadding(dp(18), 0, dp(18), 0);
+            targetBadge.setBackground(Theme.createRoundRectDrawable(dp(12),
+                    getThemedColor(Theme.key_chat_messagePanelBackground)));
+            targetBadge.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+            targetBadge.setOnClickListener(v -> setTarget(0, null));
+            chatActivityEnterTopView.addView(targetBadge,
+                    LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        }
+        int description = targetMode == TARGET_FIXED ? R.string.PengramTargetFixed
+                : targetMode == TARGET_LATEST ? R.string.PengramTargetLatest : R.string.PengramTargetMention;
+        targetBadge.setText("🎯 " + getString(description) + " · " + targetName + "    ✕");
+        targetBadge.setContentDescription(getString(R.string.PengramTargetOff));
+        targetBadge.setVisibility(fieldPanelShown == 0 ? View.VISIBLE : View.GONE);
+        if (fieldPanelShown == 0) {
+            targetBadge.bringToFront();
+            chatActivityEnterView.showTargetTopView();
+        }
+    }
+
+    public MessageObject pengramTargetReplyForText(MessageObject explicitReply) {
+        if (explicitReply != null && explicitReply != threadMessageObject) return explicitReply;
+        loadTarget();
+        if (targetMode != TARGET_FIXED && targetMode != TARGET_LATEST) return explicitReply;
+        MessageObject best = messagesDict[0].get(targetMessageId);
+        if (best != null && (best.getDialogId() != dialog_id || best.getSenderId() != targetSenderId)) best = null;
+        if (targetMode == TARGET_LATEST) {
+            for (MessageObject candidate : messages) {
+                if (candidate == null || candidate.getDialogId() != dialog_id || candidate.getId() <= 0
+                        || candidate.getSenderId() != targetSenderId || candidate.scheduled) continue;
+                if (getTopicId() != 0 && MessageObject.getTopicId(currentAccount, candidate.messageOwner,
+                        currentChat != null && ChatObject.isForum(currentChat)) != getTopicId()) continue;
+                if (best == null || candidate.getId() > best.getId()) best = candidate;
+            }
+        }
+        return best != null && best.getId() > 0 ? best : null;
+    }
+
+    public boolean pengramTargetCanSendText(MessageObject explicitReply) {
+        loadTarget();
+        if (targetMode == 0 || explicitReply != null && explicitReply != threadMessageObject) return true;
+        if (targetMode == TARGET_MENTION) {
+            if (getMessagesController().getUser(targetSenderId) != null
+                    || currentUser != null && currentUser.id == targetSenderId) return true;
+        } else if (pengramTargetReplyForText(explicitReply) != null) {
+            return true;
+        }
+        if (getParentActivity() != null) android.widget.Toast.makeText(getParentActivity(),
+                getString(R.string.PengramTargetUnavailable), android.widget.Toast.LENGTH_SHORT).show();
+        return false;
+    }
+
+    public CharSequence pengramTargetTextForSend(CharSequence text, MessageObject explicitReply) {
+        loadTarget();
+        if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject
+                || text == null || text.length() == 0) return text;
+        TLRPC.User user = getMessagesController().getUser(targetSenderId);
+        if (user == null && currentUser != null && currentUser.id == targetSenderId) user = currentUser;
+        if (user == null) return text;
+        String username = UserObject.getPublicUsername(user);
+        String label = "@" + (TextUtils.isEmpty(username) ? UserObject.getUserName(user) : username);
+        if (!TextUtils.isEmpty(username) && text.toString().startsWith(label)) return text;
+        SpannableStringBuilder value = new SpannableStringBuilder(label + " ").append(text);
+        if (TextUtils.isEmpty(username)) {
+            value.setSpan(new URLSpanUserMention(String.valueOf(user.id), 3), 0, label.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return value;
+    }
+
     public void showFieldPanelForReply(MessageObject messageObjectToReply) {
         showFieldPanel(true, messageObjectToReply, null, null, null, true, 0, null, false, 0, true);
     }
@@ -15837,6 +15998,8 @@ public class ChatActivity extends BaseFragment implements
         if (chatActivityEnterView == null) {
             return;
         }
+        if (show && targetBadge != null) targetBadge.setVisibility(View.GONE);
+        if (!show && targetMode != 0) AndroidUtilities.runOnUIThread(this::updateTargetBadge, 100);
 
         chatActivityEnterView.setSuggestionButtonVisible(!show && ChatObject.isMonoForum(currentChat), animated);
 
@@ -34614,6 +34777,10 @@ public class ChatActivity extends BaseFragment implements
                 org.telegram.ui.Components.PengramPhotoClipboard.copy(this, selectedObject);
                 break;
             }
+            case OPTION_PENGRAM_TARGET: {
+                showTargetChooser(selectedObject);
+                break;
+            }
             case OPTION_PENGRAM_QUOTE: {
                 ArrayList<MessageObject> quote = new ArrayList<>();
                 if (selectedObject != null) quote.add(selectedObject);
@@ -47174,6 +47341,16 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
+        // Only real, addressable user messages in writable ordinary chats can
+        // become a persistent target; never target a channel/secret/service post.
+        if (chatMode == MODE_DEFAULT && currentEncryptedChat == null && allowChatActions
+                && !message.isSponsored() && !isEphemeral && message.getDialogId() == dialog_id
+                && message.getId() > 0 && message.getSenderId() > 0
+                && message.getSenderId() != getUserConfig().getClientUserId()) {
+            items.add(getString(R.string.PengramTargetMenu));
+            options.add(OPTION_PENGRAM_TARGET);
+            icons.add(R.drawable.msg_reply);
+        }
         // Pengram: быстрые действия над сообщением
         if (org.telegram.messenger.PengramConfig.isMenuSaveToSaved() && !message.isSponsored() && getUserConfig().getClientUserId() != dialog_id) {
             items.add(LocaleController.getString(R.string.PengramMenuSaveToSaved));

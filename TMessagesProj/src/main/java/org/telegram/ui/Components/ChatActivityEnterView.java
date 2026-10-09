@@ -6407,6 +6407,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         emojiView.switchToGifRecent();
     }
 
+    /** Show the persistent target indicator without unexpectedly opening the keyboard. */
+    public void showTargetTopView() {
+        if (topView == null || topViewShowed || getVisibility() != VISIBLE) return;
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) animatorTopViewVisibility.setValue(true, false);
+    }
+
     public void showTopView(boolean animated, final boolean openKeyboard) {
         showTopView(animated, openKeyboard, false);
     }
@@ -7862,6 +7870,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (!hasOnlyEmoji) {
             text = AndroidUtilities.getTrimmedString(text);
         }
+        if (parentFragment != null && editingMessageObject == null && text.length() > 0) {
+            if (!parentFragment.pengramTargetCanSendText(replyingMessageObject)) return false;
+            CharSequence addressed = parentFragment.pengramTargetTextForSend(text, replyingMessageObject);
+            if (addressed != text) {
+                text = addressed;
+                hasOnlyEmoji = false;
+            }
+        }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
         if (text.length() != 0) {
@@ -7938,7 +7954,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (replyToTopMsg == null && replyingTopMessage != null) {
                     replyToTopMsg = replyingTopMessage;
                 }
-                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, replyingMessageObject, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
+                MessageObject targetReply = parentFragment != null && editingMessageObject == null
+                        ? parentFragment.pengramTargetReplyForText(replyingMessageObject) : replyingMessageObject;
+                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, targetReply, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
                 params.sendMessageChatArguments = parentFragment != null ? parentFragment.getMessageChatSendParams() : null;
                 params.effect_id = effectId;
                 params.payStars = payStars;
