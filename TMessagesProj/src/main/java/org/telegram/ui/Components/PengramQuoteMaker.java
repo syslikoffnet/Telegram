@@ -572,7 +572,7 @@ public final class PengramQuoteMaker {
     private static Bitmap decodeMedia(Entry entry) {
         Bitmap image = decodeLottie(entry.lottieFile);
         if (image == null) image = decode(entry.imageFile, entry.sticker);
-        if (image == null && entry.cachedImage != null) image = decodeBytes(entry.cachedImage);
+        if (image == null && entry.cachedImage != null) image = decodeBytes(entry.cachedImage, entry.sticker);
         if (image == null && entry.videoFile != null) {
             try { image = decodeVideo(entry.videoFile); }
             catch (Exception e) { FileLog.e(e); }
@@ -621,7 +621,7 @@ public final class PengramQuoteMaker {
         }
     }
 
-    private static Bitmap decodeBytes(byte[] bytes) {
+    private static Bitmap decodeBytes(byte[] bytes, boolean alpha) {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
@@ -631,7 +631,8 @@ public final class PengramQuoteMaker {
         while (bounds.outWidth / options.inSampleSize > 1100 || bounds.outHeight / options.inSampleSize > 1100) {
             options.inSampleSize *= 2;
         }
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        options.inPreferredConfig = alpha || "image/png".equals(bounds.outMimeType)
+                || "image/webp".equals(bounds.outMimeType) ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
     }
 
