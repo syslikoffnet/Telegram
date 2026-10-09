@@ -4,9 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.util.Base64;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.DialogObject;
@@ -28,6 +27,8 @@ import org.telegram.ui.ChatActivity;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -46,8 +47,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 /** One-chat server-history export. Never substitutes the local message cache for server pagination. */
 public final class PengramChatExport {
@@ -63,10 +62,13 @@ public final class PengramChatExport {
     private final TLRPC.InputPeer inputPeer;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final HashMap<Long, String> peers = new HashMap<>();
+    // Temporary fragments contain only HTML and small markers; binary files are
+    // streamed into the final document once, in chronological order.
+    private final HashMap<Integer, InlineMedia> inlineMedia = new HashMap<>();
+    private int nextMediaId, writtenMedia;
     private volatile boolean cancelled;
     private volatile int requestId;
     private AlertDialog progress;
-    private int format; // 0 HTML, 1 JSON, 2 both
     private boolean media;
     private int count, legacyCount, missing, exportedFiles, deletedCount;
     private boolean rootSeen, rootMissing;
@@ -90,18 +92,13 @@ public final class PengramChatExport {
                 .setMessage(s(R.string.PengramExportDescription))
                 .setItems(new CharSequence[]{
                         s(R.string.PengramExportHtml) + " · " + s(R.string.PengramExportWithMedia),
-                        s(R.string.PengramExportHtml) + " · " + s(R.string.PengramExportWithoutMedia),
-                        s(R.string.PengramExportJson) + " · " + s(R.string.PengramExportWithMedia),
-                        s(R.string.PengramExportJson) + " · " + s(R.string.PengramExportWithoutMedia),
-                        s(R.string.PengramExportBoth) + " · " + s(R.string.PengramExportWithMedia),
-                        s(R.string.PengramExportBoth) + " · " + s(R.string.PengramExportWithoutMedia)
+                        s(R.string.PengramExportHtml) + " · " + s(R.string.PengramExportWithoutMedia)
                 }, (d, which) -> {
-                    format = which / 2;
-                    media = which % 2 == 0;
+                    media = which == 0;
                     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType("application/zip");
-                    intent.putExtra(Intent.EXTRA_TITLE, "Pengram_chat_" + Math.abs(dialogId) + "_" + System.currentTimeMillis() / 1000 + ".zip");
+                    intent.setType("text/html");
+                    intent.putExtra(Intent.EXTRA_TITLE, "Pengram_chat_" + Math.abs(dialogId) + "_" + System.currentTimeMillis() / 1000 + ".html");
                     try {
                         fragment.startActivityForResult(intent, REQUEST_CODE);
                     } catch (Exception e) {
@@ -110,10 +107,9 @@ public final class PengramChatExport {
                 }).setNegativeButton(s(R.string.Cancel), null).show();
     }
 
-    public int selectedFormat() { return format; }
+    public int selectedFormat() { return 0; }
     public boolean includesMedia() { return media; }
     public void restoreSelection(int savedFormat, boolean savedMedia) {
-        format = savedFormat;
         media = savedMedia;
     }
 
@@ -128,6 +124,8 @@ public final class PengramChatExport {
         cancelled = false;
         count = legacyCount = missing = exportedFiles = deletedCount = 0;
         rootSeen = rootMissing = false;
+        nextMediaId = writtenMedia = 0;
+        inlineMedia.clear();
         progress = new AlertDialog.Builder(fragment.getParentActivity())
                 .setTitle(s(R.string.PengramExportChat))
                 .setMessage(s(R.string.PengramExportLoading))
@@ -241,212 +239,153 @@ public final class PengramChatExport {
         boolean success = false;
         try {
             if (!directory.mkdirs()) throw new IOException("Cannot create temporary directory");
+            int offset = 0;
+            int pages = 0;
+            while (true) {
+                check();
+                status(s(R.string.PengramExportLoading) + " · " + count);
+                TLRPC.messages_Messages batch = page(offset);
+                peers.clear();
+                for (TLRPC.User u : batch.users) peers.put(u.id, UserObject.getUserName(u));
+                for (TLRPC.Chat c : batch.chats) peers.put(-c.id, c.title);
+                ArrayList<TLRPC.Message> messages = batch.messages;
+                if (messages == null || messages.isEmpty()) break;
+                // Server pages arrive newest first. Stage compact HTML pages, then
+                // concatenate them in reverse order when writing the final document.
+                Collections.sort(messages, Comparator.comparingInt(m -> m.id));
+                int next = messages.get(0).id;
+                if (next <= 0 || offset != 0 && next >= offset) throw new IOException("History pagination stalled");
+                try (BufferedWriter hw = writer(new File(directory, pages + ".html"))) {
+                    for (TLRPC.Message message : messages) {
+                        check();
+                        if (message == null || message.id <= 0 || pages > 0 && message.id >= offset
+                                || message instanceof TLRPC.TL_messageEmpty) continue;
+                        if (message.noforwards) throw new IOException("Protected message");
+                        if (topicId != 0 && message.id == topicId) rootSeen = true;
+                        Attachment a = attachment(message);
+                        hw.write(render(message, a));
+                        count++;
+                    }
+                }
+                pages++;
+                offset = next;
+            }
+            check();
+            // getReplies can omit the opening topic message.
+            if (topicId != 0 && !rootSeen) {
+                try {
+                    TLRPC.messages_Messages rootBatch = topicRoot();
+                    TLRPC.Message root = null;
+                    for (TLRPC.Message candidate : rootBatch.messages) {
+                        if (candidate != null && candidate.id == topicId && !(candidate instanceof TLRPC.TL_messageEmpty)) {
+                            root = candidate;
+                            break;
+                        }
+                    }
+                    if (root != null && !root.noforwards) {
+                        peers.clear();
+                        for (TLRPC.User u : rootBatch.users) peers.put(u.id, UserObject.getUserName(u));
+                        for (TLRPC.Chat c : rootBatch.chats) peers.put(-c.id, c.title);
+                        Attachment a = attachment(root);
+                        try (BufferedWriter w = writer(new File(directory, pages + ".html"))) {
+                            w.write(render(root, a));
+                        }
+                        count++;
+                        pages++;
+                        rootSeen = true;
+                    } else {
+                        rootMissing = true;
+                    }
+                } catch (InterruptedException e) {
+                    throw e;
+                } catch (Exception e) {
+                    FileLog.e(e);
+                    rootMissing = true;
+                }
+            }
+            check();
+            int legacyPages = 0;
+            int legacyOffset = 0;
+            if (legacyDialogId != 0) {
+                while (true) {
+                    check();
+                    status(s(R.string.PengramExportLegacyTitle) + " · " + legacyCount);
+                    TLRPC.messages_Messages batch = page(legacyDialogId, legacyOffset);
+                    if (batch.messages == null || batch.messages.isEmpty()) break;
+                    Collections.sort(batch.messages, Comparator.comparingInt(m -> m.id));
+                    int next = batch.messages.get(0).id;
+                    if (next <= 0 || legacyOffset != 0 && next >= legacyOffset) throw new IOException("Migrated history pagination stalled");
+                    peers.clear();
+                    for (TLRPC.User u : batch.users) peers.put(u.id, UserObject.getUserName(u));
+                    for (TLRPC.Chat c : batch.chats) peers.put(-c.id, c.title);
+                    try (BufferedWriter lh = writer(new File(directory, "legacy_" + legacyPages + ".html"))) {
+                        for (TLRPC.Message message : batch.messages) {
+                            check();
+                            if (message == null || message.id <= 0 || legacyOffset != 0 && message.id >= legacyOffset
+                                    || message instanceof TLRPC.TL_messageEmpty) continue;
+                            if (message.noforwards) throw new IOException("Protected migrated message");
+                            Attachment a = attachment(message);
+                            lh.write(render(message, a, "legacy-m" + message.id));
+                            legacyCount++;
+                        }
+                    }
+                    legacyPages++;
+                    legacyOffset = next;
+                }
+            }
+            check();
+            File localHtml = new File(directory, "local.html");
+            try (BufferedWriter lh = writer(localHtml)) {
+                PengramHistory.DeletedVisitor visitor = entry -> {
+                    check();
+                    if (entry.messageId <= 0) return;
+                    TLRPC.Message message = PengramHistory.deserialize(entry.data, account);
+                    if (topicId != 0) {
+                        if (message == null || message.id != topicId && (message.reply_to == null ||
+                                message.reply_to.reply_to_top_id != topicId && message.reply_to.reply_to_msg_id != topicId)) return;
+                    }
+                    if (message == null) {
+                        message = new TLRPC.TL_message();
+                        message.id = entry.messageId;
+                        message.media = new TLRPC.TL_messageMediaEmpty();
+                        message.from_id = MessagesController.getInstance(account).getPeer(entry.fromId != 0 ? entry.fromId : entry.dialogId);
+                    }
+                    if (message.noforwards) return;
+                    if (message.from_id == null && entry.fromId != 0) message.from_id = MessagesController.getInstance(account).getPeer(entry.fromId);
+                    message.message = entry.text == null ? "" : entry.text;
+                    message.date = entry.date != 0 ? entry.date : entry.savedAt;
+                    message.out = entry.out;
+                    Attachment a = attachment(message);
+                    lh.write(render(message, a,
+                            (entry.dialogId == legacyDialogId ? "legacy-d" : "d") + entry.rowId));
+                    deletedCount++;
+                    if (deletedCount % PAGE_SIZE == 0) status(s(R.string.PengramExportLocalLoading) + " · " + deletedCount);
+                };
+                PengramHistory.forEachDeleted(account, dialogId, visitor);
+                if (legacyDialogId != 0) PengramHistory.forEachDeleted(account, legacyDialogId, visitor);
+            }
+            check();
+            status(s(R.string.PengramExportWriting));
+            // Only open the user's destination after successfully collecting all
+            // history. No ZIP, companion files, or local file:// references.
             try (OutputStream out = ApplicationLoader.applicationContext.getContentResolver().openOutputStream(destination, "w")) {
                 if (out == null) throw new IOException("Cannot open destination");
-                try (ZipOutputStream zip = new ZipOutputStream(out)) {
-                    int offset = 0;
-                    int pages = 0;
-                    while (true) {
-                        check();
-                        status(s(R.string.PengramExportLoading) + " · " + count);
-                        TLRPC.messages_Messages batch = page(offset);
-                        peers.clear();
-                        for (TLRPC.User u : batch.users) peers.put(u.id, UserObject.getUserName(u));
-                        for (TLRPC.Chat c : batch.chats) peers.put(-c.id, c.title);
-                        ArrayList<TLRPC.Message> messages = batch.messages;
-                        if (messages == null || messages.isEmpty()) break;
-                        // A page is newest first. Write it oldest first, then combine pages in reverse order.
-                        Collections.sort(messages, Comparator.comparingInt(m -> m.id));
-                        int next = messages.get(0).id;
-                        if (next <= 0 || offset != 0 && next >= offset) throw new IOException("History pagination stalled");
-                        File html = new File(directory, pages + ".html");
-                        File json = new File(directory, pages + ".json");
-                        try (BufferedWriter hw = format != 1 ? writer(html) : null;
-                             BufferedWriter jw = format != 0 ? writer(json) : null) {
-                            boolean first = true;
-                            for (TLRPC.Message message : messages) {
-                                check();
-                                if (message == null || message.id <= 0 || (pages > 0 && message.id >= offset) || message instanceof TLRPC.TL_messageEmpty) continue;
-                                if (message.noforwards) throw new IOException("Protected message");
-                                if (topicId != 0 && message.id == topicId) rootSeen = true;
-                                Attachment attachment = attachment(message, zip, "");
-                                if (hw != null) hw.write(render(message, attachment));
-                                if (jw != null) {
-                                    if (!first) jw.write(",\n");
-                                    jw.write(json(message, attachment).toString());
-                                }
-                                first = false;
-                                count++;
-                            }
-                        }
-                        pages++;
-                        offset = next;
-                    }
-                    check();
-                    // getReplies can omit the topic's opening message. Fetch it separately.
-                    if (topicId != 0 && !rootSeen) {
-                        try {
-                            TLRPC.messages_Messages rootBatch = topicRoot();
-                            TLRPC.Message root = null;
-                            for (TLRPC.Message candidate : rootBatch.messages) {
-                                if (candidate != null && candidate.id == topicId && !(candidate instanceof TLRPC.TL_messageEmpty)) {
-                                    root = candidate;
-                                    break;
-                                }
-                            }
-                            if (root != null && !root.noforwards) {
-                                for (TLRPC.User u : rootBatch.users) peers.put(u.id, UserObject.getUserName(u));
-                                for (TLRPC.Chat c : rootBatch.chats) peers.put(-c.id, c.title);
-                                Attachment a = attachment(root, zip, "");
-                                if (format != 1) try (BufferedWriter w = writer(new File(directory, pages + ".html"))) { w.write(render(root, a)); }
-                                if (format != 0) try (BufferedWriter w = writer(new File(directory, pages + ".json"))) { w.write(json(root, a).toString()); }
-                                count++;
-                                pages++;
-                                rootSeen = true;
-                            } else {
-                                rootMissing = true;
-                            }
-                        } catch (InterruptedException e) {
-                            throw e;
-                        } catch (Exception e) {
-                            FileLog.e(e);
-                            rootMissing = true;
-                        }
-                    }
-                    check();
-                    int legacyPages = 0;
-                    int legacyOffset = 0;
-                    if (legacyDialogId != 0) {
-                        while (true) {
-                            check();
-                            status(s(R.string.PengramExportLegacyTitle) + " · " + legacyCount);
-                            TLRPC.messages_Messages batch = page(legacyDialogId, legacyOffset);
-                            if (batch.messages == null || batch.messages.isEmpty()) break;
-                            Collections.sort(batch.messages, Comparator.comparingInt(m -> m.id));
-                            int next = batch.messages.get(0).id;
-                            if (next <= 0 || legacyOffset != 0 && next >= legacyOffset) throw new IOException("Migrated history pagination stalled");
-                            peers.clear();
-                            for (TLRPC.User u : batch.users) peers.put(u.id, UserObject.getUserName(u));
-                            for (TLRPC.Chat c : batch.chats) peers.put(-c.id, c.title);
-                            try (BufferedWriter lh = format != 1 ? writer(new File(directory, "legacy_" + legacyPages + ".html")) : null;
-                                 BufferedWriter lj = format != 0 ? writer(new File(directory, "legacy_" + legacyPages + ".json")) : null) {
-                                boolean first = true;
-                                for (TLRPC.Message message : batch.messages) {
-                                    check();
-                                    if (message == null || message.id <= 0 || legacyOffset != 0 && message.id >= legacyOffset || message instanceof TLRPC.TL_messageEmpty) continue;
-                                    if (message.noforwards) throw new IOException("Protected migrated message");
-                                    Attachment a = attachment(message, zip, "legacy_");
-                                    if (lh != null) lh.write(render(message, a, "legacy-m" + message.id));
-                                    if (lj != null) {
-                                        if (!first) lj.write(",\n");
-                                        lj.write(json(message, a).put("dialog_id", legacyDialogId).toString());
-                                    }
-                                    first = false;
-                                    legacyCount++;
-                                }
-                            }
-                            legacyPages++;
-                            legacyOffset = next;
-                        }
-                    }
-                    check();
-                    File localHtml = new File(directory, "local.html");
-                    File localJson = new File(directory, "local.json");
-                    try (BufferedWriter lh = format != 1 ? writer(localHtml) : null;
-                         BufferedWriter lj = format != 0 ? writer(localJson) : null) {
-                        PengramHistory.DeletedVisitor visitor = entry -> {
-                            check();
-                            if (entry.messageId <= 0) return;
-                            TLRPC.Message message = PengramHistory.deserialize(entry.data, account);
-                            if (topicId != 0) {
-                                if (message == null || message.id != topicId && (message.reply_to == null ||
-                                        message.reply_to.reply_to_top_id != topicId && message.reply_to.reply_to_msg_id != topicId)) return;
-                            }
-                            if (message == null) {
-                                message = new TLRPC.TL_message();
-                                message.id = entry.messageId;
-                                message.media = new TLRPC.TL_messageMediaEmpty();
-                                message.from_id = MessagesController.getInstance(account).getPeer(entry.fromId != 0 ? entry.fromId : entry.dialogId);
-                            }
-                            if (message.noforwards) return;
-                            if (message.from_id == null && entry.fromId != 0) message.from_id = MessagesController.getInstance(account).getPeer(entry.fromId);
-                            message.message = entry.text == null ? "" : entry.text;
-                            message.date = entry.date != 0 ? entry.date : entry.savedAt;
-                            message.out = entry.out;
-                            Attachment attachment = attachment(message, zip, "local_" + entry.rowId + "_");
-                            if (lh != null) lh.write(render(message, attachment,
-                                    (entry.dialogId == legacyDialogId ? "legacy-d" : "d") + entry.rowId));
-                            if (lj != null) {
-                                if (deletedCount > 0) lj.write(",\n");
-                                lj.write(json(message, attachment).put("source", "pengram_local_deleted")
-                                        .put("saved_at", entry.savedAt).put("snapshot_id", entry.rowId)
-                                        .put("dialog_id", entry.dialogId).toString());
-                            }
-                            deletedCount++;
-                            if (deletedCount % PAGE_SIZE == 0) status(s(R.string.PengramExportLocalLoading) + " · " + deletedCount);
-                        };
-                        PengramHistory.forEachDeleted(account, dialogId, visitor);
-                        if (legacyDialogId != 0) PengramHistory.forEachDeleted(account, legacyDialogId, visitor);
-                    }
-                    check();
-                    String note = s(R.string.PengramExportLimitations) + (rootMissing ? " " + s(R.string.PengramExportRootMissing) : "");
-                    if (format != 1) {
-                        zip.putNextEntry(new ZipEntry("index.html"));
-                        write(zip, "<!doctype html><html lang=\"" + esc(Locale.getDefault().getLanguage()) + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>" + esc(title) + "</title>" +
-                                "<style>:root{color-scheme:light dark}*{box-sizing:border-box}body{font:15px system-ui,sans-serif;margin:0;background:#d9e7e8;color:#172d39}.wrap{max-width:780px;margin:auto;padding:16px}header{background:#326f92;color:white;padding:22px;border-radius:14px;margin-bottom:16px}h1{margin:0 0 8px;font-size:23px}header small{opacity:.85}.notice{background:#fff3d6;color:#543e1b;border-radius:12px;padding:12px;margin:14px 0}.msg{background:#fff;color:#182932;border-radius:14px;padding:12px 16px;margin:10px 0;box-shadow:0 2px 8px #15344816;overflow-wrap:anywhere}.msg.out{background:#ddf4df;margin-left:10%}.head{display:flex;gap:8px;justify-content:space-between;align-items:baseline;margin-bottom:7px}.name{font-weight:700;color:#266d93}.date{font-size:12px;color:#657c85;white-space:nowrap}.text{white-space:pre-wrap;line-height:1.5}.reply{border-left:3px solid #51aaca;padding-left:9px;color:#527888;margin:7px 0}.media{display:block;max-width:100%;max-height:540px;border-radius:9px;margin-top:9px}a{color:#21769c}.tag{font-size:12px;color:#956037}.reactions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.reaction{background:#e6f1f5;color:#245a75;padding:3px 9px;border-radius:24px;font-size:13px}</style></head><body><div class=\"wrap\"><header><h1>" + esc(title) + "</h1><small>" + count + " · " + date((int)(System.currentTimeMillis()/1000)) + "</small></header><div class=\"notice\">" + esc(note) + " " + (missing > 0 ? esc(s(R.string.PengramExportMissing)) + ": " + missing : "") + "</div>");
-                        if (legacyDialogId != 0) {
-                            write(zip, "<section><h2>" + esc(s(R.string.PengramExportLegacyTitle)) + " · " + legacyCount + "</h2><p class=\"notice\">" + esc(s(R.string.PengramExportLegacyNote)) + "</p>");
-                            for (int i = legacyPages - 1; i >= 0; --i) copy(new File(directory, "legacy_" + i + ".html"), zip);
-                            write(zip, "</section>");
-                        }
-                        for (int i = pages - 1; i >= 0; --i) copy(new File(directory, i + ".html"), zip);
-                        if (deletedCount > 0) {
-                            write(zip, "<section><h2>" + esc(s(R.string.PengramExportLocalTitle)) + " · " + deletedCount + "</h2><p class=\"notice\">" + esc(s(R.string.PengramExportLocalNote)) + "</p>");
-                            copy(localHtml, zip);
-                            write(zip, "</section>");
-                        }
-                        write(zip, "</div></body></html>");
-                        zip.closeEntry();
-                    }
-                    if (format != 0) {
-                        zip.putNextEntry(new ZipEntry("messages.json"));
-                        write(zip, "{\"format\":\"pengram-chat-v1\",\"dialog_id\":" + dialogId + ",\"topic_id\":" + topicId + ",\"title\":" + JSONObject.quote(title) + ",\"timezone\":" + JSONObject.quote(java.util.TimeZone.getDefault().getID()) + ",\"message_count\":" + count + ",\"legacy_message_count\":" + legacyCount + ",\"local_deleted_count\":" + deletedCount + ",\"topic_root_unavailable\":" + rootMissing + ",\"missing_media\":" + missing + ",\"messages\":[\n");
-                        boolean firstPage = true;
-                        for (int i = pages - 1; i >= 0; --i) {
-                            File pageFile = new File(directory, i + ".json");
-                            if (pageFile.length() == 0) continue;
-                            if (!firstPage) write(zip, ",\n");
-                            copy(pageFile, zip);
-                            firstPage = false;
-                        }
-                        write(zip, "]}");
-                        zip.closeEntry();
-                    }
-                    if (format != 0 && legacyDialogId != 0) {
-                        zip.putNextEntry(new ZipEntry("migrated_messages.json"));
-                        write(zip, "{\"source\":\"migrated_chat_server\",\"dialog_id\":" + legacyDialogId + ",\"messages\":[\n");
-                        boolean firstPage = true;
-                        for (int i = legacyPages - 1; i >= 0; --i) {
-                            File pageFile = new File(directory, "legacy_" + i + ".json");
-                            if (pageFile.length() == 0) continue;
-                            if (!firstPage) write(zip, ",\n");
-                            copy(pageFile, zip);
-                            firstPage = false;
-                        }
-                        write(zip, "]}");
-                        zip.closeEntry();
-                    }
-                    if (format != 0 && deletedCount > 0) {
-                        zip.putNextEntry(new ZipEntry("local_deleted.json"));
-                        write(zip, "{\"source\":\"pengram_local_deleted\",\"dialog_id\":" + dialogId + ",\"messages\":[\n");
-                        copy(localJson, zip);
-                        write(zip, "]}");
-                        zip.closeEntry();
-                    }
-                    zip.putNextEntry(new ZipEntry("README.txt"));
-                    write(zip, title + "\n" + s(R.string.PengramExportSummary) + ": " + count + "\n" + s(R.string.PengramExportLegacyTitle) + ": " + legacyCount + "\n" + s(R.string.PengramExportLocalTitle) + ": " + deletedCount + "\n" + s(R.string.PengramExportMissing) + ": " + missing + "\n" + "Timezone: " + java.util.TimeZone.getDefault().getID() + "\n" + (legacyDialogId != 0 ? s(R.string.PengramExportLegacyNote) + "\n" : "") + note + "\n" + s(R.string.PengramExportOpenHelp) + "\n");
-                    zip.closeEntry();
+                String note = s(R.string.PengramExportLimitations) + (rootMissing ? " " + s(R.string.PengramExportRootMissing) : "");
+                write(out, "<!doctype html><html lang=\"" + esc(Locale.getDefault().getLanguage()) + "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src data:; media-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\"><title>" + esc(title) + "</title>" +
+                        "<style>:root{color-scheme:light dark}*{box-sizing:border-box}body{font:15px system-ui,sans-serif;margin:0;background:#d9e7e8;color:#172d39}.wrap{max-width:780px;margin:auto;padding:16px}header{background:#326f92;color:white;padding:22px;border-radius:14px;margin-bottom:16px}h1{margin:0 0 8px;font-size:23px}header small{opacity:.85}.notice{background:#fff3d6;color:#543e1b;border-radius:12px;padding:12px;margin:14px 0}.msg{background:#fff;color:#182932;border-radius:14px;padding:12px 16px;margin:10px 0;box-shadow:0 2px 8px #15344816;overflow-wrap:anywhere}.msg.out{background:#ddf4df;margin-left:10%}.head{display:flex;gap:8px;justify-content:space-between;align-items:baseline;margin-bottom:7px}.name{font-weight:700;color:#266d93}.date{font-size:12px;color:#657c85;white-space:nowrap}.text{white-space:pre-wrap;line-height:1.5}.reply{border-left:3px solid #51aaca;padding-left:9px;color:#527888;margin:7px 0}.media{display:block;max-width:100%;max-height:540px;border-radius:9px;margin-top:9px}a{color:#21769c}.tag{font-size:12px;color:#956037}.reactions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}.reaction{background:#e6f1f5;color:#245a75;padding:3px 9px;border-radius:24px;font-size:13px}</style></head><body><div class=\"wrap\"><header><h1>" + esc(title) + "</h1><small>" + count + " · " + date((int)(System.currentTimeMillis()/1000)) + "</small></header><div class=\"notice\">" + esc(note) + " " + (missing > 0 ? esc(s(R.string.PengramExportMissing)) + ": " + missing : "") + "</div>");
+                if (legacyDialogId != 0) {
+                    write(out, "<section><h2>" + esc(s(R.string.PengramExportLegacyTitle)) + " · " + legacyCount + "</h2><p class=\"notice\">" + esc(s(R.string.PengramExportLegacyNote)) + "</p>");
+                    for (int i = legacyPages - 1; i >= 0; --i) copyHtml(new File(directory, "legacy_" + i + ".html"), out);
+                    write(out, "</section>");
                 }
+                for (int i = pages - 1; i >= 0; --i) copyHtml(new File(directory, i + ".html"), out);
+                if (deletedCount > 0) {
+                    write(out, "<section><h2>" + esc(s(R.string.PengramExportLocalTitle)) + " · " + deletedCount + "</h2><p class=\"notice\">" + esc(s(R.string.PengramExportLocalNote)) + "</p>");
+                    copyHtml(localHtml, out);
+                    write(out, "</section>");
+                }
+                write(out, "</div></body></html>");
+                out.flush();
             }
             check();
             success = true;
@@ -455,10 +394,11 @@ public final class PengramChatExport {
         } catch (Exception e) {
             FileLog.e(e);
         } finally {
-            // An interrupted or failed ZIP must never masquerade as a complete archive.
+            // An interrupted/failed export must never masquerade as a complete HTML.
             if (!success) {
                 try { ApplicationLoader.applicationContext.getContentResolver().delete(destination, null, null); } catch (Exception e) { FileLog.e(e); }
             }
+            inlineMedia.clear();
             File[] files = directory.listFiles();
             if (files != null) for (File file : files) file.delete();
             directory.delete();
@@ -481,9 +421,35 @@ public final class PengramChatExport {
         String name;
         String path;
         String status;
+        String mime;
     }
 
-    private Attachment attachment(TLRPC.Message msg, ZipOutputStream zip, String prefix) throws Exception {
+    private static final class InlineMedia {
+        final File file;
+        final String mime;
+
+        InlineMedia(File file, String mime) {
+            this.file = file;
+            this.mime = mime;
+        }
+    }
+
+    /** Untrusted document MIME types must not become executable HTML/SVG data URLs. */
+    private static String safeMime(TLRPC.Document doc) {
+        if (doc == null) return "image/jpeg";
+        String mime = doc.mime_type;
+        if (mime == null) return "application/octet-stream";
+        switch (mime) {
+            case "image/jpeg": case "image/png": case "image/webp": case "image/gif":
+            case "video/mp4": case "video/webm": case "video/ogg":
+            case "audio/mpeg": case "audio/mp4": case "audio/ogg": case "audio/opus":
+            case "audio/wav": case "audio/webm": case "application/pdf":
+                return mime;
+            default: return "application/octet-stream";
+        }
+    }
+
+    private Attachment attachment(TLRPC.Message msg) throws Exception {
         TLRPC.MessageMedia mm = msg.media;
         if (mm == null || mm instanceof TLRPC.TL_messageMediaEmpty) return null;
         Attachment a = new Attachment();
@@ -517,6 +483,14 @@ public final class PengramChatExport {
         if (doc == null && (size == null || size.location == null)) { a.status = s(R.string.PengramExportUnavailable); missing++; return a; }
         FileLoader loader = FileLoader.getInstance(account);
         File file = doc != null ? loader.getPathToAttach(doc) : loader.getPathToAttach(size);
+        if ((file == null || !file.isFile() || file.length() == 0) && !TextUtils.isEmpty(msg.attachPath)) {
+            File attached = new File(msg.attachPath);
+            if (attached.isFile() && attached.length() > 0) file = attached;
+        }
+        if ((file == null || !file.isFile() || file.length() == 0) && doc == null) {
+            File cached = loader.getPathToAttach(size, true);
+            if (cached != null && cached.isFile() && cached.length() > 0) file = cached;
+        }
         if (file == null || !file.isFile() || file.length() == 0) {
             status(s(R.string.PengramExportLoading) + " · " + count + " · " + a.name);
             try { file = download(loader, msg, doc, photo, size, file); } catch (InterruptedException e) { throw e; } catch (Exception e) { FileLog.e(e); }
@@ -527,13 +501,10 @@ public final class PengramChatExport {
             missing++;
             return a;
         }
-        String filename = a.name.replaceAll("[^a-zA-Z0-9._-]", "_");
-        if (filename.length() > 90) filename = filename.substring(filename.length() - 90);
-        if (filename.equals(".") || filename.equals("..") || filename.isEmpty()) filename = "file";
-        a.path = "media/" + prefix + msg.id + "_" + (doc != null ? doc.id : photo.id) + "_" + filename;
-        zip.putNextEntry(new ZipEntry(a.path));
-        copy(file, zip);
-        zip.closeEntry();
+        a.mime = safeMime(doc);
+        int id = ++nextMediaId;
+        a.path = "pengram-inline:" + id;
+        inlineMedia.put(id, new InlineMedia(file, a.mime));
         exportedFiles++;
         return a;
     }
@@ -638,10 +609,16 @@ public final class PengramChatExport {
                 b.append("<a href=\"").append(esc(a.name)).append("\" rel=\"noreferrer noopener\">").append(esc(s(R.string.PengramExportMap))).append("</a>");
             if (a.path != null) {
                 String path = esc(a.path);
-                if ("Photo".equals(a.type) || a.name.matches("(?i).*\\.(png|jpe?g|gif|webp)$")) b.append("<img loading=\"lazy\" class=\"media\" src=\"").append(path).append("\" alt=\"\">");
-                else if (a.name.matches("(?i).*\\.(mp4|webm)$")) b.append("<video controls class=\"media\" src=\"").append(path).append("\"></video>");
-                else if (a.name.matches("(?i).*\\.(mp3|ogg|m4a|opus|wav)$")) b.append("<audio controls src=\"").append(path).append("\"></audio>");
-                b.append("<div><a href=\"").append(path).append("\" download>" + esc(s(R.string.PengramExportDownload)) + "</a></div>");
+                if (a.mime.startsWith("image/")) {
+                    b.append("<img loading=\"lazy\" class=\"media\" src=\"").append(path).append("\" alt=\"").append(esc(a.name)).append("\">");
+                } else if (a.mime.startsWith("video/")) {
+                    b.append("<video controls preload=\"none\" class=\"media\" src=\"").append(path).append("\"></video>");
+                } else if (a.mime.startsWith("audio/")) {
+                    b.append("<audio controls preload=\"none\" src=\"").append(path).append("\"></audio>");
+                } else {
+                    b.append("<a download=\"").append(esc(a.name)).append("\" href=\"").append(path)
+                            .append("\">").append(esc(s(R.string.PengramExportDownload))).append("</a>");
+                }
             } else if (a.status != null) b.append("<div class=\"tag\">").append(esc(a.status)).append("</div>");
         }
         if (msg.reactions != null && msg.reactions.results != null && !msg.reactions.results.isEmpty()) {
@@ -655,44 +632,6 @@ public final class PengramChatExport {
         if (msg.edit_date > 0) b.append("<div class=\"tag\">").append(esc(s(R.string.PengramExportEdited))).append(" ").append(esc(date(msg.edit_date))).append("</div>");
         b.append("</article>\n");
         return b.toString();
-    }
-
-    private JSONObject json(TLRPC.Message msg, Attachment a) throws Exception {
-        JSONObject j = new JSONObject();
-        j.put("id", msg.id).put("date", msg.date).put("sender", sender(msg)).put("out", msg.out).put("text", msg.message == null ? "" : msg.message);
-        if (msg.edit_date > 0) j.put("edit_date", msg.edit_date);
-        if (msg.reply_to != null) {
-            j.put("reply_to", msg.reply_to.reply_to_msg_id);
-            if (!TextUtils.isEmpty(msg.reply_to.quote_text)) j.put("reply_quote", msg.reply_to.quote_text);
-        }
-        if (msg.action != null) j.put("service", msg.action.getClass().getSimpleName());
-        if (msg.fwd_from != null) j.put("forward_from", msg.fwd_from.from_name == null ? "" : msg.fwd_from.from_name);
-        if (msg.entities != null && !msg.entities.isEmpty()) {
-            JSONArray entities = new JSONArray();
-            for (TLRPC.MessageEntity e : msg.entities) {
-                JSONObject entity = new JSONObject().put("type", e.getClass().getSimpleName()).put("offset", e.offset).put("length", e.length);
-                if (e instanceof TLRPC.TL_messageEntityTextUrl) entity.put("url", e.url);
-                entities.put(entity);
-            }
-            j.put("entities", entities);
-        }
-        if (msg.reactions != null && msg.reactions.results != null && !msg.reactions.results.isEmpty()) {
-            JSONArray reactions = new JSONArray();
-            for (TLRPC.ReactionCount reaction : msg.reactions.results) {
-                reactions.put(new JSONObject().put("emoji", reactionName(reaction.reaction)).put("count", reaction.count));
-            }
-            j.put("reactions", reactions);
-        }
-        if (a != null) {
-            JSONObject m = new JSONObject().put("type", a.type).put("name", a.name).put("path", a.path == null ? JSONObject.NULL : a.path).put("status", a.status == null ? JSONObject.NULL : a.status);
-            if (msg.media instanceof TLRPC.TL_messageMediaPoll && ((TLRPC.TL_messageMediaPoll) msg.media).poll != null) {
-                JSONArray options = new JSONArray();
-                for (TLRPC.PollAnswer option : ((TLRPC.TL_messageMediaPoll) msg.media).poll.answers) options.put(option.text == null ? "" : option.text.text);
-                m.put("options", options);
-            }
-            j.put("media", m);
-        }
-        return j;
     }
 
     private static String reactionName(TLRPC.Reaction reaction) {
@@ -753,14 +692,52 @@ public final class PengramChatExport {
         out.write(text.getBytes(StandardCharsets.UTF_8));
     }
 
-    private void copy(File source, OutputStream out) throws Exception {
-        try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(source))) {
-            byte[] buffer = new byte[32 * 1024];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
+    /** Replace one generated marker at a time; never buffer a whole attachment or page. */
+    private void copyHtml(File source, OutputStream out) throws Exception {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(source), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = in.readLine()) != null) {
                 check();
-                out.write(buffer, 0, n);
+                int at = 0;
+                while (true) {
+                    int begin = line.indexOf("pengram-inline:", at);
+                    if (begin < 0) break;
+                    int end = begin + "pengram-inline:".length();
+                    while (end < line.length() && line.charAt(end) >= '0' && line.charAt(end) <= '9') end++;
+                    if (end == begin + "pengram-inline:".length() || end >= line.length() || line.charAt(end) != '"')
+                        throw new IOException("Invalid media marker");
+                    int id;
+                    try { id = Integer.parseInt(line.substring(begin + "pengram-inline:".length(), end)); }
+                    catch (NumberFormatException e) { throw new IOException("Invalid media identifier", e); }
+                    InlineMedia item = inlineMedia.remove(id);
+                    if (item == null) throw new IOException("Missing media reference");
+                    write(out, line.substring(at, begin));
+                    write(out, "data:" + item.mime + ";base64,");
+                    copyBase64(item.file, out);
+                    writtenMedia++;
+                    if (writtenMedia % 10 == 0 || writtenMedia == exportedFiles)
+                        status(s(R.string.PengramExportWriting) + " · " + writtenMedia + " / " + exportedFiles);
+                    at = end;
+                }
+                write(out, line.substring(at) + "\n");
             }
+        }
+    }
+
+    private void copyBase64(File source, OutputStream out) throws Exception {
+        if (!source.isFile() || source.length() == 0) throw new IOException("Media disappeared during export");
+        try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(source))) {
+            byte[] buffer = new byte[12 * 1024]; // divisible by 3, at most 16 KiB encoded
+            int carry = 0, size;
+            while ((size = in.read(buffer, carry, buffer.length - carry)) != -1) {
+                check();
+                int length = size + carry;
+                int complete = length - length % 3;
+                if (complete > 0) out.write(Base64.encode(buffer, 0, complete, Base64.NO_WRAP));
+                carry = length - complete;
+                if (carry > 0) System.arraycopy(buffer, complete, buffer, 0, carry);
+            }
+            if (carry > 0) out.write(Base64.encode(buffer, 0, carry, Base64.NO_WRAP));
         }
     }
 
