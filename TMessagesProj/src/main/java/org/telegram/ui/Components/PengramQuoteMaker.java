@@ -411,6 +411,10 @@ public final class PengramQuoteMaker {
         // Give a just-requested avatar a brief chance to reach the disk. Never block
         // the worker queue indefinitely or fail the quote if the user is offline.
         Utilities.globalQueue.postRunnable(() -> {
+            if (cancelled.get()) {
+                if (palette.wallpaper != null) palette.wallpaper.recycle();
+                return;
+            }
             Result result = null;
             try {
                 result = render(activity, entries, imagePaths, dark, style, jpeg, false,
@@ -1056,7 +1060,7 @@ public final class PengramQuoteMaker {
             if (resId == R.string.PengramQuotePreview) return ru ? "Предпросмотр цитаты" : "Quote preview";
             if (resId == R.string.PengramQuoteZoomHint) return ru ? "Нажмите, чтобы увеличить" : "Tap to zoom";
             if (resId == R.string.PengramQuoteQuickSettings) return ru ? "Оформление цитаты" : "Customize quote";
-            if (resId == R.string.PengramQuoteCount) return ru ? "Сообщений: %1$d" : "%1$d messages";
+            if (resId == R.string.PengramQuoteCount) return ru ? "Сообщений: %1$d" : "Messages: %1$d";
             if (resId == R.string.PengramQuoteUpdating) return ru ? "Обновляем предпросмотр…" : "Updating preview…";
             if (resId == R.string.PengramQuoteUpdateFailed) return ru ? "Снимок не обновился · попробуйте ещё раз" : "Preview unchanged · try again";
             if (resId == R.string.Cancel) return ru ? "Отмена" : "Cancel";
@@ -1333,6 +1337,7 @@ public final class PengramQuoteMaker {
         quickParams.topMargin = AndroidUtilities.dp(8);
         root.addView(quick, quickParams);
 
+        boolean canWrite = chat.getCurrentChat() == null || ChatObject.canWriteToChat(chat.getCurrentChat());
         boolean canSend = canSendCurrent(chat);
         // The primary decision stays visible; less common formats are one tap away,
         // not six full-width buttons occupying the entire screen.
@@ -1354,11 +1359,13 @@ public final class PengramQuoteMaker {
                     if (!readyForAction(chat, selected, rendering)) return;
                     ArrayList<CharSequence> choices = new ArrayList<>();
                     ArrayList<Runnable> operations = new ArrayList<>();
-                    if (canSend && (chat.getCurrentChat() == null || ChatObject.canSendDocument(chat.getCurrentChat()))) {
+                    int stickerChoice = -1;
+                    if (canWrite && (chat.getCurrentChat() == null || ChatObject.canSendDocument(chat.getCurrentChat()))) {
                         choices.add(safeString(activity, R.string.PengramQuoteSendFile));
                         operations.add(() -> sendDocument(chat, result));
                     }
-                    if (canSend && (chat.getCurrentChat() == null || ChatObject.canSendStickers(chat.getCurrentChat()))) {
+                    if (canWrite && (chat.getCurrentChat() == null || ChatObject.canSendStickers(chat.getCurrentChat()))) {
+                        stickerChoice = choices.size();
                         choices.add(safeString(activity, R.string.PengramQuoteSendSticker));
                         operations.add(() -> sticker(chat, entries, paths, selected));
                     }
@@ -1367,15 +1374,22 @@ public final class PengramQuoteMaker {
                     choices.add(safeString(activity, R.string.PengramQuoteShare));
                     operations.add(() -> share(chat, result));
                     // BaseFragment replaces the preview dialog when the chooser opens.
+                    // Keep the file until a choice is made, not forever if the chooser is cancelled.
+                    final boolean previouslyPublished = result.published;
+                    final int stickerIndex = stickerChoice;
+                    final java.util.concurrent.atomic.AtomicBoolean chosen = new java.util.concurrent.atomic.AtomicBoolean();
                     result.published = true;
-                    chat.showDialog(new AlertDialog.Builder(activity, chat.getResourceProvider())
+                    AlertDialog chooser = new AlertDialog.Builder(activity, chat.getResourceProvider())
                             .setItems(choices.toArray(new CharSequence[0]), (dialog, which) -> {
                                 if (!readyForAction(chat, selected, rendering)) return;
-                                // The chooser or an upload may use the file after preview closes.
-                                result.published = true;
+                                chosen.set(true);
                                 if (ref[0] != null) ref[0].dismiss();
+                                if (which == stickerIndex && !previouslyPublished) result.file.delete();
                                 operations.get(which).run();
-                            }).create());
+                            }).create();
+                    if (chat.showDialog(chooser, dialog -> {
+                        if (!chosen.get() && !previouslyPublished) result.file.delete();
+                    }) == null) result.published = previouslyPublished;
                 }
         };
         for (int i = 0; i < secondaryLabels.length; i++) {
@@ -1480,10 +1494,17 @@ public final class PengramQuoteMaker {
     private static void zoom(Activity activity, File file) {
         if (!active(activity) || file == null) return;
         // Own the zoom bitmap: preview may be closed or re-rendered behind it.
-        Bitmap enlarged = decode(file, true);
-        if (enlarged == null) return;
+        Bitmap enlarged;
         try {
-            ZoomImageView image = new ZoomImageView(activity, enlarged);
+            enlarged = decode(file, true);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return;
+        }
+        if (enlarged == null) return;
+        final Bitmap bitmap = enlarged;
+        try {
+            ZoomImageView image = new ZoomImageView(activity, bitmap);
             FrameLayout frame = new FrameLayout(activity);
             int height = Math.max(AndroidUtilities.dp(180),
                     (int) (activity.getResources().getDisplayMetrics().heightPixels * 0.68f));
@@ -1493,12 +1514,12 @@ public final class PengramQuoteMaker {
                     .setView(frame).setPositiveButton(safeString(activity, R.string.OK), null).create();
             dialog.setOnDismissListener(d -> {
                 image.setImageDrawable(null);
-                if (!enlarged.isRecycled()) enlarged.recycle();
+                if (!bitmap.isRecycled()) bitmap.recycle();
             });
             dialog.show();
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
             FileLog.e(e);
-            if (!enlarged.isRecycled()) enlarged.recycle();
+            if (!bitmap.isRecycled()) bitmap.recycle();
         }
     }
 
@@ -1545,7 +1566,8 @@ public final class PengramQuoteMaker {
             error(chat, R.string.PengramQuoteRenderError);
             return;
         }
-        if (chat.getCurrentChat() != null && !ChatObject.canSendDocument(chat.getCurrentChat())) {
+        if (chat.getCurrentChat() != null && (!ChatObject.canWriteToChat(chat.getCurrentChat())
+                || !ChatObject.canSendDocument(chat.getCurrentChat()))) {
             error(chat, R.string.PengramQuoteCannotSend);
             return;
         }
@@ -1717,7 +1739,8 @@ public final class PengramQuoteMaker {
                         file.delete();
                         return;
                     }
-                    if (chat.getCurrentChat() != null && !ChatObject.canSendStickers(chat.getCurrentChat())) {
+                    if (chat.getCurrentChat() != null && (!ChatObject.canWriteToChat(chat.getCurrentChat())
+                            || !ChatObject.canSendStickers(chat.getCurrentChat()))) {
                         file.delete();
                         error(chat, R.string.PengramQuoteCannotSend);
                         return;

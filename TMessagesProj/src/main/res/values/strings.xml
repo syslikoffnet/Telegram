@@ -12069,7 +12069,7 @@
     <string name="PengramQuotePrivacyHint">Check names and message text before sharing.</string>
     <string name="PengramQuoteZoomHint">Tap to zoom</string>
     <string name="PengramQuoteQuickSettings">Customize quote</string>
-    <string name="PengramQuoteCount">%1$d messages</string>
+    <string name="PengramQuoteCount">Messages: %1$d</string>
     <string name="PengramQuoteUpdating">Updating preview…</string>
     <string name="PengramQuoteUpdateFailed">Preview unchanged · try again</string>
     <string name="PengramQuotePreview">Quote preview</string>
