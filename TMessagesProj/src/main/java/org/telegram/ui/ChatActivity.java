@@ -47349,7 +47349,7 @@ public class ChatActivity extends BaseFragment implements
                 && message.getSenderId() != getUserConfig().getClientUserId()) {
             items.add(getString(R.string.PengramTargetMenu));
             options.add(OPTION_PENGRAM_TARGET);
-            icons.add(R.drawable.msg_reply);
+            icons.add(R.drawable.msg_reply_small);
         }
         // Pengram: быстрые действия над сообщением
         if (org.telegram.messenger.PengramConfig.isMenuSaveToSaved() && !message.isSponsored() && getUserConfig().getClientUserId() != dialog_id) {
