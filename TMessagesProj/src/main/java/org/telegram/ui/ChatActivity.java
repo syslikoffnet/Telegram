@@ -9215,7 +9215,6 @@ public class ChatActivity extends BaseFragment implements
             }
         };
         chatActivityEnterView.addTopView(chatActivityEnterTopView, 48);
-        updateTargetBadge();
 
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
             chatActivityEnterView.setEditingBusinessLink(businessLink);
@@ -9392,6 +9391,9 @@ public class ChatActivity extends BaseFragment implements
                 }
             });
         }
+        // Add the target indicator after the reply, close and edit overlays so
+        // it is actually visible and tappable when a chat is first reopened.
+        updateTargetBadge();
         searchContainer = null;
 
         bottomOverlay = new FrameLayout(context) {
@@ -15962,8 +15964,14 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private boolean hasManualReplyForTarget(MessageObject explicitReply) {
+        // In a thread the implicit reply is its root. A user can explicitly
+        // reply to that SAME object; identity alone cannot distinguish them.
+        return explicitReply != null && (explicitReply != threadMessageObject || fieldPanelShown == 2);
+    }
+
     public MessageObject pengramTargetReplyForText(MessageObject explicitReply) {
-        if (chatMode != MODE_DEFAULT || explicitReply != null && explicitReply != threadMessageObject) return explicitReply;
+        if (chatMode != MODE_DEFAULT || hasManualReplyForTarget(explicitReply)) return explicitReply;
         loadTarget();
         if (targetMode != TARGET_FIXED && targetMode != TARGET_LATEST) return explicitReply;
         MessageObject best = messagesDict[0].get(targetMessageId);
@@ -15990,7 +15998,7 @@ public class ChatActivity extends BaseFragment implements
     public boolean pengramTargetCanSendText(MessageObject explicitReply) {
         if (chatMode != MODE_DEFAULT) return true;
         loadTarget();
-        if (targetMode == 0 || explicitReply != null && explicitReply != threadMessageObject) return true;
+        if (targetMode == 0 || hasManualReplyForTarget(explicitReply)) return true;
         if (targetMode == TARGET_MENTION) {
             if (getMessagesController().getUser(targetSenderId) != null
                     || currentUser != null && currentUser.id == targetSenderId) return true;
@@ -16005,7 +16013,7 @@ public class ChatActivity extends BaseFragment implements
     public int pengramTargetMentionLength(MessageObject explicitReply) {
         if (chatMode != MODE_DEFAULT) return 0;
         loadTarget();
-        if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject) return 0;
+        if (targetMode != TARGET_MENTION || hasManualReplyForTarget(explicitReply)) return 0;
         TLRPC.User user = getMessagesController().getUser(targetSenderId);
         if (user == null && currentUser != null && currentUser.id == targetSenderId) user = currentUser;
         if (user == null) return 0;
@@ -16016,7 +16024,7 @@ public class ChatActivity extends BaseFragment implements
     public CharSequence pengramTargetTextForSend(CharSequence text, MessageObject explicitReply) {
         if (chatMode != MODE_DEFAULT) return text;
         loadTarget();
-        if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject
+        if (targetMode != TARGET_MENTION || hasManualReplyForTarget(explicitReply)
                 || text == null || text.length() == 0) return text;
         TLRPC.User user = getMessagesController().getUser(targetSenderId);
         if (user == null && currentUser != null && currentUser.id == targetSenderId) user = currentUser;
@@ -27682,6 +27690,16 @@ public class ChatActivity extends BaseFragment implements
         processDeletedMessages(markAsDeletedMessages, channelId, sent, true);
     }
     private void processDeletedMessages(ArrayList<Integer> markAsDeletedMessages, long channelId, boolean sent, boolean thanos) {
+        // A locally retained "ghost" of a deleted message is still displayed,
+        // but cannot be used as a fixed reply target. Channel events identify
+        // the chat; for ordinary chats require the message to be loaded here,
+        // since their deletion events carry only the message ID (channelId=0).
+        if (chatMode == MODE_DEFAULT && targetMode == TARGET_FIXED
+                && markAsDeletedMessages.contains(targetMessageId)
+                && (ChatObject.isChannel(currentChat) ? channelId == -dialog_id
+                        : channelId == 0 && messagesDict[0].get(targetMessageId) != null)) {
+            setTarget(0, null);
+        }
         if (!sent) {
             // отменённая отправка — это не удаление: ни анимации, ни «призрака»
             final ArrayList<Integer> pengramIds = pengramRealDeleted(markAsDeletedMessages);

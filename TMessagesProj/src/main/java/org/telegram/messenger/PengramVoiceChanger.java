@@ -346,7 +346,9 @@ public class PengramVoiceChanger {
             if (!initialized) {
                 reset();
             }
-            final int count = Math.min(len, buffer.capacity()) / 2;
+            // Absolute getShort/putShort respect limit, not capacity. A reused
+            // AudioRecord buffer may expose fewer valid bytes than it can hold.
+            final int count = Math.min(len, buffer.limit()) / 2;
             final ByteOrder previousOrder = buffer.order();
             buffer.order(ByteOrder.LITTLE_ENDIAN);
 
