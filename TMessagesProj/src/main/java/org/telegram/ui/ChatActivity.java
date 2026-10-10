@@ -1264,6 +1264,8 @@ public class ChatActivity extends BaseFragment implements
     private String targetName;
     private boolean targetLoaded;
     private TextView targetBadge;
+    private MessageObject targetCachedMessage;
+    private int targetGeneration;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -15839,16 +15841,55 @@ public class ChatActivity extends BaseFragment implements
             targetSenderId = prefs.getLong(key + ":sender", 0);
             targetMessageId = prefs.getInt(key + ":message", 0);
             targetName = prefs.getString(key + ":name", "");
+            if (TextUtils.isEmpty(targetName)) targetName = String.valueOf(targetSenderId);
             if (targetSenderId <= 0 || targetMessageId <= 0) targetMode = 0;
+            if (targetMode == TARGET_FIXED || targetMode == TARGET_LATEST) restoreTargetMessage();
         } catch (Throwable e) {
             FileLog.e(e);
+            targetLoaded = false; // A temporarily unavailable Context can be retried.
             targetMode = 0;
         }
+    }
+
+    /** The selected message can scroll out of memory after reopening a chat.
+     * Resolve it on a worker; MessagesStorage.getMessage waits for its own DB queue. */
+    private void restoreTargetMessage() {
+        final int version = ++targetGeneration;
+        final int account = currentAccount;
+        final long did = dialog_id, sender = targetSenderId, topic = getTopicId();
+        final int mid = targetMessageId;
+        Utilities.globalQueue.postRunnable(() -> {
+            TLRPC.Message stored = null;
+            try {
+                stored = MessagesStorage.getInstance(account).getMessage(did, mid);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            final TLRPC.Message message = stored;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (message == null || version != targetGeneration || targetMode == 0
+                        || dialog_id != did || targetSenderId != sender || targetMessageId != mid
+                        || getTopicId() != topic) return;
+                try {
+                    message.dialog_id = did;
+                    MessageObject candidate = new MessageObject(account, message, false, false);
+                    if (candidate.getId() != mid || candidate.getSenderId() != sender
+                            || candidate.isEphemeral() || candidate.scheduled
+                            || topic != 0 && MessageObject.getTopicId(account, message,
+                                    currentChat != null && ChatObject.isForum(currentChat)) != topic) return;
+                    targetCachedMessage = candidate;
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+            });
+        });
     }
 
     private void setTarget(int mode, MessageObject message) {
         loadTarget();
         targetMode = mode;
+        ++targetGeneration; // Invalidate any pending load from a previous selection.
+        targetCachedMessage = mode != 0 ? message : null;
         if (mode != 0 && message != null) {
             targetSenderId = message.getSenderId();
             targetMessageId = message.getId();
@@ -15922,15 +15963,20 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public MessageObject pengramTargetReplyForText(MessageObject explicitReply) {
-        if (explicitReply != null && explicitReply != threadMessageObject) return explicitReply;
+        if (chatMode != MODE_DEFAULT || explicitReply != null && explicitReply != threadMessageObject) return explicitReply;
         loadTarget();
         if (targetMode != TARGET_FIXED && targetMode != TARGET_LATEST) return explicitReply;
         MessageObject best = messagesDict[0].get(targetMessageId);
-        if (best != null && (best.deleted || best.getDialogId() != dialog_id
-                || best.getSenderId() != targetSenderId)) best = null;
+        if (best == null) best = targetCachedMessage;
+        if (best != null && (best.deleted || best.messageOwner == null || best.isEphemeral()
+                || best.scheduled || best.getDialogId() != dialog_id
+                || best.getId() != targetMessageId || best.getSenderId() != targetSenderId
+                || getTopicId() != 0 && MessageObject.getTopicId(currentAccount, best.messageOwner,
+                        currentChat != null && ChatObject.isForum(currentChat)) != getTopicId())) best = null;
         if (targetMode == TARGET_LATEST) {
             for (MessageObject candidate : messages) {
-                if (candidate == null || candidate.deleted || candidate.getDialogId() != dialog_id
+                if (candidate == null || candidate.deleted || candidate.messageOwner == null
+                        || candidate.isEphemeral() || candidate.getDialogId() != dialog_id
                         || candidate.getId() <= 0 || candidate.getSenderId() != targetSenderId
                         || candidate.scheduled) continue;
                 if (getTopicId() != 0 && MessageObject.getTopicId(currentAccount, candidate.messageOwner,
@@ -15942,6 +15988,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public boolean pengramTargetCanSendText(MessageObject explicitReply) {
+        if (chatMode != MODE_DEFAULT) return true;
         loadTarget();
         if (targetMode == 0 || explicitReply != null && explicitReply != threadMessageObject) return true;
         if (targetMode == TARGET_MENTION) {
@@ -15956,6 +16003,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public int pengramTargetMentionLength(MessageObject explicitReply) {
+        if (chatMode != MODE_DEFAULT) return 0;
         loadTarget();
         if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject) return 0;
         TLRPC.User user = getMessagesController().getUser(targetSenderId);
@@ -15966,6 +16014,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public CharSequence pengramTargetTextForSend(CharSequence text, MessageObject explicitReply) {
+        if (chatMode != MODE_DEFAULT) return text;
         loadTarget();
         if (targetMode != TARGET_MENTION || explicitReply != null && explicitReply != threadMessageObject
                 || text == null || text.length() == 0) return text;
