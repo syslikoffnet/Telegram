@@ -51,6 +51,9 @@ jobs:
           ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee build.log
 
+      - name: Test microphone PCM
+        run: python3 scripts/test-voice-studio.py
+
       # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
       # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.
       - name: Report compile errors

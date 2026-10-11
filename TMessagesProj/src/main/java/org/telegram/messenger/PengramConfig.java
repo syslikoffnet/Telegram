@@ -163,6 +163,9 @@ public class PengramConfig {
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
+    public static final String KEY_VOICE_STUDIO_MIX = "voiceStudioMix";
+    public static final String KEY_VOICE_STUDIO_DRIVE = "voiceStudioDrive";
+    public static final String KEY_VOICE_STUDIO_ROBOT = "voiceStudioRobot";
 
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
@@ -1868,6 +1871,9 @@ public class PengramConfig {
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
+    public static int getVoiceStudioMix() { return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_STUDIO_MIX, 100))); }
+    public static int getVoiceStudioDrive() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_DRIVE, 0))); }
+    public static int getVoiceStudioRobot() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_ROBOT, 0))); }
 
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
@@ -2349,10 +2355,10 @@ public class PengramConfig {
         return false;
     }
 
-    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = mode; putInt("voiceChangerMode", mode); }
-    public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = semitones; putInt("voiceChangerPitch", semitones); }
-    public static int getVoiceChangerMode() { init(); return voiceChangerMode; }
-    public static int getVoiceChangerPitch() { init(); return voiceChangerPitch; }
+    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = Math.max(0, Math.min(PengramVoiceChanger.MODE_ARMOR, mode)); putInt("voiceChangerMode", voiceChangerMode); }
+    public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = Math.max(-12, Math.min(12, semitones)); putInt("voiceChangerPitch", voiceChangerPitch); }
+    public static int getVoiceChangerMode() { init(); return voiceChangerMode < 0 || voiceChangerMode > PengramVoiceChanger.MODE_ARMOR ? 0 : voiceChangerMode; }
+    public static int getVoiceChangerPitch() { init(); return Math.max(-12, Math.min(12, voiceChangerPitch)); }
 
     public static void setSpeedBoost(int level) { init(); speedBoost = level; putInt("speedBoost", level); }
     public static int getSpeedBoost() { init(); return speedBoost; }

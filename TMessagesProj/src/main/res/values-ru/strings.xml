@@ -463,7 +463,7 @@
     <string name="PengramKeepDays365">Год</string>
     <string name="PengramHistoryMediaStats">Медиа: %1$d файлов · %2$s</string>
     <string name="PengramAppIconInfo">Выберите иконку для рабочего стола — пингвины добавлены в Pengram.</string>
-    <string name="PengramVoiceHeader">Изменение голоса в голосовых</string>
+    <string name="PengramVoiceHeader">Студия голоса · микрофон</string>
     <string name="PengramVoiceOff">Выключено</string>
     <string name="PengramVoiceHelium">Гелий</string>
     <string name="PengramVoiceChild">Ребёнок</string>
@@ -472,7 +472,24 @@
     <string name="PengramVoiceDeep">Очень низкий</string>
     <string name="PengramVoiceMonster">Монстр</string>
     <string name="PengramVoiceRobot">Робот</string>
-    <string name="PengramVoiceCustom">Свой сдвиг</string>
+    <string name="PengramVoiceCustom">Своя студия</string>
+    <string name="PengramVoiceAssistant">Цифровой ассистент</string>
+    <string name="PengramVoiceArmor">Связь в шлеме</string>
+    <string name="PengramVoiceAssistantInfo">Чистый электронный тембр и короткое отражение. Авторский эффект, не копия голоса персонажа.</string>
+    <string name="PengramVoiceArmorInfo">Тёплая окраска, лёгкое насыщение и отражение. Не копия голоса актёра.</string>
+    <string name="PengramVoiceAssistantPreview">Электронный ассистент · локальный эффект</string>
+    <string name="PengramVoiceArmorPreview">Связь в шлеме · локальный эффект</string>
+    <string name="PengramVoiceStudioPreview">Своя цепочка · тон, тембр, комната и фактура</string>
+    <string name="PengramVoiceStudioDrive">Насыщение · 0 = выкл.</string>
+    <string name="PengramVoiceStudioRobot">Электронная фактура · 0 = выкл.</string>
+    <string name="PengramVoicePreviewVisualOnly">Анимация иллюстративная, не прослушивает микрофон. Эффект применяется к исходящему звуку.</string>
+    <string name="PengramVoiceProfileCopy">Скопировать профиль эффекта</string>
+    <string name="PengramVoiceProfileImport">Импортировать профиль эффекта</string>
+    <string name="PengramVoiceProfileInfo">Только настройки фильтров, не нейросетевая модель. Импорт не включает микрофон в звонках.</string>
+    <string name="PengramVoiceProfileCopied">Профиль эффекта скопирован в JSON</string>
+    <string name="PengramVoiceProfileImported">Профиль импортирован · выбрана студия</string>
+    <string name="PengramVoiceProfileInvalid">Неподдерживаемый или повреждённый профиль эффекта</string>
+    <string name="PengramVoiceStudioMix">Эффект / исходный голос</string>
     <string name="PengramVoicePitch">Высота тона, полутона</string>
     <string name="PengramVoiceInfo">Эффект применяется к микрофону до кодирования. Ниже можно выбрать, какие записи и звонки обрабатывать.</string>
     <string name="PengramRegDateSelf">Вы создали свой аккаунт примерно в %s.</string>

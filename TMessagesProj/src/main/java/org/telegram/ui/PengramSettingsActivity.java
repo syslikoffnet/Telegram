@@ -221,6 +221,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BOOST_FAST = 1301;
     private static final int BTN_BOOST_EXTREME = 1302;
     private static final int BTN_VOICE_BASE = 1310; // + режим
+    private static final int BTN_VOICE_PROFILE_COPY = 1331;
+    private static final int BTN_VOICE_PROFILE_IMPORT = 1332;
 
     private static final int BTN_HIDE_PHONE = 1100;
     private static final int BTN_SAVE_IN_BOTS = 1101;
@@ -332,6 +334,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_QUOTE_ACTION_MODE = 1029;
     private static final int BTN_QUOTE_RESET_APPEARANCE = 1030;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
+    private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
     private static final int GROUP_MENU_MAIN = 2;
     private static final int GROUP_MENU_CHAT = 3;
@@ -2165,6 +2168,43 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_VOICE_PROFILE) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                final android.net.Uri uri = data.getData();
+                Utilities.globalQueue.postRunnable(() -> {
+                    org.telegram.messenger.PengramVoiceProfile profile = null;
+                    try (java.io.InputStream input = ApplicationLoader.applicationContext
+                            .getContentResolver().openInputStream(uri)) {
+                        if (input == null) throw new java.io.IOException("Profile unavailable");
+                        byte[] chunk = new byte[1024];
+                        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+                        int n;
+                        while ((n = input.read(chunk)) != -1) {
+                            if (bytes.size() + n > 8192) throw new java.io.IOException("Profile too large");
+                            bytes.write(chunk, 0, n);
+                        }
+                        String json = new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                        profile = org.telegram.messenger.PengramVoiceProfile.parse(json.replace("\uFEFF", "").trim());
+                    } catch (Throwable error) {
+                        FileLog.e(error);
+                    }
+                    final org.telegram.messenger.PengramVoiceProfile ready = profile;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (getContext() == null) return;
+                        if (ready == null) {
+                            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                            return;
+                        }
+                        ready.apply();
+                        if (voicePreview != null) voicePreview.update();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.contact_check,
+                                getString(R.string.PengramVoiceProfileImported)).show();
+                    });
+                });
+            }
+            return;
+        }
         if (requestCode == REQUEST_PICK_QUOTE_LOGO) {
             if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
                 final android.net.Uri uri = data.getData();
@@ -3020,7 +3060,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         voicePreview.update();
         items.add(UItem.asCustom(voicePreview));
-        items.add(UItem.asShadow(null));
+        items.add(UItem.asShadow(getString(R.string.PengramVoicePreviewVisualOnly)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
         // Вместо простыни радио-кнопок — сетка карточек: все режимы видно сразу.
@@ -3067,6 +3107,27 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceEcho(), 5,
                     value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_ECHO, value)));
         }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioDrive)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioDrive(), 6,
+                    value -> String.valueOf(value), value ->
+                            PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_DRIVE, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioRobot)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioRobot(), 6,
+                    value -> String.valueOf(value), value ->
+                            PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_ROBOT, value)));
+        }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM || mode == PengramVoiceChanger.MODE_ASSISTANT
+                || mode == PengramVoiceChanger.MODE_ARMOR) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioMix)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioMix(), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_MIX, value)));
+        }
+        items.add(UItem.asButton(BTN_VOICE_PROFILE_COPY, R.drawable.msg_copy,
+                getString(R.string.PengramVoiceProfileCopy)));
+        items.add(UItem.asButton(BTN_VOICE_PROFILE_IMPORT, R.drawable.msg_download,
+                getString(R.string.PengramVoiceProfileImport)));
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceProfileInfo)));
         if (mode == PengramVoiceChanger.MODE_ANONYMOUS) {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceAnonymousInfo)));
         } else {
@@ -3135,6 +3196,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramVoiceChanger.MODE_ALIEN: return getString(R.string.PengramVoiceAlienValue);
             case PengramVoiceChanger.MODE_RADIO: return getString(R.string.PengramVoiceRadioValue);
             case PengramVoiceChanger.MODE_PHONE: return getString(R.string.PengramVoicePhoneValue);
+            case PengramVoiceChanger.MODE_ASSISTANT: return getString(R.string.PengramVoiceAssistantInfo);
+            case PengramVoiceChanger.MODE_ARMOR: return getString(R.string.PengramVoiceArmorInfo);
             case PengramVoiceChanger.MODE_CAVE: return getString(R.string.PengramVoiceCaveValue);
             case PengramVoiceChanger.MODE_UNDERWATER: return getString(R.string.PengramVoiceUnderwaterValue);
             case PengramVoiceChanger.MODE_WHISPER: return getString(R.string.PengramVoiceWhisperValue);
@@ -3986,7 +4049,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_PHONE) {
+        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_ARMOR) {
             PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
             PengramVoiceChanger.reset();
             if (voicePreview != null) {
@@ -4002,6 +4065,29 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_VOICE_PROFILE_COPY: {
+                try {
+                    AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVoiceProfile.current().toJson());
+                    BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramVoiceProfileCopied)).show();
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                }
+                return;
+            }
+            case BTN_VOICE_PROFILE_IMPORT: {
+                try {
+                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("*/*");
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(intent, REQUEST_PICK_VOICE_PROFILE);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                }
+                return;
+            }
             case BTN_INPUT_ANIMATION: {
                 final CharSequence[] options = new CharSequence[PengramConfig.INPUT_ANIM_COUNT];
                 final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
@@ -6172,6 +6258,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             pitch = PengramVoiceChanger.getPitchFactor();
             if (mode == PengramVoiceChanger.MODE_OFF) {
                 subtitle = getString(R.string.PengramVoicePreviewOff);
+            } else if (mode == PengramVoiceChanger.MODE_ASSISTANT) {
+                subtitle = getString(R.string.PengramVoiceAssistantPreview);
+            } else if (mode == PengramVoiceChanger.MODE_ARMOR) {
+                subtitle = getString(R.string.PengramVoiceArmorPreview);
+            } else if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+                subtitle = getString(R.string.PengramVoiceStudioPreview);
             } else {
                 final int semitones = Math.round((float) (12.0 * Math.log(pitch) / Math.log(2.0)));
                 subtitle = LocaleController.formatString(R.string.PengramVoicePreviewOn,

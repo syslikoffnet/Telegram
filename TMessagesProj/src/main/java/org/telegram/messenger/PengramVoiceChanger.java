@@ -39,6 +39,10 @@ public class PengramVoiceChanger {
     public static final int MODE_UNDERWATER = 14; // под водой
     public static final int MODE_WHISPER = 15;    // шёпот
     public static final int MODE_PHONE = 16;      // телефонная линия
+    // Original, locally synthesized timbres. These do not impersonate an actor
+    // and are not neural voice conversion models.
+    public static final int MODE_ASSISTANT = 17;  // clean electronic assistant
+    public static final int MODE_ARMOR = 18;      // cinematic helmet comms
 
     /** порядок режимов в настройках */
     public static final int[] MODES = {
@@ -55,6 +59,8 @@ public class PengramVoiceChanger {
             MODE_ALIEN,
             MODE_RADIO,
             MODE_PHONE,
+            MODE_ASSISTANT,
+            MODE_ARMOR,
             MODE_CAVE,
             MODE_UNDERWATER,
             MODE_WHISPER,
@@ -111,7 +117,8 @@ public class PengramVoiceChanger {
     private static boolean overloaded;
     private static long retryAfter;
     private static float gateGain = 1f;
-    private static int frameFormant, frameEcho;
+    private static int frameFormant, frameEcho, frameDrive, frameRobot;
+    private static float frameMix, frameDriveGain, frameDriveScale;
     private static float limiterGain = 1f;
     private static float dryEnv;
     private static float wetEnv;
@@ -184,6 +191,12 @@ public class PengramVoiceChanger {
         } else if (mode == MODE_MALE || mode == MODE_DEEP || mode == MODE_MONSTER) {
             formant1.setPeaking(sampleRate, 500f, 1.0f, 2.5f);
             formant2.setPeaking(sampleRate, 2300f, 1.1f, -2.0f);
+        } else if (mode == MODE_ASSISTANT) {
+            formant1.setPeaking(sampleRate, 480f, 0.85f, -2.5f);
+            formant2.setPeaking(sampleRate, 2600f, 1.1f, 3.0f);
+        } else if (mode == MODE_ARMOR) {
+            formant1.setPeaking(sampleRate, 680f, 0.8f, 3.5f);
+            formant2.setPeaking(sampleRate, 2700f, 1.2f, -3.0f);
         }
         initialized = true;
     }
@@ -310,6 +323,8 @@ public class PengramVoiceChanger {
             case MODE_WHISPER: return 1.04f;
             case MODE_UNDERWATER: return 0.92f;
             case MODE_ANONYMOUS: return anonPitch;
+            case MODE_ASSISTANT: return 1.06f;
+            case MODE_ARMOR: return 0.90f;
             case MODE_CUSTOM: return semitonesToFactor(PengramConfig.getVoiceChangerPitch());
             default: return 1.0f;
         }
@@ -357,6 +372,16 @@ public class PengramVoiceChanger {
             final int gate = PengramConfig.getVoiceGate();
             frameFormant = PengramConfig.getVoiceFormant();
             frameEcho = PengramConfig.getVoiceEcho();
+            // Snapshot knobs once per packet, not for every microphone sample.
+            frameDrive = mode == MODE_CUSTOM ? PengramConfig.getVoiceStudioDrive() : 0;
+            if (frameDrive > 0) {
+                final float gain = 1f + frameDrive * 0.45f;
+                frameDriveGain = gain / 24000f;
+                frameDriveScale = 24000f / (float) Math.tanh(gain);
+            }
+            frameRobot = mode == MODE_CUSTOM ? PengramConfig.getVoiceStudioRobot() : 0;
+            frameMix = mode == MODE_CUSTOM || mode == MODE_ASSISTANT || mode == MODE_ARMOR
+                    ? PengramConfig.getVoiceStudioMix() / 100f : 1f;
 
             try {
             for (int i = 0; i < count; ++i) {
@@ -406,6 +431,9 @@ public class PengramVoiceChanger {
                 }
 
                 out = applyMode(mode, out, in);
+                if (frameMix < 1f) {
+                    out = in * (1f - frameMix) + out * frameMix;
+                }
                 out = limit(out);
                 buffer.putShort(i * 2, (short) (out * gateGain));
             }
@@ -472,7 +500,33 @@ public class PengramVoiceChanger {
                     echoWrite(x + delayed * 0.2f);
                     x += delayed * echoLevel * 0.09f;
                 }
+                if (frameRobot > 0) {
+                    lfoPhase += 2.0 * Math.PI * 68.0 / sampleRate;
+                    final float depth = frameRobot / 6f * 0.65f;
+                    x *= 1f - depth * (0.5f - 0.5f * sine(lfoPhase));
+                }
+                if (frameDrive > 0) {
+                    // Normalized soft saturation; the static coefficients are
+                    // calculated once per audio packet, not for each sample.
+                    x = (float) Math.tanh(x * frameDriveGain) * frameDriveScale;
+                }
                 return x;
+            }
+            case MODE_ASSISTANT: {
+                final float clear = formant2.process(formant1.process(highpass(x, 330f)));
+                lfoPhase += 2.0 * Math.PI * 54.0 / sampleRate;
+                final float shimmer = 0.88f + 0.12f * sine(lfoPhase);
+                final float tap = echoRead(Math.max(1, sampleRate / 35));
+                echoWrite(clear + tap * 0.15f);
+                return clear * shimmer + tap * 0.12f;
+            }
+            case MODE_ARMOR: {
+                final float band = highpass(lowpass(x, 3400f), 330f);
+                final float shaped = formant2.process(formant1.process(band));
+                final float compressed = (float) Math.tanh(shaped / 14000f) * 16000f;
+                final float tap = echoRead(Math.max(1, sampleRate / 12));
+                echoWrite(compressed + tap * 0.22f);
+                return compressed * 0.84f + tap * 0.23f;
             }
             case MODE_ANONYMOUS: {
                 // формантная окраска + фазовое скремблирование + шумовая подложка
@@ -740,6 +794,8 @@ public class PengramVoiceChanger {
             case MODE_ALIEN: return LocaleController.getString(R.string.PengramVoiceAlien);
             case MODE_RADIO: return LocaleController.getString(R.string.PengramVoiceRadio);
             case MODE_PHONE: return LocaleController.getString(R.string.PengramVoicePhone);
+            case MODE_ASSISTANT: return LocaleController.getString(R.string.PengramVoiceAssistant);
+            case MODE_ARMOR: return LocaleController.getString(R.string.PengramVoiceArmor);
             case MODE_CAVE: return LocaleController.getString(R.string.PengramVoiceCave);
             case MODE_UNDERWATER: return LocaleController.getString(R.string.PengramVoiceUnderwater);
             case MODE_WHISPER: return LocaleController.getString(R.string.PengramVoiceWhisper);
@@ -762,6 +818,8 @@ public class PengramVoiceChanger {
             case MODE_ALIEN: return "\uD83D\uDC7D";
             case MODE_RADIO: return "\uD83D\uDCFB";
             case MODE_PHONE: return "\u260E\uFE0F";
+            case MODE_ASSISTANT: return "\uD83D\uDCBB";
+            case MODE_ARMOR: return "\uD83D\uDEE1\uFE0F";
             case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
             case MODE_UNDERWATER: return "\uD83C\uDF0A";
             case MODE_WHISPER: return "\uD83E\uDD2B";
