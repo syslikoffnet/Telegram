@@ -69,7 +69,9 @@ public class TestVoiceStudio {
     }
     public static void main(String[] args) {
         final int[] modes = {PengramVoiceChanger.MODE_CUSTOM,
-                PengramVoiceChanger.MODE_ASSISTANT, PengramVoiceChanger.MODE_ARMOR};
+                PengramVoiceChanger.MODE_ASSISTANT, PengramVoiceChanger.MODE_ARMOR,
+                PengramVoiceChanger.MODE_BUBBLY, PengramVoiceChanger.MODE_SQUEAKY,
+                PengramVoiceChanger.MODE_GRUMBLE};
         for (int rate : new int[] {8000, 16000, 48000, 96000}) {
             int frames = rate / 100;
             for (int mode : modes) {

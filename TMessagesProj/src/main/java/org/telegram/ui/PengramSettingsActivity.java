@@ -3201,6 +3201,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramVoiceChanger.MODE_PHONE: return getString(R.string.PengramVoicePhoneValue);
             case PengramVoiceChanger.MODE_ASSISTANT: return getString(R.string.PengramVoiceAssistantInfo);
             case PengramVoiceChanger.MODE_ARMOR: return getString(R.string.PengramVoiceArmorInfo);
+            case PengramVoiceChanger.MODE_BUBBLY: return getString(R.string.PengramVoiceBubblyInfo);
+            case PengramVoiceChanger.MODE_SQUEAKY: return getString(R.string.PengramVoiceSqueakyInfo);
+            case PengramVoiceChanger.MODE_GRUMBLE: return getString(R.string.PengramVoiceGrumbleInfo);
             case PengramVoiceChanger.MODE_CAVE: return getString(R.string.PengramVoiceCaveValue);
             case PengramVoiceChanger.MODE_UNDERWATER: return getString(R.string.PengramVoiceUnderwaterValue);
             case PengramVoiceChanger.MODE_WHISPER: return getString(R.string.PengramVoiceWhisperValue);
@@ -4052,7 +4055,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_ARMOR) {
+        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_GRUMBLE) {
             PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
             PengramVoiceChanger.reset();
             if (voicePreview != null) {

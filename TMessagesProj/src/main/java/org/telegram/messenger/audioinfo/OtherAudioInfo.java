@@ -1,7 +1,6 @@
 package org.telegram.messenger.audioinfo;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.media.MediaMetadataRetriever;
 
 import androidx.media3.exoplayer.MetadataRetriever;
@@ -36,12 +35,12 @@ public class OtherAudioInfo extends AudioInfo {
             composer = getString(MediaMetadataRetriever.METADATA_KEY_COMPOSER);
             byte[] coverBytes = r.getEmbeddedPicture();
             if (coverBytes != null) {
-                cover = BitmapFactory.decodeByteArray(coverBytes, 0, coverBytes.length);
+                cover = CoverDecode.decode(coverBytes);
             }
             if (cover != null) {
                 float scale = Math.max(cover.getWidth(), cover.getHeight()) / 120.0f;
-                if (scale > 0) {
-                    smallCover = Bitmap.createScaledBitmap(cover, (int) (cover.getWidth() / scale), (int) (cover.getHeight() / scale), true);
+                if (scale > 1f) {
+                    smallCover = Bitmap.createScaledBitmap(cover, Math.max(1, (int) (cover.getWidth() / scale)), Math.max(1, (int) (cover.getHeight() / scale)), true);
                 } else {
                     smallCover = cover;
                 }

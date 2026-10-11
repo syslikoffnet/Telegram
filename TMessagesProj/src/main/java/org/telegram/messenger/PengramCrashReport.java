@@ -103,15 +103,21 @@ public final class PengramCrashReport {
                 StringBuilder sb = new StringBuilder("Pengram native crash report\n");
                 sb.append("Время: ").append(new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US)
                         .format(new Date(timestamp))).append('\n');
+                sb.append("Версия: ").append(BuildVars.BUILD_VERSION_STRING).append('\n');
                 sb.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ")
                         .append(Build.VERSION.SDK_INT).append(")\n");
                 sb.append("Устройство: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
                 sb.append("Причина: native crash (signal / JNI), status ").append(info.getStatus()).append("\n\n");
                 try (InputStream trace = info.getTraceInputStream()) {
                     if (trace != null) {
-                        byte[] bytes = new byte[16384];
-                        int count = trace.read(bytes);
-                        if (count > 0) sb.append(new String(bytes, 0, count, "UTF-8"));
+                        // Android 11+ returns a binary debuggerd protobuf, not UTF-8.
+                        // Read a fixed budget even if the tombstone contains huge memory dumps.
+                        byte[] bytes = new byte[131072];
+                        int count = 0, read;
+                        while (count < bytes.length && (read = trace.read(bytes, count, bytes.length - count)) > 0) {
+                            count += read;
+                        }
+                        sb.append(PengramTombstone.summarize(bytes, count));
                     }
                 } catch (Throwable ignore) {
                     sb.append("Tombstone unavailable; collect adb logcat for details.\n");

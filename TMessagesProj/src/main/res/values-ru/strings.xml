@@ -475,6 +475,12 @@
     <string name="PengramVoiceCustom">Своя студия</string>
     <string name="PengramVoiceAssistant">Цифровой ассистент</string>
     <string name="PengramVoiceArmor">Связь в шлеме</string>
+    <string name="PengramVoiceBubbly">Пузырчатый мультяшка</string>
+    <string name="PengramVoiceBubblyInfo">Яркий, пружинистый тембр с коротким отражением. Авторский эффект, не голос Губки Боба.</string>
+    <string name="PengramVoiceSqueaky">Писклявый зверёк</string>
+    <string name="PengramVoiceSqueakyInfo">Высокий мультяшный писк. Авторский эффект, не копия персонажа.</string>
+    <string name="PengramVoiceGrumble">Ворчливый великан</string>
+    <string name="PengramVoiceGrumbleInfo">Низкий, тёплый мультяшный тембр. Авторский эффект, не копия персонажа.</string>
     <string name="PengramVoiceAssistantInfo">Чистый электронный тембр и короткое отражение. Авторский эффект, не копия голоса персонажа.</string>
     <string name="PengramVoiceArmorInfo">Тёплая окраска, лёгкое насыщение и отражение. Не копия голоса актёра.</string>
     <string name="PengramVoiceAssistantPreview">Электронный ассистент · локальный эффект</string>

@@ -43,6 +43,9 @@ public class PengramVoiceChanger {
     // and are not neural voice conversion models.
     public static final int MODE_ASSISTANT = 17;  // clean electronic assistant
     public static final int MODE_ARMOR = 18;      // cinematic helmet comms
+    public static final int MODE_BUBBLY = 19;     // original bright, bouncy cartoon timbre
+    public static final int MODE_SQUEAKY = 20;    // original tiny animated creature
+    public static final int MODE_GRUMBLE = 21;    // original gruff cartoon giant
 
     /** порядок режимов в настройках */
     public static final int[] MODES = {
@@ -51,8 +54,11 @@ public class PengramVoiceChanger {
             MODE_FEMALE,
             MODE_MALE,
             MODE_CHILD,
+            MODE_BUBBLY,
+            MODE_SQUEAKY,
             MODE_HELIUM,
             MODE_DEEP,
+            MODE_GRUMBLE,
             MODE_MONSTER,
             MODE_DEMON,
             MODE_ROBOT,
@@ -201,6 +207,15 @@ public class PengramVoiceChanger {
         } else if (mode == MODE_ASSISTANT) {
             formant1.setPeaking(sampleRate, 480f, 0.85f, -2.5f);
             formant2.setPeaking(sampleRate, 2600f, 1.1f, 3.0f);
+        } else if (mode == MODE_BUBBLY) {
+            formant1.setPeaking(sampleRate, 750f, 1.1f, -2f);
+            formant2.setPeaking(sampleRate, 2850f, 0.85f, 4f);
+        } else if (mode == MODE_SQUEAKY) {
+            formant1.setPeaking(sampleRate, 780f, 0.9f, -3f);
+            formant2.setPeaking(sampleRate, 3100f, 0.8f, 4.5f);
+        } else if (mode == MODE_GRUMBLE) {
+            formant1.setPeaking(sampleRate, 540f, 0.8f, 3f);
+            formant2.setPeaking(sampleRate, 2600f, 1.1f, -2.5f);
         } else if (mode == MODE_ARMOR) {
             formant1.setPeaking(sampleRate, 680f, 0.8f, 3.5f);
             formant2.setPeaking(sampleRate, 2700f, 1.2f, -3.0f);
@@ -378,6 +393,9 @@ public class PengramVoiceChanger {
             case MODE_ANONYMOUS: return anonPitch;
             case MODE_ASSISTANT: return 1.06f;
             case MODE_ARMOR: return 0.90f;
+            case MODE_BUBBLY: return 1.36f;
+            case MODE_SQUEAKY: return 1.65f;
+            case MODE_GRUMBLE: return 0.77f;
             case MODE_CUSTOM: return semitonesToFactor(PengramConfig.getVoiceChangerPitch());
             default: return 1.0f;
         }
@@ -573,6 +591,18 @@ public class PengramVoiceChanger {
                 }
                 return x;
             }
+            case MODE_BUBBLY: {
+                // Bright consonants, a gentle bouncy pulse and a tiny reflection.
+                final float bright = formant2.process(formant1.process(highpass(x, 330f)));
+                lfoPhase += TWO_PI * 5.5 / sampleRate;
+                final float tap = echoRead(Math.max(1, sampleRate / 45));
+                echoWrite(bright);
+                return bright * (0.94f + 0.06f * sine(lfoPhase)) + tap * 0.09f;
+            }
+            case MODE_SQUEAKY:
+                return formant2.process(formant1.process(highpass(x, 420f)));
+            case MODE_GRUMBLE:
+                return formant2.process(formant1.process(lowpass(x, 3400f)));
             case MODE_ASSISTANT: {
                 final float clear = formant2.process(formant1.process(highpass(x, 330f)));
                 lfoPhase += 2.0 * Math.PI * 54.0 / sampleRate;
@@ -856,6 +886,9 @@ public class PengramVoiceChanger {
             case MODE_PHONE: return LocaleController.getString(R.string.PengramVoicePhone);
             case MODE_ASSISTANT: return LocaleController.getString(R.string.PengramVoiceAssistant);
             case MODE_ARMOR: return LocaleController.getString(R.string.PengramVoiceArmor);
+            case MODE_BUBBLY: return LocaleController.getString(R.string.PengramVoiceBubbly);
+            case MODE_SQUEAKY: return LocaleController.getString(R.string.PengramVoiceSqueaky);
+            case MODE_GRUMBLE: return LocaleController.getString(R.string.PengramVoiceGrumble);
             case MODE_CAVE: return LocaleController.getString(R.string.PengramVoiceCave);
             case MODE_UNDERWATER: return LocaleController.getString(R.string.PengramVoiceUnderwater);
             case MODE_WHISPER: return LocaleController.getString(R.string.PengramVoiceWhisper);
@@ -880,6 +913,9 @@ public class PengramVoiceChanger {
             case MODE_PHONE: return "\u260E\uFE0F";
             case MODE_ASSISTANT: return "\uD83D\uDCBB";
             case MODE_ARMOR: return "\uD83D\uDEE1\uFE0F";
+            case MODE_BUBBLY: return "\uD83E\uDEE7";
+            case MODE_SQUEAKY: return "\uD83D\uDC3F\uFE0F";
+            case MODE_GRUMBLE: return "\uD83E\uDDA3";
             case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
             case MODE_UNDERWATER: return "\uD83C\uDF0A";
             case MODE_WHISPER: return "\uD83E\uDD2B";
@@ -899,6 +935,9 @@ public class PengramVoiceChanger {
             case MODE_MALE:
             case MODE_CHILD:
             case MODE_HELIUM:
+            case MODE_BUBBLY:
+            case MODE_SQUEAKY:
+            case MODE_GRUMBLE:
             case MODE_DEEP:
             case MODE_MONSTER:
             case MODE_DEMON:

@@ -23,16 +23,18 @@ public class PengramCovers {
         void onCover(String key, Bitmap bitmap);
     }
 
-    private static final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(16) {
+    // Byte budget, not 16 arbitrary full-size bitmaps (which could exhaust a low-RAM phone).
+    private static final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(4 * 1024 * 1024) {
         @Override
         protected int sizeOf(String key, Bitmap value) {
-            return 1;
+            return value.getByteCount();
         }
     };
 
     private static final HashMap<String, ArrayList<Callback>> loading = new HashMap<>();
 
-    private static final ExecutorService pool = Executors.newFixedThreadPool(2, runnable -> {
+    // One decoder at a time avoids two simultaneous compressed cover buffers/bitmaps.
+    private static final ExecutorService pool = Executors.newSingleThreadExecutor(runnable -> {
         final Thread thread = new Thread(runnable, "PengramCovers");
         thread.setPriority(Thread.MIN_PRIORITY + 2);
         thread.setDaemon(true);
