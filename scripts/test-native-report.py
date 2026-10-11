@@ -44,7 +44,11 @@ public class TestNativeReport {
             text(frame, 8, "df8e72");
             data(thread, 4, frame.toByteArray());
             ByteArrayOutputStream entry = new ByteArrayOutputStream();
-            num(entry, 1, tid); data(entry, 2, thread.toByteArray());
+            if (tid == 1234) { // Protobuf map entries may put the value before the key.
+                data(entry, 2, thread.toByteArray()); num(entry, 1, tid);
+            } else {
+                num(entry, 1, tid); data(entry, 2, thread.toByteArray());
+            }
             data(proto, 16, entry.toByteArray());
         }
         byte[] bytes = proto.toByteArray();

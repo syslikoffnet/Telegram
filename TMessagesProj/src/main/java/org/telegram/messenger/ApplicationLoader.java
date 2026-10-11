@@ -298,6 +298,20 @@ public class ApplicationLoader extends Application {
     }
 
     @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            PengramCovers.clear();
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        PengramCovers.clear();
+    }
+
+    @Override
     public void onCreate() {
         applicationLoaderInstance = this;
         try {

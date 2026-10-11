@@ -149,19 +149,21 @@ public final class PengramTombstone {
                 else if (field == 16) {
                     Reader entry = root.field(wire);
                     int id = 0;
-                    ThreadInfo thread = null;
+                    Reader threadValue = null;
                     try {
                         while (entry.pos < entry.end) {
                             long subtag = entry.varint();
                             int subfield = (int) (subtag >>> 3), subwire = (int) (subtag & 7);
                             if (subfield == 1 && subwire == 0) id = (int) entry.varint();
-                            else if (subfield == 2 && id == tid && tid != 0) thread = parseThread(entry.field(subwire));
+                            else if (subfield == 2) threadValue = entry.field(subwire);
                             else entry.skip(subwire);
                         }
                     } catch (IOException ignored) {
                         // A partial map entry may still contain the crashing stack.
                     }
-                    if (id == tid && thread != null) crashed = thread;
+                    // Map-entry fields need not be serialized in key-then-value order.
+                    // Do not parse registers/backtraces for any unrelated thread.
+                    if (id == tid && tid != 0 && threadValue != null) crashed = parseThread(threadValue);
                 } else root.skip(wire);
             }
         } catch (IOException ignored) {
