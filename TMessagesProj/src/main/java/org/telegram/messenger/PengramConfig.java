@@ -2355,9 +2355,9 @@ public class PengramConfig {
         return false;
     }
 
-    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = Math.max(0, Math.min(PengramVoiceChanger.MODE_SEA_CARTOON, mode)); putInt("voiceChangerMode", voiceChangerMode); }
+    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = Math.max(0, Math.min(PengramVoiceChanger.MODE_ARMOR, mode)); putInt("voiceChangerMode", voiceChangerMode); }
     public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = Math.max(-12, Math.min(12, semitones)); putInt("voiceChangerPitch", voiceChangerPitch); }
-    public static int getVoiceChangerMode() { init(); return voiceChangerMode < 0 || voiceChangerMode > PengramVoiceChanger.MODE_SEA_CARTOON ? 0 : voiceChangerMode; }
+    public static int getVoiceChangerMode() { init(); return voiceChangerMode < 0 || voiceChangerMode > PengramVoiceChanger.MODE_ARMOR ? 0 : voiceChangerMode; }
     public static int getVoiceChangerPitch() { init(); return Math.max(-12, Math.min(12, voiceChangerPitch)); }
 
     public static void setSpeedBoost(int level) { init(); speedBoost = level; putInt("speedBoost", level); }

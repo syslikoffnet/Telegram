@@ -1,47 +1,50 @@
-# Offline voice conversion: integration gate
+# Recognizable voice models — actual feasibility and acceptance gate
 
-Pengram's built-in cartoon/armor modes are streaming DSP, **not** pretrained
-character voices. They run in the existing 8–96 kHz microphone path for voice
-messages, round videos and opt-in calls. The voice-studio animation is not a
-microphone monitor. No remote service receives microphone audio.
+**Current state:** Pengram has real-time microphone DSP effects, but does **not**
+contain neural voice-conversion inference or weights of any celebrity or
+character. An effect that changes pitch or adds echo is not a recognizable
+person's voice. The synthetic presets added as character substitutes have been
+removed. Do not label effects with the names of real people or characters.
 
-## Model availability (reviewed October 2026)
+## Projects examined (October 2026)
 
-- [KoeAI/LLVC](https://github.com/KoeAI/LLVC) publishes MIT-licensed CPU
-  streaming **code**. Its `download_models.py` obtains checkpoints separately
-  from Hugging Face. The code license alone does not establish redistribution
-  permission for any named character/performer checkpoint, nor prove real-time
-  performance on a low-end Android device.
-- [StreamVC](https://github.com/yuval-reshef/StreamVC) has no trained checkpoint
-  to share and does not implement the paper's streaming inference.
-- [BadloVoice](https://github.com/abuzar310/badlovoice) offers Android UI and
-  DSP but describes a separate Python/FastAPI backend for RVC; this is not an
-  autonomous, ready-to-integrate in-call Android inference engine.
+- [ouor/RVC-Android](https://github.com/ouor/RVC-Android) runs ONNX-based RVC
+  **offline on Android**, but converts a finished recording (up to 60 seconds),
+  not the live microphone packets of a Telegram call. It needs three external
+  models (synthesizer, HuBERT and RMVPE), Android 12+, arm64 and `largeHeap`.
+  Its repository has no detected software license; do not copy its code or
+  present batch conversion as live call conversion.
+- [KoeAI/LLVC](https://github.com/KoeAI/LLVC) provides MIT-licensed streaming
+  CPU code. Checkpoints are downloaded separately from Hugging Face. This does
+  not supply a verified, redistributable voice of a named public figure, nor
+  prove that the full conversion pipeline works on a low-end Android phone.
+- [StreamVC](https://github.com/yuval-reshef/StreamVC) publishes an unofficial
+  implementation, but its README says it has no trained checkpoint to share
+  and the paper's streaming inference is not fully implemented.
+- [rabebsdiri45/tts-spongebob-voice-clone](https://github.com/rabebsdiri45/tts-spongebob-voice-clone)
+  describes **text-to-speech**, not conversion of a live speaker; its MIT code
+  label alone does not grant rights to the performance recordings or prove the
+  exported model can run on Android in real time.
 
-Therefore **no character-model weights or unused inference runtime are bundled
-in the APK**. Do not advertise the original DSP presets as exact character
-clones. Choosing a library requires a model with documented distribution
-rights, a reproducible mobile build and real-device measurements first.
+No usable, verified-redistributable celebrity voice package was found in these
+sources. Repository license != consent to redistribute a person's vocal likeness
+or a separately hosted model. None of these projects can be honestly pasted
+into Pengram as a ready-to-use, low-latency in-call celebrity voice.
 
-## Acceptance gate before enabling optional offline neural processing
+## Implementation gate for an actual voice model
 
-1. Verify the checkpoint's provenance and redistribution permission separately
-   from the engine's license; include an attribution record and hashes. Limit
-   model size, reject unknown formats and do not deserialize arbitrary Java or
-   Python objects in the app. A generic `.pth` is not executable by this APK.
-2. Run inference off the microphone callback on a bounded preallocated queue.
-   Normalize PCM/sample rate at the boundary; preserve packet order and length,
-   and measure *end-to-end* p95/p99 delay including model lookahead/resampling.
-   No main-thread I/O or model loading while recording.
-3. Benchmark at 8, 16 and 48 kHz with the actual Bluetooth/call pathways on
-   the weakest supported device. If the model cannot sustain the packet rate,
-   use the selected original DSP preset for a whole ordinary session, not
-   alternating late neural packets with dry speech. Never expose unmodified
-   audio when the selected mode is Anonymous: use its existing mute-on-overload
-   rule rather than the ordinary dry fallback.
-4. Gate inference per device/session only after a cold-start and sustained-load
-   test; test calls, voice notes and round videos on physical phones. Default
-   remains the low-cost DSP path until these conditions are met.
+1. Obtain an identifiable voice model and auditable rights for its weights and
+   voice data, not merely a similarly named GitHub repository. Verify its format
+   and integrity; never run Python `.pth` deserialization in the Android app.
+2. Benchmark end-to-end, *including* content encoder, pitch extractor, synthesis,
+   resampling, buffer scheduling and model lookahead. The microphone callback
+   must not block for inference or allocate unbounded memory. Test 8/16/48 kHz,
+   Bluetooth, calls and voice/round recordings on real weak phones.
+3. Offer a real voice option only after the model passes the test. If unavailable
+   or too slow, show that plainly and don't silently replace the chosen celebrity
+   with a cartoon filter or unmodified audio. Existing Anonymous mode must keep
+   its mute-on-error guarantee.
+4. Document synthetic-voice use and the provenance/permissions of each packaged
+   voice. The existing DSP modes remain separate effects.
 
-This is an engineering gate, not a claim that a licensed model or working
-on-device neural conversion is already included.
+This document is a feasibility record, **not** an implemented inference engine.
