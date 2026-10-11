@@ -76,5 +76,6 @@
 # WebRTC looks up only this tiny stable bridge by JNI name. The actual voice
 # DSP remains renameable; keeping its old Pengram class name is unnecessary.
 -keep class org.telegram.messenger.AudioEffectBridge {
+    public static boolean isCallAudioEnabled();
     public static void processCallAudio(java.nio.ByteBuffer, int, int);
 }

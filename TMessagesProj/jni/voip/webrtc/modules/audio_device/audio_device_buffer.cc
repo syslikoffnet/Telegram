@@ -54,20 +54,34 @@ void ProcessPengramMicrophone(int16_t* samples, size_t frames, int rate) {
   struct Bridge {
     jclass clazz;
     jmethodID process;
+    jmethodID enabled;
   };
   static const Bridge bridge = [env]() {
     auto local = GetClass(env, "org/telegram/messenger/AudioEffectBridge");
-    if (local.is_null()) return Bridge{nullptr, nullptr};
+    if (local.is_null()) return Bridge{nullptr, nullptr, nullptr};
     jclass global = static_cast<jclass>(env->NewGlobalRef(local.obj()));
-    jmethodID method = global ? env->GetStaticMethodID(global, "processCallAudio",
+    jmethodID process = global ? env->GetStaticMethodID(global, "processCallAudio",
                                                         "(Ljava/nio/ByteBuffer;II)V") : nullptr;
     if (env->ExceptionCheck()) {
       env->ExceptionClear();
-      method = nullptr;
+      process = nullptr;
     }
-    return Bridge{global, method};
+    jmethodID enabled = global ? env->GetStaticMethodID(global, "isCallAudioEnabled", "()Z") : nullptr;
+    if (env->ExceptionCheck()) {
+      env->ExceptionClear();
+      enabled = nullptr;
+    }
+    return Bridge{global, process, enabled};
   }();
-  if (!bridge.process) return;
+  // OFF is the default. Skip a direct-buffer wrapper for every 10 ms of an
+  // ordinary call; this check reads only cached Pengram settings.
+  if (!bridge.process || !bridge.enabled) return;
+  const jboolean enabled = env->CallStaticBooleanMethod(bridge.clazz, bridge.enabled);
+  if (env->ExceptionCheck()) {
+    env->ExceptionClear();
+    return;
+  }
+  if (enabled != JNI_TRUE) return;
   jobject buffer = env->NewDirectByteBuffer(samples, frames * sizeof(int16_t));
   if (!buffer) {
     if (env->ExceptionCheck()) env->ExceptionClear();

@@ -482,6 +482,8 @@
     <string name="PengramVoiceStudioPreview">Своя цепочка · тон, тембр, комната и фактура</string>
     <string name="PengramVoiceStudioDrive">Насыщение · 0 = выкл.</string>
     <string name="PengramVoiceStudioRobot">Электронная фактура · 0 = выкл.</string>
+    <string name="PengramVoiceAnonymousMuted">Перегрузка устройства: в режиме «Аноним» микрофон заглушён на эту запись, чтобы не раскрыть исходный голос.</string>
+    <string name="PengramVoicePerformancePaused">Эффект приостановлен на эту запись: устройство не успевает обрабатывать звук. Передаётся исходный голос.</string>
     <string name="PengramVoicePreviewVisualOnly">Анимация иллюстративная, не прослушивает микрофон. Эффект применяется к исходящему звуку.</string>
     <string name="PengramVoiceProfileCopy">Скопировать профиль эффекта</string>
     <string name="PengramVoiceProfileImport">Импортировать профиль эффекта</string>

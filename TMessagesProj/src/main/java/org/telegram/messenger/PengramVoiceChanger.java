@@ -71,10 +71,15 @@ public class PengramVoiceChanger {
     private static int sampleRate = 48000;
 
     private static final int DELAY_SIZE = 8192;
+    private static final int DELAY_MASK = DELAY_SIZE - 1; // power-of-two ring
     // A ~32 ms grain at any supported sample rate: avoids the old 256 ms
     // pitch window at 16 kHz Bluetooth input without shortening the word.
     private static int window = 1536;
     private static final int WINDOW_TABLE_SIZE = 2048;
+    private static final double TWO_PI = 2.0 * Math.PI;
+    private static final double INVERSE_TWO_PI = 1.0 / TWO_PI;
+    private static final double LFO_TABLE_SCALE = WINDOW_TABLE_SIZE / TWO_PI;
+    private static float pitchWindowScale = (float) WINDOW_TABLE_SIZE / window;
     private static final float[] windowSin = new float[WINDOW_TABLE_SIZE + 1];
     private static final float[] windowCos = new float[WINDOW_TABLE_SIZE + 1];
     private static final float[] lfoSin = new float[WINDOW_TABLE_SIZE + 1];
@@ -113,8 +118,8 @@ public class PengramVoiceChanger {
     private static int activeSource;
     private static long lastSourceFrame;
     private static int lastMode = MODE_OFF;
-    private static int slowFrames;
-    private static boolean overloaded;
+    private static int slowFrames, overloadStrikes;
+    private static volatile boolean overloaded, disabledForSession;
     private static long retryAfter;
     private static float gateGain = 1f;
     private static int frameFormant, frameEcho, frameDrive, frameRobot;
@@ -125,7 +130,10 @@ public class PengramVoiceChanger {
     private static float makeupGain = 1f;
 
     // --- состояние анонимайзера (новое на каждую запись) ---
-    private static final SecureRandom secureRandom = new SecureRandom();
+    // Do not initialize SecureRandom when loading the class for an OFF call.
+    private static class AnonymousRandom {
+        static final SecureRandom INSTANCE = new SecureRandom();
+    }
     private static float anonPitch = 1f;          // базовый сдвиг
     private static float anonPitchTarget = 1f;    // куда плывём
     private static float anonPitchNow = 1f;
@@ -143,6 +151,7 @@ public class PengramVoiceChanger {
     /** сбрасываем состояние перед каждой новой записью */
     public static synchronized void reset() {
         window = Math.max(256, Math.min(DELAY_SIZE / 2, Math.round(sampleRate * 0.032f)));
+        pitchWindowScale = (float) WINDOW_TABLE_SIZE / window;
         lp950 = lowpassCoefficient(950f);
         lp1800 = lowpassCoefficient(1800f);
         lp2900 = lowpassCoefficient(2900f);
@@ -163,9 +172,7 @@ public class PengramVoiceChanger {
         highpassPrev = 0;
         limiterGain = 1f;
         gateGain = 1f;
-        slowFrames = 0;
-        overloaded = false;
-        retryAfter = 0;
+        // DSP reset does not lift a CPU bypass in the middle of the same call.
         dryEnv = 0;
         wetEnv = 0;
         makeupGain = 1f;
@@ -207,37 +214,37 @@ public class PengramVoiceChanger {
      * сохраняются. Этого недостаточно для гарантии анонимности.
      */
     private static void randomizeAnonymous() {
-        final boolean up = secureRandom.nextBoolean();
+        final boolean up = AnonymousRandom.INSTANCE.nextBoolean();
         // ±(2.6 … 5.2) полутона — слышно другого человека, но речь остаётся разборчивой
-        final float semitones = 2.6f + secureRandom.nextFloat() * 2.6f;
+        final float semitones = 2.6f + AnonymousRandom.INSTANCE.nextFloat() * 2.6f;
         anonPitch = (float) Math.pow(2.0, (up ? semitones : -semitones) / 12.0);
         anonPitchTarget = anonPitch;
         anonPitchNow = anonPitch;
         anonDriftLeft = 0;
 
         // формантная окраска «уводит» тембр в сторону от оригинала
-        anonFormant1Freq = 420f + secureRandom.nextFloat() * 520f;
-        anonFormant2Freq = 1500f + secureRandom.nextFloat() * 1400f;
-        anonFormant1Gain = (secureRandom.nextBoolean() ? 1f : -1f) * (3.5f + secureRandom.nextFloat() * 3.5f);
+        anonFormant1Freq = 420f + AnonymousRandom.INSTANCE.nextFloat() * 520f;
+        anonFormant2Freq = 1500f + AnonymousRandom.INSTANCE.nextFloat() * 1400f;
+        anonFormant1Gain = (AnonymousRandom.INSTANCE.nextBoolean() ? 1f : -1f) * (3.5f + AnonymousRandom.INSTANCE.nextFloat() * 3.5f);
         // второй резонанс всегда в противофазе первому: тембр меняется, а общая громкость — нет
-        anonFormant2Gain = (anonFormant1Gain > 0 ? -1f : 1f) * (3f + secureRandom.nextFloat() * 4f);
+        anonFormant2Gain = (anonFormant1Gain > 0 ? -1f : 1f) * (3f + AnonymousRandom.INSTANCE.nextFloat() * 4f);
         anonMakeup = (float) Math.pow(10.0, -(anonFormant1Gain + anonFormant2Gain) / 40.0);
         if (anonMakeup > 1.25f) {
             anonMakeup = 1.25f;
         } else if (anonMakeup < 0.8f) {
             anonMakeup = 0.8f;
         }
-        anonTilt = -0.25f + secureRandom.nextFloat() * 0.5f;
+        anonTilt = -0.25f + AnonymousRandom.INSTANCE.nextFloat() * 0.5f;
 
         // микро-таймварп: две несинхронные медленные волны
-        anonJitterPhase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitterSpeed = 2.0 * Math.PI * (0.18 + secureRandom.nextFloat() * 0.22) / sampleRate;
-        anonJitter2Phase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitter2Speed = 2.0 * Math.PI * (0.55 + secureRandom.nextFloat() * 0.5) / sampleRate;
+        anonJitterPhase = AnonymousRandom.INSTANCE.nextFloat() * Math.PI * 2;
+        anonJitterSpeed = 2.0 * Math.PI * (0.18 + AnonymousRandom.INSTANCE.nextFloat() * 0.22) / sampleRate;
+        anonJitter2Phase = AnonymousRandom.INSTANCE.nextFloat() * Math.PI * 2;
+        anonJitter2Speed = 2.0 * Math.PI * (0.55 + AnonymousRandom.INSTANCE.nextFloat() * 0.5) / sampleRate;
 
-        anonNoise = 0.0016f + secureRandom.nextFloat() * 0.0016f;
-        anonAllpassMix = 0.35f + secureRandom.nextFloat() * 0.3f;
-        noiseSeed = secureRandom.nextLong() | 1L;
+        anonNoise = 0.0016f + AnonymousRandom.INSTANCE.nextFloat() * 0.0016f;
+        anonAllpassMix = 0.35f + AnonymousRandom.INSTANCE.nextFloat() * 0.3f;
+        noiseSeed = AnonymousRandom.INSTANCE.nextLong() | 1L;
 
         formant1.setPeaking(sampleRate, anonFormant1Freq, 1.1f, anonFormant1Gain);
         formant2.setPeaking(sampleRate, anonFormant2Freq, 1.3f, anonFormant2Gain);
@@ -247,8 +254,14 @@ public class PengramVoiceChanger {
         return isEnabledFor(SOURCE_VOICE);
     }
 
+    private static boolean isDryOnly(int mode) {
+        return (mode == MODE_CUSTOM || mode == MODE_ASSISTANT || mode == MODE_ARMOR)
+                && PengramConfig.getVoiceStudioMix() == 0;
+    }
+
     public static boolean isEnabledFor(int source) {
-        return PengramConfig.getVoiceChangerMode() != MODE_OFF &&
+        final int mode = PengramConfig.getVoiceChangerMode();
+        return mode != MODE_OFF && !isDryOnly(mode) &&
                 (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
                         || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
                         || source == SOURCE_CALL && PengramConfig.isVoiceCallsEnabled());
@@ -261,43 +274,83 @@ public class PengramVoiceChanger {
 
     /** PCM16 mono only. A competing recorder is bypassed, never mixed into another session's state. */
     public static synchronized void processForSource(ByteBuffer buffer, int len, int rate, int source) {
-        if (!isEnabledFor(source) || buffer == null || len < 2 || rate < 8000 || rate > 96000) return;
+        if (!isEnabledFor(source) || buffer == null || len < 2) return;
+        final int mode = PengramConfig.getVoiceChangerMode();
+        if (buffer.isReadOnly() || rate < 8000 || rate > 96000) {
+            muteIfAnonymous(buffer, len, mode);
+            return;
+        }
         final long now = android.os.SystemClock.elapsedRealtime();
         if (activeSource != source || now - lastSourceFrame > 500) {
-            if (activeSource != 0 && activeSource != source && now - lastSourceFrame < 250) return;
+            if (activeSource != 0 && activeSource != source && now - lastSourceFrame < 250) {
+                muteIfAnonymous(buffer, len, mode);
+                return;
+            }
             activeSource = source;
             initialized = false;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
         }
-        final int mode = PengramConfig.getVoiceChangerMode();
         if (lastMode != mode) {
             lastMode = mode;
             initialized = false;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
         }
         lastSourceFrame = now;
+        if (disabledForSession) {
+            muteIfAnonymous(buffer, len, mode);
+            return;
+        }
         if (overloaded) {
-            if (now < retryAfter) return;
+            if (now < retryAfter) {
+                muteIfAnonymous(buffer, len, mode);
+                return;
+            }
             overloaded = false;
             slowFrames = 0;
             initialized = false;
         }
         final long started = android.os.SystemClock.elapsedRealtimeNanos();
         process(buffer, len, rate);
-        // Stop trying after repeated overruns rather than glitching a live call.
-        if ((android.os.SystemClock.elapsedRealtimeNanos() - started) / 1000000L >
-                Math.max(8, 1500L * len / (2L * rate))) {
-            if (++slowFrames >= 4) {
-                overloaded = true;
-                retryAfter = now + 1500;
+        // Leave most of the capture interval to Telegram/WebRTC. On slow
+        // hardware prefer original PCM over repeatedly stuttering the call.
+        final long packetNs = 1_000_000_000L * Math.min(len, buffer.limit()) / (2L * rate);
+        final long budgetNs = Math.min(8_000_000L, Math.max(2_000_000L, packetNs * 2L / 5L));
+        if (android.os.SystemClock.elapsedRealtimeNanos() - started > budgetNs) {
+            if (++slowFrames >= 3) {
+                slowFrames = 0;
+                if (++overloadStrikes >= 2) {
+                    disabledForSession = true; // until the next recording, call or mode change
+                } else {
+                    overloaded = true;
+                    retryAfter = now + 5000;
+                }
             }
         } else {
             slowFrames = 0;
         }
     }
 
+    /** An advisory UI status; no latency-sensitive code waits on this. */
+    public static boolean isBypassedForPerformance() {
+        return overloaded || disabledForSession;
+    }
+
+    // Anonymous is a privacy setting: never silently substitute the user's
+    // original voice when the CPU cannot keep up with the effect.
+    private static void muteIfAnonymous(ByteBuffer buffer, int len, int mode) {
+        if (mode != MODE_ANONYMOUS || buffer == null || buffer.isReadOnly()) return;
+        final int count = Math.min(len, buffer.limit()) / 2;
+        for (int i = 0; i < count; ++i) buffer.putShort(i * 2, (short) 0);
+    }
+
     public static synchronized void finishSource(int source) {
         if (activeSource == source) {
             activeSource = 0;
             initialized = false;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
         }
     }
 
@@ -354,7 +407,8 @@ public class PengramVoiceChanger {
             initialized = false;   // фильтры пересчитываем под новую частоту
         }
         final int mode = PengramConfig.getVoiceChangerMode();
-        if (mode == MODE_OFF || buffer == null || len < 2) {
+        if (mode == MODE_OFF || isDryOnly(mode) || buffer == null || buffer.isReadOnly()
+                || len < 2 || buffer.limit() < 2) {
             return;
         }
         try {
@@ -395,7 +449,7 @@ public class PengramVoiceChanger {
                     gateGain = 1f;
                 }
                 delay[writePos] = (short) (in * gateGain);
-                writePos = (writePos + 1) % DELAY_SIZE;
+                writePos = (writePos + 1) & DELAY_MASK;
 
                 float pitch = basePitch;
                 if (anonymous) {
@@ -420,9 +474,11 @@ public class PengramVoiceChanger {
 
                     // Equal-power overlap: precomputed/interpolated windows save
                     // two trigonometric calls for every sample on the audio thread.
-                    final float table = head1 * WINDOW_TABLE_SIZE / window;
-                    final int step = (int) table;
-                    final float fraction = table - step;
+                    final float table = head1 * pitchWindowScale;
+                    // head1 >= 0; handle only the rare rounded-up table edge.
+                    final boolean edge = table >= WINDOW_TABLE_SIZE;
+                    final int step = edge ? WINDOW_TABLE_SIZE - 1 : (int) table;
+                    final float fraction = edge ? 1f : table - step;
                     final float gain1 = windowSin[step] + (windowSin[step + 1] - windowSin[step]) * fraction;
                     final float gain2 = windowCos[step] + (windowCos[step + 1] - windowCos[step]) * fraction;
 
@@ -447,6 +503,11 @@ public class PengramVoiceChanger {
                 buffer.order(previousOrder);
             }
         } catch (Throwable e) {
+            // Never repeatedly throw/log on the microphone callback. The next
+            // packets remain unmodified until a fresh source starts.
+            disabledForSession = true;
+            initialized = false;
+            muteIfAnonymous(buffer, len, mode);
             FileLog.e(e);
         }
     }
@@ -475,8 +536,8 @@ public class PengramVoiceChanger {
     private static float anonymousPitch() {
         if (--anonDriftLeft <= 0) {
             // новая цель каждые 120…320 мс, отклонение до ±0.7 полутона от базы
-            anonDriftLeft = (int) (sampleRate * (0.12f + secureRandom.nextFloat() * 0.2f));
-            final float deviation = (secureRandom.nextFloat() - 0.5f) * 1.4f;
+            anonDriftLeft = (int) (sampleRate * (0.12f + AnonymousRandom.INSTANCE.nextFloat() * 0.2f));
+            final float deviation = (AnonymousRandom.INSTANCE.nextFloat() - 0.5f) * 1.4f;
             anonPitchTarget = anonPitch * (float) Math.pow(2.0, deviation / 12.0);
         }
         anonPitchNow += (anonPitchTarget - anonPitchNow) * 0.00008f;
@@ -611,26 +672,25 @@ public class PengramVoiceChanger {
 
     // ------------------------------------------------------------- утилиты DSP
 
-    /** Interpolated LFO without transcendental calls on the microphone thread. */
+    /** Interpolated LFO. Phases are positive and normalized once per packet. */
     private static float sine(double phase) {
-        // Keep the phase bounded for hour-long voice chats (the callers advance it).
-        phase -= Math.floor(phase / (2.0 * Math.PI)) * (2.0 * Math.PI);
-        final double index = phase * WINDOW_TABLE_SIZE / (2.0 * Math.PI);
+        if (phase < 0) phase -= Math.floor(phase * INVERSE_TWO_PI) * TWO_PI;
+        else phase -= (int) (phase * INVERSE_TWO_PI) * TWO_PI;
+        // 2π rounds to the end of the table on some sample rates.
+        final double index = phase * LFO_TABLE_SCALE;
         final int a = (int) index;
+        if (a >= WINDOW_TABLE_SIZE) return lfoSin[WINDOW_TABLE_SIZE];
         return lfoSin[a] + (lfoSin[a + 1] - lfoSin[a]) * (float) (index - a);
     }
 
     /** линейная интерполяция по линии задержки, head — задержка в сэмплах от головы записи */
     private static float read(float head) {
+        // head is always in [0, window), window <= DELAY_SIZE / 2:
+        // a single wrap is sufficient, even at the buffer boundary.
         float pos = writePos - window + head;
-        while (pos < 0) {
-            pos += DELAY_SIZE;
-        }
-        while (pos >= DELAY_SIZE) {
-            pos -= DELAY_SIZE;
-        }
+        if (pos < 0) pos += DELAY_SIZE;
         final int i0 = (int) pos;
-        final int i1 = (i0 + 1) % DELAY_SIZE;
+        final int i1 = (i0 + 1) & DELAY_MASK;
         final float frac = pos - i0;
         return delay[i0] * (1f - frac) + delay[i1] * frac;
     }
@@ -650,7 +710,7 @@ public class PengramVoiceChanger {
     /** запись в линию задержки — ровно один раз на сэмпл */
     private static void echoWrite(float value) {
         echo[echoPos] = value;
-        echoPos = (echoPos + 1) % ECHO_SIZE;
+        if (++echoPos == ECHO_SIZE) echoPos = 0;
     }
 
     private static float lowpassCoefficient(float cutoff) {

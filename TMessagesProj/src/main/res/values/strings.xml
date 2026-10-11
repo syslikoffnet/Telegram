@@ -11454,6 +11454,8 @@
     <string name="PengramVoiceStudioPreview">Custom chain · pitch, tone, room and texture</string>
     <string name="PengramVoiceStudioDrive">Saturation · 0 = off</string>
     <string name="PengramVoiceStudioRobot">Electronic texture · 0 = off</string>
+    <string name="PengramVoiceAnonymousMuted">Device overload: the anonymous microphone is muted for this recording rather than exposing the original voice.</string>
+    <string name="PengramVoicePerformancePaused">Effect paused for this recording: device could not process audio in time. Original voice is sent instead.</string>
     <string name="PengramVoicePreviewVisualOnly">Visual animation, not a live microphone monitor. The effect is applied to outgoing audio.</string>
     <string name="PengramVoiceProfileCopy">Copy effect profile</string>
     <string name="PengramVoiceProfileImport">Import effect profile</string>

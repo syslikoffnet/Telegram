@@ -3060,7 +3060,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         voicePreview.update();
         items.add(UItem.asCustom(voicePreview));
-        items.add(UItem.asShadow(getString(R.string.PengramVoicePreviewVisualOnly)));
+        items.add(UItem.asShadow(getString(PengramVoiceChanger.isBypassedForPerformance()
+                ? mode == PengramVoiceChanger.MODE_ANONYMOUS
+                    ? R.string.PengramVoiceAnonymousMuted : R.string.PengramVoicePerformancePaused
+                : R.string.PengramVoicePreviewVisualOnly)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
         // Вместо простыни радио-кнопок — сетка карточек: все режимы видно сразу.
