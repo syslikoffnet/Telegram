@@ -46,6 +46,8 @@ public class PengramVoiceChanger {
     public static final int MODE_BUBBLY = 19;     // original bright, bouncy cartoon timbre
     public static final int MODE_SQUEAKY = 20;    // original tiny animated creature
     public static final int MODE_GRUMBLE = 21;    // original gruff cartoon giant
+    public static final int MODE_ARMORED_HERO = 22; // deeper original heroic-armor timbre
+    public static final int MODE_SEA_CARTOON = 23;  // elastic, bright cartoon timbre
 
     /** порядок режимов в настройках */
     public static final int[] MODES = {
@@ -55,6 +57,7 @@ public class PengramVoiceChanger {
             MODE_MALE,
             MODE_CHILD,
             MODE_BUBBLY,
+            MODE_SEA_CARTOON,
             MODE_SQUEAKY,
             MODE_HELIUM,
             MODE_DEEP,
@@ -67,6 +70,7 @@ public class PengramVoiceChanger {
             MODE_PHONE,
             MODE_ASSISTANT,
             MODE_ARMOR,
+            MODE_ARMORED_HERO,
             MODE_CAVE,
             MODE_UNDERWATER,
             MODE_WHISPER,
@@ -111,6 +115,7 @@ public class PengramVoiceChanger {
     private static final int ECHO_SIZE = 48000;  // 1 с
     private static final float[] echo = new float[ECHO_SIZE];
     private static int echoPos;
+    private static int shortHeroTap, longHeroTap, seaTap;
     private static final Biquad formant1 = new Biquad();
     private static final Biquad formant2 = new Biquad();
     private static final Biquad bandLow = new Biquad();
@@ -168,6 +173,9 @@ public class PengramVoiceChanger {
         hp2600 = highpassCoefficient(2600f);
         java.util.Arrays.fill(delay, (short) 0);
         java.util.Arrays.fill(echo, 0f);
+        shortHeroTap = Math.max(1, sampleRate / 38);
+        longHeroTap = Math.max(1, sampleRate / 11);
+        seaTap = Math.max(1, sampleRate / 40);
         writePos = 0;
         readPhase = 0;
         echoPos = 0;
@@ -216,6 +224,12 @@ public class PengramVoiceChanger {
         } else if (mode == MODE_GRUMBLE) {
             formant1.setPeaking(sampleRate, 540f, 0.8f, 3f);
             formant2.setPeaking(sampleRate, 2600f, 1.1f, -2.5f);
+        } else if (mode == MODE_ARMORED_HERO) {
+            formant1.setPeaking(sampleRate, 690f, 0.9f, 4f);
+            formant2.setPeaking(sampleRate, 2600f, 1.1f, -3f);
+        } else if (mode == MODE_SEA_CARTOON) {
+            formant1.setPeaking(sampleRate, 820f, 0.85f, -2.5f);
+            formant2.setPeaking(sampleRate, 3050f, 0.95f, 4.5f);
         } else if (mode == MODE_ARMOR) {
             formant1.setPeaking(sampleRate, 680f, 0.8f, 3.5f);
             formant2.setPeaking(sampleRate, 2700f, 1.2f, -3.0f);
@@ -396,6 +410,8 @@ public class PengramVoiceChanger {
             case MODE_BUBBLY: return 1.36f;
             case MODE_SQUEAKY: return 1.65f;
             case MODE_GRUMBLE: return 0.77f;
+            case MODE_ARMORED_HERO: return 0.83f;
+            case MODE_SEA_CARTOON: return 1.48f;
             case MODE_CUSTOM: return semitonesToFactor(PengramConfig.getVoiceChangerPitch());
             default: return 1.0f;
         }
@@ -472,6 +488,9 @@ public class PengramVoiceChanger {
                 float pitch = basePitch;
                 if (anonymous) {
                     pitch = anonymousPitch();
+                } else if (mode == MODE_SEA_CARTOON) {
+                    // A subtle periodic glide changes articulation, not just the mean pitch.
+                    pitch *= 1f + 0.016f * sine(lfoPhase);
                 }
 
                 float out;
@@ -590,6 +609,23 @@ public class PengramVoiceChanger {
                     x = (float) Math.tanh(x * frameDriveGain) * frameDriveScale;
                 }
                 return x;
+            }
+            case MODE_ARMORED_HERO: {
+                // Parallel near-field reflections suggest a helmet without large reverb tails.
+                final float band = highpass(lowpass(x, 3400f), 330f);
+                final float voiced = formant2.process(formant1.process(band));
+                final float driven = (float) Math.tanh(voiced / 15000f) * 16600f;
+                final float close = echoRead(shortHeroTap);
+                final float room = echoRead(longHeroTap);
+                echoWrite(driven + room * 0.12f);
+                return driven * 0.84f + close * 0.18f + room * 0.09f;
+            }
+            case MODE_SEA_CARTOON: {
+                final float bright = formant2.process(formant1.process(highpass(x, 420f)));
+                lfoPhase += TWO_PI * 5.7 / sampleRate;
+                final float delayed = echoRead(seaTap);
+                echoWrite(bright);
+                return bright * (0.92f + 0.08f * sine(lfoPhase)) + delayed * 0.12f;
             }
             case MODE_BUBBLY: {
                 // Bright consonants, a gentle bouncy pulse and a tiny reflection.
@@ -889,6 +925,8 @@ public class PengramVoiceChanger {
             case MODE_BUBBLY: return LocaleController.getString(R.string.PengramVoiceBubbly);
             case MODE_SQUEAKY: return LocaleController.getString(R.string.PengramVoiceSqueaky);
             case MODE_GRUMBLE: return LocaleController.getString(R.string.PengramVoiceGrumble);
+            case MODE_ARMORED_HERO: return LocaleController.getString(R.string.PengramVoiceArmoredHero);
+            case MODE_SEA_CARTOON: return LocaleController.getString(R.string.PengramVoiceSeaCartoon);
             case MODE_CAVE: return LocaleController.getString(R.string.PengramVoiceCave);
             case MODE_UNDERWATER: return LocaleController.getString(R.string.PengramVoiceUnderwater);
             case MODE_WHISPER: return LocaleController.getString(R.string.PengramVoiceWhisper);
@@ -916,6 +954,8 @@ public class PengramVoiceChanger {
             case MODE_BUBBLY: return "\uD83E\uDEE7";
             case MODE_SQUEAKY: return "\uD83D\uDC3F\uFE0F";
             case MODE_GRUMBLE: return "\uD83E\uDDA3";
+            case MODE_ARMORED_HERO: return "\uD83E\uDE96";
+            case MODE_SEA_CARTOON: return "\uD83E\uDEB8";
             case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
             case MODE_UNDERWATER: return "\uD83C\uDF0A";
             case MODE_WHISPER: return "\uD83E\uDD2B";
@@ -938,6 +978,7 @@ public class PengramVoiceChanger {
             case MODE_BUBBLY:
             case MODE_SQUEAKY:
             case MODE_GRUMBLE:
+            case MODE_SEA_CARTOON:
             case MODE_DEEP:
             case MODE_MONSTER:
             case MODE_DEMON:

@@ -11447,6 +11447,10 @@
     <string name="PengramVoiceCustom">Voice studio</string>
     <string name="PengramVoiceAssistant">Digital assistant</string>
     <string name="PengramVoiceArmor">Helmet comms</string>
+    <string name="PengramVoiceArmoredHero">Armored hero</string>
+    <string name="PengramVoiceArmoredHeroInfo">Deep, energetic voice with metallic coloring and close reflections. Original style, not a character voice clone.</string>
+    <string name="PengramVoiceSeaCartoon">Sea cartoon</string>
+    <string name="PengramVoiceSeaCartoonInfo">Bouncy high-pitched voice with a gentle pitch glide. Original style, not SpongeBob’s voice.</string>
     <string name="PengramVoiceBubbly">Bubbly cartoon</string>
     <string name="PengramVoiceBubblyInfo">Bright, bouncy timbre with a short reflection. Original effect, not SpongeBob’s voice.</string>
     <string name="PengramVoiceSqueaky">Squeaky critter</string>

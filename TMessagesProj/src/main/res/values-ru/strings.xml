@@ -475,6 +475,10 @@
     <string name="PengramVoiceCustom">Своя студия</string>
     <string name="PengramVoiceAssistant">Цифровой ассистент</string>
     <string name="PengramVoiceArmor">Связь в шлеме</string>
+    <string name="PengramVoiceArmoredHero">Броневой герой</string>
+    <string name="PengramVoiceArmoredHeroInfo">Глубокий энергичный голос с металлической окраской и близким отражением. Авторский стиль, не копия голоса персонажа.</string>
+    <string name="PengramVoiceSeaCartoon">Морской мультгерой</string>
+    <string name="PengramVoiceSeaCartoonInfo">Пружинистый высокий голос с плавным скольжением тона. Авторский стиль, не голос Губки Боба.</string>
     <string name="PengramVoiceBubbly">Пузырчатый мультяшка</string>
     <string name="PengramVoiceBubblyInfo">Яркий, пружинистый тембр с коротким отражением. Авторский эффект, не голос Губки Боба.</string>
     <string name="PengramVoiceSqueaky">Писклявый зверёк</string>
