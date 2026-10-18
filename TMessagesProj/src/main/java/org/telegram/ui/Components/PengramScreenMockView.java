@@ -23,14 +23,15 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 
 import java.util.ArrayList;
 
 /**
- * Pengram: настоящий макет экрана Telegram, который можно перестраивать руками.
- * Элемент выбирается касанием, переносится долгим нажатием в подсвеченное место
- * и выключается одной кнопкой — всё это меняет реальные настройки приложения.
+ * Pengram: schematic chat preview with sample labels; it never reads real messages.
+ * Only the avatar and chat button bar can be moved into supported slots.
+ * Changes made here are saved to the shared appearance preferences.
  */
 public class PengramScreenMockView extends View {
 
@@ -75,7 +76,7 @@ public class PengramScreenMockView extends View {
     private final ArrayList<Element> elements = new ArrayList<>();
     private final ArrayList<RectF> dropSlots = new ArrayList<>();
     private final ArrayList<Integer> dropValues = new ArrayList<>();
-    private final RectF[] tabRects = new RectF[5];
+    private final RectF[] tabRects = new RectF[4];
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -385,12 +386,15 @@ public class PengramScreenMockView extends View {
     }
 
     private void drawTabs(Canvas canvas, float left, float right, float barTop, int accent, int hintColor) {
+        // The real bottom bar has four slots: Calls and Settings share one slot.
+        final boolean calls = UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab;
         final String[] titles = new String[]{
                 getString(R.string.PengramTabChats), getString(R.string.PengramTabContacts),
-                getString(R.string.PengramTabCalls), getString(R.string.PengramTabSettings),
+                getString(calls ? R.string.PengramTabCalls : R.string.PengramTabSettings),
                 getString(R.string.PengramTabProfile)};
         final String[] keys = new String[]{null, PengramConfig.KEY_TAB_CONTACTS,
-                PengramConfig.KEY_TAB_CALLS, PengramConfig.KEY_TAB_SETTINGS, PengramConfig.KEY_TAB_PROFILE};
+                calls ? PengramConfig.KEY_TAB_CALLS : PengramConfig.KEY_TAB_SETTINGS,
+                PengramConfig.KEY_TAB_PROFILE};
         final float step = (right - left) / titles.length;
         small.setTextAlign(Paint.Align.CENTER);
         for (int a = 0; a < titles.length; ++a) {
@@ -485,14 +489,15 @@ public class PengramScreenMockView extends View {
             case MotionEvent.ACTION_CANCEL: {
                 removeCallbacks(longPressCheck);
                 if (dragging != null) {
-                    final int slot = slotAt(x, y);
-                    if (slot >= 0 && slot < dropValues.size()) {
-                        applyDrop(dragging, dropValues.get(slot));
-                    }
+                    final int slot = event.getAction() == MotionEvent.ACTION_UP ? slotAt(x, y) : -1;
+                    final boolean changed = slot >= 0 && slot < dropValues.size()
+                            && applyDrop(dragging, dropValues.get(slot));
                     dragging = null;
                     hoverSlot = -1;
+                    dropSlots.clear();
+                    dropValues.clear();
                     invalidate();
-                    if (listener != null) {
+                    if (changed && listener != null) {
                         listener.onChanged();
                     }
                     return true;
@@ -507,7 +512,20 @@ public class PengramScreenMockView extends View {
         return true;
     }
 
+    @Override
+    protected void onDetachedFromWindow() {
+        removeCallbacks(longPressCheck);
+        dragging = null;
+        hoverSlot = -1;
+        dropSlots.clear();
+        dropValues.clear();
+        super.onDetachedFromWindow();
+    }
+
     private final Runnable longPressCheck = () -> {
+        if (!isAttachedToWindow()) {
+            return;
+        }
         final Element hit = elementAt(downX, downY);
         if (hit == null || !hit.draggable) {
             return;
@@ -528,8 +546,9 @@ public class PengramScreenMockView extends View {
         for (int a = 1; a < tabRects.length; ++a) {
             if (tabRects[a] != null && tabRects[a].contains(x, y)) {
                 final String key = a == 1 ? PengramConfig.KEY_TAB_CONTACTS
-                        : a == 2 ? PengramConfig.KEY_TAB_CALLS
-                        : a == 3 ? PengramConfig.KEY_TAB_SETTINGS : PengramConfig.KEY_TAB_PROFILE;
+                        : a == 2 ? (UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab
+                                ? PengramConfig.KEY_TAB_CALLS : PengramConfig.KEY_TAB_SETTINGS)
+                        : PengramConfig.KEY_TAB_PROFILE;
                 PengramConfig.setBool(key, !PengramConfig.getBool(key, false));
                 tap();
                 if (listener != null) {
@@ -566,24 +585,40 @@ public class PengramScreenMockView extends View {
         invalidate();
     }
 
-    private void applyDrop(Element element, int value) {
+    private boolean applyDrop(Element element, int value) {
         if (element.id == EL_AVATAR) {
+            if (PengramConfig.getGroupAvatarPos() == value) {
+                return false;
+            }
             PengramConfig.setGroupAvatarPos(value);
         } else if (element.id == EL_MENU) {
+            if (PengramConfig.chatMenuPosition == value) {
+                return false;
+            }
             PengramConfig.setChatMenuPosition(value);
+        } else {
+            return false;
         }
         tap();
+        return true;
     }
 
     private int slotAt(float x, float y) {
+        int best = -1;
+        float closest = Float.MAX_VALUE;
         for (int a = 0; a < dropSlots.size(); ++a) {
             final RectF slot = dropSlots.get(a);
             if (x >= slot.left - dp(16) && x <= slot.right + dp(16)
                     && y >= slot.top - dp(16) && y <= slot.bottom + dp(16)) {
-                return a;
+                final float distance = (x - slot.centerX()) * (x - slot.centerX())
+                        + (y - slot.centerY()) * (y - slot.centerY());
+                if (distance < closest) {
+                    closest = distance;
+                    best = a;
+                }
             }
         }
-        return -1;
+        return best;
     }
 
     private Element elementAt(float x, float y) {

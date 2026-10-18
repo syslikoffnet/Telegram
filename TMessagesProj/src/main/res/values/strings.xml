@@ -12348,7 +12348,8 @@
     <string name="PengramMediaGalleryInfo">Off: deleted photos, videos and files are copied into Pengram\'s own folder and never show up in the gallery or in other apps. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Screen editor</string>
     <string name="PengramEditorPick">Tap any element</string>
-    <string name="PengramEditorPickInfo">Tap to select it, hold and drag to move it. Everything changes in the app right away.</string>
+    <string name="PengramEditorPickInfo">Sample-data preview. Tap to select; hold and drag the avatar or button bar to a highlighted slot. Changes apply immediately.</string>
+    <string name="PengramEditorOtherScreens">Other sections</string>
     <string name="PengramEditorTitle">Header title</string>
     <string name="PengramEditorTitleInfo">What is written at the top of the chat list.</string>
     <string name="PengramEditorAvatar">Sender avatar</string>

@@ -1376,7 +1376,8 @@
     <string name="PengramMediaGalleryInfo">Выключено — удалённые фото, видео и файлы копируются в собственную папку Pengram и не появляются ни в галерее, ни в других программах. Подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Редактор экрана</string>
     <string name="PengramEditorPick">Нажмите на любой элемент</string>
-    <string name="PengramEditorPickInfo">Касание — выбрать, долгое нажатие и перетаскивание — переставить. Всё меняется в приложении сразу.</string>
+    <string name="PengramEditorPickInfo">Макет с тестовыми данными. Коснитесь элемента; аватар и панель кнопок переносятся долгим нажатием в подсвеченные зоны. Изменения применяются сразу.</string>
+    <string name="PengramEditorOtherScreens">Другие разделы</string>
     <string name="PengramEditorTitle">Заголовок в шапке</string>
     <string name="PengramEditorTitleInfo">Что написано вверху списка чатов.</string>
     <string name="PengramEditorAvatar">Аватар собеседника</string>

@@ -10,7 +10,8 @@ import android.graphics.RectF;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
+import android.widget.ScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -30,9 +31,8 @@ import org.telegram.ui.Components.PengramScreenMockView;
 import org.telegram.ui.Components.SeekBarView;
 
 /**
- * Pengram: «Экран» — живой редактор интерфейса.
- * Это не список галочек, а сам Telegram в миниатюре: нажал на элемент — выбрал,
- * зажал и потащил — переставил, внизу появились его настройки.
+ * Pengram: sample-data chat preview plus shortcuts to the existing section editors.
+ * Dragging is limited to supported chat slots; no real messages are loaded here.
  */
 public class PengramLayoutEditorActivity extends BaseFragment {
 
@@ -57,7 +57,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             }
         });
 
-        final FrameLayout root = new FrameLayout(context);
+        final LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         mock = new PengramScreenMockView(context);
@@ -74,8 +75,15 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 mock.refresh();
             }
         });
-        root.addView(mock, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT,
-                Gravity.TOP, 8, 8, 8, 196));
+        // Keep the preview above the controls; on compact screens scroll it instead of
+        // letting the panel cover the chat input and the tabs.
+        final ScrollView previewScroll = new ScrollView(context);
+        previewScroll.setFillViewport(true);
+        previewScroll.setClipToPadding(false);
+        previewScroll.setPadding(dp(8), dp(8), dp(8), dp(8));
+        previewScroll.addView(mock, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP));
+        mock.setMinimumHeight(dp(320));
+        root.addView(previewScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
 
         panel = new LinearLayout(context) {
             private final RectF rect = new RectF();
@@ -92,7 +100,17 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         panel.setWillNotDraw(false);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(16), dp(12), dp(16), dp(14));
-        root.addView(panel, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM));
+        final ScrollView panelScroll = new ScrollView(context) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                final int available = MeasureSpec.getSize(heightMeasureSpec);
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(
+                        Math.min(dp(270), available / 2), MeasureSpec.AT_MOST));
+            }
+        };
+        panelScroll.setFillViewport(false);
+        panelScroll.addView(panel, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        root.addView(panelScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         panelTitle = new TextView(context);
         panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
@@ -105,9 +123,35 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         panelHint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         panel.addView(panelHint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
 
+        final TextView otherScreens = new TextView(context);
+        otherScreens.setText(R.string.PengramEditorOtherScreens);
+        otherScreens.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        otherScreens.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        panel.addView(otherScreens, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
+
+        final LinearLayout screenRow = new LinearLayout(context);
+        screenRow.setOrientation(LinearLayout.HORIZONTAL);
+        final HorizontalScrollView screenScroll = new HorizontalScrollView(context);
+        screenScroll.setHorizontalScrollBarEnabled(false);
+        screenScroll.addView(screenRow, LayoutHelper.createScroll(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
+        panel.addView(screenScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
+        addChip(screenRow, getString(R.string.PengramConstructorDialogs), false,
+                () -> presentFragment(new PengramChatLookActivity()));
+        addChip(screenRow, getString(R.string.PengramConstructorChatMenu), false,
+                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU)));
+        addChip(screenRow, getString(R.string.PengramConstructorChatButtons), false,
+                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT)));
+        addChip(screenRow, getString(R.string.PengramConstructorSettings), false,
+                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS)));
+        addChip(screenRow, getString(R.string.PengramConstructorPlayer), false,
+                () -> presentFragment(new PengramPlayerStyleActivity()));
+
         actionsRow = new LinearLayout(context);
         actionsRow.setOrientation(LinearLayout.HORIZONTAL);
-        panel.addView(actionsRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
+        final HorizontalScrollView actionsScroll = new HorizontalScrollView(context);
+        actionsScroll.setHorizontalScrollBarEnabled(false);
+        actionsScroll.addView(actionsRow, LayoutHelper.createScroll(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
+        panel.addView(actionsScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
 
         sliderBox = new LinearLayout(context);
         sliderBox.setOrientation(LinearLayout.VERTICAL);
@@ -295,6 +339,10 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     // ------------------------------------------------------- мелкие детали
 
     private void addChip(CharSequence label, boolean active, Runnable action) {
+        addChip(actionsRow, label, active, action);
+    }
+
+    private void addChip(LinearLayout target, CharSequence label, boolean active, Runnable action) {
         final Context context = getContext();
         final TextView chip = new TextView(context);
         chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
@@ -312,7 +360,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             v.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(CubicBezierInterpolator.EASE_OUT_BACK).start();
             action.run();
         });
-        actionsRow.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 0, 0, 6, 0));
+        target.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 0, 0, 6, 0));
     }
 
     private void addSlider(CharSequence label, int min, int max, int value, org.telegram.messenger.Utilities.Callback<Integer> callback) {
