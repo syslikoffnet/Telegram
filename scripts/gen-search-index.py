@@ -2,10 +2,10 @@
 """
 Генератор поискового индекса настроек Pengram.
 
-Поиск в настройках Telegram должен находить ИМЕННО функции — не заголовки секций,
-не пояснения под ними и не варианты выбора. Единственный надёжный источник правды о
-том, что является функцией, — сам экран настроек: каждая строка там создаётся через
-check/checkInfo/subCheck/tgCheck/liteCheck/asSettingsCell/asButton/sectionRow.
+Поиск в настройках Telegram должен находить именно доступные строки настроек,
+включая радиоварианты и заголовки со слайдером, но не пояснения или произвольные
+заголовки секций. Источник правды — экран настроек: check/checkInfo/subCheck,
+радиокнопки, asSettingsCell/asButton/sectionRow и подписанные слайдеры.
 
 Скрипт разбирает PengramSettingsActivity.java и выписывает заголовки таких строк
 вместе с разделом, в котором они живут, в PengramSearchIndex.java.
@@ -50,13 +50,14 @@ FILL_TO_SECTION = {
 ROW_MARKERS = (
     "check(", "checkInfo(", "subCheck(", "tgCheck(", "liteCheck(", "tgCheckInfo(",
     "UItem.asSettingsCell(", "UItem.asButton(", "UItem.asCheck(",
+    "UItem.asRadio(", "UItem.asRadio2(",
     "UItem.asRoundCheckbox(", "UItem.asExpandableSwitch(",
     "sectionRow(", "aboutRow(",
 )
 # всё, что функцией не является
 SKIP_MARKERS = (
     "UItem.asHeader(", "UItem.asShadow(", "UItem.asCustom(", "UItem.asCustomShadow(",
-    "UItem.asRadio", "moreButton(", "UItem.asSpace",
+    "moreButton(", "UItem.asSpace",
     "asShadowCollapseButton(",
 )
 

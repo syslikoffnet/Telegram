@@ -60,6 +60,11 @@ jobs:
       - name: Test artwork queue
         run: python3 scripts/test-cover-cache.py
 
+      - name: Test Pengram visual editor and settings search
+        run: |
+          python3 scripts/test-pengram-visual-editor.py
+          python3 scripts/test-pengram-search-index.py
+
       # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
       # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.
       - name: Report compile errors

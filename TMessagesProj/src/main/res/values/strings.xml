@@ -12781,4 +12781,5 @@
     <string name="PengramEditorBrowseSettings">Browse Pengram settings</string>
     <string name="PengramEditorSettingsListHint">Sample settings list. Tap an option to open its real control; this preview never changes account data.</string>
     <string name="PengramEditorOpenSetting">Open setting</string>
+    <string name="PengramEditorEnableParentFirst">Enable the parent option first</string>
 </resources>

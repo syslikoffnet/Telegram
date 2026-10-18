@@ -249,8 +249,10 @@ public class PengramScreenMockView extends View {
         }
 
         // ---------- сообщения ----------
-        final float radius = dp(Math.max(2, Math.min(17, SharedConfig.bubbleRadius)));
-        final float fontScale = Math.max(0.75f, Math.min(1.4f, SharedConfig.fontSize / 16f));
+        // Zero is a real bubble-radius option; never round it up in the preview.
+        final float radius = dp(Math.max(0, Math.min(17, SharedConfig.bubbleRadius)));
+        final float fontScale = Math.max(0.75f, Math.min(2f,
+                SharedConfig.fontSize / 16f * getResources().getConfiguration().fontScale));
         final int avatarPos = PengramConfig.getGroupAvatarPos();
         final boolean avatarVisible = avatarPos != PengramConfig.AVATAR_POS_HIDE;
         final Element avatar = elementById(EL_AVATAR);

@@ -38,12 +38,24 @@ def check():
     for forbidden in ("MessagesController", "MediaController", "ContactsController", "getDialogs(", "getPlayingMessageObject("):
         assert forbidden not in PREVIEW + MOCK, f"Live account data in preview: {forbidden}"
     assert "BTN_VISUAL_EDITOR" in SETTINGS and "new PengramLayoutEditorActivity()" in SETTINGS
+    assert "case R.string." not in EDITOR, "AGP 8 may generate non-final resource IDs"
+    root_rows = SETTINGS.split("private void fillRoot(", 1)[1].split("private UItem sectionRow(", 1)[0]
+    assert "sectionRow(BTN_VISUAL_EDITOR" in root_rows
+    assert "sectionRow(BTN_CONSTRUCTOR" not in root_rows, "No competing editor entry on the root"
+    assert "sectionRow(BTN_CONSTRUCTOR" in SETTINGS.split("private void fillAppearance(", 1)[1]
     assert "presentFragment(" not in PREVIEW, "The mock must navigate inside its preview"
     assert "presentFragment(" not in EDITOR and "PengramEditorOpenSetting" in EDITOR, \
         "Only the explicit Open setting action may leave the editor"
     assert "sampleSent[index] = message.substring(" in PREVIEW, "Sample input must remain local"
+    assert "PengramConfig.isDialogSenderAvatars()" in PREVIEW
+    assert "addSenderAvatarPositions()" in EDITOR
+    assert "settingsSectionHistory.addLast(settingsSection)" in PREVIEW
+    assert "restoreSelectedRow();" in PREVIEW and "clearSelectedRow();" in PREVIEW
+    assert "settingsSection = settingsSectionHistory.removeLast()" in PREVIEW
+    assert "displayPage(SETTINGS_LIST);" in PREVIEW, "Same-page settings navigation must redraw"
     assert "startDragAndDrop" in PREVIEW and "Build.VERSION.SDK_INT >= Build.VERSION_CODES.N" in PREVIEW
     assert "return v.startDrag(" in PREVIEW, "Android 21-23 drag fallback is required"
+    assert "((int[]) state).length < 2" in PREVIEW and "((int[]) local).length < 2" in PREVIEW
     assert "SETTINGS_ITEM_PENGRAM && destination == 2" in PREVIEW
     assert "MENU_ITEM_SETTINGS" in PREVIEW and "MENU_ITEM_PENGRAM" in PREVIEW
     assert "UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab" in TABS

@@ -11,13 +11,15 @@ METADATA = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMeta
 SETTINGS = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java'
 PROFILE = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java'
 rows = re.findall(r'\{R\.string\.(\w+), PengramSettingsActivity\.(SECTION_\w+), (?:R\.string\.(\w+)|0), ([012]), (?:R\.string\.(\w+)|0)\}', INDEX.read_text())
-assert len(rows) >= 300, len(rows)
+assert len(rows) >= 344, len(rows)
 assert len({(name, section) for name, section, *_ in rows}) == len(rows), 'duplicate destination'
 assert not any('PENGUIN' in section or name == 'PengramSectionPenguin' for name, section, *_ in rows)
 assert any(name == 'PengramAvatarPos' and external == '1' for name, _, _, external, _ in rows)
 assert any(name == 'PengramDialogAvatars' and external == '1' for name, _, _, external, _ in rows)
 assert any(name == 'PengramProfileLimitSize' and external == '2' for name, _, _, external, _ in rows)
 assert any(name == 'PengramQuoteRadius' for name, *_ in rows), 'labelled slider missing'
+assert any(name == 'PengramIdFormatHide' for name, *_ in rows), 'radio choice missing'
+assert any(name == 'PengramMediaTimeStickers' for name, *_ in rows), 'media radio missing'
 assert all(section in SETTINGS.read_text() for _, section, *_ in rows)
 
 resources = {}
@@ -31,8 +33,8 @@ for name, _, group, _, info in rows:
 assert sum(bool(info) for *_, info in rows) >= 80, 'missing per-control descriptions'
 for translated in ('PengramAvatarPos', 'PengramDialogAvatars', 'PengramProfileLimitSize'):
     assert translated in resources['values-ru'], translated
-assert 'PengramSearchMetadata.matches(entry, query)' in SETTINGS.read_text()
-assert 'PengramSearchMetadata.matches(result.pengramEntry, text)' in PROFILE.read_text()
+assert 'PengramSearchMetadata.matches(entry, terms)' in SETTINGS.read_text()
+assert 'PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)' in PROFILE.read_text()
 assert 'searchRevealGroups = true' in SETTINGS.read_text()
 assert 'result.adaptiveLayout = true' in SETTINGS.read_text()
 assert 'аватарка аву' in METADATA.read_text()

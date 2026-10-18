@@ -183,16 +183,24 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 panelTitle.setText(R.string.Search);
                 panelHint.setText(R.string.PengramEditorSampleOnly);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
-                addToggle(R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
-                addToggle(R.string.PengramMD3SearchShadow, PengramMD3.KEY_SEARCH_SHADOW, false);
+                if (PengramMD3.isEnabled()) {
+                    addToggle(R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
+                    if (PengramConfig.getBool(PengramMD3.KEY_SEARCH_BAR, true)) {
+                        addToggle(R.string.PengramMD3SearchShadow, PengramMD3.KEY_SEARCH_SHADOW, false);
+                    }
+                }
                 return;
             case PengramInteractivePreviewView.DIALOG_ROW:
                 panelTitle.setText(R.string.PengramConstructorDialogs);
                 panelHint.setText(R.string.PengramEditorRowInfo);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
-                addToggle(R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
-                addToggle(R.string.PengramMD3Tonal, PengramMD3.KEY_TONAL_UNREAD, true);
-                addToggle(R.string.PengramMD3NoDividers, PengramMD3.KEY_NO_DIVIDERS, true);
+                if (PengramMD3.isEnabled()) {
+                    addToggle(R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
+                    if (PengramConfig.getBool(PengramMD3.KEY_DIALOGS, true)) {
+                        addToggle(R.string.PengramMD3Tonal, PengramMD3.KEY_TONAL_UNREAD, true);
+                        addToggle(R.string.PengramMD3NoDividers, PengramMD3.KEY_NO_DIVIDERS, true);
+                    }
+                }
                 for (int shape = 0; shape < PengramConfig.DIALOG_AVATAR_COUNT; shape++) {
                     final int choice = shape;
                     addChip(getString(PengramConfig.getDialogAvatarShapeName(shape)),
@@ -201,12 +209,14 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                                 afterChange();
                             });
                 }
+                addToggle(R.string.PengramSenderAvatars, PengramConfig.KEY_DIALOG_SENDER_AVATARS, false);
+                if (PengramConfig.isDialogSenderAvatars()) addSenderAvatarPositions();
                 return;
             case PengramInteractivePreviewView.FAB:
                 panelTitle.setText(R.string.PengramEditorFab);
                 panelHint.setText(R.string.PengramEditorSafeInfo);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
-                addToggle(R.string.PengramMD3Fab, PengramMD3.KEY_FAB, true);
+                if (PengramMD3.isEnabled()) addToggle(R.string.PengramMD3Fab, PengramMD3.KEY_FAB, true);
                 addToggle(R.string.PengramHideWriteButton, PengramConfig.KEY_HIDE_WRITE_BUTTON, false);
                 return;
             case PengramInteractivePreviewView.STORIES:
@@ -288,11 +298,17 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 panelHint.setText(PengramSearchMetadata.emphasizedPath(setting, ""));
                 addChip(getString(R.string.PengramEditorOpenSetting), false,
                         () -> PengramSearchMetadata.open(this, setting));
+                addListedSettingControls(setting[0]);
                 return;
             case PengramInteractivePreviewView.PREVIEW_ONLY:
-                panelTitle.setText(R.string.PengramEditorSampleOnly);
+                // A native mock row is informational, not an invitation to
+                // change an unrelated global font or account preference.
+                if (preview != null && preview.getPage() == PengramInteractivePreviewView.NATIVE_SETTINGS && id != 0) {
+                    panelTitle.setText(id);
+                } else {
+                    panelTitle.setText(R.string.PengramEditorSampleOnly);
+                }
                 panelHint.setText(R.string.PengramEditorSafePreviewHint);
-                addFontOptions();
                 return;
             case PengramInteractivePreviewView.PLAYER_CARD:
                 panelTitle.setText(R.string.PengramConstructorPlayer);
@@ -328,6 +344,189 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 panelTitle.setText(R.string.PengramMD3);
                 panelHint.setText(R.string.PengramEditorSampleOnly);
                 addAppearanceChips();
+        }
+    }
+
+    /** Only preferences already demonstrated by this sample get inline controls.
+     * Other rows retain a clearly labelled link to their actual setting. */
+    private void addListedSettingControls(int title) {
+        if (title == R.string.PengramMD3) {
+            addToggle(title, PengramMD3.KEY_ENABLED, false); return;
+        }
+        if (title == R.string.PengramMD3Dialogs) {
+            addMd3ListedOption(title, PengramMD3.KEY_DIALOGS, true, 0); return;
+        }
+        if (title == R.string.PengramMD3Tonal) {
+            addMd3ListedOption(title, PengramMD3.KEY_TONAL_UNREAD, true, R.string.PengramMD3Dialogs); return;
+        }
+        if (title == R.string.PengramMD3NoDividers) {
+            addMd3ListedOption(title, PengramMD3.KEY_NO_DIVIDERS, true, R.string.PengramMD3Dialogs); return;
+        }
+        if (title == R.string.PengramMD3SearchBar) {
+            addMd3ListedOption(title, PengramMD3.KEY_SEARCH_BAR, true, 0); return;
+        }
+        if (title == R.string.PengramMD3SearchShadow) {
+            addMd3ListedOption(title, PengramMD3.KEY_SEARCH_SHADOW, false, R.string.PengramMD3SearchBar); return;
+        }
+        if (title == R.string.PengramMD3Fab) {
+            addMd3ListedOption(title, PengramMD3.KEY_FAB, true, 0); return;
+        }
+        if (title == R.string.PengramMD3Settings) {
+            addMd3ListedOption(title, PengramMD3.KEY_SETTINGS, true, 0); return;
+        }
+        if (title == R.string.PengramMD3Sheets) {
+            addMd3ListedOption(title, PengramMD3.KEY_SHEETS, true, 0); return;
+        }
+        if (title == R.string.PengramMD3Alerts) {
+            addMd3ListedOption(title, PengramMD3.KEY_ALERTS, true, 0); return;
+        }
+        if (title == R.string.PengramHideWriteButton) {
+            addToggle(title, PengramConfig.KEY_HIDE_WRITE_BUTTON, false); return;
+        }
+        if (title == R.string.PengramHideStories) {
+            addToggle(title, PengramConfig.KEY_HIDE_STORIES, false); return;
+        }
+        if (title == R.string.PengramSenderAvatars) {
+            addToggle(title, PengramConfig.KEY_DIALOG_SENDER_AVATARS, false);
+            if (PengramConfig.isDialogSenderAvatars()) addSenderAvatarPositions();
+            return;
+        }
+        if (title == R.string.PengramSenderAvatarPosition) {
+            if (PengramConfig.isDialogSenderAvatars()) {
+                addSenderAvatarPositions();
+            } else {
+                showParentRequired();
+                addToggle(R.string.PengramSenderAvatars, PengramConfig.KEY_DIALOG_SENDER_AVATARS, false);
+            }
+            return;
+        }
+        if (title == R.string.PengramQuoteNames) {
+            addToggle(title, org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true); return;
+        }
+        if (title == R.string.PengramQuoteAvatar) {
+            // The real control is conditional on names; do not change a
+            // dormant preference without showing the parent first.
+            if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true)) {
+                addToggle(title, org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true);
+            } else {
+                showParentRequired();
+                addToggle(R.string.PengramQuoteNames,
+                        org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true);
+            }
+            return;
+        }
+        if (title == R.string.BubbleRadius) {
+            addSlider(getString(title), 0, 17, SharedConfig.bubbleRadius, value -> {
+                applyBubbleRadius(value);
+                if (mock != null) mock.refresh();
+            });
+            return;
+        }
+        if (title == R.string.PengramFont) {
+            addFontOptions(); return;
+        }
+        if (title == R.string.PengramMonet) {
+            if (org.telegram.messenger.PengramMonet.isSupported()) {
+                addToggle(title, org.telegram.messenger.PengramMonet.KEY_ENABLED, false);
+            }
+            return;
+        }
+        if (title == R.string.PengramPlayerLook) {
+            for (int style = 0; style < PengramConfig.PLAYER_STYLE_COUNT; style++) {
+                final int choice = style;
+                addChip(getString(PengramConfig.getPlayerStyleName(style)),
+                        PengramConfig.getPlayerStyle() == style, () -> {
+                            PengramConfig.setPlayerStyle(choice);
+                            afterChange();
+                        });
+            }
+            return;
+        }
+        if (title == R.string.PengramPlayerBg) {
+            if (PengramConfig.isNewPlayer()) {
+                for (int bg = PengramConfig.PLAYER_BG_COVER; bg <= PengramConfig.PLAYER_BG_THEME; bg++) {
+                    final int choice = bg;
+                    addChip(getString(PengramConfig.getPlayerBgName(bg)),
+                            PengramConfig.getPlayerBg() == bg, () -> {
+                                PengramConfig.setPlayerBg(choice);
+                                afterChange();
+                            });
+                }
+            }
+            return;
+        }
+        if (title == R.string.PengramCoverShape) {
+            if (PengramConfig.isNewPlayer()) {
+                for (int shape = PengramConfig.COVER_SHAPE_ROUNDED; shape <= PengramConfig.COVER_SHAPE_SQUARE; shape++) {
+                    final int choice = shape;
+                    addChip(getString(PengramConfig.getCoverShapeName(shape)),
+                            PengramConfig.getCoverShape() == shape, () -> {
+                                PengramConfig.setCoverShape(choice);
+                                afterChange();
+                            });
+                }
+            }
+            return;
+        }
+        if (title == R.string.PengramChatLook || title == R.string.PengramAvatarPos) {
+            for (int pos : PengramConfig.AVATAR_POS_ORDER) {
+                addChip(getString(PengramConfig.getGroupAvatarPosName(pos)),
+                        PengramConfig.getGroupAvatarPos() == pos, () -> {
+                            PengramConfig.setGroupAvatarPos(pos);
+                            afterChange();
+                        });
+            }
+            return;
+        }
+        if (title == R.string.PengramDialogAvatars) {
+            for (int shape = 0; shape < PengramConfig.DIALOG_AVATAR_COUNT; shape++) {
+                final int choice = shape;
+                addChip(getString(PengramConfig.getDialogAvatarShapeName(shape)),
+                        PengramConfig.getDialogAvatarShape() == shape, () -> {
+                            PengramConfig.setDialogAvatarShape(choice);
+                            afterChange();
+                        });
+            }
+            return;
+        }
+
+    }
+
+    private void showParentRequired() {
+        if (panelHint != null) panelHint.append("\n" + getString(R.string.PengramEditorEnableParentFirst));
+    }
+
+    private void addMd3ListedOption(int title, String key, boolean defaultValue, int prerequisite) {
+        if (!PengramMD3.isEnabled()) {
+            showParentRequired();
+            addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
+        } else if (prerequisite == R.string.PengramMD3Dialogs
+                && !PengramConfig.getBool(PengramMD3.KEY_DIALOGS, true)) {
+            showParentRequired();
+            addToggle(R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
+        } else if (prerequisite == R.string.PengramMD3SearchBar
+                && !PengramConfig.getBool(PengramMD3.KEY_SEARCH_BAR, true)) {
+            showParentRequired();
+            addToggle(R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
+        } else {
+            addToggle(title, key, defaultValue);
+        }
+    }
+
+    private void addSenderAvatarPositions() {
+        final int[] names = {
+                R.string.PengramSenderAvatarInline, R.string.PengramSenderAvatarBottom,
+                R.string.PengramSenderAvatarTop, R.string.PengramSenderAvatarBeforeName,
+                R.string.PengramSenderAvatarAfterName
+        };
+        final LinearLayout positions = addOptionsGroup(R.string.PengramSenderAvatarPosition);
+        for (int position = 0; position < names.length; position++) {
+            final int choice = position;
+            addChip(positions, getString(names[position]),
+                    PengramConfig.getDialogSenderAvatarPosition() == position, () -> {
+                        PengramConfig.setDialogSenderAvatarPosition(choice);
+                        afterChange();
+                    });
         }
     }
 

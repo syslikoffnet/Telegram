@@ -1809,4 +1809,5 @@
     <string name="PengramEditorBrowseSettings">Посмотреть все настройки Pengram</string>
     <string name="PengramEditorSettingsListHint">Тестовый список настроек. Нажмите на пункт, чтобы открыть настоящий параметр; данные аккаунта в макете не меняются.</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
+    <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
 </resources>

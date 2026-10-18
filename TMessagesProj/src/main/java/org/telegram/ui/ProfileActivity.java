@@ -15548,12 +15548,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
 
+                final String[] pengramTerms = PengramSearchMetadata.queryTerms(text);
                 for (int a = 0; a < searchArray.length; a++) {
                     SearchResult result = searchArray[a];
                     if (result == null) {
                         continue;
                     }
-                    if (result.pengramEntry != null && PengramSearchMetadata.matches(result.pengramEntry, text)) {
+                    if (result.pengramEntry != null && PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)) {
                         results.add(result);
                         SpannableStringBuilder matchName = new SpannableStringBuilder(result.searchTitle);
                         matchName.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),

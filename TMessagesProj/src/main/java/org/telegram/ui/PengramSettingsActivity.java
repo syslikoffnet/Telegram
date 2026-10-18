@@ -763,10 +763,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
             return;
         }
+        final String[] terms = PengramSearchMetadata.queryTerms(query);
         for (int[] entry : PengramSearchIndex.ITEMS) {
             final String title = getString(entry[0]);
             if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")
-                    || !PengramSearchMetadata.matches(entry, query)) continue;
+                    || !PengramSearchMetadata.matches(entry, terms)) continue;
             final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
                     sectionIcon(entry[1]), title, PengramSearchMetadata.emphasizedPath(entry, query));
             result.adaptiveLayout = true; // keep the COMPLETE path legible on narrow screens
@@ -1914,8 +1915,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_VISUAL_EDITOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_customize,
                 getString(R.string.PengramEditor), getString(R.string.PengramEditorPreviewEntry)));
-        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
-                getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
                 getString(R.string.PengramAbout), org.telegram.messenger.PengramVersion.shortLine()));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
@@ -2973,6 +2972,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         // показывает результат сразу.
         items.add(UItem.asSettingsCell(BTN_FONT_PICK, R.drawable.msg_customize,
                 getString(R.string.PengramFont), fontName(PengramConfig.appFont)));
+        // Preserve the older specialized constructor, but the root screen has
+        // only one prominent editor entry: the unified interactive preview.
+        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
+                getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramTitleHeader)));

@@ -8,13 +8,46 @@ import android.text.style.StyleSpan;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 
+import java.util.IdentityHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.telegram.messenger.LocaleController.getString;
 
 /** Search vocabulary and navigable breadcrumbs for real Pengram settings. */
 public final class PengramSearchMetadata {
     private PengramSearchMetadata() { }
+
+    /** Immutable, locale-scoped tokens. Text never comes from an account. */
+    private static final class Corpus {
+        final Locale locale;
+        final Map<int[], String[]> words;
+        Corpus(Locale locale, Map<int[], String[]> words) {
+            this.locale = locale;
+            this.words = words;
+        }
+    }
+
+    private static volatile Corpus cachedCorpus;
+
+    private static Corpus corpus() {
+        Locale locale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
+        if (locale == null) locale = Locale.getDefault();
+        Corpus current = cachedCorpus;
+        if (current != null && current.locale.equals(locale)) return current;
+        synchronized (PengramSearchMetadata.class) {
+            current = cachedCorpus;
+            if (current == null || !current.locale.equals(locale)) {
+                Map<int[], String[]> words = new IdentityHashMap<>();
+                for (int[] entry : PengramSearchIndex.ITEMS) {
+                    words.put(entry, normalized(path(entry) + " " + tags(entry)).split(" +"));
+                }
+                current = new Corpus(locale, words);
+                cachedCorpus = current;
+            }
+        }
+        return current;
+    }
 
     public static void open(BaseFragment fragment, int[] entry) {
         if (entry.length > 3 && entry[3] == 1) {
@@ -66,7 +99,8 @@ public final class PengramSearchMetadata {
             if (info.indexOf('%') < 0) tags.append(' ').append(info);
         }
         if (id == R.string.PengramSenderAvatars || id == R.string.PengramSenderAvatarPosition
-                || id == R.string.PengramQuoteAvatar || id == R.string.PengramChatLook) {
+                || id == R.string.PengramQuoteAvatar || id == R.string.PengramChatLook
+                || id == R.string.PengramAvatarPos) {
             tags.append(" аватарка аву фото профиля avatar hide avatar скрыть аву показывать фото");
         }
         if (id == R.string.PengramChatLook) {
@@ -79,6 +113,7 @@ public final class PengramSearchMetadata {
             tags.append(" радиус скругления карточки цитаты quote corner");
         }
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
+        if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
         // This is a storage limit for profile HISTORY, not an avatar-size control.
         if (id == R.string.PengramProfileLimitSize) tags.append(" размер истории профиля хранилище storage limit");
         // Shared concept vocabulary applies to each OWN title, not to an entire
@@ -113,14 +148,24 @@ public final class PengramSearchMetadata {
                 .replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
     }
 
+    /** Normalize once for an entire search, not once per result on each keystroke. */
+    public static String[] queryTerms(String query) {
+        String q = normalized(query == null ? "" : query);
+        return q.isEmpty() ? new String[0] : q.split(" +");
+    }
+
     /** Token prefixes make "аватарка", "аватарки" and "аву" useful alike. */
     public static boolean matches(int[] entry, String query) {
-        String q = normalized(query);
-        if (q.isEmpty()) return false;
-        String searchable = normalized(path(entry) + " " + tags(entry));
-        for (String term : q.split(" +")) {
+        return matches(entry, queryTerms(query));
+    }
+
+    public static boolean matches(int[] entry, String[] terms) {
+        if (terms == null || terms.length == 0) return false;
+        String[] words = corpus().words.get(entry);
+        if (words == null) words = normalized(path(entry) + " " + tags(entry)).split(" +");
+        for (String term : terms) {
             boolean found = false;
-            for (String word : searchable.split(" +")) {
+            for (String word : words) {
                 if (word.startsWith(term) || (word.length() >= 4 && term.length() >= 4
                         && term.length() <= word.length() + 3 && term.startsWith(word))) {
                     found = true;

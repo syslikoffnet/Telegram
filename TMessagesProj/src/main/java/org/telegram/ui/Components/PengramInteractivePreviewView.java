@@ -62,7 +62,10 @@ public class PengramInteractivePreviewView extends LinearLayout {
     private Listener listener;
     private int page = DIALOGS;
     private final ArrayDeque<Integer> history = new ArrayDeque<>();
+    private final ArrayDeque<Integer> settingsSectionHistory = new ArrayDeque<>();
     private int selectedElement = -1, selectedId = -1;
+    private View selectedRowView;
+    private android.graphics.drawable.Drawable selectedRowBackground;
     private int menuMode;
     private int nativeSettingsId = PengramConfig.SETTINGS_ITEM_CHAT;
     private int settingsSection = PengramSettingsActivity.SECTION_APPEARANCE;
@@ -85,7 +88,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
         setOrientation(VERTICAL);
         setBackgroundColor(color(Theme.key_windowBackgroundWhite));
         heading = new FrameLayout(context);
-        addView(heading, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
+        addView(heading, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(Math.max(54, Math.min(90, Math.round(46 * fontScale() + 8))))));
         scroller = new ScrollView(context);
         scroller.setFillViewport(true);
         scroller.setClipToPadding(false);
@@ -99,7 +103,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
         addView(contentFrame, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         footer = new LinearLayout(context);
         footer.setGravity(Gravity.CENTER_VERTICAL);
-        addView(footer, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+        addView(footer, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(Math.max(60, Math.min(108, Math.round(52 * fontScale() + 8))))));
         render();
     }
 
@@ -114,6 +119,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
         menuMode = previous.menuMode;
         nativeSettingsId = previous.nativeSettingsId;
         settingsSection = previous.settingsSection;
+        settingsSectionHistory.clear();
+        settingsSectionHistory.addAll(previous.settingsSectionHistory);
         sampleChatIndex = previous.sampleChatIndex;
         searchQuery = previous.searchQuery;
         history.clear();
@@ -137,6 +144,11 @@ public class PengramInteractivePreviewView extends LinearLayout {
 
     public boolean goBack() {
         if (page == DIALOGS) return false;
+        if (page == SETTINGS_LIST && !settingsSectionHistory.isEmpty()) {
+            settingsSection = settingsSectionHistory.removeLast();
+            displayPage(SETTINGS_LIST);
+            return true;
+        }
         final int target = history.isEmpty() ? DIALOGS : history.removeLast();
         displayPage(target);
         return true;
@@ -161,16 +173,28 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     private void openSettingsSection(int section) {
-        settingsSection = section;
-        showPage(SETTINGS_LIST);
+        if (page == SETTINGS_LIST) {
+            if (settingsSection == section) return;
+            settingsSectionHistory.addLast(settingsSection);
+            settingsSection = section;
+            // showPage() intentionally ignores same-page navigation, but here
+            // each section is a separate view within the ONE preview screen.
+            displayPage(SETTINGS_LIST);
+        } else {
+            settingsSectionHistory.clear();
+            settingsSection = section;
+            showPage(SETTINGS_LIST);
+        }
     }
 
     private void switchTab(int newPage) {
         history.clear();
+        settingsSectionHistory.clear();
         displayPage(newPage);
     }
 
     private void displayPage(int newPage) {
+        clearSelectedRow();
         page = newPage;
         selectedElement = selectedId = -1;
         if (listener != null) listener.onSelection(-1, -1);
@@ -179,9 +203,44 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     private void select(int element, int id) {
+        clearSelectedRow();
         selectedElement = element;
         selectedId = id;
         if (listener != null) listener.onSelection(element, id);
+    }
+
+    private <T extends View> T tagRow(T row, int kind, int id) {
+        row.setTag(new int[]{kind, id});
+        return row;
+    }
+
+    private void restoreSelectedRow() {
+        if (selectedElement < 0) return;
+        for (int i = 0; i < body.getChildCount(); i++) {
+            View row = body.getChildAt(i);
+            Object tag = row.getTag();
+            if (tag instanceof int[] && ((int[]) tag).length >= 2
+                    && ((int[]) tag)[0] == selectedElement && ((int[]) tag)[1] == selectedId) {
+                highlightSelectedRow(row);
+                return;
+            }
+        }
+    }
+
+    private void clearSelectedRow() {
+        if (selectedRowView != null) selectedRowView.setBackground(selectedRowBackground);
+        selectedRowView = null;
+        selectedRowBackground = null;
+    }
+
+    private void highlightSelectedRow(View row) {
+        if (row == null || selectedElement < 0 || !row.isAttachedToWindow()) return;
+        clearSelectedRow();
+        selectedRowView = row;
+        selectedRowBackground = row.getBackground();
+        row.setBackground(Theme.createRoundRectDrawable(dp(12),
+                ColorUtils.blendARGB(color(Theme.key_windowBackgroundWhite),
+                        color(Theme.key_featuredStickers_addButton), .22f)));
     }
 
     private int color(int key) {
@@ -217,6 +276,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
                 showPage(MENU);
             } else goBack();
         });
+        back.setContentDescription(getString(page == DIALOGS ? R.string.AccDescrOpenMenu : R.string.Back));
         heading.addView(back, new FrameLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.LEFT));
         final String title;
         switch (page) {
@@ -255,6 +315,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
                 showPage(MENU);
             } else showPage(SEARCH);
         });
+        more.setContentDescription(getString(page == DIALOGS || page == CHAT
+                ? R.string.AccDescrMoreOptions : R.string.Search));
         heading.addView(more, new FrameLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT, Gravity.RIGHT));
     }
 
@@ -271,6 +333,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     public void render() {
+        clearSelectedRow();
         drawHeading();
         body.removeAllViews();
         footer.removeAllViews();
@@ -287,7 +350,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
                 chatMock.setSampleMessage(sampleSent[sampleChatIndex]);
                 chatMock.refresh();
                 if (chatMock.getParent() instanceof ViewGroup) ((ViewGroup) chatMock.getParent()).removeView(chatMock);
-                body.addView(chatMock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(350)));
+                body.addView(chatMock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(Math.max(350, Math.min(560, Math.round(350 * fontScale()))))));
                 final TextView editButtons = row(getString(R.string.PengramConstructorChatButtons), null, () -> showPage(CHAT_BUTTONS));
                 body.addView(editButtons);
                 break;
@@ -344,6 +408,17 @@ public class PengramInteractivePreviewView extends LinearLayout {
         footer.setVisibility(tabPage || page == CHAT ? VISIBLE : GONE);
         if (tabPage) renderTabs();
         else if (page == CHAT) renderChatComposer();
+        restoreSelectedRow();
+    }
+
+    private float fontScale() {
+        return Math.max(1f, getResources().getConfiguration().fontScale);
+    }
+
+    private int rowHeight(boolean subtitle) {
+        int minimum = subtitle ? 62 : 51;
+        return dp(Math.max(minimum, Math.min(144,
+                Math.round((subtitle ? 48 : 39) * fontScale() + 12))));
     }
 
     private TextView row(String label, String sub, Runnable click) {
@@ -353,8 +428,12 @@ public class PengramInteractivePreviewView extends LinearLayout {
         cell.setMaxLines(2);
         cell.setPadding(dp(18), dp(6), dp(14), dp(6));
         cell.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector)));
-        cell.setOnClickListener(v -> click.run());
-        cell.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(sub == null ? 51 : 62)));
+        cell.setOnClickListener(v -> {
+            final int beforePage = page;
+            click.run();
+            if (beforePage == page) highlightSelectedRow(v);
+        });
+        cell.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, rowHeight(sub != null)));
         return cell;
     }
 
@@ -444,7 +523,10 @@ public class PengramInteractivePreviewView extends LinearLayout {
             FrameLayout item = new FrameLayout(getContext());
             final int surface = color(Theme.key_windowBackgroundWhite);
             final int accent = color(Theme.key_featuredStickers_addButton);
-            TextView avatar = button(i == 2 ? "★" : getString(SAMPLE_CHAT_TITLES[i]).substring(0, 1),
+            final String sampleName = getString(SAMPLE_CHAT_TITLES[i]);
+            final String initial = sampleName.isEmpty() ? "•"
+                    : sampleName.substring(0, sampleName.offsetByCodePoints(0, 1));
+            TextView avatar = button(i == 2 ? "★" : initial,
                     () -> select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index));
             avatar.setTextSize(16);
             avatar.setTextColor(color(Theme.key_featuredStickers_buttonText));
@@ -460,6 +542,27 @@ public class PengramInteractivePreviewView extends LinearLayout {
             FrameLayout.LayoutParams summaryParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             summaryParams.leftMargin = dp(60);
             item.addView(summary, summaryParams);
+            if (i == 0 && PengramConfig.isDialogSenderAvatars()) {
+                // A tiny synthetic sender marker on the sample group dialog.
+                // Keep it strictly visual: no contact photo or user is loaded.
+                final int placement = PengramConfig.getDialogSenderAvatarPosition();
+                final String senderName = getString(R.string.PengramEditorName);
+                final String senderInitial = senderName.isEmpty() ? "•"
+                        : senderName.substring(0, senderName.offsetByCodePoints(0, 1));
+                final TextView sender = button(senderInitial, () -> select(DIALOG_ROW, index));
+                sender.setTextSize(10);
+                sender.setContentDescription(getString(R.string.PengramSenderAvatars));
+                sender.setTextColor(color(Theme.key_featuredStickers_buttonText));
+                sender.setBackground(Theme.createRoundRectDrawable(dp(10),
+                        ColorUtils.blendARGB(accent, surface, .25f)));
+                FrameLayout.LayoutParams badge = new FrameLayout.LayoutParams(dp(19), dp(19));
+                badge.leftMargin = dp(placement == PengramConfig.SENDER_AVATAR_AFTER_NAME ? 120
+                        : placement == PengramConfig.SENDER_AVATAR_BEFORE_NAME
+                        || placement == PengramConfig.SENDER_AVATAR_INLINE ? 64 : 42);
+                badge.topMargin = dp(placement == PengramConfig.SENDER_AVATAR_BOTTOM ? 45
+                        : placement == PengramConfig.SENDER_AVATAR_INLINE ? 38 : 5);
+                item.addView(sender, badge);
+            }
             if (PengramMD3.tonalRows() && i < 2) {
                 item.setBackground(Theme.createRoundRectDrawable(dp(22),
                         i == 0 ? PengramMD3.unreadContainer(null) : PengramMD3.pinnedContainer(null)));
@@ -467,8 +570,10 @@ public class PengramInteractivePreviewView extends LinearLayout {
             item.setOnClickListener(v -> openChat(index));
             item.setOnLongClickListener(v -> { select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index); return true; });
             summary.setOnLongClickListener(v -> { select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index); return true; });
-            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(68));
+            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Math.max(dp(68), rowHeight(true) + dp(6)));
             itemParams.setMargins(dp(8), dp(2), dp(8), dp(2));
+            tagRow(item, page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index);
             destination.addView(item, itemParams);
             if (!PengramMD3.hideDividers() && i != 2) {
                 View line = new View(getContext());
@@ -490,7 +595,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
         header.setContentDescription(getString(label));
         header.setOnDragListener((v, event) -> {
             Object state = event.getLocalState();
-            if (!(state instanceof int[]) || ((int[]) state)[0] != kind) return false;
+            if (!(state instanceof int[]) || ((int[]) state).length < 2
+                    || ((int[]) state)[0] != kind) return false;
             if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) return true;
             if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED) {
                 v.setBackground(Theme.createRoundRectDrawable(dp(12),
@@ -536,7 +642,23 @@ public class PengramInteractivePreviewView extends LinearLayout {
         return true;
     }
 
+    private TextView settingsRow(String label, Runnable click) {
+        TextView item = row(label, null, click);
+        if (PengramMD3.settingsScreen()) {
+            item.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(16),
+                    PengramMD3.surface(null, .09f),
+                    ColorUtils.blendARGB(PengramMD3.surface(null, .09f),
+                            color(Theme.key_featuredStickers_addButton), .18f)));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, rowHeight(false));
+            params.setMargins(dp(12), dp(3), dp(12), dp(3));
+            item.setLayoutParams(params);
+        }
+        return item;
+    }
+
     private void renderSettings() {
+        if (PengramMD3.settingsScreen()) body.setBackgroundColor(PengramMD3.surface(null, .035f));
         final ArrayList<Integer> order = PengramConfig.getSettingsOrder();
         sectionHeader(R.string.PengramPlaceVisible, SETTINGS_ROW, 0);
         final boolean cardOnTop = PengramConfig.isPengramCardOnTop();
@@ -552,21 +674,27 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     private void addSettingsItem(int id, boolean hidden) {
-        TextView item = row("⚙   " + getString(PengramConfig.getSettingsItemTitle(id)), null,
+        TextView item = settingsRow("⚙   " + getString(PengramConfig.getSettingsItemTitle(id)),
                 () -> { if (hidden) select(SETTINGS_ROW, id);
                         else if (id == PengramConfig.SETTINGS_ITEM_PENGRAM) showPage(APPEARANCE);
                         else openNativeSettings(id); });
         item.setAlpha(hidden ? .42f : 1f);
+        tagRow(item, SETTINGS_ROW, id);
         body.addView(item);
         if (id == PengramConfig.SETTINGS_ITEM_PENGRAM && PengramConfig.isPengramCardOnTop() && !hidden) {
-            item.setOnLongClickListener(v -> { select(SETTINGS_ROW, id); return true; });
+            item.setOnLongClickListener(v -> {
+                select(SETTINGS_ROW, id);
+                highlightSelectedRow(v);
+                return true;
+            });
         } else {
             enableSafeDrag(item, SETTINGS_ROW, id);
         }
     }
 
     private void renderNativeSettings() {
-        body.addView(row(getString(R.string.PengramEditorNativeSettingsSample), null,
+        if (PengramMD3.settingsScreen()) body.setBackgroundColor(PengramMD3.surface(null, .035f));
+        body.addView(settingsRow(getString(R.string.PengramEditorNativeSettingsSample),
                 () -> select(SETTINGS_ROW, nativeSettingsId)));
         // Representative static labels only: never instantiate native screens or
         // read the account to populate privacy, devices, folders or notifications.
@@ -601,12 +729,13 @@ public class PengramInteractivePreviewView extends LinearLayout {
             default: labels = new int[0]; break;
         }
         for (int label : labels) {
-            body.addView(row(getString(label), null, () -> select(PREVIEW_ONLY, label)));
+            body.addView(tagRow(settingsRow(getString(label),
+                    () -> select(PREVIEW_ONLY, label)), PREVIEW_ONLY, label));
         }
         if (nativeSettingsId == PengramConfig.SETTINGS_ITEM_CHAT) {
-            body.addView(row(getString(R.string.PengramPreviewChatName), null, () -> showPage(CHAT)));
+            body.addView(settingsRow(getString(R.string.PengramPreviewChatName), () -> showPage(CHAT)));
         } else if (nativeSettingsId == PengramConfig.SETTINGS_ITEM_ACCOUNT) {
-            body.addView(row(getString(R.string.PengramTabProfile), null, () -> showPage(PROFILE)));
+            body.addView(settingsRow(getString(R.string.PengramTabProfile), () -> showPage(PROFILE)));
         }
     }
 
@@ -631,7 +760,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     private void renderSettingsList() {
-        body.addView(row(getString(R.string.PengramEditorSettingsListHint), null,
+        if (PengramMD3.settingsScreen()) body.setBackgroundColor(PengramMD3.surface(null, .035f));
+        body.addView(settingsRow(getString(R.string.PengramEditorSettingsListHint),
                 () -> select(PREVIEW_ONLY, 0)));
         if (settingsSection == PengramSettingsActivity.SECTION_ROOT) {
             final int[] sections = {
@@ -644,7 +774,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
                     PengramSettingsActivity.SECTION_ABOUT
             };
             for (int section : sections) {
-                body.addView(row(PengramSettingsActivity.sectionTitle(section).toString(), null,
+                body.addView(settingsRow(PengramSettingsActivity.sectionTitle(section).toString(),
                         () -> openSettingsSection(section)));
             }
             return;
@@ -656,7 +786,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
                     PengramSettingsActivity.SECTION_TYPING, PengramSettingsActivity.SECTION_QUOTES
             };
             for (int child : children) {
-                body.addView(row(PengramSettingsActivity.sectionTitle(child).toString(), null,
+                body.addView(settingsRow(PengramSettingsActivity.sectionTitle(child).toString(),
                         () -> openSettingsSection(child)));
             }
         }
@@ -672,7 +802,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
             }
             previousHeader = group;
             final int index = i;
-            body.addView(row(getString(entry[0]), null, () -> select(SETTINGS_OPTION, index)));
+            body.addView(tagRow(settingsRow(getString(entry[0]),
+                    () -> select(SETTINGS_OPTION, index)), SETTINGS_OPTION, index));
         }
     }
 
@@ -705,6 +836,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
         TextView item = row(getString(PengramConfig.getMenuItemTitle(id)), null,
                 () -> { if (hidden) select(MENU_ROW, id); else openMenuItem(id); });
         item.setAlpha(hidden ? .42f : 1f);
+        tagRow(item, MENU_ROW, id);
         body.addView(item);
         enableSafeDrag(item, MENU_ROW, id);
     }
@@ -736,6 +868,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
     private void addChatButtonItem(int id, boolean hidden) {
         TextView item = row(getString(PengramConfig.getChatItemTitle(id)), null, () -> select(CHAT_BUTTON_ROW, id));
         item.setAlpha(hidden ? .42f : 1f);
+        tagRow(item, CHAT_BUTTON_ROW, id);
         body.addView(item);
         enableSafeDrag(item, CHAT_BUTTON_ROW, id);
     }
@@ -828,7 +961,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
             tab.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
             final TextView label = text(getString(titles[i]), 10, tint);
             label.setGravity(Gravity.CENTER);
-            tab.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(19)));
+            tab.addView(label, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(Math.max(19, Math.round(19 * fontScale())))));
             tab.setOnClickListener(v -> switchTab(pages[index]));
             tab.setOnLongClickListener(v -> { select(TAB, index); return true; });
             footer.addView(tab, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
@@ -838,6 +972,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
     private void enableSafeDrag(View item, int kind, int id) {
         item.setOnLongClickListener(v -> {
             select(kind, id);
+            highlightSelectedRow(v);
             final ClipData data = ClipData.newPlainText("pengram-editor", "");
             final View.DragShadowBuilder shadow = new View.DragShadowBuilder(v);
             final int[] localState = new int[]{kind, id};
@@ -849,7 +984,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
         });
         item.setOnDragListener((v, event) -> {
             final Object local = event.getLocalState();
-            if (!(local instanceof int[])) return false;
+            if (!(local instanceof int[]) || ((int[]) local).length < 2) return false;
             int[] source = (int[]) local;
             if (source[0] != kind) return false;
             if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) return true;
