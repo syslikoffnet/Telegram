@@ -286,6 +286,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SPY_PROFILE = 1453;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
+    private static final int BTN_VISUAL_EDITOR = 1502;
     private static final int BTN_HEADER_LYRICS_ANIM = 1434;
     private static final int BTN_LYRICS_SOURCE = 1435;
 
@@ -373,13 +374,21 @@ public class PengramSettingsActivity extends UniversalFragment {
      * чтобы её не пришлось выискивать глазами.
      */
     public PengramSettingsActivity(int section, int highlightRes) {
+        this(section, highlightRes, 0);
+    }
+
+    public PengramSettingsActivity(int section, int highlightRes, int groupRes) {
         super();
         this.section = section;
         this.highlightRes = highlightRes;
+        this.searchFallbackRes = groupRes;
+        this.searchRevealGroups = highlightRes != 0;
     }
 
     /** строка, к которой нужно прокрутить сразу после открытия раздела */
     private final int highlightRes;
+    private int searchFallbackRes;
+    private boolean searchRevealGroups;
 
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
@@ -708,6 +717,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
         if (position < 0) {
+            // A conditional control may be absent until its parent is enabled.
+            // At least expose its owning group without changing any preference.
+            if (searchFallbackRes != 0 && searchFallbackRes != stringRes) {
+                final int fallback = searchFallbackRes;
+                searchFallbackRes = 0;
+                pengramJumpTo(fallback);
+            }
             return;
         }
         final int found = position;
@@ -742,28 +758,20 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** выдача поиска по всем разделам сразу */
     private void fillSearch(ArrayList<UItem> items) {
         searchResults.clear();
-        final String query = searchQuery == null ? "" : searchQuery.trim().toLowerCase();
+        final String query = searchQuery == null ? "" : searchQuery.trim();
         if (query.length() == 0) {
             items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
             return;
         }
         for (int[] entry : PengramSearchIndex.ITEMS) {
             final String title = getString(entry[0]);
-            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) {
-                continue;
-            }
-            final CharSequence sectionName = sectionTitle(entry[1]);
-            final boolean matches = title.toLowerCase().contains(query)
-                    || (sectionName != null && sectionName.toString().toLowerCase().contains(query));
-            if (!matches) {
-                continue;
-            }
-            items.add(UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
-                    sectionIcon(entry[1]), title, sectionName));
+            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")
+                    || !PengramSearchMetadata.matches(entry, query)) continue;
+            final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
+                    sectionIcon(entry[1]), title, PengramSearchMetadata.emphasizedPath(entry, query));
+            result.adaptiveLayout = true; // keep the COMPLETE path legible on narrow screens
+            items.add(result);
             searchResults.add(entry);
-            if (searchResults.size() >= 40) {
-                break;
-            }
         }
         if (searchResults.isEmpty()) {
             items.add(UItem.asShadow(getString(R.string.NoResult)));
@@ -1246,6 +1254,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** раскрыт ли блок */
     private boolean expanded(int group) {
+        if (searchRevealGroups) return true;
         if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
                 || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
             return temporaryExpanded.contains(group);
@@ -1903,6 +1912,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
                 getString(R.string.PengramSectionGeneral),
                 PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+        items.add(sectionRow(BTN_VISUAL_EDITOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_customize,
+                getString(R.string.PengramEditor), getString(R.string.PengramEditorPreviewEntry)));
         items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
                 getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
@@ -3965,12 +3976,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
             final int targetSection = found[1];
             final int targetRes = found[0];
-            if (targetSection == section) {
+            if (targetSection == section && (found.length < 4 || found[3] == 0)) {
                 // мы уже здесь — закрываем поиск и прыгаем к самой строке
                 actionBar.closeSearchField();
+                searchRevealGroups = true;
+                searchFallbackRes = found.length > 2 ? found[2] : 0;
+                updateList();
                 AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
             } else {
-                presentFragment(new PengramSettingsActivity(targetSection, targetRes));
+                PengramSearchMetadata.open(this, found);
             }
             return;
         }
@@ -4001,6 +4015,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
+            searchRevealGroups = false;
             final int group = item.id - BTN_COLLAPSE_BASE;
             if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
                     || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
@@ -4576,6 +4591,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_CHAT_LOOK:
             case BTN_AVATAR_POS:
                 presentFragment(new PengramChatLookActivity());
+                return;
+            case BTN_VISUAL_EDITOR:
+                presentFragment(new PengramLayoutEditorActivity());
                 return;
             case BTN_CONSTRUCTOR:
                 presentFragment(new PengramConstructorActivity());

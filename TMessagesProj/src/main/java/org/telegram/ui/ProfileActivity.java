@@ -14747,6 +14747,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public static class SearchResult {
 
             public String searchTitle;
+            public int[] pengramEntry;
             public Runnable openRunnable;
             public String rowName;
             public String[] path;
@@ -14905,7 +14906,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (name.contains("Phone") || name.contains("Reg") || name.contains("Id") || name.contains("Profile")) return PengramSettingsActivity.SECTION_PROFILE;
             if (name.contains("Screenshot") || name.contains("Premium") || name.contains("Ads") || name.contains("Bypass")) return PengramSettingsActivity.SECTION_FREEDOM;
             if (name.contains("Player") || name.contains("Lyrics")) return PengramSettingsActivity.SECTION_PLAYER;
-            if (name.contains("Penguin")) return PengramSettingsActivity.SECTION_PENGUIN;
             if (name.contains("Color") || name.contains("Appearance") || name.contains("Theme")) return PengramSettingsActivity.SECTION_APPEARANCE;
             return PengramSettingsActivity.SECTION_GENERAL;
         }
@@ -14925,7 +14925,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9008, getString(R.string.PengramSectionGeneral), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
                     new SearchResult(9009, getString(R.string.PengramSectionCustom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CUSTOM))),
                     new SearchResult(9080, getString(R.string.PengramSectionPlayer), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PLAYER))),
-                    new SearchResult(9081, getString(R.string.PengramSectionPenguin), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PENGUIN))),
                     new SearchResult(9082, getString(R.string.PengramSubsectionActions), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_ACTIONS))),
                     new SearchResult(9083, getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
                     new SearchResult(9084, getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_INTERFACE))),
@@ -15221,6 +15220,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             int generatedId = 20000;
+            final java.util.HashSet<String> indexedKeys = new java.util.HashSet<>();
             try {
                 // Индекс собран по самому экрану настроек (scripts/gen-search-index.py):
                 // в поиск попадают только сами функции — не заголовки разделов, не пояснения
@@ -15229,10 +15229,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 for (int[] entry : PengramSearchIndex.ITEMS) {
                     final String title = getString(entry[0]);
                     if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
-                            || title.length() > 60 || !knownTitles.add(title)) continue;
-                    final int targetSection = entry[1];
-                    all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
-                            () -> f.presentFragment(new PengramSettingsActivity(targetSection))));
+                            || title.length() > 60 || !indexedKeys.add(entry[0] + ":" + entry[1])) continue;
+                    // Older hand-written Pengram results opened only the section;
+                    // replace leaf duplicates with indexed results that jump to a row.
+                    if (entry[1] == PengramSettingsActivity.SECTION_ROOT && knownTitles.contains(title)) continue;
+                    if (entry[1] != PengramSettingsActivity.SECTION_ROOT) {
+                        all.removeIf(result -> result.guid >= 9000 && result.guid < 10000
+                                && title.equals(result.searchTitle));
+                    }
+                    final SearchResult indexed = new SearchResult(generatedId++, title,
+                            PengramSearchMetadata.path(entry), R.drawable.settings_features,
+                            () -> PengramSearchMetadata.open(f, entry));
+                    indexed.pengramEntry = entry;
+                    all.add(indexed);
                 }
             } catch (Throwable e) {
                 FileLog.e(e);
@@ -15338,6 +15347,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             switch (holder.getItemViewType()) {
                 case 0: {
                     SettingsSearchCell searchCell = (SettingsSearchCell) holder.itemView;
+                    searchCell.setPengramPath(null);
                     if (searchWas) {
                         if (position < searchResults.size()) {
                             SearchResult result = searchResults.get(position);
@@ -15349,6 +15359,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 icon = result.iconResId;
                             }
                             searchCell.setTextAndValueAndIcon(resultNames.get(position), result.path, icon, position < searchResults.size() - 1);
+                            if (result.pengramEntry != null) searchCell.setPengramPath(
+                                    PengramSearchMetadata.emphasizedPath(result.pengramEntry, lastSearchString));
                         } else {
                             position -= searchResults.size() + 1;
                             MessagesController.FaqSearchResult result = faqSearchResults.get(position);
@@ -15363,6 +15375,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             if (object instanceof SearchResult) {
                                 SearchResult result = (SearchResult) object;
                                 searchCell.setTextAndValue(result.searchTitle, result.path, false, position < recentSearches.size() - 1);
+                                if (result.pengramEntry != null) searchCell.setPengramPath(
+                                        PengramSearchMetadata.emphasizedPath(result.pengramEntry, ""));
                             } else if (object instanceof MessagesController.FaqSearchResult) {
                                 MessagesController.FaqSearchResult result = (MessagesController.FaqSearchResult) object;
                                 searchCell.setTextAndValue(result.title, result.path, true, position < recentSearches.size() - 1);
@@ -15537,6 +15551,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 for (int a = 0; a < searchArray.length; a++) {
                     SearchResult result = searchArray[a];
                     if (result == null) {
+                        continue;
+                    }
+                    if (result.pengramEntry != null && PengramSearchMetadata.matches(result.pengramEntry, text)) {
+                        results.add(result);
+                        SpannableStringBuilder matchName = new SpannableStringBuilder(result.searchTitle);
+                        matchName.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                                0, matchName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        names.add(matchName);
                         continue;
                     }
                     String title = " " + result.searchTitle.toLowerCase();

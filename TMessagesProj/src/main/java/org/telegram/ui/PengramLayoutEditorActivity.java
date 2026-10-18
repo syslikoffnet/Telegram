@@ -7,9 +7,11 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.text.InputFilter;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import android.widget.LinearLayout;
@@ -18,7 +20,9 @@ import android.widget.TextView;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramMD3;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
@@ -28,6 +32,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.PengramScreenMockView;
+import org.telegram.ui.Components.PengramInteractivePreviewView;
 import org.telegram.ui.Components.SeekBarView;
 
 /**
@@ -37,7 +42,10 @@ import org.telegram.ui.Components.SeekBarView;
 public class PengramLayoutEditorActivity extends BaseFragment {
 
     private PengramScreenMockView mock;
+    private PengramInteractivePreviewView preview;
     private LinearLayout panel;
+    private ScrollView panelScroll;
+    private int panelToken = Integer.MIN_VALUE;
     private TextView panelTitle;
     private TextView panelHint;
     private LinearLayout actionsRow;
@@ -52,7 +60,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
-                    finishFragment();
+                    if (preview == null || !preview.goBack()) finishFragment();
                 }
             }
         });
@@ -61,11 +69,12 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
+        final PengramInteractivePreviewView previousPreview = preview;
         mock = new PengramScreenMockView(context);
         mock.setListener(new PengramScreenMockView.Listener() {
             @Override
             public void onSelection(PengramScreenMockView.Element element) {
-                updatePanel(element);
+                if (preview != null) updatePanel(element);
             }
 
             @Override
@@ -75,15 +84,24 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 mock.refresh();
             }
         });
-        // Keep the preview above the controls; on compact screens scroll it instead of
-        // letting the panel cover the chat input and the tabs.
-        final ScrollView previewScroll = new ScrollView(context);
-        previewScroll.setFillViewport(true);
-        previewScroll.setClipToPadding(false);
-        previewScroll.setPadding(dp(8), dp(8), dp(8), dp(8));
-        previewScroll.addView(mock, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP));
-        mock.setMinimumHeight(dp(320));
-        root.addView(previewScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        preview = new PengramInteractivePreviewView(context, mock);
+        preview.restoreFrom(previousPreview);
+        preview.setListener(new PengramInteractivePreviewView.Listener() {
+            @Override
+            public void onSelection(int element, int id) {
+                if (element < 0) updateInspectPanel(-1, -1);
+                else updateInspectPanel(element, id);
+            }
+
+            @Override
+            public void onChanged() {
+                mock.refresh();
+                applyEverywhere();
+            }
+        });
+        // One scrolling surface inside the sample phone: no nested vertical ScrollViews
+        // to steal taps, long presses or drags on narrow/short devices.
+        root.addView(preview, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
 
         panel = new LinearLayout(context) {
             private final RectF rect = new RectF();
@@ -100,7 +118,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         panel.setWillNotDraw(false);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(16), dp(12), dp(16), dp(14));
-        final ScrollView panelScroll = new ScrollView(context) {
+        panelScroll = new ScrollView(context) {
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 final int available = MeasureSpec.getSize(heightMeasureSpec);
@@ -123,29 +141,6 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         panelHint.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         panel.addView(panelHint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
 
-        final TextView otherScreens = new TextView(context);
-        otherScreens.setText(R.string.PengramEditorOtherScreens);
-        otherScreens.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        otherScreens.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-        panel.addView(otherScreens, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 10, 0, 0));
-
-        final LinearLayout screenRow = new LinearLayout(context);
-        screenRow.setOrientation(LinearLayout.HORIZONTAL);
-        final HorizontalScrollView screenScroll = new HorizontalScrollView(context);
-        screenScroll.setHorizontalScrollBarEnabled(false);
-        screenScroll.addView(screenRow, LayoutHelper.createScroll(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
-        panel.addView(screenScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
-        addChip(screenRow, getString(R.string.PengramConstructorDialogs), false,
-                () -> presentFragment(new PengramChatLookActivity()));
-        addChip(screenRow, getString(R.string.PengramConstructorChatMenu), false,
-                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU)));
-        addChip(screenRow, getString(R.string.PengramConstructorChatButtons), false,
-                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT)));
-        addChip(screenRow, getString(R.string.PengramConstructorSettings), false,
-                () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS)));
-        addChip(screenRow, getString(R.string.PengramConstructorPlayer), false,
-                () -> presentFragment(new PengramPlayerStyleActivity()));
-
         actionsRow = new LinearLayout(context);
         actionsRow.setOrientation(LinearLayout.HORIZONTAL);
         final HorizontalScrollView actionsScroll = new HorizontalScrollView(context);
@@ -157,7 +152,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         sliderBox.setOrientation(LinearLayout.VERTICAL);
         panel.addView(sliderBox, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
 
-        updatePanel(null);
+        panelToken = Integer.MIN_VALUE;
+        updateInspectPanel(-1, -1);
 
         fragmentView = root;
         return fragmentView;
@@ -165,10 +161,287 @@ public class PengramLayoutEditorActivity extends BaseFragment {
 
     // ------------------------------------------------------------- панель
 
+    private void updateInspectPanel(int element, int id) {
+        if (panel == null) return;
+        resetPanelScrollIfChanged((preview == null ? 0 : preview.getPage()) * 100000
+                + (element == PengramInteractivePreviewView.TITLE
+                ? 1000 + PengramScreenMockView.EL_TITLE : element * 1000 + id));
+        actionsRow.removeAllViews();
+        sliderBox.removeAllViews();
+        if (element < 0) {
+            panelTitle.setText(R.string.PengramEditorPick);
+            panelHint.setText(R.string.PengramEditorNavigationHint);
+            addAppearanceChips();
+            return;
+        }
+        switch (element) {
+            case PengramInteractivePreviewView.TITLE:
+                updatePanel(mock.elementById(PengramScreenMockView.EL_TITLE));
+                addToggle(R.string.PengramTitleCenter, PengramConfig.KEY_TITLE_CENTER, false);
+                return;
+            case PengramInteractivePreviewView.SEARCH_BAR:
+                panelTitle.setText(R.string.Search);
+                panelHint.setText(R.string.PengramEditorSampleOnly);
+                addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
+                addToggle(R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
+                addToggle(R.string.PengramMD3SearchShadow, PengramMD3.KEY_SEARCH_SHADOW, false);
+                return;
+            case PengramInteractivePreviewView.DIALOG_ROW:
+                panelTitle.setText(R.string.PengramConstructorDialogs);
+                panelHint.setText(R.string.PengramEditorRowInfo);
+                addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
+                addToggle(R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
+                addToggle(R.string.PengramMD3Tonal, PengramMD3.KEY_TONAL_UNREAD, true);
+                addToggle(R.string.PengramMD3NoDividers, PengramMD3.KEY_NO_DIVIDERS, true);
+                for (int shape = 0; shape < PengramConfig.DIALOG_AVATAR_COUNT; shape++) {
+                    final int choice = shape;
+                    addChip(getString(PengramConfig.getDialogAvatarShapeName(shape)),
+                            PengramConfig.getDialogAvatarShape() == shape, () -> {
+                                PengramConfig.setDialogAvatarShape(choice);
+                                afterChange();
+                            });
+                }
+                return;
+            case PengramInteractivePreviewView.FAB:
+                panelTitle.setText(R.string.PengramEditorFab);
+                panelHint.setText(R.string.PengramEditorSafeInfo);
+                addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
+                addToggle(R.string.PengramMD3Fab, PengramMD3.KEY_FAB, true);
+                addToggle(R.string.PengramHideWriteButton, PengramConfig.KEY_HIDE_WRITE_BUTTON, false);
+                return;
+            case PengramInteractivePreviewView.STORIES:
+                panelTitle.setText(R.string.PengramEditorStories);
+                panelHint.setText(R.string.PengramEditorSafeInfo);
+                addToggle(R.string.PengramHideStories, PengramConfig.KEY_HIDE_STORIES, false);
+                return;
+            case PengramInteractivePreviewView.TAB:
+                panelTitle.setText(R.string.PengramEditorTabs);
+                panelHint.setText(R.string.PengramEditorSafeInfo);
+                if (id > 0) {
+                    final boolean calls = org.telegram.messenger.UserConfig.getInstance(
+                            org.telegram.messenger.UserConfig.selectedAccount).showCallsTab;
+                    final String key = id == 1 ? PengramConfig.KEY_TAB_CONTACTS : id == 2
+                            ? (calls ? PengramConfig.KEY_TAB_CALLS : PengramConfig.KEY_TAB_SETTINGS)
+                            : PengramConfig.KEY_TAB_PROFILE;
+                    addChip(getString(PengramConfig.getBool(key, false) ? R.string.PengramEditorShow : R.string.PengramEditorHide),
+                            PengramConfig.getBool(key, false), () -> {
+                                PengramConfig.setBool(key, !PengramConfig.getBool(key, false));
+                                afterChange();
+                            });
+                }
+                addChip(getString(R.string.PengramEditorAllTabs), false, () -> {
+                    PengramConfig.setBool(PengramConfig.KEY_TAB_CONTACTS, false);
+                    PengramConfig.setBool(PengramConfig.KEY_TAB_CALLS, false);
+                    PengramConfig.setBool(PengramConfig.KEY_TAB_SETTINGS, false);
+                    PengramConfig.setBool(PengramConfig.KEY_TAB_PROFILE, false);
+                    afterChange();
+                });
+                return;
+            case PengramInteractivePreviewView.SETTINGS_ROW:
+                panelTitle.setText(PengramConfig.getSettingsItemTitle(id));
+                panelHint.setText(R.string.PengramEditorReorderHint);
+                if (id != PengramConfig.SETTINGS_ITEM_PENGRAM || PengramConfig.isSettingsItemHidden(id)) {
+                    addChip(getString(PengramConfig.isSettingsItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide),
+                            false, () -> {
+                                PengramConfig.setSettingsItemHidden(id, !PengramConfig.isSettingsItemHidden(id));
+                                afterChange();
+                            });
+                }
+                if (!(id == PengramConfig.SETTINGS_ITEM_PENGRAM && PengramConfig.isPengramCardOnTop()
+                        && !PengramConfig.isSettingsItemHidden(id))) {
+                    addOrderControls(PengramInteractivePreviewView.SETTINGS_ROW, id);
+                }
+                return;
+            case PengramInteractivePreviewView.MENU_ROW:
+                panelTitle.setText(PengramConfig.getMenuItemTitle(id));
+                panelHint.setText(R.string.PengramEditorReorderHint);
+                if ((id != PengramConfig.MENU_ITEM_PENGRAM && id != PengramConfig.MENU_ITEM_SETTINGS)
+                        || PengramConfig.isMenuItemHidden(id)) {
+                    addChip(getString(PengramConfig.isMenuItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide), false, () -> {
+                        PengramConfig.setMenuItemHidden(id, !PengramConfig.isMenuItemHidden(id));
+                        afterChange();
+                    });
+                }
+                addOrderControls(PengramInteractivePreviewView.MENU_ROW, id);
+                return;
+            case PengramInteractivePreviewView.CHAT_BUTTON_ROW:
+                panelTitle.setText(PengramConfig.getChatItemTitle(id));
+                panelHint.setText(R.string.PengramEditorReorderHint);
+                addChip(getString(PengramConfig.isChatItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide), false, () -> {
+                    PengramConfig.setChatItemHidden(id, !PengramConfig.isChatItemHidden(id));
+                    afterChange();
+                });
+                for (int place : new int[]{PengramConfig.CHAT_PLACE_MAIN, PengramConfig.CHAT_PLACE_ISLAND}) {
+                    final int choice = place;
+                    addChip(getString(place == PengramConfig.CHAT_PLACE_MAIN ? R.string.PengramPlaceVisible : R.string.PengramPlaceIsland),
+                            PengramConfig.getChatItemPlacement(id) == place, () -> {
+                                PengramConfig.setChatItemPlacement(id, choice);
+                                afterChange();
+                            });
+                }
+                addOrderControls(PengramInteractivePreviewView.CHAT_BUTTON_ROW, id);
+                return;
+            case PengramInteractivePreviewView.SETTINGS_OPTION:
+                if (id < 0 || id >= PengramSearchIndex.ITEMS.length) return;
+                final int[] setting = PengramSearchIndex.ITEMS[id];
+                panelTitle.setText(setting[0]);
+                panelHint.setText(PengramSearchMetadata.emphasizedPath(setting, ""));
+                addChip(getString(R.string.PengramEditorOpenSetting), false,
+                        () -> PengramSearchMetadata.open(this, setting));
+                return;
+            case PengramInteractivePreviewView.PREVIEW_ONLY:
+                panelTitle.setText(R.string.PengramEditorSampleOnly);
+                panelHint.setText(R.string.PengramEditorSafePreviewHint);
+                addFontOptions();
+                return;
+            case PengramInteractivePreviewView.PLAYER_CARD:
+                panelTitle.setText(R.string.PengramConstructorPlayer);
+                panelHint.setText(R.string.PengramEditorSampleOnly);
+                final LinearLayout styles = addOptionsGroup(R.string.PengramPlayerLook);
+                for (int style = 0; style < PengramConfig.PLAYER_STYLE_COUNT; style++) {
+                    final int choice = style;
+                    addChip(styles, getString(PengramConfig.getPlayerStyleName(style)), PengramConfig.getPlayerStyle() == style, () -> {
+                        PengramConfig.setPlayerStyle(choice);
+                        afterChange();
+                    });
+                }
+                if (PengramConfig.isNewPlayer()) {
+                    final LinearLayout backgrounds = addOptionsGroup(R.string.PengramPlayerBg);
+                    for (int bg = PengramConfig.PLAYER_BG_COVER; bg <= PengramConfig.PLAYER_BG_THEME; bg++) {
+                        final int choice = bg;
+                        addChip(backgrounds, getString(PengramConfig.getPlayerBgName(bg)), PengramConfig.getPlayerBg() == bg, () -> {
+                            PengramConfig.setPlayerBg(choice);
+                            afterChange();
+                        });
+                    }
+                    final LinearLayout shapes = addOptionsGroup(R.string.PengramCoverShape);
+                    for (int shape = PengramConfig.COVER_SHAPE_ROUNDED; shape <= PengramConfig.COVER_SHAPE_SQUARE; shape++) {
+                        final int choice = shape;
+                        addChip(shapes, getString(PengramConfig.getCoverShapeName(shape)), PengramConfig.getCoverShape() == shape, () -> {
+                            PengramConfig.setCoverShape(choice);
+                            afterChange();
+                        });
+                    }
+                }
+                return;
+            default:
+                panelTitle.setText(R.string.PengramMD3);
+                panelHint.setText(R.string.PengramEditorSampleOnly);
+                addAppearanceChips();
+        }
+    }
+
+    private void addOrderControls(int kind, int id) {
+        addChip(getString(R.string.PengramEditorMoveUp), false, () -> moveItem(kind, id, -1));
+        addChip(getString(R.string.PengramEditorMoveDown), false, () -> moveItem(kind, id, 1));
+    }
+
+    private void moveItem(int kind, int id, int direction) {
+        final java.util.ArrayList<Integer> order = new java.util.ArrayList<>();
+        if (kind == PengramInteractivePreviewView.SETTINGS_ROW) order.addAll(PengramConfig.getSettingsOrder());
+        else if (kind == PengramInteractivePreviewView.CHAT_BUTTON_ROW) order.addAll(PengramConfig.getChatItemsOrder());
+        else for (int menuId : PengramConfig.getMenuOrder()) order.add(menuId);
+        final int origin = order.indexOf(id);
+        if (origin < 0) return;
+        final int section = itemSection(kind, id);
+        for (int next = origin + direction; next >= 0 && next < order.size(); next += direction) {
+            if (section == itemSection(kind, order.get(next))) {
+                java.util.Collections.swap(order, origin, next);
+                if (kind == PengramInteractivePreviewView.SETTINGS_ROW) PengramConfig.setSettingsOrder(order);
+                else if (kind == PengramInteractivePreviewView.CHAT_BUTTON_ROW) PengramConfig.setChatItemsOrder(order);
+                else PengramConfig.setMenuOrder(order);
+                afterChange();
+                return;
+            }
+        }
+    }
+
+    private int itemSection(int kind, int id) {
+        if (kind == PengramInteractivePreviewView.SETTINGS_ROW) {
+            return PengramConfig.isSettingsItemHidden(id) ? 2 : 0;
+        }
+        if (kind == PengramInteractivePreviewView.MENU_ROW) {
+            return PengramConfig.isMenuItemHidden(id) ? 2 : 0;
+        }
+        if (PengramConfig.isChatItemHidden(id)) return 2;
+        return PengramConfig.getChatItemPlacement(id) == PengramConfig.CHAT_PLACE_ISLAND ? 1 : 0;
+    }
+
+    private void addAppearanceChips() {
+        addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
+        if (org.telegram.messenger.PengramMonet.isSupported()) {
+            addToggle(R.string.PengramMonet, org.telegram.messenger.PengramMonet.KEY_ENABLED, false);
+        }
+        final LinearLayout md3 = addOptionsGroup(R.string.PengramMD3Header);
+        addToggle(md3, R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
+        addToggle(md3, R.string.PengramMD3Tonal, PengramMD3.KEY_TONAL_UNREAD, true);
+        addToggle(md3, R.string.PengramMD3NoDividers, PengramMD3.KEY_NO_DIVIDERS, true);
+        addToggle(md3, R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
+        addToggle(md3, R.string.PengramMD3SearchShadow, PengramMD3.KEY_SEARCH_SHADOW, false);
+        addToggle(md3, R.string.PengramMD3Fab, PengramMD3.KEY_FAB, true);
+        addToggle(md3, R.string.PengramMD3Settings, PengramMD3.KEY_SETTINGS, true);
+        addToggle(md3, R.string.PengramMD3Sheets, PengramMD3.KEY_SHEETS, true);
+        addToggle(md3, R.string.PengramMD3Alerts, PengramMD3.KEY_ALERTS, true);
+        if (org.telegram.messenger.PengramMonet.isSupported()) {
+            final LinearLayout monet = addOptionsGroup(R.string.PengramMonetHeader);
+            addToggle(monet, R.string.PengramMonetMessages, org.telegram.messenger.PengramMonet.KEY_MESSAGES, true);
+        }
+        addFontOptions();
+    }
+
+    private void addFontOptions() {
+        final LinearLayout fonts = addOptionsGroup(R.string.PengramFont);
+        for (int font : org.telegram.messenger.PengramFonts.available()) {
+            final int choice = font;
+            addChip(fonts, getString(org.telegram.messenger.PengramFonts.nameRes(font)),
+                    PengramConfig.getAppFont() == font, () -> {
+                        PengramConfig.setAppFont(choice);
+                        afterChange();
+                    });
+        }
+    }
+
+    private void resetPanelScrollIfChanged(int token) {
+        if (panelToken != token) {
+            panelToken = token;
+            if (panelScroll != null) panelScroll.scrollTo(0, 0);
+        }
+    }
+
+    private LinearLayout addOptionsGroup(int titleRes) {
+        final TextView title = new TextView(getContext());
+        title.setText(titleRes);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        sliderBox.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 3));
+        final HorizontalScrollView scroll = new HorizontalScrollView(getContext());
+        scroll.setHorizontalScrollBarEnabled(false);
+        final LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(row, LayoutHelper.createScroll(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT));
+        sliderBox.addView(scroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        return row;
+    }
+
+    private void addToggle(int label, String key, boolean defaultValue) {
+        addToggle(actionsRow, label, key, defaultValue);
+    }
+
+    private void addToggle(LinearLayout target, int label, String key, boolean defaultValue) {
+        final boolean enabled = PengramConfig.getBool(key, defaultValue);
+        addChip(target, getString(label) + (enabled ? " ✓" : " ○"), enabled, () -> {
+            PengramConfig.setBool(key, !PengramConfig.getBool(key, defaultValue));
+            if (key.startsWith("md3Monet")) org.telegram.messenger.PengramMonet.update(getContext());
+            afterChange();
+        });
+    }
+
     private void updatePanel(PengramScreenMockView.Element element) {
         if (panel == null) {
             return;
         }
+        resetPanelScrollIfChanged((preview == null ? 0 : preview.getPage()) * 100000
+                + 1000 + (element == null ? 0 : element.id));
         actionsRow.removeAllViews();
         sliderBox.removeAllViews();
 
@@ -214,7 +487,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     afterChange();
                 });
                 addChip(getString(R.string.PengramEditorOpenList), false,
-                        () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT)));
+                        () -> preview.showPage(PengramInteractivePreviewView.CHAT_BUTTONS));
                 break;
             }
             case PengramScreenMockView.EL_TITLE: {
@@ -222,10 +495,27 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                         () -> setTitleMode(PengramConfig.TITLE_MODE_PENGRAM));
                 addChip(getString(R.string.PengramTitleChats), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CHATS,
                         () -> setTitleMode(PengramConfig.TITLE_MODE_CHATS));
-                addChip("@username", PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_USERNAME,
+                addChip(getString(R.string.PengramTitleModeName), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_NAME,
+                        () -> setTitleMode(PengramConfig.TITLE_MODE_NAME));
+                addChip(getString(R.string.PengramTitleModeUsername), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_USERNAME,
                         () -> setTitleMode(PengramConfig.TITLE_MODE_USERNAME));
-                addChip("Telegram", PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_DEFAULT,
+                addChip(getString(R.string.PengramTitleModeDefault), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_DEFAULT,
                         () -> setTitleMode(PengramConfig.TITLE_MODE_DEFAULT));
+                addChip(getString(R.string.PengramTitleCustom), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM,
+                        () -> setTitleMode(PengramConfig.TITLE_MODE_CUSTOM));
+                if (PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM) {
+                    final EditText customTitle = new EditText(getContext());
+                    customTitle.setSingleLine(true);
+                    customTitle.setFilters(new InputFilter[]{new InputFilter.LengthFilter(64)});
+                    customTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                    customTitle.setHint(R.string.PengramTitleCustom);
+                    customTitle.setText(PengramConfig.getTitleCustom());
+                    sliderBox.addView(customTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+                    addChip(getString(R.string.Save), false, () -> {
+                        PengramConfig.setTitleCustom(customTitle.getText().toString().trim());
+                        afterChange();
+                    });
+                }
                 break;
             }
             case PengramScreenMockView.EL_MARK: {
@@ -282,7 +572,12 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         if (mock != null) {
             mock.refresh();
         }
-        updatePanel(mock == null ? null : mock.getSelected());
+        if (preview != null) {
+            preview.render();
+            if (preview.getSelectedElement() >= 0) updateInspectPanel(preview.getSelectedElement(), preview.getSelectedId());
+            else if (preview.getPage() == PengramInteractivePreviewView.CHAT) updatePanel(mock.getSelected());
+            else updateInspectPanel(-1, -1);
+        } else updatePanel(mock == null ? null : mock.getSelected());
         applyEverywhere();
     }
 
@@ -300,7 +595,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     }
                 }
             }
-        } catch (Throwable ignore) {
+        } catch (Exception e) {
+            FileLog.e(e);
         }
     }
 
@@ -309,7 +605,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             SharedConfig.bubbleRadius = radius;
             org.telegram.messenger.MessagesController.getGlobalMainSettings().edit().putInt("bubbleRadius", radius).apply();
             Theme.createCommonMessageResources();
-        } catch (Throwable ignore) {
+        } catch (Exception e) {
+            FileLog.e(e);
         }
     }
 
@@ -321,7 +618,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     .getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
                     .edit().putInt("fons_size", size).apply();
             Theme.createCommonMessageResources();
-        } catch (Throwable ignore) {
+        } catch (Exception e) {
+            FileLog.e(e);
         }
     }
 
@@ -372,13 +670,23 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         sliderBox.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
 
         final SeekBarView seekBar = new SeekBarView(context);
+        final int[] lastValue = {value};
+        final boolean[] dirty = {false};
         seekBar.setReportChanges(true);
         seekBar.setDelegate(new SeekBarView.SeekBarViewDelegate() {
             @Override
             public void onSeekBarDrag(boolean stop, float progress) {
                 final int result = Math.round(min + progress * (max - min));
-                title.setText(label + ": " + result);
-                callback.run(result);
+                if (lastValue[0] != result) {
+                    lastValue[0] = result;
+                    title.setText(label + ": " + result);
+                    callback.run(result);
+                    dirty[0] = true;
+                }
+                if (stop && dirty[0]) {
+                    dirty[0] = false;
+                    applyEverywhere();
+                }
             }
 
             @Override
@@ -392,9 +700,24 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (mock != null) {
-            mock.refresh();
+        if (preview != null) {
+            preview.render();
+            if (preview.getSelectedElement() >= 0) {
+                updateInspectPanel(preview.getSelectedElement(), preview.getSelectedId());
+            } else if (preview.getPage() == PengramInteractivePreviewView.CHAT) {
+                updatePanel(mock == null ? null : mock.getSelected());
+            } else {
+                updateInspectPanel(-1, -1);
+            }
         }
-        updatePanel(mock == null ? null : mock.getSelected());
+    }
+
+    @Override
+    public boolean onBackPressed(boolean invoked) {
+        if (preview != null && preview.getPage() != PengramInteractivePreviewView.DIALOGS) {
+            if (invoked) preview.goBack();
+            return false;
+        }
+        return super.onBackPressed(invoked);
     }
 }

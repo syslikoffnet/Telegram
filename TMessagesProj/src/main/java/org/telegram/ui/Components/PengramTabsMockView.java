@@ -20,6 +20,7 @@ import androidx.core.graphics.ColorUtils;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 
 /**
@@ -58,6 +59,14 @@ public class PengramTabsMockView extends View {
             new Tab(PengramConfig.KEY_TAB_SETTINGS, R.drawable.msg_settings, R.string.PengramTabSettings),
             new Tab(PengramConfig.KEY_TAB_PROFILE, R.drawable.msg_openprofile, R.string.PengramTabProfile),
     };
+
+    private final Tab[] callsTabs = {tabs[0], tabs[1], tabs[2], tabs[4]};
+    private final Tab[] settingsTabs = {tabs[0], tabs[1], tabs[3], tabs[4]};
+
+    /** Calls and Settings are alternatives in one real tab slot, never two simultaneous tabs. */
+    private Tab[] activeTabs() {
+        return UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab ? callsTabs : settingsTabs;
+    }
 
     private final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -125,11 +134,12 @@ public class PengramTabsMockView extends View {
         linePaint.setColor(ColorUtils.setAlphaComponent(textColor, 40));
         canvas.drawLine(rect.left + dp(10), barTop + dp(28), rect.right - dp(10), barTop + dp(28), linePaint);
 
-        final float cellWidth = (rect.width() - dp(12)) / tabs.length;
+        final Tab[] visibleTabs = activeTabs();
+        final float cellWidth = (rect.width() - dp(12)) / visibleTabs.length;
         final float centerY = barTop + dp(28) + (barBottom - barTop - dp(28)) / 2f;
 
-        for (int a = 0; a < tabs.length; ++a) {
-            final Tab tab = tabs[a];
+        for (int a = 0; a < visibleTabs.length; ++a) {
+            final Tab tab = visibleTabs[a];
             final float target = tab.hidden() ? 0f : 1f;
             if (Math.abs(tab.progress - target) > 0.001f) {
                 tab.progress += (target > tab.progress ? 1 : -1) * delta / 200f;
@@ -182,8 +192,9 @@ public class PengramTabsMockView extends View {
         if (event.getAction() != MotionEvent.ACTION_UP) {
             return true;
         }
-        for (int a = 1; a < tabs.length; ++a) {
-            final Tab tab = tabs[a];
+        final Tab[] visibleTabs = activeTabs();
+        for (int a = 1; a < visibleTabs.length; ++a) {
+            final Tab tab = visibleTabs[a];
             if (event.getX() >= tab.bounds.left && event.getX() <= tab.bounds.right
                     && event.getY() >= tab.bounds.top - dp(20) && event.getY() <= tab.bounds.bottom + dp(6)) {
                 PengramConfig.setBool(tab.key, !tab.hidden());

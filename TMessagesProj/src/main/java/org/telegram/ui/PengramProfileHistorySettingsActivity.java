@@ -6,6 +6,7 @@ import static org.telegram.messenger.LocaleController.getString;
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -24,14 +25,18 @@ import org.telegram.ui.Components.LayoutHelper;
 /** Privacy-first configuration for the profile delta journal. */
 public class PengramProfileHistorySettingsActivity extends BaseFragment {
     private LinearLayout list;
+    private ScrollView scroll;
+    private int highlightRes;
+    public PengramProfileHistorySettingsActivity() { this(0); }
+    public PengramProfileHistorySettingsActivity(int highlightRes) { this.highlightRes = highlightRes; }
     @Override public View createView(Context context){
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);actionBar.setTitle(getString(R.string.PengramProfileHistory));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick(){@Override public void onItemClick(int id){if(id==-1)finishFragment();}});
-        ScrollView scroll=new ScrollView(context);scroll.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));list=new LinearLayout(context);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);fragmentView=scroll;rebuild();return fragmentView;
+        scroll=new ScrollView(context);scroll.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));list=new LinearLayout(context);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);fragmentView=scroll;rebuild();return fragmentView;
     }
     private void rebuild(){if(list==null)return;list.removeAllViews();
         addEnabledSwitch();
-        if(!PengramProfileHistory.enabled()) { addInfo(R.string.PengramProfileHistoryDisabledInfo); return; }
+        if(!PengramProfileHistory.enabled()) { addInfo(R.string.PengramProfileHistoryDisabledInfo); revealSearchTarget(); return; }
         addChoice(R.string.PengramProfileHistoryStorage,storageName(),this::showStorageChoice);
         if(PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)!=PengramProfileHistory.STORAGE_LOCAL){addChoice(R.string.PengramProfileCloudFormat,cloudFormatName(),this::showCloudFormatChoice);addAction(R.string.PengramProfileCloudRecreate,()->new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileCloudRecreate)).setMessage(getString(R.string.PengramProfileCloudRecreateInfo)).setPositiveButton(getString(R.string.OK),(d,w)->org.telegram.messenger.PengramProfileCloud.recreateChannel(currentAccount)).setNegativeButton(getString(R.string.Cancel),null).show());}
         addChoice(R.string.PengramProfileHistoryScope,scopeName(),this::showScopeChoice);
@@ -43,11 +48,34 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
         addAction(R.string.PengramProfileHistoryOpen,()->presentFragment(new PengramProfileHistoryActivity(0)));
         addAction(R.string.PengramProfileHistoryClearAvatars,()->new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileHistoryClearAvatars)).setMessage(getString(R.string.PengramProfileHistoryClearAvatarsInfo)).setPositiveButton(getString(R.string.Delete),(d,w)->PengramProfileHistory.clearAvatars()).setNegativeButton(getString(R.string.Cancel),null).show());
         addInfo(R.string.PengramProfileHistoryRetentionInfo);
+        revealSearchTarget();
     }
-    private void addEnabledSwitch(){TextCheckCell c=new TextCheckCell(getContext());c.setTextAndCheck(getString(R.string.PengramProfileHistoryEnable),PengramProfileHistory.enabled(),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->{if(PengramProfileHistory.enabled())showDisableChoice();else showStorageChoice();});list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
-    private void addCheck(int title,String key,boolean def,java.util.function.Consumer<Boolean> after){TextCheckCell c=new TextCheckCell(getContext());c.setTextAndCheck(getString(title),PengramConfig.getBool(key,def),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->{boolean n=!PengramConfig.getBool(key,def);PengramConfig.setBool(key,n);c.setChecked(n);if(after!=null)after.accept(n);rebuild();});list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
-    private void addChoice(int title,String value,Runnable click){TextSettingsCell c=new TextSettingsCell(getContext());c.setTextAndValue(getString(title),value,false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->click.run());list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,56));}
-    private void addAction(int title,Runnable click){TextSettingsCell c=new TextSettingsCell(getContext());c.setText(getString(title),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->click.run());list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
+    private void revealSearchTarget() {
+        if (highlightRes == 0 || scroll == null) return;
+        final int requested = highlightRes;
+        highlightRes = 0;
+        View target = null;
+        for (int i = 0; i < list.getChildCount(); i++) {
+            View row = list.getChildAt(i);
+            if (row.getTag() instanceof Integer && (Integer) row.getTag() == requested) {
+                target = row;
+                break;
+            }
+        }
+        // If history is disabled, first expose the switch instead of a nonexistent row.
+        if (target == null && list.getChildCount() > 0) target = list.getChildAt(0);
+        final View destination = target;
+        if (destination != null) scroll.post(() -> {
+            scroll.smoothScrollTo(0, Math.max(0, destination.getTop() - dp(72)));
+            destination.setBackgroundColor(Theme.getColor(Theme.key_listSelector));
+            destination.postDelayed(() -> destination.setBackgroundColor(
+                    Theme.getColor(Theme.key_windowBackgroundWhite)), 2200);
+        });
+    }
+    private void addEnabledSwitch(){TextCheckCell c=new TextCheckCell(getContext());c.setTextAndCheck(getString(R.string.PengramProfileHistoryEnable),PengramProfileHistory.enabled(),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->{if(PengramProfileHistory.enabled())showDisableChoice();else showStorageChoice();});c.setTag(R.string.PengramProfileHistoryEnable);list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
+    private void addCheck(int title,String key,boolean def,java.util.function.Consumer<Boolean> after){TextCheckCell c=new TextCheckCell(getContext());c.setTextAndCheck(getString(title),PengramConfig.getBool(key,def),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->{boolean n=!PengramConfig.getBool(key,def);PengramConfig.setBool(key,n);c.setChecked(n);if(after!=null)after.accept(n);rebuild();});c.setTag(title);list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
+    private void addChoice(int title,String value,Runnable click){TextSettingsCell c=new TextSettingsCell(getContext());c.setTextAndValue(getString(title),value,false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->click.run());c.setTag(title);list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,56));}
+    private void addAction(int title,Runnable click){TextSettingsCell c=new TextSettingsCell(getContext());c.setText(getString(title),false);c.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));c.setOnClickListener(v->click.run());c.setTag(title);list.addView(c,LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,50));}
     private void addInfo(int text){TextView v=new TextView(getContext());v.setText(getString(text));v.setTextSize(13);v.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));v.setPadding(dp(21),dp(10),dp(21),dp(14));list.addView(v);}
     private String storageName(){return getString(new int[]{R.string.PengramProfileStorageLocal,R.string.PengramProfileStorageCloud,R.string.PengramProfileStorageBoth}[PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)]);}
     private String scopeName(){return getString(new int[]{R.string.PengramProfileScopeManual,R.string.PengramProfileScopeInteracted,R.string.PengramProfileScopeContacts,R.string.PengramProfileScopeAll}[PengramConfig.getIntCached(PengramProfileHistory.KEY_SCOPE,0)]);}
