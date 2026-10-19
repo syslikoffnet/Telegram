@@ -3633,6 +3633,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true)) {
             items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true,
                     getString(R.string.PengramQuoteAvatar), getString(R.string.PengramQuoteAvatarInfo)));
+            if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true)) {
+                items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_ROUNDED, false,
+                        getString(R.string.PengramQuoteAvatarRounded)));
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteAvatarSize)));
+                items.add(UItem.asIntSlideView(1, 22, Math.max(22, Math.min(42,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, 28))), 42,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteAvatarGap)));
+                items.add(UItem.asIntSlideView(1, 4, Math.max(4, Math.min(20,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, 9))), 20,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, value)));
+            }
             items.add(UItem.asSettingsCell(BTN_QUOTE_FAKE_NAME, R.drawable.msg_edit,
                     getString(R.string.PengramQuoteFakeName),
                     TextUtils.isEmpty(PengramConfig.getQuoteFakeName()) ? getString(R.string.PengramQuoteOriginalName)
@@ -4494,6 +4506,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false);
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, 24);
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, 28);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, 28);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, 9);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_ROUNDED, false);
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
                 return;
             case BTN_QUOTE_ACTION_MODE:

@@ -2301,9 +2301,11 @@ public class ChatActivity extends BaseFragment implements
         if (message.isSecretMedia() && !org.telegram.messenger.PengramConfig.isResendOnceMedia()) {
             return false;
         }
-        // всё остальное можно отправить копией: и в секретном чате, и там,
-        // где запрещены пересылка и сохранение, и с удалёнок
-        return true;
+        // Обычное сообщение должно показывать обычное «Переслать», с автором
+        // и без повторной загрузки файла. Копирование — только для случаев,
+        // где обычный серверный forward невозможен, и локальных удалёнок.
+        return message.pengramDeleted
+                || org.telegram.messenger.PengramCopySender.isProtected(message);
     }
 
     /** отправляем копию сообщения от своего лица (без «переслано от») */

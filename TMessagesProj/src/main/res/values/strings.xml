@@ -11675,16 +11675,16 @@
     <string name="PengramForwardHint">Hold this bar to continue in background</string>
     <string name="PengramForwardBackground">Forwarding continues in background</string>
     <string name="PengramForwardDone">Forwarding finished</string>
-    <string name="PengramForwardHeader">Forwarding</string>
+    <string name="PengramForwardHeader">Sending copies</string>
     <string name="PengramForwardLock">Status instead of input field</string>
-    <string name="PengramForwardLockInfo">Only while sending deleted or one-time media</string>
+    <string name="PengramForwardLockInfo">Only for copies of protected, deleted or one-time messages</string>
     <string name="PengramMusicMetaHeader">Track info</string>
     <string name="PengramMusicSmartArtist">Find the artist in the title</string>
     <string name="PengramMusicSmartArtistInfo">If a file has no artist tag but the name looks like "Artist — Song", the part before the dash is shown as the artist. Real tags are never overwritten.</string>
     <string name="PengramMusicForwardClean">Tracks without author and caption</string>
     <string name="PengramMusicForwardCleanInfo">When only music is forwarded, the track is sent as a plain file: no "forwarded from" line and no caption it had in the original chat.</string>
     <string name="PengramForwardDoneAlert">Notify when finished</string>
-    <string name="PengramForwardInfo">The input field is replaced with a status only when deleted or one-time media is being sent. Regular photos, videos and files never block input. Hold the status to continue in background.</string>
+    <string name="PengramForwardInfo">Copy preparation shows a status. Ordinary forwarding does not block input. Hold the status to continue in the background.</string>
     <string name="PengramTabsInfo2">Switch off a button to remove it from the bar at the bottom of the main screen. Turning off Contacts leaves three perfectly spaced buttons.</string>
     <string name="PengramTabHidden">Button hidden</string>
     <string name="PengramTabVisible">Button is shown</string>
@@ -11762,12 +11762,12 @@
     <string name="PengramDeletedSendHeader">Deleted messages</string>
     <string name="PengramResendAsMine">Send deleted as my own</string>
     <string name="PengramResendAsMineInfo">Forwarding a deleted message sends a copy from you, without «forwarded from»</string>
-    <string name="PengramResendAlwaysOnInfo">Deleted-message actions are always available and copies are sent from you. Choose only how one-time media and chat selection should behave.</string>
+    <string name="PengramResendAlwaysOnInfo">Copies are sent as your messages. Ordinary messages use Telegram forwarding with sender attribution.</string>
     <string name="PengramResendMenu">Items in the message menu</string>
     <string name="PengramResendOnce">Also for one-time media</string>
     <string name="PengramResendAsk">Always ask for the chat</string>
-    <string name="PengramResendHere">Send as my own</string>
-    <string name="PengramResendTo">Send to another chat</string>
+    <string name="PengramResendHere">Send a copy here</string>
+    <string name="PengramResendTo">Send a copy to another chat</string>
     <string name="PengramResendSent">Sent</string>
     <string name="PengramForceDeleteForAll">Always offer «Delete for everyone»</string>
     <string name="PengramForceDeleteForAllInfo">The checkbox is shown even when Telegram hides it</string>
@@ -12072,7 +12072,7 @@
         <item>Amber</item>
     </string-array>
     <string name="PengramQuoteSticker">Sticker</string>
-    <string name="PengramQuotePrivacyHeader">Content and privacy</string>
+    <string name="PengramQuotePrivacyHeader">Sender and content</string>
     <string name="PengramQuoteFakeName">Replace sender name</string>
     <string name="PengramQuoteOriginalName">Original name</string>
     <string name="PengramQuoteAnonMentions">Hide @mentions in text</string>
@@ -12121,6 +12121,9 @@
     <string name="PengramQuoteLogoSize">Logo size</string>
     <string name="PengramQuoteLogoError">Could not open this image. Choose a PNG or JPEG up to 4 MB.</string>
     <string name="PengramQuoteAvatar">Sender avatars</string>
+    <string name="PengramQuoteAvatarRounded">Rounded-square avatars</string>
+    <string name="PengramQuoteAvatarSize">Avatar size</string>
+    <string name="PengramQuoteAvatarGap">Space after avatar</string>
     <string name="PengramQuoteAvatarInfo">Profile photos when available, initials otherwise. Hidden with names.</string>
     <string name="PengramQuoteSection">Create quotes</string>
     <string name="PengramQuoteIntro">Select messages in a chat or use the message menu to create an image quote. Up to 12 messages at once.</string>

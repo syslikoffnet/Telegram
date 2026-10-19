@@ -14,6 +14,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Pengram: пересылка копией от своего лица.
@@ -154,7 +155,10 @@ public final class PengramCopySender {
         if (message.messageOwner.noforwards) {
             return true;
         }
-        if (message.isSecretMedia() || message.messageOwner.ttl_period != 0 || message.messageOwner.ttl != 0) {
+        // ttl_period is Telegram's ordinary chat auto-delete timer, NOT a
+        // forwarding restriction. Only one-time/self-destruct media need a copy.
+        if (message.isSecretMedia() || message.isVoiceOnce() || message.isRoundOnce()
+                || message.messageOwner.ttl != 0) {
             return true;
         }
         if (DialogObject.isEncryptedDialog(message.getDialogId())) {
@@ -169,7 +173,7 @@ public final class PengramCopySender {
         // в ответ отказал бы.
         try {
             final long dialogId = message.getDialogId();
-            if (isPeerRestricted(message.currentAccount, dialogId)) {
+            if (isPeerRestricted(message.currentAccount, dialogId, message.isOutOwner())) {
                 return true;
             }
         } catch (Throwable ignore) {
@@ -180,11 +184,15 @@ public final class PengramCopySender {
     /**
      * Чат, из которого нельзя копировать.
      *
-     * Личные чаты сюда входят наравне с группами и каналами: запрет там живёт
-     * не на сообщении, а в настройках собеседника, и без этой проверки текст
-     * из такого чата уходил бы обычной пересылкой — то есть никуда.
+     * В личке источник проверяется для направления сообщения: настройка
+     * «защитить мои» не защищает входящие от собеседника, и наоборот.
      */
     public static boolean isPeerRestricted(int account, long dialogId) {
+        return isPeerRestricted(account, dialogId, null);
+    }
+
+    /** In a private chat each side can protect only its own messages. */
+    private static boolean isPeerRestricted(int account, long dialogId, Boolean ownMessage) {
         try {
             if (dialogId < 0) {
                 final TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
@@ -192,7 +200,9 @@ public final class PengramCopySender {
             }
             if (dialogId > 0) {
                 final TLRPC.UserFull full = MessagesController.getInstance(account).getUserFull(dialogId);
-                return full != null && (full.noforwards_peer_enabled || full.noforwards_my_enabled);
+                return full != null && (ownMessage == null
+                        ? full.noforwards_my_enabled || full.noforwards_peer_enabled
+                        : ownMessage ? full.noforwards_my_enabled : full.noforwards_peer_enabled);
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -696,13 +706,15 @@ public final class PengramCopySender {
             return;
         }
 
-        final boolean[] finished = new boolean[1];
+        final AtomicBoolean finished = new AtomicBoolean();
         final Runnable finish = () -> {
-            if (finished[0]) {
+            if (!finished.compareAndSet(false, true)) {
                 return;
             }
-            finished[0] = true;
-            callback.run(localPath(account, message));
+            final String path = localPath(account, message);
+            // Sending helpers and the queue/progress UI must run on the main
+            // thread even when the download finishes on globalQueue.
+            AndroidUtilities.runOnUIThread(() -> callback.run(path));
         };
 
         try {
@@ -714,7 +726,7 @@ public final class PengramCopySender {
             }
         } catch (Throwable e) {
             FileLog.e(e);
-            finish.run();
+            Utilities.globalQueue.postRunnable(finish);
             return;
         }
 
@@ -722,7 +734,7 @@ public final class PengramCopySender {
         Utilities.globalQueue.postRunnable(new Runnable() {
             @Override
             public void run() {
-                if (finished[0]) {
+                if (finished.get()) {
                     return;
                 }
                 try {

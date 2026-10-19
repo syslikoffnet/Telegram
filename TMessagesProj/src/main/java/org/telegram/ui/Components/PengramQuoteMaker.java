@@ -85,6 +85,9 @@ public final class PengramQuoteMaker {
     public static final String KEY_THEME_STYLE = "quoteFollowChatTheme";
     public static final String KEY_NAME = "quoteShowName";
     public static final String KEY_AVATAR = "quoteShowAvatar";
+    public static final String KEY_AVATAR_SIZE = "quoteAvatarSize";
+    public static final String KEY_AVATAR_GAP = "quoteAvatarGap";
+    public static final String KEY_AVATAR_ROUNDED = "quoteAvatarRounded";
     public static final String KEY_TIME = "quoteShowTime";
     public static final String KEY_MEDIA = "quoteIncludeMedia";
     public static final String KEY_DARK = "quoteDarkCard";
@@ -721,7 +724,14 @@ public final class PengramQuoteMaker {
         final boolean darkSurface = (Color.red(surface) * 299 + Color.green(surface) * 587
                 + Color.blue(surface) * 114) < 128000;
         float fontScale = Math.max(1f, Math.min(1.55f, activity.getResources().getConfiguration().fontScale));
-        final int nameHeight = (int) Math.ceil(34 * fontScale);
+        final boolean showAvatars = PengramConfig.getBool(KEY_NAME, true)
+                && PengramConfig.getBool(KEY_AVATAR, true);
+        final float avatarSize = Math.max(22, Math.min(42,
+                PengramConfig.getIntCached(KEY_AVATAR_SIZE, 28))) * fontScale;
+        final float avatarGap = Math.max(4, Math.min(20,
+                PengramConfig.getIntCached(KEY_AVATAR_GAP, 9))) * fontScale;
+        final boolean roundedAvatar = PengramConfig.getBool(KEY_AVATAR_ROUNDED, false);
+        final int nameHeight = (int) Math.ceil(Math.max(34 * fontScale, avatarSize + 6 * fontScale));
         final int timeHeight = (int) Math.ceil(28 * fontScale);
         final TextPaint body = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         body.setColor(ink);
@@ -768,7 +778,8 @@ public final class PengramQuoteMaker {
             if (e.layout != null) for (int line = 0; line < e.layout.getLineCount(); line++) {
                 lineWidth = Math.max(lineWidth, e.layout.getLineWidth(line));
             }
-            float nameWidth = name == null ? 0 : body.measureText(name) + (PengramConfig.getBool(KEY_AVATAR, true) ? 48 : 0);
+            float nameWidth = name == null ? 0 : body.measureText(name)
+                    + (showAvatars && !name.isEmpty() ? avatarSize + avatarGap : 0);
             float timeWidth = time == null ? 0 : body.measureText(time) * .76f;
             e.width = e.imageHeight > 0 ? WIDTH - pad * 2 : Math.min(WIDTH - pad * 2,
                     Math.max(230, Math.round(Math.max(lineWidth, Math.max(nameWidth, timeWidth)) + 76)));
@@ -802,37 +813,53 @@ public final class PengramQuoteMaker {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                     paint.setTextSize(25 * fontScale);
                     paint.setColor(accent);
-                    boolean avatar = PengramConfig.getBool(KEY_AVATAR, true);
-                    int nameInset = avatar ? Math.round(33 * fontScale) : 0;
-                    if (avatar && !name.isEmpty()) {
-                        float cx = contentLeft + 13 * fontScale, cy = inner + 13 * fontScale;
+                    final boolean avatar = showAvatars && !name.isEmpty();
+                    final float nameInset = avatar ? avatarSize + avatarGap : 0;
+                    if (avatar) {
+                        final float cx = contentLeft + avatarSize / 2f;
+                        final float cy = inner + nameHeight / 2f;
+                        final float half = avatarSize / 2f;
+                        final RectF faceRect = new RectF(cx - half, cy - half, cx + half, cy + half);
                         Bitmap face = e.avatar != null && !e.avatar.isRecycled() ? e.avatar
                                 : e.avatarFile != null ? decode(e.avatarFile, true) : null;
                         if (face != null) {
                             canvas.save();
-                            android.graphics.Path circle = new android.graphics.Path();
-                            circle.addCircle(cx, cy, 13 * fontScale, android.graphics.Path.Direction.CW);
-                            canvas.clipPath(circle);
+                            android.graphics.Path clip = new android.graphics.Path();
+                            if (roundedAvatar) clip.addRoundRect(faceRect, 7 * fontScale, 7 * fontScale,
+                                    android.graphics.Path.Direction.CW);
+                            else clip.addCircle(cx, cy, half, android.graphics.Path.Direction.CW);
+                            canvas.clipPath(clip);
                             paint.setColor(Color.WHITE);
-                            canvas.drawBitmap(face, null, new RectF(cx - 13 * fontScale, cy - 13 * fontScale,
-                                    cx + 13 * fontScale, cy + 13 * fontScale), paint);
+                            final int side = Math.min(face.getWidth(), face.getHeight());
+                            final int cropX = (face.getWidth() - side) / 2;
+                            final int cropY = (face.getHeight() - side) / 2;
+                            canvas.drawBitmap(face, new Rect(cropX, cropY, cropX + side, cropY + side), faceRect, paint);
                             canvas.restore();
                             if (face != e.avatar) face.recycle();
                         } else {
-                            canvas.drawCircle(cx, cy, 13 * fontScale, paint);
+                            paint.setColor(accent);
+                            if (roundedAvatar) canvas.drawRoundRect(faceRect, 7 * fontScale, 7 * fontScale, paint);
+                            else canvas.drawCircle(cx, cy, half, paint);
                             String initial = name.substring(0, Character.charCount(name.codePointAt(0)));
                             paint.setColor(darkSurface ? Color.BLACK : Color.WHITE);
-                            paint.setTextSize(16 * fontScale);
+                            paint.setTextSize(avatarSize * .58f);
                             paint.setTextAlign(Paint.Align.CENTER);
-                            canvas.drawText(initial, cx, cy + 5 * fontScale, paint);
-                            paint.setTextAlign(Paint.Align.LEFT);
-                            paint.setColor(accent);
-                            paint.setTextSize(25 * fontScale);
+                            Paint.FontMetrics fm = paint.getFontMetrics();
+                            canvas.drawText(initial, cx, cy - (fm.ascent + fm.descent) / 2f, paint);
                         }
+                        // The face bitmap uses a white paint; restore name color,
+                        // size and alignment for both the cached and fallback path.
+                        paint.setColor(accent);
+                        paint.setTextSize(25 * fontScale);
+                        paint.setTextAlign(Paint.Align.LEFT);
                     }
+                    Paint.FontMetrics nameMetrics = paint.getFontMetrics();
+                    final float baseline = inner + nameHeight / 2f
+                            - (nameMetrics.ascent + nameMetrics.descent) / 2f;
                     canvas.drawText(TextUtils.ellipsize(name, new TextPaint(paint),
-                            Math.max(20, contentWidth - nameInset), TextUtils.TruncateAt.END).toString(),
-                            contentLeft + nameInset, inner + 24 * fontScale, paint);
+                            Math.max(20, Math.min(contentWidth - nameInset,
+                                    e.width - 72 - nameInset)), TextUtils.TruncateAt.END).toString(),
+                            contentLeft + nameInset, baseline, paint);
                     inner += nameHeight;
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
                 }

@@ -2295,8 +2295,23 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         // Pengram: то, что сервер переслать не даст (защищённые чаты, секретные,
         // удалёнки, одноразовые медиа), отправляем копией от своего лица
         if (PengramCopySender.shouldCopy(messages, peer)) {
-            PengramCopySender.sendCopies(currentAccount, messages, peer);
-            return 0;
+            final ArrayList<MessageObject> protectedMessages = new ArrayList<>();
+            final ArrayList<MessageObject> ordinaryMessages = new ArrayList<>();
+            for (MessageObject item : messages) {
+                if (item == null || item.messageOwner == null) continue;
+                (PengramCopySender.isProtected(item) ? protectedMessages : ordinaryMessages).add(item);
+            }
+            // A protected item must never turn the rest of a selection into
+            // anonymous copies. Keep Telegram's real forwarded-from attribution,
+            // entities and media grouping for the ordinary part of the batch.
+            int forwarded = 0;
+            if (!ordinaryMessages.isEmpty()) {
+                forwarded = sendMessage(ordinaryMessages, peer, forwardFromMyNameArg,
+                        hideCaptionArg, notify, scheduleDate, scheduleRepeatPeriod,
+                        replyToTopMsg, video_timestamp, payStars, monoForumPeerId, suggestionParams);
+            }
+            PengramCopySender.sendCopies(currentAccount, protectedMessages, peer);
+            return forwarded;
         }
         // Pengram: трек уходит как самостоятельный файл — без строки «переслано от»
         // и без подписи, которая была у него в исходном чате.

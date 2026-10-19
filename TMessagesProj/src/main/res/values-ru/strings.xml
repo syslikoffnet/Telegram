@@ -671,9 +671,9 @@
     <string name="PengramForwardHint">Зажмите эту панель, чтобы продолжить в фоне</string>
     <string name="PengramForwardBackground">Пересылка продолжается в фоне</string>
     <string name="PengramForwardDone">Пересылка завершена</string>
-    <string name="PengramForwardHeader">Пересылка</string>
+    <string name="PengramForwardHeader">Отправка копий</string>
     <string name="PengramForwardLock">Статус вместо поля ввода</string>
-    <string name="PengramForwardLockInfo">Только при отправке удалённых и одноразовых медиа</string>
+    <string name="PengramForwardLockInfo">Только для копий защищённых, удалённых и одноразовых сообщений</string>
     <string name="PengramMusicMetaHeader">Данные трека</string>
     <string name="PengramMusicSmartArtist">Исполнитель из названия</string>
     <string name="PengramMusicSmartArtistInfo">Если в файле нет тега исполнителя, а название выглядит как «Пошлая Молли — Нимфоманка», часть до тире показывается как исполнитель. Настоящие теги никогда не перезаписываются.</string>
@@ -758,12 +758,12 @@
     <string name="PengramDeletedSendHeader">Удалённые сообщения</string>
     <string name="PengramResendAsMine">Удалённые отправлять от своего лица</string>
     <string name="PengramResendAsMineInfo">При пересылке удалёнки уходит копия от вас, без пометки «переслано от»</string>
-    <string name="PengramResendAlwaysOnInfo">Действия с удалёнными сообщениями всегда доступны, а копия отправляется от вашего имени. Здесь настраиваются только одноразовые медиа и выбор чата.</string>
+    <string name="PengramResendAlwaysOnInfo">Копии отправляются от вашего имени. Обычные сообщения пересылаются через Telegram с указанием автора.</string>
     <string name="PengramResendMenu">Пункты в меню сообщения</string>
     <string name="PengramResendOnce">И для одноразовых медиа</string>
     <string name="PengramResendAsk">Всегда спрашивать чат</string>
-    <string name="PengramResendHere">Отправить от своего лица</string>
-    <string name="PengramResendTo">Отправить в другой чат</string>
+    <string name="PengramResendHere">Отправить копию сюда</string>
+    <string name="PengramResendTo">Отправить копию в другой чат</string>
     <string name="PengramResendSent">Отправлено</string>
     <string name="PengramForceDeleteForAll">Всегда предлагать «Удалить у всех»</string>
     <string name="PengramForceDeleteForAllInfo">Галочка показывается, даже когда Telegram её прячет</string>
@@ -1068,7 +1068,7 @@
         <item>Янтарный</item>
     </string-array>
     <string name="PengramQuoteSticker">Стикер</string>
-    <string name="PengramQuotePrivacyHeader">Содержание и приватность</string>
+    <string name="PengramQuotePrivacyHeader">Отправитель и содержание</string>
     <string name="PengramQuoteFakeName">Подменить имя отправителя</string>
     <string name="PengramQuoteOriginalName">Исходное имя</string>
     <string name="PengramQuoteAnonMentions">Скрывать @упоминания в тексте</string>
@@ -1117,6 +1117,9 @@
     <string name="PengramQuoteLogoSize">Размер логотипа</string>
     <string name="PengramQuoteLogoError">Не удалось открыть изображение. Выберите PNG или JPEG до 4 МБ.</string>
     <string name="PengramQuoteAvatar">Аватарки отправителей</string>
+    <string name="PengramQuoteAvatarRounded">Аватарки со скруглёнными углами</string>
+    <string name="PengramQuoteAvatarSize">Размер аватарок</string>
+    <string name="PengramQuoteAvatarGap">Отступ после аватарки</string>
     <string name="PengramQuoteAvatarInfo">Фото профиля при наличии, иначе инициалы. Скрываются вместе с именами.</string>
     <string name="PengramQuoteSection">Создание цитат</string>
     <string name="PengramQuoteIntro">Выберите сообщения в чате или откройте меню сообщения. До 12 сообщений в одной цитате.</string>
