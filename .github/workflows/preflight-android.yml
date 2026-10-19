@@ -65,9 +65,21 @@ jobs:
           python3 scripts/test-pengram-visual-editor.py
           python3 scripts/test-pengram-search-index.py
 
-      - name: Identify reported editor resource ID
+      - name: Identify reported editor resource IDs
         run: |
-          find TMessagesProj/build/intermediates -name R.txt -type f -exec grep -iH '0x7f0fe0cb' {} + || true
+          python3 - <<'PY'
+          from pathlib import Path
+          ids = {'0x7f0fe0cb', '0x7f0fe0de'}
+          hits = set()
+          for table in Path('TMessagesProj/build/intermediates').rglob('R.txt'):
+              for line in table.read_text(errors='replace').splitlines():
+                  for resource_id in ids:
+                      if resource_id in line.lower() and resource_id not in hits:
+                          print(f'::notice title=Editor crash resource::{resource_id} = {line.strip()}')
+                          hits.add(resource_id)
+          for resource_id in ids - hits:
+              print(f'::notice title=Editor crash resource::{resource_id} was not found in preflight R.txt')
+          PY
 
       # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
       # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.

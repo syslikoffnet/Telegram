@@ -18,6 +18,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.graphics.ColorUtils;
 
@@ -206,13 +207,33 @@ public class PengramLayoutEditorActivity extends BaseFragment {
 
     private void saveVisualDraft() {
         if (visualDraft == null) return;
-        visualDraft.save();
+        try {
+            if (!visualDraft.save()) {
+                showSaveError();
+                return;
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+            showSaveError();
+            return;
+        }
         visualDraft = null;
         if (draftRadius != SharedConfig.bubbleRadius) applyBubbleRadius(draftRadius);
         if (draftFontSize != SharedConfig.fontSize) applyFontSize(draftFontSize);
         org.telegram.messenger.PengramMonet.update(getContext());
         applyEverywhere();
         finishFragment();
+    }
+
+    private void showSaveError() {
+        String message;
+        try {
+            message = getString(R.string.PengramEditorSaveFailed);
+        } catch (Resources.NotFoundException e) {
+            FileLog.e(e);
+            message = "Could not save the layout";
+        }
+        if (getContext() != null) Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
     }
 
     @Override
@@ -247,7 +268,6 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         switch (element) {
             case PengramInteractivePreviewView.TITLE:
                 updatePanel(mock.elementById(PengramScreenMockView.EL_TITLE));
-                addToggle(R.string.PengramTitleCenter, PengramConfig.KEY_TITLE_CENTER, false);
                 return;
             case PengramInteractivePreviewView.SEARCH_BAR:
                 setPanelText(panelTitle, R.string.Search);
@@ -423,6 +443,19 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     /** Only preferences already demonstrated by this sample get inline controls.
      * Other rows retain a clearly labelled link to their actual setting. */
     private void addListedSettingControls(int title) {
+        if (title == R.string.PengramTitleText || title == R.string.PengramTitleCustom) {
+            addTitleControls(); return;
+        }
+        if (title == R.string.PengramTitleCenter) {
+            addToggle(title, PengramConfig.KEY_TITLE_CENTER, false); return;
+        }
+        if (title == R.string.PengramDeletedMark) {
+            addDeletedMarkControls(); return;
+        }
+        if (title == R.string.PengramChatMenu || title == R.string.PengramChatMenuTop
+                || title == R.string.PengramChatMenuBottom) {
+            addChatMenuControls(); return;
+        }
         if (title == R.string.PengramMD3) {
             addToggle(title, PengramMD3.KEY_ENABLED, false); return;
         }
@@ -753,67 +786,15 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 break;
             }
             case PengramScreenMockView.EL_MENU: {
-                addChip(getString(R.string.PengramChatMenuTop), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_TOP, () -> {
-                    if (!PengramConfig.isChatMenuEnabled()) {
-                        PengramConfig.toggleChatMenu();
-                    }
-                    PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_TOP);
-                    afterChange();
-                });
-                addChip(getString(R.string.PengramChatMenuBottom), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_BOTTOM, () -> {
-                    if (!PengramConfig.isChatMenuEnabled()) {
-                        PengramConfig.toggleChatMenu();
-                    }
-                    PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_BOTTOM);
-                    afterChange();
-                });
-                addChip(getString(R.string.PengramEditorHide), !PengramConfig.isChatMenuEnabled(), () -> {
-                    if (PengramConfig.isChatMenuEnabled()) {
-                        PengramConfig.toggleChatMenu();
-                    }
-                    afterChange();
-                });
-                addChip(getString(R.string.PengramEditorOpenList), false,
-                        () -> preview.showPage(PengramInteractivePreviewView.CHAT_BUTTONS));
+                addChatMenuControls();
                 break;
             }
             case PengramScreenMockView.EL_TITLE: {
-                addChip("Pengram", PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_PENGRAM,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_PENGRAM));
-                addChip(getString(R.string.PengramTitleChats), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CHATS,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_CHATS));
-                addChip(getString(R.string.PengramTitleModeName), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_NAME,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_NAME));
-                addChip(getString(R.string.PengramTitleModeUsername), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_USERNAME,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_USERNAME));
-                addChip(getString(R.string.PengramTitleModeDefault), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_DEFAULT,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_DEFAULT));
-                addChip(getString(R.string.PengramTitleCustom), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM,
-                        () -> setTitleMode(PengramConfig.TITLE_MODE_CUSTOM));
-                if (PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM) {
-                    final EditText customTitle = new EditText(getContext());
-                    customTitle.setSingleLine(true);
-                    customTitle.setFilters(new InputFilter[]{new InputFilter.LengthFilter(64)});
-                    customTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-                    PengramInteractivePreviewView.setSafeHint(customTitle, R.string.PengramTitleCustom, "Название / Title");
-                    customTitle.setText(PengramConfig.getTitleCustom());
-                    sliderBox.addView(customTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-                    addChip(getString(R.string.Save), false, () -> {
-                        PengramConfig.setTitleCustom(customTitle.getText().toString().trim());
-                        afterChange();
-                    });
-                }
+                addTitleControls();
                 break;
             }
             case PengramScreenMockView.EL_MARK: {
-                addChip(getString(R.string.PengramMarkTrash), PengramConfig.getDeletedMark() == PengramConfig.MARK_TRASH,
-                        () -> setMark(PengramConfig.MARK_TRASH));
-                addChip(getString(R.string.PengramMarkCross), PengramConfig.getDeletedMark() == PengramConfig.MARK_CROSS,
-                        () -> setMark(PengramConfig.MARK_CROSS));
-                addChip(getString(R.string.PengramMarkFire), PengramConfig.getDeletedMark() == PengramConfig.MARK_FIRE,
-                        () -> setMark(PengramConfig.MARK_FIRE));
-                addChip(getString(R.string.PengramMarkNone), PengramConfig.getDeletedMark() == PengramConfig.MARK_NONE,
-                        () -> setMark(PengramConfig.MARK_NONE));
+                addDeletedMarkControls();
                 break;
             }
             case PengramScreenMockView.EL_BUBBLE: {
@@ -847,6 +828,73 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         }
     }
 
+    private void addChatMenuControls() {
+        addChip(getString(R.string.PengramChatMenuTop), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_TOP, () -> {
+            if (!PengramConfig.isChatMenuEnabled()) {
+                PengramConfig.toggleChatMenu();
+            }
+            PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_TOP);
+            afterChange();
+        });
+        addChip(getString(R.string.PengramChatMenuBottom), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_BOTTOM, () -> {
+            if (!PengramConfig.isChatMenuEnabled()) {
+                PengramConfig.toggleChatMenu();
+            }
+            PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_BOTTOM);
+            afterChange();
+        });
+        addChip(getString(R.string.PengramEditorHide), !PengramConfig.isChatMenuEnabled(), () -> {
+            if (PengramConfig.isChatMenuEnabled()) {
+                PengramConfig.toggleChatMenu();
+            }
+            afterChange();
+        });
+        addChip(getString(R.string.PengramEditorOpenList), false,
+                () -> preview.showPage(PengramInteractivePreviewView.CHAT_BUTTONS));
+    }
+
+    private void addTitleControls() {
+        addChip("Pengram", PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_PENGRAM,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_PENGRAM));
+        addChip(getString(R.string.PengramTitleChats), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CHATS,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_CHATS));
+        addChip(getString(R.string.PengramTitleModeName), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_NAME,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_NAME));
+        addChip(getString(R.string.PengramTitleModeUsername), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_USERNAME,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_USERNAME));
+        addChip(getString(R.string.PengramTitleModeDefault), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_DEFAULT,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_DEFAULT));
+        addChip(getString(R.string.PengramTitleCustom), PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM,
+                () -> setTitleMode(PengramConfig.TITLE_MODE_CUSTOM));
+        if (PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM) {
+            final EditText customTitle = new EditText(getContext());
+            customTitle.setSingleLine(true);
+            customTitle.setFilters(new InputFilter[]{new InputFilter.LengthFilter(64)});
+            customTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            PengramInteractivePreviewView.setSafeHint(customTitle, R.string.PengramTitleCustom, "Название / Title");
+            customTitle.setText(PengramConfig.getTitleCustom());
+            sliderBox.addView(customTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+            addChip(getString(R.string.PengramEditorApplyDraft), false, () -> {
+                PengramConfig.setTitleCustom(customTitle.getText().toString().trim());
+                afterChange();
+            });
+        }
+        addToggle(R.string.PengramTitleCenter, PengramConfig.KEY_TITLE_CENTER, false);
+    }
+
+    private void addDeletedMarkControls() {
+        addChip(getString(R.string.PengramMarkTrash), PengramConfig.getDeletedMark() == PengramConfig.MARK_TRASH,
+                () -> setMark(PengramConfig.MARK_TRASH));
+        addChip(getString(R.string.PengramMarkCross), PengramConfig.getDeletedMark() == PengramConfig.MARK_CROSS,
+                () -> setMark(PengramConfig.MARK_CROSS));
+        addChip(getString(R.string.PengramMarkEye), PengramConfig.getDeletedMark() == PengramConfig.MARK_EYE,
+                () -> setMark(PengramConfig.MARK_EYE));
+        addChip(getString(R.string.PengramMarkFire), PengramConfig.getDeletedMark() == PengramConfig.MARK_FIRE,
+                () -> setMark(PengramConfig.MARK_FIRE));
+        addChip(getString(R.string.PengramMarkNone), PengramConfig.getDeletedMark() == PengramConfig.MARK_NONE,
+                () -> setMark(PengramConfig.MARK_NONE));
+    }
+
     private void setTitleMode(int mode) {
         PengramConfig.setTitleMode(mode);
         afterChange();
@@ -876,7 +924,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             if (getParentLayout() != null) {
                 for (BaseFragment fragment : getParentLayout().getFragmentStack()) {
                     if (fragment instanceof MainTabsActivity) {
-                        ((MainTabsActivity) fragment).checkPengramTabsVisibility();
+                        // Reconcile the actual page stack as well as the buttons:
+                        // hiding a tab must not leave a stale navigable fragment.
+                        ((MainTabsActivity) fragment).checkPengramTabs();
                     }
                     if (fragment instanceof DialogsActivity) {
                         ((DialogsActivity) fragment).pengramUpdateTitle();

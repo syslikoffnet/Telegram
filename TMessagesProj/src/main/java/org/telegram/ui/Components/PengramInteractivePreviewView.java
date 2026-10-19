@@ -33,6 +33,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.PengramSearchIndex;
+import org.telegram.ui.PengramSearchMetadata;
 import org.telegram.ui.PengramSettingsActivity;
 
 import java.util.ArrayDeque;
@@ -44,7 +45,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
     public static final int DIALOGS = 0, CHAT = 1, CONTACTS = 2, SETTINGS = 3,
             CALLS = 4, PROFILE = 5, PLAYER = 6, SEARCH = 7, MENU = 8, CHAT_BUTTONS = 9,
             APPEARANCE = 10, SHEET = 11, ALERT = 12, NATIVE_SETTINGS = 13,
-            NEW_MESSAGE = 14, STORY = 15, SETTINGS_LIST = 16;
+            NEW_MESSAGE = 14, STORY = 15, SETTINGS_LIST = 16, SETTINGS_SEARCH = 17;
     public static final int TITLE = 1, SEARCH_BAR = 2, DIALOG_ROW = 3, FAB = 4,
             TAB = 5, MD3 = 6, SETTINGS_ROW = 7, MENU_ROW = 8, PLAYER_CARD = 9,
             STORIES = 10, CHAT_BUTTON_ROW = 11, PREVIEW_ONLY = 12, SETTINGS_OPTION = 13;
@@ -73,6 +74,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
     private int settingsSection = PengramSettingsActivity.SECTION_APPEARANCE;
     private int sampleChatIndex;
     private String searchQuery = "";
+    private String settingsSearchQuery = "";
     private final String[] sampleDrafts = new String[3];
     private final String[] sampleSent = new String[3];
     private static final int[] SAMPLE_CHAT_TITLES = {
@@ -125,6 +127,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
         settingsSectionHistory.addAll(previous.settingsSectionHistory);
         sampleChatIndex = previous.sampleChatIndex;
         searchQuery = previous.searchQuery;
+        settingsSearchQuery = previous.settingsSearchQuery;
         history.clear();
         history.addAll(previous.history);
         System.arraycopy(previous.sampleDrafts, 0, sampleDrafts, 0, sampleDrafts.length);
@@ -311,6 +314,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
             case ALERT: title = getString(R.string.PengramMD3Alerts); break;
             case NATIVE_SETTINGS: title = getString(PengramConfig.getSettingsItemTitle(nativeSettingsId)); break;
             case SETTINGS_LIST: title = PengramSettingsActivity.sectionTitle(settingsSection).toString(); break;
+            case SETTINGS_SEARCH: title = getString(R.string.PengramEditorSettingsSearch); break;
             case NEW_MESSAGE: title = getString(R.string.PengramEditorNewMessage); break;
             case STORY: title = getString(R.string.PengramEditorStories); break;
             default: title = sampleTitle(); break;
@@ -330,6 +334,9 @@ public class PengramInteractivePreviewView extends LinearLayout {
             if (page == DIALOGS || page == CHAT) {
                 menuMode = page == CHAT ? 1 : 0;
                 showPage(MENU);
+            } else if (page == SETTINGS || page == SETTINGS_LIST || page == APPEARANCE
+                    || page == NATIVE_SETTINGS || page == SETTINGS_SEARCH) {
+                showPage(SETTINGS_SEARCH);
             } else showPage(SEARCH);
         });
         more.setContentDescription(getString(page == DIALOGS || page == CHAT
@@ -378,6 +385,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
             case ALERT: renderDemoOverlay(PengramMD3.alerts()); break;
             case NATIVE_SETTINGS: renderNativeSettings(); break;
             case SETTINGS_LIST: renderSettingsList(); break;
+            case SETTINGS_SEARCH: renderSettingsSearch(); break;
             case MENU: renderMenu(); break;
             case CHAT_BUTTONS: renderChatButtons(); break;
             case PLAYER: renderPlayer(); break;
@@ -776,8 +784,123 @@ public class PengramInteractivePreviewView extends LinearLayout {
                 () -> openSettingsSection(PengramSettingsActivity.SECTION_ROOT)));
     }
 
+    private void renderSettingsSearch() {
+        final EditText input = new EditText(getContext());
+        input.setSingleLine(true);
+        input.setTextSize(15);
+        setSafeHint(input, R.string.PengramEditorSettingsSearch, "Search settings");
+        input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(80)});
+        input.setTextColor(color(Theme.key_windowBackgroundWhiteBlackText));
+        input.setHintTextColor(color(Theme.key_windowBackgroundWhiteGrayText2));
+        input.setPadding(dp(16), dp(5), dp(16), dp(5));
+        input.setBackground(Theme.createRoundRectDrawable(dp(20),
+                ColorUtils.blendARGB(color(Theme.key_windowBackgroundWhite),
+                        color(Theme.key_windowBackgroundWhiteBlackText), .06f)));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(48));
+        params.setMargins(dp(12), dp(8), dp(12), dp(8));
+        body.addView(input, params);
+        TextView hint = text(getString(R.string.PengramEditorSettingsSearchHint), 13,
+                color(Theme.key_windowBackgroundWhiteGrayText2));
+        hint.setSingleLine(false);
+        hint.setPadding(dp(16), dp(5), dp(16), dp(8));
+        body.addView(hint);
+        LinearLayout results = new LinearLayout(getContext());
+        results.setOrientation(VERTICAL);
+        body.addView(results);
+        input.setText(settingsSearchQuery);
+        input.setSelection(input.length());
+        renderSettingsSearchResults(results, settingsSearchQuery);
+        final Runnable[] pendingSearch = {null};
+        input.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                settingsSearchQuery = s.toString();
+                if (pendingSearch[0] != null) results.removeCallbacks(pendingSearch[0]);
+                results.removeAllViews();
+                final String requested = settingsSearchQuery;
+                pendingSearch[0] = () -> {
+                    if (page == SETTINGS_SEARCH && results.getParent() == body
+                            && requested.equals(settingsSearchQuery)) {
+                        renderSettingsSearchResults(results, requested);
+                    }
+                };
+                results.postDelayed(pendingSearch[0], 90);
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+    }
+
+    private static final int SETTINGS_RESULT_BATCH = 60;
+
+    private void renderSettingsSearchResults(LinearLayout results, String query) {
+        renderSettingsSearchResults(results, query, 0);
+    }
+
+    private void renderSettingsSearchResults(LinearLayout results, String query, int offset) {
+        String[] terms = PengramSearchMetadata.queryTerms(query);
+        if (terms.length == 0) return;
+        int count = 0;
+        for (int i = 0; i < PengramSearchIndex.ITEMS.length; i++) {
+            final int index = i;
+            final int[] entry = PengramSearchIndex.ITEMS[i];
+            if (!PengramSearchMetadata.matches(entry, terms)) continue;
+            count++;
+            // A short query can match hundreds of rows. Render small batches to
+            // avoid blocking input and allow the user to request the rest.
+            if (count <= offset || count > offset + SETTINGS_RESULT_BATCH) continue;
+            TextView item = text("", 14, color(Theme.key_windowBackgroundWhiteBlackText));
+            item.setText(PengramSearchMetadata.emphasizedPath(entry, query));
+            item.setSingleLine(false);
+            item.setEllipsize(null);
+            item.setMaxLines(Integer.MAX_VALUE);
+            item.setMinHeight(dp(58));
+            item.setPadding(dp(16), dp(9), dp(16), dp(9));
+            item.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector)));
+            item.setOnClickListener(v -> {
+                settingsSectionHistory.clear();
+                settingsSection = entry[1];
+                showPage(SETTINGS_LIST);
+                select(SETTINGS_OPTION, index);
+                for (int rowIndex = 0; rowIndex < body.getChildCount(); rowIndex++) {
+                    View row = body.getChildAt(rowIndex);
+                    Object tag = row.getTag();
+                    if (tag instanceof int[] && ((int[]) tag).length >= 2
+                            && ((int[]) tag)[0] == SETTINGS_OPTION && ((int[]) tag)[1] == index) {
+                        final View selectedRow = row;
+                        scroller.post(() -> {
+                            if (page == SETTINGS_LIST && selectedRow.getParent() == body) {
+                                scroller.smoothScrollTo(0, Math.max(0, selectedRow.getTop() - dp(16)));
+                                highlightSelectedRow(selectedRow);
+                            }
+                        });
+                        break;
+                    }
+                }
+            });
+            results.addView(item, new LinearLayout.LayoutParams(-1, -2));
+        }
+        if (count == 0) {
+            TextView empty = text(getString(R.string.PengramEditorSettingsSearchEmpty), 14,
+                    color(Theme.key_windowBackgroundWhiteGrayText2));
+            empty.setPadding(dp(16), dp(18), dp(16), dp(18));
+            results.addView(empty);
+        } else if (count > offset + SETTINGS_RESULT_BATCH) {
+            TextView more = row(getString(R.string.PengramEditorMoreResults), null, () -> {
+                // The query may have changed while an older button was visible.
+                if (page == SETTINGS_SEARCH && results.getParent() == body
+                        && query.equals(settingsSearchQuery)) {
+                    results.removeViewAt(results.getChildCount() - 1);
+                    renderSettingsSearchResults(results, query, offset + SETTINGS_RESULT_BATCH);
+                }
+            });
+            results.addView(more);
+        }
+    }
+
     private void renderSettingsList() {
         if (PengramMD3.settingsScreen()) body.setBackgroundColor(PengramMD3.surface(null, .035f));
+        body.addView(settingsRow(getString(R.string.PengramEditorSettingsSearch),
+                () -> showPage(SETTINGS_SEARCH)));
         body.addView(settingsRow(getString(R.string.PengramEditorSettingsListHint),
                 () -> select(PREVIEW_ONLY, 0)));
         if (settingsSection == PengramSettingsActivity.SECTION_ROOT) {
@@ -791,8 +914,19 @@ public class PengramInteractivePreviewView extends LinearLayout {
                     PengramSettingsActivity.SECTION_ABOUT
             };
             for (int section : sections) {
-                body.addView(settingsRow(PengramSettingsActivity.sectionTitle(section).toString(),
-                        () -> openSettingsSection(section)));
+                String label = PengramSettingsActivity.sectionTitle(section).toString();
+                TextView sectionRow = settingsRow(label, () -> openSettingsSection(section));
+                // The category itself is indexed: make the search destination
+                // focusable without replacing its normal navigation action.
+                for (int i = 0; i < PengramSearchIndex.ITEMS.length; i++) {
+                    int[] entry = PengramSearchIndex.ITEMS[i];
+                    if (entry[1] == PengramSettingsActivity.SECTION_ROOT
+                            && label.equals(getString(entry[0]))) {
+                        tagRow(sectionRow, SETTINGS_OPTION, i);
+                        break;
+                    }
+                }
+                body.addView(sectionRow);
             }
             return;
         }

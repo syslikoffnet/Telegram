@@ -1808,8 +1808,14 @@
     <string name="PengramExportRootMissing">Начальное сообщение темы недоступно.</string>
     <string name="PengramExportLegacyTitle">История мигрировавшего чата</string>
     <string name="PengramExportLegacyNote">Сообщения старой группы загружены с сервера отдельно; их ID могут совпадать с ID нового чата.</string>
-    <string name="PengramEditorBrowseSettings">Посмотреть все настройки Pengram</string>
-    <string name="PengramEditorSettingsListHint">Тестовый список настроек. Нажмите на пункт, чтобы открыть настоящий параметр; данные аккаунта в макете не меняются.</string>
+    <string name="PengramEditorBrowseSettings">Списки настроек Pengram</string>
+    <string name="PengramEditorSettingsListHint">Тестовый список настроек. Нажмите на строку для редактирования с сохранением, если оно доступно; данные аккаунта не показаны.</string>
+    <string name="PengramEditorSettingsSearch">Найти настройку</string>
+    <string name="PengramEditorSettingsSearchHint">Поиск по названиям, путям и синонимам: например, аватарка</string>
+    <string name="PengramEditorSettingsSearchEmpty">Настройки не найдены</string>
+    <string name="PengramEditorMoreResults">Показать ещё результаты</string>
+    <string name="PengramEditorSaveFailed">Не удалось сохранить макет. Изменения остались в редакторе.</string>
+    <string name="PengramEditorApplyDraft">Показать в макете</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
     <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
 </resources>

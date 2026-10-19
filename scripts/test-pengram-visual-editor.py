@@ -62,6 +62,23 @@ def check():
     assert "root.addView(preview, new FrameLayout.LayoutParams(-1, -1))" in EDITOR
     assert "panelScroll.setVisibility(View.GONE)" in EDITOR
     assert "visualDraft.save()" in EDITOR and "visualDraft.discard()" in EDITOR
+    assert "((MainTabsActivity) fragment).checkPengramTabs();" in EDITOR
+    assert "if (!visualDraft.save())" in EDITOR and "showSaveError();" in EDITOR
+    assert "if (!editor.commit()) return false;" in CONFIG
+    assert "renderSettingsSearchResults(results, settingsSearchQuery)" in PREVIEW
+    assert "PengramSearchMetadata.matches(entry, terms)" in PREVIEW
+    assert "settingsSection = entry[1];" in PREVIEW
+    assert "SETTINGS_SEARCH" in PREVIEW
+    assert "SETTINGS_RESULT_BATCH = 60" in PREVIEW
+    assert "results.postDelayed(pendingSearch[0], 90)" in PREVIEW
+    assert "results.removeCallbacks(pendingSearch[0])" in PREVIEW
+    assert "PengramEditorMoreResults" in PREVIEW
+    assert "item.setEllipsize(null)" in PREVIEW
+    assert "PengramEditorSettingsSearchEmpty" in PREVIEW
+    assert "addTitleControls(); return;" in EDITOR
+    assert "addDeletedMarkControls(); return;" in EDITOR
+    assert "addChatMenuControls(); return;" in EDITOR
+    assert "PengramMarkEye" in EDITOR and "PengramEditorApplyDraft" in EDITOR
     assert "private static boolean stageVisual(String key, Object value)" in CONFIG
     assert "if (stageVisual(key, value)) return;" in CONFIG
     assert 'visualString("settingsOrder")' in CONFIG

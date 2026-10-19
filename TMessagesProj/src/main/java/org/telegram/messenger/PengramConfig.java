@@ -350,21 +350,22 @@ public class PengramConfig {
 
         private VisualDraft() { }
 
-        public void save() {
-            if (finished || visualDraft != this) return;
+        /** Return false without discarding the draft if preferences cannot be saved. */
+        public boolean save() {
+            if (finished || visualDraft != this) return false;
+            SharedPreferences p = prefs();
+            if (p == null) return false;
+            SharedPreferences.Editor editor = p.edit();
+            for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) value);
+                else if (value instanceof Integer) editor.putInt(entry.getKey(), (Integer) value);
+                else if (value instanceof String) editor.putString(entry.getKey(), (String) value);
+            }
+            // Never close the editor or update live fields when storage failed.
+            if (!editor.commit()) return false;
             finished = true;
             visualDraft = null;
-            SharedPreferences p = prefs();
-            if (p != null) {
-                SharedPreferences.Editor editor = p.edit();
-                for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
-                    Object value = entry.getValue();
-                    if (value instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) value);
-                    else if (value instanceof Integer) editor.putInt(entry.getKey(), (Integer) value);
-                    else if (value instanceof String) editor.putString(entry.getKey(), (String) value);
-                }
-                editor.apply();
-            }
             // Only now expose staged layout fields to the live Telegram UI.
             for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
                 String key = entry.getKey();
