@@ -30,6 +30,13 @@ assert '{R.string.PengramSendStyle, PengramSettingsActivity.SECTION_TYPING,' in 
 assert '{R.string.PengramSendStyleLargeEmoji, PengramSettingsActivity.SECTION_TYPING,' in index
 assert 'id == R.string.PengramSendStyle' in metadata and ' шрифтом писать' in metadata
 for locale in ('values', 'values-ru'):
-    names = {node.get('name') for node in ET.parse(root / f'res/{locale}/strings.xml').iter('string')}
+    strings = list(ET.parse(root / f'res/{locale}/strings.xml').iter('string'))
+    names = {node.get('name') for node in strings}
     assert {'PengramSendStyleLargeEmoji', 'PengramSendStyleLargeEmojiInfo'} <= names
+    # XML parsing alone accepts apostrophes which Android's resource flattener
+    # rejects. This previously broke the APK while Java preflight passed.
+    for node in strings:
+        if (node.get('name') or '').startswith('Pengram'):
+            value = ''.join(node.itertext())
+            assert not __import__('re').search(r"(?<!\\)'", value), node.get('name')
 print('Outgoing style and large-emoji routing: OK')

@@ -27,6 +27,11 @@ assert 'full.noforwards_my_enabled : full.noforwards_peer_enabled' in copy
 assert 'isPeerRestricted(message.currentAccount, dialogId, message.isOutOwner())' in protected
 assert 'finished.compareAndSet(false, true)' in copy
 assert 'AndroidUtilities.runOnUIThread(() -> callback.run(path))' in copy
+assert 'waitingCopies.add(start)' in copy and 'waitingCopies.poll()' in copy
+assert 'once.compareAndSet(false, true)' in copy
+assert 'File.createTempFile("copy_"' in copy
+assert 'Utilities.globalQueue.postRunnable(() -> {' in copy
+assert 'done.run(false);' in copy  # missing media is reported, not replaced by caption-only success
 
 # A protected element of a multi-selection must not strip attribution from
 # the ordinary elements. The standard forward retains all its arguments.

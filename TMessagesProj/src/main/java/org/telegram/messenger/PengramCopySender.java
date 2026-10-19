@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,6 +57,10 @@ public final class PengramCopySender {
     private static int busyDone;
     private static boolean busyPreparing;
     private static long busySince;
+    // Only the UI thread touches the job queue. Concurrent destinations must
+    // not overwrite each other's progress or clear a still-running status.
+    private static final ArrayDeque<Runnable> waitingCopies = new ArrayDeque<>();
+    private static boolean copyQueueActive;
     /** страховка: если отправка где-то застряла, статус не должен висеть вечно */
     private static final long BUSY_MAX = 15 * 60_000L;
 
@@ -280,8 +285,18 @@ public final class PengramCopySender {
         }
         final ArrayList<MessageObject> queue = new ArrayList<>(messages);
         final int[] counters = new int[2];
-        setBusy(dialogId, queue.size(), 0, false);
-        AndroidUtilities.runOnUIThread(() -> next(account, queue, 0, dialogId, notify, counters, result));
+        AndroidUtilities.runOnUIThread(() -> {
+            final Runnable start = () -> {
+                setBusy(dialogId, queue.size(), 0, false);
+                next(account, queue, 0, dialogId, notify, counters, result);
+            };
+            if (copyQueueActive) {
+                waitingCopies.add(start);
+            } else {
+                copyQueueActive = true;
+                start.run();
+            }
+        });
     }
 
     /** сообщения уходят по очереди: следующее — только когда предыдущее собрано */
@@ -289,20 +304,27 @@ public final class PengramCopySender {
                              int[] counters, Result result) {
         if (index >= queue.size()) {
             setBusy(0, 0, 0, false);
-            if (result != null) {
-                result.onDone(counters[0], counters[1]);
+            try {
+                if (result != null) result.onDone(counters[0], counters[1]);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            } finally {
+                final Runnable waiting = waitingCopies.poll();
+                if (waiting == null) copyQueueActive = false;
+                else waiting.run();
             }
             return;
         }
         setBusy(dialogId, queue.size(), index, false);
         final MessageObject message = queue.get(index);
+        final AtomicBoolean once = new AtomicBoolean();
         final Utilities.Callback<Boolean> goOn = ok -> {
-            if (ok != null && ok) {
-                counters[0]++;
-            } else {
-                counters[1]++;
-            }
-            next(account, queue, index + 1, dialogId, notify, counters, result);
+            if (!once.compareAndSet(false, true)) return;
+            if (ok != null && ok) counters[0]++;
+            else counters[1]++;
+            // Do not recurse through thousands of text copies on the UI stack.
+            AndroidUtilities.runOnUIThread(() -> next(account, queue, index + 1,
+                    dialogId, notify, counters, result));
         };
         if (message == null) {
             goOn.run(false);
@@ -335,21 +357,25 @@ public final class PengramCopySender {
             return;
         }
 
-        final String ready = localPath(account, message);
-        if (ready != null) {
-            done.run(sendFile(account, message, dialogId, notify, ready));
-            return;
-        }
-
         setBusy(dialogId, busyTotal, busyDone, true);
-        download(account, message, path -> {
-            setBusy(dialogId, busyTotal, busyDone, false);
-            if (path != null) {
-                done.run(sendFile(account, message, dialogId, notify, path));
-            } else {
-                // файла нет и скачать не вышло: хотя бы подпись не теряем
-                done.run(sendWithoutFile(account, message, dialogId, notify));
-            }
+        // Path lookup can decrypt a large .enc file; never do it on the UI thread.
+        Utilities.globalQueue.postRunnable(() -> {
+            final String ready = localPath(account, message);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (ready != null) {
+                    sendFileAsync(account, message, dialogId, notify, ready, done);
+                    return;
+                }
+                download(account, message, path -> {
+                    if (path != null) {
+                        sendFileAsync(account, message, dialogId, notify, path, done);
+                    } else {
+                        // A missing attachment is not a successfully sent photo.
+                        setBusy(dialogId, busyTotal, busyDone, false);
+                        done.run(false);
+                    }
+                });
+            });
         });
     }
 
@@ -407,19 +433,24 @@ public final class PengramCopySender {
 
     // ------------------------------------------------------------ сообщения с файлом
 
-    /** собрать новое сообщение из лежащего на диске файла */
-    private static boolean sendFile(int account, MessageObject message, long dialogId, boolean notify, String sourcePath) {
+    /** Copy potentially large media off the UI thread; send helpers run on UI. */
+    private static void sendFileAsync(int account, MessageObject message, long dialogId,
+                                      boolean notify, String sourcePath, Utilities.Callback<Boolean> done) {
+        Utilities.globalQueue.postRunnable(() -> {
+            final String path = tempCopy(sourcePath, message);
+            AndroidUtilities.runOnUIThread(() -> {
+                setBusy(dialogId, busyTotal, busyDone, false);
+                done.run(path != null && sendFile(account, message, dialogId, notify, path));
+            });
+        });
+    }
 
+    /** The file was copied to our cache on globalQueue; upload on the UI thread. */
+    private static boolean sendFile(int account, MessageObject message, long dialogId, boolean notify, String path) {
         final TLRPC.MessageMedia media = message.messageOwner.media;
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner.entities);
         final String caption = withAuthor(message, message.messageOwner.message, entities);
         final boolean spoiler = media != null && media.spoiler;
-
-        // работаем с копией: заливка не должна трогать кэш исходного чата
-        final String path = tempCopy(sourcePath, message);
-        if (path == null) {
-            return sendWithoutFile(account, message, dialogId, notify);
-        }
 
         // Таймером файл не трогаем: отправка может ещё читать его после возврата
         // из sendMessage (особенно для больших видео). Лишняя копия лежит в
@@ -429,7 +460,7 @@ public final class PengramCopySender {
             if (media != null && media.document != null) {
                 final TLRPC.TL_document document = buildDocument(media.document, path);
                 if (document == null) {
-                    return sendWithoutFile(account, message, dialogId, notify);
+                    return false;
                 }
                 final HashMap<String, String> params = new HashMap<>();
                 params.put("originalPath", path);
@@ -444,7 +475,7 @@ public final class PengramCopySender {
             return true;
         } catch (Throwable e) {
             FileLog.e(e);
-            return sendWithoutFile(account, message, dialogId, notify);
+            return false;
         }
     }
 
@@ -474,22 +505,25 @@ public final class PengramCopySender {
             final File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), "pengram_copy");
             //noinspection ResultOfMethodCallIgnored
             dir.mkdirs();
-            final File target = new File(dir, message.getId() + "_" + System.currentTimeMillis()
-                    + "_" + ((int) (Math.random() * 1000)) + extension);
-            try (FileInputStream in = new FileInputStream(source);
-                 FileOutputStream out = new FileOutputStream(target)) {
-                final byte[] buffer = new byte[64 * 1024];
-                int read;
-                while ((read = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, read);
+            // Atomic creation avoids collisions when two chats copy the same ID
+            // in the same millisecond. Remove partial files on I/O errors.
+            final File target = File.createTempFile("copy_" + message.getId() + "_", extension, dir);
+            boolean complete = false;
+            try {
+                try (FileInputStream in = new FileInputStream(source);
+                     FileOutputStream out = new FileOutputStream(target)) {
+                    final byte[] buffer = new byte[64 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, read);
+                    }
+                    out.flush();
                 }
-                out.flush();
+                complete = target.length() > 0;
+                return complete ? target.getAbsolutePath() : null;
+            } finally {
+                if (!complete) target.delete();
             }
-            if (target.length() == 0) {
-                target.delete();
-                return null;
-            }
-            return target.getAbsolutePath();
         } catch (Throwable e) {
             FileLog.e(e);
             return null;
@@ -729,13 +763,10 @@ public final class PengramCopySender {
         }
 
         final AtomicBoolean finished = new AtomicBoolean();
-        final Runnable finish = () -> {
-            if (!finished.compareAndSet(false, true)) {
-                return;
-            }
-            final String path = localPath(account, message);
-            // Sending helpers and the queue/progress UI must run on the main
-            // thread even when the download finishes on globalQueue.
+        final Utilities.Callback<String> finish = path -> {
+            if (!finished.compareAndSet(false, true)) return;
+            // Never run the send helper on globalQueue, and never decrypt
+            // the same downloaded attachment twice just to finish the poll.
             AndroidUtilities.runOnUIThread(() -> callback.run(path));
         };
 
@@ -748,7 +779,7 @@ public final class PengramCopySender {
             }
         } catch (Throwable e) {
             FileLog.e(e);
-            Utilities.globalQueue.postRunnable(finish);
+            Utilities.globalQueue.postRunnable(() -> finish.run(localPath(account, message)));
             return;
         }
 
@@ -760,14 +791,15 @@ public final class PengramCopySender {
                     return;
                 }
                 try {
-                    if (localPath(account, message) != null) {
-                        finish.run();
+                    final String ready = localPath(account, message);
+                    if (ready != null) {
+                        finish.run(ready);
                         return;
                     }
                 } catch (Throwable ignore) {
                 }
                 if (SystemClock.elapsedRealtime() >= deadline) {
-                    finish.run();
+                    finish.run(localPath(account, message));
                     return;
                 }
                 Utilities.globalQueue.postRunnable(this, 250);

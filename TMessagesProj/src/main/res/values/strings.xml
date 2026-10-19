@@ -11692,7 +11692,7 @@
     <string name="PengramSendStyle">Sending style</string>
     <string name="PengramSendStyleCaptions">Apply to media captions</string>
     <string name="PengramSendStyleLargeEmoji">Large emoji instead of auto-style</string>
-    <string name="PengramSendStyleLargeEmojiInfo">Skip auto-formatting for emoji-only messages. Requires Telegram's Large Emoji setting. Manually formatted text is unchanged.</string>
+    <string name="PengramSendStyleLargeEmojiInfo">Skip auto-formatting for emoji-only messages. Requires the Large Emoji setting in Telegram. Manually formatted text is unchanged.</string>
     <string name="PengramSendStyleInfo">Everything you send gets formatted automatically — just like picking a style by hand in Telegram.</string>
     <string name="PengramSendStyleExample">Your messages will look like:</string>
     <string name="PengramSendStyleSample">Hello, Pengram!</string>
