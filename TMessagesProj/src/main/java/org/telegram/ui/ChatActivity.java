@@ -28586,6 +28586,14 @@ public class ChatActivity extends BaseFragment implements
         }
         final long owner = getUserConfig().getClientUserId();
         if (owner == 0) return;
+        MessageObject loaded = messagesDict[0].get(hit.messageId);
+        if (loaded != null && loaded.pengramDeleted && loaded.getDialogId() == hit.dialogId) {
+            localDeletedSearchIndex = index;
+            if (localDeletedNavigation) updateSearchButtons(0, index, 0);
+            showMessagesSearchListView(false);
+            scrollToMessageId(hit.messageId, 0, true, 0, true, 0);
+            return;
+        }
         getMessagesStorage().hasLocalMessage(hit.dialogId, hit.messageId, found -> {
             if (getParentActivity() == null || getUserConfig().getClientUserId() != owner
                     || messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
