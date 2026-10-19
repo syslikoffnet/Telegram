@@ -68,6 +68,7 @@ assert re.search(r'return message\.pengramDeleted\s*\|\|\s*org\.telegram\.messen
 for key in ('KEY_AVATAR_SIZE', 'KEY_AVATAR_GAP', 'KEY_AVATAR_ROUNDED'):
     assert key in quote and key in settings, key
 assert 'nameInset = avatar ? avatarSize + avatarGap : 0' in quote
+assert 'final int nameHeight = (int) Math.ceil(showAvatars' in quote
 assert 'cy = inner + nameHeight / 2f' in quote
 assert 'paint.setColor(accent);\n                        paint.setTextSize(25 * fontScale);' in quote
 for key in ('PengramQuoteAvatarSize', 'PengramQuoteAvatarGap', 'PengramQuoteAvatarRounded'):

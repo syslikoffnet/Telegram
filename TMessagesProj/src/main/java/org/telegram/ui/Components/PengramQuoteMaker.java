@@ -731,7 +731,9 @@ public final class PengramQuoteMaker {
         final float avatarGap = Math.max(4, Math.min(20,
                 PengramConfig.getIntCached(KEY_AVATAR_GAP, 9))) * fontScale;
         final boolean roundedAvatar = PengramConfig.getBool(KEY_AVATAR_ROUNDED, false);
-        final int nameHeight = (int) Math.ceil(Math.max(34 * fontScale, avatarSize + 6 * fontScale));
+        final int nameHeight = (int) Math.ceil(showAvatars
+                ? Math.max(34 * fontScale, avatarSize + 6 * fontScale)
+                : 34 * fontScale);
         final int timeHeight = (int) Math.ceil(28 * fontScale);
         final TextPaint body = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         body.setColor(ink);
@@ -841,7 +843,9 @@ public final class PengramQuoteMaker {
                             if (roundedAvatar) canvas.drawRoundRect(faceRect, 7 * fontScale, 7 * fontScale, paint);
                             else canvas.drawCircle(cx, cy, half, paint);
                             String initial = name.substring(0, Character.charCount(name.codePointAt(0)));
-                            paint.setColor(darkSurface ? Color.BLACK : Color.WHITE);
+                            final boolean darkAccent = (Color.red(accent) * 299
+                                    + Color.green(accent) * 587 + Color.blue(accent) * 114) < 128000;
+                            paint.setColor(darkAccent ? Color.WHITE : Color.BLACK);
                             paint.setTextSize(avatarSize * .58f);
                             paint.setTextAlign(Paint.Align.CENTER);
                             Paint.FontMetrics fm = paint.getFontMetrics();
