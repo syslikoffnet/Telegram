@@ -101,10 +101,11 @@ public final class PengramOriginalName {
         return account + ":" + owner + ":" + userId;
     }
 
-    private static String fromPublicCache(int account, long userId) {
-        if (!PengramProfileHistory.enabled() || !PengramProfileHistory.ensureAccountOwner(account)) return null;
+    private static String fromPublicCache(int account, TLRPC.User user) {
+        // The display path obeys the same opt-out and scope as collection.
+        if (!PengramProfileHistory.canObserve(account, user, false)) return null;
         try {
-            return prefs().getString(key(account, userId), null);
+            return prefs().getString(key(account, user.id), null);
         } catch (Throwable ignore) {
             return null;
         }
@@ -143,7 +144,7 @@ public final class PengramOriginalName {
         }
         final String shown = clean(ContactsController.formatName(user.first_name, user.last_name));
 
-        final String open = clean(fromPublicCache(account, user.id));
+        final String open = clean(fromPublicCache(account, user));
         if (!TextUtils.isEmpty(open) && !open.equalsIgnoreCase(shown)) {
             return new Result(open, SOURCE_PUBLIC);
         }
