@@ -51,6 +51,15 @@ jobs:
           ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee build.log
 
+      - name: Validate APK resource merge
+        # Java compilation alone does not flatten the app's standalone strings;
+        # an unescaped apostrophe previously passed preflight but broke the APK.
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew :TMessagesProj_AppStandalone:mergeAfatStandaloneResources --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee -a build.log
+
       - name: Test microphone PCM
         run: python3 scripts/test-voice-studio.py
 

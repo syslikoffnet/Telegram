@@ -458,7 +458,7 @@ public final class PengramCopySender {
         // готовой к удалению.
         try {
             if (media != null && media.document != null) {
-                final TLRPC.TL_document document = buildDocument(media.document, path);
+                final TLRPC.TL_document document = buildDocument(account, media.document, path);
                 if (document == null) {
                     return false;
                 }
@@ -689,27 +689,33 @@ public final class PengramCopySender {
                 File dir = new File(ApplicationLoader.applicationContext.getCacheDir(), "pengram_copy");
                 //noinspection ResultOfMethodCallIgnored
                 dir.mkdirs();
-                final File out = new File(dir, "dec_" + file.getName().replace(".enc", "")
-                        + "_" + System.currentTimeMillis());
-                try (InputStream in = new EncryptedFileInputStream(file, key);
-                     FileOutputStream o = new FileOutputStream(out)) {
-                    final byte[] buffer = new byte[64 * 1024];
-                    int read;
-                    int total = 0;
-                    while ((read = in.read(buffer)) > 0) {
-                        o.write(buffer, 0, read);
-                        total += read;
-                        if (total > 212 * 1024 * 1024) {
-                            break;   // потолок заливки, дальше здоровее не будет
+                final String rawName = file.getName().replace(".enc", "");
+                final int dot = rawName.lastIndexOf('.');
+                final String ext = dot > 0 && rawName.length() - dot <= 10
+                        ? rawName.substring(dot) : ".dat";
+                final File out = File.createTempFile("dec_", ext, dir);
+                boolean complete = false;
+                try {
+                    try (InputStream in = new EncryptedFileInputStream(file, key);
+                         FileOutputStream o = new FileOutputStream(out)) {
+                        final byte[] buffer = new byte[64 * 1024];
+                        int read;
+                        long total = 0;
+                        while ((read = in.read(buffer)) > 0) {
+                            // A truncated file may still pass the header check.
+                            // Never upload the first 212 MB as a complete video.
+                            if (total + read > 212L * 1024 * 1024) break;
+                            o.write(buffer, 0, read);
+                            total += read;
                         }
+                        complete = read < 0 && total > 0;
+                        o.flush();
                     }
-                    o.flush();
+                    complete = complete && looksLikeMedia(out);
+                    if (complete) return out.getAbsolutePath();
+                } finally {
+                    if (!complete) out.delete();
                 }
-                if (out.length() > 0 && looksLikeMedia(out)) {
-                    return out.getAbsolutePath();
-                }
-                //noinspection ResultOfMethodCallIgnored
-                out.delete();
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -817,9 +823,9 @@ public final class PengramCopySender {
      * кружок, видео, стикер, имя файла) лежат в attributes, и новый документ
      * собирается из них вместе с файлом на диске.
      */
-    private static TLRPC.TL_document buildDocument(TLRPC.Document source, String path) {
+    private static TLRPC.TL_document buildDocument(int account, TLRPC.Document source, String path) {
         if (source instanceof TLRPC.TL_document) {
-            return cloneAsNew((TLRPC.TL_document) source, path);
+            return cloneAsNew(account, (TLRPC.TL_document) source, path);
         }
         try {
             final TLRPC.TL_document document = new TLRPC.TL_document();
@@ -827,7 +833,7 @@ public final class PengramCopySender {
             document.access_hash = 0;
             document.file_reference = new byte[0];
             document.dc_id = 0;
-            document.date = ConnectionsManager.getInstance(UserConfig.selectedAccount).getCurrentTime();
+            document.date = ConnectionsManager.getInstance(account).getCurrentTime();
             document.mime_type = TextUtils.isEmpty(source.mime_type) ? "application/octet-stream" : source.mime_type;
             if (source.attributes != null) {
                 document.attributes = new ArrayList<>(source.attributes);
@@ -844,7 +850,7 @@ public final class PengramCopySender {
         }
     }
 
-    private static TLRPC.TL_document cloneAsNew(TLRPC.TL_document source, String path) {
+    private static TLRPC.TL_document cloneAsNew(int account, TLRPC.TL_document source, String path) {
         try {
             final NativeByteBuffer buffer = new NativeByteBuffer(source.getObjectSize());
             source.serializeToStream(buffer);
@@ -859,7 +865,7 @@ public final class PengramCopySender {
             document.access_hash = 0;
             document.file_reference = new byte[0];
             document.dc_id = 0;
-            document.date = ConnectionsManager.getInstance(UserConfig.selectedAccount).getCurrentTime();
+            document.date = ConnectionsManager.getInstance(account).getCurrentTime();
             if (document.thumbs != null) {
                 document.thumbs.clear();
             }

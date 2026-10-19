@@ -30,6 +30,11 @@ assert 'AndroidUtilities.runOnUIThread(() -> callback.run(path))' in copy
 assert 'waitingCopies.add(start)' in copy and 'waitingCopies.poll()' in copy
 assert 'once.compareAndSet(false, true)' in copy
 assert 'File.createTempFile("copy_"' in copy
+assert 'File.createTempFile("dec_"' in copy
+assert 'total + read > 212L * 1024 * 1024' in copy
+assert 'complete = read < 0 && total > 0' in copy
+assert 'ConnectionsManager.getInstance(UserConfig.selectedAccount)' not in copy
+assert 'ConnectionsManager.getInstance(account).getCurrentTime()' in copy
 assert 'Utilities.globalQueue.postRunnable(() -> {' in copy
 assert 'done.run(false);' in copy  # missing media is reported, not replaced by caption-only success
 
