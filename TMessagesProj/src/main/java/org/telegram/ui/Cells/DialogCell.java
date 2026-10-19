@@ -4109,7 +4109,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         float cornersRadius = dp(8) * cornerProgress;
-        final boolean md3 = PengramMD3.dialogs() && customDialog == null;
+        // Native sample rows in the isolated layout editor should preview the
+        // same tonal container as live dialogs, without changing theme previews.
+        final boolean md3 = PengramMD3.dialogs()
+                && (customDialog == null || PengramConfig.isVisualPreviewRead());
         if (md3) {
             pengramDrawMD3Container(canvas);
         }

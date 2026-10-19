@@ -94,6 +94,12 @@ def check():
     assert "GlassTabView.createSampleAvatar" in PREVIEW
     assert "new SettingsActivity.SettingCell(getContext(), null)" in PREVIEW
     assert "new PengramMessagePreviewView(getContext(), null, true)" in PREVIEW
+    assert "new DialogCell(null, getContext(), false, false)" in PREVIEW
+    assert "cell.setDialog(sample)" in PREVIEW and "new DialogCell.CustomDialog()" in PREVIEW
+    dialog_cell = (JAVA / "Cells/DialogCell.java").read_text()
+    assert "customDialog == null || PengramConfig.isVisualPreviewRead()" in dialog_cell
+    assert "new EditTextBoldCursor(getContext())" in PREVIEW
+    assert "new TextDetailCell(getContext(), null, false, true)" in PREVIEW
     assert "actionBar.setTitle(title)" in EDITOR and "actionBar.setSubtitle(subtitle)" in EDITOR
     assert "if (!placementMode) chatMock.select(null)" in PREVIEW
     message_preview = (JAVA / "Components/PengramMessagePreviewView.java").read_text()

@@ -112,7 +112,7 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramQuoteRadius) {
             tags.append(" радиус скругления карточки цитаты quote corner");
         }
-        if (id == R.string.PengramSendStyle) tags.append(" шрифт писать написание жирный курсив моно цитата font bold italic quote");
+        if (id == R.string.PengramSendStyle) tags.append(" шрифт шрифтом писать написание написания текста жирный курсив моно цитата font bold italic quote");
         if (id == R.string.PengramSendStyleLargeEmoji) tags.append(" смайлы маленькие крупные эмодзи шрифт big emoji");
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
         if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
@@ -136,7 +136,32 @@ public final class PengramSearchMetadata {
         if (has(own, "шрифт", "font")) tags.append(" буквы типографика шрифт font");
         if (has(own, "вклад", "tab")) tags.append(" табы навигация вкладки tabs");
         if (has(own, "цитат", "quote")) tags.append(" цитирование цитата quote");
-        if (has(own, "голос", "voice")) tags.append(" речь аудио voice speech");
+        if (has(own, "голос", "voice")) tags.append(" речь аудио голосовые войсы voice speech");
+        if (has(own, "отправ", "send", "sent")) tags.append(" послать отправка отправлять переслать send submit");
+        if (has(own, "ввод", "набор", "писать", "typing")) tags.append(" печатать клавиатура текст набор ввода typing keyboard");
+        if (has(own, "анимац", "эффект", "animation", "effect")) tags.append(" движение эффекты плавно animate motion");
+        if (has(own, "пузыр", "bubble")) tags.append(" бабл баллон сообщение bubble chat");
+        if (has(own, "икон", "значок", "icon")) tags.append(" значки символ пиктограмма icon symbol");
+        if (has(own, "цвет", "color", "colour", "акцент")) tags.append(" оттенок палитра окраска accent palette color");
+        if (has(own, "тем", "theme", "оформлен")) tags.append(" дизайн внешний вид тема appearance look skin theme");
+        if (has(own, "поиск", "search")) tags.append(" найти находить искать лупа search find");
+        if (has(own, "профил", "profile")) tags.append(" страница аккаунта пользователь профиль account bio");
+        if (has(own, "имя", "ник", "username", "name")) tags.append(" никнейм юзернейм название nickname handle name");
+        if (has(own, "телефон", "номер", "phone")) tags.append(" мобила контакт номер телефона mobile phone");
+        if (has(own, "ссылк", "link", "url")) tags.append(" адрес url линк ссылка hyperlink");
+        if (has(own, "истори", "history")) tags.append(" архив журнал версии лог история log archive");
+        if (has(own, "измен", "правк", "edit")) tags.append(" редакция исправления отредактировано edit edited version");
+        if (has(own, "медиа", "media")) tags.append(" фото видео файлы вложение attachment photo video");
+        if (has(own, "музык", "трек", "music", "track")) tags.append(" песня аудиоплеер композиция playback song music");
+        if (has(own, "сохран", "save")) tags.append(" записать оставить копия сохранить store keep save");
+        if (has(own, "хранил", "storage", "лимит", "limit")) tags.append(" память место объём размер capacity storage space");
+        if (has(own, "времен", "дат", "time", "date")) tags.append(" часы когда дата день время timestamp date");
+        if (has(own, "скрин", "screenshot")) tags.append(" снимок экрана скриншот screen capture");
+        if (has(own, "скорост", "speed")) tags.append(" быстрее медленнее ускорение темп pace rate");
+        if (has(own, "фон", "background", "обои", "wallpaper")) tags.append(" задний план фон обои заставка background wallpaper");
+        if (has(own, "эмодзи", "emoji", "смайл")) tags.append(" смайлики эмоджи смайлы emoji emoticon");
+        if (has(own, "удерж", "нажат", "tap", "press")) tags.append(" тап коснуться кнопка касание клик touch click longpress");
+        if (has(own, "увелич", "масштаб", "zoom")) tags.append(" больше крупнее масштаб размер zoom scale");
         return tags.toString();
     }
 

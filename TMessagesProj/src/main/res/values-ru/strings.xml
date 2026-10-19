@@ -624,6 +624,9 @@
     <string name="PengramVibrationInfo">Отклик при нажатиях, долгих нажатиях и свайпах внутри Telegram.</string>
     <string name="PengramZalgo">Фильтр Zalgo</string>
     <string name="PengramZalgoInfo">Убирает искажающие текст символы «Zalgo» в именах и сообщениях.</string>
+    <string name="PengramIdFormatPicker">Формат ID</string>
+    <string name="PengramIdPlacementPicker">Где показывать ID</string>
+    <string name="PengramProfileIdMore">Все варианты ID</string>
     <string name="PengramIdFormatHide">Скрыть</string>
     <string name="PengramIdFormatTelegram">Telegram API</string>
     <string name="PengramIdFormatBot">Bot API</string>

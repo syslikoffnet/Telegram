@@ -466,6 +466,12 @@ public class PengramConfig {
         try { render.run(); } finally { endVisualPreviewRead(); }
     }
 
+    /** True only inside the sample editor's scoped draw/measure callbacks. */
+    public static boolean isVisualPreviewRead() {
+        return visualDraft != null && visualPreviewDepth > 0
+                && android.os.Looper.myLooper() == android.os.Looper.getMainLooper();
+    }
+
     private static Object pendingVisual(String key) {
         return visualDraft != null && visualPreviewDepth > 0
                 && android.os.Looper.myLooper() == android.os.Looper.getMainLooper()

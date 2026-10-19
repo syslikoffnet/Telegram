@@ -5,6 +5,7 @@ import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.ClipData;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.text.Editable;
@@ -32,6 +33,8 @@ import org.telegram.messenger.PengramFonts;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.DialogCell;
+import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.MainTabsLayout;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.SettingsActivity;
@@ -431,12 +434,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
                             () -> select(PREVIEW_ONLY, index)));
                 }
                 break;
-            case PROFILE:
-                body.addView(row("◉   " + getString(R.string.PengramEditorName),
-                        getString(R.string.PengramEditorSampleOnly), () -> select(PREVIEW_ONLY, 0)));
-                body.addView(row(getString(R.string.PengramConstructorPlayer), null, () -> showPage(PLAYER)));
-                body.addView(row(getString(R.string.Settings), null, () -> showPage(SETTINGS)));
-                break;
+            case PROFILE: renderSampleProfile(); break;
         }
         final boolean tabPage = page == DIALOGS || page == CONTACTS || page == SETTINGS || page == CALLS || page == PROFILE;
         footer.setVisibility(tabPage || page == CHAT ? VISIBLE : GONE);
@@ -589,89 +587,64 @@ public class PengramInteractivePreviewView extends LinearLayout {
                     && !getString(SAMPLE_CHAT_LINES[i]).toLowerCase(Locale.ROOT).contains(normalized)) continue;
             matches++;
             final int index = i;
-            FrameLayout item = new FrameLayout(getContext());
-            final int surface = color(Theme.key_windowBackgroundWhite);
-            final int accent = color(Theme.key_featuredStickers_addButton);
-            final String sampleName = getString(SAMPLE_CHAT_TITLES[i]);
-            AvatarDrawable avatarDrawable = new AvatarDrawable();
-            avatarDrawable.setInfo(-100L - i, sampleName, null);
-            BackupImageView avatar = new BackupImageView(getContext());
-            final int radius = PengramConfig.getDialogAvatarShape() == PengramConfig.DIALOG_AVATAR_CIRCLE
-                    ? 27 : PengramConfig.getDialogAvatarShape() == PengramConfig.DIALOG_AVATAR_ROUNDED ? 14 : 4;
-            avatar.setImageDrawable(avatarDrawable);
-            avatar.setRoundRadius(dp(radius));
-            avatar.setOnClickListener(v -> select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index));
-            FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER_VERTICAL | Gravity.LEFT);
-            avatarParams.leftMargin = dp(12);
-            item.addView(avatar, avatarParams);
+            // The same DialogCell Telegram uses in the real chat list, populated
+            // only with local sample data. Never bind an account dialog ID here.
+            DialogCell.CustomDialog sample = new DialogCell.CustomDialog();
+            sample.id = -100000000 - i;
+            sample.name = getString(SAMPLE_CHAT_TITLES[i]);
+            sample.message = getString(SAMPLE_CHAT_LINES[i]);
+            sample.date = (int) (System.currentTimeMillis() / 1000) - i * 3600;
+            sample.unread_count = i == 0 ? 3 : i == 4 ? 1 : 0;
+            sample.pinned = i == 0;
+            sample.muted = i == 3;
+            sample.type = i == 0 || i == 3 ? 1 : 0;
+            sample.sent = i == 0 || i == 4 ? DialogCell.SENT_STATE_READ : DialogCell.SENT_STATE_NOTHING;
+            DialogCell cell = new DialogCell(null, getContext(), false, false) {
+                @Override
+                protected void onMeasure(int widthSpec, int heightSpec) {
+                    PengramConfig.beginVisualPreviewRead();
+                    try { super.onMeasure(widthSpec, heightSpec); }
+                    finally { PengramConfig.endVisualPreviewRead(); }
+                }
 
-            TextView title = text(sampleName, 16, color(Theme.key_chats_name));
-            title.setTypeface(org.telegram.messenger.AndroidUtilities.bold());
-            FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(-1, dp(27), Gravity.TOP);
-            titleParams.leftMargin = dp(76);
-            titleParams.rightMargin = dp(76);
-            titleParams.topMargin = dp(10);
-            item.addView(title, titleParams);
-            TextView message = text(getString(SAMPLE_CHAT_LINES[i]), 14, color(Theme.key_chats_message));
-            FrameLayout.LayoutParams messageParams = new FrameLayout.LayoutParams(-1, dp(24), Gravity.TOP);
-            messageParams.leftMargin = dp(76);
-            messageParams.rightMargin = dp(52);
-            messageParams.topMargin = dp(39);
-            item.addView(message, messageParams);
-            TextView time = text(i < 2 ? "12:38" : i < 5 ? "10:24" : getString(R.string.Yesterday), 11,
-                    color(Theme.key_chats_date));
-            time.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-            FrameLayout.LayoutParams timeParams = new FrameLayout.LayoutParams(dp(62), dp(24), Gravity.RIGHT | Gravity.TOP);
-            timeParams.rightMargin = dp(12);
-            timeParams.topMargin = dp(8);
-            item.addView(time, timeParams);
-            if (i == 0 || i == 4) {
-                TextView unread = text(i == 0 ? "3" : "1", 12, color(Theme.key_chats_unreadCounterText));
-                unread.setGravity(Gravity.CENTER);
-                unread.setBackground(Theme.createRoundRectDrawable(dp(13), color(Theme.key_chats_unreadCounter)));
-                FrameLayout.LayoutParams badge = new FrameLayout.LayoutParams(dp(23), dp(23), Gravity.RIGHT | Gravity.TOP);
-                badge.rightMargin = dp(15);
-                badge.topMargin = dp(40);
-                item.addView(unread, badge);
-            }
+                @Override
+                public void draw(Canvas canvas) {
+                    PengramConfig.beginVisualPreviewRead();
+                    try { super.draw(canvas); }
+                    finally { PengramConfig.endVisualPreviewRead(); }
+                }
+            };
+            cell.useSeparator = !PengramMD3.hideDividers() && i != SAMPLE_CHAT_TITLES.length - 1;
+            cell.setDialog(sample);
+            cell.setOnClickListener(v -> openChat(index));
+            cell.setOnLongClickListener(v -> {
+                select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index);
+                return true;
+            });
             if (i == 0 && PengramConfig.isDialogSenderAvatars()) {
-                // A tiny synthetic sender marker on the sample group dialog.
-                // Keep it strictly visual: no contact photo or user is loaded.
-                final int placement = PengramConfig.getDialogSenderAvatarPosition();
-                final String senderName = getString(R.string.PengramEditorName);
-                final String senderInitial = senderName.isEmpty() ? "•"
-                        : senderName.substring(0, senderName.offsetByCodePoints(0, 1));
-                final TextView sender = button(senderInitial, () -> select(DIALOG_ROW, index));
-                sender.setTextSize(10);
+                // A sample-only sender marker in the native group-dialog cell.
+                FrameLayout row = new FrameLayout(getContext());
+                row.addView(cell, new FrameLayout.LayoutParams(-1, -2));
+                AvatarDrawable senderDrawable = new AvatarDrawable();
+                senderDrawable.setInfo(-100000010L, getString(R.string.PengramEditorName), null);
+                BackupImageView sender = new BackupImageView(getContext());
+                sender.setImageDrawable(senderDrawable);
+                sender.setRoundRadius(dp(10));
+                sender.setOnClickListener(v -> select(DIALOG_ROW, index));
                 sender.setContentDescription(getString(R.string.PengramSenderAvatars));
-                sender.setTextColor(color(Theme.key_featuredStickers_buttonText));
-                sender.setBackground(Theme.createRoundRectDrawable(dp(10),
-                        ColorUtils.blendARGB(accent, surface, .25f)));
+                final int placement = PengramConfig.getDialogSenderAvatarPosition();
                 FrameLayout.LayoutParams badge = new FrameLayout.LayoutParams(dp(19), dp(19));
                 badge.leftMargin = dp(placement == PengramConfig.SENDER_AVATAR_AFTER_NAME ? 120
                         : placement == PengramConfig.SENDER_AVATAR_BEFORE_NAME
                         || placement == PengramConfig.SENDER_AVATAR_INLINE ? 64 : 42);
                 badge.topMargin = dp(placement == PengramConfig.SENDER_AVATAR_BOTTOM ? 45
                         : placement == PengramConfig.SENDER_AVATAR_INLINE ? 38 : 5);
-                item.addView(sender, badge);
-            }
-            if (PengramMD3.tonalRows() && i < 2) {
-                item.setBackground(Theme.createRoundRectDrawable(dp(22),
-                        i == 0 ? PengramMD3.unreadContainer(null) : PengramMD3.pinnedContainer(null)));
-            }
-            item.setOnClickListener(v -> openChat(index));
-            item.setOnLongClickListener(v -> { select(page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index); return true; });
-            LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(72));
-            itemParams.setMargins(dp(2), 0, dp(2), 0);
-            tagRow(item, page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index);
-            destination.addView(item, itemParams);
-            if (!PengramMD3.hideDividers() && i != SAMPLE_CHAT_TITLES.length - 1) {
-                View line = new View(getContext());
-                line.setBackgroundColor(ColorUtils.setAlphaComponent(color(Theme.key_windowBackgroundWhiteBlackText), 25));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
-                lp.leftMargin = dp(76);
-                destination.addView(line, lp);
+                row.addView(sender, badge);
+                tagRow(row, page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index);
+                destination.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            } else {
+                tagRow(cell, page == CONTACTS ? PREVIEW_ONLY : DIALOG_ROW, index);
+                destination.addView(cell, new LinearLayout.LayoutParams(-1, -2));
             }
         }
         if (matches == 0) {
@@ -769,6 +742,46 @@ public class PengramInteractivePreviewView extends LinearLayout {
             case PengramConfig.SETTINGS_ITEM_PENGRAM: return R.drawable.msg_customize;
             default: return R.drawable.settings_language;
         }
+    }
+
+    private void renderSampleProfile() {
+        // Match the actual Telegram profile building blocks without fetching a
+        // real user's photo, name or history from any account.
+        final String name = getString(R.string.PengramEditorName);
+        FrameLayout header = new FrameLayout(getContext());
+        header.setBackgroundColor(color(Theme.key_windowBackgroundWhite));
+        AvatarDrawable avatarDrawable = new AvatarDrawable();
+        avatarDrawable.setInfo(-100000001L, name, null);
+        BackupImageView avatar = new BackupImageView(getContext());
+        avatar.setImageDrawable(avatarDrawable);
+        avatar.setRoundRadius(dp(36));
+        FrameLayout.LayoutParams avatarParams = new FrameLayout.LayoutParams(dp(72), dp(72), Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        avatarParams.leftMargin = dp(18);
+        header.addView(avatar, avatarParams);
+        TextView title = text(name, 20, color(Theme.key_windowBackgroundWhiteBlackText));
+        title.setTypeface(org.telegram.messenger.AndroidUtilities.bold());
+        FrameLayout.LayoutParams titleParams = new FrameLayout.LayoutParams(-1, dp(32), Gravity.LEFT | Gravity.TOP);
+        titleParams.leftMargin = dp(108);
+        titleParams.topMargin = dp(26);
+        header.addView(title, titleParams);
+        TextView status = text(getString(R.string.Online), 14, color(Theme.key_windowBackgroundWhiteGrayText2));
+        FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(-1, dp(28), Gravity.LEFT | Gravity.TOP);
+        statusParams.leftMargin = dp(108);
+        statusParams.topMargin = dp(56);
+        header.addView(status, statusParams);
+        header.setOnClickListener(v -> select(PREVIEW_ONLY, 0));
+        body.addView(header, new LinearLayout.LayoutParams(-1, dp(120)));
+
+        TextDetailCell username = new TextDetailCell(getContext(), null, false, true);
+        username.setTextAndValue("@username", getString(R.string.Username), true);
+        body.addView(username, new LinearLayout.LayoutParams(-1, -2));
+        TextDetailCell id = new TextDetailCell(getContext(), null, false, true);
+        id.setTextAndValue("123456789", "ID", false);
+        body.addView(id, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(settingsRow(getString(R.string.Settings), R.drawable.settings_account,
+                () -> showPage(SETTINGS)));
+        body.addView(settingsRow(getString(R.string.PengramConstructorPlayer), R.drawable.msg_played,
+                () -> showPage(PLAYER)));
     }
 
     private void renderSettings() {
@@ -1189,8 +1202,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
     private void renderChatComposer() {
         footer.setPadding(dp(8), dp(5), dp(8), dp(5));
         footer.setBackgroundColor(color(Theme.key_windowBackgroundWhite));
-        final EditText draft = new EditText(getContext());
-        draft.setTextSize(14);
+        final EditText draft = new EditTextBoldCursor(getContext());
+        draft.setTextSize(16);
         draft.setSingleLine(true);
         setSafeHint(draft, R.string.PengramEditorInput, "Сообщение / Message");
         draft.setTextColor(color(Theme.key_windowBackgroundWhiteBlackText));
@@ -1216,8 +1229,11 @@ public class PengramInteractivePreviewView extends LinearLayout {
             sendSampleMessage(chatIndex, draft);
             return true;
         });
-        final TextView send = button("➤", () -> sendSampleMessage(chatIndex, draft));
-        send.setTextColor(color(Theme.key_featuredStickers_buttonText));
+        final ImageView send = new ImageView(getContext());
+        send.setImageResource(R.drawable.send_plane_24);
+        send.setColorFilter(color(Theme.key_featuredStickers_buttonText));
+        send.setPadding(dp(9), dp(9), dp(9), dp(9));
+        send.setOnClickListener(v -> sendSampleMessage(chatIndex, draft));
         send.setContentDescription(getString(R.string.PengramEditorSendPreview));
         send.setBackground(Theme.createRoundRectDrawable(dp(24),
                 color(Theme.key_featuredStickers_addButton)));

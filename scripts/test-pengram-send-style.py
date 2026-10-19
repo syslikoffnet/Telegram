@@ -28,7 +28,7 @@ assert 'checkInfo(PengramConfig.KEY_SEND_STYLE_LARGE_EMOJI, true,' in settings
 assert settings.index('private void fillTyping(') < settings.index('getString(R.string.PengramSendStyleLargeEmoji)') < settings.index('getString(R.string.PengramInputAnimationHeader)', settings.index('private void fillTyping('))
 assert '{R.string.PengramSendStyle, PengramSettingsActivity.SECTION_TYPING,' in index
 assert '{R.string.PengramSendStyleLargeEmoji, PengramSettingsActivity.SECTION_TYPING,' in index
-assert 'id == R.string.PengramSendStyle' in metadata and ' шрифт писать' in metadata
+assert 'id == R.string.PengramSendStyle' in metadata and ' шрифтом писать' in metadata
 for locale in ('values', 'values-ru'):
     names = {node.get('name') for node in ET.parse(root / f'res/{locale}/strings.xml').iter('string')}
     assert {'PengramSendStyleLargeEmoji', 'PengramSendStyleLargeEmojiInfo'} <= names

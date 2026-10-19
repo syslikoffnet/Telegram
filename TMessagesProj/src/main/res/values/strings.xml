@@ -11628,6 +11628,9 @@
     <string name="PengramVibrationInfo">Haptic feedback on taps, long presses and swipes inside Telegram.</string>
     <string name="PengramZalgo">Zalgo filter</string>
     <string name="PengramZalgoInfo">Strips text-breaking \"Zalgo\" characters from names and messages.</string>
+    <string name="PengramIdFormatPicker">ID format</string>
+    <string name="PengramIdPlacementPicker">Where to show ID</string>
+    <string name="PengramProfileIdMore">All ID options</string>
     <string name="PengramIdFormatHide">Hide</string>
     <string name="PengramIdFormatTelegram">Telegram API</string>
     <string name="PengramIdFormatBot">Bot API</string>

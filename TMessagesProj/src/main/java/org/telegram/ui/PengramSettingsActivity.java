@@ -89,6 +89,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ID_ROW_DC = 202;
     private static final int BTN_ID_INLINE = 203;
     private static final int BTN_ID_COPY = 210;
+    private static final int BTN_ID_FORMAT_PICK = 211;
+    private static final int BTN_ID_PLACEMENT_PICK = 212;
 
     private static final int BTN_REG_OFF = 300;
     private static final int BTN_REG_DATE = 301;
@@ -349,6 +351,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_SNOW = 8;
     private static final int GROUP_TEXT = 9;
     private static final int GROUP_SPY_ADVANCED = 10;
+    private static final int GROUP_PROFILE_ID = 11;
 
     /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
     private static String expandedKey(int group) {
@@ -1260,7 +1263,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private boolean expanded(int group) {
         if (searchRevealGroups) return true;
         if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
-                || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
+                || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED
+                || group == GROUP_PROFILE_ID) {
             return temporaryExpanded.contains(group);
         }
         return PengramConfig.getBool(expandedKey(group), false);
@@ -2576,34 +2580,50 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(previewView));
         items.add(UItem.asShadow(getString(R.string.PengramIdPreviewInfo)));
 
-        final long selfId = sampleId();
+        // Two compact selectors replace the default wall of seven radio rows.
+        // Expanded choices remain available (and searchable) for precise examples.
         items.add(UItem.asHeader(getString(R.string.PengramIdHeader)));
-        items.add(UItem.asRadio2(BTN_ID_FORMAT_HIDE, getString(R.string.PengramIdFormatHide), getString(R.string.PengramIdFormatHideInfo))
-                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_HIDE));
-        items.add(UItem.asRadio2(BTN_ID_FORMAT_TELEGRAM, getString(R.string.PengramIdFormatTelegram), String.valueOf(selfId))
-                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_TELEGRAM));
-        items.add(UItem.asRadio2(BTN_ID_FORMAT_BOT, getString(R.string.PengramIdFormatBot), "-100" + selfId)
-                .setChecked(PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT));
-        items.add(UItem.asShadow(getString(R.string.PengramIdFormatInfo)));
-
-        if (PengramConfig.getIdFormat() != PengramConfig.ID_FORMAT_HIDE) {
-            items.add(UItem.asHeader(getString(R.string.PengramIdStyleHeader)));
-            items.add(UItem.asRadio2(BTN_ID_OFF, getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleOffInfo))
-                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
-            items.add(UItem.asRadio2(BTN_ID_ROW, getString(R.string.PengramIdStyleRow), getString(R.string.PengramIdStyleRowInfo))
-                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
-            items.add(UItem.asRadio2(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleRowDcInfo))
-                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
-            items.add(UItem.asRadio2(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline), getString(R.string.PengramIdStyleInlineInfo))
-                    .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
-            if (PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF) {
-                items.add(UItem.asShadow(null));
+        final int format = PengramConfig.getIdFormat();
+        items.add(UItem.asSettingsCell(BTN_ID_FORMAT_PICK, R.drawable.msg_info,
+                getString(R.string.PengramIdFormatPicker), getString(format == PengramConfig.ID_FORMAT_HIDE
+                        ? R.string.PengramIdFormatHide : format == PengramConfig.ID_FORMAT_BOT
+                        ? R.string.PengramIdFormatBot : R.string.PengramIdFormatTelegram)));
+        if (format != PengramConfig.ID_FORMAT_HIDE) {
+            final int style = PengramConfig.getIdStyle();
+            final int styleName = style == PengramConfig.ID_STYLE_ROW ? R.string.PengramIdStyleRow
+                    : style == PengramConfig.ID_STYLE_ROW_DC ? R.string.PengramIdStyleRowDc
+                    : style == PengramConfig.ID_STYLE_INLINE ? R.string.PengramIdStyleInline
+                    : R.string.PengramIdStyleOff;
+            items.add(UItem.asSettingsCell(BTN_ID_PLACEMENT_PICK, R.drawable.msg_openprofile,
+                    getString(R.string.PengramIdPlacementPicker), getString(styleName)));
+            if (style != PengramConfig.ID_STYLE_OFF) {
                 items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap));
-                items.add(UItem.asShadow(getString(R.string.PengramIdCopyOnTapInfo)));
-            } else {
-                items.add(UItem.asShadow(null));
             }
         }
+        items.add(moreButton(GROUP_PROFILE_ID, getString(R.string.PengramProfileIdMore)));
+        if (expanded(GROUP_PROFILE_ID)) {
+            final long selfId = sampleId();
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_HIDE, getString(R.string.PengramIdFormatHide), getString(R.string.PengramIdFormatHideInfo))
+                    .setChecked(format == PengramConfig.ID_FORMAT_HIDE));
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_TELEGRAM, getString(R.string.PengramIdFormatTelegram), String.valueOf(selfId))
+                    .setChecked(format == PengramConfig.ID_FORMAT_TELEGRAM));
+            // For a user, Bot API and Telegram API IDs are identical. -100 is
+            // only the prefix for supergroups/channels, never for a user ID.
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_BOT, getString(R.string.PengramIdFormatBot), String.valueOf(selfId))
+                    .setChecked(format == PengramConfig.ID_FORMAT_BOT));
+            if (format != PengramConfig.ID_FORMAT_HIDE) {
+                items.add(UItem.asHeader(getString(R.string.PengramIdStyleHeader)));
+                items.add(UItem.asRadio2(BTN_ID_OFF, getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleOffInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
+                items.add(UItem.asRadio2(BTN_ID_ROW, getString(R.string.PengramIdStyleRow), getString(R.string.PengramIdStyleRowInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
+                items.add(UItem.asRadio2(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleRowDcInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
+                items.add(UItem.asRadio2(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline), getString(R.string.PengramIdStyleInlineInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
+            }
+        }
+        items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramOriginalNameHeader)));
         items.add(UItem.asSettingsCell(BTN_ORIGINAL_NAME, R.drawable.msg_contacts,
@@ -3530,9 +3550,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
                 getString(R.string.PengramSubsectionMessages), ""));
         items.add(sectionRow(BTN_SECTION_TYPING, IconBackgroundColors.GREEN, R.drawable.msg_customize,
-                getString(R.string.PengramTypingSection),
-                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF
-                        ? inputAnimationName() : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+                getString(R.string.PengramTypingSection), inputAnimationName()));
+        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit,
+                getString(R.string.PengramSendStyle),
+                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
                 getString(R.string.PengramQuoteSection), ""));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
@@ -4073,7 +4094,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             searchRevealGroups = false;
             final int group = item.id - BTN_COLLAPSE_BASE;
             if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
-                    || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED) {
+                    || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED
+                    || group == GROUP_PROFILE_ID) {
                 if (!temporaryExpanded.add(group)) temporaryExpanded.remove(group);
             } else {
                 PengramConfig.setBool(expandedKey(group), !expanded(group));
@@ -4794,6 +4816,19 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_LINK_AUTHOR:
                 openLink(LINK_AUTHOR);
+                return;
+            case BTN_ID_FORMAT_PICK:
+                showChoicePicker(getString(R.string.PengramIdFormatPicker), new CharSequence[]{
+                        getString(R.string.PengramIdFormatHide),
+                        getString(R.string.PengramIdFormatTelegram),
+                        getString(R.string.PengramIdFormatBot)
+                }, PengramConfig.getIdFormat(), PengramConfig::setIdFormat);
+                return;
+            case BTN_ID_PLACEMENT_PICK:
+                showChoicePicker(getString(R.string.PengramIdPlacementPicker), new CharSequence[]{
+                        getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleRow),
+                        getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleInline)
+                }, PengramConfig.getIdStyle(), PengramConfig::setIdStyle);
                 return;
             case BTN_ID_FORMAT_HIDE:
                 PengramConfig.setIdFormat(PengramConfig.ID_FORMAT_HIDE);
@@ -6450,7 +6485,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         public ProfilePreviewView(Context context) {
             super(context);
             setOrientation(VERTICAL);
-            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            setBackground(Theme.createRoundRectDrawable(dp(20),
+                    Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider())));
+            setPadding(dp(12), dp(5), dp(12), dp(7));
 
             FrameLayout header = new FrameLayout(context);
             avatarImage = new BackupImageView(context);
