@@ -276,11 +276,21 @@ public final class PengramPlayerSwipe {
         animator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
         animator.addUpdateListener(a -> setShift((float) a.getAnimatedValue()));
         animator.addListener(new android.animation.AnimatorListenerAdapter() {
+            private boolean cancelled;
+
+            @Override
+            public void onAnimationCancel(android.animation.Animator animation) {
+                cancelled = true;
+            }
+
             @Override
             public void onAnimationEnd(android.animation.Animator animation) {
-                if (animator == animation) {
-                    animator = null;
+                // Android also calls onAnimationEnd after cancel. A reset or a
+                // new gesture must not fire the old next/previous track action.
+                if (cancelled || animator != animation) {
+                    return;
                 }
+                animator = null;
                 if (after != null) {
                     after.run();
                 }
@@ -291,8 +301,9 @@ public final class PengramPlayerSwipe {
 
     private void cancelAnimator() {
         if (animator != null) {
-            animator.cancel();
+            final ValueAnimator previous = animator;
             animator = null;
+            previous.cancel();
         }
     }
 

@@ -1664,7 +1664,11 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             if (currentStyle == STYLE_AUDIO_PLAYER) {
                 invalidate();
                 final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-                if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
+                if (pengramTicker != null && !PengramConfig.isHeaderLyrics()) {
+                    if (pengramTickerShown) {
+                        pengramHideTicker();
+                    }
+                } else if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
                     pengramTicker.setProgress(playing.audioProgress);
                 } else if (playing != null && pengramTicker != null && PengramConfig.isHeaderLyrics()) {
                     // текст мог найтись, пока строка была скрыта: показываем сами, без перезахода в чат
@@ -2109,7 +2113,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         final int token = ++pengramLyricsToken;
         PengramLyrics.request(messageObject, (resultKey, raw, state) -> {
             // поздний ответ от прошлого трека молча выбрасываем
-            if (pengramTicker == null || token != pengramLyricsToken
+            if (pengramTicker == null || token != pengramLyricsToken || !PengramConfig.isHeaderLyrics()
                     || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
                 return;
             }

@@ -12,6 +12,7 @@ import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextUtils;
@@ -682,16 +683,13 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private void loadChatTracks() {
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         final long dialogId = playing == null ? 0 : playing.getDialogId();
-        if (dialogId == 0) {
-            return;
-        }
         if (chatTracksDialogId != dialogId) {
             chatTracksDialogId = dialogId;
             chatTracks.clear();
             chatTracksLoaded = false;
             chatTracksLoading = false;
         }
-        if (chatTracksLoaded || chatTracksLoading) {
+        if (dialogId == 0 || chatTracksLoaded || chatTracksLoading) {
             return;
         }
         chatTracksLoading = true;
@@ -725,7 +723,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         int current = 0;
         for (int a = 0; a < playlist.size(); ++a) {
-            if (playing != null && playlist.get(a).getId() == playing.getId()) {
+            if (playing != null && playlist.get(a).getId() == playing.getId()
+                    && playlist.get(a).getDialogId() == playing.getDialogId()) {
                 current = a;
             }
         }
@@ -737,18 +736,24 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             to = Math.min(playlist.size(), from + max);
             from = Math.max(0, to - max);
         }
-        int currentRow = 0;
+        View activeRow = null;
         for (int a = from; a < to; ++a) {
             final MessageObject messageObject = playlist.get(a);
-            final boolean active = playing != null && messageObject.getId() == playing.getId();
-            if (active) {
-                currentRow = a - from;
-            }
+            final boolean active = playing != null && messageObject.getId() == playing.getId()
+                    && messageObject.getDialogId() == playing.getDialogId();
             addTrackView(messageObject, active, null);
+            if (active) {
+                // In grid/card mode multiple tracks share one actual row.
+                activeRow = queueList.getChildAt(queueList.getChildCount() - 1);
+            }
         }
-        final int scrollTo = Math.max(0, dp(56) * currentRow - dp(120));
-        if (queueScroll != null) {
-            queueScroll.post(() -> queueScroll.scrollTo(0, scrollTo));
+        if (queueScroll != null && activeRow != null) {
+            final View row = activeRow;
+            queueScroll.post(() -> {
+                if (row.getParent() == queueList) {
+                    queueScroll.scrollTo(0, Math.max(0, row.getTop() - dp(120)));
+                }
+            });
         }
     }
 
@@ -1048,7 +1053,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint overlay = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF rect = new RectF();
+        private final Rect crop = new Rect();
         private Bitmap blurred;
+        private Bitmap unblurred;
         private LinearGradient gradient;
         private int gradientHeight;
 
@@ -1058,7 +1065,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         void setCover(Bitmap bitmap) {
             blurred = null;
-            if (bitmap != null) {
+            unblurred = null;
+            if (bitmap != null && !bitmap.isRecycled()) {
                 try {
                     final Bitmap small = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
                     if (PengramConfig.getPlayerAccentMode() == PengramConfig.PLAYER_ACCENT_COVER) {
@@ -1066,10 +1074,21 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                         AndroidUtilities.runOnUIThread(PengramMusicPlayerSheet.this::applyAccentToViews);
                     }
                     if (PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER) {
-                        Utilities.stackBlurBitmap(small, 6);
-                        blurred = small;
+                        // The blur switch selects between two images, not between
+                        // artwork and a fallback gradient. Keep copies independent of
+                        // the image receiver (which can recycle its bitmap).
+                        final Bitmap blurredCopy = small.copy(Bitmap.Config.ARGB_8888, true);
+                        Utilities.stackBlurBitmap(blurredCopy, 6);
+                        blurred = blurredCopy;
+                        final int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
+                        final float scale = Math.min(1f, 512f / Math.max(1, maxSide));
+                        final int bw = Math.max(1, Math.round(bitmap.getWidth() * scale));
+                        final int bh = Math.max(1, Math.round(bitmap.getHeight() * scale));
+                        final Bitmap scaled = Bitmap.createScaledBitmap(bitmap, bw, bh, true);
+                        unblurred = scaled == bitmap ? bitmap.copy(Bitmap.Config.ARGB_8888, false) : scaled;
                     }
                 } catch (Throwable ignore) {
+                    // Missing or unreadable artwork still gets the gradient.
                 }
             }
             gradient = null;
@@ -1115,14 +1134,29 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 canvas.drawColor(0xFF101014);
                 return;
             }
-            if (bg == PengramConfig.PLAYER_BG_COVER && blurred != null && PengramConfig.getBool(PengramConfig.KEY_PLAYER_BLUR, true)) {
-                paint.setFilterBitmap(true);
-                canvas.save();
-                canvas.scale(w / (float) blurred.getWidth(), h / (float) blurred.getHeight());
-                canvas.drawBitmap(blurred, 0, 0, paint);
-                canvas.restore();
-                canvas.drawColor(0x77000000);
-                return;
+            if (bg == PengramConfig.PLAYER_BG_COVER) {
+                final boolean blur = PengramConfig.getBool(PengramConfig.KEY_PLAYER_BLUR, true);
+                final Bitmap artwork = blur ? blurred : unblurred;
+                if (artwork != null && !artwork.isRecycled()) {
+                    paint.setFilterBitmap(true);
+                    if (blur) {
+                        canvas.save();
+                        canvas.scale(w / (float) artwork.getWidth(), h / (float) artwork.getHeight());
+                        canvas.drawBitmap(artwork, 0, 0, paint);
+                        canvas.restore();
+                    } else {
+                        // Fill the background without stretching the unblurred cover.
+                        final int bw = artwork.getWidth(), bh = artwork.getHeight();
+                        final float aspect = w / (float) Math.max(1, h);
+                        final int cw = Math.min(bw, Math.max(1, Math.round(bh * aspect)));
+                        final int ch = Math.min(bh, Math.max(1, Math.round(bw / Math.max(0.001f, aspect))));
+                        crop.set((bw - cw) / 2, (bh - ch) / 2, (bw + cw) / 2, (bh + ch) / 2);
+                        rect.set(0, 0, w, h);
+                        canvas.drawBitmap(artwork, crop, rect, paint);
+                    }
+                    canvas.drawColor(0x77000000);
+                    return;
+                }
             }
             if (gradient == null || gradientHeight != h) {
                 gradientHeight = h;
@@ -1449,6 +1483,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final String trackKey = org.telegram.messenger.PengramCovers.keyFor(messageObject);
         if (!TextUtils.equals(trackKey, displayedCoverKey)) {
             displayedCoverKey = trackKey;
+            // Don't keep the previous track's background while the new cover loads.
+            backgroundView.setCover(null);
             // Don't share the previous track's artwork while the new one loads.
             coverView.setImageDrawable(null);
             smallCoverView.setImageDrawable(null);
@@ -1491,7 +1527,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             applyEmptyCover();
             return;
         }
-        backgroundView.setCover(null);
+        // A cached image receiver can complete synchronously during setImage.
+        // Do not erase the background it just supplied.
     }
 
     /**
@@ -1757,13 +1794,17 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             updateTitle();
             pengramPrefetchNext();
             if (queueShown) {
+                if (panelTab == 1) {
+                    loadChatTracks();
+                }
                 updateQueue();
             }
         } else if (id == NotificationCenter.messagePlayingPlayStateChanged) {
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
             updatePenguinMood();
         } else if (id == NotificationCenter.mediaDidLoad) {
-            if (args.length > 4 && args[3] instanceof Integer && (Integer) args[3] == chatTracksGuid
+            if (args.length > 4 && args[0] instanceof Long && (Long) args[0] == chatTracksDialogId
+                    && args[3] instanceof Integer && (Integer) args[3] == chatTracksGuid
                     && args[4] instanceof Integer && (Integer) args[4] == MediaDataController.MEDIA_MUSIC) {
                 chatTracksLoading = false;
                 chatTracksLoaded = true;

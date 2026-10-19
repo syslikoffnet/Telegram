@@ -63,6 +63,7 @@ public class PengramLyricsView extends View {
     private int previewSize;
     private int builtSize;
     private boolean builtBold;
+    private boolean builtMarquee;
     private boolean tickerMode;
     private int animOverride = -1;
     private String offsetKey;
@@ -295,6 +296,10 @@ public class PengramLyricsView extends View {
         cfgAutoscroll = PengramConfig.getBool(PengramConfig.KEY_LYRICS_AUTOSCROLL, true);
         cfgWords = !tickerMode || PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_WORDS, true);
         cfgTickerSpeed = PengramConfig.getHeaderLyricsSpeed();
+        if (!previewMode) {
+            // A ticker can stay mounted while its width/ellipsis preference changes.
+            buildLayouts();
+        }
         if (stretchEnabled != PengramConfig.isLyricsStretch()) {
             updateTimeScale();
             invalidate();
@@ -328,13 +333,19 @@ public class PengramLyricsView extends View {
                 ? PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_BOLD, false)
                 : PengramConfig.getBool(PengramConfig.KEY_LYRICS_BOLD, true);
         final int align = tickerMode ? PengramConfig.LYRICS_ALIGN_LEFT : PengramConfig.getLyricsAlign();
-        if (builtWidth == width && builtSize == size && builtBold == bold && builtAlign == align && !layouts.isEmpty()) {
+        final boolean marquee = tickerMode && PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_MARQUEE, true);
+        if (builtWidth == width && builtSize == size && builtBold == bold && builtAlign == align
+                && builtMarquee == marquee && !layouts.isEmpty()) {
             return;
         }
         builtWidth = width;
         builtSize = size;
         builtBold = bold;
         builtAlign = align;
+        builtMarquee = marquee;
+        if (!marquee) {
+            tickerScrollX = tickerTargetX = 0;
+        }
         textPaint.setTextSize(AndroidUtilities.dp(size));
         textPaint.setTypeface(bold ? AndroidUtilities.bold() : null);
         layouts.clear();
@@ -344,7 +355,6 @@ public class PengramLyricsView extends View {
         final Layout.Alignment alignment = align == PengramConfig.LYRICS_ALIGN_CENTER
                 ? Layout.Alignment.ALIGN_CENTER
                 : align == PengramConfig.LYRICS_ALIGN_RIGHT ? Layout.Alignment.ALIGN_OPPOSITE : Layout.Alignment.ALIGN_NORMAL;
-        final boolean marquee = tickerMode && PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_MARQUEE, true);
         for (PengramLyrics.Line line : lines) {
             CharSequence text = TextUtils.isEmpty(line.text) ? " " : line.text;
             int lineWidth = width;
@@ -499,14 +509,14 @@ public class PengramLyricsView extends View {
         }
         enterAnim = Math.min(1f, enterAnim + dt * 2.6f * speed);
 
-        if (activeLine >= 0 && activeLine < layouts.size()) {
-            targetScrollY = tops.get(activeLine) - getMeasuredHeight() * 0.42f + layouts.get(activeLine).getHeight() * 0.5f;
-        }
         if (previewMode) {
             targetScrollY = scrollY = 0;
-        }
-        if (!cfgAutoscroll) {
-            targetScrollY = Math.max(0, targetScrollY);
+        } else if (!cfgAutoscroll) {
+            // Keep the listener's manual position; clamping the active-line target
+            // still scrolled to every new line when follow was switched off.
+            targetScrollY = scrollY;
+        } else if (!touchScrolling && activeLine >= 0 && activeLine < layouts.size()) {
+            targetScrollY = tops.get(activeLine) - getMeasuredHeight() * 0.42f + layouts.get(activeLine).getHeight() * 0.5f;
         }
         scrollY = AndroidUtilities.lerp(scrollY, targetScrollY, Math.min(1f, dt * 7f));
 
