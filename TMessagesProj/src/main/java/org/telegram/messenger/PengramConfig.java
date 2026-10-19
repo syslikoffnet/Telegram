@@ -963,10 +963,13 @@ public class PengramConfig {
 
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
+        // History opens with a pencil by default. If the user chooses only the
+        // long-press menu, respect the independent edited-mark appearance setting.
         if (!isMarkingEdited()) {
-            return 0;
+            return isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
         }
-        return getEditedMarkIcon(getEditedMark());
+        int icon = getEditedMarkIcon(getEditedMark());
+        return icon != 0 ? icon : isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
     }
 
     private static boolean loaded;
