@@ -12390,9 +12390,9 @@
     <string name="PengramLyricsSourceInfo">On Auto all the sources are asked in parallel, so the lyrics appear as fast as the fastest of them.</string>
     <string name="PengramLyricsSyncHeader">Accuracy</string>
     <string name="PengramLyricsStretch">Fit sped up and slowed versions</string>
-    <string name="PengramLyricsStretchInfo">If the track is shorter or longer than the original, the timings are stretched to match it.</string>
+    <string name="PengramLyricsStretchInfo">Fit timed lyrics to sped-up or slowed-down tracks using the source duration (or an estimate from the last timestamp). Off keeps the original timestamps.</string>
     <string name="PengramLyricsSmooth">Smooth highlight</string>
-    <string name="PengramLyricsSmoothInfo">The words light up continuously instead of jumping with the player\'s updates.</string>
+    <string name="PengramLyricsSmoothInfo">On: letters advance continuously between player updates. Off: the highlight pauses and advances only when the player reports progress.</string>
     <string name="PengramLyricsSyncButtons">Shift buttons in the player</string>
     <string name="PengramLyricsOffset">Shift for all tracks</string>
     <string name="PengramLyricsOffsetInfo">Minus — the lyrics come earlier, plus — later. A single track can be shifted in the player itself.</string>
@@ -12459,9 +12459,9 @@
     <string name="PengramEditorInput">Message</string>
     <string name="PengramConstructorEditor">Screen editor</string>
     <string name="PengramConstructorEditorInfo">Drag elements right on a live mock of the app</string>
-    <string name="PengramLyricsAuto">Fully automatic</string>
-    <string name="PengramLyricsAutoInfo">Pengram picks the source, pulls the lyrics ahead of time and keeps the sync itself</string>
-    <string name="PengramLyricsAutoDetails">All the sources are asked at once, the best result wins, the timings are fitted to the track and the lyrics for the next songs are loaded in advance. Turn this off only if you want to set everything by hand.</string>
+    <string name="PengramLyricsAuto">Automatic lyrics search</string>
+    <string name="PengramLyricsAutoInfo">Pengram chooses a source and preloads lyrics; timing fit and smooth highlight are controlled separately.</string>
+    <string name="PengramLyricsAutoDetails">Pengram chooses a source and preloads the next songs. Timing fit and smooth highlight have independent switches below.</string>
     <string name="PengramDeleteEffectHeader">Delete animation</string>
     <string name="PengramDeleteEffect">Delete animation</string>
     <string name="PengramDeleteEffectNone">Off</string>

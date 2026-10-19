@@ -818,11 +818,11 @@ public class PengramConfig {
     public static boolean isLyricsAuto() { return getBool(KEY_LYRICS_AUTO, true); }
 
     public static final String KEY_LYRICS_STRETCH = "lyricsStretch";
-    public static boolean isLyricsStretch() { return isLyricsAuto() || getBool(KEY_LYRICS_STRETCH, true); }
+    public static boolean isLyricsStretch() { return getBool(KEY_LYRICS_STRETCH, true); }
 
     /** плавная подсветка между обновлениями прогресса плеера */
     public static final String KEY_LYRICS_SMOOTH = "lyricsSmooth";
-    public static boolean isLyricsSmooth() { return isLyricsAuto() || getBool(KEY_LYRICS_SMOOTH, true); }
+    public static boolean isLyricsSmooth() { return getBool(KEY_LYRICS_SMOOTH, true); }
 
     // ------------------------------------------------------------ бегущая строка
 

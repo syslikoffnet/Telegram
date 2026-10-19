@@ -67,6 +67,15 @@ jobs:
           python3 scripts/test-pengram-history-search.py
           python3 scripts/test-pengram-edited-media.py
           python3 scripts/test-pengram-security-wiring.py
+          python3 scripts/test-pengram-lyrics-wiring.py
+
+      - name: Test Pengram lyric timing
+        run: |
+          mkdir -p /tmp/pengram-lyrics-test
+          javac -d /tmp/pengram-lyrics-test \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramLyricsTiming.java \
+            scripts/PengramLyricsTimingTest.java
+          java -cp /tmp/pengram-lyrics-test PengramLyricsTimingTest
 
       - name: Test Pengram security policy
         run: |

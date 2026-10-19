@@ -3459,10 +3459,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                         getString(R.string.PengramLyricsSourceHeader),
                         getString(PengramConfig.getLyricsSourceName(PengramConfig.getLyricsSourceRaw()))));
                 items.add(UItem.asShadow(getString(PengramConfig.getLyricsSourceInfo(PengramConfig.getLyricsSourceRaw()))));
-                items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true, getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
-                items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true, getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
-                items.add(UItem.asShadow(null));
-
                 items.add(UItem.asHeader(getString(R.string.PengramLyricsOffset)));
                 items.add(UItem.asIntSlideView(1, 0,
                         Math.max(0, Math.min(40, Math.round(PengramConfig.getLyricsOffset() / 100f) + 20)), 40,
@@ -3472,6 +3468,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             } else {
                 items.add(UItem.asShadow(getString(R.string.PengramLyricsAutoDetails)));
             }
+            // Source selection can be automatic without overriding either of
+            // these independent, default-on playback/visual choices.
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true,
+                    getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true,
+                    getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
+            items.add(UItem.asShadow(null));
 
             items.add(UItem.asHeader(getString(R.string.PengramLyricsHeader)));
             items.add(UItem.asSettingsCell(BTN_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramLyricsAnim), getString(PengramConfig.getLyricsAnimName(PengramConfig.getLyricsAnim()))));

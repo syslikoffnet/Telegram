@@ -17,6 +17,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramLyrics;
+import org.telegram.messenger.PengramLyricsTiming;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
 
@@ -67,6 +68,8 @@ public class PengramLyricsView extends View {
     private String offsetKey;
     private long lyricsLength;
     private float timeScale = 1f;
+    private boolean stretchEnabled = true;
+    private long lastTimedMs;
     private long progressMs;
     private long progressTime;
     private float tickerScrollX;
@@ -141,14 +144,15 @@ public class PengramLyricsView extends View {
         timed = PengramLyrics.hasTimings(lines);
         this.durationMs = durationMs;
         lyricsLength = PengramLyrics.lengthOf(raw);
-        // ускоренная или замедленная версия трека: подгоняем таймкоды под реальную длину
-        timeScale = 1f;
-        if (PengramConfig.isLyricsStretch() && lyricsLength > 30000 && durationMs > 30000) {
-            final float ratio = durationMs / (float) lyricsLength;
-            if (ratio > 1.02f || ratio < 0.98f) {
-                timeScale = Math.max(0.5f, Math.min(2f, ratio));
+        // Keep the last timed word as a fallback when the source omits [length:].
+        lastTimedMs = 0;
+        for (PengramLyrics.Line line : lines) {
+            lastTimedMs = Math.max(lastTimedMs, line.time);
+            if (line.wordTimes != null) {
+                for (long wordTime : line.wordTimes) lastTimedMs = Math.max(lastTimedMs, wordTime);
             }
         }
+        updateTimeScale();
         activeLine = -1;
         scrollY = targetScrollY = 0;
         tickerScrollX = tickerTargetX = 0;
@@ -170,6 +174,8 @@ public class PengramLyricsView extends View {
         progress = 0;
         progressMs = 0;
         progressTime = 0;
+        lyricsLength = lastTimedMs = 0;
+        timeScale = 1f;
         scrollY = targetScrollY = 0;
         tickerScrollX = tickerTargetX = 0;
         charFractions = null;
@@ -188,7 +194,27 @@ public class PengramLyricsView extends View {
     }
 
     public void setDuration(long durationMs) {
-        this.durationMs = durationMs;
+        if (this.durationMs != durationMs) {
+            this.durationMs = durationMs;
+            updateTimeScale();
+            charFractions = null;
+            invalidate();
+        }
+    }
+
+    private void updateTimeScale() {
+        stretchEnabled = PengramConfig.isLyricsStretch();
+        timeScale = PengramLyricsTiming.scale(stretchEnabled, timed, durationMs, lyricsLength, lastTimedMs);
+        charFractions = null;
+        fractionsLine = -1;
+    }
+
+    private long lyricDurationMs() {
+        // Last line belongs to the original LRC clock even when stretching is
+        // OFF. Using the player's duration here secretly stretched that line.
+        if (lyricsLength > 0) return lyricsLength;
+        if (lastTimedMs > 0) return lastTimedMs + 3000;
+        return durationMs;
     }
 
     /** к какому именно сообщению привязан текст: сверяем по id и чату, а не по названию */
@@ -203,9 +229,12 @@ public class PengramLyricsView extends View {
     }
 
     public void setProgress(float progress) {
-        this.progress = progress;
-        this.progressMs = (long) (progress * durationMs);
-        this.progressTime = android.os.SystemClock.elapsedRealtime();
+        this.progress = Math.max(0, Math.min(1, progress));
+        final long sample = (long) (this.progress * durationMs);
+        if (sample != progressMs || progressTime == 0) {
+            progressMs = sample;
+            progressTime = android.os.SystemClock.elapsedRealtime();
+        }
         invalidate();
     }
 
@@ -218,14 +247,19 @@ public class PengramLyricsView extends View {
             return (long) (progress * durationMs);
         }
         long value = progressMs;
-        // единственный источник правды — сам плеер: если события перестали приходить,
-        // позиция всё равно останется верной
-        if (durationMs > 0) {
-            final org.telegram.messenger.MessageObject playing =
+        final boolean smooth = PengramConfig.isLyricsSmooth();
+        // In stepped mode only progress events move the highlight. Do not poll a
+        // second, potentially smoother player clock behind the off switch.
+        boolean playing = true;
+        try {
+            playing = !org.telegram.messenger.MediaController.getInstance().isMessagePaused();
+        } catch (Throwable ignore) { }
+        if (smooth && durationMs > 0) {
+            final org.telegram.messenger.MessageObject playingMessage =
                     org.telegram.messenger.MediaController.getInstance().getPlayingMessageObject();
-            if (playing != null && (boundMessageId == Integer.MIN_VALUE
-                    || (playing.getId() == boundMessageId && playing.getDialogId() == boundDialogId))) {
-                final long live = (long) (playing.audioProgress * durationMs);
+            if (playingMessage != null && (boundMessageId == Integer.MIN_VALUE
+                    || (playingMessage.getId() == boundMessageId && playingMessage.getDialogId() == boundDialogId))) {
+                final long live = (long) (playingMessage.audioProgress * durationMs);
                 if (Math.abs(live - value) > 350) {
                     value = live;
                     progressMs = live;
@@ -233,19 +267,10 @@ public class PengramLyricsView extends View {
                 }
             }
         }
-        if (PengramConfig.isLyricsSmooth() && progressTime > 0) {
-            boolean playing = true;
-            try {
-                playing = !org.telegram.messenger.MediaController.getInstance().isMessagePaused();
-            } catch (Throwable ignore) {
-            }
-            if (playing) {
-                final long elapsed = android.os.SystemClock.elapsedRealtime() - progressTime;
-                if (elapsed > 0 && elapsed < 3000) {
-                    value += elapsed;
-                }
-            }
-        }
+        final float playbackSpeed = smooth && playing
+                ? org.telegram.messenger.MediaController.getInstance().getPlaybackSpeed(true) : 1f;
+        value = PengramLyricsTiming.position(value, progressTime,
+                android.os.SystemClock.elapsedRealtime(), smooth, playing, playbackSpeed);
         if (durationMs > 0) {
             value = Math.max(0, Math.min(durationMs, value));
         }
@@ -269,6 +294,10 @@ public class PengramLyricsView extends View {
         cfgAutoscroll = PengramConfig.getBool(PengramConfig.KEY_LYRICS_AUTOSCROLL, true);
         cfgWords = !tickerMode || PengramConfig.getBool(PengramConfig.KEY_HEADER_LYRICS_WORDS, true);
         cfgTickerSpeed = PengramConfig.getHeaderLyricsSpeed();
+        if (stretchEnabled != PengramConfig.isLyricsStretch()) {
+            updateTimeScale();
+            invalidate();
+        }
     }
 
     /** ширины символов строки: считаем один раз, а не каждый кадр */
@@ -359,7 +388,7 @@ public class PengramLyricsView extends View {
             return;
         }
         final long start = Math.max(0, line.time);
-        long end = durationMs;
+        long end = lyricDurationMs();
         for (int a = lineIndex + 1; a < lines.size(); ++a) {
             if (lines.get(a).time >= 0) {
                 end = lines.get(a).time;
@@ -399,7 +428,7 @@ public class PengramLyricsView extends View {
         }
         if (timed) {
             final long start = Math.max(0, lines.get(index).time);
-            long end = durationMs;
+            long end = lyricDurationMs();
             for (int a = index + 1; a < lines.size(); ++a) {
                 if (lines.get(a).time >= 0) {
                     end = lines.get(a).time;
@@ -523,7 +552,8 @@ public class PengramLyricsView extends View {
             } else if (a == activeLine) {
                 // в шапке подсветку слов можно выключить — тогда строка горит целиком
                 final float fraction = cfgWords ? lineProgress(a) : 1f;
-                drawActiveLine(canvas, layout, fraction, anim, now, shadow);
+                drawActiveLine(canvas, layout, fraction, anim,
+                        !previewMode && timed && !PengramConfig.isLyricsSmooth() ? progressTime : now, shadow);
             } else {
                 final float distance = Math.abs(a - activeLine);
                 final float alpha = Math.max(0.12f, dim / 100f * (1f - Math.min(0.6f, distance * 0.12f)));
@@ -542,10 +572,11 @@ public class PengramLyricsView extends View {
             } catch (Throwable ignore) {
             }
         }
+        final boolean interpolate = previewMode || !timed || PengramConfig.isLyricsSmooth();
         boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
                 || Math.abs(tickerScrollX - tickerTargetX) > 0.5f
                 || enterAnim < 1f || previewMode
-                || (playing && (timed || animated(anim)));
+                || (playing && interpolate && (timed || animated(anim)));
         if (moving && playing && !previewMode && !animated(anim)
                 && Math.abs(scrollY - targetScrollY) <= 0.5f
                 && Math.abs(tickerScrollX - tickerTargetX) <= 0.5f
@@ -894,7 +925,7 @@ public class PengramLyricsView extends View {
                         final int top = tops.get(a);
                         if (y >= top - AndroidUtilities.dp(7) && y <= top + layouts.get(a).getHeight() + AndroidUtilities.dp(7)) {
                             final long time = Math.max(0, lines.get(a).time);
-                            seekCallback.seekTo(Utilities.clamp(time / (float) durationMs, 1f, 0f));
+                            seekCallback.seekTo(PengramLyricsTiming.seekFraction(time + PengramLyrics.getOffset(offsetKey), timeScale, durationMs));
                             break;
                         }
                     }

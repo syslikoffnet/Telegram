@@ -1386,9 +1386,9 @@
     <string name="PengramLyricsSourceInfo">На «Авто» источники опрашиваются одновременно, поэтому текст появляется так же быстро, как у самого быстрого из них.</string>
     <string name="PengramLyricsSyncHeader">Точность</string>
     <string name="PengramLyricsStretch">Подгонять ускоренные и замедленные версии</string>
-    <string name="PengramLyricsStretchInfo">Если трек короче или длиннее оригинала, таймкоды растягиваются под него.</string>
+    <string name="PengramLyricsStretchInfo">Для текста с таймкодами подгоняет их к ускоренному или замедленному треку по длине исходника (либо оценке последней строки). Выключено — исходные таймкоды без подгонки.</string>
     <string name="PengramLyricsSmooth">Плавная подсветка</string>
-    <string name="PengramLyricsSmoothInfo">Слова загораются непрерывно, а не рывками вслед за плеером.</string>
+    <string name="PengramLyricsSmoothInfo">Включено — буквы подсвечиваются непрерывно между обновлениями плеера. Выключено — подсветка замирает и движется только при обновлении прогресса.</string>
     <string name="PengramLyricsSyncButtons">Кнопки сдвига в плеере</string>
     <string name="PengramLyricsOffset">Сдвиг для всех треков</string>
     <string name="PengramLyricsOffsetInfo">Минус — текст идёт раньше, плюс — позже. Отдельный трек можно сдвинуть прямо в плеере.</string>
@@ -1455,9 +1455,9 @@
     <string name="PengramEditorInput">Сообщение</string>
     <string name="PengramConstructorEditor">Редактор экрана</string>
     <string name="PengramConstructorEditorInfo">Перетаскивайте элементы прямо на живом макете приложения</string>
-    <string name="PengramLyricsAuto">Полностью автоматически</string>
-    <string name="PengramLyricsAutoInfo">Pengram сам выбирает источник, заранее качает текст и держит синхронизацию</string>
-    <string name="PengramLyricsAutoDetails">Все источники опрашиваются разом, побеждает лучший результат, тайминги подгоняются под трек, а тексты следующих песен скачиваются заранее. Выключайте, только если хотите всё настроить руками.</string>
+    <string name="PengramLyricsAuto">Автоматический поиск текста</string>
+    <string name="PengramLyricsAutoInfo">Pengram выбирает источник и заранее загружает текст; подгонка и плавная подсветка управляются отдельно.</string>
+    <string name="PengramLyricsAutoDetails">Pengram выбирает источник и заранее загружает тексты следующих песен. Подгонка таймкодов и плавная подсветка настраиваются отдельно ниже.</string>
     <string name="PengramDeleteEffectHeader">Анимация удаления</string>
     <string name="PengramDeleteEffect">Анимация удаления</string>
     <string name="PengramDeleteEffectNone">Выключено</string>
