@@ -220,6 +220,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         if (visualDraft != null) {
             visualDraft.discard();
             visualDraft = null;
+            // Any screen behind the full-screen editor may have drawn a draft
+            // value while the editor was open; restore its original appearance.
+            applyEverywhere();
         }
         super.onFragmentDestroy();
     }
