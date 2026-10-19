@@ -957,23 +957,36 @@ public class PengramHistory extends SQLiteOpenHelper {
                 where.append("message_id = ?");
                 args.add(String.valueOf(messageId));
             }
+            boolean unicode = false;
             if (!TextUtils.isEmpty(query)) {
-                if (where.length() > 0) where.append(" AND ");
-                where.append("(text LIKE ? OR prev_text LIKE ?)");
-                args.add("%" + query + "%");
-                args.add("%" + query + "%");
+                for (int i = 0; i < query.length(); i++) {
+                    if (query.charAt(i) > 127) { unicode = true; break; }
+                }
+                if (!unicode) {
+                    if (where.length() > 0) where.append(" AND ");
+                    where.append("(text LIKE ? ESCAPE '\\' OR prev_text LIKE ? ESCAPE '\\')");
+                    String escaped = query.replace("\\", "\\\\").replace("%", "\\%")
+                            .replace("_", "\\_");
+                    args.add("%" + escaped + "%");
+                    args.add("%" + escaped + "%");
+                }
             }
+            // Select the newest matching snapshots first. A simple ascending LIMIT used to
+            // discard recent deletions as soon as the history exceeded one page.
+            String order = messageId != 0 ? "saved_at DESC, id DESC"
+                    : "date DESC, message_id DESC, saved_at DESC, id DESC";
             String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data FROM " + TABLE +
                     (where.length() > 0 ? (" WHERE " + where) : "") +
-                    // Общий «чат истории» стоит по исходной дате/ID сообщения, а версии одного
-                    // сообщения — по времени сохранения. Так удалёнка никогда не прыгает в конец.
-                    (ascending ? (messageId != 0
-                            ? " ORDER BY saved_at ASC, id ASC"
-                            : " ORDER BY date ASC, message_id ASC, saved_at ASC, id ASC")
-                            : " ORDER BY saved_at DESC, id DESC") +
-                    " LIMIT " + Math.max(1, limit);
+                    " ORDER BY " + order + (unicode ? "" : " LIMIT " + Math.max(1, limit));
             c = history.getReadableDatabase().rawQuery(sql, args.toArray(new String[0]));
-            while (c.moveToNext()) {
+            String needle = unicode ? query.toLowerCase(Locale.ROOT) : null;
+            while (c.moveToNext() && result.size() < Math.max(1, limit)) {
+                // SQLite LIKE case-folds ASCII only. Filter other scripts in Java on this
+                // background reader; apply the page limit to matches, not database rows.
+                if (unicode && !(c.getString(8) != null && c.getString(8).toLowerCase(Locale.ROOT).contains(needle))
+                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))) {
+                    continue;
+                }
                 Entry e = new Entry();
                 e.rowId = c.getLong(0);
                 e.account = c.getInt(1);
@@ -997,6 +1010,9 @@ public class PengramHistory extends SQLiteOpenHelper {
             FileLog.e(e);
         } finally {
             if (c != null) try { c.close(); } catch (Throwable ignore) {}
+        }
+        if (ascending) {
+            java.util.Collections.reverse(result);
         }
         return result;
     }

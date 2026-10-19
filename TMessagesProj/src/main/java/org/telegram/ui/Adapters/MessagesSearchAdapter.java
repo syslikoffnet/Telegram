@@ -64,7 +64,7 @@ import java.util.IdentityHashMap;
 public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter implements NotificationCenter.NotificationCenterDelegate {
 
     private final Context mContext;
-    private final HashSet<Integer> messageIds = new HashSet<>();
+    private final HashSet<String> messageIds = new HashSet<>();
     private final ArrayList<MessageObject> searchResultMessages = new ArrayList<>();
     private final ArrayList<PengramHistory.Entry> localDeleted = new ArrayList<>();
     private final IdentityHashMap<MessageObject, PengramHistory.Entry> deletedResults = new IdentityHashMap<>();
@@ -73,6 +73,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
     private int localGeneration;
     private Runnable localResultsChanged;
     private Runnable localSearchTask;
+    private boolean localNeedsRefresh;
 
     public PengramHistory.Entry getDeletedResult(MessageObject message) {
         return deletedResults.get(message);
@@ -81,12 +82,13 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
     public void searchLocalDeleted(String query, long dialogId, long mergeDialogId,
                                    boolean allowed, Runnable onResultsChanged) {
         final String value = allowed && query != null ? query.trim() : "";
+        localResultsChanged = onResultsChanged;
         if (TextUtils.equals(value, localQuery) && dialogId == localDialogId
                 && mergeDialogId == localMergeDialogId) return;
         localQuery = value;
         localDialogId = dialogId;
         localMergeDialogId = mergeDialogId;
-        localResultsChanged = onResultsChanged;
+        localNeedsRefresh = false;
         final int generation = ++localGeneration;
         if (localSearchTask != null) AndroidUtilities.cancelRunOnUIThread(localSearchTask);
         localDeleted.clear();
@@ -201,9 +203,9 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         ArrayList<MessageObject> searchResults = searchType == 0 ? MediaDataController.getInstance(currentAccount).getFoundMessageObjects() : HashtagSearchController.getInstance(currentAccount).getMessages(searchType);
         for (int i = 0; i < searchResults.size(); ++i) {
             MessageObject m = searchResults.get(i);
-            if ((!m.hasValidGroupId() || m.isPrimaryGroupMessage) && !messageIds.contains(m.getId())) {
+            if ((!m.hasValidGroupId() || m.isPrimaryGroupMessage) && !messageIds.contains(m.getDialogId() + ":" + m.getId())) {
                 searchResultMessages.add(m);
-                messageIds.add(m.getId());
+                messageIds.add(m.getDialogId() + ":" + m.getId());
             }
         }
 
@@ -221,8 +223,16 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                     msg.id = e.messageId;
                     msg.dialog_id = e.dialogId;
                     msg.date = e.date != 0 ? e.date : e.savedAt;
-                    msg.message = "🗑 " + (TextUtils.isEmpty(e.text) ?
-                            (TextUtils.isEmpty(e.prevText) ? "" : e.prevText) : e.text);
+                    // The hit may have matched the previous text, not the final snapshot.
+                    // Show the text that actually matched so the result is recognisable.
+                    String matched = e.text;
+                    if (!TextUtils.isEmpty(e.prevText) && e.prevText.toLowerCase(java.util.Locale.ROOT)
+                            .contains(localQuery.toLowerCase(java.util.Locale.ROOT))
+                            && (TextUtils.isEmpty(matched) || !matched.toLowerCase(java.util.Locale.ROOT)
+                            .contains(localQuery.toLowerCase(java.util.Locale.ROOT)))) {
+                        matched = e.prevText;
+                    }
+                    msg.message = "🗑 " + (matched == null ? "" : matched);
                     msg.peer_id = MessagesController.getInstance(currentAccount).getPeer(e.dialogId);
                     msg.from_id = MessagesController.getInstance(currentAccount).getPeer(
                             e.fromId != 0 ? e.fromId : e.dialogId);
@@ -388,13 +398,22 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
     public void attach() {
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.storiesListUpdated);
+        if (localNeedsRefresh) {
+            localNeedsRefresh = false;
+            String query = localQuery;
+            localQuery = ""; // bypass the same-query fast path after detaching
+            searchLocalDeleted(query, localDialogId, localMergeDialogId, true, localResultsChanged);
+        }
     }
 
     public void detach() {
         ++localGeneration;
         if (localSearchTask != null) AndroidUtilities.cancelRunOnUIThread(localSearchTask);
+        localSearchTask = null;
+        localNeedsRefresh = !TextUtils.isEmpty(localQuery);
         localDeleted.clear();
         deletedResults.clear();
+        notifyDataSetChanged();
         AndroidUtilities.cancelRunOnUIThread(loadStories);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.storiesListUpdated);
     }

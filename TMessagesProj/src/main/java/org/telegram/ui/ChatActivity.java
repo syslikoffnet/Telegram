@@ -2916,6 +2916,19 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
             }
+            // A tap on the edited bubble opens its saved versions; long press still
+            // opens Telegram's usual message actions. Only locally recorded versions exist.
+            if (view instanceof ChatMessageCell) {
+                ChatMessageCell cell = (ChatMessageCell) view;
+                MessageObject message = cell.getMessageObject();
+                if (message != null && message.isEdited() && !message.pengramDeleted
+                        && cell.isInsideBackground(x, y) && !isInsideContainer
+                        && !isQuickRepliesOrWelcomeMessagesMode()) {
+                    presentFragment(new PengramHistoryChatActivity(message.getDialogId(),
+                            PengramHistoryChatActivity.MODE_EDITED, message.getId()));
+                    return;
+                }
+            }
             createMenu(view, true, false, x, y, false);
         }
 

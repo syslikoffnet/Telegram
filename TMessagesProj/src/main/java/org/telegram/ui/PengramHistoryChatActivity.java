@@ -38,6 +38,7 @@ import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
@@ -72,10 +73,15 @@ public class PengramHistoryChatActivity extends BaseFragment {
     private ActionBarMenuItem searchItem;
 
     private String searchQuery = "";
+    private int pageLimit = 500;
+    private int loadGeneration;
+    private boolean loadingEntries;
+    private boolean hasOlderEntries;
     private final ArrayList<Item> items = new ArrayList<>();
 
     private static class Item {
         MessageObject message;
+        PengramHistory.Entry entry;
         CharSequence serviceText;   // «удалено 12 мая в 18:04» / «версия 2»
     }
 
@@ -130,12 +136,14 @@ public class PengramHistoryChatActivity extends BaseFragment {
                     @Override
                     public void onSearchCollapse() {
                         searchQuery = "";
+                        pageLimit = 500;
                         reload();
                     }
 
                     @Override
                     public void onTextChanged(android.widget.EditText editText) {
                         searchQuery = editText.getText() == null ? "" : editText.getText().toString();
+                        pageLimit = 500;
                         reload();
                     }
                 });
@@ -158,7 +166,25 @@ public class PengramHistoryChatActivity extends BaseFragment {
         listView.setLayoutManager(layoutManager);
         adapter = new Adapter();
         listView.setAdapter(adapter);
-        listView.setOnItemClickListener((view, position) -> showActions(position));
+        listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                if (dy < 0 && !loadingEntries && hasOlderEntries && layoutManager != null
+                        && layoutManager.findFirstVisibleItemPosition() <= 3) {
+                    pageLimit += 500;
+                    reload(true);
+                }
+            }
+        });
+        listView.setOnItemClickListener((view, position) -> {
+            if (position >= 0 && position < items.size() && singleMessageId == 0
+                    && items.get(position).entry.action == PengramHistory.ACTION_EDITED) {
+                PengramHistory.Entry entry = items.get(position).entry;
+                presentFragment(new PengramHistoryChatActivity(entry.dialogId, MODE_EDITED, entry.messageId));
+            } else {
+                showActions(position);
+            }
+        });
         listView.setOnItemLongClickListener((view, position) -> {
             showActions(position);
             return true;
@@ -231,6 +257,15 @@ public class PengramHistoryChatActivity extends BaseFragment {
     }
 
     private void reload() {
+        reload(false);
+    }
+
+    private void reload(boolean keepScroll) {
+        final int generation = ++loadGeneration;
+        loadingEntries = true;
+        // A single message normally has only a handful of revisions; never show a
+        // partial chain or label the first row of a page as the original text.
+        final int limit = singleMessageId != 0 ? Integer.MAX_VALUE : pageLimit;
         final int filter;
         if (mode == MODE_DELETED) {
             filter = PengramHistory.FILTER_DELETED;
@@ -243,15 +278,24 @@ public class PengramHistoryChatActivity extends BaseFragment {
         // база может быть большой — читаем её не на главном потоке
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final ArrayList<PengramHistory.Entry> entries =
-                    PengramHistory.getEntries(dialogId, filter, 1000, query, singleMessageId, true, currentAccount);
-            AndroidUtilities.runOnUIThread(() -> applyEntries(entries, query));
+                    PengramHistory.getEntries(dialogId, filter, limit, query, singleMessageId, true, currentAccount);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (generation != loadGeneration || fragmentView == null) return;
+                loadingEntries = false;
+                hasOlderEntries = entries.size() == limit;
+                applyEntries(entries, query, keepScroll);
+            });
         });
     }
 
-    private void applyEntries(ArrayList<PengramHistory.Entry> entries, String query) {
+    private void applyEntries(ArrayList<PengramHistory.Entry> entries, String query, boolean keepScroll) {
         if (!TextUtils.equals(query, searchQuery)) {
             return; // пока читали, запрос успел измениться
         }
+        final int oldSize = items.size();
+        final int firstVisible = layoutManager == null ? 0 : layoutManager.findFirstVisibleItemPosition();
+        final View firstView = layoutManager == null ? null : layoutManager.findViewByPosition(firstVisible);
+        final int firstOffset = firstView == null ? 0 : firstView.getTop();
         items.clear();
         if (singleMessageId != 0 && mode == MODE_EDITED) {
             // история правок: сначала самый первый известный текст, потом все версии
@@ -274,7 +318,16 @@ public class PengramHistoryChatActivity extends BaseFragment {
                     lastDay = day;
                     service = LocaleController.formatDateChat(date);
                 }
-                addItem(entry, entry.text, service);
+                String text = TextUtils.isEmpty(entry.text) ? entry.prevText : entry.text;
+                if (!TextUtils.isEmpty(query) && entry.action == PengramHistory.ACTION_EDITED
+                        && !TextUtils.isEmpty(entry.prevText)
+                        && entry.prevText.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT))
+                        && (TextUtils.isEmpty(text) || !text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT)))) {
+                    text = entry.prevText;
+                    service = service == null ? getString(R.string.PengramVersionBeforeEdit)
+                            : service + " · " + getString(R.string.PengramVersionBeforeEdit);
+                }
+                addItem(entry, text, service);
             }
         }
 
@@ -282,13 +335,19 @@ public class PengramHistoryChatActivity extends BaseFragment {
             adapter.notifyDataSetChanged();
         }
         if (emptyView != null) {
+            emptyView.setText(getString(!TextUtils.isEmpty(query) ? R.string.PengramHistoryNoMatches
+                    : singleMessageId != 0 ? R.string.PengramHistoryNoVersions : R.string.PengramHistoryEmpty));
             emptyView.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
         }
         if (actionBar != null) {
             actionBar.setSubtitle(getSubtitleText());
         }
         if (layoutManager != null && !items.isEmpty()) {
-            layoutManager.scrollToPosition(items.size() - 1);
+            if (keepScroll && oldSize != 0 && firstVisible >= 0) {
+                layoutManager.scrollToPositionWithOffset(firstVisible + items.size() - oldSize, firstOffset);
+            } else {
+                layoutManager.scrollToPosition(items.size() - 1);
+            }
         }
     }
 
@@ -313,6 +372,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             messageObject.pengramDeleted = true;
         }
         Item item = new Item();
+        item.entry = entry;
         item.message = messageObject;
         item.serviceText = service;
         items.add(item);
@@ -322,7 +382,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         try {
             TLRPC.Message message = null;
             if (entry.data != null && TextUtils.equals(text, entry.text)) {
-                message = PengramHistory.deserialize(entry.data);
+                message = PengramHistory.deserialize(entry.data, currentAccount);
             }
             if (message == null) {
                 if (TextUtils.isEmpty(text)) {
@@ -468,7 +528,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             layout.addView(serviceWrap, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
             final ChatMessageCell cell = new ChatMessageCell(context, currentAccount);
-            cell.isChat = dialogId < 0;
+            cell.isChat = dialogId <= 0;
             cell.setFullyDraw(true);
             cell.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {
                 @Override
@@ -527,6 +587,57 @@ public class PengramHistoryChatActivity extends BaseFragment {
         public int getItemCount() {
             return items.size();
         }
+    }
+
+    private void refreshTheme() {
+        if (contentView == null) return;
+        Theme.createChatResources(contentView.getContext(), false);
+        contentView.setBackgroundImage(Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
+        if (actionBar != null) {
+            actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
+        }
+        if (emptyView != null) {
+            emptyView.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+            emptyView.setBackground(Theme.createServiceDrawable(dp(12), emptyView, contentView));
+        }
+        if (listView != null) {
+            for (int i = 0; i < listView.getChildCount(); i++) {
+                View row = listView.getChildAt(i);
+                TextView service = (TextView) row.getTag(R.id.object_tag);
+                if (service != null) {
+                    service.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+                    service.setBackground(Theme.createServiceDrawable(dp(10), service, contentView));
+                }
+                ChatMessageCell cell = (ChatMessageCell) row.getTag();
+                if (cell != null) cell.invalidate();
+                row.invalidate();
+            }
+            listView.invalidate();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refreshTheme();
+    }
+
+    @Override
+    public ArrayList<ThemeDescription> getThemeDescriptions() {
+        ArrayList<ThemeDescription> descriptions = new ArrayList<>();
+        descriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND,
+                null, null, null, null, Theme.key_actionBarDefault));
+        descriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR,
+                null, null, null, null, Theme.key_actionBarDefaultIcon));
+        descriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR,
+                null, null, null, null, Theme.key_actionBarDefaultSelector));
+        descriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR,
+                null, null, null, null, Theme.key_actionBarDefaultTitle));
+        descriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SUBTITLECOLOR,
+                null, null, null, null, Theme.key_actionBarDefaultSubtitle));
+        descriptions.add(new ThemeDescription(contentView, 0, null, null, null,
+                this::refreshTheme, Theme.key_chat_wallpaper));
+        return descriptions;
     }
 
     @Override

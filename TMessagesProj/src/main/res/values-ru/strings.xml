@@ -303,6 +303,8 @@
     <string name="PengramHistoryFilterAll">Все</string>
     <string name="PengramHistoryFilterDeleted">Только удалённые</string>
     <string name="PengramHistoryFilterEdited">Только изменённые</string>
+    <string name="PengramHistoryNoMatches">В сохранённой истории ничего не найдено.</string>
+    <string name="PengramHistoryNoVersions">Предыдущая версия не сохранилась на этом устройстве.</string>
     <string name="PengramHistoryEmpty">Пока ничего не сохранено.</string>
     <string name="PengramHistoryInfo">Хранится в отдельной базе — очистка кэша Telegram её не удаляет.</string>
     <string name="PengramHistoryDeletedMark">Удалено</string>
@@ -567,6 +569,7 @@
     <string name="PengramDeletedTitle">Удалённые сообщения</string>
     <string name="PengramEditedTitle">Изменённые сообщения</string>
     <string name="PengramEditHistoryTitle">История изменений</string>
+    <string name="PengramVersionBeforeEdit">до правки</string>
     <string name="PengramVersionOriginal">оригинал</string>
     <string name="PengramVersionNumber">версия %1$d</string>
     <string name="PengramServiceDeleted">удалено %1$s</string>

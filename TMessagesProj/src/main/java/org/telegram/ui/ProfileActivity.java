@@ -4567,7 +4567,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == pengramRow) {
                 presentFragment(new PengramSettingsActivity());
             } else if (position == pengramHistoryRow) {
-                presentFragment(new PengramHistoryActivity(userId != 0 ? userId : -chatId));
+                presentFragment(new PengramHistoryChatActivity(userId != 0 ? userId : -chatId, PengramHistoryChatActivity.MODE_ALL));
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
             } else if (position == questionRow) {

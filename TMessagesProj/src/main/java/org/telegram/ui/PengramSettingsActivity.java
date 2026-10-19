@@ -4940,7 +4940,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 updateAll = true;
                 break;
             case BTN_HIST_OPEN:
-                presentFragment(new PengramHistoryActivity(0));
+                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_ALL));
                 break;
             case BTN_MEDIA_SAVE:
                 PengramConfig.toggleSaveDeletedMedia();

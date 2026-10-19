@@ -11308,6 +11308,8 @@
     <string name="PengramHistoryFilterAll">All</string>
     <string name="PengramHistoryFilterDeleted">Deleted only</string>
     <string name="PengramHistoryFilterEdited">Edited only</string>
+    <string name="PengramHistoryNoMatches">No saved messages match this search.</string>
+    <string name="PengramHistoryNoVersions">No earlier version was saved on this device.</string>
     <string name="PengramHistoryEmpty">Nothing saved yet.</string>
     <string name="PengramHistoryInfo">Saved in a separate database, clearing Telegram cache does not delete it.</string>
     <string name="PengramHistoryDeletedMark">Deleted</string>
@@ -11572,6 +11574,7 @@
     <string name="PengramDeletedTitle">Deleted messages</string>
     <string name="PengramEditedTitle">Edited messages</string>
     <string name="PengramEditHistoryTitle">Edit history</string>
+    <string name="PengramVersionBeforeEdit">before edit</string>
     <string name="PengramVersionOriginal">original</string>
     <string name="PengramVersionNumber">version %1$d</string>
     <string name="PengramServiceDeleted">deleted %1$s</string>
