@@ -475,10 +475,14 @@
     <string name="PengramVoiceCustom">Своя студия</string>
     <string name="PengramVoiceAssistant">Цифровой ассистент</string>
     <string name="PengramVoiceArmor">Связь в шлеме</string>
+    <string name="PengramVoiceTrolling">Троллинг</string>
     <string name="PengramVoiceAssistantInfo">Чистый электронный тембр и короткое отражение. Авторский эффект, не копия голоса персонажа.</string>
     <string name="PengramVoiceArmorInfo">Тёплая окраска, лёгкое насыщение и отражение. Не копия голоса актёра.</string>
+    <string name="PengramVoiceTrollingInfo">Громкая разборчивая речь для ГЧ: фильтр гула, акцент на словах, контроль шума и автоматическое выравнивание. Без смены тона, эха и намеренного хрипа.</string>
+    <string name="PengramVoiceTrollingGainBypass">Этот режим не использует отдельные пресеты усиления и перегруза, чтобы сохранить чёткость. Для ручного перегруза переключитесь на другой режим голоса.</string>
     <string name="PengramVoiceAssistantPreview">Электронный ассистент · локальный эффект</string>
     <string name="PengramVoiceArmorPreview">Связь в шлеме · локальный эффект</string>
+    <string name="PengramVoiceTrollingPreview">Чёткая речь · автоматический уровень</string>
     <string name="PengramVoiceStudioPreview">Своя цепочка · тон, тембр, комната и фактура</string>
     <string name="PengramVoiceStudioDrive">Насыщение · 0 = выкл.</string>
     <string name="PengramVoiceStudioRobot">Электронная фактура · 0 = выкл.</string>
@@ -492,8 +496,8 @@
     <string name="PengramVoiceGainLoud">Громко · +%1$d dB</string>
     <string name="PengramVoiceGainBattle">Батл · +%1$d dB</string>
     <string name="PengramVoiceGainCustom">Свой · +%1$d dB</string>
-    <string name="PengramVoiceGainOverload">Троллинг · +%1$d dB</string>
-    <string name="PengramVoiceGainMaximum">Поставить максимум · +60 dB / 100% перегруза</string>
+    <string name="PengramVoiceGainOverload">Перегруз · +%1$d dB</string>
+    <string name="PengramVoiceGainMaximum">Максимум перегруза · +60 dB / 100%</string>
     <string name="PengramVoiceOverdrive">Перегруз · насыщение</string>
     <string name="PengramVoiceGainInfo">Каждый пресет хранит своё усиление (0–60 dB) и перегруз (0–100%). «Оригинал» остаётся без обработки; изменение слайдера там открывает «Свой». Перегруз намеренно искажает звук, а выходной лимитер не даёт переполнить PCM. Усиление поднимает шум и не обходит ограничения микрофона или громкости у собеседника. Слишком громкий звук может повредить слух; начинайте с малого. Для звонков и групповых ГЧ включите переключатель ниже.</string>
     <string name="PengramVoiceProfileCopy">Скопировать профиль эффекта</string>

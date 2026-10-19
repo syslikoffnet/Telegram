@@ -146,6 +146,8 @@ def main():
     # Dedicated screens reachable from these parent settings rows. Explicit
     # inventory: never index a control unless the owning screen can be opened.
     external = [
+        # The mode picker is a custom view, not a static settings row.
+        ("PengramVoiceTrolling", "SECTION_MEDIA", "PengramVoiceHeader", 0),
         ("PengramAvatarPos", "SECTION_CHAT_MESSAGES", "PengramChatLook", 1),
         ("PengramDialogAvatars", "SECTION_CHAT_MESSAGES", "PengramChatLook", 1),
         ("PengramProfileHistoryEnable", "SECTION_HISTORY", "PengramProfileHistory", 2),

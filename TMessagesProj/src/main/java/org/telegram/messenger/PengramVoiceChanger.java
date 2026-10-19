@@ -43,10 +43,12 @@ public class PengramVoiceChanger {
     // and are not neural voice conversion models.
     public static final int MODE_ASSISTANT = 17;  // clean electronic assistant
     public static final int MODE_ARMOR = 18;      // cinematic helmet comms
+    public static final int MODE_TROLLING = 19;   // loud, intelligible conference speech
 
     /** порядок режимов в настройках */
     public static final int[] MODES = {
             MODE_OFF,
+            MODE_TROLLING,
             MODE_ANONYMOUS,
             MODE_FEMALE,
             MODE_MALE,
@@ -128,6 +130,15 @@ public class PengramVoiceChanger {
     private static float dryEnv;
     private static float wetEnv;
     private static float makeupGain = 1f;
+    // Dedicated zero-lookahead conference chain; never shares the pitch shifter
+    // or the deliberately distorted microphone boost preset.
+    private static float speechHp, speechHpPrevious, speechPresenceLow;
+    private static float speechEnvelope, speechGain = 1f, speechGate;
+    private static float speechHpCoefficient, speechPresenceCoefficient;
+    private static float speechEnvelopeAttack, speechEnvelopeRelease;
+    private static float speechGainAttack, speechGainRelease;
+    private static float speechGateAttack, speechGateRelease;
+
 
     // --- состояние анонимайзера (новое на каждую запись) ---
     // Do not initialize SecureRandom when loading the class for an OFF call.
@@ -177,6 +188,16 @@ public class PengramVoiceChanger {
         wetEnv = 0;
         makeupGain = 1f;
         envelopeState = 0;
+        speechHp = speechHpPrevious = speechPresenceLow = speechEnvelope = speechGate = 0f;
+        speechGain = 1f;
+        speechHpCoefficient = highpassCoefficient(100f);
+        speechPresenceCoefficient = lowpassCoefficient(1900f);
+        speechEnvelopeAttack = timeCoefficient(0.008f);
+        speechEnvelopeRelease = timeCoefficient(0.14f);
+        speechGainAttack = timeCoefficient(0.012f);
+        speechGainRelease = timeCoefficient(0.095f);
+        speechGateAttack = timeCoefficient(0.003f);
+        speechGateRelease = timeCoefficient(0.14f);
         formant1.reset();
         formant2.reset();
         bandLow.reset();
@@ -412,6 +433,19 @@ public class PengramVoiceChanger {
         }
         final int mode = PengramConfig.getVoiceChangerMode();
         if (buffer == null || buffer.isReadOnly() || len < 2 || buffer.limit() < 2) return;
+        if (mode == MODE_TROLLING) {
+            // Speech intelligibility wins over the separate +60 dB/overdrive
+            // preset. No pitch windows or extra conference latency.
+            try {
+                if (!initialized) reset();
+                processConferenceSpeech(buffer, len);
+            } catch (Throwable e) {
+                disabledForSession = true;
+                initialized = false;
+                FileLog.e(e);
+            }
+            return;
+        }
         final int boostDb = PengramConfig.getVoiceGainDb();
         final int overdrive = PengramConfig.getVoiceGainDrive();
         final boolean dryOnly = mode == MODE_OFF || isDryOnly(mode);
@@ -691,6 +725,43 @@ public class PengramVoiceChanger {
         }
     }
 
+    /** Clean, leveled speech for calls and voice notes; all coefficients and
+     *  state are per microphone session and recalculated for the actual rate.
+     */
+    private static void processConferenceSpeech(ByteBuffer buffer, int len) {
+        final ByteOrder previousOrder = buffer.order();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            final int count = Math.min(len, buffer.limit()) / 2;
+            for (int i = 0; i < count; ++i) {
+                final float input = buffer.getShort(i * 2);
+                // Remove handling noise/rumble and lift articulation without
+                // changing pitch, adding echo or flattening consonants.
+                speechHp = speechHpCoefficient * (speechHp + input - speechHpPrevious);
+                speechHpPrevious = input;
+                speechPresenceLow += speechPresenceCoefficient * (speechHp - speechPresenceLow);
+                final float clear = speechHp + 0.16f * (speechHp - speechPresenceLow);
+                final float level = Math.abs(speechHp);
+                speechEnvelope += (level - speechEnvelope) *
+                        (level > speechEnvelope ? speechEnvelopeAttack : speechEnvelopeRelease);
+                // Moderate expander: do not pump room noise to full level
+                // between words. Starts opening well below ordinary speech.
+                final float activity = Math.max(0f, Math.min(1f, (speechEnvelope - 28f) / 112f));
+                speechGate += (activity - speechGate) *
+                        (activity > speechGate ? speechGateAttack : speechGateRelease);
+                // Target speech envelope ~8.5k PCM, makeup <=12x. Fast down,
+                // slow up avoids pumping and catches a sudden loud syllable.
+                final float target = Math.max(1f, Math.min(12f,
+                        8500f / Math.max(500f, speechEnvelope)));
+                speechGain += (target - speechGain) *
+                        (target < speechGain ? speechGainAttack : speechGainRelease);
+                buffer.putShort(i * 2, (short) limit(clear * speechGain * speechGate));
+            }
+        } finally {
+            buffer.order(previousOrder);
+        }
+    }
+
     // ------------------------------------------------------------- утилиты DSP
 
     /** Interpolated LFO. Phases are positive and normalized once per packet. */
@@ -732,6 +803,10 @@ public class PengramVoiceChanger {
     private static void echoWrite(float value) {
         echo[echoPos] = value;
         if (++echoPos == ECHO_SIZE) echoPos = 0;
+    }
+
+    private static float timeCoefficient(float seconds) {
+        return (float) (1.0 - Math.exp(-1.0 / (seconds * sampleRate)));
     }
 
     private static float lowpassCoefficient(float cutoff) {
@@ -888,6 +963,7 @@ public class PengramVoiceChanger {
             case MODE_PHONE: return LocaleController.getString(R.string.PengramVoicePhone);
             case MODE_ASSISTANT: return LocaleController.getString(R.string.PengramVoiceAssistant);
             case MODE_ARMOR: return LocaleController.getString(R.string.PengramVoiceArmor);
+            case MODE_TROLLING: return LocaleController.getString(R.string.PengramVoiceTrolling);
             case MODE_CAVE: return LocaleController.getString(R.string.PengramVoiceCave);
             case MODE_UNDERWATER: return LocaleController.getString(R.string.PengramVoiceUnderwater);
             case MODE_WHISPER: return LocaleController.getString(R.string.PengramVoiceWhisper);
@@ -912,6 +988,7 @@ public class PengramVoiceChanger {
             case MODE_PHONE: return "\u260E\uFE0F";
             case MODE_ASSISTANT: return "\uD83D\uDCBB";
             case MODE_ARMOR: return "\uD83D\uDEE1\uFE0F";
+            case MODE_TROLLING: return "\uD83D\uDCE2";
             case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
             case MODE_UNDERWATER: return "\uD83C\uDF0A";
             case MODE_WHISPER: return "\uD83E\uDD2B";
@@ -924,6 +1001,7 @@ public class PengramVoiceChanger {
     public static int getModeGroup(int mode) {
         switch (mode) {
             case MODE_OFF:
+            case MODE_TROLLING:
             case MODE_ANONYMOUS:
             case MODE_CUSTOM:
                 return 0;

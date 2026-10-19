@@ -11480,10 +11480,14 @@
     <string name="PengramVoiceCustom">Voice studio</string>
     <string name="PengramVoiceAssistant">Digital assistant</string>
     <string name="PengramVoiceArmor">Helmet comms</string>
+    <string name="PengramVoiceTrolling">Trolling</string>
     <string name="PengramVoiceAssistantInfo">Clear electronic filter with short reflections. An original effect, not a character voice clone.</string>
     <string name="PengramVoiceArmorInfo">Warm filtered speech, gentle drive and helmet-like reflections. Not an actor voice clone.</string>
+    <string name="PengramVoiceTrollingInfo">Loud, intelligible conference speech: rumble filter, presence, noise control and automatic leveling. No pitch change, echo or intentional distortion.</string>
+    <string name="PengramVoiceTrollingGainBypass">This speech mode ignores the separate distortion/boost presets to preserve clarity. To use manual overdrive, switch to another voice mode.</string>
     <string name="PengramVoiceAssistantPreview">Electronic assistant · local effect</string>
     <string name="PengramVoiceArmorPreview">Helmet comms · local effect</string>
+    <string name="PengramVoiceTrollingPreview">Clear speech · automatic level</string>
     <string name="PengramVoiceStudioPreview">Custom chain · pitch, tone, room and texture</string>
     <string name="PengramVoiceStudioDrive">Saturation · 0 = off</string>
     <string name="PengramVoiceStudioRobot">Electronic texture · 0 = off</string>
@@ -11497,8 +11501,8 @@
     <string name="PengramVoiceGainLoud">Loud · +%1$d dB</string>
     <string name="PengramVoiceGainBattle">Battle · +%1$d dB</string>
     <string name="PengramVoiceGainCustom">Custom · +%1$d dB</string>
-    <string name="PengramVoiceGainOverload">Trolling · +%1$d dB</string>
-    <string name="PengramVoiceGainMaximum">Set maximum · +60 dB / 100% overdrive</string>
+    <string name="PengramVoiceGainOverload">Overload · +%1$d dB</string>
+    <string name="PengramVoiceGainMaximum">Set overload maximum · +60 dB / 100%</string>
     <string name="PengramVoiceOverdrive">Overdrive · saturation</string>
     <string name="PengramVoiceGainInfo">Each preset saves its own boost (0–60 dB) and overdrive (0–100%). Original stays unchanged; moving a slider there opens Custom. Overdrive intentionally distorts sound, while the output limiter prevents PCM overflow. Boost also raises noise and cannot override the microphone or listener volume. Extremely loud sound may damage hearing; start low. Calls and group voice chats require the separate switch below.</string>
     <string name="PengramVoiceProfileCopy">Copy effect profile</string>

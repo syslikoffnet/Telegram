@@ -3161,20 +3161,25 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
         }
 
-        // Gain is independent of timbre: MODE_OFF + a preset boosts the dry mic.
-        items.add(UItem.asHeader(getString(R.string.PengramVoiceGainHeader)));
-        final int gainPreset = PengramConfig.getVoiceGainPreset();
-        items.add(UItem.asSettingsCell(BTN_VOICE_GAIN_PRESET, R.drawable.msg_customize,
-                getString(R.string.PengramVoiceGainPreset), voiceGainPresetName(gainPreset)));
-        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDb(), PengramConfig.VOICE_GAIN_MAX_DB,
-                value -> value > 0 ? "+" + value + " dB" : "0 dB",
-                PengramConfig::setVoiceGainDb));
-        items.add(UItem.asHeader(getString(R.string.PengramVoiceOverdrive)));
-        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDrive(), 100,
-                value -> value + "%", PengramConfig::setVoiceGainDrive));
-        items.add(UItem.asButton(BTN_VOICE_GAIN_MAXIMUM, R.drawable.msg_customize,
-                getString(R.string.PengramVoiceGainMaximum)));
-        items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
+        if (mode == PengramVoiceChanger.MODE_TROLLING) {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceTrollingGainBypass)));
+        } else {
+            // Independent manual gain and intentional distortion. The dedicated
+            // speech-leveling mode does not stack these controls on top of itself.
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceGainHeader)));
+            final int gainPreset = PengramConfig.getVoiceGainPreset();
+            items.add(UItem.asSettingsCell(BTN_VOICE_GAIN_PRESET, R.drawable.msg_customize,
+                    getString(R.string.PengramVoiceGainPreset), voiceGainPresetName(gainPreset)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDb(), PengramConfig.VOICE_GAIN_MAX_DB,
+                    value -> value > 0 ? "+" + value + " dB" : "0 dB",
+                    PengramConfig::setVoiceGainDb));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceOverdrive)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDrive(), 100,
+                    value -> value + "%", PengramConfig::setVoiceGainDrive));
+            items.add(UItem.asButton(BTN_VOICE_GAIN_MAXIMUM, R.drawable.msg_customize,
+                    getString(R.string.PengramVoiceGainMaximum)));
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
+        }
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
         items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
@@ -3218,6 +3223,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static boolean isPrimaryVoiceMode(int mode) {
         return mode == PengramVoiceChanger.MODE_OFF
                 || mode == PengramVoiceChanger.MODE_ANONYMOUS
+                || mode == PengramVoiceChanger.MODE_TROLLING
                 || mode == PengramVoiceChanger.MODE_FEMALE
                 || mode == PengramVoiceChanger.MODE_MALE
                 || mode == PengramVoiceChanger.MODE_CHILD;
@@ -3240,6 +3246,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramVoiceChanger.MODE_PHONE: return getString(R.string.PengramVoicePhoneValue);
             case PengramVoiceChanger.MODE_ASSISTANT: return getString(R.string.PengramVoiceAssistantInfo);
             case PengramVoiceChanger.MODE_ARMOR: return getString(R.string.PengramVoiceArmorInfo);
+            case PengramVoiceChanger.MODE_TROLLING: return getString(R.string.PengramVoiceTrollingInfo);
             case PengramVoiceChanger.MODE_CAVE: return getString(R.string.PengramVoiceCaveValue);
             case PengramVoiceChanger.MODE_UNDERWATER: return getString(R.string.PengramVoiceUnderwaterValue);
             case PengramVoiceChanger.MODE_WHISPER: return getString(R.string.PengramVoiceWhisperValue);
@@ -4095,7 +4102,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_ARMOR) {
+        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_TROLLING) {
             PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
             PengramVoiceChanger.reset();
             if (voicePreview != null) {
@@ -6325,6 +6332,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 subtitle = getString(R.string.PengramVoiceAssistantPreview);
             } else if (mode == PengramVoiceChanger.MODE_ARMOR) {
                 subtitle = getString(R.string.PengramVoiceArmorPreview);
+            } else if (mode == PengramVoiceChanger.MODE_TROLLING) {
+                subtitle = getString(R.string.PengramVoiceTrollingPreview);
             } else if (mode == PengramVoiceChanger.MODE_CUSTOM) {
                 subtitle = getString(R.string.PengramVoiceStudioPreview);
             } else {

@@ -70,6 +70,22 @@ public class TestVoiceStudio {
         }
         return b;
     }
+    static ByteBuffer speech(int frames, int rate, int amplitude) {
+        ByteBuffer b = ByteBuffer.allocateDirect(frames * 2).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < frames; ++i) {
+            b.putShort(i * 2, (short) (amplitude * Math.sin(2 * Math.PI * 250 * i / rate)));
+        }
+        return b;
+    }
+    static double rms(ByteBuffer b) {
+        double sum = 0;
+        for (int i = 0; i < b.limit() / 2; ++i) {
+            int x = b.getShort(i * 2);
+            check(Math.abs(x) <= 30001, "conference mode overflowed the limiter");
+            sum += (double) x * x;
+        }
+        return Math.sqrt(sum / (b.limit() / 2));
+    }
     public static void main(String[] args) {
         final int[] modes = {PengramVoiceChanger.MODE_CUSTOM,
                 PengramVoiceChanger.MODE_ASSISTANT, PengramVoiceChanger.MODE_ARMOR};
@@ -257,7 +273,69 @@ public class TestVoiceStudio {
         PengramConfig.gainDb = 0;
         check(!AudioEffectBridge.isCallAudioEnabled() && !PengramVoiceChanger.isEnabled(),
                 "disabled boost still allocated a call/voice buffer");
-        System.out.println("voice studio PCM: 8/16/48/96 kHz, boost/overdrive voice/call, limiter, opt-in, dry mix, CPU bypass and off-mode OK");
+        // The distinct conference mode levels speech rather than clipping it.
+        // It is independent of the intentionally distorted +60 dB preset.
+        PengramConfig.mode = PengramVoiceChanger.MODE_TROLLING;
+        for (int rate : new int[] {8000, 16000, 48000, 96000}) {
+            int frames = rate / 100;
+            double[] levels = new double[2];
+            for (int a = 0; a < 2; ++a) {
+                final int amplitude = a == 0 ? 600 : 12000;
+                final int source = a == 0 ? PengramVoiceChanger.SOURCE_VOICE : PengramVoiceChanger.SOURCE_CALL;
+                PengramVoiceChanger.finishSource(source);
+                ByteBuffer processed = null;
+                for (int packet = 0; packet < 40; ++packet) {
+                    processed = speech(frames, rate, amplitude);
+                    PengramVoiceChanger.processForSource(processed, processed.capacity(), rate, source);
+                }
+                levels[a] = rms(processed);
+                PengramVoiceChanger.finishSource(source);
+            }
+            check(levels[0] > 2000, "quiet words were not lifted at " + rate);
+            check(levels[1] > levels[0] && levels[1] < levels[0] * 6,
+                    "conference speech was not leveled at " + rate);
+        }
+        // A real conversation changes level within one session: the gain must
+        // recover for quiet words after somebody shouts, without raising hiss.
+        PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        for (int packet = 0; packet < 20; ++packet) {
+            ByteBuffer loudWord = speech(480, 48000, 16000);
+            PengramVoiceChanger.processForSource(loudWord, loudWord.capacity(), 48000,
+                    PengramVoiceChanger.SOURCE_CALL);
+        }
+        ByteBuffer quietWord = null;
+        for (int packet = 0; packet < 40; ++packet) {
+            quietWord = speech(480, 48000, 500);
+            PengramVoiceChanger.processForSource(quietWord, quietWord.capacity(), 48000,
+                    PengramVoiceChanger.SOURCE_CALL);
+        }
+        check(rms(quietWord) > 2000, "conference gain did not recover between words");
+        ByteBuffer roomNoise = null;
+        for (int packet = 0; packet < 100; ++packet) {
+            roomNoise = speech(480, 48000, 10);
+            PengramVoiceChanger.processForSource(roomNoise, roomNoise.capacity(), 48000,
+                    PengramVoiceChanger.SOURCE_CALL);
+        }
+        check(rms(roomNoise) < 100, "conference noise expander amplifies quiet room noise");
+        PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        PengramConfig.calls = false;
+        check(!AudioEffectBridge.isCallAudioEnabled(), "conference mode bypassed call opt-in");
+        PengramConfig.calls = true;
+        PengramConfig.gainDb = 60;
+        PengramConfig.gainDrive = 100;
+        PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        ByteBuffer clean = null;
+        for (int packet = 0; packet < 40; ++packet) {
+            clean = speech(480, 48000, 600);
+            PengramVoiceChanger.processForSource(clean, clean.capacity(), 48000, PengramVoiceChanger.SOURCE_CALL);
+        }
+        double cleanLevel = rms(clean);
+        check(cleanLevel > 2000 && cleanLevel < 18000,
+                "distortion preset leaked into clean conference speech");
+        PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        PengramConfig.gainDb = PengramConfig.gainDrive = 0;
+        PengramConfig.mode = PengramVoiceChanger.MODE_OFF;
+        System.out.println("voice studio PCM: 8/16/48/96 kHz, clear leveled conference speech, boost/overdrive voice/call, limiter, opt-in and off-mode OK");
     }
 }
 """)

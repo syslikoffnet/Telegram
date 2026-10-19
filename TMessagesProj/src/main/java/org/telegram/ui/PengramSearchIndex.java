@@ -349,6 +349,7 @@ public final class PengramSearchIndex {
             {R.string.PengramAIAutoAdd, PengramSettingsActivity.SECTION_AI, R.string.PengramAIAutoWatching, 0, 0},
             {R.string.PengramAIAutoRefresh, PengramSettingsActivity.SECTION_AI, R.string.PengramAIAutoWatching, 0, 0},
             {R.string.PengramAIReset, PengramSettingsActivity.SECTION_AI, R.string.PengramAIAutoWatching, 0, R.string.PengramAIResetInfo},
+            {R.string.PengramVoiceTrolling, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceHeader, 0, R.string.PengramVoiceTrollingInfo},
             {R.string.PengramAvatarPos, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramChatLook, 1, R.string.PengramAvatarPosInfo},
             {R.string.PengramDialogAvatars, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramChatLook, 1, R.string.PengramDialogAvatarsInfo},
             {R.string.PengramProfileHistoryEnable, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramProfileHistory, 2, 0},
