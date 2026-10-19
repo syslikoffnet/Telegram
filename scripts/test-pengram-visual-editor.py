@@ -88,7 +88,20 @@ def check():
     assert "getResourceTypeName(stringId)" in PREVIEW
     assert "mock.setEditorMessageSize(draftRadius, draftFontSize)" in EDITOR
     assert "if (embedded) canvas.drawRect(rect, fill)" in MOCK
-    assert "getResources().getDisplayMetrics().heightPixels - dp(170)" in PREVIEW
+    assert "contentFrame.addView(chatSurface, new FrameLayout.LayoutParams(-1, -1))" in PREVIEW
+    assert "scroller.setVisibility(page == CHAT ? GONE : VISIBLE)" in PREVIEW
+    assert "new MainTabsLayout(getContext(), null)" in PREVIEW
+    assert "GlassTabView.createSampleAvatar" in PREVIEW
+    assert "new SettingsActivity.SettingCell(getContext(), null)" in PREVIEW
+    assert "new PengramMessagePreviewView(getContext(), null, true)" in PREVIEW
+    assert "actionBar.setTitle(title)" in EDITOR and "actionBar.setSubtitle(subtitle)" in EDITOR
+    assert "if (!placementMode) chatMock.select(null)" in PREVIEW
+    message_preview = (JAVA / "Components/PengramMessagePreviewView.java").read_text()
+    assert "sampleOnly ? SAMPLE_CHAT_ID : 1" in message_preview
+    assert "sampleOnly ? null : UserConfig.getInstance(currentAccount).getCurrentUser()" in message_preview
+    glass_tabs = (JAVA / "Components/glass/GlassTabView.java").read_text()
+    sample_factory = glass_tabs.split("public static GlassTabView createSampleAvatar(", 1)[1].split("public static GlassTabView createAvatar(", 1)[0]
+    assert "MessagesController" not in sample_factory and "getClientUserId" not in sample_factory
     assert "SharedConfig.bubbleRadius = radius" in EDITOR.split("private void saveVisualDraft()", 1)[1]
     assert "sampleSent[index] = message.substring(" in PREVIEW, "Sample input must remain local"
     assert "PengramConfig.isDialogSenderAvatars()" in PREVIEW

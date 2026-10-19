@@ -1376,7 +1376,7 @@
     <string name="PengramMediaGalleryInfo">Выключено — удалённые фото, видео и файлы копируются в собственную папку Pengram и не появляются ни в галерее, ни в других программах. Подстановки: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Редактор экрана</string>
     <string name="PengramEditorPick">Нажмите на любой элемент</string>
-    <string name="PengramEditorPickInfo">Макет с тестовыми данными. Коснитесь элемента; аватар и панель кнопок переносятся долгим нажатием в подсвеченные зоны. Изменения применяются сразу.</string>
+    <string name="PengramEditorPickInfo">Экран с тестовыми данными. Коснитесь элемента для настройки; аватар и панель кнопок переносятся в режиме расстановки. Только «Сохранить» применяет поддерживаемые изменения.</string>
     <string name="PengramEditorSampleOnly">Только тестовые данные: реальные чаты не открываются, сообщения не отправляются.</string>
     <string name="PengramEditorStories">Истории</string>
     <string name="PengramEditorFab">Кнопка нового сообщения</string>
@@ -1816,6 +1816,20 @@
     <string name="PengramEditorMoreResults">Показать ещё результаты</string>
     <string name="PengramEditorSaveFailed">Не удалось сохранить макет. Изменения остались в редакторе.</string>
     <string name="PengramEditorApplyDraft">Показать в макете</string>
+    <string name="PengramEditorOrganizeSections">Настроить разделы</string>
+    <string name="PengramEditorPlacementMode">Расставить элементы чата</string>
+    <string name="PengramEditorBackToChat">К просмотру чата</string>
+    <string name="PengramEditorPreviewMenu">Меню макета</string>
+    <string name="PengramEditorSampleChat4">Студия Pengram</string>
+    <string name="PengramEditorSampleChat5">Майя</string>
+    <string name="PengramEditorSampleChat6">Планы на выходные</string>
+    <string name="PengramEditorSampleChat7">Объявления</string>
+    <string name="PengramEditorSampleChat8">Алексей</string>
+    <string name="PengramEditorSampleLine4">Новый дизайн отлично смотрится</string>
+    <string name="PengramEditorSampleLine5">Отправила фотографию</string>
+    <string name="PengramEditorSampleLine6">Увидимся завтра!</string>
+    <string name="PengramEditorSampleLine7">Еженедельная подборка готова</string>
+    <string name="PengramEditorSampleLine8">Спасибо за сообщение</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
     <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
 </resources>

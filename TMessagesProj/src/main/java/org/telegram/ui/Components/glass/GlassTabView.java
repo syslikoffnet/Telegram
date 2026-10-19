@@ -437,6 +437,30 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         return tab;
     }
 
+    /** Profile tab for isolated sample-data previews: never resolve an account user/photo. */
+    public static GlassTabView createSampleAvatar(Context context, Theme.ResourcesProvider resourcesProvider,
+                                                   @StringRes int stringRes, String sampleName) {
+        GlassTabView tab = new GlassTabView(context);
+        tab.resourcesProvider = resourcesProvider;
+        tab.textView.setText(LocaleController.getString(stringRes));
+        tab.imageView.setVisibility(GONE);
+        AvatarDrawable avatar = new AvatarDrawable(resourcesProvider);
+        avatar.setInfo(-42L, sampleName, null);
+        BackupImageView image = new BackupImageView(context);
+        image.setImageDrawable(avatar);
+        image.setRoundRadius(dp(11 * pengramScale()));
+        tab.backupImageView = image;
+        final float scale = pengramScale();
+        tab.addView(image, LayoutHelper.createFrame(22 * scale, 22 * scale,
+                Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 5 * scale, 0, 0));
+        pengramApplyScale(tab, 22 * scale, 5 * scale);
+        tab.colorDefault = Theme.getColor(Theme.key_glass_tabUnselected, resourcesProvider);
+        tab.colorSelected = Theme.getColor(Theme.key_glass_tabSelected, resourcesProvider);
+        tab.colorSelectedText = Theme.getColor(Theme.key_glass_tabSelectedText, resourcesProvider);
+        tab.updateColors();
+        return tab;
+    }
+
     public static GlassTabView createAvatar(Context context, Theme.ResourcesProvider resourcesProvider, int currentAccount, @StringRes int stringRes) {
         GlassTabView tab = new GlassTabView(context);
         tab.textView.setText(LocaleController.getString(stringRes));

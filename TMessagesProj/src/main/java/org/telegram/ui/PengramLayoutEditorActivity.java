@@ -56,7 +56,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     private View panelScrim;
     private PengramConfig.VisualDraft visualDraft;
     private int draftRadius = -1, draftFontSize = -1;
-    private static final int ACTION_SAVE = 702, ACTION_ADJUST = 703;
+    private static final int ACTION_SAVE = 702, ACTION_ADJUST = 703,
+            ACTION_TOOLBAR_MENU = 704, ACTION_PREVIEW_MENU = 705;
+    private org.telegram.ui.ActionBar.ActionBarMenuSubItem previewMenuItem;
 
     @Override
     public View createView(Context context) {
@@ -68,6 +70,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
         actionBar.setTitle(getString(R.string.PengramEditor));
+        actionBar.setTitleActionRunnable(() -> {
+            if (preview != null) preview.selectTitle();
+        });
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
             public void onItemClick(int id) {
@@ -79,11 +84,17 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 } else if (id == ACTION_ADJUST) {
                     updateInspectPanel(-1, -1);
                     showPanel();
+                } else if (id == ACTION_PREVIEW_MENU && preview != null) {
+                    preview.openToolbarAction();
                 }
             }
         });
-        actionBar.createMenu().addItem(ACTION_ADJUST, R.drawable.ic_ab_other)
-                .setContentDescription(getString(R.string.PengramEditorAdjust));
+        org.telegram.ui.ActionBar.ActionBarMenuItem more = actionBar.createMenu()
+                .addItem(ACTION_TOOLBAR_MENU, R.drawable.ic_ab_other);
+        more.setContentDescription(getString(R.string.AccDescrMoreOptions));
+        more.addSubItem(ACTION_ADJUST, R.drawable.msg_edit, getString(R.string.PengramEditorAdjust));
+        previewMenuItem = more.addSubItem(ACTION_PREVIEW_MENU, R.drawable.msg_search,
+                getString(R.string.PengramEditorPreviewMenu));
         actionBar.createMenu().addItem(ACTION_SAVE, getString(R.string.Save));
 
         final FrameLayout root = new FrameLayout(context);
@@ -107,6 +118,17 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         preview = new PengramInteractivePreviewView(context, mock);
         preview.restoreFrom(previousPreview);
         preview.setListener(new PengramInteractivePreviewView.Listener() {
+            @Override
+            public void onPageChanged(String title, String subtitle) {
+                actionBar.setTitle(title);
+                actionBar.setSubtitle(subtitle);
+                if (previewMenuItem != null) {
+                    previewMenuItem.setText(getString(preview.getPage() == PengramInteractivePreviewView.DIALOGS
+                            || preview.getPage() == PengramInteractivePreviewView.CHAT
+                            ? R.string.PengramEditorPreviewMenu : R.string.Search));
+                }
+            }
+
             @Override
             public void onSelection(int element, int id) {
                 if (element < 0) updateInspectPanel(-1, -1);
@@ -772,6 +794,13 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         }
         panelTitle.setText(getString(element.titleRes));
         panelHint.setText(getString(hintFor(element.id)));
+        if (preview != null && preview.getPage() == PengramInteractivePreviewView.CHAT) {
+            addChip(getString(preview.isPlacementMode() ? R.string.PengramEditorBackToChat
+                    : R.string.PengramEditorPlacementMode), false, () -> {
+                hidePanel();
+                preview.togglePlacementMode();
+            });
+        }
 
         switch (element.id) {
             case PengramScreenMockView.EL_AVATAR: {

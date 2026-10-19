@@ -12381,7 +12381,7 @@
     <string name="PengramMediaGalleryInfo">Off: deleted photos, videos and files are copied into Pengram\'s own folder and never show up in the gallery or in other apps. Placeholders: {date}, {time}, {chat}, {id}, {dialog}.</string>
     <string name="PengramEditor">Screen editor</string>
     <string name="PengramEditorPick">Tap any element</string>
-    <string name="PengramEditorPickInfo">Sample-data preview. Tap to select; hold and drag the avatar or button bar to a highlighted slot. Changes apply immediately.</string>
+    <string name="PengramEditorPickInfo">Sample-only Telegram view. Tap an element to adjust it; use chat placement mode to drag the avatar or button bar. Only Save applies supported changes.</string>
     <string name="PengramEditorSampleOnly">Sample data only. No real messages will be opened or sent.</string>
     <string name="PengramEditorStories">Stories</string>
     <string name="PengramEditorFab">Compose button</string>
@@ -12821,6 +12821,20 @@
     <string name="PengramEditorMoreResults">Show more results</string>
     <string name="PengramEditorSaveFailed">Could not save the layout. Changes are still in the editor.</string>
     <string name="PengramEditorApplyDraft">Use in preview</string>
+    <string name="PengramEditorOrganizeSections">Arrange settings sections</string>
+    <string name="PengramEditorPlacementMode">Arrange chat elements</string>
+    <string name="PengramEditorBackToChat">Back to chat preview</string>
+    <string name="PengramEditorPreviewMenu">Sample menu</string>
+    <string name="PengramEditorSampleChat4">Pengram studio</string>
+    <string name="PengramEditorSampleChat5">Maya</string>
+    <string name="PengramEditorSampleChat6">Weekend plans</string>
+    <string name="PengramEditorSampleChat7">Announcements</string>
+    <string name="PengramEditorSampleChat8">Alex</string>
+    <string name="PengramEditorSampleLine4">The new layout looks great</string>
+    <string name="PengramEditorSampleLine5">Sent a photo</string>
+    <string name="PengramEditorSampleLine6">See you tomorrow!</string>
+    <string name="PengramEditorSampleLine7">Your weekly update is ready</string>
+    <string name="PengramEditorSampleLine8">Thank you for the message</string>
     <string name="PengramEditorOpenSetting">Open setting</string>
     <string name="PengramEditorEnableParentFirst">Enable the parent option first</string>
 
