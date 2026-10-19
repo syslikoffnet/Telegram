@@ -41,6 +41,9 @@ assert 'playlist.get(a).getDialogId() == playing.getDialogId()' in queue
 assert 'messageObject.getDialogId() == playing.getDialogId()' in queue
 assert 'row.getTop() - dp(120)' in queue  # actual row height in every layout
 assert 'args[0] instanceof Long && (Long) args[0] == chatTracksDialogId' in sheet
+prefetch = sheet.split('private void pengramPrefetchNext()', 1)[1].split('private void shiftLyrics(', 1)[0]
+assert 'if (SharedConfig.shuffleMusic)' in prefetch
+assert 'SharedConfig.playOrderReversed ? 1 : -1' in prefetch
 assert re.search(r'if \(queueShown\)\s*\{\s*if \(panelTab == 1\)\s*\{\s*loadChatTracks\(\);', sheet)
 
 # The compact header must stop showing lyrics when toggled off, including

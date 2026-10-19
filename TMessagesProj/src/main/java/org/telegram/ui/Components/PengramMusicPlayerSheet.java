@@ -1274,12 +1274,18 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (playlist == null || playlist.isEmpty()) {
                 return;
             }
+            if (SharedConfig.shuffleMusic) {
+                // MediaController's shuffled order is private; guessing from the
+                // unshuffled list wastes network requests on unrelated songs.
+                return;
+            }
             final int index = MediaController.getInstance().getPlayingMessageObjectNum();
-            for (int a = 1; a <= 2; ++a) {
-                final int next = index + a;
-                if (next < 0 || next >= playlist.size()) {
-                    break;
-                }
+            if (index < 0 || index >= playlist.size()) {
+                return;
+            }
+            final int direction = SharedConfig.playOrderReversed ? 1 : -1;
+            for (int a = 1; a <= Math.min(2, playlist.size() - 1); ++a) {
+                final int next = (index + a * direction + playlist.size()) % playlist.size();
                 final MessageObject object = playlist.get(next);
                 PengramLyrics.prefetch(object);
                 org.telegram.messenger.PengramCovers.prefetch(object);
