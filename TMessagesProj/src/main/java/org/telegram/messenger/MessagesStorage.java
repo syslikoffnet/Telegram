@@ -240,6 +240,26 @@ public class MessagesStorage extends BaseController {
         return database;
     }
 
+    /** A read-only check before navigating to a preserved deletion. The archive alone
+     * does not imply that Telegram's own message cache still contains the message. */
+    public void hasLocalMessage(long dialogId, int messageId, Utilities.Callback<Boolean> callback) {
+        storageQueue.postRunnable(() -> {
+            boolean found = false;
+            SQLiteCursor cursor = null;
+            try {
+                cursor = database.queryFinalized("SELECT mid FROM messages_v2 WHERE uid = ? AND mid = ? LIMIT 1",
+                        dialogId, messageId);
+                found = cursor.next();
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (cursor != null) cursor.dispose();
+            }
+            final boolean result = found;
+            AndroidUtilities.runOnUIThread(() -> callback.run(result));
+        });
+    }
+
     public DispatchQueue getStorageQueue() {
         return storageQueue;
     }

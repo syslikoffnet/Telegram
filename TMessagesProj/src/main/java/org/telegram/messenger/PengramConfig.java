@@ -445,8 +445,28 @@ public class PengramConfig {
         return true;
     }
 
+    // Draft reads must be opt-in. The live Telegram UI shares the main thread
+    // with the editor; checking only Looper would leak unsaved edits into chats.
+    private static int visualPreviewDepth;
+
+    public static void beginVisualPreviewRead() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) visualPreviewDepth++;
+    }
+
+    public static void endVisualPreviewRead() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            visualPreviewDepth = Math.max(0, visualPreviewDepth - 1);
+        }
+    }
+
+    public static void withVisualPreview(Runnable render) {
+        beginVisualPreviewRead();
+        try { render.run(); } finally { endVisualPreviewRead(); }
+    }
+
     private static Object pendingVisual(String key) {
-        return visualDraft != null && android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
+        return visualDraft != null && visualPreviewDepth > 0
+                && android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
                 ? visualDraft.changes.get(key) : null;
     }
 

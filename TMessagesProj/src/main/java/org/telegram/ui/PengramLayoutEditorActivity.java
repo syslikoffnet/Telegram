@@ -296,9 +296,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         if (visualDraft != null) {
             visualDraft.discard();
             visualDraft = null;
-            // Any screen behind the full-screen editor may have drawn a draft
-            // value while the editor was open; restore its original appearance.
-            applyEverywhere();
+            // Draft reads are scoped to the preview, so there is nothing to
+            // undo in a live screen when the editor is dismissed.
         }
         super.onFragmentDestroy();
     }
@@ -306,6 +305,10 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     // ------------------------------------------------------------- панель
 
     private void updateInspectPanel(int element, int id) {
+        PengramConfig.withVisualPreview(() -> updateInspectPanelDraft(element, id));
+    }
+
+    private void updateInspectPanelDraft(int element, int id) {
         if (panel == null) return;
         resetPanelScrollIfChanged((preview == null ? 0 : preview.getPage()) * 100000
                 + (element == PengramInteractivePreviewView.TITLE
@@ -813,6 +816,10 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     }
 
     private void updatePanel(PengramScreenMockView.Element element) {
+        PengramConfig.withVisualPreview(() -> updatePanelDraft(element));
+    }
+
+    private void updatePanelDraft(PengramScreenMockView.Element element) {
         if (panel == null) return;
         if (element == null) hidePanel(); else showPanel();
         resetPanelScrollIfChanged((preview == null ? 0 : preview.getPage()) * 100000
@@ -1056,7 +1063,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             v.setScaleX(0.94f);
             v.setScaleY(0.94f);
             v.animate().scaleX(1f).scaleY(1f).setDuration(180).setInterpolator(CubicBezierInterpolator.EASE_OUT_BACK).start();
-            action.run();
+            PengramConfig.withVisualPreview(action);
         });
         target.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 0, 0, 6, 0));
     }
@@ -1080,7 +1087,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 if (lastValue[0] != result) {
                     lastValue[0] = result;
                     title.setText(label + ": " + result);
-                    callback.run(result);
+                    PengramConfig.withVisualPreview(() -> callback.run(result));
                     dirty[0] = true;
                 }
                 if (stop && dirty[0]) {

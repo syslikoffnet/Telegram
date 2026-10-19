@@ -22,6 +22,11 @@ assert 'getEntries(dialogId, filter, limit, query, singleMessageId, true, curren
 assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
 assert 'm.getDialogId() + ":" + m.getId()' in adapter
 assert 'msg.message = "🗑 " + (matched == null ? "" : matched)' in adapter
+# Local hits must not force Telegram's full-screen results list open while typing.
+assert '() -> showMessagesSearchListView(true)' not in chat
+assert 'getLocalDeletedAt' in adapter and 'localDeletedNavigation' in chat
+assert 'hasLocalMessage(entry.dialogId, entry.messageId' in chat
+assert 'navigateToDeletedSearchResult(deleted)' in chat
 for locale in ('values', 'values-ru'):
     resources = ET.parse(root / f'TMessagesProj/src/main/res/{locale}/strings.xml')
     assert any(x.get('name') == 'PengramVersionBeforeEdit' for x in resources.iter('string'))

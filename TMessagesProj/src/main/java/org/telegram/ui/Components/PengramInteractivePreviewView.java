@@ -365,6 +365,10 @@ public class PengramInteractivePreviewView extends LinearLayout {
     }
 
     public void render() {
+        PengramConfig.withVisualPreview(this::renderDraft);
+    }
+
+    private void renderDraft() {
         clearSelectedRow();
         body.removeAllViews();
         footer.removeAllViews();

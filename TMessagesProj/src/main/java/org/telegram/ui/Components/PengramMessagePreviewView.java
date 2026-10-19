@@ -163,12 +163,24 @@ public class PengramMessagePreviewView extends LinearLayout {
         }
     }
 
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (sampleOnly) PengramConfig.beginVisualPreviewRead();
+        try {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        } finally {
+            if (sampleOnly) PengramConfig.endVisualPreviewRead();
+        }
+    }
+
     /**
      * В реальном чате аватарку рисует не сама ячейка, а список сообщений — поэтому
      * в превью её тоже рисуем мы, ровно по той же геометрии (слева, 42dp, по низу пузыря).
      */
     @Override
     protected void dispatchDraw(Canvas canvas) {
+        if (sampleOnly) PengramConfig.beginVisualPreviewRead();
+        try {
         super.dispatchDraw(canvas);
         for (int a = 0; a < cells.length; a++) {
             final ChatMessageCell cell = cells[a];
@@ -187,6 +199,9 @@ public class PengramMessagePreviewView extends LinearLayout {
             avatarImage.setAlpha(cell.getAlpha());
             avatarImage.setVisible(true, false);
             avatarImage.draw(canvas);
+        }
+        } finally {
+            if (sampleOnly) PengramConfig.endVisualPreviewRead();
         }
     }
 

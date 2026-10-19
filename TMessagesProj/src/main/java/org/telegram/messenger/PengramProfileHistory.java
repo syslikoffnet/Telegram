@@ -192,7 +192,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h==null||owner==0||UserConfig.getInstance(account).getClientUserId()!=owner||!ensureAccountOwner(account))return;if(tracked)h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)",new Object[]{account,userId});else h.getWritableDatabase().delete("tracked","account=? AND user_id=?",new String[]{""+account,""+userId});synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}});
     }
 
-    private static boolean canObserve(int account, TLRPC.User user, boolean fromCache) {
+    static boolean canObserve(int account, TLRPC.User user, boolean fromCache) {
         if (user == null || !enabled() || !ensureAccountOwner(account)) return false;
         int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
         boolean tracked = (scope == SCOPE_MANUAL || scope == SCOPE_INTERACTED)

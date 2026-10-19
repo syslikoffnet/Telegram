@@ -123,3 +123,9 @@ def check():
 
 if __name__ == "__main__":
     check()
+
+# A draft is readable only while drawing the editor, never by other UI callbacks
+# on Telegram's shared main thread.
+config = CONFIG
+assert 'visualPreviewDepth > 0' in config
+assert 'PengramConfig.withVisualPreview(this::renderDraft)' in PREVIEW

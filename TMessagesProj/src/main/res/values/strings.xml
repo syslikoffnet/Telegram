@@ -11312,6 +11312,7 @@
     <string name="PengramHistoryOpen">Deleted and edited messages</string>
     <string name="PengramHistoryFilter">Show</string>
     <string name="PengramHistoryFilterAll">All</string>
+    <string name="PengramHistoryOnlyLocal">This message is only in the local archive; its copy is no longer in the chat.</string>
     <string name="PengramHistoryFilterDeleted">Deleted only</string>
     <string name="PengramHistoryFilterEdited">Edited only</string>
     <string name="PengramHistoryNoMatches">No saved messages match this search.</string>

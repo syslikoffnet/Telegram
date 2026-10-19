@@ -307,6 +307,8 @@
     <string name="PengramHistoryOpen">Удалённые и изменённые</string>
     <string name="PengramHistoryFilter">Показывать</string>
     <string name="PengramHistoryFilterAll">Все</string>
+    <string name="ViewInChat">Показать в чате</string>
+    <string name="PengramHistoryOnlyLocal">Это сообщение осталось только в локальном архиве, в чате его копии уже нет.</string>
     <string name="PengramHistoryFilterDeleted">Только удалённые</string>
     <string name="PengramHistoryFilterEdited">Только изменённые</string>
     <string name="PengramHistoryNoMatches">В сохранённой истории ничего не найдено.</string>

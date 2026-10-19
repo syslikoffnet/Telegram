@@ -178,7 +178,7 @@ public class PengramScreenMockView extends View {
     }
 
     public void refresh() {
-        updateMenuLabels();
+        PengramConfig.withVisualPreview(this::updateMenuLabels);
         invalidate();
     }
 
@@ -197,6 +197,8 @@ public class PengramScreenMockView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        PengramConfig.beginVisualPreviewRead();
+        try {
         final int width = getMeasuredWidth();
         final int height = getMeasuredHeight();
         if (width <= 0 || height <= 0) {
@@ -443,6 +445,9 @@ public class PengramScreenMockView extends View {
                 postInvalidateOnAnimation();
             }
         }
+        } finally {
+            PengramConfig.endVisualPreviewRead();
+        }
     }
 
     private float drawMenuRow(Canvas canvas, float left, float right, float y, int accent, int panel, Element menu) {
@@ -545,6 +550,8 @@ public class PengramScreenMockView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        PengramConfig.beginVisualPreviewRead();
+        try {
         final float x = event.getX();
         final float y = event.getY();
         switch (event.getAction()) {
@@ -599,6 +606,9 @@ public class PengramScreenMockView extends View {
             }
         }
         return true;
+        } finally {
+            PengramConfig.endVisualPreviewRead();
+        }
     }
 
     @Override

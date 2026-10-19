@@ -75,6 +75,14 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
     private Runnable localSearchTask;
     private boolean localNeedsRefresh;
 
+    public int getLocalDeletedCount() {
+        return localDeleted.size();
+    }
+
+    public PengramHistory.Entry getLocalDeletedAt(int position) {
+        return position >= 0 && position < localDeleted.size() ? localDeleted.get(position) : null;
+    }
+
     public PengramHistory.Entry getDeletedResult(MessageObject message) {
         return deletedResults.get(message);
     }
@@ -101,7 +109,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                 if (generation != localGeneration) return;
                 localDeleted.addAll(entries);
                 notifyDataSetChanged();
-                if (localResultsChanged != null && !entries.isEmpty()) localResultsChanged.run();
+                if (localResultsChanged != null) localResultsChanged.run();
             });
         });
         AndroidUtilities.runOnUIThread(localSearchTask, 180);
@@ -210,7 +218,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         }
 
         // Merge locally preserved deletions into the same dated result list. Keep
-        // Telegram's pagination/navigation untouched; local rows open the archive.
+        // Telegram's server pagination untouched; local-only navigation is handled by the chat.
         if (searchType == 0 && !localDeleted.isEmpty()) {
             HashSet<String> existing = new HashSet<>();
             for (MessageObject m : searchResultMessages) {

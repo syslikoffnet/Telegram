@@ -27,6 +27,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.PengramCopySender;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -446,6 +447,11 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 || getMessagesController().isPeerNoForwards(message.getDialogId());
         ArrayList<CharSequence> labels = new ArrayList<>();
         ArrayList<Runnable> actions = new ArrayList<>();
+        if (items.get(position).entry.action == PengramHistory.ACTION_DELETED) {
+            labels.add(getString(R.string.ViewInChat));
+            final PengramHistory.Entry entry = items.get(position).entry;
+            actions.add(() -> viewInSourceChat(entry));
+        }
         if (!restricted && !TextUtils.isEmpty(message.messageText)) {
             labels.add(getString(R.string.Copy));
             actions.add(() -> AndroidUtilities.addToClipboard(message.messageText));
@@ -462,6 +468,25 @@ public class PengramHistoryChatActivity extends BaseFragment {
         showDialog(new AlertDialog.Builder(getParentActivity())
                 .setItems(labels.toArray(new CharSequence[0]), (dialog, which) -> actions.get(which).run())
                 .create());
+    }
+
+    /** Only jump to the live chat if Telegram still has the marked copy locally.
+     * Otherwise remain on this read-only archived snapshot; never send it to MTProto. */
+    private void viewInSourceChat(PengramHistory.Entry entry) {
+        if (entry.account != currentAccount || getParentActivity() == null) return;
+        final long owner = getUserConfig().getClientUserId();
+        if (owner == 0) return;
+        MessagesStorage.getInstance(currentAccount).hasLocalMessage(entry.dialogId, entry.messageId, exists -> {
+            if (getParentActivity() == null || getUserConfig().getClientUserId() != owner) return;
+            if (!exists) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                        getString(R.string.PengramHistoryOnlyLocal)).show();
+                return;
+            }
+            ChatActivity chat = ChatActivity.of(entry.dialogId, entry.messageId);
+            chat.setCurrentAccount(currentAccount);
+            presentFragment(chat);
+        });
     }
 
     private void forwardCopy(MessageObject message) {
