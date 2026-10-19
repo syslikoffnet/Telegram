@@ -2320,6 +2320,12 @@ public class ChatActivity extends BaseFragment implements
             list.add(message);
         }
         try {
+            final int copyError = org.telegram.messenger.PengramCopySender.copyTargetError(
+                    currentAccount, targetDialogId, 0, 0);
+            if (copyError != 0) {
+                AlertsCreator.showSendMediaAlert(copyError, this, themeDelegate);
+                return;
+            }
             if (targetDialogId == dialog_id) {
                 pengramSpecialForwardUntil = System.currentTimeMillis() + 5 * 60 * 1000L;
                 pengramForwardTotal = Math.max(pengramForwardTotal, list.size());
@@ -2330,20 +2336,6 @@ public class ChatActivity extends BaseFragment implements
         } catch (Throwable e) {
             FileLog.e(e);
         }
-    }
-
-    /** Pengram: удалёнку/одноразку пересылаем копией от своего лица */
-    private boolean pengramForwardAsMine(ArrayList<MessageObject> messages) {
-        if (messages == null || !org.telegram.messenger.PengramConfig.isResendDeletedAsMine()) {
-            return false;
-        }
-        for (int a = 0; a < messages.size(); a++) {
-            final MessageObject m = messages.get(a);
-            if (m != null && (m.pengramDeleted || m.isSecretMedia())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** спросить чат и отправить туда копию */
@@ -2500,7 +2492,8 @@ public class ChatActivity extends BaseFragment implements
                         LocaleController.formatString(R.string.PengramResendPartly, sent, failed)).show();
             } else if (targetDialogId != dialog_id) {
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.forward,
-                        LocaleController.getString(R.string.PengramResendSent)).show();
+                        LocaleController.getString(targetDialogId == getUserConfig().getClientUserId()
+                                ? R.string.PengramSavedToSaved : R.string.PengramResendSent)).show();
             }
         } catch (Throwable ignore) {
         }
@@ -2523,9 +2516,17 @@ public class ChatActivity extends BaseFragment implements
         final DialogsActivity fragment = new DialogsActivity(args);
         fragment.setDelegate((dialogsFragment, dids, message1, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
             for (int a = 0; a < dids.size(); a++) {
+                final int copyError = org.telegram.messenger.PengramCopySender.copyTargetError(
+                        currentAccount, dids.get(a).dialogId, scheduleDate, scheduleRepeatPeriod);
+                if (copyError != 0) {
+                    AlertsCreator.showSendMediaAlert(copyError, this, themeDelegate);
+                    return false;
+                }
+            }
+            for (int a = 0; a < dids.size(); a++) {
                 final long did = dids.get(a).dialogId;
                 try {
-                    org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, new ArrayList<>(list), did,
+                    org.telegram.messenger.PengramCopySender.sendCopies(currentAccount, new ArrayList<>(list), did, notify,
                             (sent, failed) -> AndroidUtilities.runOnUIThread(() -> pengramCopyReport(sent, failed, did)));
                 } catch (Throwable e) {
                     FileLog.e(e);
@@ -15593,23 +15594,14 @@ public class ChatActivity extends BaseFragment implements
                 chatAdapter.checkRemoveBotForumRowsStartThreadRow(true);
             }
         }
-        boolean pengramFromMyName = fromMyName;
-        if (!pengramFromMyName && org.telegram.messenger.PengramConfig.isResendDeletedAsMine()) {
-            // Pengram: удалённое сообщение сервер переслать не даст — отправляем копию от себя
-            for (int a = 0; a < arrayList.size(); a++) {
-                final MessageObject m = arrayList.get(a);
-                if (m != null && (m.pengramDeleted || m.isSecretMedia())) {
-                    pengramFromMyName = true;
-                    break;
-                }
-            }
-        }
-        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, pengramFromMyName, hideCaption, notify, scheduleDate, 0, getThreadMessage(), -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+        // Deleted/one-time items are already copied individually by the send
+        // helper. Never turn an entire mixed selection into «send as me».
+        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, fromMyName, hideCaption, notify, scheduleDate, 0, getThreadMessage(), -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
         AlertsCreator.showSendMediaAlert(result, this, themeDelegate);
         if (result != 0) {
             AndroidUtilities.runOnUIThread(() -> {
                 waitingForSendingMessageLoad = false;
-                hideFieldPanel(true);
+                if (result != 23 && result != 24) hideFieldPanel(true);
             });
         }
     }
@@ -35053,10 +35045,8 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_PENGRAM_SAVE: {
+                // Report only after the copy has actually been queued.
                 pengramResend(selectedObject, getUserConfig().getClientUserId());
-                BulletinFactory.of(this)
-                        .createSimpleBulletin(R.raw.saved_messages, LocaleController.getString(R.string.PengramSavedToSaved))
-                        .show();
                 break;
             }
             case OPTION_PENGRAM_COPY_ID: {
@@ -36172,6 +36162,16 @@ public class ChatActivity extends BaseFragment implements
 
         if (!fragment.isQuote && (dids.size() > 1 || dids.get(0).dialogId == getUserConfig().getClientUserId() || message != null || scheduleDate != 0 || !notify)) {
             return !AlertsCreator.ensurePaidMessagesMultiConfirmationTopicKeys(currentAccount, dids, fmessages.size() + (TextUtils.isEmpty(message) ? 0 : 1), prices -> {
+                // Validate every destination before clearing selection or sending
+                // anything. A mixed batch cannot partly send then fail to schedule.
+                for (MessagesStorage.TopicKey destination : dids) {
+                    final int error = getSendMessagesHelper().pengramCopySendError(
+                            fmessages, destination.dialogId, scheduleDate, scheduleRepeatPeriod);
+                    if (error != 0) {
+                        AlertsCreator.showSendMediaAlert(error, this, themeDelegate);
+                        return;
+                    }
+                }
                 if (fragment.resetDelegate) {
                     fragment.setDelegate(null);
                 }
@@ -36203,7 +36203,7 @@ public class ChatActivity extends BaseFragment implements
                         params.suggestionParams = messageSuggestionParams;
                         getSendMessagesHelper().sendMessage(params);
                     }
-                    getSendMessagesHelper().sendMessage(fmessages, did, pengramForwardAsMine(fmessages), false, notify, scheduleDate, scheduleRepeatPeriod, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                    getSendMessagesHelper().sendMessage(fmessages, did, false, false, notify, scheduleDate, scheduleRepeatPeriod, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 }
                 fragment.finishFragment();
                 createUndoView();

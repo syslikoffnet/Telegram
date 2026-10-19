@@ -2253,6 +2253,15 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
     }
 
+    /** Error before any side effect: copies do not yet carry scheduling or
+     * paid-message parameters, so never send them immediately or charge later. */
+    public int pengramCopySendError(ArrayList<MessageObject> messages, long peer,
+                                     int scheduleDate, int scheduleRepeatPeriod) {
+        return PengramCopySender.shouldCopy(messages, peer)
+                ? PengramCopySender.copyTargetError(currentAccount, peer, scheduleDate, scheduleRepeatPeriod)
+                : 0;
+    }
+
     public int sendMessage(ArrayList<MessageObject> messages, final long peer, boolean forwardFromMyName, boolean hideCaption, boolean notify, int scheduleDate, long payStars) {
         return sendMessage(messages, peer, forwardFromMyName, hideCaption, notify, scheduleDate, null, -1, payStars);
     }
@@ -2295,6 +2304,8 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         // Pengram: то, что сервер переслать не даст (защищённые чаты, секретные,
         // удалёнки, одноразовые медиа), отправляем копией от своего лица
         if (PengramCopySender.shouldCopy(messages, peer)) {
+            final int copyError = pengramCopySendError(messages, peer, scheduleDate, scheduleRepeatPeriod);
+            if (copyError != 0) return copyError;
             final ArrayList<MessageObject> protectedMessages = new ArrayList<>();
             final ArrayList<MessageObject> ordinaryMessages = new ArrayList<>();
             for (MessageObject item : messages) {
@@ -2310,7 +2321,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                         hideCaptionArg, notify, scheduleDate, scheduleRepeatPeriod,
                         replyToTopMsg, video_timestamp, payStars, monoForumPeerId, suggestionParams);
             }
-            PengramCopySender.sendCopies(currentAccount, protectedMessages, peer);
+            PengramCopySender.sendCopies(currentAccount, protectedMessages, peer, notify, null);
             return forwarded;
         }
         // Pengram: трек уходит как самостоятельный файл — без строки «переслано от»

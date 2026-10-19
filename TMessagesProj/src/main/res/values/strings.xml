@@ -11766,6 +11766,8 @@
     <string name="PengramResendMenu">Items in the message menu</string>
     <string name="PengramResendOnce">Also for one-time media</string>
     <string name="PengramResendAsk">Always ask for the chat</string>
+    <string name="PengramCopyCannotSchedule">Protected messages cannot be scheduled as copies. Send now or remove them from the selection.</string>
+    <string name="PengramCopyCannotPay">Copies to paid chats are not supported yet. Nothing was sent or charged.</string>
     <string name="PengramResendHere">Send a copy here</string>
     <string name="PengramResendTo">Send a copy to another chat</string>
     <string name="PengramResendSent">Sent</string>

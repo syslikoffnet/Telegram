@@ -6797,6 +6797,10 @@ public class AlertsCreator {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodoAll));
         } else if (result == 22) {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodo));
+        } else if (result == 23) {
+            builder.setMessage(getString(R.string.PengramCopyCannotSchedule));
+        } else if (result == 24) {
+            builder.setMessage(getString(R.string.PengramCopyCannotPay));
         }
 
         builder.setPositiveButton(LocaleController.getString(R.string.OK), null);

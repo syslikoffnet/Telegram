@@ -243,27 +243,49 @@ public final class PengramCopySender {
         return isPeerRestricted(account, sourceDialogId);
     }
 
+    /** Copy uploads cannot safely inherit scheduling or paid-message consent. */
+    public static int copyTargetError(int account, long dialogId, int scheduleDate, int scheduleRepeatPeriod) {
+        if (scheduleDate != 0 || scheduleRepeatPeriod != 0) return 23;
+        final MessagesController controller = MessagesController.getInstance(account);
+        long price = controller.getSendPaidMessagesStars(dialogId);
+        if (price <= 0) {
+            price = DialogObject.getMessagesStarsPrice(controller.isUserContactBlocked(dialogId));
+        }
+        return price > 0 ? 24 : 0;
+    }
+
     // ------------------------------------------------------------ отправка
 
     public static void sendCopies(int account, ArrayList<MessageObject> messages, long dialogId) {
-        sendCopies(account, messages, dialogId, null);
+        sendCopies(account, messages, dialogId, true, null);
     }
 
     public static void sendCopies(int account, ArrayList<MessageObject> messages, long dialogId, Result result) {
+        sendCopies(account, messages, dialogId, true, result);
+    }
+
+    public static void sendCopies(int account, ArrayList<MessageObject> messages, long dialogId,
+                                  boolean notify, Result result) {
         if (messages == null || messages.isEmpty()) {
             if (result != null) {
                 result.onDone(0, 0);
             }
             return;
         }
+        if (copyTargetError(account, dialogId, 0, 0) != 0) {
+            if (result != null) {
+                AndroidUtilities.runOnUIThread(() -> result.onDone(0, messages.size()));
+            }
+            return;
+        }
         final ArrayList<MessageObject> queue = new ArrayList<>(messages);
         final int[] counters = new int[2];
         setBusy(dialogId, queue.size(), 0, false);
-        AndroidUtilities.runOnUIThread(() -> next(account, queue, 0, dialogId, counters, result));
+        AndroidUtilities.runOnUIThread(() -> next(account, queue, 0, dialogId, notify, counters, result));
     }
 
     /** сообщения уходят по очереди: следующее — только когда предыдущее собрано */
-    private static void next(int account, ArrayList<MessageObject> queue, int index, long dialogId,
+    private static void next(int account, ArrayList<MessageObject> queue, int index, long dialogId, boolean notify,
                              int[] counters, Result result) {
         if (index >= queue.size()) {
             setBusy(0, 0, 0, false);
@@ -280,21 +302,21 @@ public final class PengramCopySender {
             } else {
                 counters[1]++;
             }
-            next(account, queue, index + 1, dialogId, counters, result);
+            next(account, queue, index + 1, dialogId, notify, counters, result);
         };
         if (message == null) {
             goOn.run(false);
             return;
         }
         try {
-            sendOne(account, message, dialogId, goOn);
+            sendOne(account, message, dialogId, notify, goOn);
         } catch (Throwable e) {
             FileLog.e(e);
             goOn.run(false);
         }
     }
 
-    private static void sendOne(int account, MessageObject message, long dialogId, Utilities.Callback<Boolean> done) {
+    private static void sendOne(int account, MessageObject message, long dialogId, boolean notify, Utilities.Callback<Boolean> done) {
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
         // В секретных чатах медиа приходит не как TL_photo/TL_document, а как
         // их «зашифрованные» родственники. Раньше такие сообщения сюда не
@@ -309,13 +331,13 @@ public final class PengramCopySender {
                 && !(media.photo instanceof TLRPC.TL_photoEmpty);
 
         if (!hasDocument && !hasPhoto) {
-            done.run(sendWithoutFile(account, message, dialogId));
+            done.run(sendWithoutFile(account, message, dialogId, notify));
             return;
         }
 
         final String ready = localPath(account, message);
         if (ready != null) {
-            done.run(sendFile(account, message, dialogId, ready));
+            done.run(sendFile(account, message, dialogId, notify, ready));
             return;
         }
 
@@ -323,10 +345,10 @@ public final class PengramCopySender {
         download(account, message, path -> {
             setBusy(dialogId, busyTotal, busyDone, false);
             if (path != null) {
-                done.run(sendFile(account, message, dialogId, path));
+                done.run(sendFile(account, message, dialogId, notify, path));
             } else {
                 // файла нет и скачать не вышло: хотя бы подпись не теряем
-                done.run(sendWithoutFile(account, message, dialogId));
+                done.run(sendWithoutFile(account, message, dialogId, notify));
             }
         });
     }
@@ -334,7 +356,7 @@ public final class PengramCopySender {
     // ------------------------------------------------------------ сообщения без файла
 
     /** текст, ссылка, геопозиция, контакт, опрос — собираем заново, без обращения к серверу-источнику */
-    private static boolean sendWithoutFile(int account, MessageObject message, long dialogId) {
+    private static boolean sendWithoutFile(int account, MessageObject message, long dialogId, boolean notify) {
         final SendMessagesHelper helper = SendMessagesHelper.getInstance(account);
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
         // TTL и прочие атрибуты «одноразовости» сознательно не переносятся:
@@ -348,7 +370,7 @@ public final class PengramCopySender {
                     || media instanceof TLRPC.TL_messageMediaVenue
                     || media instanceof TLRPC.TL_messageMediaGeoLive) {
                 helper.sendMessage(SendMessagesHelper.SendMessageParams.of(media, dialogId,
-                        null, null, null, null, true, 0, 0));
+                        null, null, null, null, notify, 0, 0));
                 return true;
             }
             if (media instanceof TLRPC.TL_messageMediaContact) {
@@ -359,12 +381,12 @@ public final class PengramCopySender {
                 user.first_name = contact.first_name;
                 user.last_name = contact.last_name;
                 helper.sendMessage(SendMessagesHelper.SendMessageParams.of(user, dialogId,
-                        null, null, null, null, true, 0, 0));
+                        null, null, null, null, notify, 0, 0));
                 return true;
             }
             if (!TextUtils.isEmpty(text)) {
                 helper.sendMessage(SendMessagesHelper.SendMessageParams.of(text, dialogId,
-                        null, null, null, true, entities, null, null, true, 0, 0, null, false));
+                        null, null, null, true, entities, null, null, notify, 0, 0, null, false));
                 return true;
             }
         } catch (Throwable e) {
@@ -386,7 +408,7 @@ public final class PengramCopySender {
     // ------------------------------------------------------------ сообщения с файлом
 
     /** собрать новое сообщение из лежащего на диске файла */
-    private static boolean sendFile(int account, MessageObject message, long dialogId, String sourcePath) {
+    private static boolean sendFile(int account, MessageObject message, long dialogId, boolean notify, String sourcePath) {
 
         final TLRPC.MessageMedia media = message.messageOwner.media;
         final ArrayList<TLRPC.MessageEntity> entities = copyEntities(message.messageOwner.entities);
@@ -396,7 +418,7 @@ public final class PengramCopySender {
         // работаем с копией: заливка не должна трогать кэш исходного чата
         final String path = tempCopy(sourcePath, message);
         if (path == null) {
-            return sendWithoutFile(account, message, dialogId);
+            return sendWithoutFile(account, message, dialogId, notify);
         }
 
         // Таймером файл не трогаем: отправка может ещё читать его после возврата
@@ -407,22 +429,22 @@ public final class PengramCopySender {
             if (media != null && media.document != null) {
                 final TLRPC.TL_document document = buildDocument(media.document, path);
                 if (document == null) {
-                    return sendWithoutFile(account, message, dialogId);
+                    return sendWithoutFile(account, message, dialogId, notify);
                 }
                 final HashMap<String, String> params = new HashMap<>();
                 params.put("originalPath", path);
                 SendMessagesHelper.getInstance(account).sendMessage(
                         SendMessagesHelper.SendMessageParams.of(document, null, path, dialogId,
-                                null, null, caption, entities, null, params, true, 0, 0, 0,
+                                null, null, caption, entities, null, params, notify, 0, 0, 0,
                                 null, null, false, spoiler));
                 return true;
             }
             SendMessagesHelper.prepareSendingPhoto(AccountInstance.getInstance(account), path, null,
-                    dialogId, null, null, null, caption, entities, null, null, 0, null, true, 0, 0, null);
+                    dialogId, null, null, null, caption, entities, null, null, 0, null, notify, 0, 0, null);
             return true;
         } catch (Throwable e) {
             FileLog.e(e);
-            return sendWithoutFile(account, message, dialogId);
+            return sendWithoutFile(account, message, dialogId, notify);
         }
     }
 

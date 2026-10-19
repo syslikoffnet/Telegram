@@ -359,7 +359,9 @@ jobs:
       - name: Report build errors
         if: failure() && hashFiles('build.log') != ''
         run: |
-          grep -nE "error:|e: |^FAILURE|What went wrong|Execution failed" build.log | tail -n 40 | while IFS= read -r line; do
+          # 'e: ' also matches every C++ 'note: ' and tail hid the actual
+          # compiler failure behind dozens of macro-expansion notes.
+          grep -nE 'error:|^e: |^FAILURE|What went wrong|Execution failed|FAILED:' build.log | head -n 35 | while IFS= read -r line; do
             echo "::error::$line"
           done || true
 
