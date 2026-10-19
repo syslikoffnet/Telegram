@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -169,8 +170,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         actionsRow.removeAllViews();
         sliderBox.removeAllViews();
         if (element < 0) {
-            panelTitle.setText(R.string.PengramEditorPick);
-            panelHint.setText(R.string.PengramEditorNavigationHint);
+            setPanelText(panelTitle, R.string.PengramEditorPick);
+            setPanelText(panelHint, R.string.PengramEditorNavigationHint);
             addAppearanceChips();
             return;
         }
@@ -180,8 +181,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 addToggle(R.string.PengramTitleCenter, PengramConfig.KEY_TITLE_CENTER, false);
                 return;
             case PengramInteractivePreviewView.SEARCH_BAR:
-                panelTitle.setText(R.string.Search);
-                panelHint.setText(R.string.PengramEditorSampleOnly);
+                setPanelText(panelTitle, R.string.Search);
+                setPanelText(panelHint, R.string.PengramEditorSampleOnly);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
                 if (PengramMD3.isEnabled()) {
                     addToggle(R.string.PengramMD3SearchBar, PengramMD3.KEY_SEARCH_BAR, true);
@@ -191,8 +192,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 }
                 return;
             case PengramInteractivePreviewView.DIALOG_ROW:
-                panelTitle.setText(R.string.PengramConstructorDialogs);
-                panelHint.setText(R.string.PengramEditorRowInfo);
+                setPanelText(panelTitle, R.string.PengramConstructorDialogs);
+                setPanelText(panelHint, R.string.PengramEditorRowInfo);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
                 if (PengramMD3.isEnabled()) {
                     addToggle(R.string.PengramMD3Dialogs, PengramMD3.KEY_DIALOGS, true);
@@ -213,20 +214,20 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 if (PengramConfig.isDialogSenderAvatars()) addSenderAvatarPositions();
                 return;
             case PengramInteractivePreviewView.FAB:
-                panelTitle.setText(R.string.PengramEditorFab);
-                panelHint.setText(R.string.PengramEditorSafeInfo);
+                setPanelText(panelTitle, R.string.PengramEditorFab);
+                setPanelText(panelHint, R.string.PengramEditorSafeInfo);
                 addToggle(R.string.PengramMD3, PengramMD3.KEY_ENABLED, false);
                 if (PengramMD3.isEnabled()) addToggle(R.string.PengramMD3Fab, PengramMD3.KEY_FAB, true);
                 addToggle(R.string.PengramHideWriteButton, PengramConfig.KEY_HIDE_WRITE_BUTTON, false);
                 return;
             case PengramInteractivePreviewView.STORIES:
-                panelTitle.setText(R.string.PengramEditorStories);
-                panelHint.setText(R.string.PengramEditorSafeInfo);
+                setPanelText(panelTitle, R.string.PengramEditorStories);
+                setPanelText(panelHint, R.string.PengramEditorSafeInfo);
                 addToggle(R.string.PengramHideStories, PengramConfig.KEY_HIDE_STORIES, false);
                 return;
             case PengramInteractivePreviewView.TAB:
-                panelTitle.setText(R.string.PengramEditorTabs);
-                panelHint.setText(R.string.PengramEditorSafeInfo);
+                setPanelText(panelTitle, R.string.PengramEditorTabs);
+                setPanelText(panelHint, R.string.PengramEditorSafeInfo);
                 if (id > 0) {
                     final boolean calls = org.telegram.messenger.UserConfig.getInstance(
                             org.telegram.messenger.UserConfig.selectedAccount).showCallsTab;
@@ -248,8 +249,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 });
                 return;
             case PengramInteractivePreviewView.SETTINGS_ROW:
-                panelTitle.setText(PengramConfig.getSettingsItemTitle(id));
-                panelHint.setText(R.string.PengramEditorReorderHint);
+                setPanelText(panelTitle, PengramConfig.getSettingsItemTitle(id));
+                setPanelText(panelHint, R.string.PengramEditorReorderHint);
                 if (id != PengramConfig.SETTINGS_ITEM_PENGRAM || PengramConfig.isSettingsItemHidden(id)) {
                     addChip(getString(PengramConfig.isSettingsItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide),
                             false, () -> {
@@ -263,8 +264,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 }
                 return;
             case PengramInteractivePreviewView.MENU_ROW:
-                panelTitle.setText(PengramConfig.getMenuItemTitle(id));
-                panelHint.setText(R.string.PengramEditorReorderHint);
+                setPanelText(panelTitle, PengramConfig.getMenuItemTitle(id));
+                setPanelText(panelHint, R.string.PengramEditorReorderHint);
                 if ((id != PengramConfig.MENU_ITEM_PENGRAM && id != PengramConfig.MENU_ITEM_SETTINGS)
                         || PengramConfig.isMenuItemHidden(id)) {
                     addChip(getString(PengramConfig.isMenuItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide), false, () -> {
@@ -275,8 +276,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 addOrderControls(PengramInteractivePreviewView.MENU_ROW, id);
                 return;
             case PengramInteractivePreviewView.CHAT_BUTTON_ROW:
-                panelTitle.setText(PengramConfig.getChatItemTitle(id));
-                panelHint.setText(R.string.PengramEditorReorderHint);
+                setPanelText(panelTitle, PengramConfig.getChatItemTitle(id));
+                setPanelText(panelHint, R.string.PengramEditorReorderHint);
                 addChip(getString(PengramConfig.isChatItemHidden(id) ? R.string.PengramEditorShow : R.string.PengramEditorHide), false, () -> {
                     PengramConfig.setChatItemHidden(id, !PengramConfig.isChatItemHidden(id));
                     afterChange();
@@ -294,7 +295,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             case PengramInteractivePreviewView.SETTINGS_OPTION:
                 if (id < 0 || id >= PengramSearchIndex.ITEMS.length) return;
                 final int[] setting = PengramSearchIndex.ITEMS[id];
-                panelTitle.setText(setting[0]);
+                setPanelText(panelTitle, setting[0]);
                 panelHint.setText(PengramSearchMetadata.emphasizedPath(setting, ""));
                 addChip(getString(R.string.PengramEditorOpenSetting), false,
                         () -> PengramSearchMetadata.open(this, setting));
@@ -304,15 +305,15 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 // A native mock row is informational, not an invitation to
                 // change an unrelated global font or account preference.
                 if (preview != null && preview.getPage() == PengramInteractivePreviewView.NATIVE_SETTINGS && id != 0) {
-                    panelTitle.setText(id);
+                    setPanelText(panelTitle, id);
                 } else {
-                    panelTitle.setText(R.string.PengramEditorSampleOnly);
+                    setPanelText(panelTitle, R.string.PengramEditorSampleOnly);
                 }
-                panelHint.setText(R.string.PengramEditorSafePreviewHint);
+                setPanelText(panelHint, R.string.PengramEditorSafePreviewHint);
                 return;
             case PengramInteractivePreviewView.PLAYER_CARD:
-                panelTitle.setText(R.string.PengramConstructorPlayer);
-                panelHint.setText(R.string.PengramEditorSampleOnly);
+                setPanelText(panelTitle, R.string.PengramConstructorPlayer);
+                setPanelText(panelHint, R.string.PengramEditorSampleOnly);
                 final LinearLayout styles = addOptionsGroup(R.string.PengramPlayerLook);
                 for (int style = 0; style < PengramConfig.PLAYER_STYLE_COUNT; style++) {
                     final int choice = style;
@@ -341,8 +342,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 }
                 return;
             default:
-                panelTitle.setText(R.string.PengramMD3);
-                panelHint.setText(R.string.PengramEditorSampleOnly);
+                setPanelText(panelTitle, R.string.PengramMD3);
+                setPanelText(panelHint, R.string.PengramEditorSampleOnly);
                 addAppearanceChips();
         }
     }
@@ -607,9 +608,25 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         }
     }
 
+    /** A preview is optional UI; a stale or non-string resource ID must not crash
+     * the whole app. The offending ID is logged without reading real chat data. */
+    private void setPanelText(TextView target, int resId) {
+        try {
+            Resources resources = target.getResources();
+            if (!"string".equals(resources.getResourceTypeName(resId))) {
+                throw new Resources.NotFoundException("Not a string resource: " + resId);
+            }
+            target.setText(resources.getText(resId));
+        } catch (Resources.NotFoundException error) {
+            FileLog.e(new IllegalStateException("Pengram editor label 0x"
+                    + Integer.toHexString(resId) + " on " + target.getClass().getSimpleName(), error));
+            target.setText(target == panelHint ? "—" : "Pengram");
+        }
+    }
+
     private LinearLayout addOptionsGroup(int titleRes) {
         final TextView title = new TextView(getContext());
-        title.setText(titleRes);
+        setPanelText(title, titleRes);
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
         title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         sliderBox.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 3));

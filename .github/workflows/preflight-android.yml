@@ -65,6 +65,10 @@ jobs:
           python3 scripts/test-pengram-visual-editor.py
           python3 scripts/test-pengram-search-index.py
 
+      - name: Identify reported editor resource ID
+        run: |
+          find TMessagesProj/build/intermediates -name R.txt -type f -exec grep -iH '0x7f0fe0cb' {} + || true
+
       # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
       # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.
       - name: Report compile errors

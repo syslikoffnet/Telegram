@@ -39,6 +39,12 @@ def check():
         assert forbidden not in PREVIEW + MOCK, f"Live account data in preview: {forbidden}"
     assert "BTN_VISUAL_EDITOR" in SETTINGS and "new PengramLayoutEditorActivity()" in SETTINGS
     assert "case R.string." not in EDITOR, "AGP 8 may generate non-final resource IDs"
+    # A real device crashed opening the editor when TextView.setText(int) resolved
+    # a non-string/stale ID. Route every panel label through the guarded overload.
+    assert "private void setPanelText(TextView target, int resId)" in EDITOR
+    assert "resources.getResourceTypeName(resId)" in EDITOR
+    assert "catch (Resources.NotFoundException error)" in EDITOR
+    assert not re.search(r"(?:panelTitle|panelHint|title)\.setText\(\s*(?:R\.string\.|titleRes\b|id\b|setting\[0\])", EDITOR)
     root_rows = SETTINGS.split("private void fillRoot(", 1)[1].split("private UItem sectionRow(", 1)[0]
     assert "sectionRow(BTN_VISUAL_EDITOR" in root_rows
     assert "sectionRow(BTN_CONSTRUCTOR" not in root_rows, "No competing editor entry on the root"
