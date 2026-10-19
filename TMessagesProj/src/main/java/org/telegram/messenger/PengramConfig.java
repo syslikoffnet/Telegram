@@ -342,12 +342,108 @@ public class PengramConfig {
     /** сами настройки открываем один раз, а не на каждый getBool */
     private static volatile SharedPreferences prefsCache;
 
+    /** Isolated, in-memory layout changes. Only keys used by the visual editor
+     * are deferred; unrelated app settings continue to work normally. */
+    public static final class VisualDraft {
+        private final java.util.LinkedHashMap<String, Object> changes = new java.util.LinkedHashMap<>();
+        private boolean finished;
+
+        private VisualDraft() { }
+
+        public void save() {
+            if (finished || visualDraft != this) return;
+            finished = true;
+            visualDraft = null;
+            SharedPreferences p = prefs();
+            if (p != null) {
+                SharedPreferences.Editor editor = p.edit();
+                for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
+                    Object value = entry.getValue();
+                    if (value instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) value);
+                    else if (value instanceof Integer) editor.putInt(entry.getKey(), (Integer) value);
+                    else if (value instanceof String) editor.putString(entry.getKey(), (String) value);
+                }
+                editor.apply();
+            }
+            // Only now expose staged layout fields to the live Telegram UI.
+            for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                if (key.equals("titleMode")) titleMode = (Integer) value;
+                else if (key.equals("titleCustom")) titleCustom = (String) value;
+                else if (key.equals("deletedMark")) deletedMark = (Integer) value;
+                else if (key.equals("appFont")) appFont = (Integer) value;
+                else if (key.equals("chatMenuPosition")) chatMenuPosition = (Integer) value;
+                else if (key.equals("chatMenuEnabled")) chatMenuEnabled = (Boolean) value;
+                else if (key.equals("hideMenuTheme")) hideMenuTheme = (Boolean) value;
+                else if (key.equals("hideMenuNewGroup")) hideMenuNewGroup = (Boolean) value;
+                else if (key.equals("hideMenuSavedMessages")) hideMenuSavedMessages = (Boolean) value;
+                else if (key.equals("hideMenuSettings")) hideMenuSettings = (Boolean) value;
+                boolCache.remove(key);
+                intCache.remove(key);
+            }
+        }
+
+        public void discard() {
+            if (finished || visualDraft != this) return;
+            finished = true;
+            visualDraft = null;
+            // No global fields or SharedPreferences were changed by staged edits.
+        }
+    }
+
+    private static VisualDraft visualDraft;
+
+    public static VisualDraft beginVisualDraft() {
+        init();
+        if (visualDraft != null) return visualDraft;
+        return visualDraft = new VisualDraft();
+    }
+
+    private static boolean visualKey(String key) {
+        return key.startsWith("md3") || key.startsWith("hideTab")
+                || key.startsWith("settingsHidden_") || key.startsWith("chatItemHidden_")
+                || key.startsWith("chatItemPlace_") || key.startsWith("hideMenu")
+                || key.equals("hideWriteButton") || key.equals("hideStories")
+                || key.equals("dialogSenderAvatars") || key.equals("dialogSenderAvatarPosition")
+                || key.equals("quoteShowName") || key.equals("quoteShowAvatar")
+                || key.equals("titleCenter") || key.equals("titleMode")
+                || key.equals("titleCustom") || key.equals("deletedMark")
+                || key.equals("groupAvatarPos") || key.equals("dialogAvatarShape")
+                || key.equals("playerStyle") || key.equals("playerBg")
+                || key.equals("coverShape") || key.equals("appFont")
+                || key.equals("chatMenuEnabled") || key.equals("chatMenuPosition")
+                || key.equals("settingsOrder") || key.equals("settingsOrderVersion")
+                || key.equals("chatItemsOrder") || key.equals("menuOrder");
+    }
+
+    private static boolean stageVisual(String key, Object value) {
+        if (visualDraft == null || !visualKey(key)
+                || android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) return false;
+        visualDraft.changes.put(key, value);
+        return true;
+    }
+
+    private static Object pendingVisual(String key) {
+        return visualDraft != null && android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
+                ? visualDraft.changes.get(key) : null;
+    }
+
+    private static String visualString(String key) {
+        Object value = pendingVisual(key);
+        if (value instanceof String) return (String) value;
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString(key, "");
+    }
+
     /**
      * Чтение числовой настройки без похода в SharedPreferences.
      * Настройки читаются в анимациях по многу раз за кадр, поэтому держим их в памяти.
      */
     public static int getIntCached(String key, int def) {
         init();
+        Object pending = pendingVisual(key);
+        if (pending instanceof Integer) return (Integer) pending;
         final Integer cached = intCache.get(key);
         if (cached != null) {
             return cached;
@@ -360,6 +456,8 @@ public class PengramConfig {
 
     public static boolean getBool(String key, boolean def) {
         init();
+        Object pending = pendingVisual(key);
+        if (pending instanceof Boolean) return (Boolean) pending;
         final Boolean cached = boolCache.get(key);
         if (cached != null) {
             return cached;
@@ -372,13 +470,13 @@ public class PengramConfig {
 
     public static void setIntValue(String key, int value) {
         init();
-        intCache.put(key, value);
+        if (visualDraft == null || !visualKey(key)) intCache.put(key, value);
         putInt(key, value);
     }
 
     public static void setBool(String key, boolean value) {
         init();
-        boolCache.put(key, value);
+        if (visualDraft == null || !visualKey(key)) boolCache.put(key, value);
         putBoolean(key, value);
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
@@ -792,10 +890,11 @@ public class PengramConfig {
     public static boolean isBackgroundSilent() { return getBool(KEY_BACKGROUND_SILENT, true); }
     public static boolean isPremiumStatusLocal() { return isLocalPremium() && getBool(KEY_PREMIUM_STATUS, true); }
 
-    public static int getDeletedMark() { init(); return deletedMark; }
+    public static int getDeletedMark() { init(); return getIntCached("deletedMark", deletedMark); }
 
     public static void setDeletedMark(int mark) {
         init();
+        if (stageVisual("deletedMark", mark)) return;
         deletedMark = mark;
         putInt("deletedMark", mark);
     }
@@ -925,6 +1024,7 @@ public class PengramConfig {
     }
 
     private static void putBoolean(String key, boolean value) {
+        if (stageVisual(key, value)) return;
         SharedPreferences p = prefs();
         if (p != null) p.edit().putBoolean(key, value).apply();
     }
@@ -948,11 +1048,13 @@ public class PengramConfig {
     }
 
     private static void putString(String key, String value) {
+        if (stageVisual(key, value)) return;
         SharedPreferences p = prefs();
         if (p != null) p.edit().putString(key, value).apply();
     }
 
     private static void putInt(String key, int value) {
+        if (stageVisual(key, value)) return;
         intCache.put(key, value);
         SharedPreferences p = prefs();
         if (p != null) p.edit().putInt(key, value).apply();
@@ -1162,9 +1264,19 @@ public class PengramConfig {
         }
     }
 
-    public static int getTitleMode() { init(); return titleMode; }
-    public static void setTitleMode(int mode) { init(); titleMode = Math.max(TITLE_MODE_DEFAULT, Math.min(TITLE_MODE_CUSTOM, mode)); putInt("titleMode", titleMode); }
-    public static String getTitleCustom() { init(); return titleCustom == null ? "" : titleCustom; }
+    public static int getTitleMode() { init(); Object pending = pendingVisual("titleMode"); return pending instanceof Integer ? (Integer) pending : titleMode; }
+    public static void setTitleMode(int mode) {
+        init();
+        int value = Math.max(TITLE_MODE_DEFAULT, Math.min(TITLE_MODE_CUSTOM, mode));
+        if (stageVisual("titleMode", value)) return;
+        titleMode = value;
+        putInt("titleMode", value);
+    }
+    public static String getTitleCustom() {
+        init();
+        Object pending = pendingVisual("titleCustom");
+        return pending instanceof String ? (String) pending : titleCustom == null ? "" : titleCustom;
+    }
 
     /** Единый источник бренда для шапок, диалогов, уведомлений и accessibility. */
     public static String resolveAppTitle(String telegramTitle) {
@@ -1195,7 +1307,13 @@ public class PengramConfig {
                 return telegramTitle;
         }
     }
-    public static void setTitleCustom(String text) { init(); titleCustom = text == null ? "" : text; putString("titleCustom", titleCustom); }
+    public static void setTitleCustom(String text) {
+        init();
+        String value = text == null ? "" : text;
+        if (stageVisual("titleCustom", value)) return;
+        titleCustom = value;
+        putString("titleCustom", value);
+    }
     public static boolean isTitleCentered() { return getBool(KEY_TITLE_CENTER, false); }
 
     public static int getTabBarSize() { init(); return Math.max(70, Math.min(130, tabBarSize)); }
@@ -1242,7 +1360,7 @@ public class PengramConfig {
             putString("settingsOrder", "");
             putInt("settingsOrderVersion", SETTINGS_ORDER_VERSION);
         }
-        final String saved = prefs().getString("settingsOrder", "");
+        final String saved = visualString("settingsOrder");
         if (saved != null && saved.length() > 0) {
             for (String part : saved.split(",")) {
                 try {
@@ -1522,7 +1640,7 @@ public class PengramConfig {
     public static java.util.ArrayList<Integer> getChatItemsOrder() {
         init();
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
-        final String saved = prefs().getString("chatItemsOrder", "");
+        final String saved = visualString("chatItemsOrder");
         if (saved != null && !saved.isEmpty()) {
             for (String part : saved.split(",")) {
                 try {
@@ -1685,7 +1803,7 @@ public class PengramConfig {
     /** порядок пунктов меню, с добавлением новых в конец */
     public static int[] getMenuOrder() {
         init();
-        final String saved = prefs() == null ? "" : prefs().getString("menuOrder", "");
+        final String saved = visualString("menuOrder");
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
         if (saved != null && !saved.isEmpty()) {
             for (String part : saved.split(",")) {
@@ -1761,15 +1879,18 @@ public class PengramConfig {
         final String key = menuItemKey(id);
         final boolean def = menuItemHiddenDefault(id);
         switch (id) {
-            case MENU_ITEM_THEME: init(); return hideMenuTheme;
-            case MENU_ITEM_NEW_GROUP: init(); return hideMenuNewGroup;
-            case MENU_ITEM_SAVED: init(); return hideMenuSavedMessages;
-            case MENU_ITEM_SETTINGS: init(); return hideMenuSettings;
+            case MENU_ITEM_THEME: init(); return getBool("hideMenuTheme", hideMenuTheme);
+            case MENU_ITEM_NEW_GROUP: init(); return getBool("hideMenuNewGroup", hideMenuNewGroup);
+            case MENU_ITEM_SAVED: init(); return getBool("hideMenuSavedMessages", hideMenuSavedMessages);
+            case MENU_ITEM_SETTINGS: init(); return getBool("hideMenuSettings", hideMenuSettings);
             default: return getBool(key, def);
         }
     }
 
     public static void setMenuItemHidden(int id, boolean hidden) {
+        String key = menuItemKey(id);
+        if (stageVisual(key, hidden)) return;
+        boolCache.put(key, hidden);
         switch (id) {
             case MENU_ITEM_THEME: init(); hideMenuTheme = hidden; putBoolean("hideMenuTheme", hidden); break;
             case MENU_ITEM_NEW_GROUP: init(); hideMenuNewGroup = hidden; putBoolean("hideMenuNewGroup", hidden); break;
@@ -1906,9 +2027,25 @@ public class PengramConfig {
         }
     }
     public static void toggleLocalPremium() { init(); localPremium = !localPremium; putBoolean("localPremium", localPremium); }
-    public static void toggleChatMenu() { init(); chatMenuEnabled = !chatMenuEnabled; putBoolean("chatMenuEnabled", chatMenuEnabled); }
-    public static void setChatMenuPosition(int pos) { init(); chatMenuPosition = pos; putInt("chatMenuPosition", pos); }
-    public static void setAppFont(int font) { init(); appFont = font; putInt("appFont", font); }
+    public static void toggleChatMenu() {
+        init();
+        boolean enabled = !isChatMenuEnabled();
+        if (stageVisual("chatMenuEnabled", enabled)) return;
+        chatMenuEnabled = enabled;
+        putBoolean("chatMenuEnabled", enabled);
+    }
+    public static void setChatMenuPosition(int pos) {
+        init();
+        if (stageVisual("chatMenuPosition", pos)) return;
+        chatMenuPosition = pos;
+        putInt("chatMenuPosition", pos);
+    }
+    public static void setAppFont(int font) {
+        init();
+        if (stageVisual("appFont", font)) return;
+        appFont = font;
+        putInt("appFont", font);
+    }
     public static int getSendTextStyle() { init(); return sendTextStyle; }
     public static void setSendTextStyle(int style) { init(); sendTextStyle = style; putInt("sendTextStyle", style); }
     public static boolean isSendStyleForCaptions() { return getBool(KEY_SEND_STYLE_CAPTIONS, true); }
@@ -1955,8 +2092,16 @@ public class PengramConfig {
     public static boolean isKeepingOnceMedia() { init(); return keepOnceMedia; }
     public static boolean isHidingAds() { init(); return hideAds; }
     public static boolean isLocalPremium() { init(); return localPremium; }
-    public static int getChatMenuPosition() { init(); return chatMenuPosition; }
-    public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
+    public static int getChatMenuPosition() {
+        init();
+        Object pending = pendingVisual("chatMenuPosition");
+        return pending instanceof Integer ? (Integer) pending : chatMenuPosition;
+    }
+    public static boolean isChatMenuEnabled() {
+        init();
+        Object pending = pendingVisual("chatMenuEnabled");
+        return pending instanceof Boolean ? (Boolean) pending : chatMenuEnabled;
+    }
     public static boolean isValidQuickUrl(String value) { return value != null && value.trim().matches("(?i)^(?:https://)?t\\.me/[A-Za-z0-9_]+/[0-9]+/?(?:\\?.*)?$"); }
 
     // Настраиваемые быстрые действия. Новая установка начинается с пустого списка.
@@ -1987,7 +2132,11 @@ public class PengramConfig {
         setQuickAction(count - 1, "", "", QUICK_ACTION_TEXT);
         setQuickActionCount(count - 1);
     }
-    public static int getAppFont() { init(); return appFont; }
+    public static int getAppFont() {
+        init();
+        Object pending = pendingVisual("appFont");
+        return pending instanceof Integer ? (Integer) pending : appFont;
+    }
 
     public static void toggleSaveDeletedMedia() { init(); saveDeletedMedia = !saveDeletedMedia; putBoolean("saveDeletedMedia", saveDeletedMedia); }
 

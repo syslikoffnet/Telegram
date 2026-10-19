@@ -11,6 +11,7 @@ PREVIEW = (JAVA / "Components/PengramInteractivePreviewView.java").read_text()
 EDITOR = (JAVA / "PengramLayoutEditorActivity.java").read_text()
 MOCK = (JAVA / "Components/PengramScreenMockView.java").read_text()
 TABS = (JAVA / "Components/PengramTabsMockView.java").read_text()
+CONFIG = (ROOT / "java/org/telegram/messenger/PengramConfig.java").read_text()
 SETTINGS = (JAVA / "PengramSettingsActivity.java").read_text()
 
 
@@ -55,8 +56,22 @@ def check():
     assert "sectionRow(BTN_CONSTRUCTOR" not in root_rows, "No competing editor entry on the root"
     assert "sectionRow(BTN_CONSTRUCTOR" in SETTINGS.split("private void fillAppearance(", 1)[1]
     assert "presentFragment(" not in PREVIEW, "The mock must navigate inside its preview"
-    assert "presentFragment(" not in EDITOR and "PengramEditorOpenSetting" in EDITOR, \
-        "Only the explicit Open setting action may leave the editor"
+    assert "presentFragment(" not in EDITOR and "PengramSearchMetadata.open(this" not in EDITOR, \
+        "External settings must not bypass the Save transaction"
+    assert "FrameLayout root = new FrameLayout(context)" in EDITOR
+    assert "root.addView(preview, new FrameLayout.LayoutParams(-1, -1))" in EDITOR
+    assert "panelScroll.setVisibility(View.GONE)" in EDITOR
+    assert "visualDraft.save()" in EDITOR and "visualDraft.discard()" in EDITOR
+    assert "private static boolean stageVisual(String key, Object value)" in CONFIG
+    assert "if (stageVisual(key, value)) return;" in CONFIG
+    assert 'visualString("settingsOrder")' in CONFIG
+    assert 'visualString("chatItemsOrder")' in CONFIG
+    assert 'visualString("menuOrder")' in CONFIG
+    assert "getResourceTypeName(stringId)" in PREVIEW
+    assert "mock.setEditorMessageSize(draftRadius, draftFontSize)" in EDITOR
+    assert "if (embedded) canvas.drawRect(rect, fill)" in MOCK
+    assert "getResources().getDisplayMetrics().heightPixels - dp(170)" in PREVIEW
+    assert "SharedConfig.bubbleRadius = radius" in EDITOR.split("private void saveVisualDraft()", 1)[1]
     assert "sampleSent[index] = message.substring(" in PREVIEW, "Sample input must remain local"
     assert "PengramConfig.isDialogSenderAvatars()" in PREVIEW
     assert "addSenderAvatarPositions()" in EDITOR

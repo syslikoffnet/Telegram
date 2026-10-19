@@ -12356,7 +12356,9 @@
     <string name="PengramEditorRowInfo">Hold a sample chat to edit its appearance; tap to open the sample conversation.</string>
     <string name="PengramEditorSafeInfo">Only appearance is changed; essential navigation stays available.</string>
     <string name="PengramEditorReorderHint">Hold a row and drop it onto another to reorder, or onto a section title to hide, restore or move it between allowed zones.</string>
-    <string name="PengramEditorNavigationHint">Sample chats only. Tap to navigate, hold to edit; changes to appearance apply to all accounts.</string>
+    <string name="PengramEditorNavigationHint">Sample chats only. Tap to navigate, hold to edit. Save applies the visual changes to all accounts.</string>
+    <string name="PengramEditorAdjust">Edit</string>
+    <string name="PengramEditorBrowseOnly">This setting cannot be staged in the visual editor. Edit it later in Pengram settings.</string>
     <string name="PengramEditorSendPreview">Show in sample conversation only</string>
     <string name="PengramEditorPreviewEntry">Interactive sample-data preview</string>
     <string name="PengramEditorSampleCalls">Preview only: call buttons cannot start a real call.</string>

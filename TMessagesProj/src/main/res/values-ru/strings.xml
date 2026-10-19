@@ -1384,7 +1384,9 @@
     <string name="PengramEditorRowInfo">Нажмите на тестовый чат для перехода; удерживайте для настройки вида.</string>
     <string name="PengramEditorSafeInfo">Меняется только оформление; обязательная навигация остаётся доступной.</string>
     <string name="PengramEditorReorderHint">Зажмите строку: перетащите к другой для смены порядка или на заголовок раздела, чтобы скрыть, вернуть либо перенести между допустимыми зонами.</string>
-    <string name="PengramEditorNavigationHint">Тестовые чаты. Касание — переход, удержание — настройка. Оформление общее для всех аккаунтов.</string>
+    <string name="PengramEditorNavigationHint">Только тестовые чаты. Касание — переход, удержание — настройка. Кнопка «Сохранить» применит оформление ко всем аккаунтам.</string>
+    <string name="PengramEditorAdjust">Изменить</string>
+    <string name="PengramEditorBrowseOnly">Эту настройку нельзя отложить в визуальном редакторе. Измените её позже в настройках Pengram.</string>
     <string name="PengramEditorSendPreview">Показать только в тестовом чате</string>
     <string name="PengramEditorPreviewEntry">Интерактивный макет с тестовыми данными</string>
     <string name="PengramEditorSampleCalls">Макет: кнопки звонка не запускают настоящий вызов.</string>

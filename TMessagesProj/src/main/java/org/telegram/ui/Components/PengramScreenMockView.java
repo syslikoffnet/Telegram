@@ -167,6 +167,16 @@ public class PengramScreenMockView extends View {
         return null;
     }
 
+    private int editorBubbleRadius = -1;
+    private int editorFontSize = -1;
+
+    /** These values are for the synthetic chat only, never the real message renderer. */
+    public void setEditorMessageSize(int radius, int fontSize) {
+        editorBubbleRadius = radius;
+        editorFontSize = fontSize;
+        invalidate();
+    }
+
     public void refresh() {
         updateMenuLabels();
         invalidate();
@@ -200,14 +210,17 @@ public class PengramScreenMockView extends View {
         final int textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
         final int hintColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
 
-        // корпус телефона
-        rect.set(dp(10), dp(6), width - dp(10), height - dp(6));
-        fill.setColor(gray);
-        canvas.drawRoundRect(rect, dp(22), dp(22), fill);
+        // A standalone constructor shows the phone frame. Inside the full-screen
+        // editor the chat occupies the entire available width without a nested phone.
+        rect.set(embedded ? 0 : dp(10), embedded ? 0 : dp(6),
+                embedded ? width : width - dp(10), embedded ? height : height - dp(6));
+        fill.setColor(embedded ? panel : gray);
+        if (embedded) canvas.drawRect(rect, fill);
+        else canvas.drawRoundRect(rect, dp(22), dp(22), fill);
 
         final float left = rect.left;
         final float right = rect.right;
-        final boolean menuTop = PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP;
+        final boolean menuTop = PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_TOP;
 
         // ---------- шапка ----------
         final float headerBottom = rect.top + dp(embedded ? 4 : 52);
@@ -243,16 +256,16 @@ public class PengramScreenMockView extends View {
 
         // ---------- панель кнопок чата (сверху) ----------
         final Element menu = elementById(EL_MENU);
-        final boolean menuEnabled = PengramConfig.chatMenuEnabled;
+        final boolean menuEnabled = PengramConfig.isChatMenuEnabled();
         if (menuEnabled && menuTop && dragging != menu) {
             y = drawMenuRow(canvas, left, right, y, accent, panel, menu);
         }
 
         // ---------- сообщения ----------
         // Zero is a real bubble-radius option; never round it up in the preview.
-        final float radius = dp(Math.max(0, Math.min(17, SharedConfig.bubbleRadius)));
+        final float radius = dp(Math.max(0, Math.min(17, editorBubbleRadius >= 0 ? editorBubbleRadius : SharedConfig.bubbleRadius)));
         final float fontScale = Math.max(0.75f, Math.min(2f,
-                SharedConfig.fontSize / 16f * getResources().getConfiguration().fontScale));
+                (editorFontSize >= 0 ? editorFontSize : SharedConfig.fontSize) / 16f * getResources().getConfiguration().fontScale));
         final int avatarPos = PengramConfig.getGroupAvatarPos();
         final boolean avatarVisible = avatarPos != PengramConfig.AVATAR_POS_HIDE;
         final Element avatar = elementById(EL_AVATAR);
@@ -668,7 +681,7 @@ public class PengramScreenMockView extends View {
             }
             PengramConfig.setGroupAvatarPos(value);
         } else if (element.id == EL_MENU) {
-            if (PengramConfig.chatMenuPosition == value) {
+            if (PengramConfig.getChatMenuPosition() == value) {
                 return false;
             }
             PengramConfig.setChatMenuPosition(value);

@@ -368,7 +368,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
                 chatMock.refresh();
                 if (chatMock.getParent() instanceof ViewGroup) ((ViewGroup) chatMock.getParent()).removeView(chatMock);
                 body.addView(chatMock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                        dp(Math.max(350, Math.min(560, Math.round(350 * fontScale()))))));
+                        Math.max(dp(420), getResources().getDisplayMetrics().heightPixels - dp(170))));
                 final TextView editButtons = row(getString(R.string.PengramConstructorChatButtons), null, () -> showPage(CHAT_BUTTONS));
                 body.addView(editButtons);
                 break;

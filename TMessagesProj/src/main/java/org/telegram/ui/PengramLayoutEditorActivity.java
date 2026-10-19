@@ -13,6 +13,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ScrollView;
 import android.widget.LinearLayout;
@@ -51,9 +52,18 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     private TextView panelHint;
     private LinearLayout actionsRow;
     private LinearLayout sliderBox;
+    private View panelScrim;
+    private PengramConfig.VisualDraft visualDraft;
+    private int draftRadius = -1, draftFontSize = -1;
+    private static final int ACTION_SAVE = 702, ACTION_ADJUST = 703;
 
     @Override
     public View createView(Context context) {
+        if (visualDraft == null) {
+            visualDraft = PengramConfig.beginVisualDraft();
+            draftRadius = SharedConfig.bubbleRadius;
+            draftFontSize = SharedConfig.fontSize;
+        }
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
         actionBar.setTitle(getString(R.string.PengramEditor));
@@ -61,17 +71,26 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             @Override
             public void onItemClick(int id) {
                 if (id == -1) {
-                    if (preview == null || !preview.goBack()) finishFragment();
+                    if (panelScroll != null && panelScroll.getVisibility() == View.VISIBLE) hidePanel();
+                    else if (preview == null || !preview.goBack()) finishFragment();
+                } else if (id == ACTION_SAVE) {
+                    saveVisualDraft();
+                } else if (id == ACTION_ADJUST) {
+                    updateInspectPanel(-1, -1);
+                    showPanel();
                 }
             }
         });
+        actionBar.createMenu().addItem(ACTION_ADJUST, R.drawable.ic_ab_other)
+                .setContentDescription(getString(R.string.PengramEditorAdjust));
+        actionBar.createMenu().addItem(ACTION_SAVE, getString(R.string.Save));
 
-        final LinearLayout root = new LinearLayout(context);
-        root.setOrientation(LinearLayout.VERTICAL);
+        final FrameLayout root = new FrameLayout(context);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         final PengramInteractivePreviewView previousPreview = preview;
         mock = new PengramScreenMockView(context);
+        mock.setEditorMessageSize(draftRadius, draftFontSize);
         mock.setListener(new PengramScreenMockView.Listener() {
             @Override
             public void onSelection(PengramScreenMockView.Element element) {
@@ -81,7 +100,6 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             @Override
             public void onChanged() {
                 updatePanel(mock.getSelected());
-                applyEverywhere();
                 mock.refresh();
             }
         });
@@ -97,12 +115,16 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             @Override
             public void onChanged() {
                 mock.refresh();
-                applyEverywhere();
             }
         });
-        // One scrolling surface inside the sample phone: no nested vertical ScrollViews
-        // to steal taps, long presses or drags on narrow/short devices.
-        root.addView(preview, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
+        // The sample Telegram occupies the entire editor surface. Controls are
+        // an on-demand overlay; they never squeeze the chat into half a screen.
+        root.addView(preview, new FrameLayout.LayoutParams(-1, -1));
+        panelScrim = new View(context);
+        panelScrim.setBackgroundColor(0x66000000);
+        panelScrim.setOnClickListener(v -> hidePanel());
+        panelScrim.setVisibility(View.GONE);
+        root.addView(panelScrim, new FrameLayout.LayoutParams(-1, -1));
 
         panel = new LinearLayout(context) {
             private final RectF rect = new RectF();
@@ -124,12 +146,23 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 final int available = MeasureSpec.getSize(heightMeasureSpec);
                 super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(
-                        Math.min(dp(270), available / 2), MeasureSpec.AT_MOST));
+                        Math.min(dp(520), available * 3 / 4), MeasureSpec.AT_MOST));
             }
         };
         panelScroll.setFillViewport(false);
         panelScroll.addView(panel, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
-        root.addView(panelScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        FrameLayout.LayoutParams sheetParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        root.addView(panelScroll, sheetParams);
+        panelScroll.setVisibility(View.GONE);
+
+        TextView closeSheet = new TextView(context);
+        closeSheet.setText("×");
+        closeSheet.setContentDescription(getString(R.string.Close));
+        closeSheet.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
+        closeSheet.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        closeSheet.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        closeSheet.setOnClickListener(v -> hidePanel());
+        panel.addView(closeSheet, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 34));
 
         panelTitle = new TextView(context);
         panelTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
@@ -155,9 +188,40 @@ public class PengramLayoutEditorActivity extends BaseFragment {
 
         panelToken = Integer.MIN_VALUE;
         updateInspectPanel(-1, -1);
+        hidePanel();
 
         fragmentView = root;
         return fragmentView;
+    }
+
+    private void showPanel() {
+        if (panelScrim != null) panelScrim.setVisibility(View.VISIBLE);
+        if (panelScroll != null) panelScroll.setVisibility(View.VISIBLE);
+    }
+
+    private void hidePanel() {
+        if (panelScroll != null) panelScroll.setVisibility(View.GONE);
+        if (panelScrim != null) panelScrim.setVisibility(View.GONE);
+    }
+
+    private void saveVisualDraft() {
+        if (visualDraft == null) return;
+        visualDraft.save();
+        visualDraft = null;
+        if (draftRadius != SharedConfig.bubbleRadius) applyBubbleRadius(draftRadius);
+        if (draftFontSize != SharedConfig.fontSize) applyFontSize(draftFontSize);
+        org.telegram.messenger.PengramMonet.update(getContext());
+        applyEverywhere();
+        finishFragment();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        if (visualDraft != null) {
+            visualDraft.discard();
+            visualDraft = null;
+        }
+        super.onFragmentDestroy();
     }
 
     // ------------------------------------------------------------- панель
@@ -170,11 +234,13 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         actionsRow.removeAllViews();
         sliderBox.removeAllViews();
         if (element < 0) {
+            hidePanel();
             setPanelText(panelTitle, R.string.PengramEditorPick);
             setPanelText(panelHint, R.string.PengramEditorNavigationHint);
             addAppearanceChips();
             return;
         }
+        showPanel();
         switch (element) {
             case PengramInteractivePreviewView.TITLE:
                 updatePanel(mock.elementById(PengramScreenMockView.EL_TITLE));
@@ -297,9 +363,12 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 final int[] setting = PengramSearchIndex.ITEMS[id];
                 setPanelText(panelTitle, setting[0]);
                 panelHint.setText(PengramSearchMetadata.emphasizedPath(setting, ""));
-                addChip(getString(R.string.PengramEditorOpenSetting), false,
-                        () -> PengramSearchMetadata.open(this, setting));
+                // Opening the real settings page here would bypass Save.
+                int beforeControls = actionsRow.getChildCount() + sliderBox.getChildCount();
                 addListedSettingControls(setting[0]);
+                if (beforeControls == actionsRow.getChildCount() + sliderBox.getChildCount()) {
+                    panelHint.append("\n" + getString(R.string.PengramEditorBrowseOnly));
+                }
                 return;
             case PengramInteractivePreviewView.PREVIEW_ONLY:
                 // A native mock row is informational, not an invitation to
@@ -417,8 +486,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             return;
         }
         if (title == R.string.BubbleRadius) {
-            addSlider(getString(title), 0, 17, SharedConfig.bubbleRadius, value -> {
-                applyBubbleRadius(value);
+            addSlider(getString(title), 0, 17, draftRadius, value -> {
+                draftRadius = value;
+                if (mock != null) mock.setEditorMessageSize(draftRadius, draftFontSize);
                 if (mock != null) mock.refresh();
             });
             return;
@@ -647,15 +717,13 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         final boolean enabled = PengramConfig.getBool(key, defaultValue);
         addChip(target, getString(label) + (enabled ? " ✓" : " ○"), enabled, () -> {
             PengramConfig.setBool(key, !PengramConfig.getBool(key, defaultValue));
-            if (key.startsWith("md3Monet")) org.telegram.messenger.PengramMonet.update(getContext());
             afterChange();
         });
     }
 
     private void updatePanel(PengramScreenMockView.Element element) {
-        if (panel == null) {
-            return;
-        }
+        if (panel == null) return;
+        if (element == null) hidePanel(); else showPanel();
         resetPanelScrollIfChanged((preview == null ? 0 : preview.getPage()) * 100000
                 + 1000 + (element == null ? 0 : element.id));
         actionsRow.removeAllViews();
@@ -682,22 +750,22 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 break;
             }
             case PengramScreenMockView.EL_MENU: {
-                addChip(getString(R.string.PengramChatMenuTop), PengramConfig.chatMenuEnabled && PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP, () -> {
-                    if (!PengramConfig.chatMenuEnabled) {
+                addChip(getString(R.string.PengramChatMenuTop), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_TOP, () -> {
+                    if (!PengramConfig.isChatMenuEnabled()) {
                         PengramConfig.toggleChatMenu();
                     }
                     PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_TOP);
                     afterChange();
                 });
-                addChip(getString(R.string.PengramChatMenuBottom), PengramConfig.chatMenuEnabled && PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM, () -> {
-                    if (!PengramConfig.chatMenuEnabled) {
+                addChip(getString(R.string.PengramChatMenuBottom), PengramConfig.isChatMenuEnabled() && PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_BOTTOM, () -> {
+                    if (!PengramConfig.isChatMenuEnabled()) {
                         PengramConfig.toggleChatMenu();
                     }
                     PengramConfig.setChatMenuPosition(PengramConfig.MENU_POS_BOTTOM);
                     afterChange();
                 });
-                addChip(getString(R.string.PengramEditorHide), !PengramConfig.chatMenuEnabled, () -> {
-                    if (PengramConfig.chatMenuEnabled) {
+                addChip(getString(R.string.PengramEditorHide), !PengramConfig.isChatMenuEnabled(), () -> {
+                    if (PengramConfig.isChatMenuEnabled()) {
                         PengramConfig.toggleChatMenu();
                     }
                     afterChange();
@@ -746,14 +814,16 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 break;
             }
             case PengramScreenMockView.EL_BUBBLE: {
-                addSlider(getString(R.string.PengramEditorRadius), 0, 17, SharedConfig.bubbleRadius, value -> {
-                    applyBubbleRadius(value);
+                addSlider(getString(R.string.PengramEditorRadius), 0, 17, draftRadius, value -> {
+                    draftRadius = value;
+                    if (mock != null) mock.setEditorMessageSize(draftRadius, draftFontSize);
                     if (mock != null) {
                         mock.refresh();
                     }
                 });
-                addSlider(getString(R.string.PengramEditorTextSize), 12, 30, SharedConfig.fontSize, value -> {
-                    applyFontSize(value);
+                addSlider(getString(R.string.PengramEditorTextSize), 12, 30, draftFontSize, value -> {
+                    draftFontSize = value;
+                    if (mock != null) mock.setEditorMessageSize(draftRadius, draftFontSize);
                     if (mock != null) {
                         mock.refresh();
                     }
@@ -794,10 +864,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             else if (preview.getPage() == PengramInteractivePreviewView.CHAT) updatePanel(mock.getSelected());
             else updateInspectPanel(-1, -1);
         } else updatePanel(mock == null ? null : mock.getSelected());
-        applyEverywhere();
     }
 
-    /** все изменения применяются к живому приложению сразу */
+    /** Apply committed visual settings to all accounts only after Save. */
     private void applyEverywhere() {
         try {
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
@@ -901,7 +970,6 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                 }
                 if (stop && dirty[0]) {
                     dirty[0] = false;
-                    applyEverywhere();
                 }
             }
 
@@ -930,6 +998,10 @@ public class PengramLayoutEditorActivity extends BaseFragment {
 
     @Override
     public boolean onBackPressed(boolean invoked) {
+        if (panelScroll != null && panelScroll.getVisibility() == View.VISIBLE) {
+            if (invoked) hidePanel();
+            return false;
+        }
         if (preview != null && preview.getPage() != PengramInteractivePreviewView.DIALOGS) {
             if (invoked) preview.goBack();
             return false;
