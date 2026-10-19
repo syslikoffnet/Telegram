@@ -414,7 +414,10 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 }
                 message = msg;
             } else {
-                if (!TextUtils.isEmpty(text) && !TextUtils.equals(message.message, text)) {
+                // The archive's searchable "[photo]" / "[video]" summary is not a
+                // real caption. Keep the deserialized media and its actual caption.
+                if (!TextUtils.isEmpty(text) && !TextUtils.equals(message.message, text)
+                        && !PengramHistory.isPhotoOrVideo(message)) {
                     message.message = text;
                 }
                 message.dialog_id = entry.dialogId;

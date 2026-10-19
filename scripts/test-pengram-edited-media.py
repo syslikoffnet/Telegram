@@ -27,6 +27,7 @@ assert 'isSavingEditedMedia(account)' in controller and 'saveEditedMedia = false
 assert 'savePrivateCopy(source, filename, PengramConfig.getMediaFolder())' in history
 assert 'isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0' in config
 assert 'message.attachPath = entry.prevMediaPath' in screen
+assert '&& !PengramHistory.isPhotoOrVideo(message)' in screen
 assert 'addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionOriginal), true)' in screen
 assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
 assert 'KEY_EDIT_HISTORY_MARK, true' in (java / 'ui/PengramSettingsActivity.java').read_text()
