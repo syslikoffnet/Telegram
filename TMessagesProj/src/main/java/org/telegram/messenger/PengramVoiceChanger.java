@@ -193,9 +193,9 @@ public class PengramVoiceChanger {
         speechHpCoefficient = highpassCoefficient(100f);
         speechPresenceCoefficient = lowpassCoefficient(1900f);
         speechEnvelopeAttack = timeCoefficient(0.008f);
-        speechEnvelopeRelease = timeCoefficient(0.14f);
+        speechEnvelopeRelease = timeCoefficient(0.09f);
         speechGainAttack = timeCoefficient(0.012f);
-        speechGainRelease = timeCoefficient(0.095f);
+        speechGainRelease = timeCoefficient(0.06f);
         speechGateAttack = timeCoefficient(0.003f);
         speechGateRelease = timeCoefficient(0.14f);
         formant1.reset();
@@ -749,10 +749,11 @@ public class PengramVoiceChanger {
                 final float activity = Math.max(0f, Math.min(1f, (speechEnvelope - 28f) / 112f));
                 speechGate += (activity - speechGate) *
                         (activity > speechGate ? speechGateAttack : speechGateRelease);
-                // Target speech envelope ~8.5k PCM, makeup <=12x. Fast down,
-                // slow up avoids pumping and catches a sudden loud syllable.
-                final float target = Math.max(1f, Math.min(12f,
-                        8500f / Math.max(500f, speechEnvelope)));
+                // Target a strong speech envelope without slamming the 30k
+                // limiter on every syllable. Up to 20x for quiet words, down
+                // to 0.65x for shouting; fast down and slow up prevent pumping.
+                final float target = Math.max(0.65f, Math.min(20f,
+                        14000f / Math.max(500f, speechEnvelope)));
                 speechGain += (target - speechGain) *
                         (target < speechGain ? speechGainAttack : speechGainRelease);
                 buffer.putShort(i * 2, (short) limit(clear * speechGain * speechGate));

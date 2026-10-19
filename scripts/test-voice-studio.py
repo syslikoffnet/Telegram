@@ -291,7 +291,7 @@ public class TestVoiceStudio {
                 levels[a] = rms(processed);
                 PengramVoiceChanger.finishSource(source);
             }
-            check(levels[0] > 2000, "quiet words were not lifted at " + rate);
+            check(levels[0] > 5000, "quiet words were not lifted at " + rate);
             check(levels[1] > levels[0] && levels[1] < levels[0] * 6,
                     "conference speech was not leveled at " + rate);
         }
@@ -309,7 +309,7 @@ public class TestVoiceStudio {
             PengramVoiceChanger.processForSource(quietWord, quietWord.capacity(), 48000,
                     PengramVoiceChanger.SOURCE_CALL);
         }
-        check(rms(quietWord) > 2000, "conference gain did not recover between words");
+        check(rms(quietWord) > 5000, "conference gain did not recover between words");
         ByteBuffer roomNoise = null;
         for (int packet = 0; packet < 100; ++packet) {
             roomNoise = speech(480, 48000, 10);
