@@ -2024,7 +2024,7 @@ public class PengramConfig {
             case VOICE_GAIN_LOUD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_LOUD_DB, 18)));
             case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_BATTLE_DB, 30)));
             case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_DB, 0)));
-            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DB, 48)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DB, VOICE_GAIN_MAX_DB)));
             default: return 0;
         }
     }
@@ -2034,7 +2034,7 @@ public class PengramConfig {
             case VOICE_GAIN_LOUD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_LOUD_DRIVE, 0)));
             case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_BATTLE_DRIVE, 0)));
             case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_CUSTOM_DRIVE, 0)));
-            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DRIVE, 75)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DRIVE, 100)));
             default: return 0;
         }
     }

@@ -222,6 +222,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BOOST_EXTREME = 1302;
     private static final int BTN_VOICE_BASE = 1310; // + режим
     private static final int BTN_VOICE_GAIN_PRESET = 1330;
+    private static final int BTN_VOICE_GAIN_MAXIMUM = 1333;
     private static final int BTN_VOICE_PROFILE_COPY = 1331;
     private static final int BTN_VOICE_PROFILE_IMPORT = 1332;
 
@@ -3171,6 +3172,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramVoiceOverdrive)));
         items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDrive(), 100,
                 value -> value + "%", PengramConfig::setVoiceGainDrive));
+        items.add(UItem.asButton(BTN_VOICE_GAIN_MAXIMUM, R.drawable.msg_customize,
+                getString(R.string.PengramVoiceGainMaximum)));
         items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
@@ -4108,6 +4111,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_VOICE_GAIN_MAXIMUM: {
+                PengramConfig.setVoiceGainPreset(PengramConfig.VOICE_GAIN_OVERLOAD);
+                PengramConfig.setVoiceGainDb(PengramConfig.VOICE_GAIN_MAX_DB);
+                PengramConfig.setVoiceGainDrive(100);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
+            }
             case BTN_VOICE_GAIN_PRESET: {
                 final CharSequence[] presets = new CharSequence[PengramConfig.VOICE_GAIN_OVERLOAD + 1];
                 for (int i = 0; i < presets.length; ++i) presets[i] = voiceGainPresetName(i);
