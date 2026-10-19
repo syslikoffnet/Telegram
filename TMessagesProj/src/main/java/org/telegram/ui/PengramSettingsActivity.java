@@ -3064,7 +3064,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private String voiceGainPresetName(int preset) {
         final int[] names = {R.string.PengramVoiceGainOff, R.string.PengramVoiceGainClear,
                 R.string.PengramVoiceGainLoud, R.string.PengramVoiceGainBattle,
-                R.string.PengramVoiceGainCustom};
+                R.string.PengramVoiceGainCustom, R.string.PengramVoiceGainOverload};
         return preset == PengramConfig.VOICE_GAIN_OFF ? getString(names[preset])
                 : LocaleController.formatString(names[preset], PengramConfig.getVoiceGainDbForPreset(preset));
     }
@@ -3168,6 +3168,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDb(), PengramConfig.VOICE_GAIN_MAX_DB,
                 value -> value > 0 ? "+" + value + " dB" : "0 dB",
                 PengramConfig::setVoiceGainDb));
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceOverdrive)));
+        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDrive(), 100,
+                value -> value + "%", PengramConfig::setVoiceGainDrive));
         items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
@@ -4106,7 +4109,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         switch (item.id) {
             case BTN_VOICE_GAIN_PRESET: {
-                final CharSequence[] presets = new CharSequence[PengramConfig.VOICE_GAIN_CUSTOM + 1];
+                final CharSequence[] presets = new CharSequence[PengramConfig.VOICE_GAIN_OVERLOAD + 1];
                 for (int i = 0; i < presets.length; ++i) presets[i] = voiceGainPresetName(i);
                 showChoicePicker(getString(R.string.PengramVoiceGainPreset), presets,
                         PengramConfig.getVoiceGainPreset(), PengramConfig::setVoiceGainPreset);

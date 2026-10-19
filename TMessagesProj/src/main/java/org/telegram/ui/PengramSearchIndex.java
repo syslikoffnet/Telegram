@@ -176,6 +176,7 @@ public final class PengramSearchIndex {
             {R.string.PengramVoiceProfileCopy, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceHeader, 0, 0},
             {R.string.PengramVoiceProfileImport, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceHeader, 0, 0},
             {R.string.PengramVoiceGainPreset, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceGainHeader, 0, 0},
+            {R.string.PengramVoiceOverdrive, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceGainHeader, 0, 0},
             {R.string.PengramVoiceMessages, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},
             {R.string.PengramVoiceRound, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},
             {R.string.PengramVoiceCalls, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},

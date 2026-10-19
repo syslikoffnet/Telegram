@@ -40,7 +40,7 @@ public class SystemClock {
 }""")
     put(root, "org/telegram/messenger/PengramConfig.java", """package org.telegram.messenger;
 public class PengramConfig {
-    public static int mode = 0, pitch = 3, formant = 3, echo = 2, drive = 3, robot = 3, mix = 100, gainDb = 0;
+    public static int mode = 0, pitch = 3, formant = 3, echo = 2, drive = 3, robot = 3, mix = 100, gainDb = 0, gainDrive = 0;
     public static boolean calls = true, messages = true;
     public static int getVoiceChangerMode() { return mode; }
     public static int getVoiceChangerPitch() { return pitch; }
@@ -51,6 +51,7 @@ public class PengramConfig {
     public static int getVoiceStudioRobot() { return robot; }
     public static int getVoiceStudioMix() { return mix; }
     public static int getVoiceGainDb() { return gainDb; }
+    public static int getVoiceGainDrive() { return gainDrive; }
     public static boolean isVoiceCallsEnabled() { return calls; }
     public static boolean isVoiceMessagesEnabled() { return messages; }
     public static boolean isVoiceRoundEnabled() { return true; }
@@ -221,11 +222,42 @@ public class TestVoiceStudio {
         PengramVoiceChanger.processForSource(dryBoost, 2, 48000, PengramVoiceChanger.SOURCE_CALL);
         check(dryBoost.getShort(0) > 14500, "gain missing with 0% wet mix");
         PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        // 60 dB is 1000x *before* the saturation/limiter; never wrap PCM16.
+        PengramConfig.mode = PengramVoiceChanger.MODE_OFF;
+        PengramConfig.gainDb = 60;
+        PengramConfig.gainDrive = 75;
+        for (int source : new int[] {PengramVoiceChanger.SOURCE_CALL, PengramVoiceChanger.SOURCE_VOICE}) {
+            PengramVoiceChanger.finishSource(source);
+            ByteBuffer hot = ByteBuffer.allocateDirect(960).order(ByteOrder.LITTLE_ENDIAN);
+            for (int i = 0; i < 480; ++i) hot.putShort(i * 2, (short) (i % 2 == 0 ? 100 : -100));
+            PengramVoiceChanger.processForSource(hot, hot.capacity(), 48000, source);
+            for (int i = 0; i < 480; ++i) {
+                int output = hot.getShort(i * 2);
+                check(output > 0 == (i % 2 == 0), "overload flipped sample sign");
+                check(Math.abs(output) > 20000 && Math.abs(output) <= 30001,
+                        "60 dB overload failed or escaped the limiter");
+            }
+            PengramVoiceChanger.finishSource(source);
+        }
+        // Drive alone should also process audio, even when timbre and gain are off.
+        PengramConfig.gainDb = 0;
+        PengramConfig.gainDrive = 100;
+        check(AudioEffectBridge.isCallAudioEnabled() && PengramVoiceChanger.isEnabled(),
+                "overdrive-only microphone did not enter call/voice paths");
+        ByteBuffer shaped = ByteBuffer.allocateDirect(4).order(ByteOrder.LITTLE_ENDIAN);
+        shaped.putShort(0, (short) 24000);
+        shaped.putShort(2, (short) 500);
+        PengramVoiceChanger.processForSource(shaped, 4, 48000, PengramVoiceChanger.SOURCE_CALL);
+        check(shaped.getShort(0) > 6000 && shaped.getShort(0) < 24000,
+                "overdrive did not audibly compress loud samples");
+        check(shaped.getShort(2) == 500, "overdrive changed sample below knee");
+        PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
+        PengramConfig.gainDrive = 0;
         PengramConfig.mode = PengramVoiceChanger.MODE_OFF;
         PengramConfig.gainDb = 0;
         check(!AudioEffectBridge.isCallAudioEnabled() && !PengramVoiceChanger.isEnabled(),
                 "disabled boost still allocated a call/voice buffer");
-        System.out.println("voice studio PCM: 8/16/48/96 kHz, boost-only voice/call, limiter, opt-in, dry mix, CPU bypass and off-mode OK");
+        System.out.println("voice studio PCM: 8/16/48/96 kHz, boost/overdrive voice/call, limiter, opt-in, dry mix, CPU bypass and off-mode OK");
     }
 }
 """)

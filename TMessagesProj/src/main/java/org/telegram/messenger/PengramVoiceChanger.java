@@ -12,7 +12,7 @@ import java.security.SecureRandom;
  * вообще не трогается. Длина выходного блока всегда равна длине входного, так что
  * длительность голосового и расчёт амплитуд остаются прежними.
  *
- * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> усиление -> лимитер.
+ * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> усиление -> перегруз -> лимитер.
  *
  * Отдельная история — режим «Аноним». Он не просто меняет тон: все параметры
  * (сдвиг тона, формантная окраска, микро-таймварп, фазовое скремблирование и шумовая
@@ -261,7 +261,8 @@ public class PengramVoiceChanger {
 
     public static boolean isEnabledFor(int source) {
         final int mode = PengramConfig.getVoiceChangerMode();
-        return (PengramConfig.getVoiceGainDb() > 0 || mode != MODE_OFF && !isDryOnly(mode)) &&
+        return (PengramConfig.getVoiceGainDb() > 0 || PengramConfig.getVoiceGainDrive() > 0
+                || mode != MODE_OFF && !isDryOnly(mode)) &&
                 (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
                         || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
                         || source == SOURCE_CALL && PengramConfig.isVoiceCallsEnabled());
@@ -412,8 +413,9 @@ public class PengramVoiceChanger {
         final int mode = PengramConfig.getVoiceChangerMode();
         if (buffer == null || buffer.isReadOnly() || len < 2 || buffer.limit() < 2) return;
         final int boostDb = PengramConfig.getVoiceGainDb();
+        final int overdrive = PengramConfig.getVoiceGainDrive();
         final boolean dryOnly = mode == MODE_OFF || isDryOnly(mode);
-        if (dryOnly && boostDb == 0) return;
+        if (dryOnly && boostDb == 0 && overdrive == 0) return;
         // dB refers to voltage/amplitude, not power. Compute once per packet.
         final float boost = boostDb == 0 ? 1f : (float) Math.pow(10.0, boostDb / 20.0);
         try {
@@ -423,7 +425,7 @@ public class PengramVoiceChanger {
                 try {
                     final int count = Math.min(len, buffer.limit()) / 2;
                     for (int i = 0; i < count; ++i) {
-                        buffer.putShort(i * 2, (short) limit(buffer.getShort(i * 2) * boost));
+                        buffer.putShort(i * 2, (short) limit(microphoneOverdrive(buffer.getShort(i * 2) * boost, overdrive)));
                     }
                 } finally {
                     buffer.order(previousOrder);
@@ -509,7 +511,7 @@ public class PengramVoiceChanger {
                 if (frameMix < 1f) {
                     out = in * (1f - frameMix) + out * frameMix;
                 }
-                out = limit(out * boost);
+                out = limit(microphoneOverdrive(out * boost, overdrive));
                 buffer.putShort(i * 2, (short) (out * gateGain));
             }
 
@@ -781,6 +783,21 @@ public class PengramVoiceChanger {
         if (x > level) return level;
         if (x < -level) return -level;
         return x;
+    }
+
+    /** Intentional saturation, separate from the final digital peak limiter.
+     *  The knee starts at 24k for a gentle drive, down to 6k at 100%. The
+     *  bounded rational curve avoids tanh on the latency-sensitive call path.
+     */
+    private static float microphoneOverdrive(float x, int drive) {
+        if (drive == 0) return x;
+        final float threshold = 24000f - drive * 180f;
+        final float amplitude = Math.abs(x);
+        if (amplitude <= threshold) return x;
+        final float headroom = 30000f - threshold;
+        final float excess = amplitude - threshold;
+        final float compressed = threshold + headroom * excess / (excess + headroom);
+        return x < 0f ? -compressed : compressed;
     }
 
     /** мягкий лимитер: ничего не трещит даже на агрессивных режимах */

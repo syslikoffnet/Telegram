@@ -11497,7 +11497,9 @@
     <string name="PengramVoiceGainLoud">Loud · +%1$d dB</string>
     <string name="PengramVoiceGainBattle">Battle · +%1$d dB</string>
     <string name="PengramVoiceGainCustom">Custom · +%1$d dB</string>
-    <string name="PengramVoiceGainInfo">Select a preset, then adjust its saved 0–30 dB level with the slider. Original switches to the custom slot when adjusted. Works with original or changed voice. Applies to voice messages and to calls/group voice chats when the call switch below is on. A peak limiter prevents digital clipping, but boosting also raises noise and cannot override your microphone or the listener’s volume. Start low.</string>
+    <string name="PengramVoiceGainOverload">Overload · +%1$d dB</string>
+    <string name="PengramVoiceOverdrive">Overdrive · saturation</string>
+    <string name="PengramVoiceGainInfo">Each preset saves its own boost (0–60 dB) and overdrive (0–100%). Original stays unchanged; moving a slider there opens Custom. Overdrive intentionally distorts sound, while the output limiter prevents PCM overflow. Boost also raises noise and cannot override the microphone or listener volume. Extremely loud sound may damage hearing; start low. Calls and group voice chats require the separate switch below.</string>
     <string name="PengramVoiceProfileCopy">Copy effect profile</string>
     <string name="PengramVoiceProfileImport">Import effect profile</string>
     <string name="PengramVoiceProfileInfo">Portable effect and boost settings only; not a neural voice model. Imports do not enable the microphone in calls.</string>

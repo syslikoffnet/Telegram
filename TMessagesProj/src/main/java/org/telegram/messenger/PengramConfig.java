@@ -170,13 +170,20 @@ public class PengramConfig {
     public static final String KEY_VOICE_GAIN_CLEAR_DB = "voiceGainClearDb";
     public static final String KEY_VOICE_GAIN_LOUD_DB = "voiceGainLoudDb";
     public static final String KEY_VOICE_GAIN_BATTLE_DB = "voiceGainBattleDb";
+    public static final String KEY_VOICE_GAIN_OVERLOAD_DB = "voiceGainOverloadDb";
+    public static final String KEY_VOICE_GAIN_CLEAR_DRIVE = "voiceGainClearDrive";
+    public static final String KEY_VOICE_GAIN_LOUD_DRIVE = "voiceGainLoudDrive";
+    public static final String KEY_VOICE_GAIN_BATTLE_DRIVE = "voiceGainBattleDrive";
+    public static final String KEY_VOICE_GAIN_OVERLOAD_DRIVE = "voiceGainOverloadDrive";
+    public static final String KEY_VOICE_GAIN_CUSTOM_DRIVE = "voiceGainCustomDrive";
     public static final String KEY_VOICE_GAIN_PRESET = "voiceGainPreset";
     public static final int VOICE_GAIN_OFF = 0;
     public static final int VOICE_GAIN_CLEAR = 1;
     public static final int VOICE_GAIN_LOUD = 2;
     public static final int VOICE_GAIN_BATTLE = 3;
     public static final int VOICE_GAIN_CUSTOM = 4;
-    public static final int VOICE_GAIN_MAX_DB = 30;
+    public static final int VOICE_GAIN_OVERLOAD = 5;
+    public static final int VOICE_GAIN_MAX_DB = 60;
 
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
@@ -2009,29 +2016,54 @@ public class PengramConfig {
     public static int getVoiceStudioMix() { return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_STUDIO_MIX, 100))); }
     public static int getVoiceStudioDrive() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_DRIVE, 0))); }
     public static int getVoiceStudioRobot() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_ROBOT, 0))); }
-    /** Four independently editable persistent boost presets, plus the untouched original. */
-    public static int getVoiceGainPreset() { return Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_CUSTOM, getIntCached(KEY_VOICE_GAIN_PRESET, VOICE_GAIN_OFF))); }
+    /** Saved boost and saturation per slot; Original always passes through unchanged. */
+    public static int getVoiceGainPreset() { return Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_OVERLOAD, getIntCached(KEY_VOICE_GAIN_PRESET, VOICE_GAIN_OFF))); }
     public static int getVoiceGainDbForPreset(int preset) {
         switch (preset) {
             case VOICE_GAIN_CLEAR: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_CLEAR_DB, 9)));
             case VOICE_GAIN_LOUD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_LOUD_DB, 18)));
             case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_BATTLE_DB, 30)));
             case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_DB, 0)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DB, 48)));
+            default: return 0;
+        }
+    }
+    public static int getVoiceGainDriveForPreset(int preset) {
+        switch (preset) {
+            case VOICE_GAIN_CLEAR: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_CLEAR_DRIVE, 0)));
+            case VOICE_GAIN_LOUD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_LOUD_DRIVE, 0)));
+            case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_BATTLE_DRIVE, 0)));
+            case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_CUSTOM_DRIVE, 0)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DRIVE, 75)));
             default: return 0;
         }
     }
     public static int getVoiceGainDb() { return getVoiceGainDbForPreset(getVoiceGainPreset()); }
+    public static int getVoiceGainDrive() { return getVoiceGainDriveForPreset(getVoiceGainPreset()); }
+    private static int editableVoiceGainPreset() {
+        int selected = getVoiceGainPreset();
+        return selected == VOICE_GAIN_OFF ? VOICE_GAIN_CUSTOM : selected;
+    }
     public static void setVoiceGainDb(int db) {
-        int preset = getVoiceGainPreset();
-        if (preset == VOICE_GAIN_OFF) preset = VOICE_GAIN_CUSTOM;
+        final int preset = editableVoiceGainPreset();
         final String key = preset == VOICE_GAIN_CLEAR ? KEY_VOICE_GAIN_CLEAR_DB
                 : preset == VOICE_GAIN_LOUD ? KEY_VOICE_GAIN_LOUD_DB
-                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DB : KEY_VOICE_GAIN_DB;
+                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DB
+                : preset == VOICE_GAIN_OVERLOAD ? KEY_VOICE_GAIN_OVERLOAD_DB : KEY_VOICE_GAIN_DB;
         setIntValue(key, Math.max(0, Math.min(VOICE_GAIN_MAX_DB, db)));
         setIntValue(KEY_VOICE_GAIN_PRESET, preset);
     }
+    public static void setVoiceGainDrive(int drive) {
+        final int preset = editableVoiceGainPreset();
+        final String key = preset == VOICE_GAIN_CLEAR ? KEY_VOICE_GAIN_CLEAR_DRIVE
+                : preset == VOICE_GAIN_LOUD ? KEY_VOICE_GAIN_LOUD_DRIVE
+                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DRIVE
+                : preset == VOICE_GAIN_OVERLOAD ? KEY_VOICE_GAIN_OVERLOAD_DRIVE : KEY_VOICE_GAIN_CUSTOM_DRIVE;
+        setIntValue(key, Math.max(0, Math.min(100, drive)));
+        setIntValue(KEY_VOICE_GAIN_PRESET, preset);
+    }
     public static void setVoiceGainPreset(int preset) {
-        setIntValue(KEY_VOICE_GAIN_PRESET, Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_CUSTOM, preset)));
+        setIntValue(KEY_VOICE_GAIN_PRESET, Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_OVERLOAD, preset)));
     }
 
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
@@ -2332,7 +2364,9 @@ public class PengramConfig {
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
             "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "voiceGainDb", "voiceGainPreset",
-            "voiceGainClearDb", "voiceGainLoudDb", "voiceGainBattleDb", "zalgoFilter"
+            "voiceGainClearDb", "voiceGainLoudDb", "voiceGainBattleDb", "voiceGainOverloadDb",
+            "voiceGainClearDrive", "voiceGainLoudDrive", "voiceGainBattleDrive", "voiceGainOverloadDrive",
+            "voiceGainCustomDrive", "zalgoFilter"
     ));
 
     /** семейства ключей с именем, которое зависит от чата или человека */
