@@ -1878,11 +1878,13 @@ public class PengramConfig {
     public static boolean isMenuItemHidden(int id) {
         final String key = menuItemKey(id);
         final boolean def = menuItemHiddenDefault(id);
+        Object draftValue = pendingVisual(key);
+        if (draftValue instanceof Boolean) return (Boolean) draftValue;
         switch (id) {
-            case MENU_ITEM_THEME: init(); return getBool("hideMenuTheme", hideMenuTheme);
-            case MENU_ITEM_NEW_GROUP: init(); return getBool("hideMenuNewGroup", hideMenuNewGroup);
-            case MENU_ITEM_SAVED: init(); return getBool("hideMenuSavedMessages", hideMenuSavedMessages);
-            case MENU_ITEM_SETTINGS: init(); return getBool("hideMenuSettings", hideMenuSettings);
+            case MENU_ITEM_THEME: init(); return hideMenuTheme;
+            case MENU_ITEM_NEW_GROUP: init(); return hideMenuNewGroup;
+            case MENU_ITEM_SAVED: init(); return hideMenuSavedMessages;
+            case MENU_ITEM_SETTINGS: init(); return hideMenuSettings;
             default: return getBool(key, def);
         }
     }
@@ -1890,7 +1892,6 @@ public class PengramConfig {
     public static void setMenuItemHidden(int id, boolean hidden) {
         String key = menuItemKey(id);
         if (stageVisual(key, hidden)) return;
-        boolCache.put(key, hidden);
         switch (id) {
             case MENU_ITEM_THEME: init(); hideMenuTheme = hidden; putBoolean("hideMenuTheme", hidden); break;
             case MENU_ITEM_NEW_GROUP: init(); hideMenuNewGroup = hidden; putBoolean("hideMenuNewGroup", hidden); break;
