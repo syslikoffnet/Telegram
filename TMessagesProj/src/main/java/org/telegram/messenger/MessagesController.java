@@ -11495,20 +11495,25 @@ public class MessagesController extends BaseController implements NotificationCe
             final boolean out = message.out;
             final byte[] data = PengramHistory.serialize(message);
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
-                // Read the old full snapshot before the server update replaces its DB row.
-                TLRPC.Message previous = getMessagesStorage().pengramGetMessageSnapshot(messageId, dialogId);
+                // Own edits optimistically replace the storage row before the server
+                // confirms them. Prefer the durable pre-edit snapshot in that case.
+                TLRPC.Message previous = PengramHistory.pendingEditSnapshot(account, dialogId, messageId);
+                if (previous == null) {
+                    previous = getMessagesStorage().pengramGetMessageSnapshot(messageId, dialogId);
+                }
                 String oldText = previous == null ? null : PengramHistory.describe(previous);
                 if (oldText == null) {
                     oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
                 }
-                final boolean preserveMedia = PengramConfig.isSavingEditedMedia(account);
-                final boolean changedMedia = preserveMedia && PengramHistory.isEditedPhotoOrVideo(previous, message);
-                if (oldText == null || (android.text.TextUtils.equals(oldText, newText) && !changedMedia)) {
-                    return;
-                }
+                final boolean changedMedia = PengramHistory.isEditedPhotoOrVideo(previous, message);
+                // Formatting-only and caption/media edits can leave the summary
+                // unchanged. Save the full revision; the archive deduplicates exact
+                // server updates instead of discarding meaningful same-text edits.
                 PengramHistory.save(account, dialogId, messageId, fromId, date,
-                        PengramHistory.ACTION_EDITED, newText, oldText, out, data,
-                        preserveMedia && PengramHistory.isPhotoOrVideo(previous) ? previous : null);
+                        PengramHistory.ACTION_EDITED, newText, oldText, out, data, previous,
+                        changedMedia && PengramConfig.isSavingEditedMedia(account));
+                // The history executor saves first and deletes the pending copy second.
+                PengramHistory.clearPendingEdit(account, dialogId, messageId);
             });
         } catch (Throwable e) {
             FileLog.e(e);

@@ -15,7 +15,7 @@ editor = (java / 'ui/PengramLayoutEditorActivity.java').read_text()
 preview = (java / 'ui/Components/PengramInteractivePreviewView.java').read_text()
 chat = (java / 'ui/ChatActivity.java').read_text()
 
-assert 'DB_VERSION = 6' in history and 'if (oldVersion < 6)' in history
+assert 'DB_VERSION = 7' in history and 'if (oldVersion < 6)' in history and 'if (oldVersion < 7)' in history
 for column in ('prev_data BLOB', 'prev_media_path TEXT'):
     assert column in history
 assert 'e.prevData = c.getBlob(12)' in history and 'e.prevMediaPath = c.getString(13)' in history
@@ -27,8 +27,10 @@ assert 'isSavingEditedMedia(account)' in controller and 'saveEditedMedia = false
 assert 'savePrivateCopy(source, filename, PengramConfig.getMediaFolder())' in history
 assert 'isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0' in config
 assert 'message.attachPath = entry.prevMediaPath' in screen
-assert '&& !PengramHistory.isPhotoOrVideo(message)' in screen
-assert 'addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionOriginal), true)' in screen
+assert 'message.dialog_id = entry.dialogId;' in screen
+assert 'addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionBeforeEdit), true)' in screen
+assert 'entry.prevData != null || entry.prevText != null' in screen
+assert 'if (entry.action == PengramHistory.ACTION_EDITED && !previous)' in screen
 assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
 assert 'KEY_EDIT_HISTORY_MARK, true' in (java / 'ui/PengramSettingsActivity.java').read_text()
 assert 'KEY_EDIT_HISTORY_MENU, false' in (java / 'ui/PengramSettingsActivity.java').read_text()

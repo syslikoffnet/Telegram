@@ -411,8 +411,6 @@ public final class PengramTypingEffects {
                 }
                 final int paddingLeft = edit.getCompoundPaddingLeft();
                 final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
-                final int scrollX = edit.getScrollX();
-                final int scrollY = edit.getScrollY();
                 int n = 0;
                 for (int i = 0; i < count; i++) {
                     final int offset = start + i;
@@ -421,8 +419,8 @@ public final class PengramTypingEffects {
                     }
                     final int line = layout.getLineForOffset(offset);
                     removedChars[n] = text.charAt(offset);
-                    removedX[n] = layout.getPrimaryHorizontal(offset) + paddingLeft - scrollX;
-                    removedBaseline[n] = layout.getLineBaseline(line) + paddingTop - scrollY;
+                    removedX[n] = layout.getPrimaryHorizontal(offset) + paddingLeft;
+                    removedBaseline[n] = layout.getLineBaseline(line) + paddingTop;
                     n++;
                 }
                 removedCount = n;
@@ -632,10 +630,10 @@ public final class PengramTypingEffects {
             }
             final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
             targetX = layout.getPrimaryHorizontal(selStart)
-                    + edit.getCompoundPaddingLeft() - edit.getScrollX();
-            targetY = layout.getLineBaseline(line) + paddingTop - edit.getScrollY();
-            targetTop = layout.getLineTop(line) + paddingTop - edit.getScrollY();
-            targetBottom = layout.getLineBottom(line) + paddingTop - edit.getScrollY();
+                    + edit.getCompoundPaddingLeft();
+            targetY = layout.getLineBaseline(line) + paddingTop;
+            targetTop = layout.getLineTop(line) + paddingTop;
+            targetBottom = layout.getLineBottom(line) + paddingTop;
             targetValid = true;
         }
 
@@ -735,11 +733,15 @@ public final class PengramTypingEffects {
             final int scrollY = edit.getScrollY();
 
             final int clip = canvas.save();
-            canvas.clipRect(edit.getCompoundPaddingLeft() - dp(2), 0,
-                    edit.getWidth() - edit.getCompoundPaddingRight() + dp(2), edit.getHeight());
+            // View.draw has already translated this canvas by -scrollX/-scrollY.
+            // Clip in content coordinates; subtracting scroll from glyph/caret
+            // positions here again pushed the caret far above long input.
+            canvas.clipRect(edit.getCompoundPaddingLeft() + scrollX - dp(2), scrollY,
+                    edit.getWidth() - edit.getCompoundPaddingRight() + scrollX + dp(2),
+                    edit.getHeight() + scrollY);
 
             if (layout != null) {
-                drawGlyphs(canvas, edit, text, layout, paddingLeft, paddingTop, scrollX, scrollY);
+                drawGlyphs(canvas, edit, text, layout, paddingLeft, paddingTop);
             } else {
                 clearGlyphs(); // layout was rebuilt; original text stays visible
             }
@@ -758,7 +760,7 @@ public final class PengramTypingEffects {
         }
 
         private void drawGlyphs(Canvas canvas, EditText edit, Editable text, Layout layout,
-                                int paddingLeft, int paddingTop, int scrollX, int scrollY) {
+                                int paddingLeft, int paddingTop) {
             if (glyphs.isEmpty()) {
                 return;
             }
@@ -800,8 +802,8 @@ public final class PengramTypingEffects {
                     finish(glyph);
                     continue;
                 }
-                final float x = layout.getPrimaryHorizontal(from) + paddingLeft - scrollX;
-                final float baseline = layout.getLineBaseline(line) + paddingTop - scrollY;
+                final float x = layout.getPrimaryHorizontal(from) + paddingLeft;
+                final float baseline = layout.getLineBaseline(line) + paddingTop;
                 final float width = paint.measureText(text, from, to);
 
                 final float p = glyph.progress();
@@ -1021,9 +1023,9 @@ public final class PengramTypingEffects {
             }
             final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
             final float ex = layout.getPrimaryHorizontal(Math.min(offset, Math.max(0, edit.length())))
-                    + edit.getCompoundPaddingLeft() - edit.getScrollX();
-            final float top = layout.getLineTop(line) + paddingTop - edit.getScrollY();
-            final float bottom = layout.getLineBottom(line) + paddingTop - edit.getScrollY();
+                    + edit.getCompoundPaddingLeft();
+            final float top = layout.getLineTop(line) + paddingTop;
+            final float bottom = layout.getLineBottom(line) + paddingTop;
             cursorPaint.setColor(color);
             cursorPaint.setAlpha(Math.round(110 * alpha));
             final float w = dp(1.4f);

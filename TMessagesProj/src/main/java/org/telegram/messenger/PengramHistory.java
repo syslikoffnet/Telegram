@@ -42,12 +42,31 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 6;
+    private static final int DB_VERSION = 7;
     private static final String TABLE = "history";
     private static final String TABLE_MARKS = "deleted_marks";
+    private static final String TABLE_PENDING = "pending_edits";
+    private static final java.util.concurrent.ConcurrentHashMap<String, Entry> pendingEdits =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private static volatile PengramHistory instance;
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final java.util.concurrent.CopyOnWriteArraySet<Runnable> changeListeners =
+            new java.util.concurrent.CopyOnWriteArraySet<>();
+
+    public static void addChangeListener(Runnable listener) {
+        if (listener != null) changeListeners.add(listener);
+    }
+
+    public static void removeChangeListener(Runnable listener) {
+        changeListeners.remove(listener);
+    }
+
+    private static void notifyChanged() {
+        AndroidUtilities.runOnUIThread(() -> {
+            for (Runnable listener : changeListeners) listener.run();
+        });
+    }
 
     public static class Entry {
         public long rowId;
@@ -101,6 +120,14 @@ public class PengramHistory extends SQLiteOpenHelper {
         createV3(db);
         createV5(db);
         createV6(db);
+        createV7(db);
+    }
+
+    private void createV7(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_PENDING + " (" +
+                "account INTEGER NOT NULL, dialog_id INTEGER NOT NULL, message_id INTEGER NOT NULL," +
+                "created_at INTEGER NOT NULL, data BLOB NOT NULL, attach_path TEXT," +
+                "PRIMARY KEY (account, dialog_id, message_id))");
     }
 
     private void createV6(SQLiteDatabase db) {
@@ -164,6 +191,9 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (oldVersion < 6) {
             createV6(db);
         }
+        if (oldVersion < 7) {
+            createV7(db);
+        }
         if (oldVersion < 4) {
             // старые записи лежат несжатыми — ужмём их в фоне и вернём место файлу
             pendingCompaction = true;
@@ -174,6 +204,87 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     // ------------------------------------------------------------------ запись
+
+    private static String pendingKey(int account, long dialogId, int messageId) {
+        return account + ":" + dialogId + ":" + messageId;
+    }
+
+    /** Capture our own edit BEFORE Telegram optimistically overwrites the local row. */
+    public static void rememberPendingEdit(int account, TLRPC.Message message) {
+        if (message == null || message.id == 0) return;
+        final byte[] snapshot = serialize(message);
+        final PengramHistory history = getInstance();
+        if (snapshot == null || history == null) return;
+        final long dialogId = MessageObject.getDialogId(message);
+        final int messageId = message.id;
+        final Entry pending = new Entry();
+        pending.data = snapshot;
+        pending.prevMediaPath = message.attachPath;
+        pending.savedAt = (int) (System.currentTimeMillis() / 1000L);
+        pendingEdits.put(pendingKey(account, dialogId, messageId), pending);
+        executor.execute(() -> {
+            try {
+                ContentValues cv = new ContentValues();
+                cv.put("account", account);
+                cv.put("dialog_id", dialogId);
+                cv.put("message_id", messageId);
+                cv.put("created_at", pending.savedAt);
+                cv.put("data", pack(snapshot));
+                cv.put("attach_path", pending.prevMediaPath);
+                history.getWritableDatabase().insertWithOnConflict(TABLE_PENDING, null, cv,
+                        SQLiteDatabase.CONFLICT_REPLACE);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    /** Available on the storage queue, even after a process restart during an edit. */
+    public static TLRPC.Message pendingEditSnapshot(int account, long dialogId, int messageId) {
+        final String key = pendingKey(account, dialogId, messageId);
+        Entry pending = pendingEdits.get(key);
+        if (pending == null) {
+            final PengramHistory history = getInstance();
+            if (history == null) return null;
+            Cursor c = null;
+            try {
+                c = history.getReadableDatabase().rawQuery(
+                        "SELECT created_at, data, attach_path FROM " + TABLE_PENDING
+                                + " WHERE account = ? AND dialog_id = ? AND message_id = ?",
+                        new String[]{String.valueOf(account), String.valueOf(dialogId), String.valueOf(messageId)});
+                if (c.moveToFirst()) {
+                    pending = new Entry();
+                    pending.savedAt = c.getInt(0);
+                    pending.data = c.getBlob(1);
+                    pending.prevMediaPath = c.getString(2);
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            } finally {
+                if (c != null) c.close();
+            }
+        }
+        // An abandoned/failed edit must not be mistaken for a much later edit.
+        if (pending == null || System.currentTimeMillis() / 1000L - pending.savedAt > 86400) return null;
+        TLRPC.Message result = deserialize(pending.data, account);
+        if (result != null) result.attachPath = pending.prevMediaPath;
+        return result;
+    }
+
+    public static void clearPendingEdit(int account, long dialogId, int messageId) {
+        pendingEdits.remove(pendingKey(account, dialogId, messageId));
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        executor.execute(() -> {
+            try {
+                history.getWritableDatabase().delete(TABLE_PENDING,
+                        "account = ? AND dialog_id = ? AND message_id = ?",
+                        new String[]{String.valueOf(account), String.valueOf(dialogId), String.valueOf(messageId)});
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
 
     public static void save(final int account, final long dialogId, final int messageId, final long fromId,
                             final int date, final int action, final String text, final String prevText) {
@@ -189,7 +300,14 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static void save(final int account, final long dialogId, final int messageId, final long fromId,
                             final int date, final int action, final String text, final String prevText,
                             final boolean out, final byte[] data, final TLRPC.Message previous) {
-        if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null) {
+        save(account, dialogId, messageId, fromId, date, action, text, prevText, out, data, previous, false);
+    }
+
+    public static void save(final int account, final long dialogId, final int messageId, final long fromId,
+                            final int date, final int action, final String text, final String prevText,
+                            final boolean out, final byte[] data, final TLRPC.Message previous,
+                            final boolean keepMedia) {
+        if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null && previous == null) {
             return;
         }
         final PengramHistory history = getInstance();
@@ -203,6 +321,10 @@ public class PengramHistory extends SQLiteOpenHelper {
                 // добавляет, а место занимает — поэтому для удалённых пишем один раз.
                 if (action == ACTION_DELETED && messageId != 0 && hasEntry(account, dialogId, messageId)) {
                     return;
+                }
+                if (action == ACTION_EDITED && messageId != 0
+                        && isSameLastEdit(account, dialogId, messageId, text, data)) {
+                    return; // duplicate update from the server or optimistic send
                 }
                 ContentValues cv = new ContentValues();
                 cv.put("account", account);
@@ -221,18 +343,51 @@ public class PengramHistory extends SQLiteOpenHelper {
                 if (previous != null) {
                     // Copy the cached old attachment on the history executor, never while
                     // holding Telegram's storage queue. No server-side media is downloaded.
-                    String savedPath = preserveEditedMedia(account, dialogId, previous);
-                    if (savedPath != null) cv.put("prev_media_path", savedPath);
+                    if (keepMedia) {
+                        String savedPath = preserveEditedMedia(account, dialogId, previous);
+                        if (savedPath != null) cv.put("prev_media_path", savedPath);
+                    }
                     byte[] oldData = serialize(previous);
                     if (oldData != null) cv.put("prev_data", pack(oldData));
                 }
-                history.getWritableDatabase().insert(TABLE, null, cv);
+                long row = history.getWritableDatabase().insert(TABLE, null, cv);
+                if (row < 0) {
+                    FileLog.e(new IllegalStateException("Pengram history insert failed"));
+                    return;
+                }
                 maybeEnforceLimits();
                 invalidateCounts(dialogId);
+                notifyChanged();
             } catch (Throwable e) {
                 FileLog.e(e);
             }
         });
+    }
+
+    private static boolean isSameLastEdit(int account, long dialogId, int messageId,
+                                          String text, byte[] data) {
+        final PengramHistory history = getInstance();
+        if (history == null) return false;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery(
+                    "SELECT text, data FROM " + TABLE
+                            + " WHERE account = ? AND dialog_id = ? AND message_id = ? AND action = ?"
+                            + " ORDER BY id DESC LIMIT 1",
+                    new String[]{String.valueOf(account), String.valueOf(dialogId),
+                            String.valueOf(messageId), String.valueOf(ACTION_EDITED)});
+            if (!c.moveToFirst()) return false;
+            if (data != null) {
+                byte[] previous = c.getBlob(1);
+                return previous != null && java.util.Arrays.equals(unpack(previous), data);
+            }
+            return c.isNull(1) && TextUtils.equals(c.getString(0), text);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        } finally {
+            if (c != null) c.close();
+        }
     }
 
     /** есть ли уже запись об удалении этого сообщения */
@@ -679,6 +834,9 @@ public class PengramHistory extends SQLiteOpenHelper {
         synchronized (marksCache) {
             marksCache.remove(account);
         }
+        for (String key : pendingEdits.keySet()) {
+            if (key.startsWith(account + ":")) pendingEdits.remove(key);
+        }
         PengramHistory history = getInstance();
         if (history == null) return;
         executor.execute(() -> {
@@ -689,6 +847,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 try {
                     db.delete(TABLE, "account = ?", args);
                     db.delete(TABLE_MARKS, "account = ?", args);
+                    db.delete(TABLE_PENDING, "account = ?", args);
                     db.delete("peer_meta_account", "account = ?", args);
                     db.setTransactionSuccessful();
                 } finally {
@@ -1356,29 +1515,37 @@ public class PengramHistory extends SQLiteOpenHelper {
         final PengramHistory history = getInstance();
         clearMarks(dialogId);
         if (history == null) return;
-        try {
-            if (dialogId != 0) {
-                history.getWritableDatabase().delete(TABLE, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
-                invalidateCounts(dialogId);
-            } else {
-                history.getWritableDatabase().delete(TABLE, null, null);
-                invalidateCounts(0);
-                vacuum(true);
+        // Serialize explicit deletion behind earlier saves: a queued write must
+        // never resurrect rows after the user cleared this history.
+        executor.execute(() -> {
+            try {
+                if (dialogId != 0) {
+                    history.getWritableDatabase().delete(TABLE, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
+                    invalidateCounts(dialogId);
+                } else {
+                    history.getWritableDatabase().delete(TABLE, null, null);
+                    invalidateCounts(0);
+                    vacuum(true);
+                }
+                notifyChanged();
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
+        });
     }
 
     public static void deleteEntry(final long rowId) {
         final PengramHistory history = getInstance();
         if (history == null) return;
-        try {
-            history.getWritableDatabase().delete(TABLE, "id = ?", new String[]{String.valueOf(rowId)});
-            invalidateCounts(0);
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
+        executor.execute(() -> {
+            try {
+                history.getWritableDatabase().delete(TABLE, "id = ?", new String[]{String.valueOf(rowId)});
+                invalidateCounts(0);
+                notifyChanged();
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
     }
 
     public static long getDatabaseSize() {

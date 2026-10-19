@@ -1501,6 +1501,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     private void revertEditingMessageObject(MessageObject object) {
+        PengramHistory.clearPendingEdit(currentAccount, object.getDialogId(), object.getId());
         object.cancelEditing = true;
         object.messageOwner.media = object.previousMedia;
         object.messageOwner.message = object.previousMessage;
@@ -3158,6 +3159,10 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                 messageObject.editingMessageEntities = newMsg.entities;
                 path = newMsg.attachPath;
             } else {
+                if (PengramConfig.isSavingEdited(currentAccount)
+                        && (PengramConfig.isSavingOutgoing(currentAccount) || !newMsg.out)) {
+                    PengramHistory.rememberPendingEdit(currentAccount, newMsg);
+                }
                 messageObject.previousMedia = newMsg.media;
                 messageObject.previousMessage = newMsg.message;
                 messageObject.previousMessageEntities = newMsg.entities;

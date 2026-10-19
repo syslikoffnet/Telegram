@@ -79,6 +79,9 @@ public class PengramHistoryChatActivity extends BaseFragment {
     private boolean loadingEntries;
     private boolean hasOlderEntries;
     private final ArrayList<Item> items = new ArrayList<>();
+    private final Runnable historyChanged = () -> {
+        if (fragmentView != null) reload(true);
+    };
 
     private static class Item {
         MessageObject message;
@@ -100,7 +103,15 @@ public class PengramHistoryChatActivity extends BaseFragment {
 
     @Override
     public boolean onFragmentCreate() {
-        return super.onFragmentCreate();
+        boolean created = super.onFragmentCreate();
+        if (created) PengramHistory.addChangeListener(historyChanged);
+        return created;
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        PengramHistory.removeChangeListener(historyChanged);
+        super.onFragmentDestroy();
     }
 
     @Override
@@ -299,13 +310,25 @@ public class PengramHistoryChatActivity extends BaseFragment {
         final int firstOffset = firstView == null ? 0 : firstView.getTop();
         items.clear();
         if (singleMessageId != 0 && mode == MODE_EDITED) {
-            // история правок: сначала самый первый известный текст, потом все версии
+            // A media message may have an empty caption but a complete old snapshot.
+            // Conversely, if the old row was absent, start at the first known
+            // version instead of pretending that an unknown original was saved.
+            int version = 1;
             for (int i = 0; i < entries.size(); ++i) {
                 final PengramHistory.Entry entry = entries.get(i);
-                if (i == 0 && !TextUtils.isEmpty(entry.prevText)) {
-                    addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionOriginal), true);
+                final boolean firstPrevious = i == 0 && (entry.prevData != null || entry.prevText != null);
+                final boolean missingIntermediate = i > 0 && entry.prevText != null
+                        && !TextUtils.equals(entries.get(i - 1).text, entry.prevText);
+                if (firstPrevious || missingIntermediate) {
+                    // A skipped update must not silently remove the prior version
+                    // that was captured by the next update.
+                    if (addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionBeforeEdit), true)) {
+                        version++;
+                    }
                 }
-                addItem(entry, entry.text, LocaleController.formatString(R.string.PengramVersionNumber, i + 2));
+                if (addItem(entry, entry.text, LocaleController.formatString(R.string.PengramVersionNumber, version))) {
+                    version++;
+                }
             }
         } else {
             // как в обычном чате: разделитель с датой, а статус удалено/изменено — значком у времени
@@ -364,14 +387,14 @@ public class PengramHistoryChatActivity extends BaseFragment {
         return unixtime / 86400;
     }
 
-    private void addItem(PengramHistory.Entry entry, String text, CharSequence service) {
-        addItem(entry, text, service, false);
+    private boolean addItem(PengramHistory.Entry entry, String text, CharSequence service) {
+        return addItem(entry, text, service, false);
     }
 
-    private void addItem(PengramHistory.Entry entry, String text, CharSequence service, boolean previous) {
+    private boolean addItem(PengramHistory.Entry entry, String text, CharSequence service, boolean previous) {
         final MessageObject messageObject = buildMessage(entry, text, previous);
         if (messageObject == null) {
-            return;
+            return false;
         }
         if (entry.action == PengramHistory.ACTION_DELETED) {
             messageObject.pengramDeleted = true;
@@ -381,6 +404,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         item.message = messageObject;
         item.serviceText = service;
         items.add(item);
+        return true;
     }
 
     private MessageObject buildMessage(PengramHistory.Entry entry, String text, boolean previous) {
@@ -409,7 +433,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 msg.unread = false;
                 msg.media = new TLRPC.TL_messageMediaEmpty();
                 msg.flags |= TLRPC.MESSAGE_FLAG_HAS_FROM_ID;
-                if (entry.action == PengramHistory.ACTION_EDITED) {
+                if (entry.action == PengramHistory.ACTION_EDITED && !previous) {
                     msg.flags |= TLRPC.MESSAGE_FLAG_EDITED;
                     msg.edit_date = entry.savedAt;
                 }
@@ -417,12 +441,10 @@ public class PengramHistoryChatActivity extends BaseFragment {
             } else {
                 // The archive's searchable "[photo]" / "[video]" summary is not a
                 // real caption. Keep the deserialized media and its actual caption.
-                if (!TextUtils.isEmpty(text) && !TextUtils.equals(message.message, text)
-                        && !PengramHistory.isPhotoOrVideo(message)) {
-                    message.message = text;
-                }
+                // The archived "[file]" summary is a search label, not message
+                // content. A full snapshot keeps its real caption, entities and media.
                 message.dialog_id = entry.dialogId;
-                if (entry.action == PengramHistory.ACTION_EDITED) {
+                if (entry.action == PengramHistory.ACTION_EDITED && !previous) {
                     message.flags |= TLRPC.MESSAGE_FLAG_EDITED;
                     if (message.edit_date == 0) {
                         message.edit_date = entry.savedAt;

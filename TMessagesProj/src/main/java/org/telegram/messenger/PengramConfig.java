@@ -271,9 +271,9 @@ public class PengramConfig {
     public static int voiceChangerPitch;
     public static int speedBoost = 1; // BOOST_FAST
     public static int mediaMaxSizeMb = 1024;   // 0 = без лимита
-    public static int historyKeepDays = 90;     // 0 = хранить всегда
+    public static int historyKeepDays = 0;      // 0 = хранить всегда; удаление — только явный выбор
     /** сколько записей истории держать максимум; 0 = без лимита */
-    public static int historyMaxEntries = 20000;
+    public static int historyMaxEntries = 0;     // no silent FIFO eviction by default
 
     // --- скрытие кнопок ---
     public static boolean hideMenuNewGroup = false;
@@ -1037,8 +1037,8 @@ public class PengramConfig {
             saveReadDate = p.getBoolean("saveReadDate", true);
             saveLastOnline = p.getBoolean("saveLastOnline", true);
             mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 1024);
-            historyKeepDays = p.getInt("historyKeepDays", 90);
-            historyMaxEntries = p.getInt("historyMaxEntries", 20000);
+            historyKeepDays = p.getInt("historyKeepDays", 0);
+            historyMaxEntries = p.getInt("historyMaxEntries", 0);
             voiceChangerMode = p.getInt("voiceChangerMode", 0);
             voiceChangerPitch = p.getInt("voiceChangerPitch", 0);
             speedBoost = p.getInt("speedBoost", BOOST_FAST);

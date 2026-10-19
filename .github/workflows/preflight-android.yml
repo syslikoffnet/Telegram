@@ -66,6 +66,7 @@ jobs:
           python3 scripts/test-pengram-search-index.py
           python3 scripts/test-pengram-history-search.py
           python3 scripts/test-pengram-edited-media.py
+          python3 scripts/test-pengram-edit-chain.py
           python3 scripts/test-pengram-security-wiring.py
           python3 scripts/test-pengram-lyrics-wiring.py
           python3 scripts/test-pengram-player-wiring.py
