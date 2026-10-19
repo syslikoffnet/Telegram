@@ -44,6 +44,11 @@ def check():
     assert "private void setPanelText(TextView target, int resId)" in EDITOR
     assert "resources.getResourceTypeName(resId)" in EDITOR
     assert "catch (Resources.NotFoundException error)" in EDITOR
+    assert "catch (Resources.NotFoundException error)" in PREVIEW
+    assert "setSafeHint(search, R.string.Search" in PREVIEW
+    assert "setSafeHint(draft, R.string.PengramEditorInput" in PREVIEW
+    assert "setSafeHint(customTitle, R.string.PengramTitleCustom" in EDITOR
+    assert not re.search(r"\.setHint\(\s*R\.string\.", PREVIEW + EDITOR)
     assert not re.search(r"(?:panelTitle|panelHint|title)\.setText\(\s*(?:R\.string\.|titleRes\b|id\b|setting\[0\])", EDITOR)
     root_rows = SETTINGS.split("private void fillRoot(", 1)[1].split("private UItem sectionRow(", 1)[0]
     assert "sectionRow(BTN_VISUAL_EDITOR" in root_rows

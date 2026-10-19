@@ -5,6 +5,7 @@ import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.ClipData;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -24,6 +25,7 @@ import android.widget.TextView;
 
 import androidx.core.graphics.ColorUtils;
 
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramMD3;
 import org.telegram.messenger.PengramFonts;
@@ -245,6 +247,21 @@ public class PengramInteractivePreviewView extends LinearLayout {
 
     private int color(int key) {
         return Theme.getColor(key);
+    }
+
+    /** Resolve the hint to text before passing it to TextView; an invalid ID must
+     * never terminate the editor's test-only navigation. */
+    public static void setSafeHint(TextView view, int stringId, String fallback) {
+        try {
+            Resources resources = view.getResources();
+            if (!"string".equals(resources.getResourceTypeName(stringId))) {
+                throw new Resources.NotFoundException("Not a string resource: " + stringId);
+            }
+            view.setHint(resources.getText(stringId));
+        } catch (Resources.NotFoundException error) {
+            FileLog.e(new IllegalStateException("Pengram editor hint 0x" + Integer.toHexString(stringId), error));
+            view.setHint(fallback);
+        }
     }
 
     private TextView text(String label, int size, int foreground) {
@@ -480,7 +497,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
         final EditText search = new EditText(getContext());
         search.setSingleLine(true);
         search.setTextSize(15);
-        search.setHint(R.string.Search);
+        setSafeHint(search, R.string.Search, "Поиск / Search");
         search.setFilters(new InputFilter[]{new InputFilter.LengthFilter(64)});
         search.setText(searchQuery);
         search.setSelection(search.length());
@@ -890,7 +907,7 @@ public class PengramInteractivePreviewView extends LinearLayout {
         final EditText draft = new EditText(getContext());
         draft.setTextSize(14);
         draft.setSingleLine(true);
-        draft.setHint(R.string.PengramEditorInput);
+        setSafeHint(draft, R.string.PengramEditorInput, "Сообщение / Message");
         draft.setTextColor(color(Theme.key_windowBackgroundWhiteBlackText));
         draft.setHintTextColor(color(Theme.key_windowBackgroundWhiteGrayText2));
         draft.setImeOptions(EditorInfo.IME_ACTION_SEND);

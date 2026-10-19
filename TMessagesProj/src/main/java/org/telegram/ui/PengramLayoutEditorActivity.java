@@ -724,7 +724,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     customTitle.setSingleLine(true);
                     customTitle.setFilters(new InputFilter[]{new InputFilter.LengthFilter(64)});
                     customTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-                    customTitle.setHint(R.string.PengramTitleCustom);
+                    PengramInteractivePreviewView.setSafeHint(customTitle, R.string.PengramTitleCustom, "Название / Title");
                     customTitle.setText(PengramConfig.getTitleCustom());
                     sliderBox.addView(customTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
                     addChip(getString(R.string.Save), false, () -> {
