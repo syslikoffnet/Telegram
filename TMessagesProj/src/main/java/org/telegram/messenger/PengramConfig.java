@@ -166,6 +166,17 @@ public class PengramConfig {
     public static final String KEY_VOICE_STUDIO_MIX = "voiceStudioMix";
     public static final String KEY_VOICE_STUDIO_DRIVE = "voiceStudioDrive";
     public static final String KEY_VOICE_STUDIO_ROBOT = "voiceStudioRobot";
+    public static final String KEY_VOICE_GAIN_DB = "voiceGainDb"; // custom slot
+    public static final String KEY_VOICE_GAIN_CLEAR_DB = "voiceGainClearDb";
+    public static final String KEY_VOICE_GAIN_LOUD_DB = "voiceGainLoudDb";
+    public static final String KEY_VOICE_GAIN_BATTLE_DB = "voiceGainBattleDb";
+    public static final String KEY_VOICE_GAIN_PRESET = "voiceGainPreset";
+    public static final int VOICE_GAIN_OFF = 0;
+    public static final int VOICE_GAIN_CLEAR = 1;
+    public static final int VOICE_GAIN_LOUD = 2;
+    public static final int VOICE_GAIN_BATTLE = 3;
+    public static final int VOICE_GAIN_CUSTOM = 4;
+    public static final int VOICE_GAIN_MAX_DB = 30;
 
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
@@ -1998,6 +2009,30 @@ public class PengramConfig {
     public static int getVoiceStudioMix() { return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_STUDIO_MIX, 100))); }
     public static int getVoiceStudioDrive() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_DRIVE, 0))); }
     public static int getVoiceStudioRobot() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_ROBOT, 0))); }
+    /** Four independently editable persistent boost presets, plus the untouched original. */
+    public static int getVoiceGainPreset() { return Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_CUSTOM, getIntCached(KEY_VOICE_GAIN_PRESET, VOICE_GAIN_OFF))); }
+    public static int getVoiceGainDbForPreset(int preset) {
+        switch (preset) {
+            case VOICE_GAIN_CLEAR: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_CLEAR_DB, 9)));
+            case VOICE_GAIN_LOUD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_LOUD_DB, 18)));
+            case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_BATTLE_DB, 30)));
+            case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_DB, 0)));
+            default: return 0;
+        }
+    }
+    public static int getVoiceGainDb() { return getVoiceGainDbForPreset(getVoiceGainPreset()); }
+    public static void setVoiceGainDb(int db) {
+        int preset = getVoiceGainPreset();
+        if (preset == VOICE_GAIN_OFF) preset = VOICE_GAIN_CUSTOM;
+        final String key = preset == VOICE_GAIN_CLEAR ? KEY_VOICE_GAIN_CLEAR_DB
+                : preset == VOICE_GAIN_LOUD ? KEY_VOICE_GAIN_LOUD_DB
+                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DB : KEY_VOICE_GAIN_DB;
+        setIntValue(key, Math.max(0, Math.min(VOICE_GAIN_MAX_DB, db)));
+        setIntValue(KEY_VOICE_GAIN_PRESET, preset);
+    }
+    public static void setVoiceGainPreset(int preset) {
+        setIntValue(KEY_VOICE_GAIN_PRESET, Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_CUSTOM, preset)));
+    }
 
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
@@ -2296,7 +2331,8 @@ public class PengramConfig {
             "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
-            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "zalgoFilter"
+            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "voiceGainDb", "voiceGainPreset",
+            "voiceGainClearDb", "voiceGainLoudDb", "voiceGainBattleDb", "zalgoFilter"
     ));
 
     /** семейства ключей с именем, которое зависит от чата или человека */

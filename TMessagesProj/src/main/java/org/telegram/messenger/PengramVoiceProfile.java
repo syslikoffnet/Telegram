@@ -6,28 +6,29 @@ import org.json.JSONObject;
 /** A shareable DSP effect profile, not a neural voice/identity model. */
 public final class PengramVoiceProfile {
     private static final String FORMAT = "pengram.voice.effect.v1";
-    private final int pitch, formant, echo, drive, robot, mix;
+    private final int pitch, formant, echo, drive, robot, mix, gainDb;
 
-    private PengramVoiceProfile(int pitch, int formant, int echo, int drive, int robot, int mix) {
+    private PengramVoiceProfile(int pitch, int formant, int echo, int drive, int robot, int mix, int gainDb) {
         this.pitch = pitch;
         this.formant = formant;
         this.echo = echo;
         this.drive = drive;
         this.robot = robot;
         this.mix = mix;
+        this.gainDb = gainDb;
     }
 
     public static PengramVoiceProfile current() {
         return new PengramVoiceProfile(PengramConfig.getVoiceChangerPitch(),
                 PengramConfig.getVoiceFormant(), PengramConfig.getVoiceEcho(),
                 PengramConfig.getVoiceStudioDrive(), PengramConfig.getVoiceStudioRobot(),
-                PengramConfig.getVoiceStudioMix());
+                PengramConfig.getVoiceStudioMix(), PengramConfig.getVoiceGainDb());
     }
 
     public String toJson() throws JSONException {
         return new JSONObject().put("format", FORMAT).put("pitch", pitch)
                 .put("formant", formant).put("echo", echo).put("drive", drive)
-                .put("robot", robot).put("mix", mix).toString(2);
+                .put("robot", robot).put("mix", mix).put("gainDb", gainDb).toString(2);
     }
 
     /** Validate *all* fields before touching any microphone or persistent setting. */
@@ -38,7 +39,8 @@ public final class PengramVoiceProfile {
         return new PengramVoiceProfile(number(json, "pitch", -12, 12),
                 number(json, "formant", -6, 6), number(json, "echo", 0, 5),
                 number(json, "drive", 0, 6), number(json, "robot", 0, 6),
-                number(json, "mix", 0, 100));
+                number(json, "mix", 0, 100), json.has("gainDb")
+                        ? number(json, "gainDb", 0, PengramConfig.VOICE_GAIN_MAX_DB) : 0);
     }
 
     private static int number(JSONObject json, String key, int min, int max) throws JSONException {
@@ -59,6 +61,8 @@ public final class PengramVoiceProfile {
         PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_DRIVE, drive);
         PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_ROBOT, robot);
         PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_MIX, mix);
+        PengramConfig.setVoiceGainPreset(PengramConfig.VOICE_GAIN_CUSTOM);
+        PengramConfig.setVoiceGainDb(gainDb);
         PengramConfig.setVoiceChangerMode(PengramVoiceChanger.MODE_CUSTOM);
         PengramVoiceChanger.reset();
     }

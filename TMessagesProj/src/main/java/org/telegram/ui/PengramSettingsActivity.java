@@ -221,6 +221,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BOOST_FAST = 1301;
     private static final int BTN_BOOST_EXTREME = 1302;
     private static final int BTN_VOICE_BASE = 1310; // + режим
+    private static final int BTN_VOICE_GAIN_PRESET = 1330;
     private static final int BTN_VOICE_PROFILE_COPY = 1331;
     private static final int BTN_VOICE_PROFILE_IMPORT = 1332;
 
@@ -3060,6 +3061,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
     }
 
+    private String voiceGainPresetName(int preset) {
+        final int[] names = {R.string.PengramVoiceGainOff, R.string.PengramVoiceGainClear,
+                R.string.PengramVoiceGainLoud, R.string.PengramVoiceGainBattle,
+                R.string.PengramVoiceGainCustom};
+        return preset == PengramConfig.VOICE_GAIN_OFF ? getString(names[preset])
+                : LocaleController.formatString(names[preset], PengramConfig.getVoiceGainDbForPreset(preset));
+    }
+
     private void fillMedia(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramBoostHeader)));
         items.add(UItem.asRadio(BTN_BOOST_OFF, getString(R.string.PengramBoostOff)).setChecked(PengramConfig.getSpeedBoost() == PengramConfig.BOOST_OFF));
@@ -3150,6 +3159,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
         }
+
+        // Gain is independent of timbre: MODE_OFF + a preset boosts the dry mic.
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceGainHeader)));
+        final int gainPreset = PengramConfig.getVoiceGainPreset();
+        items.add(UItem.asSettingsCell(BTN_VOICE_GAIN_PRESET, R.drawable.msg_customize,
+                getString(R.string.PengramVoiceGainPreset), voiceGainPresetName(gainPreset)));
+        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDb(), PengramConfig.VOICE_GAIN_MAX_DB,
+                value -> value > 0 ? "+" + value + " dB" : "0 dB",
+                PengramConfig::setVoiceGainDb));
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
         items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
@@ -4086,6 +4105,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         switch (item.id) {
+            case BTN_VOICE_GAIN_PRESET: {
+                final CharSequence[] presets = new CharSequence[PengramConfig.VOICE_GAIN_CUSTOM + 1];
+                for (int i = 0; i < presets.length; ++i) presets[i] = voiceGainPresetName(i);
+                showChoicePicker(getString(R.string.PengramVoiceGainPreset), presets,
+                        PengramConfig.getVoiceGainPreset(), PengramConfig::setVoiceGainPreset);
+                return;
+            }
             case BTN_VOICE_PROFILE_COPY: {
                 try {
                     AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVoiceProfile.current().toJson());

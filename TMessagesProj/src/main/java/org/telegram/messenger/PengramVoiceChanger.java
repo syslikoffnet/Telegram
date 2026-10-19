@@ -12,7 +12,7 @@ import java.security.SecureRandom;
  * вообще не трогается. Длина выходного блока всегда равна длине входного, так что
  * длительность голосового и расчёт амплитуд остаются прежними.
  *
- * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> лимитер.
+ * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> усиление -> лимитер.
  *
  * Отдельная история — режим «Аноним». Он не просто меняет тон: все параметры
  * (сдвиг тона, формантная окраска, микро-таймварп, фазовое скремблирование и шумовая
@@ -261,7 +261,7 @@ public class PengramVoiceChanger {
 
     public static boolean isEnabledFor(int source) {
         final int mode = PengramConfig.getVoiceChangerMode();
-        return mode != MODE_OFF && !isDryOnly(mode) &&
+        return (PengramConfig.getVoiceGainDb() > 0 || mode != MODE_OFF && !isDryOnly(mode)) &&
                 (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
                         || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
                         || source == SOURCE_CALL && PengramConfig.isVoiceCallsEnabled());
@@ -288,12 +288,14 @@ public class PengramVoiceChanger {
             }
             activeSource = source;
             initialized = false;
+            limiterGain = 1f;
             overloaded = disabledForSession = false;
             slowFrames = overloadStrikes = 0;
         }
         if (lastMode != mode) {
             lastMode = mode;
             initialized = false;
+            limiterGain = 1f;
             overloaded = disabledForSession = false;
             slowFrames = overloadStrikes = 0;
         }
@@ -349,6 +351,7 @@ public class PengramVoiceChanger {
         if (activeSource == source) {
             activeSource = 0;
             initialized = false;
+            limiterGain = 1f;
             overloaded = disabledForSession = false;
             slowFrames = overloadStrikes = 0;
         }
@@ -407,11 +410,27 @@ public class PengramVoiceChanger {
             initialized = false;   // фильтры пересчитываем под новую частоту
         }
         final int mode = PengramConfig.getVoiceChangerMode();
-        if (mode == MODE_OFF || isDryOnly(mode) || buffer == null || buffer.isReadOnly()
-                || len < 2 || buffer.limit() < 2) {
-            return;
-        }
+        if (buffer == null || buffer.isReadOnly() || len < 2 || buffer.limit() < 2) return;
+        final int boostDb = PengramConfig.getVoiceGainDb();
+        final boolean dryOnly = mode == MODE_OFF || isDryOnly(mode);
+        if (dryOnly && boostDb == 0) return;
+        // dB refers to voltage/amplitude, not power. Compute once per packet.
+        final float boost = boostDb == 0 ? 1f : (float) Math.pow(10.0, boostDb / 20.0);
         try {
+            if (dryOnly) {
+                final ByteOrder previousOrder = buffer.order();
+                buffer.order(ByteOrder.LITTLE_ENDIAN);
+                try {
+                    final int count = Math.min(len, buffer.limit()) / 2;
+                    for (int i = 0; i < count; ++i) {
+                        buffer.putShort(i * 2, (short) limit(buffer.getShort(i * 2) * boost));
+                    }
+                } finally {
+                    buffer.order(previousOrder);
+                }
+                return;
+            }
+
             if (!initialized) {
                 reset();
             }
@@ -490,7 +509,7 @@ public class PengramVoiceChanger {
                 if (frameMix < 1f) {
                     out = in * (1f - frameMix) + out * frameMix;
                 }
-                out = limit(out);
+                out = limit(out * boost);
                 buffer.putShort(i * 2, (short) (out * gateGain));
             }
 
