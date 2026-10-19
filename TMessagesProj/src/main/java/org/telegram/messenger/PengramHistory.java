@@ -42,7 +42,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 5;
+    private static final int DB_VERSION = 6;
     private static final String TABLE = "history";
     private static final String TABLE_MARKS = "deleted_marks";
 
@@ -62,6 +62,8 @@ public class PengramHistory extends SQLiteOpenHelper {
         public String prevText;
         public boolean out;
         public byte[] data;    // сериализованное TLRPC.Message (может быть null)
+        public byte[] prevData; // старая фото/видео-версия, если была доступна локально
+        public String prevMediaPath; // постоянная копия старого вложения, если было в кэше
     }
 
     private PengramHistory(android.content.Context context) {
@@ -98,6 +100,16 @@ public class PengramHistory extends SQLiteOpenHelper {
         createV2(db);
         createV3(db);
         createV5(db);
+        createV6(db);
+    }
+
+    private void createV6(SQLiteDatabase db) {
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN prev_data BLOB");
+        } catch (Throwable ignore) {}
+        try {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN prev_media_path TEXT");
+        } catch (Throwable ignore) {}
     }
 
     /** Legacy peer_meta had no account column; keep it untouched, never misattribute its rows. */
@@ -149,6 +161,9 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (oldVersion < 5) {
             createV5(db);
         }
+        if (oldVersion < 6) {
+            createV6(db);
+        }
         if (oldVersion < 4) {
             // старые записи лежат несжатыми — ужмём их в фоне и вернём место файлу
             pendingCompaction = true;
@@ -168,6 +183,12 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static void save(final int account, final long dialogId, final int messageId, final long fromId,
                             final int date, final int action, final String text, final String prevText,
                             final boolean out, final byte[] data) {
+        save(account, dialogId, messageId, fromId, date, action, text, prevText, out, data, null);
+    }
+
+    public static void save(final int account, final long dialogId, final int messageId, final long fromId,
+                            final int date, final int action, final String text, final String prevText,
+                            final boolean out, final byte[] data, final TLRPC.Message previous) {
         if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null) {
             return;
         }
@@ -196,6 +217,14 @@ public class PengramHistory extends SQLiteOpenHelper {
                 cv.put("out", out ? 1 : 0);
                 if (data != null) {
                     cv.put("data", pack(data));
+                }
+                if (previous != null) {
+                    // Copy the cached old attachment on the history executor, never while
+                    // holding Telegram's storage queue. No server-side media is downloaded.
+                    String savedPath = preserveEditedMedia(account, dialogId, previous);
+                    if (savedPath != null) cv.put("prev_media_path", savedPath);
+                    byte[] oldData = serialize(previous);
+                    if (oldData != null) cv.put("prev_data", pack(oldData));
                 }
                 history.getWritableDatabase().insert(TABLE, null, cv);
                 maybeEnforceLimits();
@@ -975,7 +1004,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             // discard recent deletions as soon as the history exceeded one page.
             String order = messageId != 0 ? "saved_at DESC, id DESC"
                     : "date DESC, message_id DESC, saved_at DESC, id DESC";
-            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data FROM " + TABLE +
+            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data, prev_data, prev_media_path FROM " + TABLE +
                     (where.length() > 0 ? (" WHERE " + where) : "") +
                     " ORDER BY " + order + (unicode ? "" : " LIMIT " + Math.max(1, limit));
             c = history.getReadableDatabase().rawQuery(sql, args.toArray(new String[0]));
@@ -1004,6 +1033,8 @@ public class PengramHistory extends SQLiteOpenHelper {
                 } catch (Throwable ignore) {
                     e.data = null;
                 }
+                e.prevData = c.getBlob(12);
+                e.prevMediaPath = c.getString(13);
                 result.add(e);
             }
         } catch (Throwable e) {
@@ -1411,6 +1442,53 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (c != null) try { c.close(); } catch (Throwable ignore) {}
         }
         return result;
+    }
+
+    public static boolean isPhotoOrVideo(TLRPC.Message message) {
+        if (message == null || message.media == null) return false;
+        if (message.media.photo != null) return true;
+        TLRPC.Document document = message.media.document;
+        if (document == null) return false;
+        if (document.mime_type != null && document.mime_type.startsWith("video/")) return true;
+        if (document.attributes == null) return false;
+        for (TLRPC.DocumentAttribute attribute : document.attributes) {
+            if (attribute instanceof TLRPC.TL_documentAttributeVideo) return true;
+        }
+        return false;
+    }
+
+    public static boolean isEditedPhotoOrVideo(TLRPC.Message previous, TLRPC.Message current) {
+        if (previous == null || current == null || !isPhotoOrVideo(previous)) return false;
+        boolean oldPhoto = previous.media.photo != null;
+        boolean newPhoto = current.media != null && current.media.photo != null;
+        if (oldPhoto != newPhoto) return true;
+        long oldId = oldPhoto ? previous.media.photo.id : previous.media.document.id;
+        long newId = current.media == null ? 0 : newPhoto ? current.media.photo.id
+                : current.media.document != null ? current.media.document.id : 0;
+        return oldId != newId;
+    }
+
+    private static String preserveEditedMedia(int account, long dialogId, TLRPC.Message previous) {
+        try {
+            if (!isPhotoOrVideo(previous)) return null;
+            File source = FileLoader.getInstance(account).getPathToMessage(previous);
+            if ((source == null || !source.isFile()) && !TextUtils.isEmpty(previous.attachPath)) {
+                source = new File(previous.attachPath);
+            }
+            if (source == null || !source.isFile() || source.length() == 0) return null;
+            boolean photo = previous.media.photo != null;
+            String filename = "edited_" + account + "_" + dialogId + "_" + previous.id
+                    + "_" + System.nanoTime() + (photo ? ".jpg" : ".mp4");
+            File saved = savePrivateCopy(source, filename, PengramConfig.getMediaFolder());
+            if (saved != null) {
+                previous.attachPath = saved.getAbsolutePath();
+                trackSavedMedia(null, saved.getAbsolutePath(), saved.length());
+                return saved.getAbsolutePath();
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        return null;
     }
 
     // --------------------------------------------- сохранение медиа удалёнок

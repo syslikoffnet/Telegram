@@ -295,6 +295,12 @@
     <string name="PengramSpyScopeInfo">Лимиты хранения, медиа и оформление чатов остаются общими для всех аккаунтов.</string>
     <string name="PengramHistoryHeader">История сообщений</string>
     <string name="PengramHistorySaveDeleted">Сохранять удалённые</string>
+    <string name="PengramHistoryOpenMethod">Как открыть историю правок</string>
+    <string name="PengramHistoryOpenPencil">Нажатие на значок правки</string>
+    <string name="PengramHistoryOpenLongPress">«История» по долгому нажатию</string>
+    <string name="PengramHistoryEditMenu">История правок</string>
+    <string name="PengramHistoryEditedMediaInfo">Сохранится только ранее загруженное медиа.</string>
+    <string name="PengramHistorySaveEditedMedia">Сохранять прежние фото и видео при правке</string>
     <string name="PengramHistorySaveEdited">Сохранять изменённые</string>
     <string name="PengramHistorySaveOutgoing">Сохранять и свои сообщения</string>
     <string name="PengramHistoryShowInProfile">Показывать в профиле</string>

@@ -19,7 +19,7 @@ assert 'java.util.Collections.reverse(result)' in history
 assert 'unicode ? "" : " LIMIT "' in history
 assert 'generation != loadGeneration' in screen and 'reload(true)' in screen
 assert 'getEntries(dialogId, filter, limit, query, singleMessageId, true, currentAccount)' in screen
-assert 'new PengramHistoryChatActivity(message.getDialogId()' in chat
+assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
 assert 'm.getDialogId() + ":" + m.getId()' in adapter
 assert 'msg.message = "🗑 " + (matched == null ? "" : matched)' in adapter
 for locale in ('values', 'values-ru'):

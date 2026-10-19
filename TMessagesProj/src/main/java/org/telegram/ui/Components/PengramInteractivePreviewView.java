@@ -1079,6 +1079,14 @@ public class PengramInteractivePreviewView extends LinearLayout {
         enableSafeDrag(item, MENU_ROW, id);
     }
 
+    public void openSampleMenuItem(int id) {
+        openMenuItem(id);
+    }
+
+    public void selectSampleChatItem(int id) {
+        select(CHAT_BUTTON_ROW, id);
+    }
+
     private void openMenuItem(int id) {
         switch (id) {
             case PengramConfig.MENU_ITEM_PENGRAM: showPage(APPEARANCE); break;

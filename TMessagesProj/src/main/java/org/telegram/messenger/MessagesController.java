@@ -11495,17 +11495,20 @@ public class MessagesController extends BaseController implements NotificationCe
             final boolean out = message.out;
             final byte[] data = PengramHistory.serialize(message);
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
-                String oldText = null;
-                try {
-                    oldText = getMessagesStorage().pengramGetMessageText(messageId, dialogId);
-                } catch (Throwable ignore) {}
+                // Read the old full snapshot before the server update replaces its DB row.
+                TLRPC.Message previous = getMessagesStorage().pengramGetMessageSnapshot(messageId, dialogId);
+                String oldText = previous == null ? null : PengramHistory.describe(previous);
                 if (oldText == null) {
                     oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
                 }
-                if (oldText == null || android.text.TextUtils.equals(oldText, newText)) {
+                final boolean preserveMedia = PengramConfig.isSavingEditedMedia(account);
+                final boolean changedMedia = preserveMedia && PengramHistory.isEditedPhotoOrVideo(previous, message);
+                if (oldText == null || (android.text.TextUtils.equals(oldText, newText) && !changedMedia)) {
                     return;
                 }
-                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText, out, data);
+                PengramHistory.save(account, dialogId, messageId, fromId, date,
+                        PengramHistory.ACTION_EDITED, newText, oldText, out, data,
+                        preserveMedia && PengramHistory.isPhotoOrVideo(previous) ? previous : null);
             });
         } catch (Throwable e) {
             FileLog.e(e);

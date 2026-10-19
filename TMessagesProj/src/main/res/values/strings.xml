@@ -11300,6 +11300,12 @@
     <string name="PengramSpyScopeInfo">Storage limits, saved media and chat appearance remain shared across accounts.</string>
     <string name="PengramHistoryHeader">Message history</string>
     <string name="PengramHistorySaveDeleted">Save deleted messages</string>
+    <string name="PengramHistoryOpenMethod">Open edit history</string>
+    <string name="PengramHistoryOpenPencil">Tap the edited mark</string>
+    <string name="PengramHistoryOpenLongPress">History in message long-press menu</string>
+    <string name="PengramHistoryEditMenu">Edit history</string>
+    <string name="PengramHistoryEditedMediaInfo">Only already-downloaded media can be kept.</string>
+    <string name="PengramHistorySaveEditedMedia">Keep previous photos and videos on edit</string>
     <string name="PengramHistorySaveEdited">Save edited messages</string>
     <string name="PengramHistorySaveOutgoing">Save my own messages too</string>
     <string name="PengramHistoryShowInProfile">Show in profile</string>

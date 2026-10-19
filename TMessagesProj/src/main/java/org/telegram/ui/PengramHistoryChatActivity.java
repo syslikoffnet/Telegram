@@ -302,7 +302,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             for (int i = 0; i < entries.size(); ++i) {
                 final PengramHistory.Entry entry = entries.get(i);
                 if (i == 0 && !TextUtils.isEmpty(entry.prevText)) {
-                    addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionOriginal));
+                    addItem(entry, entry.prevText, LocaleController.getString(R.string.PengramVersionOriginal), true);
                 }
                 addItem(entry, entry.text, LocaleController.formatString(R.string.PengramVersionNumber, i + 2));
             }
@@ -327,7 +327,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
                     service = service == null ? getString(R.string.PengramVersionBeforeEdit)
                             : service + " · " + getString(R.string.PengramVersionBeforeEdit);
                 }
-                addItem(entry, text, service);
+                addItem(entry, text, service, !TextUtils.equals(text, entry.text));
             }
         }
 
@@ -364,7 +364,11 @@ public class PengramHistoryChatActivity extends BaseFragment {
     }
 
     private void addItem(PengramHistory.Entry entry, String text, CharSequence service) {
-        final MessageObject messageObject = buildMessage(entry, text);
+        addItem(entry, text, service, false);
+    }
+
+    private void addItem(PengramHistory.Entry entry, String text, CharSequence service, boolean previous) {
+        final MessageObject messageObject = buildMessage(entry, text, previous);
         if (messageObject == null) {
             return;
         }
@@ -378,10 +382,15 @@ public class PengramHistoryChatActivity extends BaseFragment {
         items.add(item);
     }
 
-    private MessageObject buildMessage(PengramHistory.Entry entry, String text) {
+    private MessageObject buildMessage(PengramHistory.Entry entry, String text, boolean previous) {
         try {
             TLRPC.Message message = null;
-            if (entry.data != null && TextUtils.equals(text, entry.text)) {
+            if (previous && entry.prevData != null) {
+                message = PengramHistory.deserialize(entry.prevData, currentAccount);
+                if (message != null && !TextUtils.isEmpty(entry.prevMediaPath)) {
+                    message.attachPath = entry.prevMediaPath;
+                }
+            } else if (!previous && entry.data != null && TextUtils.equals(text, entry.text)) {
                 message = PengramHistory.deserialize(entry.data, currentAccount);
             }
             if (message == null) {

@@ -76,6 +76,7 @@ public class PengramConfig {
     // --- история удалённых/изменённых ---
     public static boolean saveDeleted = true;
     public static boolean saveEdited = true;
+    public static boolean saveEditedMedia = false;
     public static boolean saveOutgoing = true;       // сохранять и свои сообщения (удалённые собеседником)
     public static boolean historyRowInProfile = true;
 
@@ -516,6 +517,10 @@ public class PengramConfig {
     public static boolean isDeletedReplyQuote() { return isKeepingDeletedInChat() && getBool(KEY_DELETED_REPLY_QUOTE, true); }
     /** и эта цитата подписана именем автора */
     public static boolean isDeletedReplySigned() { return isDeletedReplyQuote() && getBool(KEY_DELETED_REPLY_SIGN, true); }
+    public static final String KEY_EDIT_HISTORY_MARK = "editHistoryOpenMark";
+    public static final String KEY_EDIT_HISTORY_MENU = "editHistoryOpenMenu";
+    public static boolean isEditHistoryMarkEnabled() { return getBool(KEY_EDIT_HISTORY_MARK, true); }
+    public static boolean isEditHistoryMenuEnabled() { return getBool(KEY_EDIT_HISTORY_MENU, false); }
     public static boolean isMarkingEdited() { return getBool(KEY_MARK_EDITED, false); }
     public static boolean isSaveForMyselfDefault() { return getBool(KEY_SAVE_FOR_MYSELF_DEFAULT, false); }
     public static boolean isSaveForMyselfVisible() { return getBool(KEY_SAVE_FOR_MYSELF_SHOW, true); }
@@ -988,6 +993,7 @@ public class PengramConfig {
             tabBarSize = p.getInt("tabBarSize", 100);
             saveDeleted = p.getBoolean("saveDeleted", true);
             saveEdited = p.getBoolean("saveEdited", true);
+            saveEditedMedia = p.getBoolean("saveEditedMedia", false);
             saveOutgoing = p.getBoolean("saveOutgoing2", true);
             historyRowInProfile = p.getBoolean("historyRowInProfile", true);
             allowScreenshots = p.getBoolean("allowScreenshots", true);
@@ -1137,6 +1143,16 @@ public class PengramConfig {
         putBoolean("saveDeleted", saveDeleted);
     }
 
+    public static boolean isSavingEditedMedia(int account) {
+        return isSavingEdited(account) && getSpyOption(account, "saveEditedMedia");
+    }
+
+    public static void toggleSaveEditedMedia() {
+        init();
+        saveEditedMedia = !saveEditedMedia;
+        putBoolean("saveEditedMedia", saveEditedMedia);
+    }
+
     public static void toggleSaveEdited() {
         init();
         saveEdited = !saveEdited;
@@ -1172,7 +1188,7 @@ public class PengramConfig {
     /** Account slot reuse must never inherit a previous user's spy collection preferences. */
     public static void clearSpyProfile(int account) {
         if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return;
-        final String[] keys = {"saveDeleted", "saveEdited", "saveOutgoing2", "saveInBots",
+        final String[] keys = {"saveDeleted", "saveEdited", "saveEditedMedia", "saveOutgoing2", "saveInBots",
                 "saveReadDate", "saveLastOnline"};
         final SharedPreferences p = prefs();
         if (p == null) return;
@@ -1191,6 +1207,7 @@ public class PengramConfig {
         switch (key) {
             case "saveDeleted": global = saveDeleted; break;
             case "saveEdited": global = saveEdited; break;
+            case "saveEditedMedia": global = saveEditedMedia; break;
             case "saveOutgoing2": global = saveOutgoing; break;
             case "saveInBots": global = saveInBots; break;
             case "saveReadDate": global = saveReadDate; break;
@@ -2357,7 +2374,8 @@ public class PengramConfig {
             "profileHistoryScope", "profileHistoryStorage", "quickActionCount", "quickTiles",
             "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",
             "resendAskChat", "resendDeletedAsMine", "resendDeletedMenu", "resendOnceMedia",
-            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveForMyselfDefault",
+            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia",
+            "editHistoryOpenMark", "editHistoryOpenMenu", "saveForMyselfDefault",
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
             "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendTextStyle",
             "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",

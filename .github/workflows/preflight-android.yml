@@ -65,6 +65,7 @@ jobs:
           python3 scripts/test-pengram-visual-editor.py
           python3 scripts/test-pengram-search-index.py
           python3 scripts/test-pengram-history-search.py
+          python3 scripts/test-pengram-edited-media.py
 
       - name: Identify reported editor resource IDs
         run: |

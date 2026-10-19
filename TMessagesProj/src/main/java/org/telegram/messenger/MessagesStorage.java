@@ -14543,6 +14543,31 @@ public class MessagesStorage extends BaseController {
         return null;
     }
 
+    /** Full pre-edit snapshot, read on storageQueue before Telegram overwrites messages_v2. */
+    public TLRPC.Message pengramGetMessageSnapshot(int messageId, long dialogId) {
+        SQLiteCursor cursor = null;
+        try {
+            cursor = database.queryFinalized("SELECT data FROM messages_v2 WHERE mid = ? AND uid = ?", messageId, dialogId);
+            if (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data != null) {
+                    try {
+                        TLRPC.Message old = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (old != null) old.readAttachPath(data, getUserConfig().clientUserId);
+                        return old;
+                    } finally {
+                        data.reuse();
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) cursor.dispose();
+        }
+        return null;
+    }
+
     /** Pengram: копирует медиа удалённого сообщения в выбранную папку */
     private void pengramSaveDeletedMedia(long dialogId, TLRPC.Message message) {
         try {

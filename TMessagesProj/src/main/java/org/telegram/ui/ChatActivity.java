@@ -1273,6 +1273,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_PENGRAM_QUOTE = 925;
     public final static int OPTION_PENGRAM_COPY_PHOTO = 926;
     public final static int OPTION_PENGRAM_TARGET = 927;
+    public final static int OPTION_PENGRAM_EDIT_HISTORY = 928;
     private static final int TARGET_FIXED = 1, TARGET_LATEST = 2, TARGET_MENTION = 3;
     private int targetMode, targetMessageId;
     private long targetSenderId;
@@ -2913,19 +2914,6 @@ public class ChatActivity extends BaseFragment implements
                     if (position >= 0) {
                         chatAdapter.notifyItemChanged(position);
                     }
-                    return;
-                }
-            }
-            // A tap on the edited bubble opens its saved versions; long press still
-            // opens Telegram's usual message actions. Only locally recorded versions exist.
-            if (view instanceof ChatMessageCell) {
-                ChatMessageCell cell = (ChatMessageCell) view;
-                MessageObject message = cell.getMessageObject();
-                if (message != null && message.isEdited() && !message.pengramDeleted
-                        && cell.isInsideBackground(x, y) && !isInsideContainer
-                        && !isQuickRepliesOrWelcomeMessagesMode()) {
-                    presentFragment(new PengramHistoryChatActivity(message.getDialogId(),
-                            PengramHistoryChatActivity.MODE_EDITED, message.getId()));
                     return;
                 }
             }
@@ -32550,6 +32538,13 @@ public class ChatActivity extends BaseFragment implements
                 selectedObject = message;
                 selectedObjectGroup = groupedMessages;
                 fillMessageMenu(primaryMessage, icons, items, options);
+                if (longpress && PengramConfig.isEditHistoryMenuEnabled()
+                        && selectedObject != null && selectedObject.isEdited() && !selectedObject.pengramDeleted
+                        && selectedObject.getId() > 0 && !isQuickRepliesOrWelcomeMessagesMode()) {
+                    items.add(getString(R.string.PengramHistoryEditMenu));
+                    options.add(OPTION_PENGRAM_EDIT_HISTORY);
+                    icons.add(R.drawable.msg_edit);
+                }
             }
 
             if (selectedObject != null && selectedObject.isHiddenSensitive() && !selectedObject.isMediaSpoilersRevealed) {
@@ -34944,6 +34939,11 @@ public class ChatActivity extends BaseFragment implements
                 }
                 preserveDim = true;
                 createDeleteMessagesAlert(selectedObject, selectedObjectGroup, true);
+                break;
+            }
+            case OPTION_PENGRAM_EDIT_HISTORY: {
+                presentFragment(new PengramHistoryChatActivity(selectedObject.getDialogId(),
+                        PengramHistoryChatActivity.MODE_EDITED, selectedObject.getId()));
                 break;
             }
             case OPTION_PENGRAM_RESEND: {
@@ -41158,8 +41158,9 @@ public class ChatActivity extends BaseFragment implements
             }
             if (messageObject.pengramDeleted) {
                 presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_DELETED));
-            } else {
-                presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_EDITED, messageObject.getId()));
+            } else if (PengramConfig.isEditHistoryMarkEnabled()) {
+                presentFragment(new PengramHistoryChatActivity(messageObject.getDialogId(),
+                        PengramHistoryChatActivity.MODE_EDITED, messageObject.getId()));
             }
         }
 

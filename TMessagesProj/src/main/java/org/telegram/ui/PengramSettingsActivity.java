@@ -96,6 +96,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private static final int BTN_HIST_DELETED = 400;
     private static final int BTN_HIST_EDITED = 401;
+    private static final int BTN_HIST_EDITED_MEDIA = 408;
     private static final int BTN_HIST_OUTGOING = 402;
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
@@ -2682,6 +2683,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                     .setChecked(PengramConfig.isSavingDeleted(account)));
             items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited))
                     .setChecked(PengramConfig.isSavingEdited(account)));
+            if (PengramConfig.isSavingEdited(account)) {
+                items.add(UItem.asCheck(BTN_HIST_EDITED_MEDIA, getString(R.string.PengramHistorySaveEditedMedia))
+                        .setChecked(PengramConfig.getSpyOption(account, "saveEditedMedia")));
+                items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
+            }
             if (PengramConfig.isSavingDeleted(account) || PengramConfig.isSavingEdited(account)) {
                 items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
                         .setChecked(PengramConfig.isSavingOutgoing(account)));
@@ -2700,6 +2706,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
         items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
+        if (PengramConfig.saveEdited) {
+            items.add(UItem.asCheck(BTN_HIST_EDITED_MEDIA, getString(R.string.PengramHistorySaveEditedMedia))
+                    .setChecked(PengramConfig.saveEditedMedia));
+            items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
+        }
+        items.add(UItem.asHeader(getString(R.string.PengramHistoryOpenMethod)));
+        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MARK, true, getString(R.string.PengramHistoryOpenPencil)));
+        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MENU, false, getString(R.string.PengramHistoryOpenLongPress)));
         final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
         if (saving) {
             items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
@@ -4931,6 +4945,13 @@ public class PengramSettingsActivity extends UniversalFragment {
                 if (spySelectedAccount >= 0) {
                     PengramConfig.setSpyOption(spySelectedAccount, "saveEdited", !PengramConfig.isSavingEdited(spySelectedAccount));
                 } else PengramConfig.toggleSaveEdited();
+                updateAll = true;
+                break;
+            case BTN_HIST_EDITED_MEDIA:
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveEditedMedia",
+                            !PengramConfig.getSpyOption(spySelectedAccount, "saveEditedMedia"));
+                } else PengramConfig.toggleSaveEditedMedia();
                 updateAll = true;
                 break;
             case BTN_HIST_OUTGOING:

@@ -34,6 +34,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.PengramScreenMockView;
 import org.telegram.ui.Components.PengramInteractivePreviewView;
 import org.telegram.ui.Components.SeekBarView;
@@ -56,9 +57,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     private View panelScrim;
     private PengramConfig.VisualDraft visualDraft;
     private int draftRadius = -1, draftFontSize = -1;
-    private static final int ACTION_SAVE = 702, ACTION_ADJUST = 703,
-            ACTION_TOOLBAR_MENU = 704, ACTION_PREVIEW_MENU = 705;
-    private org.telegram.ui.ActionBar.ActionBarMenuSubItem previewMenuItem;
+    private static final int ACTION_SAVE = 702, ACTION_PREVIEW_MENU = 705;
 
     @Override
     public View createView(Context context) {
@@ -81,20 +80,13 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     else if (preview == null || !preview.goBack()) finishFragment();
                 } else if (id == ACTION_SAVE) {
                     saveVisualDraft();
-                } else if (id == ACTION_ADJUST) {
-                    updateInspectPanel(-1, -1);
-                    showPanel();
                 } else if (id == ACTION_PREVIEW_MENU && preview != null) {
-                    preview.openToolbarAction();
+                    openPreviewMenu();
                 }
             }
         });
-        org.telegram.ui.ActionBar.ActionBarMenuItem more = actionBar.createMenu()
-                .addItem(ACTION_TOOLBAR_MENU, R.drawable.ic_ab_other);
-        more.setContentDescription(getString(R.string.AccDescrMoreOptions));
-        more.addSubItem(ACTION_ADJUST, R.drawable.msg_edit, getString(R.string.PengramEditorAdjust));
-        previewMenuItem = more.addSubItem(ACTION_PREVIEW_MENU, R.drawable.msg_search,
-                getString(R.string.PengramEditorPreviewMenu));
+        actionBar.createMenu().addItem(ACTION_PREVIEW_MENU, R.drawable.ic_ab_other)
+                .setContentDescription(getString(R.string.AccDescrMoreOptions));
         actionBar.createMenu().addItem(ACTION_SAVE, getString(R.string.Save));
 
         final FrameLayout root = new FrameLayout(context);
@@ -122,11 +114,6 @@ public class PengramLayoutEditorActivity extends BaseFragment {
             public void onPageChanged(String title, String subtitle) {
                 actionBar.setTitle(title);
                 actionBar.setSubtitle(subtitle);
-                if (previewMenuItem != null) {
-                    previewMenuItem.setText(getString(preview.getPage() == PengramInteractivePreviewView.DIALOGS
-                            || preview.getPage() == PengramInteractivePreviewView.CHAT
-                            ? R.string.PengramEditorPreviewMenu : R.string.Search));
-                }
             }
 
             @Override
@@ -215,6 +202,42 @@ public class PengramLayoutEditorActivity extends BaseFragment {
 
         fragmentView = root;
         return fragmentView;
+    }
+
+    /** The sample's overflow uses Telegram's own popup, not a fake full-page menu.
+     * Organising hidden rows stays on the preview-only editor screen. */
+    private void openPreviewMenu() {
+        if (preview == null || actionBar == null) return;
+        if (preview.getPage() != PengramInteractivePreviewView.DIALOGS
+                && preview.getPage() != PengramInteractivePreviewView.CHAT) {
+            preview.openToolbarAction();
+            return;
+        }
+        ItemOptions options = ItemOptions.makeOptions(this, actionBar);
+        if (preview.getPage() == PengramInteractivePreviewView.DIALOGS) {
+            for (int id : PengramConfig.getMenuOrder()) {
+                if (PengramConfig.isMenuItemHidden(id)) continue;
+                final int itemId = id;
+                options.add(PengramConfig.getMenuItemIcon(id),
+                        getString(PengramConfig.getMenuItemTitle(id)),
+                        () -> preview.openSampleMenuItem(itemId));
+            }
+        } else {
+            for (int id : PengramConfig.getChatItemsOrder()) {
+                if (PengramConfig.isChatItemHidden(id)) continue;
+                final int itemId = id;
+                options.add(PengramConfig.getChatItemIcon(id),
+                        getString(PengramConfig.getChatItemTitle(id)),
+                        () -> preview.selectSampleChatItem(itemId));
+            }
+        }
+        options.add(R.drawable.msg_edit, getString(R.string.PengramEditorAdjust), () -> {
+            updateInspectPanel(-1, -1);
+            showPanel();
+        });
+        options.add(R.drawable.msg_settings, getString(R.string.PengramEditorOrganizeSections),
+                () -> preview.openToolbarAction());
+        options.show();
     }
 
     private void showPanel() {
