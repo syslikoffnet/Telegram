@@ -4416,6 +4416,30 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         return playlist;
     }
 
+    /** The ordered list used by next/previous (unlike getPlaylist when shuffle is on). */
+    public ArrayList<MessageObject> getPlaybackPlaylist() {
+        return SharedConfig.shuffleMusic ? shuffledPlaylist : playlist;
+    }
+
+    /** Select a row in the actual playback order, preserving next/previous navigation. */
+    public void playMessageAtPlaybackIndex(int index) {
+        ArrayList<MessageObject> current = getPlaybackPlaylist();
+        if (index < 0 || index >= current.size()) {
+            return;
+        }
+        currentPlaylistNum = index;
+        MessageObject messageObject = current.get(index);
+        if (playingMessageObject != null && isSamePlayingMessage(messageObject)) {
+            playMessage(messageObject); // resumes if paused; do not leave playMusicAgain set
+            return;
+        }
+        playMusicAgain = true;
+        if (playingMessageObject != null) {
+            playingMessageObject.resetPlayingProgress();
+        }
+        playMessage(messageObject);
+    }
+
     public MessagesController.SavedMusicList getMusicList() {
         return currentSavedMusicList;
     }

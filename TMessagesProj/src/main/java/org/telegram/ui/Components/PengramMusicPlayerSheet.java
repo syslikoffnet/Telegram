@@ -480,6 +480,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 SharedConfig.setRepeatMode(0);
             }
             updateRepeatButton();
+            if (queueShown) {
+                updateQueue();
+            }
         });
         controls.addView(repeatButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 2, 0, 0, 0));
 
@@ -710,7 +713,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             return;
         }
         queueList.removeAllViews();
-        final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaylist();
+        final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaybackPlaylist();
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (playlist == null || playlist.isEmpty()) {
             final TextView empty = new TextView(getContext());
@@ -721,11 +724,15 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             queueList.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 80));
             return;
         }
+        // MediaController advances toward lower indices by default. Display
+        // that order in reverse so the next song is below the active row.
+        final boolean reverse = !SharedConfig.playOrderReversed;
         int current = 0;
         for (int a = 0; a < playlist.size(); ++a) {
             if (playing != null && playlist.get(a).getId() == playing.getId()
                     && playlist.get(a).getDialogId() == playing.getDialogId()) {
-                current = a;
+                current = reverse ? playlist.size() - 1 - a : a;
+                break;
             }
         }
         // очень длинные плейлисты не строим целиком — берём окно вокруг текущего трека
@@ -738,7 +745,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         View activeRow = null;
         for (int a = from; a < to; ++a) {
-            final MessageObject messageObject = playlist.get(a);
+            final MessageObject messageObject = playlist.get(reverse ? playlist.size() - 1 - a : a);
             final boolean active = playing != null && messageObject.getId() == playing.getId()
                     && messageObject.getDialogId() == playing.getDialogId();
             addTrackView(messageObject, active, null);
@@ -938,7 +945,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             return;
         }
         if (playlist == null) {
-            MediaController.getInstance().playMessage(messageObject);
+            final MediaController controller = MediaController.getInstance();
+            final int index = controller.getPlaybackPlaylist().indexOf(messageObject);
+            if (index < 0) {
+                return; // stale row from an earlier playlist
+            }
+            controller.playMessageAtPlaybackIndex(index);
         } else {
             MediaController.getInstance().setPlaylist(playlist, messageObject, 0, false, null);
         }
@@ -1270,13 +1282,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     /** пока играет этот трек, текст и обложка следующего уже готовятся */
     private void pengramPrefetchNext() {
         try {
-            final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaylist();
+            final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaybackPlaylist();
             if (playlist == null || playlist.isEmpty()) {
-                return;
-            }
-            if (SharedConfig.shuffleMusic) {
-                // MediaController's shuffled order is private; guessing from the
-                // unshuffled list wastes network requests on unrelated songs.
                 return;
             }
             final int index = MediaController.getInstance().getPlayingMessageObjectNum();

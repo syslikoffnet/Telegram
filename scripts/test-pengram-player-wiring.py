@@ -12,6 +12,7 @@ lyrics = (root / 'ui/Components/PengramLyricsView.java').read_text()
 settings = (root / 'ui/PengramSettingsActivity.java').read_text()
 header = (root / 'ui/Components/FragmentContextView.java').read_text()
 swipe = (root / 'ui/Components/PengramPlayerSwipe.java').read_text()
+controller = (root / 'messenger/MediaController.java').read_text()
 
 assert 'check(PengramConfig.KEY_PLAYER_BLUR, true' in settings
 assert 'check(PengramConfig.KEY_LYRICS_AUTOSCROLL, true' in settings
@@ -40,9 +41,14 @@ queue = sheet.split('private void updateQueue()', 1)[1].split('private void upda
 assert 'playlist.get(a).getDialogId() == playing.getDialogId()' in queue
 assert 'messageObject.getDialogId() == playing.getDialogId()' in queue
 assert 'row.getTop() - dp(120)' in queue  # actual row height in every layout
+assert 'getPlaybackPlaylist()' in queue
+assert 'reverse ? playlist.size() - 1 - a : a' in queue  # next track follows active row
 assert 'args[0] instanceof Long && (Long) args[0] == chatTracksDialogId' in sheet
+assert 'return SharedConfig.shuffleMusic ? shuffledPlaylist : playlist;' in controller
+assert 'controller.playMessageAtPlaybackIndex(index)' in sheet
+assert 'currentPlaylistNum = index;' in controller.split('public void playMessageAtPlaybackIndex(', 1)[1].split('public MessagesController.SavedMusicList', 1)[0]
 prefetch = sheet.split('private void pengramPrefetchNext()', 1)[1].split('private void shiftLyrics(', 1)[0]
-assert 'if (SharedConfig.shuffleMusic)' in prefetch
+assert 'getPlaybackPlaylist()' in prefetch
 assert 'SharedConfig.playOrderReversed ? 1 : -1' in prefetch
 assert re.search(r'if \(queueShown\)\s*\{\s*if \(panelTab == 1\)\s*\{\s*loadChatTracks\(\);', sheet)
 
