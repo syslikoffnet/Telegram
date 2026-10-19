@@ -195,12 +195,15 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     private static boolean canObserve(int account, TLRPC.User user, boolean fromCache) {
         if (user == null || !enabled() || !ensureAccountOwner(account)) return false;
         int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
+        boolean tracked = (scope == SCOPE_MANUAL || scope == SCOPE_INTERACTED)
+                && isTracked(account, user.id);
+        boolean inDialogs = (scope == SCOPE_INTERACTED || scope == SCOPE_CONTACTS_CHATS)
+                && MessagesController.getInstance(account).dialogs_dict.get(user.id) != null;
         return PengramProfilePolicy.allows(scope, true, true, fromCache,
                 user.self || user.id == UserConfig.getInstance(account).getClientUserId(),
                 user.bot, user.deleted, user.support,
                 user.id == UserObject.VERIFY || UserObject.isService(user.id),
-                isTracked(account, user.id), user.contact,
-                MessagesController.getInstance(account).dialogs_dict.get(user.id) != null);
+                tracked, user.contact, inDialogs);
     }
 
     public static void observeUser(int account, TLRPC.User user, boolean fromCache) {

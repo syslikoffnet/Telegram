@@ -41,12 +41,20 @@ public final class PengramProfileCloud {
 
     private static void drain(int account) {
         if (!PengramProfileHistory.ensureAccountOwner(account) || !PengramProfileHistory.enabled() || PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)==0) { stop(account); return; }
-        long cid=channelId(account); if(cid==0){createChannel(account);return;}
-        if(account>=0&&account<channelConfigured.length&&!channelConfigured[account]){channelConfigured[account]=true;configureServiceChannel(account,cid);}
         SQLiteDatabase d=db(); if(d==null){stop(account);return;}
         int format=PengramConfig.getIntCached(PengramProfileHistory.KEY_CLOUD_FORMAT,PengramProfileHistory.CLOUD_DELTA);
         int max=format==PengramProfileHistory.CLOUD_DELTA?1:(format==PengramProfileHistory.CLOUD_BATCH?20:50);
-        ArrayList<Row> rows=readRows(d,account,max); if(rows.isEmpty()){stop(account);return;}
+        ArrayList<Row> rows=readRows(d,account,max);
+        if (rows.isEmpty()) {
+            long next = nextPendingTime(d, account);
+            if (next == 0) stop(account);
+            else reschedule(account, Math.max(1000, (next-System.currentTimeMillis()/1000L)*1000L));
+            return;
+        }
+        // An old scheduled drain cannot create a channel for a newly logged-in
+        // user when that user has not produced any profile-history posts.
+        long cid=channelId(account); if(cid==0){createChannel(account);return;}
+        if(account>=0&&account<channelConfigured.length&&!channelConfigured[account]){channelConfigured[account]=true;configureServiceChannel(account,cid);}
         if(format==PengramProfileHistory.CLOUD_SUMMARY && rows.size()<50 && rows.get(0).created>System.currentTimeMillis()/1000L-3600L){reschedule(account,60000);return;}
 
         Row first=rows.get(0); String avatarHash=extractAvatarHash(first.payload); java.io.File avatar=avatarHash==null?null:PengramProfileHistory.avatarFile(avatarHash);
@@ -66,6 +74,13 @@ public final class PengramProfileCloud {
         ArrayList<Row> sending=new ArrayList<>();StringBuilder payload=new StringBuilder();
         for(Row row:rows){String hash=extractAvatarHash(row.payload);java.io.File f=hash==null?null:PengramProfileHistory.avatarFile(hash);if(!sending.isEmpty()&&f!=null&&f.exists()&&!isAvatarUploaded(d,account,hash))break;if(payload.length()>0)payload.append("\n\n──────────\n\n");payload.append(row.payload);sending.add(row);}
         sendText(account,cid,d,sending,payload.toString());
+    }
+
+    private static long nextPendingTime(SQLiteDatabase d, int account) {
+        try (Cursor c = d.rawQuery("SELECT MIN(next_try) FROM cloud_queue WHERE account=?",
+                new String[]{String.valueOf(account)})) {
+            return c.moveToFirst() && !c.isNull(0) ? c.getLong(0) : 0;
+        }
     }
 
     private static ArrayList<Row> readRows(SQLiteDatabase d,int account,int limit){ArrayList<Row> out=new ArrayList<>();try(Cursor c=d.rawQuery("SELECT id,payload,retries,created FROM cloud_queue WHERE account=? AND next_try<=? ORDER BY id LIMIT "+limit,new String[]{""+account,""+(System.currentTimeMillis()/1000)})){while(c.moveToNext()){Row r=new Row();r.id=c.getLong(0);r.payload=c.getString(1);r.retries=c.getInt(2);r.created=c.getLong(3);out.add(r);}}return out;}
@@ -99,11 +114,14 @@ public final class PengramProfileCloud {
     private static void configureServiceChannel(int account,long channelId){
         if(account>=0&&account<channelConfigured.length)channelConfigured[account]=true;
         final long did=-channelId;final MessagesController mc=MessagesController.getInstance(account);
+        final long owner=UserConfig.getInstance(account).getClientUserId();
         NotificationsController.getInstance(account).muteDialog(did,0,true);
         mc.setDialogHistoryTTL(did,0);
         // processUpdates may publish the Dialog slightly after the Chat. Retry archive after the
         // dialog enters dialogs_dict; each call is idempotent and also updates server folder flags.
         long[] delays={0,1000,3000,8000};for(long delay:delays)Utilities.globalQueue.postRunnable(()->AndroidUtilities.runOnUIThread(()->{
+            if (owner == 0 || owner != UserConfig.getInstance(account).getClientUserId()
+                    || channelId(account) != channelId) return;
             NotificationsController.getInstance(account).muteDialog(did,0,true);mc.addDialogToFolder(did,1,-1,0);
         }),delay);
     }
