@@ -789,16 +789,12 @@ public class PengramVoiceChanger {
         final float ceiling = 30000f;
         if (peak * limiterGain > ceiling) {
             limiterGain = ceiling / peak;
-        } else {
-            limiterGain += (1f - limiterGain) * 0.0008f;
         }
-        float out = x * limiterGain;
-        if (out > 32767f) {
-            out = 32767f;
-        } else if (out < -32768f) {
-            out = -32768f;
-        }
-        return out;
+        final float out = x * limiterGain;
+        // Recover AFTER calculating this sample; otherwise a sustained loud
+        // signal can exceed the ceiling on every alternate sample.
+        limiterGain += (1f - limiterGain) * 0.0008f;
+        return clip(out, ceiling);
     }
 
     /** биквад: пиковый фильтр для формант */
