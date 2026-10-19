@@ -1689,6 +1689,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         for (int a = 0, N = checkReadyToSendGroups.size(); a < N; a++) {
             sendReadyToSendGroup(checkReadyToSendGroups.get(a), false, true);
         }
+        if (objects.size() == 1 && objects.get(0).isEditing()) {
+            PengramHistory.clearPendingEdit(currentAccount, objects.get(0).getDialogId(), objects.get(0).getId());
+        }
         if (objects.size() == 1 && objects.get(0).isEditing() && objects.get(0).previousMedia != null) {
             revertEditingMessageObject(objects.get(0));
         } else if (objects.size() == 1 && objects.get(0).isEditing() && objects.get(0).isPoll()) {

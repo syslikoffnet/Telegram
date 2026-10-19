@@ -17,7 +17,9 @@ effects = (java / 'ui/Components/PengramTypingEffects.java').read_text()
 # beforehand, recover it from the per-account pending table, and clear on error
 # or after the history write has been queued.
 assert 'PengramHistory.rememberPendingEdit(currentAccount, newMsg)' in sender
+assert sender.index('PengramHistory.rememberPendingEdit(currentAccount, newMsg)') < sender.index('messageObject.previousMedia = newMsg.media;')
 assert 'PengramHistory.clearPendingEdit(currentAccount, object.getDialogId(), object.getId())' in sender
+assert 'PengramHistory.clearPendingEdit(currentAccount, objects.get(0).getDialogId(), objects.get(0).getId())' in sender
 assert 'TABLE_PENDING = "pending_edits"' in history
 assert 'PRIMARY KEY (account, dialog_id, message_id)' in history
 assert 'SQLiteDatabase.CONFLICT_REPLACE' in history
