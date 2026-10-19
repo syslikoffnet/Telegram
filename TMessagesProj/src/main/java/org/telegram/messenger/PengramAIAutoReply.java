@@ -30,6 +30,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     private static final String KEY_SPAM_THRESHOLD = "autoSpamThreshold";
     private static final String KEY_SPAM_PAUSE_MINUTES = "autoSpamPauseMinutes";
     private static final String KEY_RULES = "autoRules";
+    private static final String KEY_RULE_OWNER = "autoRulesOwner_";
     private static final String KEY_DELAY_MIGRATED = "autoDelayV2";
     private static final Pattern PRIVATE_DATA = Pattern.compile(
             "(?i)(?:https?://|www\\.|t\\.me/|@[a-z0-9_]{4,}|[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}|(?<![\\p{L}\\p{N}])\\+?\\d[\\d\\s().-]{4,}\\d(?![\\p{L}\\p{N}])|\\b\\d{4,8}\\b)");
@@ -95,6 +96,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     }
 
     private final int account;
+    private final long ownerId;
     private final HashMap<Long, Pending> pending = new HashMap<>();
     private final Random random = new Random();
     private final HashMap<Long, ArrayList<MessageObject>> awaitingReply = new HashMap<>();
@@ -130,13 +132,70 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
 
     private PengramAIAutoReply(int account) {
         this.account = account;
+        this.ownerId = UserConfig.getInstance(account).getClientUserId();
         NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.didReceiveNewMessages);
         NotificationCenter.getInstance(account).addObserver(this, NotificationCenter.replyMessagesDidLoad);
     }
 
     /** Called once after account initialization, and when a new chat is enrolled. UI thread only. */
+    private void detach() {
+        cancelAll();
+        awaitingReply.clear(); recent.clear(); states.clear(); lastSeen.clear();
+        mentionTimes.clear(); mutedSenders.clear(); pausedDialogSenders.clear();
+        NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.didReceiveNewMessages);
+        NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.replyMessagesDidLoad);
+    }
+
+    /** No slot-only rule can become active for a different Telegram identity. */
+    private static synchronized boolean bindRules(int account, long owner) {
+        if (owner == 0) return false;
+        final String key = KEY_RULE_OWNER + account;
+        if (PengramAI.prefs().getLong(key, 0) == owner) return true;
+        try {
+            JSONArray old = new JSONArray(PengramAI.prefs().getString(KEY_RULES, "[]"));
+            JSONArray next = new JSONArray();
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject rule = old.getJSONObject(i);
+                if (rule.optInt("account", -1) != account) next.put(rule);
+            }
+            android.content.SharedPreferences.Editor editor = PengramAI.prefs().edit()
+                    .putString(KEY_RULES, next.toString()).putLong(key, owner);
+            for (String name : PengramAI.prefs().getAll().keySet()) {
+                if (name.startsWith(LAST_PREFIX + account + "_")) editor.remove(name);
+            }
+            return editor.commit();
+        } catch (Exception e) { FileLog.e(e); return false; }
+    }
+
+    /** Called before the slot's user ID is cleared on logout. */
+    public static void clearAccount(int account) {
+        if (account < 0 || account >= instances.length) return;
+        if (instances[account] != null) {
+            instances[account].detach();
+            instances[account] = null;
+        }
+        // Keep the old owner ID: a later login must purge abandoned rules again.
+        try {
+            JSONArray old = new JSONArray(PengramAI.prefs().getString(KEY_RULES, "[]"));
+            JSONArray next = new JSONArray();
+            for (int i = 0; i < old.length(); i++) {
+                JSONObject rule = old.getJSONObject(i);
+                if (rule.optInt("account", -1) != account) next.put(rule);
+            }
+            android.content.SharedPreferences.Editor editor = PengramAI.prefs().edit().putString(KEY_RULES, next.toString());
+            for (String name : PengramAI.prefs().getAll().keySet()) {
+                if (name.startsWith(LAST_PREFIX + account + "_")) editor.remove(name);
+            }
+            editor.commit();
+        } catch (Exception e) { FileLog.e(e); }
+    }
+
     public static void register(int account) {
-        if (account < 0 || account >= instances.length || instances[account] != null) return;
+        if (account < 0 || account >= instances.length) return;
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        if (owner == 0 || !bindRules(account, owner)) return;
+        if (instances[account] != null && instances[account].ownerId == owner) return;
+        if (instances[account] != null) instances[account].detach();
         instances[account] = new PengramAIAutoReply(account);
     }
 
@@ -222,10 +281,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
         PengramAI.prefs().edit().putInt(KEY_COOLDOWN, Math.max(0, Math.min(120, value))).apply();
     }
     private static boolean secureService(PengramAI.Service service) {
-        if (service == null || !service.isReady()) return false;
-        final String url = service.baseUrl.trim().toLowerCase(java.util.Locale.ROOT);
-        return url.startsWith("https://") || url.startsWith("http://127.0.0.1:")
-                || url.startsWith("http://localhost:");
+        return service != null && service.isReady()
+                && PengramAITransport.isSafeEndpoint(service.endpoint());
     }
     public static boolean canUseService() { return secureService(PengramAI.active()); }
 
@@ -238,6 +295,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
 
     public static List<Rule> rules(int account) {
         final ArrayList<Rule> result = new ArrayList<>();
+        if (account < 0 || account >= instances.length
+                || !bindRules(account, UserConfig.getInstance(account).getClientUserId())) return result;
         try {
             final JSONArray entries = new JSONArray(PengramAI.prefs().getString(KEY_RULES, "[]"));
             // Previous default was 30–120 s. Migrate only untouched defaults once;
@@ -275,7 +334,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
 
     /** Persists an explicit chat change before reporting it as connected in the UI. */
     public static boolean put(Rule rule) {
-        if (rule == null || rule.account < 0 || rule.account >= instances.length || rule.dialogId == 0) return false;
+        if (rule == null || rule.account < 0 || rule.account >= instances.length || rule.dialogId == 0
+                || !bindRules(rule.account, UserConfig.getInstance(rule.account).getClientUserId())) return false;
         try {
             final JSONArray old = new JSONArray(PengramAI.prefs().getString(KEY_RULES, "[]"));
             final JSONArray next = new JSONArray();
@@ -477,7 +537,7 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     @Override
     @SuppressWarnings("unchecked")
     public void didReceivedNotification(int id, int account, Object... args) {
-        if (account != this.account) return;
+        if (account != this.account || ownerId != UserConfig.getInstance(account).getClientUserId()) return;
         if (id == NotificationCenter.replyMessagesDidLoad) {
             if (args.length > 0 && args[0] instanceof Long) {
                 final long did = (Long) args[0];
@@ -534,7 +594,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     }
 
     private void handleIncoming(long did, MessageObject message) {
-        if (!enabled() || !secureService(PengramAI.active()) || TextUtils.isEmpty(style()) || isQuiet()
+        if (ownerId == 0 || ownerId != UserConfig.getInstance(account).getClientUserId()
+                || !enabled() || !secureService(PengramAI.active()) || TextUtils.isEmpty(style()) || isQuiet()
                 || DialogObject.isEncryptedDialog(did) || did == UserConfig.getInstance(account).getClientUserId()) return;
         final Rule rule = rule(account, did);
         if (rule == null || !rule.enabled || message == null || message.isOutOwner()
@@ -574,7 +635,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
     }
 
     private void request(Pending task) {
-        if (pending.get(task.dialogId) != task || !enabled() || isQuiet() || !secureService(PengramAI.active())
+        if (ownerId == 0 || ownerId != UserConfig.getInstance(account).getClientUserId()
+                || pending.get(task.dialogId) != task || !enabled() || isQuiet() || !secureService(PengramAI.active())
                 || rule(account, task.dialogId) == null || TextUtils.isEmpty(style())) {
             cancel(task.dialogId);
             return;
@@ -617,7 +679,8 @@ public final class PengramAIAutoReply implements NotificationCenter.Notification
                 }
             }
             @Override public void onDone(String result) {
-                if (pending.get(task.dialogId) != task) return;
+                if (ownerId == 0 || ownerId != UserConfig.getInstance(account).getClientUserId()
+                        || pending.get(task.dialogId) != task) return;
                 cancel(task.dialogId);
                 final PengramAI.Service stillActive = PengramAI.active();
                 if (!enabled() || isQuiet() || rule(account, task.dialogId) == null

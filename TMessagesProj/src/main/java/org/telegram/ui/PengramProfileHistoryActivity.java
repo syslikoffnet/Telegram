@@ -63,7 +63,7 @@ public class PengramProfileHistoryActivity extends BaseFragment {
     }
 
     private void load(){final String requested=query;renderLimit=RENDER_LIMIT;org.telegram.messenger.Utilities.globalQueue.postRunnable(()->{
-        ArrayList<PengramProfileHistory.Change> values=reconstruct(PengramProfileHistory.getChanges(userId));
+        ArrayList<PengramProfileHistory.Change> values=reconstruct(PengramProfileHistory.getChanges(currentAccount, userId));
         if(!TextUtils.isEmpty(requested)){String q=requested.toLowerCase(Locale.ROOT);values.removeIf(c->!searchText(c).toLowerCase(Locale.ROOT).contains(q));}
         AndroidUtilities.runOnUIThread(()->{if(TextUtils.equals(requested,query))show(values);});
     });}

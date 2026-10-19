@@ -66,6 +66,17 @@ jobs:
           python3 scripts/test-pengram-search-index.py
           python3 scripts/test-pengram-history-search.py
           python3 scripts/test-pengram-edited-media.py
+          python3 scripts/test-pengram-security-wiring.py
+
+      - name: Test Pengram security policy
+        run: |
+          mkdir -p /tmp/pengram-security-test
+          javac -d /tmp/pengram-security-test \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramAITransport.java \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramProfilePolicy.java \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramProxyPolicy.java \
+            scripts/PengramSecurityPolicyTest.java
+          java -cp /tmp/pengram-security-test PengramSecurityPolicyTest
 
       - name: Identify reported editor resource IDs
         run: |

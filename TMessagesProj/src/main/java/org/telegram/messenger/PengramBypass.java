@@ -363,6 +363,10 @@ public final class PengramBypass {
         for (final PengramBypassSources.Node node : candidates) {
             final Thread thread = new Thread(() -> {
                 try {
+                    // Pin the checked public IP before giving a proxy to the native
+                    // Telegram stack, which would otherwise resolve a DNS name again.
+                    final java.net.InetSocketAddress checked = PengramBypassEngine.publicProxyAddress(node.host, node.port);
+                    node.host = checked.getAddress().getHostAddress();
                     final int ms = PengramBypassEngine.probe(node, MEASURE_TIMEOUT);
                     if (ms > 0) {
                         node.ping = ms;
@@ -388,7 +392,7 @@ public final class PengramBypass {
                 return new ArrayList<>(alive);
             }
         }
-        return candidates;
+        return new ArrayList<>(); // never try a node that failed validation/probing
     }
 
     private static void refreshBlocking() {

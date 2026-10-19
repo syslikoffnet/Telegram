@@ -251,6 +251,16 @@ public class PengramLayoutEditorActivity extends BaseFragment {
     }
 
     private void saveVisualDraft() {
+        if (visualDraft == null || getParentActivity() == null) return;
+        new org.telegram.ui.ActionBar.AlertDialog.Builder(getParentActivity())
+                .setTitle(getString(R.string.PengramEditorSaveConfirmTitle))
+                .setMessage(getString(R.string.PengramEditorSaveConfirmInfo))
+                .setPositiveButton(getString(R.string.Save), (dialog, which) -> commitVisualDraft())
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .show();
+    }
+
+    private void commitVisualDraft() {
         if (visualDraft == null) return;
         try {
             if (!visualDraft.save()) {

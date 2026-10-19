@@ -21,6 +21,7 @@ public final class PengramProfileCloud {
     private static final class Row { long id, created; String payload; int retries; }
 
     public static void schedule(int account) {
+        if (!PengramProfileHistory.ensureAccountOwner(account)) return;
         synchronized (running) { if (!running.add(account)) return; }
         Utilities.globalQueue.postRunnable(() -> drain(account), 5000);
     }
@@ -39,7 +40,7 @@ public final class PengramProfileCloud {
     private static void setChannel(int account,long id){if(account>=0&&account<channelCache.length)synchronized(channelCache){channelCache[account]=id;channelCacheLoaded[account]=true;}SQLiteDatabase d=db();if(d!=null){ensureCloudTables(d);d.execSQL("INSERT OR REPLACE INTO cloud_meta(account,channel_id) VALUES(?,?)",new Object[]{account,id});}}
 
     private static void drain(int account) {
-        if (!PengramProfileHistory.enabled() || PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)==0) { stop(account); return; }
+        if (!PengramProfileHistory.ensureAccountOwner(account) || !PengramProfileHistory.enabled() || PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)==0) { stop(account); return; }
         long cid=channelId(account); if(cid==0){createChannel(account);return;}
         if(account>=0&&account<channelConfigured.length&&!channelConfigured[account]){channelConfigured[account]=true;configureServiceChannel(account,cid);}
         SQLiteDatabase d=db(); if(d==null){stop(account);return;}
@@ -69,8 +70,12 @@ public final class PengramProfileCloud {
 
     private static ArrayList<Row> readRows(SQLiteDatabase d,int account,int limit){ArrayList<Row> out=new ArrayList<>();try(Cursor c=d.rawQuery("SELECT id,payload,retries,created FROM cloud_queue WHERE account=? AND next_try<=? ORDER BY id LIMIT "+limit,new String[]{""+account,""+(System.currentTimeMillis()/1000)})){while(c.moveToNext()){Row r=new Row();r.id=c.getLong(0);r.payload=c.getString(1);r.retries=c.getInt(2);r.created=c.getLong(3);out.add(r);}}return out;}
     private static void sendText(int account,long cid,SQLiteDatabase d,ArrayList<Row> rows,String text){
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        if (owner == 0 || !PengramProfileHistory.enabled()) { stop(account); return; }
         TLRPC.TL_messages_sendMessage req=new TLRPC.TL_messages_sendMessage();req.peer=MessagesController.getInstance(account).getInputPeer(-cid);req.message=text;req.random_id=Utilities.random.nextLong();req.no_webpage=true;req.silent=true;
         ConnectionsManager.getInstance(account).sendRequest(req,(response,error)->Utilities.globalQueue.postRunnable(()->{
+            if (owner != UserConfig.getInstance(account).getClientUserId()
+                    || !PengramProfileHistory.enabled()) { stop(account); return; }
             if(error==null){if(response instanceof TLRPC.Updates)MessagesController.getInstance(account).processUpdates((TLRPC.Updates)response,false);for(Row row:rows)d.delete("cloud_queue","id=?",new String[]{""+row.id});reschedule(account,5000);return;}
             String value=error.text==null?"":error.text;int wait=parseFloodWait(value);long next=System.currentTimeMillis()/1000L+(wait>0?wait:Math.min(3600,30L*(1L<<Math.min(6,rows.get(0).retries))));
             for(Row row:rows)d.execSQL("UPDATE cloud_queue SET retries=retries+1,next_try=? WHERE id=?",new Object[]{next,row.id});
@@ -81,8 +86,12 @@ public final class PengramProfileCloud {
     private static void reschedule(int account,long delay){Utilities.globalQueue.postRunnable(()->drain(account),Math.max(1000,delay));}
 
     private static void createChannel(int account){
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        if (owner == 0 || !PengramProfileHistory.enabled()) { stop(account); return; }
         TLRPC.TL_channels_createChannel req=new TLRPC.TL_channels_createChannel();req.title="Pengram";req.about="Private Pengram profile change journal";req.broadcast=true;
         ConnectionsManager.getInstance(account).sendRequest(req,(response,error)->{
+            if (owner != UserConfig.getInstance(account).getClientUserId()
+                    || !PengramProfileHistory.enabled()) { stop(account); return; }
             if(error!=null||!(response instanceof TLRPC.Updates)){retryCreate(account);return;}TLRPC.Updates updates=(TLRPC.Updates)response;MessagesController mc=MessagesController.getInstance(account);mc.processUpdates(updates,false);long id=0;
             if(updates.chats!=null&&!updates.chats.isEmpty()){TLRPC.Chat chat=updates.chats.get(0);id=chat.id;mc.putChats(updates.chats,false);}if(id==0){retryCreate(account);return;}setChannel(account,id);configureServiceChannel(account,id);reschedule(account,5000);
         },ConnectionsManager.RequestFlagFailOnServerErrors);
@@ -102,9 +111,58 @@ public final class PengramProfileCloud {
     private static String extractAvatarHash(String payload){if(payload==null)return null;int p=payload.indexOf("\nAvatar: ");if(p<0)return null;int start=p+9,end=payload.indexOf('\n',start);String hash=payload.substring(start,end<0?payload.length():end).trim();if(hash.startsWith("#avatar_"))hash=hash.substring(8);return hash.matches("[0-9a-f]{32}")?hash:null;}
     private static boolean isAvatarUploaded(SQLiteDatabase d,int account,String hash){ensureCloudTables(d);try(Cursor c=d.rawQuery("SELECT 1 FROM cloud_avatars WHERE account=? AND hash=?",new String[]{""+account,hash})){return c.moveToFirst();}}
     public static void recreateChannel(int account){resetMissingChannel(account);synchronized(running){running.remove(account);}schedule(account);}
-    public static void deleteCloud(int account){final long id=channelId(account);if(id==0)return;TLRPC.Chat chat=MessagesController.getInstance(account).getChat(id);if(chat==null){resetMissingChannel(account);return;}TLRPC.TL_channels_deleteChannel req=new TLRPC.TL_channels_deleteChannel();req.channel=MessagesController.getInstance(account).getInputChannel(chat);ConnectionsManager.getInstance(account).sendRequest(req,(response,error)->{if(error==null||error.text!=null&&(error.text.contains("CHANNEL_PRIVATE")||error.text.contains("CHANNEL_INVALID"))){SQLiteDatabase d=db();if(d!=null){resetMissingChannel(account);d.delete("cloud_queue","account=?",new String[]{""+account});}}});}
+    /** Stop future uploads and erase unsent payloads even if a network request is in flight. */
+    public static void discardPending(int account) {
+        stop(account);
+        SQLiteDatabase d = db();
+        if (d != null) d.delete("cloud_queue", "account=?", new String[]{String.valueOf(account)});
+    }
+
+    public static void forgetAccount(int account) {
+        stop(account);
+        if (account >= 0 && account < channelCache.length) synchronized (channelCache) {
+            channelCache[account] = 0;
+            channelCacheLoaded[account] = true;
+            channelConfigured[account] = false;
+        }
+    }
+
+    /** A failed delete is not reported as success. The channel ID stays available for retry. */
+    public static void deleteCloud(int account, java.util.function.Consumer<Boolean> result) {
+        if (!PengramProfileHistory.ensureAccountOwner(account)) {
+            if (result != null) result.accept(false);
+            return;
+        }
+        discardPending(account);
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        final long id = channelId(account);
+        if (id == 0) { if (result != null) result.accept(true); return; }
+        TLRPC.Chat chat = MessagesController.getInstance(account).getChat(id);
+        if (chat == null || owner == 0) { if (result != null) result.accept(false); return; }
+        TLRPC.TL_channels_deleteChannel req = new TLRPC.TL_channels_deleteChannel();
+        req.channel = MessagesController.getInstance(account).getInputChannel(chat);
+        final java.util.concurrent.atomic.AtomicBoolean replied = new java.util.concurrent.atomic.AtomicBoolean();
+        if (result != null) AndroidUtilities.runOnUIThread(() -> {
+            if (replied.compareAndSet(false, true)) result.accept(false);
+        }, 30000);
+        ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
+            if (owner != UserConfig.getInstance(account).getClientUserId()) return;
+            boolean success = error == null || error.text != null &&
+                    (error.text.contains("CHANNEL_PRIVATE") || error.text.contains("CHANNEL_INVALID"));
+            if (success) resetMissingChannel(account);
+            if (result != null) AndroidUtilities.runOnUIThread(() -> {
+                if (replied.compareAndSet(false, true)) result.accept(success);
+            });
+        }, ConnectionsManager.RequestFlagFailOnServerErrors);
+    }
+    public static void deleteCloud(int account) { deleteCloud(account, null); }
     private static void retryCreate(int account){reschedule(account,60000);}
     private static void stop(int account){synchronized(running){running.remove(account);}}
-    public static long getHiddenDialogId(int account){long id=channelId(account);return id==0?0:-id;}
+    public static long getHiddenDialogId(int account){
+        if (account < 0 || account >= channelCache.length) return 0;
+        // One identity check on first cache miss, never a database query per dialog row.
+        if (!channelCacheLoaded[account] && !PengramProfileHistory.ensureAccountOwner(account)) return 0;
+        long id=channelId(account);return id==0?0:-id;
+    }
     public static boolean isHiddenDialog(int account,long dialogId){return dialogId!=0&&dialogId==getHiddenDialogId(account);}
 }

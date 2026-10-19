@@ -7875,7 +7875,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     fullUsers.put(user.id, userFull);
-                    PengramProfileHistory.observeBio(currentAccount, user.id, userFull.about);
+                    PengramProfileHistory.observeBio(currentAccount, userFull.user, userFull.about, false);
                     getTranslateController().updateDialogFull(user.id);
                     StarsController.getInstance(currentAccount).invalidateProfileGifts(userFull);
                     loadingFullUsers.remove(user.id);

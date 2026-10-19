@@ -6,6 +6,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -52,6 +54,9 @@ public final class PengramAIClient {
     private PengramAIClient() {
     }
 
+    private static final int MAX_REQUEST_BYTES = 128 * 1024;
+    private static final int MAX_RESPONSE_BYTES = 256 * 1024;
+    private static final int MAX_STREAM_CHARS = 128 * 1024;
     private static volatile DispatchQueue queue;
     // Auto replies must not sit behind a stalled manual request. Bound both workers and backlog.
     private static final ThreadPoolExecutor autoQueue = new ThreadPoolExecutor(2, 2, 0,
@@ -127,7 +132,19 @@ public final class PengramAIClient {
             }
             body.put("messages", messages);
 
-            connection = (HttpURLConnection) new URL(service.endpoint()).openConnection();
+            final String endpoint = service.endpoint();
+            if (!PengramAITransport.isSafeEndpoint(endpoint)) throw new IOException("Unsafe AI endpoint");
+            final byte[] request = body.toString().getBytes(StandardCharsets.UTF_8);
+            if (request.length > MAX_REQUEST_BYTES) throw new IOException("AI request too large");
+            // Never follow a redirect carrying Authorization or prompt text.
+            // localhost always connects to a literal loopback address (no DNS rebinding).
+            URL target = new URL(endpoint);
+            if ("http".equalsIgnoreCase(target.getProtocol())
+                    && "localhost".equalsIgnoreCase(target.getHost())) {
+                target = new URL("http", "127.0.0.1", target.getPort(), target.getFile());
+            }
+            connection = (HttpURLConnection) target.openConnection();
+            connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(stream ? 180000 : 90000);
@@ -138,7 +155,7 @@ public final class PengramAIClient {
                 connection.setRequestProperty("Authorization", "Bearer " + service.apiKey.trim());
             }
             try (OutputStream os = connection.getOutputStream()) {
-                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                os.write(request);
             }
 
             final int code = connection.getResponseCode();
@@ -200,7 +217,8 @@ public final class PengramAIClient {
             return "";
         }
         final StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                bounded(stream, MAX_RESPONSE_BYTES), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 sb.append(line).append('\n');
@@ -209,15 +227,42 @@ public final class PengramAIClient {
         return sb.toString();
     }
 
+    private static InputStream bounded(InputStream source, int maxBytes) {
+        return new FilterInputStream(source) {
+            int remaining = maxBytes;
+            @Override public int read() throws IOException {
+                if (remaining == 0) {
+                    if (super.read() == -1) return -1;
+                    throw new IOException("AI response too large");
+                }
+                int value = super.read();
+                if (value != -1) remaining--;
+                return value;
+            }
+            @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+                if (remaining == 0) {
+                    if (super.read() == -1) return -1;
+                    throw new IOException("AI response too large");
+                }
+                int count = super.read(bytes, offset, Math.min(length, remaining));
+                if (count > 0) remaining -= count;
+                return count;
+            }
+        };
+    }
+
     /** разбор потока server-sent events: строки «data: {…}» до «data: [DONE]» */
     private static void readStream(InputStream stream, Listener listener) throws Exception {
         final StringBuilder answer = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+        int events = 0;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                bounded(stream, MAX_RESPONSE_BYTES), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 if (!line.startsWith("data:")) {
                     continue;
                 }
+                if (++events > 4096) throw new IOException("AI stream too long");
                 final String payload = line.substring(5).trim();
                 if (TextUtils.isEmpty(payload) || "[DONE]".equals(payload)) {
                     continue;
@@ -231,6 +276,8 @@ public final class PengramAIClient {
                     final JSONObject delta = choices.getJSONObject(0).optJSONObject("delta");
                     final String piece = delta == null ? null : delta.optString("content", "");
                     if (!TextUtils.isEmpty(piece)) {
+                        if (answer.length() + piece.length() > MAX_STREAM_CHARS)
+                            throw new IOException("AI response too large");
                         answer.append(piece);
                         post(() -> listener.onChunk(piece));
                     }

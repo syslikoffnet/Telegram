@@ -150,7 +150,7 @@ public final class PengramOriginalName {
     /** самое раннее имя, которое Pengram успел увидеть до переименования */
     private static String fromHistory(long userId) {
         try {
-            final java.util.ArrayList<PengramProfileHistory.Change> changes = PengramProfileHistory.getChanges(userId);
+            final java.util.ArrayList<PengramProfileHistory.Change> changes = PengramProfileHistory.getChanges(account, userId);
             // список идёт от свежих к старым — нам нужно самое первое имя
             for (int i = changes.size() - 1; i >= 0; i--) {
                 final PengramProfileHistory.Change change = changes.get(i);

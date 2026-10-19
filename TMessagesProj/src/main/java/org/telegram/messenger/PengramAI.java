@@ -65,7 +65,7 @@ public final class PengramAI {
         }
 
         public boolean isReady() {
-            return !TextUtils.isEmpty(baseUrl) && !TextUtils.isEmpty(model);
+            return !TextUtils.isEmpty(model) && PengramAITransport.isSafeEndpoint(endpoint());
         }
 
         /** короткая подпись под названием: домен и модель */

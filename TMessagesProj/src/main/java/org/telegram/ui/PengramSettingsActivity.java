@@ -5645,7 +5645,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     model.getText().toString().trim(),
                     key.getText().toString().trim());
             if (!service.isReady()) {
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIFieldsNeeded)).show();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIEndpointInvalid)).show();
                 return;
             }
             org.telegram.messenger.PengramAI.put(service);

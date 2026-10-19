@@ -36,7 +36,13 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
     }
     private void rebuild(){if(list==null)return;list.removeAllViews();
         addEnabledSwitch();
-        if(!PengramProfileHistory.enabled()) { addInfo(R.string.PengramProfileHistoryDisabledInfo); revealSearchTarget(); return; }
+        if(!PengramProfileHistory.enabled()) {
+            addInfo(R.string.PengramProfileHistoryDisabledInfo);
+            if (PengramProfileHistory.ensureAccountOwner(currentAccount)
+                    && org.telegram.messenger.PengramProfileCloud.getHiddenDialogId(currentAccount) != 0)
+                addAction(R.string.PengramProfileCloudDeleteRetry, this::retryCloudDelete);
+            revealSearchTarget(); return;
+        }
         addChoice(R.string.PengramProfileHistoryStorage,storageName(),this::showStorageChoice);
         if(PengramConfig.getIntCached(PengramProfileHistory.KEY_STORAGE,0)!=PengramProfileHistory.STORAGE_LOCAL){addChoice(R.string.PengramProfileCloudFormat,cloudFormatName(),this::showCloudFormatChoice);addAction(R.string.PengramProfileCloudRecreate,()->new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileCloudRecreate)).setMessage(getString(R.string.PengramProfileCloudRecreateInfo)).setPositiveButton(getString(R.string.OK),(d,w)->org.telegram.messenger.PengramProfileCloud.recreateChannel(currentAccount)).setNegativeButton(getString(R.string.Cancel),null).show());}
         addChoice(R.string.PengramProfileHistoryScope,scopeName(),this::showScopeChoice);
@@ -91,5 +97,29 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
     private void showTimeLimitChoice(){String[] a=new String[TIME_LIMITS.length];for(int i=0;i<a.length;i++)a[i]=timeName(TIME_LIMITS[i]);new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileLimitTime)).setItems(a,(d,w)->{PengramConfig.setIntValue(PengramProfileHistory.KEY_LIMIT_DAYS,TIME_LIMITS[w]);PengramProfileHistory.applyRetentionNow();rebuild();}).show();}
     private void showStorageChoice(){String[] a={getString(R.string.PengramProfileStorageLocal),getString(R.string.PengramProfileStorageCloud),getString(R.string.PengramProfileStorageBoth)};new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileHistoryStorage)).setItems(a,(d,w)->{PengramConfig.setIntValue(PengramProfileHistory.KEY_STORAGE,w);PengramConfig.setBool(PengramProfileHistory.KEY_ENABLED,true);if(w>0)org.telegram.messenger.PengramProfileCloud.schedule(currentAccount);rebuild();}).setNegativeButton(getString(R.string.Cancel),null).show();}
     private void showScopeChoice(){String[] a={getString(R.string.PengramProfileScopeManual),getString(R.string.PengramProfileScopeInteracted),getString(R.string.PengramProfileScopeContacts),getString(R.string.PengramProfileScopeAll)};new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileHistoryScope)).setItems(a,(d,w)->{PengramConfig.setIntValue(PengramProfileHistory.KEY_SCOPE,w);rebuild();}).show();}
-    private void showDisableChoice(){String[] choices={getString(R.string.PengramProfileDisableKeep),getString(R.string.PengramProfileDisableLocal),getString(R.string.PengramProfileDisableAll)};new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileHistoryDisable)).setMessage(getString(R.string.PengramProfileHistoryDisableInfo)).setItems(choices,(d,which)->{PengramConfig.setBool(PengramProfileHistory.KEY_ENABLED,false);if(which>=1)PengramProfileHistory.clearLocal();if(which==2)org.telegram.messenger.PengramProfileCloud.deleteCloud(currentAccount);rebuild();}).setNegativeButton(getString(R.string.Cancel),null).show();}
+    private void retryCloudDelete() {
+        org.telegram.messenger.PengramProfileCloud.deleteCloud(currentAccount, success -> {
+            if (getParentActivity() == null) return;
+            rebuild();
+            new AlertDialog.Builder(getParentActivity())
+                    .setTitle(getString(success ? R.string.PengramProfileCloudDeleted
+                            : R.string.PengramProfileCloudDeleteFailed))
+                    .setMessage(getString(success ? R.string.PengramProfileCloudDeletedInfo
+                            : R.string.PengramProfileCloudDeleteFailedInfo))
+                    .setPositiveButton(getString(R.string.OK), null).show();
+        });
+    }
+    private void showDisableChoice(){
+        String[] choices={getString(R.string.PengramProfileDisableKeep),getString(R.string.PengramProfileDisableLocal),getString(R.string.PengramProfileDisableAll)};
+        new AlertDialog.Builder(getContext()).setTitle(getString(R.string.PengramProfileHistoryDisable))
+                .setMessage(getString(R.string.PengramProfileHistoryDisableInfo)).setItems(choices,(d,which)->{
+                    PengramConfig.setBool(PengramProfileHistory.KEY_ENABLED,false);
+                    // Even "keep local data" must revoke consent to upload unsent payloads.
+                    for (int account=0;account<org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT;account++)
+                        org.telegram.messenger.PengramProfileCloud.discardPending(account);
+                    if(which>=1)PengramProfileHistory.clearLocal();
+                    if(which==2)retryCloudDelete();
+                    rebuild();
+                }).setNegativeButton(getString(R.string.Cancel),null).show();
+    }
 }

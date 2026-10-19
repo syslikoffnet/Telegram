@@ -463,6 +463,8 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        PengramAIAutoReply.clearAccount(currentAccount);
+        PengramProfileHistory.clearAccount(currentAccount);
         PengramConfig.clearSpyProfile(currentAccount);
         PengramHistory.clearAccount(currentAccount);
         getPreferences().edit().clear().apply();
