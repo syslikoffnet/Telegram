@@ -112,6 +112,8 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramQuoteRadius) {
             tags.append(" радиус скругления карточки цитаты quote corner");
         }
+        if (id == R.string.PengramSendStyle) tags.append(" шрифт писать написание жирный курсив моно цитата font bold italic quote");
+        if (id == R.string.PengramSendStyleLargeEmoji) tags.append(" смайлы маленькие крупные эмодзи шрифт big emoji");
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
         if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
         // This is a storage limit for profile HISTORY, not an avatar-size control.

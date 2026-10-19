@@ -115,6 +115,8 @@ public class PengramConfig {
     public static int sendTextStyle = SEND_STYLE_OFF;
     /** применять стиль и к подписям к фото/видео */
     public static final String KEY_SEND_STYLE_CAPTIONS = "sendStyleCaptions";
+    /** оставлять сообщение только из эмодзи без автоматического форматирования */
+    public static final String KEY_SEND_STYLE_LARGE_EMOJI = "sendStyleLargeEmoji";
 
     // --- пересылка ---
     /** прятать ленту историй в списке чатов */
@@ -2159,6 +2161,7 @@ public class PengramConfig {
     public static int getSendTextStyle() { init(); return sendTextStyle; }
     public static void setSendTextStyle(int style) { init(); sendTextStyle = style; putInt("sendTextStyle", style); }
     public static boolean isSendStyleForCaptions() { return getBool(KEY_SEND_STYLE_CAPTIONS, true); }
+    public static boolean isSendStyleLargeEmoji() { return getBool(KEY_SEND_STYLE_LARGE_EMOJI, true); }
     public static boolean isForwardLockEnabled() { return getBool(KEY_FORWARD_LOCK, true); }
     public static boolean isHidingStories() { return getBool(KEY_HIDE_STORIES, false); }
     public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
@@ -2400,7 +2403,7 @@ public class PengramConfig {
             "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia",
             "editHistoryOpenMark", "editHistoryOpenMenu", "saveForMyselfDefault",
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
-            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendTextStyle",
+            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",
             "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",

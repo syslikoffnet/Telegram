@@ -876,7 +876,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_TYPING:
-                return new String[]{"inputAnimation*", "typing*"};
+                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
             case SECTION_CHATS:
@@ -885,7 +885,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS:
                 return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
-                        "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions",
+                        "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji",
                         "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
                         "forward*", "trackForward*"};
             case SECTION_FREEDOM:
@@ -895,7 +895,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "trackForward*"};
             case SECTION_GENERAL:
                 return new String[]{"noNumberRounding", "timeWithSeconds", "inAppVibration", "zalgoFilter",
-                        "quickAction*", "sendTextStyle"};
+                        "quickAction*"};
             case SECTION_CUSTOM:
                 return new String[]{"deletedMark", "editedMark", "deleteEffect*", "markEdited",
                         "fadeDeleted", "keepDeletedInChat"};
@@ -1914,8 +1914,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
                 getString(R.string.PengramSectionFreedom), null));
         items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
-                getString(R.string.PengramSectionGeneral),
-                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF ? "" : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+                getString(R.string.PengramSectionGeneral), null));
         items.add(sectionRow(BTN_VISUAL_EDITOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_customize,
                 getString(R.string.PengramEditor), getString(R.string.PengramEditorPreviewEntry)));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
@@ -1943,14 +1942,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS, false, getString(R.string.PengramShowAccountsSettings), getString(R.string.PengramShowAccountsSettingsInfo)));
         items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), zalgoInfo()));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
-
-        items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
-        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit, getString(R.string.PengramSendStyle),
-                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
-        if (PengramConfig.getSendTextStyle() != PengramConfig.SEND_STYLE_OFF) {
-            items.add(check(PengramConfig.KEY_SEND_STYLE_CAPTIONS, true, getString(R.string.PengramSendStyleCaptions)));
-        }
-        items.add(UItem.asShadow(sendStyleInfo()));
 
         items.add(UItem.asHeader(getString(R.string.PengramSystemHeader)));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
@@ -3539,7 +3530,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
                 getString(R.string.PengramSubsectionMessages), ""));
         items.add(sectionRow(BTN_SECTION_TYPING, IconBackgroundColors.GREEN, R.drawable.msg_customize,
-                getString(R.string.PengramTypingSection), inputAnimationName()));
+                getString(R.string.PengramTypingSection),
+                PengramConfig.getSendTextStyle() == PengramConfig.SEND_STYLE_OFF
+                        ? inputAnimationName() : getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
                 getString(R.string.PengramQuoteSection), ""));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
@@ -3736,6 +3729,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillTyping(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
+        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit, getString(R.string.PengramSendStyle),
+                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+        if (PengramConfig.getSendTextStyle() != PengramConfig.SEND_STYLE_OFF) {
+            items.add(checkInfo(PengramConfig.KEY_SEND_STYLE_LARGE_EMOJI, true,
+                    getString(R.string.PengramSendStyleLargeEmoji), getString(R.string.PengramSendStyleLargeEmojiInfo)));
+            items.add(check(PengramConfig.KEY_SEND_STYLE_CAPTIONS, true, getString(R.string.PengramSendStyleCaptions)));
+        }
+        items.add(UItem.asShadow(sendStyleInfo()));
+
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
         if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
         if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }

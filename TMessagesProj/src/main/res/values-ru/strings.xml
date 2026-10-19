@@ -682,8 +682,10 @@
     <string name="PengramTabHidden">Кнопка скрыта</string>
     <string name="PengramTabVisible">Кнопка показывается</string>
     <string name="PengramSendStyleHeader">Отправляемый текст</string>
-    <string name="PengramSendStyle">Стиль текста</string>
+    <string name="PengramSendStyle">Стиль отправки</string>
     <string name="PengramSendStyleCaptions">Применять к подписям медиа</string>
+    <string name="PengramSendStyleLargeEmoji">Крупные эмодзи вместо автостиля</string>
+    <string name="PengramSendStyleLargeEmojiInfo">Если сообщение состоит только из эмодзи, не добавлять автостиль. В Telegram должны быть включены крупные эмодзи. Ручное форматирование не меняется.</string>
     <string name="PengramSendStyleInfo">Всё, что вы отправляете, оформляется автоматически — как если бы вы каждый раз выбирали стиль вручную.</string>
     <string name="PengramSendStyleExample">Ваши сообщения будут выглядеть так:</string>
     <string name="PengramSendStyleSample">Привет, Pengram!</string>
@@ -1054,7 +1056,7 @@
     <string name="PengramAIDraftChanged">Черновик изменился. Скопируйте ответ или добавьте его к текущему тексту.</string>
     <string name="PengramAITitle">ИИ · настройки</string>
     <string name="PengramAIEmptyValue">не настроено</string>
-    <string name="PengramTypingSection">Ввод, эффекты и скорость</string>
+    <string name="PengramTypingSection">Набор и отправка текста</string>
     <string-array name="pengram_quote_styles">
         <item>По теме чата</item>
         <item>Синий</item>

@@ -4575,7 +4575,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
                         sendMessageParams.entities = entities;
                     }
                 } else if (caption != null && PengramConfig.isSendStyleForCaptions()) {
-                    final PengramTextStyle.Styled styled = PengramTextStyle.apply(caption, entities);
+                    final PengramTextStyle.Styled styled = PengramTextStyle.apply(caption, entities, false);
                     if (styled != null) {
                         caption = styled.text;
                         entities = styled.entities;

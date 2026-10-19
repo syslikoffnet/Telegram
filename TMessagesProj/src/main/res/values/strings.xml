@@ -11686,8 +11686,10 @@
     <string name="PengramTabHidden">Button hidden</string>
     <string name="PengramTabVisible">Button is shown</string>
     <string name="PengramSendStyleHeader">Sent text</string>
-    <string name="PengramSendStyle">Text style</string>
+    <string name="PengramSendStyle">Sending style</string>
     <string name="PengramSendStyleCaptions">Apply to media captions</string>
+    <string name="PengramSendStyleLargeEmoji">Large emoji instead of auto-style</string>
+    <string name="PengramSendStyleLargeEmojiInfo">Skip auto-formatting for emoji-only messages. Requires Telegram's Large Emoji setting. Manually formatted text is unchanged.</string>
     <string name="PengramSendStyleInfo">Everything you send gets formatted automatically — just like picking a style by hand in Telegram.</string>
     <string name="PengramSendStyleExample">Your messages will look like:</string>
     <string name="PengramSendStyleSample">Hello, Pengram!</string>
@@ -12058,7 +12060,7 @@
     <string name="PengramAIDraftChanged">Draft changed. Copy the answer or append it to the current text.</string>
     <string name="PengramAITitle">AI · settings</string>
     <string name="PengramAIEmptyValue">not set up</string>
-    <string name="PengramTypingSection">Typing, effects and speed</string>
+    <string name="PengramTypingSection">Typing and sending text</string>
     <string-array name="pengram_quote_styles">
         <item>Match chat theme</item>
         <item>Blue</item>
