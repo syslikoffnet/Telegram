@@ -383,6 +383,7 @@ public class PengramConfig {
                 boolCache.remove(key);
                 intCache.remove(key);
             }
+            return true;
         }
 
         public void discard() {

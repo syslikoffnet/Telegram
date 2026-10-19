@@ -65,6 +65,7 @@ def check():
     assert "((MainTabsActivity) fragment).checkPengramTabs();" in EDITOR
     assert "if (!visualDraft.save())" in EDITOR and "showSaveError();" in EDITOR
     assert "if (!editor.commit()) return false;" in CONFIG
+    assert "return true;\n        }\n\n        public void discard()" in CONFIG
     assert "renderSettingsSearchResults(results, settingsSearchQuery)" in PREVIEW
     assert "PengramSearchMetadata.matches(entry, terms)" in PREVIEW
     assert "settingsSection = entry[1];" in PREVIEW
