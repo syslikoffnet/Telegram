@@ -25,6 +25,10 @@ assert 'msg.message = "🗑 " + (matched == null ? "" : matched)' in adapter
 # Local hits must not force Telegram's full-screen results list open while typing.
 assert '() -> showMessagesSearchListView(true)' not in chat
 assert 'getLocalDeletedAt' in adapter and 'localDeletedNavigation' in chat
+assert 'deletedSearchShortcut' not in chat
+assert 'jumpToFirstRetainedDeleted(query, 0)' in chat
+assert 'searchCountText.setVisibility(localDeletedNavigation ? View.GONE : View.VISIBLE)' in chat
+assert 'messagesSearchAdapter.getLocalDeletedAt(index) != hit' in chat
 assert 'hasLocalMessage(entry.dialogId, entry.messageId' in chat
 assert 'navigateToDeletedSearchResult(deleted)' in chat
 for locale in ('values', 'values-ru'):

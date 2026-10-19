@@ -75,6 +75,10 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
     private Runnable localSearchTask;
     private boolean localNeedsRefresh;
 
+    public String getLocalQuery() {
+        return localQuery;
+    }
+
     public int getLocalDeletedCount() {
         return localDeleted.size();
     }

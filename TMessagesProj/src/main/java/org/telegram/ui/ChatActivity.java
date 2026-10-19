@@ -11704,38 +11704,7 @@ public class ChatActivity extends BaseFragment implements
         searchCountText.setTypeface(AndroidUtilities.bold());
         searchCountText.setTextColor(getThemedColor(Theme.key_chat_searchPanelText));
         searchCountText.setGravity(Gravity.LEFT);
-        // In a local-only search, tap the counter to open the first saved hit.
-        searchCountText.setOnClickListener(v -> {
-            if (localDeletedNavigation && messagesSearchAdapter != null) {
-                int index = Math.max(0, localDeletedSearchIndex);
-                PengramHistory.Entry hit = messagesSearchAdapter.getLocalDeletedAt(index);
-                if (hit != null) {
-                    localDeletedSearchIndex = index;
-                    updateSearchButtons(0, index, 0);
-                    navigateToDeletedSearchResult(hit);
-                }
-            }
-        });
         searchContainer.addView(searchCountText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.CENTER_VERTICAL, 0, -1, 97.33f, 0));
-
-        // Compact direct access to preserved hits even when ordinary server
-        // results also exist. No auto-expanded result list and no extra screen.
-        deletedSearchShortcut = new TextView(getContext());
-        deletedSearchShortcut.setGravity(Gravity.CENTER);
-        deletedSearchShortcut.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        deletedSearchShortcut.setTextColor(getThemedColor(Theme.key_chat_searchPanelText));
-        deletedSearchShortcut.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector)));
-        deletedSearchShortcut.setOnClickListener(v -> {
-            if (messagesSearchAdapter == null) return;
-            int count = messagesSearchAdapter.getLocalDeletedCount();
-            if (count == 0) return;
-            localDeletedSearchIndex = (localDeletedSearchIndex + 1) % count;
-            PengramHistory.Entry hit = messagesSearchAdapter.getLocalDeletedAt(localDeletedSearchIndex);
-            navigateToDeletedSearchResult(hit);
-            if (localDeletedNavigation) updateSearchButtons(0, localDeletedSearchIndex, 0);
-        });
-        searchContainer.addView(deletedSearchShortcut, LayoutHelper.createFrame(76, 35, Gravity.CENTER));
-        updateDeletedSearchShortcut();
         chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, 7, 0, 7, 0));
 
         searchExpandList = new AnimatedTextView(getContext(), true, false, true);
@@ -28582,31 +28551,54 @@ public class ChatActivity extends BaseFragment implements
         showInfoHint(messageObject, text, 0);
     }
 
-    private TextView deletedSearchShortcut;
-
-    private void updateDeletedSearchShortcut() {
-        if (deletedSearchShortcut == null) return;
-        int count = messagesSearchAdapter == null || searchType != 0 || TextUtils.isEmpty(searchingQuery)
-                ? 0 : messagesSearchAdapter.getLocalDeletedCount();
-        deletedSearchShortcut.setVisibility(count > 0 ? View.VISIBLE : View.GONE);
-        if (count > 0) {
-            deletedSearchShortcut.setText("🗑 " + count);
-            deletedSearchShortcut.setContentDescription(getString(R.string.PengramHistoryFilterDeleted) + ": " + count);
-        }
-    }
-
     private int localDeletedSearchIndex = -1;
     private boolean localDeletedNavigation;
+
+    private boolean isCurrentLocalDeletedQuery(String query) {
+        return searchItem != null && searchItem.getSearchField() != null
+                && TextUtils.equals(query, searchItem.getSearchField().getText().toString().trim());
+    }
 
     private void onLocalDeletedSearchResults() {
         if (messagesSearchAdapter == null || searchType != 0) return;
         localDeletedSearchIndex = -1;
-        updateDeletedSearchShortcut();
-        // Never open the results list just because a local result arrived. Use
-        // the ordinary compact search counter/arrows, not a second search UI.
+        final String query = messagesSearchAdapter.getLocalQuery();
+        if (!isCurrentLocalDeletedQuery(query)) return;
+        // Keep Telegram's search-in-chat view. Never open a result list or a
+        // separate archive while the user is still typing.
         if (getMediaDataController().getSearchCount() == 0) {
             updateSearchButtons(0, 0, 0);
         }
+        if (chatMode != MODE_SEARCH && !TextUtils.isEmpty(query)) {
+            jumpToFirstRetainedDeleted(query, 0);
+        }
+    }
+
+    /** Navigate directly to a preserved bubble in the real chat. Only the
+     * storage queue checks cached ids; stale asynchronous searches cannot jump. */
+    private void jumpToFirstRetainedDeleted(String query, int index) {
+        if (messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
+                || index >= messagesSearchAdapter.getLocalDeletedCount()) return;
+        PengramHistory.Entry hit = messagesSearchAdapter.getLocalDeletedAt(index);
+        if (hit == null || hit.dialogId != dialog_id || hit.account != currentAccount) {
+            jumpToFirstRetainedDeleted(query, index + 1);
+            return;
+        }
+        final long owner = getUserConfig().getClientUserId();
+        if (owner == 0) return;
+        getMessagesStorage().hasLocalMessage(hit.dialogId, hit.messageId, found -> {
+            if (getParentActivity() == null || getUserConfig().getClientUserId() != owner
+                    || messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
+                    || messagesSearchAdapter.getLocalDeletedAt(index) != hit) return;
+            if (found) {
+                localDeletedSearchIndex = index;
+                if (localDeletedNavigation) updateSearchButtons(0, index, 0);
+                showMessagesSearchListView(false);
+                scrollToMessageId(hit.messageId, 0, true, 0, true, 0);
+            } else {
+                jumpToFirstRetainedDeleted(query, index + 1);
+            }
+        });
     }
 
     private void navigateToDeletedSearchResult(PengramHistory.Entry entry) {
@@ -28644,8 +28636,7 @@ public class ChatActivity extends BaseFragment implements
             count = messagesSearchAdapter.getLocalDeletedCount();
             localDeletedSearchIndex = Math.min(localDeletedSearchIndex, count - 1);
             num = Math.max(0, localDeletedSearchIndex);
-            // First UP opens the initial local result, then UP/DOWN traverse
-            // the remaining hits in the same date order as Telegram search.
+            // Local-only hits use Telegram's existing arrows, not another badge.
             mask = (localDeletedSearchIndex + 1 < count ? (reversed ? 2 : 1) : 0)
                     | (localDeletedSearchIndex > 0 ? (reversed ? 1 : 2) : 0);
         }
@@ -28656,6 +28647,11 @@ public class ChatActivity extends BaseFragment implements
         searchLastCount = count;
         searchLastIndex = num;
         updateSearchCountText();
+        if (searchCountText != null) {
+            // No separate counter for preserved deletions. Keep the original
+            // counter unchanged for ordinary search results.
+            searchCountText.setVisibility(localDeletedNavigation ? View.GONE : View.VISIBLE);
+        }
         if (searchExpandList != null) {
             searchExpandList.setClickable(count > 0);
             searchExpandList.animate().alpha(count > 0 ? 1f : 0.5f).start();
@@ -40556,7 +40552,6 @@ public class ChatActivity extends BaseFragment implements
                 messagesSearchAdapter.searchLocalDeleted(editText.getText().toString(), dialog_id, mergeDialogId,
                         threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
                         ChatActivity.this::onLocalDeletedSearchResults);
-                updateDeletedSearchShortcut();
             }
             if (searchingHashtag == null) {
                 showMessagesSearchListView(false);
