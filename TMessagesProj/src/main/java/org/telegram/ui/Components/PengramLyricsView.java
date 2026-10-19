@@ -230,12 +230,13 @@ public class PengramLyricsView extends View {
 
     public void setProgress(float progress) {
         this.progress = Math.max(0, Math.min(1, progress));
-        final long sample = (long) (this.progress * durationMs);
+        final long sample = PengramLyricsTiming.sample((long) (this.progress * durationMs),
+                PengramConfig.isLyricsSmooth(), timed && !previewMode);
         if (sample != progressMs || progressTime == 0) {
             progressMs = sample;
             progressTime = android.os.SystemClock.elapsedRealtime();
+            invalidate();
         }
-        invalidate();
     }
 
     /**

@@ -12392,7 +12392,7 @@
     <string name="PengramLyricsStretch">Fit sped up and slowed versions</string>
     <string name="PengramLyricsStretchInfo">Fit timed lyrics to sped-up or slowed-down tracks using the source duration (or an estimate from the last timestamp). Off keeps the original timestamps.</string>
     <string name="PengramLyricsSmooth">Smooth highlight</string>
-    <string name="PengramLyricsSmoothInfo">On: letters advance continuously between player updates. Off: the highlight pauses and advances only when the player reports progress.</string>
+    <string name="PengramLyricsSmoothInfo">On: letters advance continuously between player updates. Off: the highlight pauses and advances in half-second steps.</string>
     <string name="PengramLyricsSyncButtons">Shift buttons in the player</string>
     <string name="PengramLyricsOffset">Shift for all tracks</string>
     <string name="PengramLyricsOffsetInfo">Minus — the lyrics come earlier, plus — later. A single track can be shifted in the player itself.</string>

@@ -20,6 +20,13 @@ public final class PengramLyricsTiming {
         return ratio;
     }
 
+    /** Telegram reports music progress every 17 ms. Merely stopping our own
+     * interpolation would still look smooth; the off mode must visibly hold
+     * each highlight frame until the next half-second step. */
+    public static long sample(long playerMs, boolean smooth, boolean timed) {
+        return !smooth && timed && playerMs > 0 ? playerMs / 500 * 500 : playerMs;
+    }
+
     /** With smoothing disabled, the timestamp never advances between player
      * progress events. With it enabled, interpolate at the actual playback rate. */
     public static long position(long sampleMs, long sampledAtMs, long nowMs,

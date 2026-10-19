@@ -17,6 +17,12 @@ public class PengramLyricsTimingTest {
         close(PengramLyricsTiming.scale(true, true, 120_000, 0, 98_000), 120_000f / 101_000f);
         close(PengramLyricsTiming.scale(true, true, 120_000, 0, 10_000), 1f);
         close(PengramLyricsTiming.scale(true, true, 120_000, 120_000, 115_000), 1f);
+        if (PengramLyricsTiming.sample(10_439, false, true) != 10_000
+                || PengramLyricsTiming.sample(10_501, false, true) != 10_500
+                || PengramLyricsTiming.sample(10_439, true, true) != 10_439
+                || PengramLyricsTiming.sample(10_439, false, false) != 10_439) {
+            throw new AssertionError("Stepped mode must be visible even with 17 ms player updates");
+        }
         if (PengramLyricsTiming.position(10_000, 1_000, 1_800, false, true, 1.5f) != 10_000
                 || PengramLyricsTiming.position(10_000, 1_000, 1_800, true, false, 1.5f) != 10_000
                 || PengramLyricsTiming.position(10_000, 1_000, 1_800, true, true, 1.5f) != 11_200

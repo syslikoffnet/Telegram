@@ -16,6 +16,7 @@ for key, method in [('KEY_LYRICS_STRETCH', 'isLyricsStretch'),
 assert 'updateTimeScale();' in view and 'stretchEnabled != PengramConfig.isLyricsStretch()' in view
 assert 'if (lyricsLength > 0) return lyricsLength;' in view
 assert 'PengramLyricsTiming.position(value, progressTime' in view
+assert 'PengramLyricsTiming.sample((long) (this.progress * durationMs)' in view
 assert 'if (smooth && durationMs > 0)' in view
 assert 'boolean interpolate = previewMode || !timed || PengramConfig.isLyricsSmooth()' in view
 assert 'PengramLyricsTiming.seekFraction(time + PengramLyrics.getOffset(offsetKey), timeScale, durationMs)' in view

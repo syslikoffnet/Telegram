@@ -1388,7 +1388,7 @@
     <string name="PengramLyricsStretch">Подгонять ускоренные и замедленные версии</string>
     <string name="PengramLyricsStretchInfo">Для текста с таймкодами подгоняет их к ускоренному или замедленному треку по длине исходника (либо оценке последней строки). Выключено — исходные таймкоды без подгонки.</string>
     <string name="PengramLyricsSmooth">Плавная подсветка</string>
-    <string name="PengramLyricsSmoothInfo">Включено — буквы подсвечиваются непрерывно между обновлениями плеера. Выключено — подсветка замирает и движется только при обновлении прогресса.</string>
+    <string name="PengramLyricsSmoothInfo">Включено — буквы подсвечиваются непрерывно между обновлениями плеера. Выключено — подсветка замирает и двигается шагами по полсекунды.</string>
     <string name="PengramLyricsSyncButtons">Кнопки сдвига в плеере</string>
     <string name="PengramLyricsOffset">Сдвиг для всех треков</string>
     <string name="PengramLyricsOffsetInfo">Минус — текст идёт раньше, плюс — позже. Отдельный трек можно сдвинуть прямо в плеере.</string>
