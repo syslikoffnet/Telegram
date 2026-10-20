@@ -22,15 +22,34 @@ assert 'getEntries(dialogId, filter, limit, query, singleMessageId, true, curren
 assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
 assert 'm.getDialogId() + ":" + m.getId()' in adapter
 assert 'msg.message = "🗑 " + (matched == null ? "" : matched)' in adapter
+# An ordinary hit can share the archived id. Keep one result, but make it
+# an archived hit so clicking never opens a different server message.
+assert 'positions.put(m.getDialogId() + ":" + m.getId(), i)' in adapter
+assert 'searchResultMessages.set(position, object)' in adapter
+assert 'deletedResults.put(object, e)' in adapter
+assert 'seenDeleted.contains(key)' in adapter
 # Local hits must not force Telegram's full-screen results list open while typing.
 assert '() -> showMessagesSearchListView(true)' not in chat
 assert 'getLocalDeletedAt' in adapter and 'localDeletedNavigation' in chat
 assert 'deletedSearchShortcut' not in chat
 assert 'jumpToFirstRetainedDeleted(query, 0)' in chat
-assert 'loaded.pengramDeleted && loaded.getDialogId() == hit.dialogId' in chat
+readable = chat.split('private boolean isReadableDeletedBubble(', 1)[1].split('private void jumpToFirstRetainedDeleted(', 1)[0]
+assert 'loaded.pengramDeleted' in readable
+assert 'TextUtils.equals(loaded.messageOwner.message, entry.text)' in readable
+jump = chat.split('private void jumpToFirstRetainedDeleted(', 1)[1].split('private void navigateToDeletedSearchResult(', 1)[0]
+assert 'isReadableDeletedBubble(messagesDict[0].get(hit.messageId), hit, query)' in jump
+assert 'hasLocalMessage(' not in jump and 'scrollToMessageId(hit.messageId' in jump
+navigate = chat.split('private void navigateToDeletedSearchResult(', 1)[1].split('private void updateSearchButtons(', 1)[0]
+assert 'isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)' in navigate
+assert 'hasLocalMessage(' not in navigate and 'ChatActivity.of(' not in navigate
+assert 'PengramHistoryChatActivity.MODE_DELETED, entry.messageId, entry.rowId, query' in navigate
+assert 'reader.setCurrentAccount(currentAccount)' in navigate
 assert 'searchCountText.setVisibility(localDeletedNavigation ? View.GONE : View.VISIBLE)' in chat
-assert 'messagesSearchAdapter.getLocalDeletedAt(index) != hit' in chat
-assert 'hasLocalMessage(entry.dialogId, entry.messageId' in chat
+assert 'focusedRowId = focusedRowId' in screen
+assert 'searchItem.setSearchFieldText(searchQuery, false)' in screen
+assert 'items.get(i).entry.rowId == focusedRowId' in screen
+assert '&& !TextUtils.isEmpty(entry.prevText)' in screen
+assert '(count == 0 || localDeletedSearchIndex >= 0)' in chat
 assert 'navigateToDeletedSearchResult(deleted)' in chat
 for locale in ('values', 'values-ru'):
     resources = ET.parse(root / f'TMessagesProj/src/main/res/{locale}/strings.xml')

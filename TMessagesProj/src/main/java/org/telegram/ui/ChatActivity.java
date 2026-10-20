@@ -28575,72 +28575,66 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    /** Navigate directly to a preserved bubble in the real chat. Only the
-     * storage queue checks cached ids; stale asynchronous searches cannot jump. */
+    /** Only navigate inside the live chat when that exact archived text is
+     * already visible as a retained ghost. An id in messages_v2 alone proves
+     * nothing: it may resolve to an ordinary or updated server message. */
+    private boolean isReadableDeletedBubble(MessageObject loaded, PengramHistory.Entry entry, String query) {
+        if (loaded == null || entry == null || !loaded.pengramDeleted || loaded.messageOwner == null
+                || loaded.getDialogId() != entry.dialogId || !TextUtils.equals(loaded.messageOwner.message, entry.text)) {
+            return false;
+        }
+        return TextUtils.isEmpty(query) || !TextUtils.isEmpty(entry.text)
+                && entry.text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** While typing, jump only to an already loaded and readable ghost.
+     * Do not scroll to an archived id that could load an ordinary message. */
     private void jumpToFirstRetainedDeleted(String query, int index) {
         if (messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
                 || index >= messagesSearchAdapter.getLocalDeletedCount()) return;
         PengramHistory.Entry hit = messagesSearchAdapter.getLocalDeletedAt(index);
-        if (hit == null || hit.dialogId != dialog_id || hit.account != currentAccount) {
-            jumpToFirstRetainedDeleted(query, index + 1);
-            return;
-        }
-        final long owner = getUserConfig().getClientUserId();
-        if (owner == 0) return;
-        MessageObject loaded = messagesDict[0].get(hit.messageId);
-        if (loaded != null && loaded.pengramDeleted && loaded.getDialogId() == hit.dialogId) {
+        if (hit != null && hit.dialogId == dialog_id && hit.account == currentAccount
+                && isReadableDeletedBubble(messagesDict[0].get(hit.messageId), hit, query)) {
             localDeletedSearchIndex = index;
             if (localDeletedNavigation) updateSearchButtons(0, index, 0);
             showMessagesSearchListView(false);
             scrollToMessageId(hit.messageId, 0, true, 0, true, 0);
-            return;
+        } else {
+            jumpToFirstRetainedDeleted(query, index + 1);
         }
-        getMessagesStorage().hasLocalMessage(hit.dialogId, hit.messageId, found -> {
-            if (getParentActivity() == null || getUserConfig().getClientUserId() != owner
-                    || messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
-                    || messagesSearchAdapter.getLocalDeletedAt(index) != hit) return;
-            if (found) {
-                localDeletedSearchIndex = index;
-                if (localDeletedNavigation) updateSearchButtons(0, index, 0);
-                showMessagesSearchListView(false);
-                scrollToMessageId(hit.messageId, 0, true, 0, true, 0);
-            } else {
-                jumpToFirstRetainedDeleted(query, index + 1);
-            }
-        });
     }
 
     private void navigateToDeletedSearchResult(PengramHistory.Entry entry) {
-        if (entry == null || entry.account != currentAccount || getParentActivity() == null) return;
-        // First check the account's on-device Telegram cache on its own queue.
-        // An archived snapshot does not mean that its original is still there.
-        final long owner = getUserConfig().getClientUserId();
-        if (owner == 0) return;
-        getMessagesStorage().hasLocalMessage(entry.dialogId, entry.messageId, found -> {
-            if (getParentActivity() == null || currentAccount != entry.account
-                    || getUserConfig().getClientUserId() != owner) return;
-            if (found && entry.dialogId == dialog_id && chatMode != MODE_SEARCH) {
-                showMessagesSearchListView(false);
-                scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
-            } else if (found && (getMessagesController().getUser(entry.dialogId) != null
-                    || getMessagesController().getChat(-entry.dialogId) != null)) {
-                ChatActivity chat = ChatActivity.of(entry.dialogId, entry.messageId);
-                chat.setCurrentAccount(currentAccount);
-                presentFragment(chat);
-            } else {
-                // Never synthesize a Telegram message or ask the server to load a
-                // deleted id. Display the preserved snapshot in the local reader.
-                PengramHistoryChatActivity reader = new PengramHistoryChatActivity(entry.dialogId,
-                        PengramHistoryChatActivity.MODE_DELETED, entry.messageId);
-                reader.setCurrentAccount(currentAccount);
-                presentFragment(reader);
+        if (entry == null || entry.account != currentAccount || getParentActivity() == null
+                || getUserConfig().getClientUserId() == 0) return;
+        if (messagesSearchAdapter != null && searchType == 0) {
+            for (int i = 0; i < messagesSearchAdapter.getLocalDeletedCount(); i++) {
+                if (messagesSearchAdapter.getLocalDeletedAt(i) == entry) {
+                    localDeletedSearchIndex = i;
+                    updateSearchButtons(0, i, 0);
+                    break;
+                }
             }
-        });
+        }
+        final String query = messagesSearchAdapter != null ? messagesSearchAdapter.getLocalQuery() : "";
+        if (entry.dialogId == dialog_id && chatMode != MODE_SEARCH
+                && isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)) {
+            showMessagesSearchListView(false);
+            scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
+            return;
+        }
+        // This hit is an archived snapshot, not a server message. Show that
+        // snapshot even if an ordinary cached message happens to have its id.
+        PengramHistoryChatActivity reader = new PengramHistoryChatActivity(entry.dialogId,
+                PengramHistoryChatActivity.MODE_DELETED, entry.messageId, entry.rowId, query);
+        reader.setCurrentAccount(currentAccount);
+        presentFragment(reader);
     }
 
     private void updateSearchButtons(int mask, int num, int count) {
-        localDeletedNavigation = searchType == 0 && count == 0 && messagesSearchAdapter != null
-                && messagesSearchAdapter.getLocalDeletedCount() > 0 && !TextUtils.isEmpty(searchingQuery);
+        localDeletedNavigation = searchType == 0 && (count == 0 || localDeletedSearchIndex >= 0)
+                && messagesSearchAdapter != null && messagesSearchAdapter.getLocalDeletedCount() > 0
+                && !TextUtils.isEmpty(searchingQuery);
         if (localDeletedNavigation) {
             count = messagesSearchAdapter.getLocalDeletedCount();
             localDeletedSearchIndex = Math.min(localDeletedSearchIndex, count - 1);

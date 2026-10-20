@@ -58,6 +58,7 @@ import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 
@@ -224,12 +225,15 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         // Merge locally preserved deletions into the same dated result list. Keep
         // Telegram's server pagination untouched; local-only navigation is handled by the chat.
         if (searchType == 0 && !localDeleted.isEmpty()) {
-            HashSet<String> existing = new HashSet<>();
-            for (MessageObject m : searchResultMessages) {
-                existing.add(m.getDialogId() + ":" + m.getId());
+            HashMap<String, Integer> positions = new HashMap<>();
+            HashSet<String> seenDeleted = new HashSet<>();
+            for (int i = 0; i < searchResultMessages.size(); i++) {
+                MessageObject m = searchResultMessages.get(i);
+                positions.put(m.getDialogId() + ":" + m.getId(), i);
             }
             for (PengramHistory.Entry e : localDeleted) {
-                if (existing.contains(e.dialogId + ":" + e.messageId)) continue;
+                String key = e.dialogId + ":" + e.messageId;
+                if (seenDeleted.contains(key)) continue;
                 try {
                     TLRPC.TL_message msg = new TLRPC.TL_message();
                     msg.id = e.messageId;
@@ -254,8 +258,17 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                     MessageObject object = new MessageObject(currentAccount, msg, false, false);
                     object.pengramDeleted = true;
                     deletedResults.put(object, e);
-                    searchResultMessages.add(object);
-                    existing.add(e.dialogId + ":" + e.messageId);
+                    seenDeleted.add(key);
+                    // A server/cached hit can share the same id yet show a
+                    // different (or now missing) text. Prefer the archived hit
+                    // so tapping it never opens an unreadable ordinary message.
+                    Integer position = positions.get(key);
+                    if (position != null) {
+                        searchResultMessages.set(position, object);
+                    } else {
+                        positions.put(key, searchResultMessages.size());
+                        searchResultMessages.add(object);
+                    }
                 } catch (Throwable ignore) { // corrupt old history row must not break search
                 }
             }

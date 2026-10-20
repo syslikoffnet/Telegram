@@ -66,6 +66,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
     private final long dialogId;
     private final int mode;
     private final int singleMessageId;
+    private final long focusedRowId;
 
     private SizeNotifierFrameLayout contentView;
     private RecyclerListView listView;
@@ -94,12 +95,20 @@ public class PengramHistoryChatActivity extends BaseFragment {
         this(dialogId, mode, 0);
     }
 
-    /** @param singleMessageId != 0 — показываем историю правок одного сообщения */
+    /** @param singleMessageId != 0 — показываем версии одного сообщения */
     public PengramHistoryChatActivity(long dialogId, int mode, int singleMessageId) {
+        this(dialogId, mode, singleMessageId, 0, "");
+    }
+
+    /** Open the exact matching archived row from in-chat search. */
+    public PengramHistoryChatActivity(long dialogId, int mode, int singleMessageId,
+                                      long focusedRowId, String query) {
         super();
         this.dialogId = dialogId;
         this.mode = mode;
         this.singleMessageId = singleMessageId;
+        this.focusedRowId = focusedRowId;
+        this.searchQuery = query == null ? "" : query.trim();
     }
 
     @Override
@@ -217,6 +226,10 @@ public class PengramHistoryChatActivity extends BaseFragment {
         emptyView.setVisibility(View.GONE);
         contentView.addView(emptyView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 24, 0, 24, 0));
 
+        if (!TextUtils.isEmpty(searchQuery)) {
+            searchItem.openSearch(false);
+            searchItem.setSearchFieldText(searchQuery, false);
+        }
         reload();
         return fragmentView;
     }
@@ -346,7 +359,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
                     service = LocaleController.formatDateChat(date);
                 }
                 String text = TextUtils.isEmpty(entry.text) ? entry.prevText : entry.text;
-                if (!TextUtils.isEmpty(query) && entry.action == PengramHistory.ACTION_EDITED
+                if (!TextUtils.isEmpty(query)
                         && !TextUtils.isEmpty(entry.prevText)
                         && entry.prevText.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT))
                         && (TextUtils.isEmpty(text) || !text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT)))) {
@@ -373,7 +386,16 @@ public class PengramHistoryChatActivity extends BaseFragment {
             if (keepScroll && oldSize != 0 && firstVisible >= 0) {
                 layoutManager.scrollToPositionWithOffset(firstVisible + items.size() - oldSize, firstOffset);
             } else {
-                layoutManager.scrollToPosition(items.size() - 1);
+                int target = items.size() - 1;
+                if (focusedRowId != 0) {
+                    for (int i = 0; i < items.size(); i++) {
+                        if (items.get(i).entry.rowId == focusedRowId) {
+                            target = i;
+                            break;
+                        }
+                    }
+                }
+                layoutManager.scrollToPosition(target);
             }
         }
     }
