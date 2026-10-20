@@ -804,14 +804,13 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
-    public static void clearMarks(final long dialogId) {
+    /** Clear only this account's deletion marks; dialog IDs repeat across accounts. */
+    public static void clearMarks(final int account, final long dialogId) {
         synchronized (marksCache) {
             if (dialogId == 0) {
-                marksCache.clear();
+                marksCache.remove(account);
             } else {
-                for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
-                    accountMarks(account).remove(dialogId);
-                }
+                accountMarks(account).remove(dialogId);
             }
         }
         final PengramHistory history = getInstance();
@@ -819,9 +818,11 @@ public class PengramHistory extends SQLiteOpenHelper {
         executor.execute(() -> {
             try {
                 if (dialogId == 0) {
-                    history.getWritableDatabase().delete(TABLE_MARKS, null, null);
+                    history.getWritableDatabase().delete(TABLE_MARKS, "account = ?",
+                            new String[]{String.valueOf(account)});
                 } else {
-                    history.getWritableDatabase().delete(TABLE_MARKS, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
+                    history.getWritableDatabase().delete(TABLE_MARKS, "account = ? AND dialog_id = ?",
+                            new String[]{String.valueOf(account), String.valueOf(dialogId)});
                 }
             } catch (Throwable e) {
                 FileLog.e(e);
@@ -1114,22 +1115,22 @@ public class PengramHistory extends SQLiteOpenHelper {
      * @param ascending true — от старых к новым (как в чате)
      */
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending) {
-        return getEntries(dialogId, filter, limit, query, messageId, ascending, -1);
+        // Legacy callers still see only the selected account, never the shared
+        // SQLite archive of every signed-in account.
+        return getEntries(dialogId, filter, limit, query, messageId, ascending, UserConfig.selectedAccount);
     }
 
-    /** account >= 0 limits archive results to the active Telegram account. */
+    /** Archive queries always belong to one Telegram account. */
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending, int account) {
         ArrayList<Entry> result = new ArrayList<>();
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return result;
         final PengramHistory history = getInstance();
         if (history == null) return result;
         Cursor c = null;
         try {
-            StringBuilder where = new StringBuilder();
+            StringBuilder where = new StringBuilder("account = ?");
             ArrayList<String> args = new ArrayList<>();
-            if (account >= 0) {
-                where.append("account = ?");
-                args.add(String.valueOf(account));
-            }
+            args.add(String.valueOf(account));
             if (dialogId != 0) {
                 if (where.length() > 0) where.append(" AND ");
                 where.append("dialog_id = ?");
@@ -1511,19 +1512,22 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
-    public static void clear(final long dialogId) {
+    public static void clear(final int account, final long dialogId) {
         final PengramHistory history = getInstance();
-        clearMarks(dialogId);
+        clearMarks(account, dialogId);
         if (history == null) return;
         // Serialize explicit deletion behind earlier saves: a queued write must
-        // never resurrect rows after the user cleared this history.
+        // never resurrect rows after the user cleared this history. Never erase
+        // another account's archive when the same peer ID appears in both.
         executor.execute(() -> {
             try {
                 if (dialogId != 0) {
-                    history.getWritableDatabase().delete(TABLE, "dialog_id = ?", new String[]{String.valueOf(dialogId)});
+                    history.getWritableDatabase().delete(TABLE, "account = ? AND dialog_id = ?",
+                            new String[]{String.valueOf(account), String.valueOf(dialogId)});
                     invalidateCounts(dialogId);
                 } else {
-                    history.getWritableDatabase().delete(TABLE, null, null);
+                    history.getWritableDatabase().delete(TABLE, "account = ?",
+                            new String[]{String.valueOf(account)});
                     invalidateCounts(0);
                     vacuum(true);
                 }
@@ -1534,12 +1538,13 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
-    public static void deleteEntry(final long rowId) {
+    public static void deleteEntry(final int account, final long rowId) {
         final PengramHistory history = getInstance();
         if (history == null) return;
         executor.execute(() -> {
             try {
-                history.getWritableDatabase().delete(TABLE, "id = ?", new String[]{String.valueOf(rowId)});
+                history.getWritableDatabase().delete(TABLE, "account = ? AND id = ?",
+                        new String[]{String.valueOf(account), String.valueOf(rowId)});
                 invalidateCounts(0);
                 notifyChanged();
             } catch (Throwable e) {

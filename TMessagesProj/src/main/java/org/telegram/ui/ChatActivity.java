@@ -2320,8 +2320,9 @@ public class ChatActivity extends BaseFragment implements
             list.add(message);
         }
         try {
-            final int copyError = org.telegram.messenger.PengramCopySender.copyTargetError(
-                    currentAccount, targetDialogId, 0, 0);
+            final int copyError = targetDialogId == dialog_id && getTopicId() != 0 ? 25 :
+                    org.telegram.messenger.PengramCopySender.copyTargetError(
+                            currentAccount, targetDialogId, 0, 0);
             if (copyError != 0) {
                 AlertsCreator.showSendMediaAlert(copyError, this, themeDelegate);
                 return;
@@ -2514,10 +2515,16 @@ public class ChatActivity extends BaseFragment implements
         args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
         args.putBoolean("canSelectTopics", true);
         final DialogsActivity fragment = new DialogsActivity(args);
+        fragment.setCurrentAccount(currentAccount);
         fragment.setDelegate((dialogsFragment, dids, message1, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            if (!TextUtils.isEmpty(message1)) {
+                AlertsCreator.showSendMediaAlert(26, this, themeDelegate);
+                return false;
+            }
             for (int a = 0; a < dids.size(); a++) {
-                final int copyError = org.telegram.messenger.PengramCopySender.copyTargetError(
-                        currentAccount, dids.get(a).dialogId, scheduleDate, scheduleRepeatPeriod);
+                final int copyError = dids.get(a).topicId != 0 ? 25 :
+                        org.telegram.messenger.PengramCopySender.copyTargetError(
+                                currentAccount, dids.get(a).dialogId, scheduleDate, scheduleRepeatPeriod);
                 if (copyError != 0) {
                     AlertsCreator.showSendMediaAlert(copyError, this, themeDelegate);
                     return false;
@@ -2546,7 +2553,7 @@ public class ChatActivity extends BaseFragment implements
         builder.setTitle(LocaleController.getString(R.string.PengramHistoryClearTitle));
         builder.setMessage(LocaleController.getString(R.string.PengramHistoryClearChat));
         builder.setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> {
-            org.telegram.messenger.PengramHistory.clear(getDialogId());
+            org.telegram.messenger.PengramHistory.clear(currentAccount, getDialogId());
             BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_delete, LocaleController.getString(R.string.PengramHistoryCleared)).show();
         });
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
@@ -15601,7 +15608,7 @@ public class ChatActivity extends BaseFragment implements
         if (result != 0) {
             AndroidUtilities.runOnUIThread(() -> {
                 waitingForSendingMessageLoad = false;
-                if (result != 23 && result != 24) hideFieldPanel(true);
+                if (result != 23 && result != 24 && result != 25) hideFieldPanel(true);
             });
         }
     }
@@ -36165,8 +36172,10 @@ public class ChatActivity extends BaseFragment implements
                 // Validate every destination before clearing selection or sending
                 // anything. A mixed batch cannot partly send then fail to schedule.
                 for (MessagesStorage.TopicKey destination : dids) {
-                    final int error = getSendMessagesHelper().pengramCopySendError(
-                            fmessages, destination.dialogId, scheduleDate, scheduleRepeatPeriod);
+                    final int error = destination.topicId != 0 &&
+                            org.telegram.messenger.PengramCopySender.shouldCopy(fmessages, destination.dialogId) ? 25 :
+                            getSendMessagesHelper().pengramCopySendError(
+                                    fmessages, destination.dialogId, scheduleDate, scheduleRepeatPeriod);
                     if (error != 0) {
                         AlertsCreator.showSendMediaAlert(error, this, themeDelegate);
                         return;

@@ -59,7 +59,7 @@ assert 'copyTargetError(account, dialogId, 0, 0)' in copy
 assert 'pengramForwardAsMine(' not in chat
 assert 'sendMessage(arrayList, dialog_id, fromMyName,' in chat
 assert 'sendMessage(fmessages, did, false, false, notify,' in chat
-assert 'pengramCopySendError(\n                            fmessages, destination.dialogId' in chat
+assert re.search(r'pengramCopySendError\(\s*fmessages, destination\.dialogId', chat)
 
 menu = chat.split('private boolean pengramCanResend(', 1)[1].split('private void pengramResend(', 1)[0]
 assert re.search(r'return message\.pengramDeleted\s*\|\|\s*org\.telegram\.messenger\.PengramCopySender\.isProtected\(message\)', menu)

@@ -6801,6 +6801,10 @@ public class AlertsCreator {
             builder.setMessage(getString(R.string.PengramCopyCannotSchedule));
         } else if (result == 24) {
             builder.setMessage(getString(R.string.PengramCopyCannotPay));
+        } else if (result == 25) {
+            builder.setMessage(getString(R.string.PengramCopyCannotTopic));
+        } else if (result == 26) {
+            builder.setMessage(getString(R.string.PengramCopyCannotComment));
         }
 
         builder.setPositiveButton(LocaleController.getString(R.string.OK), null);

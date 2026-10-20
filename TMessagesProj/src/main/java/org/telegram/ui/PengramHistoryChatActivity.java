@@ -41,6 +41,7 @@ import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
 import org.telegram.ui.Cells.ChatMessageCell;
+import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
@@ -192,7 +193,9 @@ public class PengramHistoryChatActivity extends BaseFragment {
             if (position >= 0 && position < items.size() && singleMessageId == 0
                     && items.get(position).entry.action == PengramHistory.ACTION_EDITED) {
                 PengramHistory.Entry entry = items.get(position).entry;
-                presentFragment(new PengramHistoryChatActivity(entry.dialogId, MODE_EDITED, entry.messageId));
+                PengramHistoryChatActivity detail = new PengramHistoryChatActivity(entry.dialogId, MODE_EDITED, entry.messageId);
+                detail.setCurrentAccount(currentAccount);
+                presentFragment(detail);
             } else {
                 showActions(position);
             }
@@ -255,8 +258,8 @@ public class PengramHistoryChatActivity extends BaseFragment {
         builder.setTitle(getString(R.string.PengramHistoryClearTitle));
         builder.setMessage(getString(dialogId != 0 ? R.string.PengramHistoryClearChat : R.string.PengramHistoryClearAll));
         builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
-            PengramHistory.clear(dialogId);
-            reload();
+            PengramHistory.clear(currentAccount, dialogId);
+            // historyChanged reloads after the queued deletion completes.
             BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, getString(R.string.PengramHistoryCleared)).show();
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
@@ -518,17 +521,35 @@ public class PengramHistoryChatActivity extends BaseFragment {
         args.putBoolean("checkCanWrite", true);
         args.putBoolean("allowGlobalSearch", true);
         DialogsActivity picker = new DialogsActivity(args);
+        picker.setCurrentAccount(currentAccount);
         picker.setDelegate((fragment, dids, text, param, notify, scheduleDate, repeat, topicsFragment) -> {
-            if (dids == null || dids.isEmpty() || dids.get(0) == null || dids.get(0).dialogId == 0) return false;
-            long target = dids.get(0).dialogId;
-            ArrayList<MessageObject> copies = new ArrayList<>();
-            copies.add(message);
-            PengramCopySender.sendCopies(currentAccount, copies, target, (sent, failed) -> {
-                if (getParentActivity() != null && failed > 0) {
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
-                            getString(R.string.PengramHistoryCopyUnavailable)).show();
+            if (dids == null || dids.isEmpty()) return false;
+            // A copy cannot yet carry a schedule, paid-message approval, topic
+            // or picker comment. Never silently send it now or to the main chat.
+            if (!TextUtils.isEmpty(text)) {
+                AlertsCreator.showSendMediaAlert(26, this, getResourceProvider());
+                return false;
+            }
+            for (MessagesStorage.TopicKey destination : dids) {
+                if (destination == null || destination.dialogId == 0) return false;
+                int error = destination.topicId != 0 ? 25 :
+                        PengramCopySender.copyTargetError(currentAccount, destination.dialogId, scheduleDate, repeat);
+                if (error != 0) {
+                    AlertsCreator.showSendMediaAlert(error, this, getResourceProvider());
+                    return false;
                 }
-            });
+            }
+            for (MessagesStorage.TopicKey destination : dids) {
+                long target = destination.dialogId;
+                ArrayList<MessageObject> copies = new ArrayList<>();
+                copies.add(message);
+                PengramCopySender.sendCopies(currentAccount, copies, target, notify, (sent, failed) -> {
+                    if (getParentActivity() != null && failed > 0) {
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                                getString(R.string.PengramHistoryCopyUnavailable)).show();
+                    }
+                });
+            }
             fragment.finishFragment();
             return true;
         });

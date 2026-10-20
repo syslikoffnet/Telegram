@@ -4037,6 +4037,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
+    private void openHistoryChat(int mode) {
+        PengramHistoryChatActivity archive = new PengramHistoryChatActivity(0, mode);
+        archive.setCurrentAccount(currentAccount);
+        presentFragment(archive);
+    }
+
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
@@ -4471,10 +4477,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 resetSettings();
                 return;
             case BTN_OPEN_DELETED_CHAT:
-                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_DELETED));
+                openHistoryChat(PengramHistoryChatActivity.MODE_DELETED);
                 return;
             case BTN_OPEN_EDITED_CHAT:
-                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_EDITED));
+                openHistoryChat(PengramHistoryChatActivity.MODE_EDITED);
                 return;
             case BTN_SECTION_PROFILE:
                 presentFragment(new PengramSettingsActivity(SECTION_PROFILE));
@@ -5017,7 +5023,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 updateAll = true;
                 break;
             case BTN_HIST_OPEN:
-                presentFragment(new PengramHistoryChatActivity(0, PengramHistoryChatActivity.MODE_ALL));
+                openHistoryChat(PengramHistoryChatActivity.MODE_ALL);
                 break;
             case BTN_MEDIA_SAVE:
                 PengramConfig.toggleSaveDeletedMedia();
@@ -5118,7 +5124,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     b.setTitle(getString(R.string.PengramHistoryClearTitle));
                     b.setMessage(getString(R.string.PengramHistoryClearAll));
                     b.setPositiveButton(getString(R.string.Delete), (d, w) -> {
-                        PengramHistory.clear(0);
+                        PengramHistory.clear(currentAccount, 0);
                         if (listView != null && listView.adapter != null) listView.adapter.update(true);
                     });
                     b.setNegativeButton(getString(R.string.Cancel), null);

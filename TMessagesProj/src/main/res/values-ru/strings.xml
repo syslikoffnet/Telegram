@@ -764,6 +764,8 @@
     <string name="PengramResendAsk">Всегда спрашивать чат</string>
     <string name="PengramCopyCannotSchedule">Защищённые сообщения нельзя запланировать как копии. Выберите немедленную отправку или уберите их из выделения.</string>
     <string name="PengramCopyCannotPay">Копии в платный чат пока не поддерживаются: отправка отменена, звёзды не потрачены.</string>
+    <string name="PengramCopyCannotTopic">Копирование в тему пока не поддерживается. Выберите основной чат; ничего не отправлено.</string>
+    <string name="PengramCopyCannotComment">Комментарий к копии из архива пока не поддерживается. Удалите комментарий и повторите; ничего не отправлено.</string>
     <string name="PengramResendHere">Отправить копию сюда</string>
     <string name="PengramResendTo">Отправить копию в другой чат</string>
     <string name="PengramResendSent">Отправлено</string>

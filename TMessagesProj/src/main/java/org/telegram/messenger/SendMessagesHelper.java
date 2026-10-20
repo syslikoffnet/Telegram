@@ -2306,6 +2306,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (PengramCopySender.shouldCopy(messages, peer)) {
             final int copyError = pengramCopySendError(messages, peer, scheduleDate, scheduleRepeatPeriod);
             if (copyError != 0) return copyError;
+            // sendCopies does not accept a thread or mono-forum destination.
+            // Do not silently route a protected item to the main chat.
+            if (replyToTopMsg != null || monoForumPeerId != 0) return 25;
             final ArrayList<MessageObject> protectedMessages = new ArrayList<>();
             final ArrayList<MessageObject> ordinaryMessages = new ArrayList<>();
             for (MessageObject item : messages) {
