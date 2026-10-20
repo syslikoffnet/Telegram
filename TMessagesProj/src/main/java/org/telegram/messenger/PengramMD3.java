@@ -134,6 +134,7 @@ public final class PengramMD3 {
         private final android.graphics.Paint fillPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         private final android.graphics.RectF rect = new android.graphics.RectF();
+        private final android.graphics.Path path = new android.graphics.Path();
         private final float[] radii = new float[8];
         private final int paddingLeft;
         private final int paddingTop;
@@ -182,7 +183,12 @@ public final class PengramMD3 {
             }
             rect.set(left, top, right, bottom);
             fillPaint.setAlpha(alpha);
-            canvas.drawRoundRect(rect, radii, fillPaint);
+            // Canvas не умеет рисовать RectF с разными радиусами по углам,
+            // поэтому фигуру собираем в Path (нужно для шторок: скруглены
+            // только верхние углы).
+            path.rewind();
+            path.addRoundRect(rect, radii, android.graphics.Path.Direction.CW);
+            canvas.drawPath(path, fillPaint);
         }
 
         @Override
