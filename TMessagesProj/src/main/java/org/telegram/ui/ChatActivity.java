@@ -28655,6 +28655,19 @@ public class ChatActivity extends BaseFragment implements
             localSearchHitDialogId = 0;
             pendingLocalSearchIndex = -1;
         }
+        // Seed the position with the first archived hit: that is the result the
+        // automatic jump below opens, so the counter and the arrows have to
+        // continue from it instead of guessing from the server position.
+        if (localSearchHitMessageId == 0) {
+            final PengramHistory.Entry first = messagesSearchAdapter.getLocalDeletedAt(0);
+            final int firstAt = first == null ? -1
+                    : messagesSearchAdapter.indexOfResult(first.dialogId, first.messageId);
+            if (firstAt >= 0) {
+                localDeletedSearchIndex = firstAt;
+                localSearchHitDialogId = first.dialogId;
+                localSearchHitMessageId = first.messageId;
+            }
+        }
         // Keep Telegram's search-in-chat view. Never open a result list or a
         // separate archive while the user is still typing.
         updateSearchButtons(getMediaDataController().getMask(), getMediaDataController().getSearchPosition(),
