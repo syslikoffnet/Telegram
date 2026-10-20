@@ -134,6 +134,7 @@ public final class PengramSearchIndex {
             {R.string.PengramMD3SearchShadow, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
             {R.string.PengramMD3Sheets, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
             {R.string.PengramMD3Alerts, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
+            {R.string.PengramMD3Menus, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
             {R.string.PengramMD3Settings, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
             {R.string.PengramMD3Fab, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMD3Header, 0, 0},
             {R.string.PengramMonet, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMonetHeader, 0, R.string.PengramMonetInfo},

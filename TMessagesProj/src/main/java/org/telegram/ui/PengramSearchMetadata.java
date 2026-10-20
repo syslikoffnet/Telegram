@@ -112,6 +112,7 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramQuoteRadius) {
             tags.append(" радиус скругления карточки цитаты quote corner");
         }
+        if (id == R.string.PengramMD3Menus) tags.append(" меню попап контекстное скругление углы menu popup context corners");
         if (id == R.string.PengramSendStyle) tags.append(" шрифт шрифтом писать написание написания текста жирный курсив моно цитата font bold italic quote");
         if (id == R.string.PengramSendStyleLargeEmoji) tags.append(" смайлы маленькие крупные эмодзи шрифт big emoji");
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");

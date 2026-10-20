@@ -28624,6 +28624,27 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /**
+     * Only navigate inside the live chat when that exact archived text is
+     * already there as a retained ghost. An id in messages_v2 alone proves
+     * nothing: it may resolve to an ordinary or updated server message.
+     */
+    private boolean isReadableDeletedBubble(MessageObject loaded, PengramHistory.Entry entry, String query) {
+        if (loaded == null || entry == null || loaded.messageOwner == null
+                || loaded.getDialogId() != entry.dialogId || !TextUtils.equals(loaded.messageOwner.message, entry.text)) {
+            return false;
+        }
+        // The cell may not have been bound yet, so pengramDeleted is not always
+        // set even though the mark is already loaded from the local DB.
+        final boolean marked = loaded.pengramDeleted || PengramHistory.marksLoaded(currentAccount, dialog_id)
+                && PengramHistory.isMarkedDeleted(currentAccount, dialog_id, loaded.getId());
+        if (!marked) {
+            return false;
+        }
+        return TextUtils.isEmpty(query) || !TextUtils.isEmpty(entry.text)
+                && entry.text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT));
+    }
+
     /** Cancel a pending "load the deleted message's neighbourhood" request. */
     private void pengramCancelPendingGhost() {
         pendingGhostRequestId++;
@@ -28690,10 +28711,9 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                 }
-                // A real message with this id appeared while the snapshot was
-                // being read. Never put two rows with one id into the chat:
-                // navigate to the existing bubble instead.
-                if (messagesDict[0].get(saved.messageId) != null) {
+                // A retained bubble for this id appeared while the snapshot was
+                // being read: reuse it instead of adding a second row.
+                if (isReadableDeletedBubble(messagesDict[0].get(saved.messageId), saved, query)) {
                     showMessagesSearchListView(false);
                     setFilterMessages(false);
                     scrollToMessageId(saved.messageId, 0, true, 0, true, 0);
@@ -28876,25 +28896,30 @@ public class ChatActivity extends BaseFragment implements
             setFilterMessages(false);
         }
         final MessageObject loaded = messagesDict[0].get(entry.messageId);
-        if (loaded != null) {
-            // The id is already in the chat: a retained deleted bubble or a
-            // live message. Telegram's own navigation animates and blinks it
-            // exactly like an ordinary search result.
+        if (isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)) {
+            // A retained deleted bubble is already in the chat: Telegram's own
+            // navigation gives it the native fly-in and the highlight blink.
             showMessagesSearchListView(false);
             scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
             return;
         }
-        if (pengramDeletedContextLoaded(entry.messageId)) {
+        if (loaded == null && pengramDeletedContextLoaded(entry.messageId)) {
             // The surrounding messages are already here, so the snapshot can be
             // inserted exactly where it belongs and reached with the same
             // animated scroll/highlight as an ordinary search result.
             showDeletedSearchGhost(entry, query);
             return;
         }
-        // A fresh chat shows only the last page. Load the neighbourhood first,
-        // otherwise the snapshot would be appended at the edge of the loaded
-        // window and the jump would look like a teleport to the top.
-        requestDeletedSearchGhost(entry, query);
+        if (loaded == null) {
+            // A fresh chat shows only the last page. Load the neighbourhood
+            // first, otherwise the snapshot would be appended at the edge of
+            // the loaded window and the jump would look like a teleport.
+            requestDeletedSearchGhost(entry, query);
+            return;
+        }
+        // An ordinary server message owns this id: never open it instead of
+        // the archived text, show the snapshot as its own bubble.
+        showDeletedSearchGhost(entry, query);
     }
 
     /**
@@ -29047,8 +29072,7 @@ public class ChatActivity extends BaseFragment implements
             }
             pengramGhostScrollWait = 0;
         }
-        final MessageObject loaded = messagesDict[0].get(entry.messageId);
-        if (loaded != null) {
+        if (isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)) {
             // The retained deleted bubble came from the cache — the ordinary
             // navigation gives it the native fly-in and the highlight blink.
             showMessagesSearchListView(false);
