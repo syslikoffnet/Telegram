@@ -2376,6 +2376,12 @@ public class ContactsController extends BaseController {
         addContact(user, null, false, true, done);
     }
 
+    /** тот же возврат, но с заметкой о человеке: карточка должна остаться прежней */
+    public void pengramRestoreContact(TLRPC.User user, TLRPC.TL_textWithEntities note,
+                                      Utilities.Callback<Boolean> done) {
+        addContact(user, note, false, true, done);
+    }
+
     /** локально снять контакт: без сети, без телефонной книги и без уведомлений */
     public void pengramMarkContactRemoved(TLRPC.User user) {
         if (user == null) {

@@ -320,9 +320,14 @@ public final class PengramOriginalName {
         }
         noteProbe(account, userId);
         final long accessHash = user.access_hash;
+        // Заметка о человеке — часть карточки контакта. Запоминаем её, чтобы
+        // вернуть вместе с контактом: иначе проверка имени стирала бы текст,
+        // который человек писал о собеседнике.
+        final TLRPC.UserFull full = MessagesController.getInstance(account).getUserFull(userId);
+        final TLRPC.TL_textWithEntities note = full == null ? null : full.note;
         // Метка восстановления пишется ДО запроса на удаление: если приложение
         // упадёт между запросами, контакт вернётся при следующем запуске.
-        savePending(account, userId, savedFirst, savedLast, accessHash);
+        savePending(account, userId, savedFirst, savedLast, accessHash, note);
 
         final MessagesController mc = MessagesController.getInstance(account);
         final TLRPC.InputUser inputUser = mc.getInputUser(user);
@@ -353,7 +358,7 @@ public final class PengramOriginalName {
             }
             final String fromResponse = findRealName(account, userId, response, savedFirst, savedLast);
             if (!TextUtils.isEmpty(fromResponse)) {
-                restoreAndFinish(account, userId, savedFirst, savedLast, accessHash, fromResponse, callback);
+                restoreAndFinish(account, userId, savedFirst, savedLast, accessHash, note, fromResponse, callback);
                 return;
             }
             // Ответ на удаление не всегда несёт карточку человека. Тогда один
@@ -376,7 +381,7 @@ public final class PengramOriginalName {
                 if (TextUtils.isEmpty(realName)) {
                     realName = findRealName(account, userId, null, savedFirst, savedLast);
                 }
-                restoreAndFinish(account, userId, savedFirst, savedLast, accessHash, realName, callback);
+                restoreAndFinish(account, userId, savedFirst, savedLast, accessHash, note, realName, callback);
             });
         });
     }
@@ -387,12 +392,12 @@ public final class PengramOriginalName {
      */
     private static void restoreAndFinish(final int account, final long userId,
                                          final String savedFirst, final String savedLast,
-                                         final long accessHash, final String realName,
-                                         final ProbeCallback callback) {
+                                         final long accessHash, final TLRPC.TL_textWithEntities note,
+                                         final String realName, final ProbeCallback callback) {
         final String name = TextUtils.isEmpty(realName)
                 ? clean(ContactsController.formatName(savedFirst, savedLast)) : realName;
         final boolean known = !TextUtils.isEmpty(name);
-        restoreContact(account, userId, savedFirst, savedLast, accessHash, restored -> {
+        restoreContact(account, userId, savedFirst, savedLast, accessHash, note, restored -> {
             if (known) {
                 storeProbedName(account, userId, name);
             }
@@ -445,6 +450,7 @@ public final class PengramOriginalName {
      */
     private static void restoreContact(final int account, final long userId,
                                        final String first, final String last, final long accessHash,
+                                       final TLRPC.TL_textWithEntities note,
                                        final Utilities.Callback<Boolean> done) {
         final TLRPC.User restore = new TLRPC.TL_user();
         restore.id = userId;
@@ -454,14 +460,15 @@ public final class PengramOriginalName {
         restore.phone = "";
         restore.contact = true;
         restore.min = false;
-        restoreAttempt(account, userId, restore, 0, done);
+        restoreAttempt(account, userId, restore, note, 0, done);
     }
 
     /** одна повторная попытка через паузу: разовый сбой сети не должен «съесть» контакт */
     private static void restoreAttempt(final int account, final long userId, final TLRPC.User restore,
-                                       final int attempt, final Utilities.Callback<Boolean> done) {
+                                       final TLRPC.TL_textWithEntities note, final int attempt,
+                                       final Utilities.Callback<Boolean> done) {
         try {
-            ContactsController.getInstance(account).pengramRestoreContact(restore, ok -> {
+            ContactsController.getInstance(account).pengramRestoreContact(restore, note, ok -> {
                 if (ok) {
                     clearPending(account, userId);
                     if (done != null) done.run(true);
@@ -469,7 +476,7 @@ public final class PengramOriginalName {
                 }
                 if (attempt < 1) {
                     AndroidUtilities.runOnUIThread(
-                            () -> restoreAttempt(account, userId, restore, attempt + 1, done), 2500);
+                            () -> restoreAttempt(account, userId, restore, note, attempt + 1, done), 2500);
                     return;
                 }
                 // метка остаётся: при следующем запуске restorePending() повторит
@@ -534,9 +541,49 @@ public final class PengramOriginalName {
         }
     }
 
-    private static void savePending(int account, long userId, String first, String last, long accessHash) {
+    private static void savePending(int account, long userId, String first, String last,
+                                    long accessHash, TLRPC.TL_textWithEntities note) {
+        // Заметку храним сериализованной: так переживёт и перезапуск, и смену
+        // формата, потому что разбор идёт тем же классом, что и запись.
         prefs().edit().putString(pendingKey(account, userId),
-                first + "\u0001" + last + "\u0001" + accessHash).commit();
+                first + "\u0001" + last + "\u0001" + accessHash + "\u0001" + encodeNote(note)).commit();
+    }
+
+    private static String encodeNote(TLRPC.TL_textWithEntities note) {
+        if (note == null || TextUtils.isEmpty(note.text)) {
+            return "";
+        }
+        try {
+            final org.telegram.tgnet.SerializedData data =
+                    new org.telegram.tgnet.SerializedData(note.getObjectSize());
+            note.serializeToStream(data);
+            final byte[] bytes = data.toByteArray();
+            data.cleanup();
+            return android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return "";
+        }
+    }
+
+    private static TLRPC.TL_textWithEntities decodeNote(String raw) {
+        if (TextUtils.isEmpty(raw)) {
+            return null;
+        }
+        org.telegram.tgnet.SerializedData data = null;
+        try {
+            final byte[] bytes = android.util.Base64.decode(raw, android.util.Base64.NO_WRAP);
+            data = new org.telegram.tgnet.SerializedData(bytes);
+            final int constructor = data.readInt32(false);
+            return TLRPC.TL_textWithEntities.TLdeserialize(data, constructor, false);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        } finally {
+            if (data != null) {
+                data.cleanup();
+            }
+        }
     }
 
     private static void clearPending(int account, long userId) {
@@ -619,10 +666,11 @@ public final class PengramOriginalName {
                 restore.last_name = parts[1];
                 restore.phone = "";
                 restore.contact = true;
+                final TLRPC.TL_textWithEntities note = parts.length > 3 ? decodeNote(parts[3]) : null;
                 final String key = rawKey;
                 AndroidUtilities.runOnUIThread(() -> {
                     try {
-                        ContactsController.getInstance(account).pengramRestoreContact(restore, ok -> {
+                        ContactsController.getInstance(account).pengramRestoreContact(restore, note, ok -> {
                             if (ok) {
                                 prefs().edit().remove(key).apply();
                             }

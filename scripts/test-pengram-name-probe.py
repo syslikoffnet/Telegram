@@ -53,13 +53,19 @@ assert 'probedName(account, user.id)' in name
 
 # --- crash safety -----------------------------------------------------------
 # the restore marker is written before the contact is removed ...
-assert name.index('savePending(account, userId, savedFirst, savedLast, accessHash);') \
+assert name.index('savePending(account, userId, savedFirst, savedLast, accessHash, note);') \
     < name.index('TL_contacts_deleteContacts request = new')
 # ... and only cleared after a successful restore
 assert 'public static void restorePending(int account) {' in name
-assert 'ContactsController.getInstance(account).pengramRestoreContact(restore, ok -> {' in name
+assert 'pengramRestoreContact(restore, note, ok -> {' in name
 assert 'if (ok) {' in name
 assert 'PengramOriginalName.restorePending(a);' in launch
+
+# --- the contact must come back as it was, note included --------------------
+assert 'final TLRPC.UserFull full = MessagesController.getInstance(account).getUserFull(userId);' in name
+assert 'encodeNote(note)' in name and 'decodeNote(parts[3])' in name
+assert 'pengramRestoreContact(restore, note, ok -> {' in name
+assert 'public void pengramRestoreContact(TLRPC.User user, TLRPC.TL_textWithEntities note,' in contacts
 
 # --- never touch phone numbers in either direction --------------------------
 restore = contacts.split('public void pengramRestoreContact', 1)[1].split('private void addContact(TLRPC.User user, TLRPC.TL_textWithEntities note, boolean exception, boolean silentRestore, Utilities.Callback<Boolean> done)', 1)[0]
