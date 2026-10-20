@@ -40,7 +40,10 @@ public final class PengramSearchMetadata {
             if (current == null || !current.locale.equals(locale)) {
                 Map<int[], String[]> words = new IdentityHashMap<>();
                 for (int[] entry : PengramSearchIndex.ITEMS) {
-                    words.put(entry, normalized(path(entry) + " " + tags(entry)).split(" +"));
+                    // Только собственные слова строки: заголовок, группа, описание
+                    // и синонимы. Полный путь сюда не входит — иначе запрос
+                    // «сообщения» находил вообще все настройки раздела.
+                    words.put(entry, normalized(tags(entry)).split(" +"));
                 }
                 current = new Corpus(locale, words);
                 cachedCorpus = current;
@@ -188,21 +191,57 @@ public final class PengramSearchMetadata {
     }
 
     public static boolean matches(int[] entry, String[] terms) {
-        if (terms == null || terms.length == 0) return false;
+        return relevance(entry, terms) > 0;
+    }
+
+    /**
+     * Насколько строка похожа на запрос. 0 — не подходит, чем больше, тем выше
+     * в выдаче. Заголовки с прямым совпадением идут первыми, совпадения только
+     * по синонимам — последними: так выдача не тонет в «похожих» настройках.
+     */
+    public static int relevance(int[] entry, String[] terms) {
+        if (terms == null || terms.length == 0) return 0;
         String[] words = corpus().words.get(entry);
-        if (words == null) words = normalized(path(entry) + " " + tags(entry)).split(" +");
+        if (words == null) words = normalized(tags(entry)).split(" +");
+        final String title = normalized(getString(entry[0]));
+        final String[] titleWords = title.isEmpty() ? new String[0] : title.split(" +");
+
+        int inTitle = 0;
         for (String term : terms) {
-            boolean found = false;
-            for (String word : words) {
-                if (word.startsWith(term) || (word.length() >= 4 && term.length() >= 4
-                        && term.length() <= word.length() + 3 && term.startsWith(word))) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) return false;
+            if (wordMatches(titleWords, term)) inTitle++;
         }
-        return true;
+        if (inTitle == 0) {
+            // совпадение только по синонимам/описанию — всё равно проверяем все слова
+            for (String term : terms) {
+                if (!wordMatches(words, term)) return 0;
+            }
+            return 100;
+        }
+        for (String term : terms) {
+            if (!wordMatches(words, term)) return 0;
+        }
+        if (inTitle == terms.length) {
+            final StringBuilder joined = new StringBuilder();
+            for (String term : terms) {
+                if (joined.length() > 0) joined.append(' ');
+                joined.append(term);
+            }
+            final boolean prefix = title.startsWith(joined.toString());
+            // короткий точный заголовок важнее длинного с тем же словом
+            return (prefix ? 420 : 340) - Math.min(80, title.length());
+        }
+        return 220;
+    }
+
+    /** Слово совпадает по началу: «аватар» → «аватарка», «аватарки» → «аватар». */
+    private static boolean wordMatches(String[] words, String term) {
+        for (String word : words) {
+            if (word.startsWith(term) || (word.length() >= 4 && term.length() >= 4
+                    && term.length() <= word.length() + 3 && term.startsWith(word))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Full readable breadcrumb. Keep the destination bold even if a synonym matched. */

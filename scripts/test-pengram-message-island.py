@@ -65,7 +65,12 @@ assert 'movedOptions.contains(options.get(i))' in build
 # indices stay aligned across the three parallel lists
 assert 'options.remove(i);\n                                items.remove(i);\n                                icons.remove(i);' in build
 assert 'messageIslandView.setListener((position, view) -> {' in build
-assert 'processSelectedOption(islandOptions.get(position));' in build
+assert 'processSelectedOption(option);' in build
+assert 'final int option = islandOptions.get(position);' in build
+# unavailable actions stay in the strip, dimmed, so the set never shrinks
+assert 'islandEnabled.add(present >= 0);' in build
+assert 'messageIslandView.setActions(islandActions, islandEnabled);' in build
+assert 'if (present < 0) {\n                            continue;' in build
 # both placements are wired, and only one of them runs
 assert 'MESSAGE_ISLAND_POSITION_BOTTOM' in build
 assert menu.count('popupLayout.addView(messageIslandView, LayoutHelper.createLinear(') == 2
@@ -88,7 +93,7 @@ assert 'if (!suggestEdit && type >= 0 && org.telegram.messenger.PengramConfig.is
 assert 'setVisibility(GONE);' in island  # empty island must not leave an empty capsule
 assert 'MESSAGE_ISLAND_TINT_ACCENT' in island and 'MESSAGE_ISLAND_TINT_PLAIN' in island
 # a preview must not fire real actions
-assert 'if (preview || listener == null) {' in island
+assert 'if (preview || listener == null || !isAvailable(position)) {' in island
 
 # --- settings + reorder screen ----------------------------------------------
 assert 'BTN_MESSAGE_ISLAND_ITEMS = 1031;' in settings

@@ -96,6 +96,25 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private volatile float energy;        // 0..1 — насколько сейчас громко играет
     private float wingAngle;              // текущий угол крыльев, градусы
 
+    /**
+     * Кадрирование сцены. Шапки уходят вверх на разную высоту (колпак
+     * волшебника выше короны), поэтому камера подстраивается под надетый
+     * аксессуар: иначе верх шляпы обрезался краем текстуры.
+     */
+    private float camCenter;
+    private float camDistance;
+    private static final float CAM_FOV_DEG = 34f;
+    private static final float CAM_TAN_HALF_FOV = (float) Math.tan(Math.toRadians(CAM_FOV_DEG * 0.5f));
+    /**
+     * Запас сверху: прыжок плюс наклон во время танца. Если оставить только
+     * высоту прыжка, макушка шляпы на пике подскока всё равно касается края.
+     */
+    private static final float CAM_TOP_HEADROOM = 0.40f;
+    /** на сколько пингвин реально поднимается в прыжке */
+    private static final float CAM_JUMP_LIMIT = 0.26f;
+    /** нижняя точка пингвина (лапки) в мировых координатах */
+    private static final float CONTENT_BOTTOM = -1.11f;
+
     private final float[] projection = new float[16];
     private final float[] view = new float[16];
     private final float[] model = new float[16];
@@ -552,12 +571,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA);
         GLES20.glDisable(GLES20.GL_CULL_FACE);
 
-        final float aspect = surfaceHeight == 0 ? 1f : (float) surfaceWidth / surfaceHeight;
-        Matrix.perspectiveM(projection, 0, 34f, aspect, 1f, 12f);
-        Matrix.setLookAtM(view, 0, 0, 0.05f, 5.4f, 0, 0.02f, 0, 0, 1, 0);
-
-        GLES20.glUseProgram(program);
-
+        // сначала надеваем аксессуар: от его высоты зависит кадр
         if (builtSkin != skin) {
             try {
                 buildAccessory(skin);
@@ -569,6 +583,30 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             }
         }
 
+        final float aspect = surfaceHeight == 0 ? 1f : (float) surfaceWidth / surfaceHeight;
+        Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, aspect, 1f, 14f);
+
+        // Верх сцены — макушка или шляпа, низ — лапки. Камера ставится так,
+        // чтобы в кадр влезло всё целиком и остался запас на прыжок.
+        final float contentTop = Math.max(bodyMesh == null ? 1.2f : bodyMesh.maxY,
+                accessoryMesh == null ? 0f : accessoryMesh.maxY) - 0.1f;
+        final float fitTop = contentTop + CAM_TOP_HEADROOM;
+        final float fitHeight = Math.max(0.5f, fitTop - CONTENT_BOTTOM);
+        // половина высоты кадра с запасом ~10%: верх шляпы не касается края
+        final float targetDistance = Math.max(3.6f, (fitHeight * 0.55f) / CAM_TAN_HALF_FOV);
+        final float targetCenter = (fitTop + CONTENT_BOTTOM) * 0.5f;
+        if (camDistance <= 0.01f) {
+            camDistance = targetDistance;
+            camCenter = targetCenter;
+        } else {
+            final float k = Math.min(1f, dt * 6f);
+            camDistance += (targetDistance - camDistance) * k;
+            camCenter += (targetCenter - camCenter) * k;
+        }
+        Matrix.setLookAtM(view, 0, 0, camCenter, camDistance, 0, camCenter, 0, 0, 1, 0);
+
+        GLES20.glUseProgram(program);
+
         final float dancing = Math.min(1f, dance);
         // чем громче играет, тем шире движения: тихий проигрыш — лёгкое покачивание,
         // припев — полноценная пляска
@@ -578,7 +616,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final float idleTilt = settled && !dragging ? (float) Math.sin(time * 0.85f) * 2.4f : 0f;
         final float danceTilt = dancing * (float) Math.sin(time * 8.5f) * 13f * drive;
         final float breathe = 1f + (float) Math.sin(time * 1.7f) * 0.012f;
-        final float jumpY = jump * 0.7f;
+        final float jumpY = Math.min(jump * 0.7f, CAM_JUMP_LIMIT);
         // удар сплющивает и тут же растягивает — та самая «резиновость»
         final float punch = beat * 0.16f;
         final float sx = (1f + squash * 0.9f + punch) * breathe;
@@ -745,6 +783,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private static class Mesh {
         final FloatBuffer buffer;
         final int count;
+        final float minY, maxY;
 
         Mesh(ArrayList<Float> data) {
             final float[] array = new float[data.size()];
@@ -756,6 +795,14 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     .asFloatBuffer();
             buffer.put(array).position(0);
             count = array.length / 9;
+            float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
+            for (int i = 1; i + 8 < array.length; i += 9) {
+                final float y = array[i];
+                if (y < lo) lo = y;
+                if (y > hi) hi = y;
+            }
+            minY = count == 0 ? 0f : lo;
+            maxY = count == 0 ? 0f : hi;
         }
     }
 

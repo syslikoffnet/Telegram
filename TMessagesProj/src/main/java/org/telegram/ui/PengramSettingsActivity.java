@@ -318,6 +318,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SEARCH = 1447;
     /** строки результатов поиска: BTN_SEARCH_BASE + номер в списке найденного */
     private static final int BTN_SEARCH_BASE = 7000;
+    /** недавние запросы в поиске по настройкам — как история поиска в Telegram */
+    private static final int BTN_SEARCH_HISTORY_BASE = 7400;
+    private static final int BTN_SEARCH_HISTORY_CLEAR = 7500;
+    private static final int SEARCH_HISTORY_LIMIT = 8;
     private static final int BTN_PENGUIN_FLIP = 1443;
     private static final int BTN_PENGUIN_DANCE = 1444;
     private static final int BTN_PENGUIN_STRAIGHTEN = 1445;
@@ -676,6 +680,10 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** текст в строке поиска; null — поиск закрыт */
     private String searchQuery;
+    /** поле поиска в шапке: нужно, чтобы подставить запрос из истории */
+    private ActionBarMenuItem searchItem;
+    /** локализованный заголовок → его строковый ресурс: точный прыжок к строке */
+    private java.util.HashMap<String, Integer> searchTitleRes;
     /** что сейчас показано в выдаче: разделы по номерам строк */
     private final ArrayList<int[]> searchResults = new ArrayList<>();
 
@@ -684,7 +692,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         final View view = super.createView(context);
         // Поиск прямо внутри настроек Pengram: не нужно помнить, в каком разделе лежит функция.
         final ActionBarMenu menu = actionBar.createMenu();
-        final ActionBarMenuItem searchItem = menu.addItem(BTN_SEARCH, R.drawable.outline_header_search)
+        searchItem = menu.addItem(BTN_SEARCH, R.drawable.outline_header_search)
                 .setIsSearchField(true)
                 .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
                     @Override
@@ -704,6 +712,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                         searchQuery = editText.getText() == null ? "" : editText.getText().toString();
                         updateList();
                     }
+
+                    @Override
+                    public void onSearchPressed(EditText editText) {
+                        // Enter — это осознанный запрос: сохраняем его в историю
+                        pengramRememberSearch();
+                    }
                 });
         searchItem.setSearchFieldHint(getString(R.string.Search));
         searchItem.setContentDescription(getString(R.string.Search));
@@ -715,7 +729,22 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** прокрутить список к строке с таким заголовком и подсветить её */
     private void pengramJumpTo(int stringRes) {
-        if (listView == null || listView.adapter == null || stringRes == 0) {
+        pengramJumpTo(stringRes, 0);
+    }
+
+    /**
+     * tries — сколько раз уже ждали, пока список наполнится. Сразу после
+     * открытия раздела адаптер бывает пустым, и переход «в никуда» как раз
+     * выглядел как «открылось не то, что выбрал».
+     */
+    private void pengramJumpTo(int stringRes, int tries) {
+        if (stringRes == 0) {
+            return;
+        }
+        if (listView == null || listView.adapter == null) {
+            if (tries < 12) {
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(stringRes, tries + 1), 60);
+            }
             return;
         }
         final CharSequence target = getString(stringRes);
@@ -725,18 +754,39 @@ public class PengramSettingsActivity extends UniversalFragment {
         int position = -1;
         for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
             final UItem item = listView.adapter.getItem(i);
-            if (item != null && item.text != null && TextUtils.equals(target, item.text)) {
+            if (item != null && item.object instanceof Integer && (Integer) item.object == stringRes) {
                 position = i;
                 break;
             }
         }
         if (position < 0) {
-            // A conditional control may be absent until its parent is enabled.
-            // At least expose its owning group without changing any preference.
+            // Запасной путь — по тексту: только кликабельные строки, а не заголовки.
+            for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+                final UItem item = listView.adapter.getItem(i);
+                if (item != null && item.id != 0 && item.text != null && TextUtils.equals(target, item.text)) {
+                    position = i;
+                    break;
+                }
+            }
+        }
+        if (position < 0) {
+            // Раздел мог ещё не построить строки — ждём и пробуем снова.
+            if (tries < 12 && listView.adapter.getItemCount() < 3) {
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(stringRes, tries + 1), 60);
+                return;
+            }
+            // Строки нет, потому что она появляется только после включения
+            // раздела. Показываем его заголовок и честно объясняем, почему.
             if (searchFallbackRes != 0 && searchFallbackRes != stringRes) {
                 final int fallback = searchFallbackRes;
                 searchFallbackRes = 0;
-                pengramJumpTo(fallback);
+                try {
+                    org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            org.telegram.messenger.LocaleController.formatString(
+                                    R.string.PengramSearchParentOff, getString(fallback))).show();
+                } catch (Throwable ignore) {
+                }
+                pengramJumpTo(fallback, tries);
             }
             return;
         }
@@ -774,17 +824,44 @@ public class PengramSettingsActivity extends UniversalFragment {
         searchResults.clear();
         final String query = searchQuery == null ? "" : searchQuery.trim();
         if (query.length() == 0) {
+            // Пустое поле — как в Telegram: недавние запросы и подсказка.
+            final ArrayList<String> history = PengramConfig.getSearchHistory();
+            if (!history.isEmpty()) {
+                items.add(UItem.asHeader(getString(R.string.PengramSearchRecent)));
+                for (int i = 0; i < history.size(); i++) {
+                    items.add(UItem.asSettingsCell(BTN_SEARCH_HISTORY_BASE + i,
+                            R.drawable.msg_search, history.get(i)));
+                }
+                items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_delete,
+                        getString(R.string.PengramSearchHistoryClear)).red());
+            }
             items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
             return;
         }
         final String[] terms = PengramSearchMetadata.queryTerms(query);
+        final ArrayList<int[]> matched = new ArrayList<>();
+        final ArrayList<Integer> scores = new ArrayList<>();
         for (int[] entry : PengramSearchIndex.ITEMS) {
             final String title = getString(entry[0]);
-            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")
-                    || !PengramSearchMetadata.matches(entry, terms)) continue;
+            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) continue;
+            final int score = PengramSearchMetadata.relevance(entry, terms);
+            if (score <= 0) continue;
+            matched.add(entry);
+            scores.add(score);
+        }
+        // Более точные совпадения — выше: заголовок важнее синонимов и описания.
+        final ArrayList<Integer> order = new ArrayList<>();
+        for (int i = 0; i < matched.size(); i++) order.add(i);
+        java.util.Collections.sort(order, (a, b) -> {
+            final int byScore = Integer.compare(scores.get(b), scores.get(a));
+            return byScore != 0 ? byScore : Integer.compare(a, b);
+        });
+        for (int index : order) {
+            final int[] entry = matched.get(index);
             final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
-                    sectionIcon(entry[1]), title, PengramSearchMetadata.emphasizedPath(entry, query));
+                    sectionIcon(entry[1]), getString(entry[0]), PengramSearchMetadata.emphasizedPath(entry, query));
             result.adaptiveLayout = true; // keep the COMPLETE path legible on narrow screens
+            result.object = entry[0];
             items.add(result);
             searchResults.add(entry);
         }
@@ -793,6 +870,26 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else {
             items.add(UItem.asShadow(null));
         }
+    }
+
+    /** запомнить текущий запрос в истории поиска */
+    private void pengramRememberSearch() {
+        final String query = searchQuery == null ? "" : searchQuery.trim();
+        if (query.length() >= 2) {
+            PengramConfig.addSearchHistory(query);
+        }
+    }
+
+    /** подставить запрос из истории в поле поиска */
+    private void pengramApplySearch(String query) {
+        if (query == null || searchItem == null) return;
+        final android.widget.EditText field = searchItem.getSearchField();
+        if (field != null) {
+            field.setText(query);
+            field.setSelection(field.length());
+        }
+        searchQuery = query;
+        updateList();
     }
 
     @Override
@@ -835,6 +932,35 @@ public class PengramSettingsActivity extends UniversalFragment {
                     || item.viewType == UniversalAdapter.VIEW_TYPE_CHECK
                     || item.viewType == UniversalAdapter.VIEW_TYPE_CHECKRIPPLE) {
                 item.adaptiveLayout = true;
+            }
+        }
+        pengramTagRows(items);
+    }
+
+    /**
+     * Привязать строки списка к ресурсам их заголовков. Переход из поиска тогда
+     * находит ровно ту строку, которую выбрали, даже если такой же текст есть
+     * в другом месте экрана.
+     */
+    private void pengramTagRows(ArrayList<UItem> items) {
+        if (searchTitleRes == null) {
+            searchTitleRes = new java.util.HashMap<>();
+            for (int[] entry : PengramSearchIndex.ITEMS) {
+                if (entry.length == 0) continue;
+                final String title = getString(entry[0]);
+                if (!TextUtils.isEmpty(title) && !title.startsWith("LOC_ERR")
+                        && !searchTitleRes.containsKey(title)) {
+                    searchTitleRes.put(title, entry[0]);
+                }
+            }
+        }
+        for (UItem item : items) {
+            if (item == null || item.id == 0 || item.object != null || TextUtils.isEmpty(item.text)) {
+                continue;
+            }
+            final Integer res = searchTitleRes.get(item.text.toString());
+            if (res != null) {
+                item.object = res;
             }
         }
     }
@@ -3332,10 +3458,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 value -> value + "%",
                 value -> {
                     PengramConfig.setPenguinSize(value);
-                    // пересобираем шапку: размер задаётся при создании вьюхи
-                    headerView = null;
-                    if (listView != null && listView.adapter != null) {
-                        listView.adapter.update(true);
+                    // шапка масштабируется на лету — видно, что именно меняется
+                    if (headerView != null) {
+                        headerView.applySize();
                     }
                 }
         ));
@@ -4147,8 +4272,23 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
-        if (item.id >= BTN_SEARCH_BASE && item.id - BTN_SEARCH_BASE < searchResults.size()) {
+        if (item.id >= BTN_SEARCH_HISTORY_BASE && item.id < BTN_SEARCH_HISTORY_BASE + SEARCH_HISTORY_LIMIT) {
+            final ArrayList<String> history = PengramConfig.getSearchHistory();
+            final int index = item.id - BTN_SEARCH_HISTORY_BASE;
+            if (index >= 0 && index < history.size()) {
+                pengramApplySearch(history.get(index));
+            }
+            return;
+        }
+        if (item.id == BTN_SEARCH_HISTORY_CLEAR) {
+            PengramConfig.clearSearchHistory();
+            updateList();
+            return;
+        }
+        if (item.id >= BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE
+                && item.id - BTN_SEARCH_BASE < searchResults.size()) {
             final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
+            pengramRememberSearch();
             final int targetSection = found[1];
             final int targetRes = found[0];
             if (targetSection == section && (found.length < 4 || found[3] == 0)) {
@@ -6169,6 +6309,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         private TextView bubble;
         /** какой скин реально надет сейчас — чтобы не переодевать пингвина каждую секунду */
         private int appliedSkin = -1;
+        /** контейнер пингвина: размер меняется ползунком без пересоздания вьюхи */
+        private android.widget.FrameLayout penguinContainer;
         private int phraseIndex;
         private long lastPhraseTime;
         private final Runnable stateTicker = new Runnable() {
@@ -6185,7 +6327,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             setGravity(Gravity.CENTER_HORIZONTAL);
             setPadding(dp(16), dp(14), dp(16), dp(18));
 
-            final FrameLayout penguinContainer = new FrameLayout(context);
+            penguinContainer = new FrameLayout(context);
 
             fallbackLogo = new android.widget.ImageView(context);
             fallbackLogo.setImageResource(R.drawable.pengram_logo);
@@ -6217,6 +6359,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                         fallbackLogo.animate().alpha(0f).setDuration(180).start();
                     }
                 });
+                // размер задаётся настройкой — иначе ползунок «размер пингвина»
+                // менял только контейнер, а сам пингвин оставался 132dp
                 penguinContainer.addView(penguinView, LayoutHelper.createFrame(132, 132, Gravity.CENTER));
             } catch (Throwable e) {
                 org.telegram.messenger.FileLog.e(e);
@@ -6224,7 +6368,15 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
 
             final int penguinSize = Math.round(132 * PengramConfig.getPenguinSize() / 100f);
-            addView(penguinContainer, LayoutHelper.createLinear(penguinSize + 8, penguinSize, Gravity.CENTER_HORIZONTAL));
+            if (penguinView != null) {
+                // кадр камеры считается по содержимому, поэтому шапка влезает
+                // при любом размере — просто масштабируем саму вьюху
+                android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
+                lp.width = penguinSize;
+                lp.height = penguinSize;
+                penguinView.setLayoutParams(lp);
+            }
+            addView(penguinContainer, LayoutHelper.createLinear(penguinSize, penguinSize, Gravity.CENTER_HORIZONTAL));
 
             // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
             bubble = new TextView(context);
@@ -6354,6 +6506,30 @@ public class PengramSettingsActivity extends UniversalFragment {
         public void applySkin() {
             appliedSkin = -1;
             syncWithApp();
+        }
+
+        /**
+         * Ползунок «размер пингвина» меняет шапку сразу: пересоздавать
+         * GL-вьюху на каждое движение пальцем нельзя — это мигание и утечка
+         * текстур. Масштабируем контейнер и сам кадр, камера подстроится сама.
+         */
+        public void applySize() {
+            final int size = Math.round(132 * PengramConfig.getPenguinSize() / 100f);
+            if (penguinView != null) {
+                final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
+                if (lp != null && (lp.width != size || lp.height != size)) {
+                    lp.width = size;
+                    lp.height = size;
+                    penguinView.setLayoutParams(lp);
+                }
+            }
+            final android.view.ViewGroup.LayoutParams containerLp = penguinContainer.getLayoutParams();
+            if (containerLp != null && (containerLp.width != size || containerLp.height != size)) {
+                containerLp.width = size;
+                containerLp.height = size;
+                penguinContainer.setLayoutParams(containerLp);
+                requestLayout();
+            }
         }
 
         /** играет ли сейчас музыка (именно играет, а не стоит на паузе) */

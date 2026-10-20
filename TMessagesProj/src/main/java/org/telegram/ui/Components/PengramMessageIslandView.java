@@ -55,6 +55,8 @@ public class PengramMessageIslandView extends LinearLayout {
     private boolean preview;
 
     private final ArrayList<Integer> actions = new ArrayList<>();
+    /** для каждого действия: доступно ли оно у этого сообщения */
+    private final ArrayList<Boolean> availability = new ArrayList<>();
     private final ArrayList<View> buttons = new ArrayList<>();
 
     private int backgroundColor;
@@ -67,10 +69,13 @@ public class PengramMessageIslandView extends LinearLayout {
     private final int itemHeight;
     private final int itemMinWidth;
     private final int itemMaxWidth;
-    private final int screenLimit;
     private final int labelSizeSp;
     private final boolean labels;
     private final boolean compact;
+    /** желаемая ширина кнопки: по самой длинной подписи, но в разумных пределах */
+    private int desiredItemWidth;
+    /** ширина, которая реально влезает в текущий замер (меню может быть уже экрана) */
+    private int appliedItemWidth;
 
     public PengramMessageIslandView(Context context, @Nullable Theme.ResourcesProvider resourcesProvider) {
         super(context);
@@ -83,13 +88,12 @@ public class PengramMessageIslandView extends LinearLayout {
         labels = PengramConfig.isMessageIslandLabels();
         iconSize = AndroidUtilities.dp(compact ? 21 : 23);
         labelSizeSp = compact ? 10 : 11;
-        itemMinWidth = AndroidUtilities.dp(compact ? 38 : 42);
+        itemMinWidth = AndroidUtilities.dp(compact ? 36 : 40);
         // С подписями колонка шире: короткое слово должно влезать целиком,
-        // а не превращаться в «Пересл…».
-        itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 70 : 78) : (compact ? 52 : 58));
-        // Полоса не должна вылезти за экран даже с шестью кнопками: ширину
-        // кнопки считаем от доступного места, а не от весов.
-        screenLimit = context.getResources().getDisplayMetrics().widthPixels - AndroidUtilities.dp(64);
+        // а не превращаться в «Пересл…». Без подписей это обычная иконка.
+        // 68dp хватает «Поделиться»; полосу всё равно ужимает onMeasure,
+        // поэтому широкий потолок не растягивает островок на весь экран.
+        itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 66 : 68) : (compact ? 44 : 46));
         final int vertical = AndroidUtilities.dp(compact ? 4 : 5);
         itemHeight = AndroidUtilities.dp(compact ? 28 : 32)
                 + vertical * 2
@@ -125,15 +129,33 @@ public class PengramMessageIslandView extends LinearLayout {
      * сторона сама решает, добавлять ли его в меню вообще.
      */
     public void setActions(@Nullable List<Integer> value) {
+        setActions(value, null);
+    }
+
+    /**
+     * @param enabled по одному флагу на действие: недоступное для этого
+     *                сообщения действие остаётся в полосе, но приглушено —
+     *                набор кнопок не «прыгает» от сообщения к сообщению.
+     */
+    public void setActions(@Nullable List<Integer> value, @Nullable List<Boolean> enabled) {
         actions.clear();
+        availability.clear();
         if (value != null) {
-            for (Integer id : value) {
-                if (id != null && !actions.contains(id) && actions.size() < PengramConfig.MESSAGE_ISLAND_LIMIT) {
-                    actions.add(id);
+            for (int i = 0; i < value.size(); i++) {
+                final Integer id = value.get(i);
+                if (id == null || actions.contains(id) || actions.size() >= PengramConfig.MESSAGE_ISLAND_LIMIT) {
+                    continue;
                 }
+                actions.add(id);
+                final Boolean flag = enabled != null && i < enabled.size() ? enabled.get(i) : null;
+                availability.add(flag == null || flag);
             }
         }
         rebuild();
+    }
+
+    private boolean isAvailable(int position) {
+        return position < 0 || position >= availability.size() || availability.get(position);
     }
 
     private void rebuild() {
@@ -149,21 +171,19 @@ public class PengramMessageIslandView extends LinearLayout {
         setBackground(Theme.createRoundRectDrawable(
                 AndroidUtilities.dp(compact ? 14 : 16), backgroundColor));
 
-        // Ширина колонки = самая длинная подпись + отступы, но не уже минимума
-        // и не шире остатка экрана, поделённого на число кнопок.
-        final int available = screenLimit - getPaddingLeft() - getPaddingRight();
-        final int fitWidth = Math.max(itemMinWidth, available / Math.max(1, actions.size()));
-        int perItem = Math.min(itemMaxWidth, fitWidth);
-        if (labels) {
-            perItem = Math.max(perItem, Math.min(itemMaxWidth, widestLabelWidth() + AndroidUtilities.dp(6)));
-            perItem = Math.min(perItem, Math.max(itemMinWidth, fitWidth));
-        }
+        // Желаемая ширина: самая длинная подпись + боковые отступы. Реальную
+        // подгоняем в onMeasure — там уже известна ширина меню на экране.
+        desiredItemWidth = labels
+                ? Math.max(itemMinWidth, Math.min(itemMaxWidth, widestLabelWidth() + AndroidUtilities.dp(8)))
+                : itemMaxWidth;
+        appliedItemWidth = desiredItemWidth;
         for (int a = 0; a < actions.size(); a++) {
             final int action = actions.get(a);
-            final View button = createButton(action);
+            final boolean available = isAvailable(a);
+            final View button = createButton(action, available);
             final int position = a;
             button.setOnClickListener(view -> {
-                if (preview || listener == null) {
+                if (preview || listener == null || !isAvailable(position)) {
                     return;
                 }
                 if (PengramConfig.isMessageIslandHaptic()) {
@@ -177,13 +197,50 @@ public class PengramMessageIslandView extends LinearLayout {
             });
             // Фиксированная ширина вместо веса: иначе LinearLayout растянул бы
             // полосу на весь AT_MOST-размер и поповер стал бы во весь экран.
-            addView(button, new LinearLayout.LayoutParams(perItem, itemHeight));
+            addView(button, new LinearLayout.LayoutParams(desiredItemWidth, itemHeight));
             buttons.add(button);
         }
         requestLayout();
     }
 
-    private View createButton(int action) {
+    /**
+     * Полоса обязана целиком влезть в меню: строки меню и поповер задают
+     * реальную доступную ширину, и она бывает меньше экранной. Раньше кнопки
+     * считались от ширины экрана, четвёртая уезжала за край и «пропадала».
+     */
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        final int mode = MeasureSpec.getMode(widthMeasureSpec);
+        if (mode != MeasureSpec.UNSPECIFIED && !buttons.isEmpty()) {
+            // Поповер шире островка (padding + фон + отступы у края экрана),
+            // поэтому одного AT_MOST мало: держим свой потолок по экрану.
+            final int screenCap = getResources().getDisplayMetrics().widthPixels
+                    - AndroidUtilities.dp(56) - getPaddingLeft() - getPaddingRight();
+            int content = Math.max(0, MeasureSpec.getSize(widthMeasureSpec)
+                    - getPaddingLeft() - getPaddingRight());
+            if (screenCap > 0) {
+                content = Math.min(content, screenCap);
+            }
+            final int fit = content / Math.max(1, buttons.size());
+            int width = Math.max(itemMinWidth, Math.min(itemMaxWidth, desiredItemWidth));
+            if (fit > 0) {
+                // ниже минимума не ужимаем — лучше чуть уже текст, чем нечитаемые кнопки
+                width = Math.min(width, Math.max(itemMinWidth, fit));
+            }
+            if (width != appliedItemWidth) {
+                appliedItemWidth = width;
+                for (View button : buttons) {
+                    ViewGroup.LayoutParams lp = button.getLayoutParams();
+                    if (lp != null && lp.width != width) {
+                        lp.width = width;
+                    }
+                }
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    private View createButton(int action, boolean available) {
         final LinearLayout column = new LinearLayout(getContext());
         column.setOrientation(VERTICAL);
         column.setGravity(Gravity.CENTER);
@@ -219,9 +276,13 @@ public class PengramMessageIslandView extends LinearLayout {
         wrapper.addView(column, LayoutHelper.createLinear(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
         wrapper.setContentDescription(title);
-        wrapper.setBackground(Theme.createRadSelectorDrawable(selectorColor, 12, 12));
-        wrapper.setClickable(!preview);
-        wrapper.setFocusable(!preview);
+        if (available) {
+            wrapper.setBackground(Theme.createRadSelectorDrawable(selectorColor, 12, 12));
+        }
+        wrapper.setClickable(!preview && available);
+        wrapper.setFocusable(!preview && available);
+        // Недоступное действие видно, но не обещает нажатия.
+        wrapper.setAlpha(available ? 1f : 0.42f);
         return wrapper;
     }
 

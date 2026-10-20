@@ -1863,10 +1863,11 @@ public class PengramConfig {
         return getBool(KEY_MESSAGE_ISLAND_HAPTIC, true) && isVibrationEnabled();
     }
 
+    /** по умолчанию островок снизу — ближе к пальцу, меню раскрывается вверх */
     public static int getMessageIslandPosition() {
-        return getIntCached(KEY_MESSAGE_ISLAND_POSITION, MESSAGE_ISLAND_POSITION_TOP)
-                == MESSAGE_ISLAND_POSITION_BOTTOM
-                ? MESSAGE_ISLAND_POSITION_BOTTOM : MESSAGE_ISLAND_POSITION_TOP;
+        return getIntCached(KEY_MESSAGE_ISLAND_POSITION, MESSAGE_ISLAND_POSITION_BOTTOM)
+                == MESSAGE_ISLAND_POSITION_TOP
+                ? MESSAGE_ISLAND_POSITION_TOP : MESSAGE_ISLAND_POSITION_BOTTOM;
     }
 
     public static void setMessageIslandPosition(int value) {
@@ -2040,6 +2041,54 @@ public class PengramConfig {
             case MSG_ACTION_RESEND: return org.telegram.messenger.R.drawable.msg_send;
             default: return org.telegram.messenger.R.drawable.msg_copy;
         }
+    }
+
+    // ------------------------------- история поиска -------------------------------
+
+    /** ключ: недавние запросы поиска по настройкам Pengram */
+    private static final String KEY_SEARCH_HISTORY = "settingsSearchHistory";
+    private static final int SEARCH_HISTORY_MAX = 8;
+
+    /**
+     * Недавние запросы поиска по настройкам — как история поиска в Telegram.
+     * Храним строкой через \n: запросы короткие, отдельная таблица не нужна.
+     */
+    public static java.util.ArrayList<String> getSearchHistory() {
+        final java.util.ArrayList<String> result = new java.util.ArrayList<>();
+        final String saved = visualString(KEY_SEARCH_HISTORY);
+        if (saved == null || saved.isEmpty()) {
+            return result;
+        }
+        for (String part : saved.split("\n")) {
+            final String value = part.trim();
+            if (!value.isEmpty() && !result.contains(value) && result.size() < SEARCH_HISTORY_MAX) {
+                result.add(value);
+            }
+        }
+        return result;
+    }
+
+    public static void addSearchHistory(String query) {
+        final String value = query == null ? "" : query.trim().replace("\n", " ");
+        if (value.length() < 2 || value.length() > 80) {
+            return;
+        }
+        final java.util.ArrayList<String> history = getSearchHistory();
+        history.remove(value);
+        history.add(0, value);
+        while (history.size() > SEARCH_HISTORY_MAX) {
+            history.remove(history.size() - 1);
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (String item : history) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(item);
+        }
+        putString(KEY_SEARCH_HISTORY, sb.toString());
+    }
+
+    public static void clearSearchHistory() {
+        putString(KEY_SEARCH_HISTORY, "");
     }
 
     // ------------------------------- скины пингвина -------------------------------

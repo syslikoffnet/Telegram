@@ -34243,21 +34243,28 @@ public class ChatActivity extends BaseFragment implements
                 if (!suggestEdit && type >= 0 && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {
                     final ArrayList<Integer> islandActions = new ArrayList<>();
                     final ArrayList<Integer> islandOptions = new ArrayList<>();
+                    final ArrayList<Boolean> islandEnabled = new ArrayList<>();
                     final ArrayList<Integer> movedOptions = new ArrayList<>();
+                    boolean islandHasAvailable = false;
                     for (int action : org.telegram.messenger.PengramConfig.getMessageIslandItems()) {
+                        // Действие может быть недоступно этому сообщению (нет ссылки,
+                        // не своё сообщение). Оно остаётся в полосе приглушённым,
+                        // чтобы набор кнопок не менялся от сообщения к сообщению.
                         final int present = pengramFirstPresentOption(action, options);
+                        islandActions.add(action);
+                        islandOptions.add(present);
+                        islandEnabled.add(present >= 0);
                         if (present < 0) {
                             continue;
                         }
-                        islandActions.add(action);
-                        islandOptions.add(present);
+                        islandHasAvailable = true;
                         for (int option : pengramMessageActionOptions(action)) {
                             if (!movedOptions.contains(option)) {
                                 movedOptions.add(option);
                             }
                         }
                     }
-                    if (!islandActions.isEmpty()) {
+                    if (islandHasAvailable) {
                         for (int i = options.size() - 1; i >= 0; i--) {
                             if (movedOptions.contains(options.get(i))) {
                                 options.remove(i);
@@ -34267,12 +34274,16 @@ public class ChatActivity extends BaseFragment implements
                         }
                         messageIslandView = new org.telegram.ui.Components.PengramMessageIslandView(
                                 getParentActivity(), themeDelegate);
-                        messageIslandView.setActions(islandActions);
+                        messageIslandView.setActions(islandActions, islandEnabled);
                         messageIslandView.setListener((position, view) -> {
                             if (position < 0 || position >= islandOptions.size()) {
                                 return;
                             }
-                            processSelectedOption(islandOptions.get(position));
+                            final int option = islandOptions.get(position);
+                            if (option < 0) {
+                                return;
+                            }
+                            processSelectedOption(option);
                         });
                         if (org.telegram.messenger.PengramConfig.getMessageIslandPosition()
                                 != org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM) {

@@ -36,7 +36,7 @@ for name, _, group, _, info in rows:
 assert sum(bool(info) for *_, info in rows) >= 80, 'missing per-control descriptions'
 for translated in ('PengramAvatarPos', 'PengramDialogAvatars', 'PengramProfileLimitSize'):
     assert translated in resources['values-ru'], translated
-assert 'PengramSearchMetadata.matches(entry, terms)' in SETTINGS.read_text()
+assert 'PengramSearchMetadata.relevance(entry, terms)' in SETTINGS.read_text()
 assert 'PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)' in PROFILE.read_text()
 assert 'searchRevealGroups = true' in SETTINGS.read_text()
 assert 'result.adaptiveLayout = true' in SETTINGS.read_text()
