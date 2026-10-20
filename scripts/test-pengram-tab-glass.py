@@ -50,7 +50,7 @@ assert 'private float glassPressT()' in layout
 # the band covers the whole bar (with margins), not a rectangle floating in it
 assert 'private boolean glassGeometry()' in layout
 assert 'background.getPadding(glassPadding);' in layout
-assert 'glassRect.inset(glassPadding.left, glassPadding.top,' in layout
+assert 'glassRect.set(glassPadding.left, glassPadding.top,' in layout
 # light and shade must follow the theme, or the bar looks wrong in one of them
 assert 'glassShaderDark' in layout
 assert 'Theme.isCurrentThemeDark()' in layout
