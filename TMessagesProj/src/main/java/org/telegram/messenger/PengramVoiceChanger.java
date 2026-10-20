@@ -302,6 +302,13 @@ public class PengramVoiceChanger {
             muteIfAnonymous(buffer, len, mode);
             return;
         }
+        // Частота приходит и этим путём (микрофон звонка), а окно задержки и
+        // коэффициенты считаются по ней. Без обновления здесь 16 кГц Bluetooth
+        // обрабатывались бы окном от 48 кГц.
+        if (rate != sampleRate) {
+            sampleRate = rate;
+            initialized = false;
+        }
         final long now = android.os.SystemClock.elapsedRealtime();
         if (activeSource != source || now - lastSourceFrame > 500) {
             if (activeSource != 0 && activeSource != source && now - lastSourceFrame < 250) {
@@ -518,8 +525,20 @@ public class PengramVoiceChanger {
                     readPhase += (pitch - 1f);
                     if (readPhase >= window) {
                         readPhase -= window;
+                        // Шаг фазы бывает больше окна (высокий коэффициент), и
+                        // тогда одного вычитания мало: голова чтения уезжала за
+                        // линию задержки, и на её краю ловили выход за массив.
+                        if (readPhase >= window) {
+                            readPhase %= window;
+                        }
                     } else if (readPhase < 0) {
                         readPhase += window;
+                        if (readPhase < 0) {
+                            readPhase %= window;
+                            if (readPhase < 0) {
+                                readPhase += window;
+                            }
+                        }
                     }
 
                     final float head1 = readPhase;
@@ -779,9 +798,11 @@ public class PengramVoiceChanger {
     /** линейная интерполяция по линии задержки, head — задержка в сэмплах от головы записи */
     private static float read(float head) {
         // head is always in [0, window), window <= DELAY_SIZE / 2:
-        // a single wrap is sufficient, even at the buffer boundary.
+        // a single wrap is sufficient, even at the buffer boundary. Kept as a
+        // loop anyway: one out-of-window head used to read past the ring.
         float pos = writePos - window + head;
-        if (pos < 0) pos += DELAY_SIZE;
+        while (pos < 0) pos += DELAY_SIZE;
+        while (pos >= DELAY_SIZE) pos -= DELAY_SIZE;
         final int i0 = (int) pos;
         final int i1 = (i0 + 1) & DELAY_MASK;
         final float frac = pos - i0;
