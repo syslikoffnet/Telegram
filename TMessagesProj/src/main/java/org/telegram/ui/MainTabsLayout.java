@@ -504,8 +504,10 @@ public class MainTabsLayout extends AnimatedLinearLayout {
             background.getPadding(glassPadding);
             if (glassPadding.left + glassPadding.right < w
                     && glassPadding.top + glassPadding.bottom < h) {
-                glassRect.inset(glassPadding.left, glassPadding.top,
-                        glassPadding.right, glassPadding.bottom);
+                // RectF.inset с четырьмя аргументами есть не на всех API —
+                // считаем края сами, это ровно то же самое
+                glassRect.set(glassPadding.left, glassPadding.top,
+                        w - glassPadding.right, h - glassPadding.bottom);
             }
         }
         glassPath.reset();

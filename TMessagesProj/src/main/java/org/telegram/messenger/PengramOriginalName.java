@@ -6,6 +6,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 
+import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 
 /**
@@ -410,7 +412,7 @@ public final class PengramOriginalName {
     }
 
     /** имя из ответа на удаление: сервер больше не подменяет его контактом */
-    private static String findRealName(int account, long userId, TLRPC.TLObject response, String savedFirst, String savedLast) {
+    private static String findRealName(int account, long userId, TLObject response, String savedFirst, String savedLast) {
         final String saved = clean(ContactsController.formatName(savedFirst, savedLast));
         if (response instanceof TLRPC.Updates) {
             final TLRPC.Updates updates = (TLRPC.Updates) response;
@@ -444,7 +446,7 @@ public final class PengramOriginalName {
     private static void restoreContact(final int account, final long userId,
                                        final String first, final String last, final long accessHash,
                                        final Utilities.Callback<Boolean> done) {
-        final TLRPC.User restore = new TLRPC.User();
+        final TLRPC.User restore = new TLRPC.TL_user();
         restore.id = userId;
         restore.access_hash = accessHash;
         restore.first_name = first;
@@ -610,7 +612,7 @@ public final class PengramOriginalName {
                     p.edit().remove(rawKey).apply();
                     continue;
                 }
-                final TLRPC.User restore = new TLRPC.User();
+                final TLRPC.User restore = new TLRPC.TL_user();
                 restore.id = userId;
                 restore.access_hash = accessHash;
                 restore.first_name = parts[0];
