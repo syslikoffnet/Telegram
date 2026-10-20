@@ -878,6 +878,7 @@
     <string name="PengramMessageIslandTintSoft">Мягкий акцент</string>
     <string name="PengramMessageIslandTintAccent">Акцентная заливка</string>
     <string name="PengramMessageIslandLimit">В островок помещается не больше %1$d кнопок</string>
+<string name="PengramMessageIslandCountInfo">В островке %1$d из %2$d кнопок</string>
     <string name="PengramMessageIslandItemsTitle">Островок действий</string>
     <string name="PengramMessageIslandItemsInfo">Перетаскивайте кнопки между двумя разделами или нажимайте, чтобы перекинуть. Кнопки в островке уходят из длинного меню, кнопки в меню остаются там строками.</string>
     <string name="PengramPlaceMessageMenu">В меню сообщения</string>

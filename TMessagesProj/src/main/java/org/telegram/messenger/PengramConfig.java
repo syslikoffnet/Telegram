@@ -1974,7 +1974,8 @@ public class PengramConfig {
                 count++;
             }
         }
-        return count;
+        // Старые prefs могли сохранить больше кнопок, чем влезает в полосу.
+        return Math.min(count, MESSAGE_ISLAND_LIMIT);
     }
 
     public static int getMessageIslandItemTitle(int id) {

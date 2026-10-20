@@ -142,12 +142,20 @@ public class PengramConstructorActivity extends BaseFragment {
         // поэтому предпросмотр не расходится с реальным поведением.
         final PengramMessageIslandView islandPreview = new PengramMessageIslandView(context, null);
         islandPreview.setActions(PengramConfig.getMessageIslandItems());
+        // WRAP_CONTENT, а не MATCH_PARENT: предпросмотр должен выглядеть
+        // капсулой по ширине кнопок, как в настоящем меню, а не полосой во весь экран.
         final TextView islandValue = addLiveCard(content,
                 getString(R.string.PengramConstructorMessageIsland), islandPreview,
                 () -> getString(PengramConfig.isMessageIslandEnabled()
-                        ? R.string.PengramMessageIslandOn : R.string.PengramMessageIslandOff));
+                        ? R.string.PengramMessageIslandOn : R.string.PengramMessageIslandOff),
+                LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT);
         islandPreview.setPreview(true);
         islandPreview.setOnClickListener(v -> {
+            v.animate().cancel();
+            v.setScaleX(0.97f);
+            v.setScaleY(0.97f);
+            v.animate().scaleX(1f).scaleY(1f).setDuration(220)
+                    .setInterpolator(CubicBezierInterpolator.EASE_OUT_BACK).start();
             presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE));
         });
         if (islandValue != null && !PengramConfig.isMessageIslandEnabled()) {

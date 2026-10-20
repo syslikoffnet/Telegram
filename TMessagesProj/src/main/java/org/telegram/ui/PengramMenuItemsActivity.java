@@ -464,11 +464,31 @@ public class PengramMenuItemsActivity extends BaseFragment {
             final Row row = rows.get(position);
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_INFO: {
-                    ((TextInfoPrivacyCell) holder.itemView).setText(LocaleController.getString(infoRes()));
+                    CharSequence info = LocaleController.getString(infoRes());
+                    if (mode == MODE_MESSAGE) {
+                        // Живой счётчик: во время перетаскивания видно, сколько
+                        // кнопок уже в полосе и сколько ещё поместится.
+                        info = info + "\n\n" + LocaleController.formatString(
+                                R.string.PengramMessageIslandCountInfo,
+                                messageIslandCount(), PengramConfig.MESSAGE_ISLAND_LIMIT);
+                    }
+                    ((TextInfoPrivacyCell) holder.itemView).setText(info);
                     break;
                 }
                 case VIEW_TYPE_HEADER: {
                     ((HeaderCell) holder.itemView).setText(sectionTitle(row.section));
+                    break;
+                }
+                case VIEW_TYPE_PLACEHOLDER: {
+                    final TextView text = ((PlaceholderCell) holder.itemView).textView;
+                    if (mode == MODE_MESSAGE && row.section == 1
+                            && messageIslandCount() >= PengramConfig.MESSAGE_ISLAND_LIMIT) {
+                        // Мест больше нет — зона больше не приглашает перетаскивать.
+                        text.setText(LocaleController.formatString(
+                                R.string.PengramMessageIslandLimit, PengramConfig.MESSAGE_ISLAND_LIMIT));
+                    } else {
+                        text.setText(LocaleController.getString(R.string.PengramDropHere));
+                    }
                     break;
                 }
                 case VIEW_TYPE_ITEM: {

@@ -34240,7 +34240,7 @@ public class ChatActivity extends BaseFragment implements
                 }
                 // Pengram: горизонтальный островок. Действия, уехавшие в него,
                 // убираем из списка строк — иначе меню не станет короче.
-                if (!suggestEdit && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {
+                if (!suggestEdit && type >= 0 && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {
                     final ArrayList<Integer> islandActions = new ArrayList<>();
                     final ArrayList<Integer> islandOptions = new ArrayList<>();
                     final ArrayList<Integer> movedOptions = new ArrayList<>();

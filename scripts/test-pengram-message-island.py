@@ -56,7 +56,7 @@ assert 'OPTION_DELETE' not in mapping and 'OPTION_TRANSLATE' not in mapping
 
 # --- menu integration --------------------------------------------------------
 menu = chat.split('private boolean createMenu(', 1)[1]
-build = menu.split('if (!suggestEdit && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {', 1)[1] \
+build = menu.split('if (!suggestEdit && type >= 0 && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {', 1)[1] \
     .split('scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];', 1)[0]
 assert 'final int present = pengramFirstPresentOption(action, options);' in build
 assert 'if (present < 0) {\n                            continue;' in build
@@ -81,6 +81,8 @@ assert 'PengramConfig.getMessageIslandItemTitle(action)' in island
 assert 'listener.onIslandAction(position, view);' in island
 assert 'PengramConfig.isMessageIslandHaptic()' in island
 assert 'MESSAGE_ISLAND_LIMIT' in island
+# a message that is still being sent has no island: only existing messages are read
+assert 'if (!suggestEdit && type >= 0 && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {' in menu
 assert 'setVisibility(GONE);' in island  # empty island must not leave an empty capsule
 assert 'MESSAGE_ISLAND_TINT_ACCENT' in island and 'MESSAGE_ISLAND_TINT_PLAIN' in island
 # a preview must not fire real actions
@@ -98,6 +100,8 @@ assert 'PengramConfig.setMessageIslandOrder(order)' in items
 assert 'PengramConfig.setMessageIslandItem(row.id, row.section == 1)' in items
 # both entry points guard the 6-button limit: tap-to-move and drag-and-drop
 assert items.count('showIslandLimit();') == 2
+assert 'PengramMessageIslandCountInfo' in items  # editor info shows a live counter
+assert 'messageIslandCount() >= PengramConfig.MESSAGE_ISLAND_LIMIT' in items
 assert 'PengramConfig.MESSAGE_ISLAND_LIMIT' in items
 assert 'PengramConstructorMessageIsland' in constructor
 

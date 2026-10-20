@@ -11882,6 +11882,7 @@
     <string name="PengramMessageIslandTintSoft">Soft accent</string>
     <string name="PengramMessageIslandTintAccent">Accent fill</string>
     <string name="PengramMessageIslandLimit">No more than %1$d buttons fit in the island</string>
+<string name="PengramMessageIslandCountInfo">%1$d of %2$d buttons are in the island</string>
     <string name="PengramMessageIslandItemsTitle">Action island</string>
     <string name="PengramMessageIslandItemsInfo">Drag buttons between the two sections or tap to move them. Buttons in the island leave the long menu; buttons in the menu stay there as rows.</string>
     <string name="PengramPlaceMessageMenu">In the message menu</string>
