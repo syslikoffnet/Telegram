@@ -128,7 +128,7 @@ public final class PengramQuoteMaker {
         boolean sticker, visual;
         final ArrayList<Entry> albumEntries = new ArrayList<>();
         final ArrayList<Bitmap> albumImages = new ArrayList<>();
-        int imageHeight, height, width;
+        int imageHeight, imageWidth, height, width;
         boolean grouped;
         boolean timeInline;
         int gapBefore = 13;
@@ -763,6 +763,7 @@ public final class PengramQuoteMaker {
             final String name = showNames && !grouped ? e.name : null;
             final String time = showTimes ? e.time : null;
             e.imageHeight = 0;
+            e.imageWidth = 0;
             e.media = null;
             e.albumImages.clear();
             if (includeMedia && e.visual) {
@@ -771,13 +772,31 @@ public final class PengramQuoteMaker {
                     for (Entry tile : e.albumEntries) e.albumImages.add(decodeMedia(tile));
                     int cell = (contentWidth - 8) / 2;
                     int count = 1 + e.albumEntries.size();
+                    e.imageWidth = contentWidth;
                     e.imageHeight = ((count + 1) / 2) * (cell + 8) - 8;
                 } else if (e.media != null) {
-                    e.imageHeight = e.sticker ? Math.min(400, contentWidth)
-                            : Math.min(420, Math.max(120,
-                            Math.round(contentWidth * e.media.getHeight() / (float) Math.max(1, e.media.getWidth()))));
+                    if (e.sticker) {
+                        // A sticker hugs its own proportions instead of sitting in
+                        // an almost empty full-width card.
+                        final float aspect = e.media.getWidth()
+                                / (float) Math.max(1, e.media.getHeight());
+                        final int maxSide = Math.min(360, contentWidth);
+                        int width = Math.min(maxSide, Math.round(maxSide * aspect));
+                        int height = Math.max(1, Math.round(width / aspect));
+                        if (height > maxSide) {
+                            height = maxSide;
+                            width = Math.max(1, Math.round(height * aspect));
+                        }
+                        e.imageWidth = width;
+                        e.imageHeight = height;
+                    } else {
+                        e.imageWidth = contentWidth;
+                        e.imageHeight = Math.min(420, Math.max(120,
+                                Math.round(contentWidth * e.media.getHeight() / (float) Math.max(1, e.media.getWidth()))));
+                    }
                 } else {
                     e.imageHeight = 148; // No local poster: show a clearly labeled missing-media tile.
+                    e.imageWidth = contentWidth;
                 }
             }
             String displayText = hideMentions
@@ -795,7 +814,9 @@ public final class PengramQuoteMaker {
             float nameWidth = name == null ? 0 : body.measureText(name)
                     + (showAvatars && !name.isEmpty() ? avatarSize + avatarGap : 0);
             float timeWidth = time == null ? 0 : body.measureText(time) * .76f;
-            e.width = e.imageHeight > 0 ? WIDTH - pad * 2 : Math.min(WIDTH - pad * 2,
+            e.width = e.imageHeight > 0
+                    ? Math.min(WIDTH - pad * 2, Math.max(230, e.imageWidth + 72))
+                    : Math.min(WIDTH - pad * 2,
                     Math.max(230, Math.round(Math.max(lineWidth, Math.max(nameWidth, timeWidth)) + 76)));
             // The time fits on the last text line often enough. Drawing it there
             // removes an empty row and makes the card look typeset, not stacked.
@@ -825,7 +846,9 @@ public final class PengramQuoteMaker {
                 drawWallpaper(canvas, palette.wallpaper, total, paint);
             }
             int y = pad + 8;
-            final float mediaRadius = Math.max(6f, Math.min(18f, radius * 0.62f));
+            // Media follows the card: square cards keep square corners, round
+            // ones never get a full pill for a wide photo.
+            final float mediaRadius = radius <= 2 ? 0f : Math.max(6f, Math.min(18f, radius * 0.62f));
             for (Entry e : entries) {
                 final String name = showNames && !e.grouped ? e.name : null;
                 final String time = showTimes ? e.time : null;
@@ -923,7 +946,9 @@ public final class PengramQuoteMaker {
                             if (image != null && tile.motion) drawPlayIcon(canvas, paint, x + 32, top + 32);
                         }
                     } else {
-                        RectF bounds = new RectF(contentLeft, inner, WIDTH - contentLeft, inner + e.imageHeight);
+                        final int mediaWidth = e.imageWidth > 0 ? Math.min(e.imageWidth, WIDTH - contentLeft * 2)
+                                : WIDTH - contentLeft * 2;
+                        RectF bounds = new RectF(contentLeft, inner, contentLeft + mediaWidth, inner + e.imageHeight);
                         if (e.media != null) {
                             drawImage(canvas, paint, e.media, bounds, false, e.sticker, surface, mediaRadius);
                             if (e.motion) drawPlayIcon(canvas, paint, contentLeft + 32, inner + 32);
@@ -1029,7 +1054,7 @@ public final class PengramQuoteMaker {
             final RectF shadow = new RectF(card.left - grow, card.top - grow + grow * 0.55f,
                     card.right + grow, card.bottom + grow + grow * 0.55f);
             paint.setColor(0xFF000000);
-            paint.setAlpha(dark ? 20 : 10);
+            paint.setAlpha(dark ? 16 : 10);
             canvas.drawRoundRect(shadow, radius + grow, radius + grow, paint);
         }
         paint.setAlpha(255);

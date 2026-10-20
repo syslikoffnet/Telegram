@@ -8766,6 +8766,8 @@ public class ChatActivity extends BaseFragment implements
             } else if (obj instanceof MessageObject && localDeletedNavigation) {
                 MessageObject hit = (MessageObject) obj;
                 localDeletedSearchIndex = messagesSearchAdapter.indexOfResult(hit.getDialogId(), hit.getId());
+                localSearchHitDialogId = hit.getDialogId();
+                localSearchHitMessageId = hit.getId();
                 updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
                         getMediaDataController().getSearchCount());
                 showMessagesSearchListView(false);
