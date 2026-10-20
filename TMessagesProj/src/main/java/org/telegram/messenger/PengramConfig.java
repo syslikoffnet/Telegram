@@ -1787,6 +1787,236 @@ public class PengramConfig {
         }
     }
 
+    // ------------------------------- островок действий сообщения -------------------------------
+
+    /*
+     * Действия в меню сообщения по умолчанию длинным списком идут сверху вниз.
+     * Островок — горизонтальная полоса с самыми частыми кнопками, прикреплённая
+     * к тому же поповеру: выбранные действия уезжают из списка в островок, и
+     * меню становится короче. Идентификаторы стабильны: на них завязаны и
+     * порядок, и «где живёт кнопка», поэтому менять числа нельзя.
+     */
+
+    public static final int MSG_ACTION_REPLY = 1;
+    public static final int MSG_ACTION_COPY = 2;
+    public static final int MSG_ACTION_COPY_LINK = 3;
+    public static final int MSG_ACTION_FORWARD = 4;
+    public static final int MSG_ACTION_EDIT = 5;
+    public static final int MSG_ACTION_PIN = 6;
+    public static final int MSG_ACTION_UNPIN = 7;
+    public static final int MSG_ACTION_SAVE = 8;
+    public static final int MSG_ACTION_SHARE = 9;
+    public static final int MSG_ACTION_QUOTE = 10;
+    public static final int MSG_ACTION_ARCHIVE = 11;
+    public static final int MSG_ACTION_COPY_ID = 12;
+    public static final int MSG_ACTION_AI = 13;
+    public static final int MSG_ACTION_RESEND = 14;
+
+    /** больше шести кнопок в одной полосе уже не читаются — и не попадают пальцем */
+    public static final int MESSAGE_ISLAND_LIMIT = 6;
+
+    public static final int[] MESSAGE_ISLAND_ACTIONS = new int[]{
+            MSG_ACTION_REPLY, MSG_ACTION_COPY, MSG_ACTION_COPY_LINK, MSG_ACTION_FORWARD,
+            MSG_ACTION_EDIT, MSG_ACTION_PIN, MSG_ACTION_UNPIN, MSG_ACTION_SAVE,
+            MSG_ACTION_SHARE, MSG_ACTION_QUOTE, MSG_ACTION_ARCHIVE, MSG_ACTION_COPY_ID,
+            MSG_ACTION_AI, MSG_ACTION_RESEND
+    };
+
+    /** по умолчанию в островке стоит ровно то, что просили: ответить, копировать, ссылка, переслать */
+    private static final int[] MESSAGE_ISLAND_DEFAULT = new int[]{
+            MSG_ACTION_REPLY, MSG_ACTION_COPY, MSG_ACTION_COPY_LINK, MSG_ACTION_FORWARD
+    };
+
+    public static final String KEY_MESSAGE_ISLAND = "messageIslandEnabled";
+    public static final String KEY_MESSAGE_ISLAND_LABELS = "messageIslandLabels";
+    public static final String KEY_MESSAGE_ISLAND_COMPACT = "messageIslandCompact";
+    public static final String KEY_MESSAGE_ISLAND_HAPTIC = "messageIslandHaptic";
+    public static final String KEY_MESSAGE_ISLAND_POSITION = "messageIslandPosition";
+    public static final String KEY_MESSAGE_ISLAND_TINT = "messageIslandTint";
+
+    public static final int MESSAGE_ISLAND_POSITION_TOP = 0;
+    public static final int MESSAGE_ISLAND_POSITION_BOTTOM = 1;
+
+    public static final int MESSAGE_ISLAND_TINT_PLAIN = 0;
+    public static final int MESSAGE_ISLAND_TINT_SOFT = 1;
+    public static final int MESSAGE_ISLAND_TINT_ACCENT = 2;
+
+    /** островок выключен по умолчанию: база должна выглядеть как раньше */
+    public static boolean isMessageIslandEnabled() {
+        return getBool(KEY_MESSAGE_ISLAND, false);
+    }
+
+    public static void setMessageIslandEnabled(boolean value) {
+        setBool(KEY_MESSAGE_ISLAND, value);
+    }
+
+    public static boolean isMessageIslandLabels() {
+        return getBool(KEY_MESSAGE_ISLAND_LABELS, true);
+    }
+
+    public static boolean isMessageIslandCompact() {
+        return getBool(KEY_MESSAGE_ISLAND_COMPACT, false);
+    }
+
+    /** вибрация островка уважает и общий переключатель тактильной отдачи */
+    public static boolean isMessageIslandHaptic() {
+        return getBool(KEY_MESSAGE_ISLAND_HAPTIC, true) && isVibrationEnabled();
+    }
+
+    public static int getMessageIslandPosition() {
+        return getIntCached(KEY_MESSAGE_ISLAND_POSITION, MESSAGE_ISLAND_POSITION_TOP)
+                == MESSAGE_ISLAND_POSITION_BOTTOM
+                ? MESSAGE_ISLAND_POSITION_BOTTOM : MESSAGE_ISLAND_POSITION_TOP;
+    }
+
+    public static void setMessageIslandPosition(int value) {
+        setIntValue(KEY_MESSAGE_ISLAND_POSITION, value == MESSAGE_ISLAND_POSITION_BOTTOM
+                ? MESSAGE_ISLAND_POSITION_BOTTOM : MESSAGE_ISLAND_POSITION_TOP);
+    }
+
+    public static int getMessageIslandTint() {
+        final int value = getIntCached(KEY_MESSAGE_ISLAND_TINT, MESSAGE_ISLAND_TINT_SOFT);
+        return value < 0 || value > MESSAGE_ISLAND_TINT_ACCENT ? MESSAGE_ISLAND_TINT_SOFT : value;
+    }
+
+    public static void setMessageIslandTint(int value) {
+        setIntValue(KEY_MESSAGE_ISLAND_TINT, value < 0 || value > MESSAGE_ISLAND_TINT_ACCENT
+                ? MESSAGE_ISLAND_TINT_SOFT : value);
+    }
+
+    /** порядок всех действий: и тех, что в островке, и тех, что остались в меню */
+    public static java.util.ArrayList<Integer> getMessageIslandOrder() {
+        init();
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        final String saved = visualString("messageIslandOrder");
+        if (saved != null && !saved.isEmpty()) {
+            for (String part : saved.split(",")) {
+                try {
+                    final int id = Integer.parseInt(part.trim());
+                    if (knownMessageAction(id) && !result.contains(id)) {
+                        result.add(id);
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+        for (int known : MESSAGE_ISLAND_ACTIONS) {
+            if (!result.contains(known)) {
+                result.add(known);
+            }
+        }
+        return result;
+    }
+
+    public static void setMessageIslandOrder(java.util.List<Integer> order) {
+        if (order == null) {
+            return;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int a = 0; a < order.size(); ++a) {
+            final int id = order.get(a);
+            if (!knownMessageAction(id)) {
+                continue;
+            }
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id);
+        }
+        putString("messageIslandOrder", sb.toString());
+    }
+
+    private static boolean knownMessageAction(int id) {
+        for (int known : MESSAGE_ISLAND_ACTIONS) {
+            if (known == id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** кнопка стоит в островке (true) или осталась строкой в меню (false) */
+    public static boolean isMessageIslandItem(int id) {
+        init();
+        boolean def = false;
+        for (int known : MESSAGE_ISLAND_DEFAULT) {
+            if (known == id) {
+                def = true;
+                break;
+            }
+        }
+        return getBool("messageIslandPlace_" + id, def);
+    }
+
+    public static void setMessageIslandItem(int id, boolean inIsland) {
+        if (!knownMessageAction(id)) {
+            return;
+        }
+        setBool("messageIslandPlace_" + id, inIsland);
+    }
+
+    /** итоговый набор островка в выбранном порядке, не больше лимита */
+    public static java.util.ArrayList<Integer> getMessageIslandItems() {
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        for (int id : getMessageIslandOrder()) {
+            if (isMessageIslandItem(id)) {
+                result.add(id);
+                if (result.size() >= MESSAGE_ISLAND_LIMIT) {
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    public static int getMessageIslandItemsCount() {
+        int count = 0;
+        for (int id : getMessageIslandOrder()) {
+            if (isMessageIslandItem(id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    public static int getMessageIslandItemTitle(int id) {
+        switch (id) {
+            case MSG_ACTION_REPLY: return org.telegram.messenger.R.string.Reply;
+            case MSG_ACTION_COPY: return org.telegram.messenger.R.string.Copy;
+            case MSG_ACTION_COPY_LINK: return org.telegram.messenger.R.string.CopyLink;
+            case MSG_ACTION_FORWARD: return org.telegram.messenger.R.string.Forward;
+            case MSG_ACTION_EDIT: return org.telegram.messenger.R.string.Edit;
+            case MSG_ACTION_PIN: return org.telegram.messenger.R.string.PinMessage;
+            case MSG_ACTION_UNPIN: return org.telegram.messenger.R.string.UnpinMessage;
+            case MSG_ACTION_SAVE: return org.telegram.messenger.R.string.SaveToGallery;
+            case MSG_ACTION_SHARE: return org.telegram.messenger.R.string.ShareFile;
+            case MSG_ACTION_QUOTE: return org.telegram.messenger.R.string.PengramQuoteMenu;
+            case MSG_ACTION_ARCHIVE: return org.telegram.messenger.R.string.PengramMenuSaveToSaved;
+            case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.string.PengramMenuCopyMessageId;
+            case MSG_ACTION_AI: return org.telegram.messenger.R.string.PengramAIMenu;
+            case MSG_ACTION_RESEND: return org.telegram.messenger.R.string.PengramResendHere;
+            default: return org.telegram.messenger.R.string.Reply;
+        }
+    }
+
+    public static int getMessageIslandItemIcon(int id) {
+        switch (id) {
+            case MSG_ACTION_REPLY: return org.telegram.messenger.R.drawable.menu_reply;
+            case MSG_ACTION_COPY: return org.telegram.messenger.R.drawable.msg_copy;
+            case MSG_ACTION_COPY_LINK: return org.telegram.messenger.R.drawable.msg_link;
+            case MSG_ACTION_FORWARD: return org.telegram.messenger.R.drawable.msg_forward;
+            case MSG_ACTION_EDIT: return org.telegram.messenger.R.drawable.msg_edit;
+            case MSG_ACTION_PIN: return org.telegram.messenger.R.drawable.msg_pin;
+            case MSG_ACTION_UNPIN: return org.telegram.messenger.R.drawable.msg_unpin;
+            case MSG_ACTION_SAVE: return org.telegram.messenger.R.drawable.msg_gallery;
+            case MSG_ACTION_SHARE: return org.telegram.messenger.R.drawable.msg_shareout;
+            case MSG_ACTION_QUOTE: return org.telegram.messenger.R.drawable.filled_reply_quote;
+            case MSG_ACTION_ARCHIVE: return org.telegram.messenger.R.drawable.msg_saved;
+            case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.drawable.msg_copy;
+            case MSG_ACTION_AI: return org.telegram.messenger.R.drawable.msg_bot;
+            case MSG_ACTION_RESEND: return org.telegram.messenger.R.drawable.msg_send;
+            default: return org.telegram.messenger.R.drawable.msg_copy;
+        }
+    }
+
     // ------------------------------- скины пингвина -------------------------------
 
     public static final int SKIN_NONE = 0;

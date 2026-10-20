@@ -33012,6 +33012,42 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /**
+     * Pengram: какие пункты меню соответствуют действию островка. Одно действие
+     * может означать несколько OPTION_* — например «сохранить» приходит как
+     * «в галерею», «в загрузки» или «в музыку» в зависимости от типа медиа.
+     */
+    private static int[] pengramMessageActionOptions(int action) {
+        switch (action) {
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_REPLY: return new int[]{OPTION_REPLY};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_COPY: return new int[]{OPTION_COPY};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_COPY_LINK: return new int[]{OPTION_COPY_LINK};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_FORWARD: return new int[]{OPTION_FORWARD};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_EDIT: return new int[]{OPTION_EDIT};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_PIN: return new int[]{OPTION_PIN};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_UNPIN: return new int[]{OPTION_UNPIN};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_SAVE:
+                return new int[]{OPTION_SAVE_TO_GALLERY, OPTION_SAVE_TO_GALLERY2, OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_SHARE: return new int[]{OPTION_SHARE};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_QUOTE: return new int[]{OPTION_PENGRAM_QUOTE};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_ARCHIVE: return new int[]{OPTION_PENGRAM_SAVE};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_COPY_ID: return new int[]{OPTION_PENGRAM_COPY_ID};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_AI: return new int[]{OPTION_PENGRAM_AI};
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_RESEND: return new int[]{OPTION_PENGRAM_RESEND};
+            default: return new int[0];
+        }
+    }
+
+    /** Первый реально присутствующий пункт действия или -1, если такого нет. */
+    private static int pengramFirstPresentOption(int action, ArrayList<Integer> options) {
+        for (int option : pengramMessageActionOptions(action)) {
+            if (options.contains(option)) {
+                return option;
+            }
+        }
+        return -1;
+    }
+
     private boolean createMenu(View v, boolean single, boolean listView, float x, float y, boolean longpress) {
         return createMenu(v, single, listView, x, y, true, longpress);
     }
@@ -33458,6 +33494,10 @@ public class ChatActivity extends BaseFragment implements
                 .setPadding(dp(8)));
 
             boolean addGap = false;
+
+            // Pengram: вертикальная полоса островка живёт в том же поповере,
+            // поэтому создаётся до строк и добавляется после них (если выбрано «под меню»).
+            org.telegram.ui.Components.PengramMessageIslandView messageIslandView = null;
 
             if (optionsView == null) {
                 if (showWelcomeMessageRevertOption(selectedObject)) {
@@ -34198,6 +34238,52 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                 }
+                // Pengram: горизонтальный островок. Действия, уехавшие в него,
+                // убираем из списка строк — иначе меню не станет короче.
+                if (!suggestEdit && org.telegram.messenger.PengramConfig.isMessageIslandEnabled()) {
+                    final ArrayList<Integer> islandActions = new ArrayList<>();
+                    final ArrayList<Integer> islandOptions = new ArrayList<>();
+                    final ArrayList<Integer> movedOptions = new ArrayList<>();
+                    for (int action : org.telegram.messenger.PengramConfig.getMessageIslandItems()) {
+                        final int present = pengramFirstPresentOption(action, options);
+                        if (present < 0) {
+                            continue;
+                        }
+                        islandActions.add(action);
+                        islandOptions.add(present);
+                        for (int option : pengramMessageActionOptions(action)) {
+                            if (!movedOptions.contains(option)) {
+                                movedOptions.add(option);
+                            }
+                        }
+                    }
+                    if (!islandActions.isEmpty()) {
+                        for (int i = options.size() - 1; i >= 0; i--) {
+                            if (movedOptions.contains(options.get(i))) {
+                                options.remove(i);
+                                items.remove(i);
+                                icons.remove(i);
+                            }
+                        }
+                        messageIslandView = new org.telegram.ui.Components.PengramMessageIslandView(
+                                getParentActivity(), themeDelegate);
+                        messageIslandView.setActions(islandActions);
+                        messageIslandView.setListener((position, view) -> {
+                            if (position < 0 || position >= islandOptions.size()) {
+                                return;
+                            }
+                            processSelectedOption(islandOptions.get(position));
+                        });
+                        if (org.telegram.messenger.PengramConfig.getMessageIslandPosition()
+                                != org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM) {
+                            // Полоса центрируется, если строки меню оказались шире:
+                            // так она читается как отдельный «островок», а не обрезок.
+                            popupLayout.addView(messageIslandView, LayoutHelper.createLinear(
+                                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                                    Gravity.CENTER_HORIZONTAL, 0, 2, 0, 4));
+                        }
+                    }
+                }
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 for (int a = 0, N = items.size(); a < N; a++) {
                     final Integer option = options.get(a);
@@ -34696,6 +34782,17 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 }
+            }
+
+            if (messageIslandView != null && org.telegram.messenger.PengramConfig.getMessageIslandPosition()
+                    == org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM) {
+                // Полоса под строками: ближе к пальцу, меню при этом остаётся коротким.
+                popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate),
+                        LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                popupLayout.addView(messageIslandView, LayoutHelper.createLinear(
+                        LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                        Gravity.CENTER_HORIZONTAL, 0, 0, 0, 4));
+                popupLayout.precalculateHeight();
             }
 
             ReactionsContainerLayout finalReactionsLayout1 = reactionsLayout;

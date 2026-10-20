@@ -339,6 +339,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_QUOTE_LOGO_CLEAR = 1028;
     private static final int BTN_QUOTE_ACTION_MODE = 1029;
     private static final int BTN_QUOTE_RESET_APPEARANCE = 1030;
+    private static final int BTN_MESSAGE_ISLAND_ITEMS = 1031;
+    private static final int BTN_MESSAGE_ISLAND_POSITION = 1032;
+    private static final int BTN_MESSAGE_ISLAND_TINT = 1033;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -3619,6 +3622,46 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check("messageMenuAskAI", false, getString(R.string.PengramAIMenu)));
         items.add(check("messageMenuResendTo", false, getString(R.string.PengramResendTo)));
         items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+
+        // --- островок действий: короткая полоса быстрых кнопок внутри того же меню ---
+        items.add(UItem.asHeader(getString(R.string.PengramMessageIsland)));
+        items.add(check(PengramConfig.KEY_MESSAGE_ISLAND, false,
+                getString(R.string.PengramMessageIslandEnable)));
+        if (PengramConfig.isMessageIslandEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_ITEMS, R.drawable.msg_edit,
+                    getString(R.string.PengramMessageIslandButtons),
+                    PengramConfig.getMessageIslandItemsCount() + " / " + PengramConfig.MESSAGE_ISLAND_LIMIT));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LABELS, true,
+                    getString(R.string.PengramMessageIslandLabels)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_COMPACT, false,
+                    getString(R.string.PengramMessageIslandCompact)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_HAPTIC, true,
+                    getString(R.string.PengramMessageIslandHaptic)));
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_POSITION, R.drawable.msg_photo_settings,
+                    getString(R.string.PengramMessageIslandPosition), messageIslandPositionValue()));
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_TINT, R.drawable.msg_theme,
+                    getString(R.string.PengramMessageIslandTint), messageIslandTintValue()));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMessageIslandInfo)));
+    }
+
+    private CharSequence messageIslandPositionValue() {
+        return getString(PengramConfig.getMessageIslandPosition()
+                == PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM
+                ? R.string.PengramMessageIslandPositionBottom
+                : R.string.PengramMessageIslandPositionTop);
+    }
+
+    private CharSequence messageIslandTintValue() {
+        switch (PengramConfig.getMessageIslandTint()) {
+            case PengramConfig.MESSAGE_ISLAND_TINT_PLAIN:
+                return getString(R.string.PengramMessageIslandTintPlain);
+            case PengramConfig.MESSAGE_ISLAND_TINT_ACCENT:
+                return getString(R.string.PengramMessageIslandTintAccent);
+            case PengramConfig.MESSAGE_ISLAND_TINT_SOFT:
+            default:
+                return getString(R.string.PengramMessageIslandTintSoft);
+        }
     }
 
     private void fillQuotes(ArrayList<UItem> items) {
@@ -4434,6 +4477,32 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_CHAT_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT));
+                return;
+            case BTN_MESSAGE_ISLAND_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE));
+                return;
+            case BTN_MESSAGE_ISLAND_POSITION:
+                showChoicePicker(getString(R.string.PengramMessageIslandPosition), new CharSequence[]{
+                                getString(R.string.PengramMessageIslandPositionTop),
+                                getString(R.string.PengramMessageIslandPositionBottom)},
+                        PengramConfig.getMessageIslandPosition() == PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM ? 1 : 0,
+                        value -> {
+                            PengramConfig.setMessageIslandPosition(value == 1
+                                    ? PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM
+                                    : PengramConfig.MESSAGE_ISLAND_POSITION_TOP);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_MESSAGE_ISLAND_TINT:
+                showChoicePicker(getString(R.string.PengramMessageIslandTint), new CharSequence[]{
+                                getString(R.string.PengramMessageIslandTintPlain),
+                                getString(R.string.PengramMessageIslandTintSoft),
+                                getString(R.string.PengramMessageIslandTintAccent)},
+                        PengramConfig.getMessageIslandTint(),
+                        value -> {
+                            PengramConfig.setMessageIslandTint(value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
                 return;
             case BTN_PENGUIN_SKIN: {
                 final CharSequence[] options = new CharSequence[PengramConfig.SKIN_COUNT];

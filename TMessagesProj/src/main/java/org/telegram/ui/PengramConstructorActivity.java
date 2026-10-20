@@ -28,6 +28,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.PengramDialogPreviewView;
 import org.telegram.ui.Components.PengramFontPreviewView;
 import org.telegram.ui.Components.PengramLyricsView;
+import org.telegram.ui.Components.PengramMessageIslandView;
 import org.telegram.ui.Components.PengramPlayerMockView;
 import org.telegram.ui.Components.PengramTabsMockView;
 
@@ -136,6 +137,22 @@ public class PengramConstructorActivity extends BaseFragment {
         });
 
         addSectionTitle(content, getString(R.string.PengramConstructorEditors));
+
+        // Живой островок: ровно тот виджет, что появляется в меню сообщения,
+        // поэтому предпросмотр не расходится с реальным поведением.
+        final PengramMessageIslandView islandPreview = new PengramMessageIslandView(context, null);
+        islandPreview.setActions(PengramConfig.getMessageIslandItems());
+        final TextView islandValue = addLiveCard(content,
+                getString(R.string.PengramConstructorMessageIsland), islandPreview,
+                () -> getString(PengramConfig.isMessageIslandEnabled()
+                        ? R.string.PengramMessageIslandOn : R.string.PengramMessageIslandOff));
+        islandPreview.setPreview(true);
+        islandPreview.setOnClickListener(v -> {
+            presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE));
+        });
+        if (islandValue != null && !PengramConfig.isMessageIslandEnabled()) {
+            islandPreview.setAlpha(0.55f);
+        }
 
         addCard(content, KIND_DIALOGS, R.string.PengramConstructorDialogs, R.string.PengramConstructorDialogsInfo,
                 () -> presentFragment(new PengramChatLookActivity()));

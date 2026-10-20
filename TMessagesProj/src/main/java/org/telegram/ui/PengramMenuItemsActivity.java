@@ -31,6 +31,7 @@ import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.ShadowSectionCell;
 import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
@@ -51,6 +52,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
     public static final int MODE_SETTINGS = 1;
     /** наши пункты в «трёх точках» чата */
     public static final int MODE_CHAT = 2;
+    /** островок действий в меню сообщения */
+    public static final int MODE_MESSAGE = 3;
 
     private static final int VIEW_TYPE_INFO = 0;
     private static final int VIEW_TYPE_HEADER = 1;
@@ -91,11 +94,40 @@ public class PengramMenuItemsActivity extends BaseFragment {
         return mode == MODE_CHAT ? 3 : 2;
     }
 
+    /** у островка сообщения нет корзины «скрыто»: кнопка либо в меню, либо в полосе */
     private int hiddenSection() {
-        return sectionCount() - 1;
+        return mode == MODE_MESSAGE ? -1 : sectionCount() - 1;
+    }
+
+    private boolean isHiddenSection(int section) {
+        return hiddenSection() >= 0 && section == hiddenSection();
+    }
+
+    /** в островок помещается ограниченное число кнопок — проверяем до переноса */
+    private int messageIslandCount() {
+        int count = 0;
+        for (Row row : rows) {
+            if (row.type == VIEW_TYPE_ITEM && row.section == 1) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void showIslandLimit() {
+        if (getContext() == null) {
+            return;
+        }
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                LocaleController.formatString(R.string.PengramMessageIslandLimit,
+                        PengramConfig.MESSAGE_ISLAND_LIMIT)).show();
     }
 
     private CharSequence sectionTitle(int section) {
+        if (mode == MODE_MESSAGE) {
+            return LocaleController.getString(section == 0
+                    ? R.string.PengramPlaceMessageMenu : R.string.PengramPlaceMessageIsland);
+        }
         if (mode == MODE_CHAT) {
             if (section == 0) {
                 return LocaleController.getString(R.string.PengramPlaceChatMenu);
@@ -120,6 +152,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             return PengramConfig.getSettingsOrder();
         } else if (mode == MODE_CHAT) {
             return PengramConfig.getChatItemsOrder();
+        } else if (mode == MODE_MESSAGE) {
+            return PengramConfig.getMessageIslandOrder();
         }
         final ArrayList<Integer> result = new ArrayList<>();
         for (int id : PengramConfig.getMenuOrder()) {
@@ -133,6 +167,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             return PengramConfig.isSettingsItemHidden(id);
         } else if (mode == MODE_CHAT) {
             return PengramConfig.isChatItemHidden(id);
+        } else if (mode == MODE_MESSAGE) {
+            return false;
         }
         return PengramConfig.isMenuItemHidden(id);
     }
@@ -144,6 +180,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
         }
         if (mode == MODE_CHAT) {
             return PengramConfig.getChatItemPlacement(id) == PengramConfig.CHAT_PLACE_ISLAND ? 1 : 0;
+        } else if (mode == MODE_MESSAGE) {
+            return PengramConfig.isMessageIslandItem(id) ? 1 : 0;
         }
         return 0;
     }
@@ -183,8 +221,10 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 continue;
             }
             order.add(row.id);
-            final boolean hidden = row.section == hiddenSection();
-            if (mode == MODE_SETTINGS) {
+            final boolean hidden = isHiddenSection(row.section);
+            if (mode == MODE_MESSAGE) {
+                PengramConfig.setMessageIslandItem(row.id, row.section == 1);
+            } else if (mode == MODE_SETTINGS) {
                 PengramConfig.setSettingsItemHidden(row.id, hidden);
             } else if (mode == MODE_CHAT) {
                 PengramConfig.setChatItemHidden(row.id, hidden);
@@ -200,6 +240,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             PengramConfig.setSettingsOrder(order);
         } else if (mode == MODE_CHAT) {
             PengramConfig.setChatItemsOrder(order);
+        } else if (mode == MODE_MESSAGE) {
+            PengramConfig.setMessageIslandOrder(order);
         } else {
             PengramConfig.setMenuOrder(order);
         }
@@ -211,6 +253,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             res = PengramConfig.getSettingsItemTitle(id);
         } else if (mode == MODE_CHAT) {
             res = PengramConfig.getChatItemTitle(id);
+        } else if (mode == MODE_MESSAGE) {
+            res = PengramConfig.getMessageIslandItemTitle(id);
         } else {
             res = PengramConfig.getMenuItemTitle(id);
         }
@@ -222,6 +266,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             return PengramConfig.getSettingsItemIcon(id);
         } else if (mode == MODE_CHAT) {
             return PengramConfig.getChatItemIcon(id);
+        } else if (mode == MODE_MESSAGE) {
+            return PengramConfig.getMessageIslandItemIcon(id);
         }
         return PengramConfig.getMenuItemIcon(id);
     }
@@ -231,6 +277,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             return R.string.PengramSettingsItemsTitle;
         } else if (mode == MODE_CHAT) {
             return R.string.PengramChatItemsTitle;
+        } else if (mode == MODE_MESSAGE) {
+            return R.string.PengramMessageIslandItemsTitle;
         }
         return R.string.PengramMenuItemsTitle;
     }
@@ -240,6 +288,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
             return R.string.PengramSettingsItemsInfo;
         } else if (mode == MODE_CHAT) {
             return R.string.PengramChatItemsInfo;
+        } else if (mode == MODE_MESSAGE) {
+            return R.string.PengramMessageIslandItemsInfo;
         }
         return R.string.PengramMenuItemsInfo;
     }
@@ -304,6 +354,11 @@ public class PengramMenuItemsActivity extends BaseFragment {
     private void moveToNextSection(int position) {
         final Row row = rows.get(position);
         final int next = (row.section + 1) % sectionCount();
+        if (mode == MODE_MESSAGE && next == 1 && row.section != 1
+                && messageIslandCount() >= PengramConfig.MESSAGE_ISLAND_LIMIT) {
+            showIslandLimit();
+            return;
+        }
         int target = -1;
         for (int a = 0; a < rows.size(); ++a) {
             final Row candidate = rows.get(a);
@@ -418,7 +473,7 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 }
                 case VIEW_TYPE_ITEM: {
                     final TextCell cell = (TextCell) holder.itemView;
-                    final boolean hidden = row.section == hiddenSection();
+                    final boolean hidden = isHiddenSection(row.section);
                     final boolean last = position + 1 < rows.size() && rows.get(position + 1).type != VIEW_TYPE_ITEM;
                     cell.setTextAndIcon(itemTitle(row.id), itemIcon(row.id), !last);
                     final ImageView handle = cell.getValueImageView();
@@ -454,6 +509,12 @@ public class PengramMenuItemsActivity extends BaseFragment {
             }
             final Row target = rows.get(to);
             if (target.type != VIEW_TYPE_ITEM && target.type != VIEW_TYPE_PLACEHOLDER) {
+                return false;
+            }
+            if (mode == MODE_MESSAGE && row.section != 1 && target.section == 1
+                    && messageIslandCount() >= PengramConfig.MESSAGE_ISLAND_LIMIT) {
+                // Седьмая кнопка в полосу не влезет: строка возвращается назад.
+                showIslandLimit();
                 return false;
             }
             rows.remove(from);
