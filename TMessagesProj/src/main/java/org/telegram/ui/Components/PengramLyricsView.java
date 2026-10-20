@@ -584,11 +584,19 @@ public class PengramLyricsView extends View {
             }
         }
         final boolean interpolate = previewMode || !timed || PengramConfig.isLyricsSmooth();
+        // В шапке строка живёт своей жизнью: бегущая прокрутка, караоке по
+        // таймкодам и подсветка по прогрессу должны обновляться каждый кадр.
+        // Раньше при выключенной плавности (или тексте без таймкодов) кадр не
+        // запрашивался вовсе — анимация замирала до следующего события плеера,
+        // это и была «зависшая анимка» в списке чатов.
         boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
                 || Math.abs(tickerScrollX - tickerTargetX) > 0.5f
                 || enterAnim < 1f || previewMode
+                || (tickerMode && playing && activeLine >= 0)
                 || (playing && interpolate && (timed || animated(anim)));
-        if (moving && playing && !previewMode && !animated(anim)
+        // Экономию «подсветка не сдвинулась — кадр не нужен» в шапке не
+        // применяем: там двигается ещё и бегущая строка.
+        if (moving && playing && !previewMode && !tickerMode && !animated(anim)
                 && Math.abs(scrollY - targetScrollY) <= 0.5f
                 && Math.abs(tickerScrollX - tickerTargetX) <= 0.5f
                 && enterAnim >= 1f) {

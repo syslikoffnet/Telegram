@@ -1670,9 +1670,15 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                     }
                 } else if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
                     pengramTicker.setProgress(playing.audioProgress);
-                } else if (playing != null && pengramTicker != null && PengramConfig.isHeaderLyrics()) {
-                    // текст мог найтись, пока строка была скрыта: показываем сами, без перезахода в чат
-                    if (PengramLyrics.has(PengramLyrics.keyFor(playing))) {
+                } else if (playing != null && pengramTicker != null && PengramConfig.isHeaderLyrics()
+                        && !pengramTickerShown) {
+                    // Текст мог найтись, пока строка была скрыта (кэш, медленная
+                    // сеть, повтор после паузы) — показываем сами, без перезахода
+                    // в чат. Проверку притормаживаем: внутри request() уже есть и
+                    // кэш, и пауза после неудачного поиска.
+                    final long now = android.os.SystemClock.elapsedRealtime();
+                    if (now - pengramLyricsCheckTime > 1500) {
+                        pengramLyricsCheckTime = now;
                         pengramCheckTicker(playing);
                     }
                 }
@@ -2085,6 +2091,12 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 stringBuilder.setSpan(span, 0, messageObject.getMusicAuthor().length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 titleTextView.setText(stringBuilder, !create && wasVisible && isMusic);
                 pengramCheckTicker(messageObject);
+            } else if (pengramTicker != null && !pengramTickerShown && isMusic
+                    && PengramConfig.isHeaderLyrics()) {
+                // Тот же трек, но строки песни ещё нет: включили показ текста в
+                // шапке уже после старта трека, ответ пришёл позже или прошлый
+                // запрос упал. Повтор ничего не стоит: request() отдаёт кэш.
+                pengramCheckTicker(messageObject);
             }
         }
     }
@@ -2136,6 +2148,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
 
     /** строка песни сейчас показана (или как раз выезжает) */
     private boolean pengramTickerShown;
+
+    /** когда в последний раз перепроверяли, не нашёлся ли текст песни */
+    private long pengramLyricsCheckTime;
 
     /**
      * Pengram: плавный кроссфейд «название трека ⇄ строка песни».

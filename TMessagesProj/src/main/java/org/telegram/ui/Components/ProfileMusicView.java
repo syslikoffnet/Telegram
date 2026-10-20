@@ -192,6 +192,9 @@ public class ProfileMusicView extends View {
         this.title = new Text(title, 11);
 
         setContentDescription(getString(R.string.AccDescrProfileMusic) + " " + author + " — " + title);
+        // Песня профиля приходит позже самой шапки: без этого запроса на
+        // перерисовку подпись оставалась пустой до случайного кадра.
+        invalidate();
     }
 
     private ProfileActivity.AvatarImageView avatarView;
@@ -258,8 +261,15 @@ public class ProfileMusicView extends View {
         final int padding = dp(12);
         final int maxWidth = getWidth() - padding * 2;
 
-        this.author.ellipsize((maxWidth - dp(35)) / 2f);
-        this.title.ellipsize(maxWidth - this.author.getWidth() - dp(35));
+        // Автор и название делят одну строку. Раньше автор мог занять всю
+        // ширину, и название молча исчезало, хотя трек есть; теперь у названия
+        // всегда остаётся место, а если места совсем нет — показываем только его.
+        final float available = Math.max(0, maxWidth - dp(35));
+        this.author.ellipsize(available * 0.55f);
+        if (this.title.getCurrentWidth() > 0 && available - this.author.getWidth() < dp(48)) {
+            this.author.ellipsize(Math.max(0, available - dp(48)));
+        }
+        this.title.ellipsize(Math.max(0, available - this.author.getWidth()));
 
         final float width = dp(16.6f) + this.author.getWidth() + this.title.getWidth() + dp(8);
         final float containerWidth = dp(16) + width;

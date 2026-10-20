@@ -9204,14 +9204,14 @@ public class MessageObject {
 
             linesMaxWidthWithLeft = lastLineWidthWithLeft = (int) Math.ceil(linesMaxWidth + Math.max(0, lastLeft));
 
-            if (block.quote) {
-                block.maxRight = 0;
-                for (int n = 0; n < currentBlockLinesCount; n++) {
-                    try {
-                        block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
-                    } catch (Exception ignore) {
-                        block.maxRight = textWidth;
-                    }
+            // Pengram: правая граница блока нужна не только цитатам —
+            // по ней страховка при отрисовке ловит текст, вылезший из пузыря.
+            block.maxRight = 0;
+            for (int n = 0; n < currentBlockLinesCount; n++) {
+                try {
+                    block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
+                } catch (Exception ignore) {
+                    block.maxRight = textWidth;
                 }
             }
 
@@ -9653,14 +9653,14 @@ public class MessageObject {
 
                 linesMaxWidthWithLeft = lastLineWidthWithLeft = (int) Math.ceil(linesMaxWidth + Math.max(0, lastLeft));
 
-                if (block.quote) {
-                    block.maxRight = 0;
-                    for (int n = 0; n < currentBlockLinesCount; n++) {
-                        try {
-                            block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
-                        } catch (Exception ignore) {
-                            block.maxRight = textWidth;
-                        }
+                // Pengram: правая граница блока нужна не только цитатам —
+                // по ней страховка при отрисовке ловит текст, вылезший из пузыря.
+                block.maxRight = 0;
+                for (int n = 0; n < currentBlockLinesCount; n++) {
+                    try {
+                        block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
+                    } catch (Exception ignore) {
+                        block.maxRight = textWidth;
                     }
                 }
 

@@ -50,6 +50,7 @@ public final class PengramDeviceName {
             "Apple MacBook Pro",
             "Microsoft Windows PC",
             "iPad Pro",
+            "Apple iPhone 15 Pro",
     };
 
     public static final int PRESET_REAL = 0;
@@ -236,7 +237,7 @@ public final class PengramDeviceName {
      * строкой. Именно это видно в сеансах, поэтому и подпись такая же.
      */
     public static String badgeSummary() {
-        return safeLabel(kind()) + " \u00b7 " + resolveSystemVersion();
+        return safeLabel(kind()) + " \u00b7 " + resolveSystemVersion() + " \u00b7 " + resolveLangPack();
     }
 
     private static String safeLabel(int kind) {
@@ -245,6 +246,60 @@ public final class PengramDeviceName {
         } catch (Throwable e) {
             return "Android";
         }
+    }
+
+    /**
+     * Платформа для initConnection ({@code lang_pack}). Сервер помечает сеанс
+     * именно по ней, а не по строке модели: с «android» любой MacBook в списке
+     * сеансов останется телефоном с роботом. iPhone и iPad делят «ios» — их
+     * различает модель.
+     */
+    public static String resolveLangPack() {
+        if (!isSpoofed()) {
+            return "android";
+        }
+        switch (kind()) {
+            case KIND_IPHONE:
+            case KIND_IPAD:
+                return "ios";
+            case KIND_MAC:
+                return "macos";
+            case KIND_WINDOWS:
+                return "windows";
+            case KIND_LINUX:
+                return "linux";
+            case KIND_WEB:
+                return "web";
+            default:
+                return "android";
+        }
+    }
+
+    /** заявлено не-Android устройство: android-параметры initConnection не шлём */
+    public static boolean isDesktopSpoof() {
+        if (!isSpoofed()) {
+            return false;
+        }
+        final int kind = kind();
+        return kind != KIND_ANDROID && kind != KIND_ANDROID_TABLET;
+    }
+
+    /**
+     * Версия приложения. У Android в строке есть номер сборки в скобках
+     * («11.4.2 (5230)»), у десктопа и iOS — только номер: иначе подменённый
+     * Mac выдаёт себя форматом строки.
+     */
+    public static String resolveAppVersion(String real) {
+        if (!isDesktopSpoof() || TextUtils.isEmpty(real)) {
+            return real;
+        }
+        final int space = real.indexOf(" (");
+        return space > 0 ? real.substring(0, space) : real;
+    }
+
+    /** «что реально уйдёт серверу»: заявленная модель и платформа */
+    public static String serverIdentity() {
+        return summary() + " \u00b7 " + resolveLangPack();
     }
 
     /** реальная модель в том же формате, что отправляет штатный клиент */
@@ -319,6 +374,8 @@ public final class PengramDeviceName {
                 return R.string.PengramDeviceWindowsPc;
             case 9:
                 return R.string.PengramDeviceIpadPro;
+            case 10:
+                return R.string.PengramDeviceIphone15Pro;
             default:
                 return R.string.PengramDeviceCustom;
         }

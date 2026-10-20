@@ -6,7 +6,6 @@ import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
@@ -59,8 +58,9 @@ public final class PengramDeviceNameSheet {
         final BottomSheet.Builder builder = new BottomSheet.Builder(activity, false, resourcesProvider);
         builder.setTitle(LocaleController.getString(R.string.PengramDeviceModel), true);
 
-        final LinearLayout layout = new LinearLayout(activity);
-        layout.setOrientation(LinearLayout.VERTICAL);
+        // Прокрутка обязательна: строк больше, чем влезает на экран телефона,
+        // и последняя («Своё») иначе остаётся за нижней границей шторки.
+        final PengramSheetList layout = new PengramSheetList(activity);
         final RadioColorCell[] cells = new RadioColorCell[options.length];
         for (int a = 0; a < options.length; ++a) {
             final int index = a;
@@ -87,9 +87,7 @@ public final class PengramDeviceNameSheet {
                     askCustomName(fragment, resourcesProvider);
                 }
             });
-            layout.addView(cells[a], new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            layout.addRow(cells[a], 0);
         }
         // Версия системы доступна и до входа: она подставляется по выбранной
         // модели, но её можно уточнить здесь же — как и в настройках.
@@ -104,8 +102,7 @@ public final class PengramDeviceNameSheet {
                 + PengramDeviceName.resolveSystemVersion());
         versionRow.setBackground(Theme.getSelectorDrawable(false));
         versionRow.setOnClickListener(v -> showVersionSheet(fragment, resourcesProvider));
-        layout.addView(versionRow, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, AndroidUtilities.dp(44)));
+        layout.addRow(versionRow, 44);
 
         builder.setCustomView(layout);
         fragment.showDialog(builder.create());
@@ -136,8 +133,7 @@ public final class PengramDeviceNameSheet {
 
         final BottomSheet.Builder builder = new BottomSheet.Builder(activity, false, resourcesProvider);
         builder.setTitle(LocaleController.getString(R.string.PengramDeviceVersion), true);
-        final LinearLayout layout = new LinearLayout(activity);
-        layout.setOrientation(LinearLayout.VERTICAL);
+        final PengramSheetList layout = new PengramSheetList(activity);
         final RadioColorCell[] cells = new RadioColorCell[options.length];
         for (int a = 0; a < options.length; ++a) {
             final int index = a;
@@ -163,8 +159,7 @@ public final class PengramDeviceNameSheet {
                     askCustomVersion(fragment, resourcesProvider);
                 }
             });
-            layout.addView(cells[a], new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            layout.addRow(cells[a], 0);
         }
         builder.setCustomView(layout);
         fragment.showDialog(builder.create());

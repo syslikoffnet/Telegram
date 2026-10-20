@@ -6002,6 +6002,11 @@ public class ChatActivityEnterView extends FrameLayout implements
                     pengramAnimateTyping(start, before, count);
                 }
                 pengramUpdateWpm(before, count);
+                // Pengram: пока «@all» набран, но не отправлен, тянем список
+                // участников — к отправке он уже в кэше, и сообщение уходит сразу
+                if (parentFragment != null && innerTextChange == 0) {
+                    parentFragment.pengramMentionAllTyped(charSequence);
+                }
 
                 boolean allowChangeToSmile = true;
                 int currentPage;
@@ -7872,6 +7877,9 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         if (parentFragment != null && editingMessageObject == null && text.length() > 0) {
             if (!parentFragment.pengramTargetCanSendText(replyingMessageObject)) return false;
+            // Pengram: «@all» проверяем до отправки, иначе в чат уйдёт буквальный
+            // «@all» вместо упоминаний (список участников мог ещё не приехать)
+            if (!parentFragment.pengramMentionAllCanSend(text)) return false;
         }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
@@ -7926,6 +7934,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 }
                 if (parentFragment != null && editingMessageObject == null) {
                     part = parentFragment.pengramTargetTextForSend(part, replyingMessageObject);
+                    part = parentFragment.pengramMentionAllTextForSend(part);
                 }
                 CharSequence[] message = new CharSequence[]{ part };
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);

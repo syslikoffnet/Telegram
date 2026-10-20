@@ -17056,10 +17056,18 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             // Pengram: последняя страховка от символов, вылезающих из пузыря.
             // Включается только там, где блок реально шире отведённого места,
             // поэтому на обычных сообщениях ничего не меняется.
+            // maxRight теперь считается для всех блоков (раньше — только для
+            // цитат), иначе страховка не срабатывала ни на одном обычном
+            // сообщении. Для RTL блок дополнительно сверяем ширину разметки:
+            // у право-лево-строк правая граница строки не показывает вылет влево.
             boolean pengramOverflow = false;
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
                 MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
-                if (b != null && b.maxRight > maxWidth + 1) {
+                if (b == null) {
+                    continue;
+                }
+                if (b.maxRight > maxWidth + 1
+                        || (b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
                     pengramOverflow = true;
                     break;
                 }

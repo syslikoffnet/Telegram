@@ -11289,6 +11289,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 musicView.setMusicDocument(userInfo.saved_music);
             }
             musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);
+            // Pengram: высота шапки зависит от наличия песни. Пока песни не
+            // было, позиция считалась для 74dp и alpha подписи оставалась
+            // нулевой; когда full info приезжает позже, её нужно пересчитать,
+            // иначе название трека не появляется до первого скролла.
+            updateMusicPosition();
         }
     }
 
@@ -11462,7 +11467,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void updateMusicPosition() {
-        if (musicView == null || onlineTextView[1] == null) {
+        // onlineTextView[1] может отсутствовать (бот, скрытый статус), но это
+        // не повод вообще не позиционировать песню профиля: без этого вызова
+        // alpha остаётся нулевой и подпись трека не рисуется.
+        // actionBar проверяем отдельно: updateRowsIds может прийти раньше, чем
+        // шапка успела создаться.
+        if (musicView == null || actionBar == null) {
             return;
         }
         final int newTop = ActionBar.getCurrentActionBarHeight() + (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);

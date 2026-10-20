@@ -74,6 +74,8 @@ public:
     void init(uint32_t version, int32_t layer, int32_t apiId, std::string deviceModel, std::string systemVersion, std::string appVersion, std::string langCode, std::string systemLangCode, std::string configPath, std::string logPath, std::string regId, std::string cFingerprint, std::string installerId, std::string packageId, int32_t timezoneOffset, int64_t userId, bool userPremium, bool isPaused, bool enablePushConnection, bool hasNetwork, int32_t networkType, int32_t performanceClass);
     void setProxySettings(std::string address, uint16_t port, std::string username, std::string password, std::string secret);
     void setLangCode(std::string langCode);
+    /** Pengram: платформа (lang_pack) и признак «заявлен не-Android» */
+    void pengramSetPlatform(std::string langPack, bool desktopSpoof);
     void setRegId(std::string regId);
     void setSystemLangCode(std::string langCode);
     void updateDcSettings(uint32_t datacenterId, bool workaround, bool ifLoadingTryAgain);
@@ -234,6 +236,10 @@ private:
     std::string currentSystemVersion;
     std::string currentAppVersion;
     std::string currentLangCode;
+    /** Pengram: android | ios | macos | windows | linux | web — уходит в initConnection */
+    std::string currentLangPack = "android";
+    /** Pengram: заявлен iPhone/Mac/Windows — android-параметры не отправляем */
+    bool pengramDesktopSpoof = false;
     std::string currentRegId;
     std::string certFingerprint;
     std::string installer;

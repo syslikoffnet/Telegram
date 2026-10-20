@@ -446,6 +446,17 @@ void setLangCode(JNIEnv *env, jclass c, jint instanceNum, jstring langCode) {
     }
 }
 
+void pengramSetPlatform(JNIEnv *env, jclass c, jint instanceNum, jstring langPack, jboolean desktopSpoof) {
+    const char *langPackStr = langPack != 0 ? env->GetStringUTFChars(langPack, 0) : 0;
+    std::string value = langPackStr != 0 ? std::string(langPackStr) : std::string();
+    if (ConnectionsManager::hasInstance(instanceNum)) {
+        ConnectionsManager::getInstance(instanceNum).pengramSetPlatform(value, desktopSpoof == JNI_TRUE);
+    }
+    if (langPackStr != 0) {
+        env->ReleaseStringUTFChars(langPack, langPackStr);
+    }
+}
+
 void setRegId(JNIEnv *env, jclass c, jint instanceNum, jstring regId) {
     const char *regIdStr = env->GetStringUTFChars(regId, 0);
 
@@ -578,6 +589,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_setUserId", "(IJ)V", (void *) setUserId},
         {"native_init", "(IIIILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJZZZII)V", (void *) init},
         {"native_setLangCode", "(ILjava/lang/String;)V", (void *) setLangCode},
+        {"native_pengramSetPlatform", "(ILjava/lang/String;Z)V", (void *) pengramSetPlatform},
         {"native_setRegId", "(ILjava/lang/String;)V", (void *) setRegId},
         {"native_setSystemLangCode", "(ILjava/lang/String;)V", (void *) setSystemLangCode},
         {"native_switchBackend", "(IZ)V", (void *) switchBackend},

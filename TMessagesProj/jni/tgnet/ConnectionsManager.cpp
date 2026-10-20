@@ -3196,7 +3196,10 @@ std::unique_ptr<TLObject> ConnectionsManager::wrapInLayer(TLObject *object, Data
             request->api_id = currentApiId;
             request->app_version = currentAppVersion;
             request->lang_code = currentLangCode;
-            request->lang_pack = "android";
+            // Pengram: платформа подменяема вместе с моделью/версией. Именно по
+            // lang_pack сервер помечает сеанс как «android», поэтому при подмене
+            // на iPhone/Mac/Windows отсюда уходит соответствующая строка.
+            request->lang_pack = currentLangPack.empty() ? "android" : currentLangPack;
             request->system_lang_code = currentSystemLangCode;
 
 
@@ -3212,40 +3215,48 @@ std::unique_ptr<TLObject> ConnectionsManager::wrapInLayer(TLObject *object, Data
                 objectValue->key = "device_token";
                 objectValue->value = std::unique_ptr<JSONValue>(jsonString);
             }
-            if (!certFingerprint.empty()) {
+            // Android-отпечатки (сертификат сборки, установщик, имя пакета,
+            // класс производительности) при подмене на другое устройство не
+            // отправляем: именно они и выдают «это Android, да ещё и сторонний».
+            // device_token оставляем — он нужен серверу для пушей аккаунта.
+            if (!pengramDesktopSpoof) {
+                if (!certFingerprint.empty()) {
+                    auto objectValue = new TL_jsonObjectValue();
+                    jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
+
+                    auto jsonString = new TL_jsonString();
+                    jsonString->value = certFingerprint;
+                    objectValue->key = "data";
+                    objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+                }
+
                 auto objectValue = new TL_jsonObjectValue();
                 jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-
                 auto jsonString = new TL_jsonString();
-                jsonString->value = certFingerprint;
-                objectValue->key = "data";
+                jsonString->value = installer;
+                objectValue->key = "installer";
+                objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+
+                objectValue = new TL_jsonObjectValue();
+                jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
+                jsonString = new TL_jsonString();
+                jsonString->value = package;
+                objectValue->key = "package_id";
                 objectValue->value = std::unique_ptr<JSONValue>(jsonString);
             }
 
-            auto objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-            auto jsonString = new TL_jsonString();
-            jsonString->value = installer;
-            objectValue->key = "installer";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+            {
+                auto objectValue = new TL_jsonObjectValue();
+                jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
 
-            objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-            jsonString = new TL_jsonString();
-            jsonString->value = package;
-            objectValue->key = "package_id";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+                auto jsonNumber = new TL_jsonNumber();
+                jsonNumber->value = currentDeviceTimezone;
+                objectValue->key = "tz_offset";
+                objectValue->value = std::unique_ptr<JSONValue>(jsonNumber);
+            }
 
-            objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-
-            auto jsonNumber = new TL_jsonNumber();
-            jsonNumber->value = currentDeviceTimezone;
-            objectValue->key = "tz_offset";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonNumber);
-
-            if (currentPerformanceClass != -1) {
-                objectValue = new TL_jsonObjectValue();
+            if (!pengramDesktopSpoof && currentPerformanceClass != -1) {
+                auto objectValue = new TL_jsonObjectValue();
                 jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
 
                 auto jsonNumber = new TL_jsonNumber();
@@ -3794,6 +3805,22 @@ void ConnectionsManager::setProxySettings(std::string address, uint16_t port, st
             }
             processRequestQueue(0, 0);
         }
+    });
+}
+
+void ConnectionsManager::pengramSetPlatform(std::string langPack, bool desktopSpoof) {
+    scheduleTask([&, langPack, desktopSpoof] {
+        if (currentLangPack == langPack && pengramDesktopSpoof == desktopSpoof) {
+            return;
+        }
+        currentLangPack = langPack;
+        pengramDesktopSpoof = desktopSpoof;
+        // Следующий запрос должен уйти с новым initConnection, иначе сервер
+        // увидит старое значение до перезапуска приложения.
+        for (auto & datacenter : datacenters) {
+            datacenter.second->resetInitVersion();
+        }
+        saveConfig();
     });
 }
 

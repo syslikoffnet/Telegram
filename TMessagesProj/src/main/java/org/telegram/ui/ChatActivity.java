@@ -177,6 +177,7 @@ import org.telegram.messenger.MessageSuggestionParams;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramMentionAll;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -16179,6 +16180,96 @@ public class ChatActivity extends BaseFragment implements
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return value;
+    }
+
+    /** Pengram: список участников для «@all» грузим, пока текст ещё набирают */
+    public void pengramMentionAllTyped(CharSequence text) {
+        if (text == null || !PengramMentionAll.isEnabled() || !PengramMentionAll.hasToken(text)) {
+            return;
+        }
+        final TLRPC.Chat chat = getCurrentChat();
+        if (chat != null) {
+            PengramMentionAll.prefetch(currentAccount, chat);
+        }
+    }
+
+    /**
+     * Pengram: можно ли отправлять текст с «@all» прямо сейчас. Если список
+     * участников ещё грузится или не прошла пауза, отправку придерживаем: иначе
+     * в чат уйдёт буквальный «@all» вместо упоминаний.
+     */
+    public boolean pengramMentionAllCanSend(CharSequence text) {
+        if (text == null || !PengramMentionAll.isEnabled() || !PengramMentionAll.hasToken(text)) {
+            return true;
+        }
+        final TLRPC.Chat chat = getCurrentChat();
+        if (chat == null) {
+            return true;
+        }
+        final int state = PengramMentionAll.canSend(currentAccount, chat, text);
+        if (state == PengramMentionAll.RESULT_LOADING) {
+            if (getParentActivity() != null) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        LocaleController.getString(R.string.PengramMentionAllLoading)).show();
+            }
+            return false;
+        }
+        if (state == PengramMentionAll.RESULT_COOLDOWN) {
+            if (getParentActivity() != null) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.formatString(
+                        R.string.PengramMentionAllWait,
+                        PengramMentionAll.cooldownLeft(currentAccount, chat.id))).show();
+            }
+            return false;
+        }
+        if (state == PengramMentionAll.RESULT_EMPTY) {
+            // некого упоминать — отправлять «@all» как текст нельзя
+            if (getParentActivity() != null) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        LocaleController.getString(R.string.PengramMentionAllEmpty)).show();
+            }
+            return false;
+        }
+        if (state == PengramMentionAll.RESULT_TOO_LONG) {
+            // Не отправляем как есть: иначе в чат уйдёт буквальный «@all».
+            if (getParentActivity() != null) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        LocaleController.getString(R.string.PengramMentionAllTooLong)).show();
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /** Pengram: «@all» → обычные упоминания участников (с жёстким лимитом) */
+    public CharSequence pengramMentionAllTextForSend(CharSequence text) {
+        if (text == null || !PengramMentionAll.isEnabled() || !PengramMentionAll.hasToken(text)) {
+            return text;
+        }
+        final TLRPC.Chat chat = getCurrentChat();
+        if (chat == null) {
+            return text;
+        }
+        final PengramMentionAll.Result result = PengramMentionAll.expand(currentAccount, chat, text);
+        if (getParentActivity() == null) {
+            return result.text;
+        }
+        if (result.reason == PengramMentionAll.RESULT_OK) {
+            if (result.mentioned < result.total) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.formatString(
+                        R.string.PengramMentionAllLimited, result.mentioned, result.total)).show();
+            } else {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done, LocaleController.formatString(
+                        R.string.PengramMentionAllDone, result.mentioned)).show();
+            }
+        } else if (result.reason == PengramMentionAll.RESULT_EMPTY) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                    LocaleController.getString(R.string.PengramMentionAllEmpty)).show();
+        } else if (result.reason == PengramMentionAll.RESULT_COOLDOWN) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info, LocaleController.formatString(
+                    R.string.PengramMentionAllWait, result.cooldownMinutes)).show();
+        }
+        return result.text;
     }
 
     public void showFieldPanelForReply(MessageObject messageObjectToReply) {

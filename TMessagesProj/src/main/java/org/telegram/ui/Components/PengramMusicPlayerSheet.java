@@ -1480,7 +1480,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         updateCover(playing);
         playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), false);
         updateProgress(playing);
-        if (PengramConfig.playerStyleHasLyrics(style)) {
+        // Текст нужен не только стилям с видимой панелью: строка песни живёт
+        // ещё и в шапке чата/списка чатов. Раньше ORIGINAL и COMPACT не
+        // запускали поиск вовсе, и шапка оставалась без текста, хотя он есть.
+        if (PengramConfig.playerStyleHasLyrics(style) || PengramConfig.isHeaderLyrics()) {
             loadLyrics(false);
         }
     }

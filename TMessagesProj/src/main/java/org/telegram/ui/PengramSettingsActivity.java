@@ -352,6 +352,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_DEVICE_RANDOM = 1035;
     private static final int BTN_DEVICE_APPLY = 1036;
     private static final int BTN_DEVICE_VERSION = 1037;
+    private static final int BTN_MENTION_ALL_MODE = 1038;
+    private static final int BTN_MENTION_ALL_LIMIT = 1039;
+    private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -2123,7 +2126,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             // которое мы заявляем: Mac, Windows, iPhone, Android.
             items.add(UItem.asSettingsCell(BTN_DEVICE_MODEL,
                     org.telegram.messenger.PengramDeviceName.iconRes(),
-                    getString(R.string.PengramDeviceModel), org.telegram.messenger.PengramDeviceName.summary()));
+                    getString(R.string.PengramDeviceModel),
+                    org.telegram.messenger.PengramDeviceName.serverIdentity()));
             items.add(UItem.asSettingsCell(BTN_DEVICE_VERSION, R.drawable.msg_info,
                     getString(R.string.PengramDeviceVersion),
                     org.telegram.messenger.PengramDeviceName.resolveSystemVersion()));
@@ -2231,21 +2235,29 @@ public class PengramSettingsActivity extends UniversalFragment {
                 refreshRows();
                 requestDeviceRestart();
             } else {
-                showTextDialog(getString(R.string.PengramDeviceCustomTitle),
-                        org.telegram.messenger.PengramDeviceName.getValue(),
-                        getString(R.string.PengramDeviceCustomHint),
-                        text -> {
-                            final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
-                            if (clean.length() == 0) {
-                                return;
-                            }
-                            org.telegram.messenger.PengramDeviceName.setValue(clean);
-                            org.telegram.messenger.PengramDeviceName.setEnabled(true);
-                            refreshRows();
-                            requestDeviceRestart();
-                        });
+                showDeviceCustomDialog();
             }
         });
+    }
+
+    /**
+     * Своё имя устройства: любая строка, а не только пресеты. Открывается и
+     * последней строкой списка моделей, и долгим нажатием на саму строку.
+     */
+    private void showDeviceCustomDialog() {
+        showTextDialog(getString(R.string.PengramDeviceCustomTitle),
+                org.telegram.messenger.PengramDeviceName.getValue(),
+                getString(R.string.PengramDeviceCustomHint),
+                text -> {
+                    final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
+                    if (clean.length() == 0) {
+                        return;
+                    }
+                    org.telegram.messenger.PengramDeviceName.setValue(clean);
+                    org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                    refreshRows();
+                    requestDeviceRestart();
+                });
     }
 
     /**
@@ -2301,6 +2313,42 @@ public class PengramSettingsActivity extends UniversalFragment {
         });
     }
 
+    /** потолок упоминаний: жёсткий лимит, поэтому только 25/50/100 */
+    private void showMentionAllLimitPicker() {
+        final int[] limits = org.telegram.messenger.PengramMentionAll.LIMITS;
+        final CharSequence[] options = new CharSequence[limits.length];
+        int selected = 0;
+        for (int a = 0; a < limits.length; ++a) {
+            options[a] = LocaleController.formatString(R.string.PengramMentionAllPeople, limits[a]);
+            if (limits[a] == org.telegram.messenger.PengramMentionAll.limit()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramMentionAllLimit), options, selected, value -> {
+            org.telegram.messenger.PengramMentionAll.setLimit(limits[value]);
+            refreshRows();
+        });
+    }
+
+    private CharSequence[] mentionAllCooldownNames() {
+        final int[] values = org.telegram.messenger.PengramMentionAll.COOLDOWNS;
+        final CharSequence[] names = new CharSequence[values.length];
+        for (int a = 0; a < values.length; ++a) {
+            names[a] = LocaleController.formatString(R.string.PengramMentionAllMinutes, values[a]);
+        }
+        return names;
+    }
+
+    private int mentionAllCooldownIndex() {
+        final int[] values = org.telegram.messenger.PengramMentionAll.COOLDOWNS;
+        for (int a = 0; a < values.length; ++a) {
+            if (values[a] == org.telegram.messenger.PengramMentionAll.cooldownMinutes()) {
+                return a;
+            }
+        }
+        return 1;
+    }
+
     /** имя устройства читается при старте приложения — предлагаем перезапуск */
     private void requestDeviceRestart() {
         final Context context = getContext();
@@ -2343,8 +2391,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
         builder.setTitle(title, true);
 
-        final LinearLayout linearLayout = new LinearLayout(context);
-        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        // Прокручиваемый список: длинные перечни (модели устройства, версии)
+        // раньше обрезались по нижней границе шторки — до «Своего» было не добраться.
+        final org.telegram.ui.Components.PengramSheetList sheetList =
+                new org.telegram.ui.Components.PengramSheetList(context);
         final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[options.length];
         for (int a = 0; a < options.length; ++a) {
             final int index = a;
@@ -2373,9 +2423,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                     listView.adapter.update(true);
                 }
             });
-            linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+            // высоту строки считает сама ячейка: у неё бывает вторая строка
+            // (бейдж устройства), и фиксированные 50dp её обрезали
+            sheetList.addRow(cells[a], 0);
         }
-        builder.setCustomView(linearLayout);
+        builder.setCustomView(sheetList);
         showDialog(builder.create());
     }
 
@@ -4006,6 +4058,34 @@ public class PengramSettingsActivity extends UniversalFragment {
                     getString(R.string.PengramMessageIslandTint), messageIslandTintValue()));
         }
         items.add(UItem.asShadow(getString(R.string.PengramMessageIslandInfo)));
+
+        // --- массовое упоминание в группах -----------------------------------
+        // По умолчанию выключено и живёт только в группах: это самый быстрый
+        // способ получить спам-блокировку, поэтому лимит жёсткий, а пауза
+        // между использованиями настраивается.
+        items.add(UItem.asHeader(getString(R.string.PengramMentionAllHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramMentionAll.KEY_ENABLED, false,
+                getString(R.string.PengramMentionAll), getString(R.string.PengramMentionAllInfo)));
+        if (org.telegram.messenger.PengramMentionAll.isEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_MODE, R.drawable.settings_group,
+                    getString(R.string.PengramMentionAllMode), mentionAllModeValue()));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_LIMIT, R.drawable.msg_mention,
+                    getString(R.string.PengramMentionAllLimit),
+                    LocaleController.formatString(R.string.PengramMentionAllPeople,
+                            org.telegram.messenger.PengramMentionAll.limit())));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_COOLDOWN, R.drawable.msg_info,
+                    getString(R.string.PengramMentionAllCooldown),
+                    LocaleController.formatString(R.string.PengramMentionAllMinutes,
+                            org.telegram.messenger.PengramMentionAll.cooldownMinutes())));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMentionAllShadow)));
+    }
+
+    /** «кого упоминать» одной строкой */
+    private CharSequence mentionAllModeValue() {
+        return getString(org.telegram.messenger.PengramMentionAll.mode()
+                == org.telegram.messenger.PengramMentionAll.MODE_ADMINS
+                ? R.string.PengramMentionAllAdmins : R.string.PengramMentionAllEveryone);
     }
 
     private CharSequence messageIslandPositionValue() {
@@ -4894,6 +4974,30 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_DEVICE_VERSION:
                 showDeviceVersionPicker();
                 return;
+            case BTN_MENTION_ALL_MODE:
+                showChoicePicker(getString(R.string.PengramMentionAllMode), new CharSequence[]{
+                                getString(R.string.PengramMentionAllEveryone),
+                                getString(R.string.PengramMentionAllAdmins)},
+                        org.telegram.messenger.PengramMentionAll.mode(), value -> {
+                            org.telegram.messenger.PengramMentionAll.setMode(value);
+                            // список участников зависит от режима — старый кэш не годится
+                            org.telegram.messenger.PengramMentionAll.resetCache();
+                            refreshRows();
+                        });
+                return;
+            case BTN_MENTION_ALL_LIMIT:
+                showMentionAllLimitPicker();
+                return;
+            case BTN_MENTION_ALL_COOLDOWN:
+                showChoicePicker(getString(R.string.PengramMentionAllCooldown),
+                        mentionAllCooldownNames(),
+                        mentionAllCooldownIndex(),
+                        value -> {
+                            org.telegram.messenger.PengramMentionAll.setCooldownMinutes(
+                                    org.telegram.messenger.PengramMentionAll.COOLDOWNS[value]);
+                            refreshRows();
+                        });
+                return;
             case BTN_DEVICE_RANDOM:
                 org.telegram.messenger.PengramDeviceName.setValue(org.telegram.messenger.PengramDeviceName.randomPreset());
                 org.telegram.messenger.PengramDeviceName.setEnabled(true);
@@ -5660,6 +5764,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        // Долгое нажатие на строку модели — сразу ввод своего значения, без
+        // пролистывания списка пресетов.
+        if (item.id == BTN_DEVICE_MODEL) {
+            showDeviceCustomDialog();
+            return true;
+        }
         final String username;
         if (item.id == BTN_LINK_CHANNEL) {
             username = LINK_CHANNEL;

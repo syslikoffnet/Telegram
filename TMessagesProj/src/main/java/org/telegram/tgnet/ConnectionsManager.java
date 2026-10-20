@@ -229,7 +229,11 @@ public class ConnectionsManager extends BaseController {
             // уходит в initConnection и видна в «Активных сеансах».
             deviceModel = org.telegram.messenger.PengramDeviceName.resolveDeviceModel();
             PackageInfo pInfo = ApplicationLoader.applicationContext.getPackageManager().getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
-            appVersion = pInfo.versionName + " (" + pInfo.versionCode + ")";
+            // Версия приложения тоже часть «паспорта»: у Android это
+            // «11.4.2 (5230)», у десктопа — просто номер. Иначе подменённый Mac
+            // выдаёт себя строкой с номером сборки Android.
+            appVersion = org.telegram.messenger.PengramDeviceName.resolveAppVersion(
+                    pInfo.versionName + " (" + pInfo.versionCode + ")");
             if (BuildVars.DEBUG_PRIVATE_VERSION) {
                 appVersion += " pbeta";
             } else if (BuildVars.DEBUG_VERSION) {
@@ -274,6 +278,14 @@ public class ConnectionsManager extends BaseController {
             userPremium = getUserConfig().getCurrentUser().premium;
         }
         init(SharedConfig.buildVersion(), TLRPC.LAYER, BuildVars.APP_ID, deviceModel, systemVersion, appVersion, langCode, systemLangCode, configPath, FileLog.getNetworkLogPath(), pushString, fingerprint, timezoneOffset, getUserConfig().getClientUserId(), userPremium, enablePushConnection);
+        // Pengram: одна строка lang_pack в initConnection — и сервер помечает
+        // сеанс «android». Ставим платформу сразу после native_init, чтобы уже
+        // первый запрос ушёл с заявленным устройством.
+        try {
+            native_pengramSetPlatform(currentAccount, org.telegram.messenger.PengramDeviceName.resolveLangPack(),
+                    org.telegram.messenger.PengramDeviceName.isDesktopSpoof());
+        } catch (Throwable ignore) {
+        }
     }
 
     private String getRegId() {
@@ -1027,6 +1039,8 @@ public class ConnectionsManager extends BaseController {
     public static native void native_init(int currentAccount, int version, int layer, int apiId, String deviceModel, String systemVersion, String appVersion, String langCode, String systemLangCode, String configPath, String logPath, String regId, String cFingerprint, String installer, String packageId, int timezoneOffset, long userId, boolean userPremium, boolean enablePushConnection, boolean hasNetwork, int networkType, int performanceClass);
     public static native void native_setProxySettings(int currentAccount, String address, int port, String username, String password, String secret);
     public static native void native_setLangCode(int currentAccount, String langCode);
+    /** Pengram: платформа (lang_pack) и отказ от android-параметров initConnection */
+    public static native void native_pengramSetPlatform(int currentAccount, String langPack, boolean desktopSpoof);
     public static native void native_setRegId(int currentAccount, String regId);
     public static native void native_setSystemLangCode(int currentAccount, String langCode);
     public static native void native_setJava(boolean useJavaByteBuffers);
