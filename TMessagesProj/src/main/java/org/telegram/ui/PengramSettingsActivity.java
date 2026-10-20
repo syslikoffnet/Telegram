@@ -2128,11 +2128,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_DEVICE_VERSION, R.drawable.msg_info,
                     getString(R.string.PengramDeviceVersion),
                     org.telegram.messenger.PengramDeviceName.resolveSystemVersion()));
-            items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED, true,
-                    getString(R.string.PengramDeviceVersionSpoof), getString(R.string.PengramDeviceVersionInfo)));
+            // бейдж сразу под обеими строками: видно, что именно увидят в сеансах
             items.add(UItem.asShadow(org.telegram.messenger.LocaleController.formatString(
                     R.string.PengramDeviceBadge,
                     org.telegram.messenger.PengramDeviceName.badgeSummary())));
+            items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED, true,
+                    getString(R.string.PengramDeviceVersionSpoof), getString(R.string.PengramDeviceVersionInfo)));
             items.add(UItem.asButton(BTN_DEVICE_RANDOM, R.drawable.msg_reset, getString(R.string.PengramDeviceRandom)));
             items.add(UItem.asButton(BTN_DEVICE_APPLY, R.drawable.msg_retry, getString(R.string.PengramDeviceApply)));
         }
