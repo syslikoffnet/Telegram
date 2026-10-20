@@ -120,6 +120,10 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramSendStyleLargeEmoji) tags.append(" смайлы маленькие крупные эмодзи шрифт big emoji");
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
         if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
+        if (id == R.string.PengramTabBarGlass) tags.append(" стекло размытие блюр прозрачность блик blur glass frosted transparency");
+        if (id == R.string.PengramMessageIslandMd3) tags.append(" материал 3 материал3 стиль островка кнопок material you md3 island");
+        if (id == R.string.PengramMessageIslandLinkTrash) tags.append(" ссылка удаление корзина удалить убрать trash delete link");
+        if (id == R.string.PengramOriginalNameProbe) tags.append(" имя контакт проверка настоящее официальное имя name contact check real");
         // This is a storage limit for profile HISTORY, not an avatar-size control.
         if (id == R.string.PengramProfileLimitSize) tags.append(" размер истории профиля хранилище storage limit");
         // Shared concept vocabulary applies to each OWN title, not to an entire

@@ -192,6 +192,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private FrameLayout tabsViewWrapper;
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
+    /** фабрика фона панели: нужна, чтобы пересобрать его при смене «стекла» */
+    private BlurredBackgroundDrawableViewFactory pengramGlassFactory;
+    private ViewPositionWatcher pengramViewPositionWatcher;
+    private boolean pengramGlassEffectAllowed;
+    private static java.lang.ref.WeakReference<MainTabsActivity> pengramInstance = new java.lang.ref.WeakReference<>(null);
     private View fadeView;
 
     public MainTabsActivity() {
@@ -452,6 +457,48 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
+    /** хочет ли пользователь (или устройство) эффект жидкого стекла на панели */
+    private boolean pengramWantsLiquidGlass() {
+        return LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)
+                || org.telegram.messenger.PengramConfig.isTabBarLiquidGlass();
+    }
+
+    private BlurredBackgroundDrawable createTabsBackground() {
+        // повторная подписка на позцию вида множила бы подписчиков при каждом
+        // переключении настройки — снимаем старую перед созданием нового фона
+        if (pengramViewPositionWatcher != null && tabsView != null) {
+            pengramViewPositionWatcher.unsubscribe(tabsView);
+        }
+        final BlurredBackgroundDrawable drawable = pengramGlassFactory.create(tabsView,
+                BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
+        drawable.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
+        drawable.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        return drawable;
+    }
+
+    /** включить/выключить слой бликов и пересобрать фон при смене настройки */
+    public void applyPengramGlassOverlay() {
+        if (tabsView != null) {
+            tabsView.setPengramGlass(org.telegram.messenger.PengramConfig.isTabBarLiquidGlass());
+        }
+        final boolean want = pengramWantsLiquidGlass();
+        if (want != pengramGlassEffectAllowed && pengramGlassFactory != null && tabsView != null) {
+            pengramGlassEffectAllowed = want;
+            pengramGlassFactory.setLiquidGlassEffectAllowed(want);
+            tabsViewBackground = createTabsBackground();
+            tabsView.setBackground(tabsViewBackground);
+            tabsView.invalidate();
+        }
+    }
+
+    /** настройка поменялась на другом экране — применяем без перезапуска */
+    public static void refreshPengramGlass() {
+        final MainTabsActivity activity = pengramInstance.get();
+        if (activity != null) {
+            AndroidUtilities.runOnUIThread(activity::applyPengramGlassOverlay);
+        }
+    }
+
     @Override
     public void onPause() {
         super.onPause();
@@ -519,15 +566,17 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
         final ViewPositionWatcher viewPositionWatcher = new ViewPositionWatcher(contentView);
+        pengramViewPositionWatcher = viewPositionWatcher;
 
-        BlurredBackgroundDrawableViewFactory iBlur3FactoryGlass = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
-        iBlur3FactoryGlass.setSourceRootView(viewPositionWatcher, contentView);
-        iBlur3FactoryGlass.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
+        pengramGlassFactory = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
+        pengramGlassFactory.setSourceRootView(viewPositionWatcher, contentView);
+        pengramGlassEffectAllowed = pengramWantsLiquidGlass();
+        pengramGlassFactory.setLiquidGlassEffectAllowed(pengramGlassEffectAllowed);
 
-        tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
-        tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
-        tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        tabsViewBackground = createTabsBackground();
         tabsView.setBackground(tabsViewBackground);
+        pengramInstance = new java.lang.ref.WeakReference<>(this);
+        applyPengramGlassOverlay();
 
         BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
         iBlur3FactoryFade.setSourceRootView(viewPositionWatcher, contentView);
@@ -1014,9 +1063,19 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public GlassTabView[] tabs;
 
     public void selectTab(int position, boolean animated) {
+        View selectedView = null;
         for (int a = 0; a < tabs.length; a++) {
             GlassTabView tab = tabs[a];
-            tab.setSelected(indexToPosition(a) == position, animated);
+            final boolean selected = indexToPosition(a) == position;
+            tab.setSelected(selected, animated);
+            if (selected) {
+                selectedView = tab;
+            }
+        }
+        // блик и подсветка «жидкого стекла» следуют за настоящей выбранной
+        // вкладкой, а не за номером страницы: скрытые вкладки пропускаются
+        if (tabsView != null) {
+            tabsView.setPengramSelectedTab(selectedView, animated);
         }
     }
 
@@ -1201,6 +1260,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     public void onFragmentDestroy() {
+        if (pengramInstance.get() == this) {
+            pengramInstance = new java.lang.ref.WeakReference<>(null);
+        }
         Bulletin.removeDelegate(this);
         Bulletin.removeDelegate(contentView);
 

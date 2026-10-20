@@ -1065,6 +1065,18 @@ public class PengramConfig {
             hideChatShareMyNumber = p.getBoolean("hideChatShareMyNumber", true);
             deletedMark = p.getInt("deletedMark", MARK_TRASH);
             editedMark = p.getInt("editedMark", MARK_EDIT_PENCIL);
+            // Раньше островок по умолчанию появлялся сверху. У тех, кто его
+            // открывал, в prefs осталось явное «0», поэтому одного нового
+            // значения по умолчанию мало — один раз переносим полосу вниз.
+            if (!p.getBoolean("migrIslandBottom", false)) {
+                if (p.contains(KEY_MESSAGE_ISLAND_POSITION)
+                        && p.getInt(KEY_MESSAGE_ISLAND_POSITION, MESSAGE_ISLAND_POSITION_TOP)
+                        == MESSAGE_ISLAND_POSITION_TOP) {
+                    p.edit().putInt(KEY_MESSAGE_ISLAND_POSITION, MESSAGE_ISLAND_POSITION_BOTTOM).apply();
+                    intCache.remove(KEY_MESSAGE_ISLAND_POSITION);
+                }
+                p.edit().putBoolean("migrIslandBottom", true).apply();
+            }
             loaded = true;
         }
     }
@@ -1388,6 +1400,21 @@ public class PengramConfig {
     public static void setTabBarSize(int percent) { init(); tabBarSize = Math.max(70, Math.min(130, percent)); putInt("tabBarSize", tabBarSize); }
     /** множитель размеров нижней панели */
     public static float getTabBarScale() { return getTabBarSize() / 100f; }
+
+    /**
+     * «Жидкое стекло» для нижней панели: преломление и блики поверх размытия.
+     * В обычном Telegram эффект включается только на мощных устройствах
+     * (LiteMode); здесь его можно включить принудительно.
+     */
+    public static final String KEY_TAB_GLASS = "tabBarLiquidGlass";
+
+    public static boolean isTabBarLiquidGlass() {
+        return getBool(KEY_TAB_GLASS, false);
+    }
+
+    public static void setTabBarLiquidGlass(boolean value) {
+        setBool(KEY_TAB_GLASS, value);
+    }
 
     // ------------------------------- пункты экрана «Настройки» -------------------------------
 
@@ -1811,6 +1838,12 @@ public class PengramConfig {
     public static final int MSG_ACTION_COPY_ID = 12;
     public static final int MSG_ACTION_AI = 13;
     public static final int MSG_ACTION_RESEND = 14;
+    /**
+     * Служебное действие: не настраивается в редакторе, а подставляется в
+     * слот «Скопировать ссылку», когда ссылки у сообщения нет (личный чат).
+     * Так на месте бесполезной кнопки оказывается удаление.
+     */
+    public static final int MSG_ACTION_DELETE = 15;
 
     /** больше шести кнопок в одной полосе уже не читаются — и не попадают пальцем */
     public static final int MESSAGE_ISLAND_LIMIT = 6;
@@ -1833,6 +1866,10 @@ public class PengramConfig {
     public static final String KEY_MESSAGE_ISLAND_HAPTIC = "messageIslandHaptic";
     public static final String KEY_MESSAGE_ISLAND_POSITION = "messageIslandPosition";
     public static final String KEY_MESSAGE_ISLAND_TINT = "messageIslandTint";
+    /** оформление островка в стиле Material 3 (формы, типографика, state layer) */
+    public static final String KEY_MESSAGE_ISLAND_MD3 = "messageIslandMd3";
+    /** вместо недоступной ссылки показывать удаление */
+    public static final String KEY_MESSAGE_ISLAND_LINK_TRASH = "messageIslandLinkTrash";
 
     public static final int MESSAGE_ISLAND_POSITION_TOP = 0;
     public static final int MESSAGE_ISLAND_POSITION_BOTTOM = 1;
@@ -1873,6 +1910,20 @@ public class PengramConfig {
     public static void setMessageIslandPosition(int value) {
         setIntValue(KEY_MESSAGE_ISLAND_POSITION, value == MESSAGE_ISLAND_POSITION_BOTTOM
                 ? MESSAGE_ISLAND_POSITION_BOTTOM : MESSAGE_ISLAND_POSITION_TOP);
+    }
+
+    /** по умолчанию — материал 3: это новый вид островка, классический остаётся опцией */
+    public static boolean isMessageIslandMd3() {
+        return getBool(KEY_MESSAGE_ISLAND_MD3, true);
+    }
+
+    public static void setMessageIslandMd3(boolean value) {
+        setBool(KEY_MESSAGE_ISLAND_MD3, value);
+    }
+
+    /** пустой слот ссылки превращается в корзину — выключить можно настройкой */
+    public static boolean isMessageIslandLinkTrash() {
+        return getBool(KEY_MESSAGE_ISLAND_LINK_TRASH, true);
     }
 
     public static int getMessageIslandTint() {
@@ -1995,6 +2046,7 @@ public class PengramConfig {
             case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.string.PengramMenuCopyMessageId;
             case MSG_ACTION_AI: return org.telegram.messenger.R.string.PengramAIMenu;
             case MSG_ACTION_RESEND: return org.telegram.messenger.R.string.PengramResendHere;
+            case MSG_ACTION_DELETE: return org.telegram.messenger.R.string.Delete;
             default: return org.telegram.messenger.R.string.Reply;
         }
     }
@@ -2019,6 +2071,7 @@ public class PengramConfig {
             case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.string.PengramIslandBtnCopyId;
             case MSG_ACTION_AI: return org.telegram.messenger.R.string.PengramIslandBtnAi;
             case MSG_ACTION_RESEND: return org.telegram.messenger.R.string.PengramIslandBtnResend;
+            case MSG_ACTION_DELETE: return org.telegram.messenger.R.string.PengramIslandBtnDelete;
             default: return org.telegram.messenger.R.string.PengramIslandBtnReply;
         }
     }
@@ -2039,6 +2092,7 @@ public class PengramConfig {
             case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.drawable.msg_copy;
             case MSG_ACTION_AI: return org.telegram.messenger.R.drawable.msg_bot;
             case MSG_ACTION_RESEND: return org.telegram.messenger.R.drawable.msg_send;
+            case MSG_ACTION_DELETE: return org.telegram.messenger.R.drawable.msg_delete;
             default: return org.telegram.messenger.R.drawable.msg_copy;
         }
     }

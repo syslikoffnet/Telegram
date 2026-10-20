@@ -11496,13 +11496,40 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         });
     }
 
+    /** уже идёт точная проверка: второй жест не должен слать второй запрос */
+    private boolean pengramNameProbeRunning;
+
     private void pengramApplyOriginalName(org.telegram.messenger.PengramOriginalName.Result other) {
-        if (nameTextView[1] == null) {
+        if (nameTextView[1] == null || pengramNameProbeRunning) {
+            return;
+        }
+        // Если точного имени в кэше нет (или есть только @ник), а человек
+        // записан в контакты — можно один раз проверить его напрямую.
+        final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
+        // Проверяем только когда своего имени ещё нет: результат живёт месяц,
+        // и повторный жест не должен стоить ещё одного запроса к серверу.
+        final String cachedProbe = user == null ? null
+                : org.telegram.messenger.PengramOriginalName.probedName(currentAccount, user.id);
+        final boolean needProbe = user != null && !user.min
+                && TextUtils.isEmpty(cachedProbe)
+                && org.telegram.messenger.PengramOriginalName.isContact(currentAccount, user)
+                && org.telegram.messenger.PengramOriginalName.probeEnabled()
+                && (other == null || other.source == org.telegram.messenger.PengramOriginalName.SOURCE_USERNAME);
+        if (needProbe) {
+            if (!org.telegram.messenger.PengramOriginalName.probeAcknowledged()) {
+                pengramAskProbePermission(user);
+            } else {
+                pengramStartNameProbe(user);
+            }
             return;
         }
         if (other == null) {
+            // Имя уже проверено и совпадает с записью в контактах: показывать
+            // нечего, но человек должен понимать, что провека была.
             BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                    getString(R.string.PengramOriginalNameNothing)).show();
+                    getString(TextUtils.isEmpty(cachedProbe)
+                            ? R.string.PengramOriginalNameNothing
+                            : R.string.PengramOriginalNameProbeSource)).show();
             return;
         }
         pengramOriginalNameShown = true;
@@ -11515,6 +11542,57 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 updateProfileData(false);
             }
         }, 6000);
+    }
+
+    /**
+     * Первый раз объясняем, что именно произойдёт: контакт на мгновение
+     * убирается и возвращается. Согласие запоминаем, чтобы не спрашивать
+     * перед каждым свайпом.
+     */
+    private void pengramAskProbePermission(TLRPC.User user) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramOriginalNameProbe));
+        builder.setMessage(getString(R.string.PengramOriginalNameProbeConfirm));
+        builder.setPositiveButton(getString(R.string.Continue), (dialog, which) -> {
+            org.telegram.messenger.PengramOriginalName.setProbeAcknowledged(true);
+            pengramStartNameProbe(user);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void pengramStartNameProbe(TLRPC.User user) {
+        if (pengramNameProbeRunning || user == null) {
+            return;
+        }
+        pengramNameProbeRunning = true;
+        try {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramOriginalNameProbing)).show();
+        } catch (Throwable ignore) {
+        }
+        org.telegram.messenger.PengramOriginalName.probe(currentAccount, user, (result, error) -> {
+            pengramNameProbeRunning = false;
+            if (result != null) {
+                pengramApplyOriginalName(result);
+                return;
+            }
+            if (error == org.telegram.messenger.PengramOriginalName.PROBE_LIMITED) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        getString(R.string.PengramOriginalNameProbeLimit)).show();
+            } else if (error == org.telegram.messenger.PengramOriginalName.PROBE_FAILED) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        getString(R.string.PengramOriginalNameProbeFailed)).show();
+            } else if (error != org.telegram.messenger.PengramOriginalName.PROBE_BUSY) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        getString(R.string.PengramOriginalNameNothing)).show();
+            }
+            // после проверки профиль мог обновиться — перечитываем имя
+            updateProfileData(false);
+        });
     }
 
     private void updateProfileData(boolean reload) {

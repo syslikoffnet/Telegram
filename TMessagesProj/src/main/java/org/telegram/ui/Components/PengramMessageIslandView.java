@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -72,6 +73,8 @@ public class PengramMessageIslandView extends LinearLayout {
     private final int labelSizeSp;
     private final boolean labels;
     private final boolean compact;
+    /** стиль Material 3: пилюля-контейнер, типографика labelMedium и state layer */
+    private final boolean md3;
     /** желаемая ширина кнопки: по самой длинной подписи, но в разумных пределах */
     private int desiredItemWidth;
     /** ширина, которая реально влезает в текущий замер (меню может быть уже экрана) */
@@ -86,19 +89,32 @@ public class PengramMessageIslandView extends LinearLayout {
         final float fontScale = context.getResources().getConfiguration().fontScale;
         compact = PengramConfig.isMessageIslandCompact();
         labels = PengramConfig.isMessageIslandLabels();
-        iconSize = AndroidUtilities.dp(compact ? 21 : 23);
-        labelSizeSp = compact ? 10 : 11;
-        itemMinWidth = AndroidUtilities.dp(compact ? 36 : 40);
-        // С подписями колонка шире: короткое слово должно влезать целиком,
-        // а не превращаться в «Пересл…». Без подписей это обычная иконка.
-        // 68dp хватает «Поделиться»; полосу всё равно ужимает onMeasure,
-        // поэтому широкий потолок не растягивает островок на весь экран.
-        itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 66 : 68) : (compact ? 44 : 46));
-        final int vertical = AndroidUtilities.dp(compact ? 4 : 5);
-        itemHeight = AndroidUtilities.dp(compact ? 28 : 32)
-                + vertical * 2
-                + (labels ? (int) Math.ceil(labelSizeSp * fontScale * 1.35f) + AndroidUtilities.dp(1) : 0);
-        setPadding(AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3));
+        md3 = PengramConfig.isMessageIslandMd3();
+        if (md3) {
+            // Material 3: иконка 22dp, подпись labelMedium и полноценная
+            // площадь нажатия 48dp — меньше Material просто не разрешает.
+            iconSize = AndroidUtilities.dp(compact ? 20 : 22);
+            labelSizeSp = compact ? 10 : 11;
+            itemMinWidth = AndroidUtilities.dp(labels ? (compact ? 50 : 56) : (compact ? 48 : 52));
+            itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 72 : 80) : (compact ? 48 : 52));
+            itemHeight = AndroidUtilities.dp(compact ? 42 : 48);
+            setPadding(AndroidUtilities.dp(compact ? 3 : 4), AndroidUtilities.dp(compact ? 3 : 4),
+                    AndroidUtilities.dp(compact ? 3 : 4), AndroidUtilities.dp(compact ? 3 : 4));
+        } else {
+            iconSize = AndroidUtilities.dp(compact ? 21 : 23);
+            labelSizeSp = compact ? 10 : 11;
+            itemMinWidth = AndroidUtilities.dp(compact ? 36 : 40);
+            // С подписями колонка шире: короткое слово должно влезать целиком,
+            // а не превращаться в «Пересл…». Без подписей это обычная иконка.
+            // 68dp хватает «Поделиться»; полосу всё равно ужимает onMeasure,
+            // поэтому широкий потолок не растягивает островок на весь экран.
+            itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 66 : 68) : (compact ? 44 : 46));
+            final int vertical = AndroidUtilities.dp(compact ? 4 : 5);
+            itemHeight = AndroidUtilities.dp(compact ? 28 : 32)
+                    + vertical * 2
+                    + (labels ? (int) Math.ceil(labelSizeSp * fontScale * 1.35f) + AndroidUtilities.dp(1) : 0);
+            setPadding(AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3), AndroidUtilities.dp(3));
+        }
         setWillNotDraw(true);
     }
 
@@ -168,13 +184,16 @@ public class PengramMessageIslandView extends LinearLayout {
         }
         setVisibility(VISIBLE);
         resolveColors();
-        setBackground(Theme.createRoundRectDrawable(
-                AndroidUtilities.dp(compact ? 14 : 16), backgroundColor));
+        final int containerRadius = md3
+                ? (itemHeight + getPaddingTop() + getPaddingBottom()) / 2
+                : AndroidUtilities.dp(compact ? 14 : 16);
+        setBackground(Theme.createRoundRectDrawable(containerRadius, backgroundColor));
 
         // Желаемая ширина: самая длинная подпись + боковые отступы. Реальную
         // подгоняем в onMeasure — там уже известна ширина меню на экране.
         desiredItemWidth = labels
-                ? Math.max(itemMinWidth, Math.min(itemMaxWidth, widestLabelWidth() + AndroidUtilities.dp(8)))
+                ? Math.max(itemMinWidth, Math.min(itemMaxWidth,
+                        widestLabelWidth() + AndroidUtilities.dp(md3 ? 16 : 8)))
                 : itemMaxWidth;
         appliedItemWidth = desiredItemWidth;
         for (int a = 0; a < actions.size(); a++) {
@@ -199,6 +218,19 @@ public class PengramMessageIslandView extends LinearLayout {
             // полосу на весь AT_MOST-размер и поповер стал бы во весь экран.
             addView(button, new LinearLayout.LayoutParams(desiredItemWidth, itemHeight));
             buttons.add(button);
+            if (md3) {
+                // Появление «как в Material»: короткий подъём по очереди, а не
+                // мгновенная вспышка всей полосы.
+                button.setTranslationY(AndroidUtilities.dp(6));
+                button.setAlpha(0f);
+                button.animate()
+                        .alpha(available ? 1f : 0.38f)
+                        .translationY(0f)
+                        .setStartDelay(a * 22L)
+                        .setDuration(190)
+                        .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
+                        .start();
+            }
         }
         requestLayout();
     }
@@ -224,8 +256,11 @@ public class PengramMessageIslandView extends LinearLayout {
             final int fit = content / Math.max(1, buttons.size());
             int width = Math.max(itemMinWidth, Math.min(itemMaxWidth, desiredItemWidth));
             if (fit > 0) {
-                // ниже минимума не ужимаем — лучше чуть уже текст, чем нечитаемые кнопки
-                width = Math.min(width, Math.max(itemMinWidth, fit));
+                // Ниже минимума не ужимаем — лучше чуть уже текст, чем
+                // нечитаемые кнопки. Но у самого края шесть кнопок Material
+                // шире экрана, поэтому там разрешаем дойти до 44dp.
+                final int hardMin = AndroidUtilities.dp(md3 ? 44 : 36);
+                width = Math.min(width, Math.max(hardMin, fit));
             }
             if (width != appliedItemWidth) {
                 appliedItemWidth = width;
@@ -264,6 +299,12 @@ public class PengramMessageIslandView extends LinearLayout {
             label.setEllipsize(TextUtils.TruncateAt.END);
             label.setGravity(Gravity.CENTER);
             label.setIncludeFontPadding(false);
+            if (md3) {
+                // labelMedium: средний вес и лёгкий трекинг; без лишнего воздуха
+                label.setTypeface(AndroidUtilities.bold());
+                label.setLetterSpacing(0.04f);
+                label.setPadding(0, AndroidUtilities.dp(1), 0, 0);
+            }
             column.addView(label, LayoutHelper.createLinear(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         }
@@ -277,12 +318,28 @@ public class PengramMessageIslandView extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER));
         wrapper.setContentDescription(title);
         if (available) {
-            wrapper.setBackground(Theme.createRadSelectorDrawable(selectorColor, 12, 12));
+            final int stateRadius = md3 ? itemHeight / 2 : AndroidUtilities.dp(12);
+            wrapper.setBackground(Theme.createRadSelectorDrawable(selectorColor, stateRadius, stateRadius));
         }
         wrapper.setClickable(!preview && available);
         wrapper.setFocusable(!preview && available);
-        // Недоступное действие видно, но не обещает нажатия.
-        wrapper.setAlpha(available ? 1f : 0.42f);
+        // Недоступное действие видно, но не обещает нажатия: в Material 3
+        // выключенный элемент — 38% непрозрачности.
+        wrapper.setAlpha(available ? 1f : (md3 ? 0.38f : 0.42f));
+        if (md3 && !preview && available) {
+            // Отклик Material: мягкое сжатие на нажатие, пружинный возврат.
+            wrapper.setOnTouchListener((v, event) -> {
+                final int action2 = event.getActionMasked();
+                if (action2 == MotionEvent.ACTION_DOWN) {
+                    v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(110)
+                            .setInterpolator(CubicBezierInterpolator.EASE_OUT).start();
+                } else if (action2 == MotionEvent.ACTION_UP || action2 == MotionEvent.ACTION_CANCEL) {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(190)
+                            .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
+                }
+                return false;
+            });
+        }
         return wrapper;
     }
 
@@ -309,6 +366,37 @@ public class PengramMessageIslandView extends LinearLayout {
         final boolean dark = Theme.isCurrentThemeDark();
 
         accentFill = tint == PengramConfig.MESSAGE_ISLAND_TINT_ACCENT;
+
+        if (md3) {
+            // Material 3 tonal surfaces: контейнер — не «серый полупрозрачный»,
+            // а тонированная поверхность темы, контент — on-surface/on-container.
+            final int surface = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            switch (tint) {
+                case PengramConfig.MESSAGE_ISLAND_TINT_ACCENT: {
+                    backgroundColor = accent;
+                    final int onAccent = ColorUtils.calculateLuminance(accent) < 0.5f
+                            ? 0xffffffff : 0xff101418;
+                    iconColor = onAccent;
+                    labelColor = onAccent;
+                    selectorColor = Theme.multAlpha(onAccent, 0.16f);
+                    break;
+                }
+                case PengramConfig.MESSAGE_ISLAND_TINT_PLAIN:
+                    backgroundColor = ColorUtils.blendARGB(surface, ink, dark ? 0.12f : 0.05f);
+                    iconColor = Theme.multAlpha(ink, 0.80f);
+                    labelColor = Theme.multAlpha(ink, 0.87f);
+                    selectorColor = Theme.multAlpha(ink, 0.10f);
+                    break;
+                case PengramConfig.MESSAGE_ISLAND_TINT_SOFT:
+                default:
+                    backgroundColor = ColorUtils.blendARGB(surface, accent, dark ? 0.22f : 0.13f);
+                    iconColor = dark ? accent : ColorUtils.blendARGB(accent, 0xff000000, 0.22f);
+                    labelColor = iconColor;
+                    selectorColor = Theme.multAlpha(accent, dark ? 0.20f : 0.14f);
+                    break;
+            }
+            return;
+        }
         switch (tint) {
             case PengramConfig.MESSAGE_ISLAND_TINT_ACCENT: {
                 backgroundColor = accent;

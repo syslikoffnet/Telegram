@@ -418,6 +418,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
     private FrameLayout islandPreviewRow;
     private PengramMessageIslandView islandPreview;
+    private boolean islandPreviewMd3;
     private boolean islandPreviewCompact;
     private boolean islandPreviewLabels;
     private org.telegram.ui.Cells.AppIconsSelectorCell appIconsCell;
@@ -1383,6 +1384,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.KEY_HIDE_STORIES: return R.drawable.msg_media;
             case PengramConfig.KEY_DIALOG_SENDER_AVATARS: return R.drawable.msg_openprofile;
             case PengramConfig.KEY_PENGRAM_CARD: return R.drawable.msg_settings;
+            case org.telegram.messenger.PengramOriginalName.KEY_PROBE: return R.drawable.msg_contacts;
             default: return 0;
         }
     }
@@ -1444,6 +1446,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         // короткая тактильная отдача: переключение должно ощущаться, а не только выглядеть
         AndroidUtilities.vibrateCursor(view);
         // слой Material 3 меняет отрисовку чужих экранов — просим их перерисоваться
+        if (PengramConfig.KEY_TAB_GLASS.equals(key)) {
+            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+        }
         if (key.startsWith("md3")) {
             if (key.startsWith("md3Monet")) {
                 org.telegram.messenger.PengramMonet.update(getContext());
@@ -2773,6 +2778,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramOriginalNameHeader)));
         items.add(UItem.asSettingsCell(BTN_ORIGINAL_NAME, R.drawable.msg_contacts,
                 getString(R.string.PengramOriginalName), originalNameModeName()));
+        if (org.telegram.messenger.PengramOriginalName.mode() != org.telegram.messenger.PengramOriginalName.MODE_OFF) {
+            items.add(checkInfo(org.telegram.messenger.PengramOriginalName.KEY_PROBE, false,
+                    getString(R.string.PengramOriginalNameProbe),
+                    getString(R.string.PengramOriginalNameProbeInfo)));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramOriginalNameInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
@@ -3194,7 +3204,9 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
-        items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo)));
+        items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
+        items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo) + "\n\n"
+                + getString(R.string.PengramTabBarGlassInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
         items.add(moreButton(GROUP_TEXT, getString(R.string.PengramMD3Tune)));
@@ -3777,8 +3789,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                     PengramConfig.getMessageIslandItemsCount() + " / " + PengramConfig.MESSAGE_ISLAND_LIMIT));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LABELS, true,
                     getString(R.string.PengramMessageIslandLabels)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_MD3, true,
+                    getString(R.string.PengramMessageIslandMd3)));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_COMPACT, false,
                     getString(R.string.PengramMessageIslandCompact)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LINK_TRASH, true,
+                    getString(R.string.PengramMessageIslandLinkTrash)));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_HAPTIC, true,
                     getString(R.string.PengramMessageIslandHaptic)));
             items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_POSITION, R.drawable.msg_photo_settings,
@@ -3822,7 +3838,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         final boolean compact = PengramConfig.isMessageIslandCompact();
         final boolean labels = PengramConfig.isMessageIslandLabels();
-        if (islandPreview == null || compact != islandPreviewCompact || labels != islandPreviewLabels) {
+        final boolean md3 = PengramConfig.isMessageIslandMd3();
+        if (islandPreview == null || compact != islandPreviewCompact || labels != islandPreviewLabels
+                || md3 != islandPreviewMd3) {
             if (islandPreview != null) {
                 islandPreviewRow.removeView(islandPreview);
             }
@@ -3830,6 +3848,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             islandPreview.setPreview(true);
             islandPreviewCompact = compact;
             islandPreviewLabels = labels;
+            islandPreviewMd3 = md3;
             islandPreviewRow.addView(islandPreview, LayoutHelper.createFrame(
                     LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 12, 0, 12));
         }

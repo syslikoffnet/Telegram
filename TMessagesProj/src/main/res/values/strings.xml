@@ -11757,6 +11757,8 @@
     <string name="PengramTabBarSize">Bar size</string>
     <string name="PengramTabBarDefault">default</string>
     <string name="PengramTabBarInfo">Size of the bottom tab bar. The app screens are rebuilt right after the change.</string>
+    <string name="PengramTabBarGlass">Liquid glass</string>
+    <string name="PengramTabBarGlassInfo">The bottom bar gets a real glass look: the screen behind it is blurred, the edge catches the light, and the selected tab glows and leaves a highlight trail when you switch. Works best on Android 12 and newer; older devices get a soft tinted fallback.</string>
     <string name="PengramSenderAvatars">Sender mini avatars</string>
     <string name="PengramSenderAvatarsInfo">A small avatar of the person who wrote in a group</string>
     <string name="PengramDeletedSendHeader">Deleted messages</string>
@@ -11874,6 +11876,8 @@
     <string name="PengramMessageIslandLabels">Labels under buttons</string>
     <string name="PengramMessageIslandCompact">Compact buttons</string>
     <string name="PengramMessageIslandHaptic">Vibrate on tap</string>
+    <string name="PengramMessageIslandMd3">Material You style</string>
+    <string name="PengramMessageIslandLinkTrash">Delete instead of copy link</string>
     <string name="PengramMessageIslandPosition">Where the island sits</string>
     <string name="PengramMessageIslandPositionTop">Above the menu</string>
     <string name="PengramMessageIslandPositionBottom">Below the menu</string>
@@ -12061,6 +12065,14 @@
     <string name="PengramOriginalNameHistory">Earliest name in the profile history</string>
     <string name="PengramOriginalNameUsername">Public username</string>
     <string name="PengramOriginalNameNothing">Pengram has not seen the official name of this person yet</string>
+    <string name="PengramIslandBtnDelete">Delete</string>
+    <string name="PengramOriginalNameProbe">Check the name for sure</string>
+    <string name="PengramOriginalNameProbeInfo">For one request the contact is removed and put back with the name you saved, so the server shows the name the person set for themselves. The number is never sent and the contact is restored to exactly the same state. Requests are strictly limited: once per 15 minutes, once per person per day and no more than 10 per day.</string>
+    <string name="PengramOriginalNameProbeConfirm">The person is saved in your contacts, so Telegram hides their real name behind the name you gave them. To see the real one, the contact is removed for a moment and immediately restored with the same name.\n\nThe contact comes back exactly as it was, your number is not sent, and the person gets no notification. Requests are strictly limited: once per 15 minutes, once per person per day and no more than 10 per day.</string>
+    <string name="PengramOriginalNameProbing">Checking the name…</string>
+    <string name="PengramOriginalNameProbeLimit">Too often: the next check is available later</string>
+    <string name="PengramOriginalNameProbeFailed">Could not check the name, the contact is unchanged</string>
+    <string name="PengramOriginalNameProbeSource">Checked directly</string>
     <string name="PengramAIAutoHeader">Auto replies · selected chats only</string>
     <string name="PengramAIAutoContext">Recent context for auto-replies</string>
     <string name="PengramAIAutoContextBrief">Previous messages from selected chats may go to the AI service · off by default</string>

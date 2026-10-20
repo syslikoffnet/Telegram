@@ -33034,6 +33034,9 @@ public class ChatActivity extends BaseFragment implements
             case org.telegram.messenger.PengramConfig.MSG_ACTION_COPY_ID: return new int[]{OPTION_PENGRAM_COPY_ID};
             case org.telegram.messenger.PengramConfig.MSG_ACTION_AI: return new int[]{OPTION_PENGRAM_AI};
             case org.telegram.messenger.PengramConfig.MSG_ACTION_RESEND: return new int[]{OPTION_PENGRAM_RESEND};
+            // служебное действие: пользователь его не настраивает, но корзина
+            // должна уметь занять место недоступного «скопировать ссылку»
+            case org.telegram.messenger.PengramConfig.MSG_ACTION_DELETE: return new int[]{OPTION_DELETE};
             default: return new int[0];
         }
     }
@@ -34246,19 +34249,35 @@ public class ChatActivity extends BaseFragment implements
                     final ArrayList<Boolean> islandEnabled = new ArrayList<>();
                     final ArrayList<Integer> movedOptions = new ArrayList<>();
                     boolean islandHasAvailable = false;
+                    // «Скопировать ссылку» есть не везде: в личном чате у
+                    // сообщения нет публичной ссылки. Пустую кнопку заменяем
+                    // корзиной — на её месте действие, которое точно нужно.
+                    final int deleteOption = pengramFirstPresentOption(
+                            org.telegram.messenger.PengramConfig.MSG_ACTION_DELETE, options);
+                    final boolean linkTrash = org.telegram.messenger.PengramConfig.isMessageIslandLinkTrash()
+                            && deleteOption >= 0
+                            && (selectedObject == null || selectedObject.messageOwner == null
+                                    || (selectedObject.messageOwner.ttl_period == 0
+                                        && !selectedObject.isPaidSuggestedPostProtected()));
                     for (int action : org.telegram.messenger.PengramConfig.getMessageIslandItems()) {
                         // Действие может быть недоступно этому сообщению (нет ссылки,
                         // не своё сообщение). Оно остаётся в полосе приглушённым,
                         // чтобы набор кнопок не менялся от сообщения к сообщению.
-                        final int present = pengramFirstPresentOption(action, options);
-                        islandActions.add(action);
+                        int present = pengramFirstPresentOption(action, options);
+                        int shown = action;
+                        if (present < 0 && linkTrash
+                                && action == org.telegram.messenger.PengramConfig.MSG_ACTION_COPY_LINK) {
+                            shown = org.telegram.messenger.PengramConfig.MSG_ACTION_DELETE;
+                            present = deleteOption;
+                        }
+                        islandActions.add(shown);
                         islandOptions.add(present);
                         islandEnabled.add(present >= 0);
                         if (present < 0) {
                             continue;
                         }
                         islandHasAvailable = true;
-                        for (int option : pengramMessageActionOptions(action)) {
+                        for (int option : pengramMessageActionOptions(shown)) {
                             if (!movedOptions.contains(option)) {
                                 movedOptions.add(option);
                             }

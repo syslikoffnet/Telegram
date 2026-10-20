@@ -463,6 +463,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         frameLayout.setClipToPadding(false);
         frameLayout.setClipChildren(false);
         setContentView(frameLayout);
+        // Проверка имени могла не успеть вернуть контакт (сеть, падение) —
+        // возвращаем такие контакты при первом удобном случае.
+        AndroidUtilities.runOnUIThread(() -> {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                try {
+                    if (UserConfig.getInstance(a).isClientActivated()) {
+                        org.telegram.messenger.PengramOriginalName.restorePending(a);
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }, 2500);
         rootAnimatedInsetsListener = new WindowAnimatedInsetsProvider(frameLayout);
         pipActivityController.addPipListener(new IPipActivityListener() {
             final ActivityVisibilityController activityVisibilityController = createActivityVisibilityController(false);
