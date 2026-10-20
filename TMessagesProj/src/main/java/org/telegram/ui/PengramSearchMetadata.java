@@ -130,7 +130,7 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramGlassDrag) tags.append(" палец жест перетаскивание протяжка drag finger gesture");
         if (id == R.string.PengramGlassRim) tags.append(" кант кромка обводка контур rim edge outline");
         if (id == R.string.PengramMessageIslandLinkTrash) tags.append(" ссылка удаление корзина удалить убрать trash delete link");
-        if (id == R.string.PengramOriginalNameProbe) tags.append(" имя контакт проверка настоящее официальное имя name contact check real");
+        if (id == R.string.PengramOriginalName) tags.append(" имя контакт проверка настоящее официальное имя профиль name contact check real profile");
         if (id == R.string.PengramDeviceModel) tags.append(" устройство модель телефон ноутбук компьютер подмена сеансы device model phone laptop pc computer spoof sessions");
         if (id == R.string.PengramDeviceSpoof) tags.append(" устройство модель телефон ноутбук компьютер подмена сеансы device model phone laptop pc computer spoof sessions samsung pixel");
         if (id == R.string.PengramDeviceVersion) tags.append(" версия ос система андроид ios iphone ipados macos windows version os system");

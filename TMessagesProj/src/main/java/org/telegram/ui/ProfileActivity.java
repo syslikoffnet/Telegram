@@ -11491,11 +11491,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private boolean pengramOriginalNameShown;
 
     /**
-     * Pengram: переключить имя в шапке профиля.
-     *
-     * Первый жест показывает вторую версию имени и подписывает, откуда она
-     * взялась, второй возвращает всё как было. Если второй версии нет —
-     * честно об этом говорим, а не молчим.
+     * Жест по имени: показать, как человека видят остальные, и вернуть вашу
+     * запись обратно. Ни диалогов, ни ограничений на число проверок: экран
+     * сначала показывает то, что уже известно, и только потом, если запись
+     * устарела, тихо перечитывает публичную страницу профиля.
      */
     private void pengramToggleOriginalName() {
         final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
@@ -11503,115 +11502,89 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         if (pengramOriginalNameShown) {
-            pengramOriginalNameShown = false;
-            updateProfileData(false);
+            pengramHideOriginalName();
             return;
         }
+        final int seq = ++pengramNameCheckSeq;
+        final int account = currentAccount;
         // история профилей живёт в SQLite — ищем в фоне, чтобы не дёргать интерфейс
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
-            final org.telegram.messenger.PengramOriginalName.Result found =
-                    org.telegram.messenger.PengramOriginalName.other(currentAccount, user);
-            AndroidUtilities.runOnUIThread(() -> pengramApplyOriginalName(found));
+            final org.telegram.messenger.PengramOriginalName.Result cached =
+                    org.telegram.messenger.PengramOriginalName.other(account, user);
+            final boolean refresh = org.telegram.messenger.PengramOriginalName.canRefresh(account, user);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (seq != pengramNameCheckSeq || nameTextView[1] == null) {
+                    return;
+                }
+                if (cached != null) {
+                    pengramShowOriginalName(cached, seq);
+                } else if (!refresh) {
+                    // узнать неоткуда: у человека нет публичной страницы, а
+                    // других источников для этого профиля нет
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameNothing)).show();
+                } else {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameProbing)).show();
+                }
+            });
+            if (!refresh) {
+                // известно всё, что можно знать: повторный жест не стоит запроса
+                return;
+            }
+            org.telegram.messenger.PengramOriginalName.refresh(account, user, result ->
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (seq != pengramNameCheckSeq) {
+                            return;
+                        }
+                        if (result != null) {
+                            if (cached == null || !result.name.equalsIgnoreCase(cached.name)) {
+                                pengramShowOriginalName(result, seq);
+                            }
+                            return;
+                        }
+                        if (cached == null) {
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                                    getString(R.string.PengramOriginalNameNothing)).show();
+                        }
+                    }));
         });
     }
 
-    /** уже идёт точная проверка: второй жест не должен слать второй запрос */
-    private boolean pengramNameProbeRunning;
+    /** номер последнего жеста: ответы на устаревшие запросы не должны перебивать новые */
+    private int pengramNameCheckSeq;
+    private Runnable pengramOriginalNameHideRunnable;
 
-    private void pengramApplyOriginalName(org.telegram.messenger.PengramOriginalName.Result other) {
-        if (nameTextView[1] == null || pengramNameProbeRunning) {
-            return;
-        }
-        // Если точного имени в кэше нет (или есть только @ник), а человек
-        // записан в контакты — можно один раз проверить его напрямую.
-        final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
-        // Проверяем только когда своего имени ещё нет: результат живёт месяц,
-        // и повторный жест не должен стоить ещё одного запроса к серверу.
-        final String cachedProbe = user == null ? null
-                : org.telegram.messenger.PengramOriginalName.probedName(currentAccount, user.id);
-        final boolean needProbe = user != null && !user.min
-                && TextUtils.isEmpty(cachedProbe)
-                && org.telegram.messenger.PengramOriginalName.isContact(currentAccount, user)
-                && org.telegram.messenger.PengramOriginalName.probeEnabled()
-                && (other == null || other.source == org.telegram.messenger.PengramOriginalName.SOURCE_USERNAME);
-        if (needProbe) {
-            if (!org.telegram.messenger.PengramOriginalName.probeAcknowledged()) {
-                pengramAskProbePermission(user);
-            } else {
-                pengramStartNameProbe(user);
-            }
-            return;
-        }
-        if (other == null) {
-            // Имя уже проверено и совпадает с записью в контактах: показывать
-            // нечего, но человек должен понимать, что провека была.
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                    getString(TextUtils.isEmpty(cachedProbe)
-                            ? R.string.PengramOriginalNameNothing
-                            : R.string.PengramOriginalNameProbeSource)).show();
+    private void pengramShowOriginalName(org.telegram.messenger.PengramOriginalName.Result other, int seq) {
+        if (nameTextView[1] == null || other == null) {
             return;
         }
         pengramOriginalNameShown = true;
         nameTextView[1].setText(other.name);
         BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                 getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
-        AndroidUtilities.runOnUIThread(() -> {
-            if (pengramOriginalNameShown) {
-                pengramOriginalNameShown = false;
-                updateProfileData(false);
+        if (pengramOriginalNameHideRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
+        }
+        pengramOriginalNameHideRunnable = () -> {
+            pengramOriginalNameHideRunnable = null;
+            if (seq == pengramNameCheckSeq) {
+                pengramHideOriginalName();
             }
-        }, 6000);
+        };
+        AndroidUtilities.runOnUIThread(pengramOriginalNameHideRunnable, 6000);
     }
 
-    /**
-     * Первый раз объясняем, что именно произойдёт: контакт на мгновение
-     * убирается и возвращается. Согласие запоминаем, чтобы не спрашивать
-     * перед каждым свайпом.
-     */
-    private void pengramAskProbePermission(TLRPC.User user) {
-        if (getParentActivity() == null) {
-            return;
+    private void pengramHideOriginalName() {
+        if (pengramOriginalNameHideRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
+            pengramOriginalNameHideRunnable = null;
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(getString(R.string.PengramOriginalNameProbe));
-        builder.setMessage(getString(R.string.PengramOriginalNameProbeConfirm));
-        builder.setPositiveButton(getString(R.string.Continue), (dialog, which) -> {
-            org.telegram.messenger.PengramOriginalName.setProbeAcknowledged(true);
-            pengramStartNameProbe(user);
-        });
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        showDialog(builder.create());
-    }
-
-    private void pengramStartNameProbe(TLRPC.User user) {
-        if (pengramNameProbeRunning || user == null) {
-            return;
-        }
-        pengramNameProbeRunning = true;
-        try {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                    getString(R.string.PengramOriginalNameProbing)).show();
-        } catch (Throwable ignore) {
-        }
-        org.telegram.messenger.PengramOriginalName.probe(currentAccount, user, (result, error) -> {
-            pengramNameProbeRunning = false;
-            if (result != null) {
-                pengramApplyOriginalName(result);
-                return;
-            }
-            if (error == org.telegram.messenger.PengramOriginalName.PROBE_LIMITED) {
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                        getString(R.string.PengramOriginalNameProbeLimit)).show();
-            } else if (error == org.telegram.messenger.PengramOriginalName.PROBE_FAILED) {
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                        getString(R.string.PengramOriginalNameProbeFailed)).show();
-            } else if (error != org.telegram.messenger.PengramOriginalName.PROBE_BUSY) {
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                        getString(R.string.PengramOriginalNameNothing)).show();
-            }
-            // после проверки профиль мог обновиться — перечитываем имя
+        pengramNameCheckSeq++;
+        if (pengramOriginalNameShown) {
+            pengramOriginalNameShown = false;
             updateProfileData(false);
-        });
+        }
     }
 
     private void updateProfileData(boolean reload) {

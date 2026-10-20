@@ -148,6 +148,7 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.RequestDelegate;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TL_auth_importBotAuthorization;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_update;
@@ -1651,6 +1652,94 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
+    /**
+     * Pengram: вход в аккаунт бота по токену.
+     *
+     * <p>Токен выдаёт BotFather командой {@code /token}; он же заменяет и номер,
+     * и код из SMS. Метод {@code auth.importBotAuthorization} принимает его
+     * вместе с api_id/api_hash приложения и возвращает обычную авторизацию,
+     * поэтому дальше всё идёт тем же путём, что и после входа по коду.
+     */
+    private void pengramShowBotLoginDialog() {
+        if (getParentActivity() == null || getParentActivity().isFinishing()) {
+            return;
+        }
+        final EditTextBoldCursor editText = new EditTextBoldCursor(getParentActivity());
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+        editText.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+        editText.setHintTextColor(getThemedColor(Theme.key_dialogTextHint));
+        editText.setHint(getString(R.string.PengramBotLoginHint));
+        editText.setSingleLine(true);
+        editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        editText.setBackgroundDrawable(Theme.createEditTextDrawable(getParentActivity(), true));
+        editText.setPadding(dp(12), dp(12), dp(12), dp(12));
+
+        final FrameLayout container = new FrameLayout(getParentActivity());
+        container.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
+                LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 24, 4, 24, 0));
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBotLoginTitle));
+        builder.setMessage(getString(R.string.PengramBotLoginInfo));
+        builder.setView(container);
+        builder.setPositiveButton(getString(R.string.Done), (dialog, which) -> {
+            AndroidUtilities.hideKeyboard(editText);
+            pengramLoginWithBotToken(editText.getText().toString().trim());
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+        AndroidUtilities.runOnUIThread(() -> {
+            if (editText.getParent() != null) {
+                editText.requestFocus();
+                AndroidUtilities.showKeyboard(editText);
+            }
+        }, 200);
+    }
+
+    private boolean pengramBotLoginRunning;
+
+    private void pengramLoginWithBotToken(String token) {
+        if (pengramBotLoginRunning) {
+            return;
+        }
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(token) || token.indexOf(':') < 0 || token.indexOf(':') == token.length() - 1) {
+            BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(
+                    R.raw.error, getString(R.string.PengramBotLoginInvalid)).show();
+            return;
+        }
+        pengramBotLoginRunning = true;
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+
+        final TL_auth_importBotAuthorization request = new TL_auth_importBotAuthorization();
+        request.flags = 0;
+        request.api_id = BuildVars.APP_ID;
+        request.api_hash = BuildVars.APP_HASH;
+        request.bot_auth_token = token;
+
+        getConnectionsManager().sendRequest(request, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            pengramBotLoginRunning = false;
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+            if (response instanceof TLRPC.TL_auth_authorization) {
+                // Контакты боту не нужны: не тянем телефонную книгу в его аккаунт.
+                syncContacts = false;
+                onAuthSuccess((TLRPC.TL_auth_authorization) response);
+                return;
+            }
+            final String reason = error != null && !TextUtils.isEmpty(error.text)
+                    ? error.text : getString(R.string.PengramBotLoginFailed);
+            BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(
+                    R.raw.error, LocaleController.formatString(R.string.PengramBotLoginError, reason)).show();
+        }), ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagFailOnServerErrors);
+    }
+
     private void fakeSuccess() {
         TLRPC.TL_auth_authorization res = new TLRPC.TL_auth_authorization();
         res.user = UserConfig.getInstance(0).getCurrentUser();
@@ -1981,6 +2070,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         private ImageView chevronRight;
         private CheckBoxCell syncContactsBox;
         private CheckBoxCell testBackendCheckBox;
+        /** Pengram: вход в аккаунт бота по его токену */
+        private TextView botLoginView;
 
         @CountryState
         private int countryState = COUNTRY_STATE_NOT_SET_OR_VALID;
@@ -2121,6 +2212,22 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             phoneOutlineView.addView(linearLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 16, 8, 16, 8));
             phoneOutlineView.setText(getString(R.string.PhoneNumber));
             addView(phoneOutlineView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 58, 16, 8, 16, 8));
+
+            if (activityMode == MODE_LOGIN) {
+                // Вход по токену бота живёт рядом с обычным входом по номеру:
+                // это тот же экран, тот же слот аккаунта, другой способ входа.
+                botLoginView = new TextView(context);
+                botLoginView.setText(getString(R.string.PengramBotLogin));
+                botLoginView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                botLoginView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+                botLoginView.setGravity(Gravity.CENTER);
+                botLoginView.setPadding(dp(12), dp(10), dp(12), dp(10));
+                botLoginView.setBackground(Theme.createRadSelectorDrawable(
+                        Theme.getColor(Theme.key_listSelector), 8, 8));
+                botLoginView.setOnClickListener(v -> pengramShowBotLoginDialog());
+                addView(botLoginView, LayoutHelper.createLinear(
+                        LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 2, 16, 0));
+            }
 
             plusTextView = new TextView(context);
             plusTextView.setText("+");

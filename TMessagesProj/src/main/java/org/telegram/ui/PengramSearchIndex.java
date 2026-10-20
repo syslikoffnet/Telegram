@@ -71,7 +71,6 @@ public final class PengramSearchIndex {
             {R.string.PengramIdStyleRowDc, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramIdStyleHeader, 0, R.string.PengramIdStyleRowDcInfo},
             {R.string.PengramIdStyleInline, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramIdStyleHeader, 0, R.string.PengramIdStyleInlineInfo},
             {R.string.PengramOriginalName, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramOriginalNameHeader, 0, R.string.PengramOriginalNameInfo},
-            {R.string.PengramOriginalNameProbe, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramOriginalNameHeader, 0, R.string.PengramOriginalNameProbeInfo},
             {R.string.PengramRegStyle, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramRegHeader, 0, 0},
             {R.string.PengramRegPlace, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramRegHeader, 0, R.string.PengramRegPlaceSubtitle},
             {R.string.PengramRegIcon, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramRegHeader, 0, R.string.PengramRegIconInfo},

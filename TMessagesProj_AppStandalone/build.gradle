@@ -59,6 +59,10 @@ android {
             if (project.hasProperty("RELEASE_STORE_TYPE")) {
                 storeType project.property("RELEASE_STORE_TYPE")
             }
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
         }
 
         release {
@@ -69,6 +73,13 @@ android {
             if (project.hasProperty("RELEASE_STORE_TYPE")) {
                 storeType project.property("RELEASE_STORE_TYPE")
             }
+            // Все схемы подписи сразу: v1 — для совсем старых устройств, v2 —
+            // целостность всего архива, v3 — смена ключа без потери обновлений,
+            // v4 — быстрая установка через .idsig на Android 11+.
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
         }
     }
 

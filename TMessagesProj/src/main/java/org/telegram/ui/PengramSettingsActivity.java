@@ -1390,7 +1390,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.KEY_GLASS_SHEEN: return R.drawable.msg_theme;
             case PengramConfig.KEY_GLASS_DRAG: return R.drawable.msg_reorder;
             case PengramConfig.KEY_GLASS_RIM: return R.drawable.msg_customize;
-            case org.telegram.messenger.PengramOriginalName.KEY_PROBE: return R.drawable.msg_contacts;
             default: return 0;
         }
     }
@@ -2957,11 +2956,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramOriginalNameHeader)));
         items.add(UItem.asSettingsCell(BTN_ORIGINAL_NAME, R.drawable.msg_contacts,
                 getString(R.string.PengramOriginalName), originalNameModeName()));
-        if (org.telegram.messenger.PengramOriginalName.mode() != org.telegram.messenger.PengramOriginalName.MODE_OFF) {
-            items.add(checkInfo(org.telegram.messenger.PengramOriginalName.KEY_PROBE, false,
-                    getString(R.string.PengramOriginalNameProbe),
-                    getString(R.string.PengramOriginalNameProbeInfo)));
-        }
         items.add(UItem.asShadow(getString(R.string.PengramOriginalNameInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
