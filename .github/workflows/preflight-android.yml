@@ -82,6 +82,8 @@ jobs:
           python3 scripts/test-pengram-security-wiring.py
           python3 scripts/test-pengram-lyrics-wiring.py
           python3 scripts/test-pengram-player-wiring.py
+          python3 scripts/test-pengram-name-check.py
+          python3 scripts/test-pengram-bot-login.py
 
       - name: Test Pengram lyric timing
         run: |
