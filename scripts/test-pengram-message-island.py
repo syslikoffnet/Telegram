@@ -78,6 +78,8 @@ assert 'public class PengramMessageIslandView extends LinearLayout' in island
 assert 'PengramConfig.isMessageIslandCompact()' in island and 'PengramConfig.isMessageIslandLabels()' in island
 assert 'PengramConfig.getMessageIslandItemIcon(action)' in island
 assert 'PengramConfig.getMessageIslandItemTitle(action)' in island
+assert 'PengramConfig.getMessageIslandItemShortTitle(action)' in island  # short capsule label
+assert 'widestLabelWidth()' in island  # capsule width follows the real text width
 assert 'listener.onIslandAction(position, view);' in island
 assert 'PengramConfig.isMessageIslandHaptic()' in island
 assert 'MESSAGE_ISLAND_LIMIT' in island
@@ -94,6 +96,10 @@ assert 'BTN_MESSAGE_ISLAND_POSITION = 1032;' in settings
 assert 'BTN_MESSAGE_ISLAND_TINT = 1033;' in settings
 assert 'check(PengramConfig.KEY_MESSAGE_ISLAND, false,' in settings
 assert 'new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE)' in settings
+# settings shows a live island preview and rebuilds it when size/labels change
+assert 'new PengramMessageIslandView(getContext(), getResourceProvider())' in settings
+assert 'islandPreview.setActions(PengramConfig.getMessageIslandItems());' in settings
+assert 'compact != islandPreviewCompact || labels != islandPreviewLabels' in settings
 assert 'public static final int MODE_MESSAGE = 3;' in items
 assert 'PengramConfig.getMessageIslandOrder()' in items
 assert 'PengramConfig.setMessageIslandOrder(order)' in items
@@ -115,7 +121,20 @@ needed = [
     'PengramMessageIslandItemsTitle', 'PengramMessageIslandItemsInfo', 'PengramPlaceMessageMenu',
     'PengramPlaceMessageIsland', 'PengramMessageIslandOn', 'PengramMessageIslandOff',
     'PengramConstructorMessageIsland', 'PengramConstructorMessageIslandInfo',
+    'PengramMessageIslandCountInfo',
 ]
+
+# каждый пункт островка имеет короткую подпись в обоих языках
+short_actions = [
+    'PengramIslandBtnReply', 'PengramIslandBtnCopy', 'PengramIslandBtnCopyLink',
+    'PengramIslandBtnForward', 'PengramIslandBtnEdit', 'PengramIslandBtnPin',
+    'PengramIslandBtnUnpin', 'PengramIslandBtnSave', 'PengramIslandBtnShare',
+    'PengramIslandBtnQuote', 'PengramIslandBtnSaved', 'PengramIslandBtnCopyId',
+    'PengramIslandBtnAi', 'PengramIslandBtnResend',
+]
+needed += short_actions
+for key in short_actions:
+    assert key in config, key
 for locale in ('values', 'values-ru'):
     resources = ET.parse(root / f'TMessagesProj/src/main/res/{locale}/strings.xml')
     names = {x.get('name') for x in resources.iter('string')}

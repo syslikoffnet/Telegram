@@ -1998,6 +1998,30 @@ public class PengramConfig {
         }
     }
 
+    /**
+     * Короткая подпись для кнопки островка: полные строки меню в узкую
+     * колонку не влезают («Скопировать ссылку» превращается в «Скопирова…»).
+     */
+    public static int getMessageIslandItemShortTitle(int id) {
+        switch (id) {
+            case MSG_ACTION_REPLY: return org.telegram.messenger.R.string.PengramIslandBtnReply;
+            case MSG_ACTION_COPY: return org.telegram.messenger.R.string.PengramIslandBtnCopy;
+            case MSG_ACTION_COPY_LINK: return org.telegram.messenger.R.string.PengramIslandBtnCopyLink;
+            case MSG_ACTION_FORWARD: return org.telegram.messenger.R.string.PengramIslandBtnForward;
+            case MSG_ACTION_EDIT: return org.telegram.messenger.R.string.PengramIslandBtnEdit;
+            case MSG_ACTION_PIN: return org.telegram.messenger.R.string.PengramIslandBtnPin;
+            case MSG_ACTION_UNPIN: return org.telegram.messenger.R.string.PengramIslandBtnUnpin;
+            case MSG_ACTION_SAVE: return org.telegram.messenger.R.string.PengramIslandBtnSave;
+            case MSG_ACTION_SHARE: return org.telegram.messenger.R.string.PengramIslandBtnShare;
+            case MSG_ACTION_QUOTE: return org.telegram.messenger.R.string.PengramIslandBtnQuote;
+            case MSG_ACTION_ARCHIVE: return org.telegram.messenger.R.string.PengramIslandBtnSaved;
+            case MSG_ACTION_COPY_ID: return org.telegram.messenger.R.string.PengramIslandBtnCopyId;
+            case MSG_ACTION_AI: return org.telegram.messenger.R.string.PengramIslandBtnAi;
+            case MSG_ACTION_RESEND: return org.telegram.messenger.R.string.PengramIslandBtnResend;
+            default: return org.telegram.messenger.R.string.PengramIslandBtnReply;
+        }
+    }
+
     public static int getMessageIslandItemIcon(int id) {
         switch (id) {
             case MSG_ACTION_REPLY: return org.telegram.messenger.R.drawable.menu_reply;

@@ -64,6 +64,7 @@ import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.PengramMessageIslandView;
 import org.telegram.ui.Components.PengramPenguinView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import org.telegram.ui.Components.UItem;
@@ -411,6 +412,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private VoicePreviewView voicePreview;
     private org.telegram.ui.Components.PengramVoicePickerView voicePicker;
     private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
+    private FrameLayout islandPreviewRow;
+    private PengramMessageIslandView islandPreview;
+    private boolean islandPreviewCompact;
+    private boolean islandPreviewLabels;
     private org.telegram.ui.Cells.AppIconsSelectorCell appIconsCell;
 
     @Override
@@ -3628,6 +3633,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_MESSAGE_ISLAND, false,
                 getString(R.string.PengramMessageIslandEnable)));
         if (PengramConfig.isMessageIslandEnabled()) {
+            // Живой предпросмотр: подсветка/размер/подписи меняются на месте,
+            // не нужно открывать меню в чате, чтобы понять результат.
+            items.add(UItem.asCustom(islandPreviewRow()));
             items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_ITEMS, R.drawable.msg_edit,
                     getString(R.string.PengramMessageIslandButtons),
                     PengramConfig.getMessageIslandItemsCount() + " / " + PengramConfig.MESSAGE_ISLAND_LIMIT));
@@ -3662,6 +3670,35 @@ public class PengramSettingsActivity extends UniversalFragment {
             default:
                 return getString(R.string.PengramMessageIslandTintSoft);
         }
+    }
+
+    /**
+     * Полоса островка в списке настроек. Сам островок пересоздаётся только при
+     * смене размеров/подписей — они читаются в конструкторе, — а набор кнопок и
+     * цвета обновляются каждый раз.
+     */
+    private View islandPreviewRow() {
+        if (islandPreviewRow == null) {
+            islandPreviewRow = new FrameLayout(getContext());
+            islandPreviewRow.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            islandPreviewRow.setOnClickListener(v ->
+                    presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE)));
+        }
+        final boolean compact = PengramConfig.isMessageIslandCompact();
+        final boolean labels = PengramConfig.isMessageIslandLabels();
+        if (islandPreview == null || compact != islandPreviewCompact || labels != islandPreviewLabels) {
+            if (islandPreview != null) {
+                islandPreviewRow.removeView(islandPreview);
+            }
+            islandPreview = new PengramMessageIslandView(getContext(), getResourceProvider());
+            islandPreview.setPreview(true);
+            islandPreviewCompact = compact;
+            islandPreviewLabels = labels;
+            islandPreviewRow.addView(islandPreview, LayoutHelper.createFrame(
+                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 12, 0, 12));
+        }
+        islandPreview.setActions(PengramConfig.getMessageIslandItems());
+        return islandPreviewRow;
     }
 
     private void fillQuotes(ArrayList<UItem> items) {

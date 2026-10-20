@@ -3,7 +3,9 @@ package org.telegram.ui.Components;
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
+import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -81,8 +83,10 @@ public class PengramMessageIslandView extends LinearLayout {
         labels = PengramConfig.isMessageIslandLabels();
         iconSize = AndroidUtilities.dp(compact ? 21 : 23);
         labelSizeSp = compact ? 10 : 11;
-        itemMinWidth = AndroidUtilities.dp(compact ? 40 : 44);
-        itemMaxWidth = AndroidUtilities.dp(compact ? 52 : 58);
+        itemMinWidth = AndroidUtilities.dp(compact ? 38 : 42);
+        // С подписями колонка шире: короткое слово должно влезать целиком,
+        // а не превращаться в «Пересл…».
+        itemMaxWidth = AndroidUtilities.dp(labels ? (compact ? 70 : 78) : (compact ? 52 : 58));
         // Полоса не должна вылезти за экран даже с шестью кнопками: ширину
         // кнопки считаем от доступного места, а не от весов.
         screenLimit = context.getResources().getDisplayMetrics().widthPixels - AndroidUtilities.dp(64);
@@ -145,8 +149,15 @@ public class PengramMessageIslandView extends LinearLayout {
         setBackground(Theme.createRoundRectDrawable(
                 AndroidUtilities.dp(compact ? 14 : 16), backgroundColor));
 
-        final int perItem = Math.max(itemMinWidth, Math.min(itemMaxWidth,
-                (screenLimit - getPaddingLeft() - getPaddingRight()) / Math.max(1, actions.size())));
+        // Ширина колонки = самая длинная подпись + отступы, но не уже минимума
+        // и не шире остатка экрана, поделённого на число кнопок.
+        final int available = screenLimit - getPaddingLeft() - getPaddingRight();
+        final int fitWidth = Math.max(itemMinWidth, available / Math.max(1, actions.size()));
+        int perItem = Math.min(itemMaxWidth, fitWidth);
+        if (labels) {
+            perItem = Math.max(perItem, Math.min(itemMaxWidth, widestLabelWidth() + AndroidUtilities.dp(6)));
+            perItem = Math.min(perItem, Math.max(itemMinWidth, fitWidth));
+        }
         for (int a = 0; a < actions.size(); a++) {
             final int action = actions.get(a);
             final View button = createButton(action);
@@ -189,7 +200,9 @@ public class PengramMessageIslandView extends LinearLayout {
             final TextView label = new TextView(getContext());
             label.setTextSize(TypedValue.COMPLEX_UNIT_SP, labelSizeSp);
             label.setTextColor(labelColor);
-            label.setText(title);
+            // В колонке — короткая подпись, полная остаётся в contentDescription
+            // и в редакторе меню.
+            label.setText(LocaleController.getString(PengramConfig.getMessageIslandItemShortTitle(action)));
             label.setSingleLine(true);
             label.setEllipsize(TextUtils.TruncateAt.END);
             label.setGravity(Gravity.CENTER);
@@ -210,6 +223,22 @@ public class PengramMessageIslandView extends LinearLayout {
         wrapper.setClickable(!preview);
         wrapper.setFocusable(!preview);
         return wrapper;
+    }
+
+    /** ширина самой длинной короткой подписи в пикселях */
+    private int widestLabelWidth() {
+        final TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                labelSizeSp, getResources().getDisplayMetrics()));
+        int widest = 0;
+        for (int action : actions) {
+            final CharSequence text = LocaleController.getString(
+                    PengramConfig.getMessageIslandItemShortTitle(action));
+            if (text != null) {
+                widest = Math.max(widest, (int) Math.ceil(paint.measureText(text.toString())));
+            }
+        }
+        return widest;
     }
 
     private void resolveColors() {
