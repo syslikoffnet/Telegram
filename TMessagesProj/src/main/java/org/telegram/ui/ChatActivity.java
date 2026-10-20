@@ -4400,6 +4400,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         if (pengramChatExport != null) pengramChatExport.cancel();
+        pengramCancelPendingGhost();
         super.onFragmentDestroy();
         org.telegram.messenger.PengramCopySender.removeProgressListener(pengramCopyListener);
         if (messageMetricsView != null) {
@@ -22027,6 +22028,14 @@ public class ChatActivity extends BaseFragment implements
     public void didReceivedNotification(int id, int account, final Object... args) {
         if (id == NotificationCenter.messagesDidLoad) {
             didReceivedNotification_messagesDidLoad(id, account, args);
+            // Pengram: the chat window has just been rebuilt around a deleted
+            // search hit — now it is safe to insert the archived snapshot.
+            if (args.length > 11 && args[10] instanceof Integer && args[11] instanceof Integer
+                    && (Integer) args[10] == classGuid) {
+                pengramOnMessagesDidLoadFinished((Integer) args[11],
+                        args[3] instanceof Boolean && (Boolean) args[3],
+                        args[2] instanceof ArrayList ? (ArrayList<MessageObject>) args[2] : null);
+            }
         } else {
             didReceivedNotification2(id, account, args);
             didReceivedNotification3(id, account, args);
@@ -28575,6 +28584,20 @@ public class ChatActivity extends BaseFragment implements
     // Search-only ghosts use real Telegram message cells, never the server DB.
     private final ArrayList<MessageObject> searchDeletedGhosts = new ArrayList<>();
 
+    // A deleted hit can live outside the loaded window. In that case we first
+    // ask Telegram to load the surrounding messages, then insert the archived
+    // snapshot into the now-complete context. Only then does the ordinary
+    // scrollToMessageId() run, so both the fly-in animation and the highlight
+    // blink are exactly the ones used for a normal search result.
+    private PengramHistory.Entry pendingGhostEntry;
+    private String pendingGhostQuery;
+    private int pendingGhostLoadIndex = -1;
+    private int pendingGhostRequestId;
+    private int pendingGhostRetries;
+    private Runnable pendingGhostTimeout;
+    private Runnable pendingGhostRetry;
+    private int pengramGhostScrollWait;
+
     private boolean isCurrentLocalDeletedQuery(String query) {
         return searchItem != null && searchItem.getSearchField() != null
                 && TextUtils.equals(query, searchItem.getSearchField().getText().toString().trim());
@@ -28601,16 +28624,22 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    /** Only navigate inside the live chat when that exact archived text is
-     * already visible as a retained ghost. An id in messages_v2 alone proves
-     * nothing: it may resolve to an ordinary or updated server message. */
-    private boolean isReadableDeletedBubble(MessageObject loaded, PengramHistory.Entry entry, String query) {
-        if (loaded == null || entry == null || !loaded.pengramDeleted || loaded.messageOwner == null
-                || loaded.getDialogId() != entry.dialogId || !TextUtils.equals(loaded.messageOwner.message, entry.text)) {
-            return false;
+    /** Cancel a pending "load the deleted message's neighbourhood" request. */
+    private void pengramCancelPendingGhost() {
+        pendingGhostRequestId++;
+        pendingGhostRetries = 0;
+        pendingGhostLoadIndex = -1;
+        pengramGhostScrollWait = 0;
+        pendingGhostEntry = null;
+        pendingGhostQuery = null;
+        if (pendingGhostTimeout != null) {
+            AndroidUtilities.cancelRunOnUIThread(pendingGhostTimeout);
+            pendingGhostTimeout = null;
         }
-        return TextUtils.isEmpty(query) || !TextUtils.isEmpty(entry.text)
-                && entry.text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT));
+        if (pendingGhostRetry != null) {
+            AndroidUtilities.cancelRunOnUIThread(pendingGhostRetry);
+            pendingGhostRetry = null;
+        }
     }
 
     /** Do not leave a search-only snapshot in the ordinary chat after search closes. */
@@ -28656,9 +28685,19 @@ public class ChatActivity extends BaseFragment implements
                         || chatAdapter == null || chatListView == null) return;
                 for (MessageObject ghost : searchDeletedGhosts) {
                     if (ghost.getId() == saved.messageId && ghost.getDialogId() == saved.dialogId) {
+                        pengramGhostScrollWait = 0;
                         scrollToSearchGhost(ghost);
                         return;
                     }
+                }
+                // A real message with this id appeared while the snapshot was
+                // being read. Never put two rows with one id into the chat:
+                // navigate to the existing bubble instead.
+                if (messagesDict[0].get(saved.messageId) != null) {
+                    showMessagesSearchListView(false);
+                    setFilterMessages(false);
+                    scrollToMessageId(saved.messageId, 0, true, 0, true, 0);
+                    return;
                 }
                 String text = saved.text;
                 boolean previous = !TextUtils.isEmpty(query) && !TextUtils.isEmpty(saved.prevText)
@@ -28690,8 +28729,22 @@ public class ChatActivity extends BaseFragment implements
                 ghost.pengramDeleted = true;
                 ghost.stableId = lastStableId++;
                 if (chatAdapter.isFiltered) setFilterMessages(false);
+                // Newest first: skip messages newer than the snapshot, but step
+                // over the day separator of its own day — otherwise the ghost
+                // would jump above that separator.
                 int at = 0;
-                while (at < messages.size() && messages.get(at).messageOwner.date >= msg.date) at++;
+                while (at < messages.size()) {
+                    final MessageObject item = messages.get(at);
+                    if (item.isDateObject && TextUtils.equals(item.dateKey, ghost.dateKey)) {
+                        at++;
+                        continue;
+                    }
+                    if (item.messageOwner != null && item.messageOwner.date >= msg.date) {
+                        at++;
+                        continue;
+                    }
+                    break;
+                }
                 messages.add(at, ghost);
                 ArrayList<MessageObject> day = messagesByDays.get(ghost.dateKey);
                 if (day == null) {
@@ -28720,20 +28773,82 @@ public class ChatActivity extends BaseFragment implements
                 if (messagesDict[0].get(msg.id) == null) messagesDict[0].put(msg.id, ghost);
                 searchDeletedGhosts.add(ghost);
                 chatAdapter.notifyDataSetChanged(false);
+                pengramGhostScrollWait = 0;
                 scrollToSearchGhost(ghost);
             });
         });
     }
 
+    /**
+     * Jump to a locally inserted deleted-message snapshot. This must look and
+     * feel exactly like jumping to an ordinary search hit: the chat flies to
+     * the message and the bubble blinks with the standard search highlight.
+     */
     private void scrollToSearchGhost(MessageObject ghost) {
         if (chatAdapter == null || chatListView == null || ghost == null) return;
+        final RecyclerView.ItemAnimator animator = chatListView.getItemAnimator();
+        if (chatListView.isFastScrollAnimationRunning() || animator != null && animator.isRunning()) {
+            // A previous window rebuild is still flying; RecyclerAnimationScrollHelper
+            // would silently ignore this call and the highlight would never be seen.
+            if (pengramGhostScrollWait++ < 40) {
+                AndroidUtilities.runOnUIThread(() -> scrollToSearchGhost(ghost), 50);
+                return;
+            }
+            pengramGhostScrollWait = 0;
+        }
         showMessagesSearchListView(false);
+        setFilterMessages(false);
+        chatAdapter.updateRowsSafe();
+        if (messagesDict[0].get(ghost.getId()) == ghost) {
+            // The very same code path as a normal in-chat search result.
+            scrollToMessageId(ghost.getId(), 0, true, 0, true, 0);
+            return;
+        }
+        // Defensive fallback: the ghost could not own the id (extremely rare).
+        // Still highlight it and animate the jump instead of teleporting.
         int index = chatAdapter.getMessages().indexOf(ghost);
         if (index < 0) return;
-        chatAdapter.updateRowsSafe();
-        chatLayoutManager.scrollToPositionWithOffset(chatAdapter.messagesStartRow + index,
-                getScrollOffsetForMessage(ghost));
+        removeSelectedMessageHighlight();
+        highlightMessageId = ghost.getId();
+        final int position = chatAdapter.messagesStartRow + index;
+        final int yOffset = getScrollOffsetForMessage(ghost);
+        final int first = chatLayoutManager.findFirstVisibleItemPosition();
+        final int last = chatLayoutManager.findLastVisibleItemPosition();
+        int firstId = 0;
+        if (first != RecyclerView.NO_POSITION) {
+            for (int i = first; i <= last; i++) {
+                final View child = chatLayoutManager.findViewByPosition(i);
+                MessageObject object = null;
+                if (child instanceof ChatMessageCell) {
+                    object = ((ChatMessageCell) child).getMessageObject();
+                } else if (child instanceof ChatActionCell) {
+                    object = ((ChatActionCell) child).getMessageObject();
+                }
+                if (object != null && object.getId() != 0) {
+                    firstId = object.getId();
+                    break;
+                }
+            }
+        }
+        int scrollDirection = RecyclerAnimationScrollHelper.SCROLL_DIRECTION_UNSET;
+        if (firstId != 0) {
+            boolean scrollDown = firstId < ghost.getId();
+            if (isSecretChat()) {
+                scrollDown = !scrollDown;
+            }
+            scrollDirection = scrollDown
+                    ? RecyclerAnimationScrollHelper.SCROLL_DIRECTION_DOWN
+                    : RecyclerAnimationScrollHelper.SCROLL_DIRECTION_UP;
+        }
+        chatScrollHelper.setScrollDirection(scrollDirection);
+        chatScrollHelperCallback.scrollTo = ghost;
+        chatScrollHelperCallback.lastBottom = false;
+        chatScrollHelperCallback.lastItemOffset = yOffset;
+        chatScrollHelperCallback.lastPadding = (int) chatListViewPaddingTop;
         updateVisibleRows();
+        chatScrollHelper.scrollToPosition(position, yOffset, false, true);
+        canShowPagedownButton = true;
+        updatePagedownButtonVisibility(true);
     }
 
     private void navigateToDeletedSearchResult(PengramHistory.Entry entry) {
@@ -28748,14 +28863,198 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         final String query = messagesSearchAdapter != null ? messagesSearchAdapter.getLocalQuery() : "";
-        if (entry.dialogId == dialog_id && chatMode != MODE_SEARCH
-                && isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)) {
+        if (entry.dialogId != dialog_id || chatMode != MODE_DEFAULT) {
+            // The archived snapshot belongs to one concrete chat. Other modes
+            // keep their own navigation instead of injecting a foreign bubble.
+            return;
+        }
+        pengramCancelPendingGhost();
+        if (chatAdapter == null || chatListView == null) {
+            return;
+        }
+        if (chatAdapter.isFiltered) {
+            setFilterMessages(false);
+        }
+        final MessageObject loaded = messagesDict[0].get(entry.messageId);
+        if (loaded != null) {
+            // The id is already in the chat: a retained deleted bubble or a
+            // live message. Telegram's own navigation animates and blinks it
+            // exactly like an ordinary search result.
             showMessagesSearchListView(false);
             scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
             return;
         }
-        // Never ask Telegram's server for a deleted id or open a separate
-        // archive. Render the original snapshot as a local chat bubble.
+        if (pengramDeletedContextLoaded(entry.messageId)) {
+            // The surrounding messages are already here, so the snapshot can be
+            // inserted exactly where it belongs and reached with the same
+            // animated scroll/highlight as an ordinary search result.
+            showDeletedSearchGhost(entry, query);
+            return;
+        }
+        // A fresh chat shows only the last page. Load the neighbourhood first,
+        // otherwise the snapshot would be appended at the edge of the loaded
+        // window and the jump would look like a teleport to the top.
+        requestDeletedSearchGhost(entry, query);
+    }
+
+    /**
+     * True when the loaded window already contains the messages around the id.
+     * <p>maxMessageId keeps the smallest loaded id and minMessageId the largest
+     * one, so ids outside that range are only covered when the corresponding
+     * end of the history is fully loaded.
+     */
+    private boolean pengramDeletedContextLoaded(int messageId) {
+        if (messageId <= 0 || chatAdapter == null || messages.isEmpty()) return false;
+        if (messageId < maxMessageId[0] && !endReached[0]) return false;
+        if (messageId > minMessageId[0] && !forwardEndReached[0]) return false;
+        return true;
+    }
+
+    private void requestDeletedSearchGhost(final PengramHistory.Entry entry, final String query) {
+        pengramCancelPendingGhost();
+        pendingGhostEntry = entry;
+        pendingGhostQuery = query == null ? "" : query;
+        pendingGhostLoadIndex = -1;
+        pendingGhostRetries = 0;
+        pengramRetryGhostContext(pendingGhostRequestId, 0);
+    }
+
+    /** Wait for the search UI to stop animating, then load the neighbourhood. */
+    private void pengramRetryGhostContext(final int request, final long delay) {
+        if (request != pendingGhostRequestId || pendingGhostEntry == null) return;
+        pendingGhostRetry = () -> {
+            pendingGhostRetry = null;
+            if (request != pendingGhostRequestId || pendingGhostEntry == null) return;
+            if (getParentActivity() == null) {
+                pengramCancelPendingGhost();
+                return;
+            }
+            if (getNotificationCenter().isAnimationInProgress()) {
+                if (pendingGhostRetries++ < 80) {
+                    pengramRetryGhostContext(request, 100);
+                } else {
+                    pengramFallbackGhost();
+                }
+                return;
+            }
+            pengramStartGhostContextLoad(request);
+        };
+        if (delay > 0) {
+            AndroidUtilities.runOnUIThread(pendingGhostRetry, delay);
+        } else {
+            pendingGhostRetry.run();
+        }
+    }
+
+    /**
+     * Ask Telegram to load messages around the deleted id (from cache first,
+     * then from the server). The response is handled in
+     * didReceivedNotification_messagesDidLoad(), after the chat has rebuilt
+     * its window; only then is the ghost inserted.
+     */
+    private void pengramStartGhostContextLoad(final int request) {
+        final PengramHistory.Entry entry = pendingGhostEntry;
+        if (request != pendingGhostRequestId || entry == null) return;
+        if (getParentActivity() == null) {
+            pengramCancelPendingGhost();
+            return;
+        }
+        final String query = pendingGhostQuery;
+        if (messagesDict[0].get(entry.messageId) != null || pengramDeletedContextLoaded(entry.messageId)) {
+            // The window changed while we were waiting for the animation.
+            pengramCancelPendingGhost();
+            pengramFinishGhostNavigation(entry, query);
+            return;
+        }
+        // The around-load may rebuild the chat window, so snapshots from a
+        // previous query would be stranded there.
+        clearSearchDeletedGhosts();
+        final int loadIndex = lastLoadIndex;
+        scrollToMessageId(entry.messageId, 0, false, 0, true, 0, null, () -> {});
+        if (lastLoadIndex == loadIndex) {
+            // scrollToMessageId() deferred itself (a fragment animation or a
+            // pending difference update), so nothing was requested yet.
+            if (pendingGhostRetries++ < 80) {
+                pengramRetryGhostContext(request, 120);
+            } else {
+                pengramFallbackGhost();
+            }
+            return;
+        }
+        pendingGhostLoadIndex = loadIndex;
+        // The ordinary "around" flow would first fly to the nearest surviving
+        // message. The archived snapshot is the real destination, so let that
+        // neighbour navigation stand down; the post-load hook shows the ghost.
+        if (startLoadFromMessageId == entry.messageId) {
+            startLoadFromMessageId = 0;
+        }
+        pendingGhostTimeout = () -> {
+            pendingGhostTimeout = null;
+            if (request == pendingGhostRequestId) {
+                pengramFallbackGhost();
+            }
+        };
+        AndroidUtilities.runOnUIThread(pendingGhostTimeout, 10000);
+    }
+
+    private void pengramFallbackGhost() {
+        final PengramHistory.Entry entry = pendingGhostEntry;
+        final String query = pendingGhostQuery;
+        pengramCancelPendingGhost();
+        if (entry == null || getParentActivity() == null) return;
+        // Worst case: show the snapshot in the current window. It still gets
+        // the standard animated scroll and the search highlight.
+        showDeletedSearchGhost(entry, query);
+    }
+
+    /** Called right after ChatActivity consumed a messagesDidLoad packet. */
+    private void pengramOnMessagesDidLoadFinished(int loadIndex, boolean isCache, ArrayList<MessageObject> arrived) {
+        if (pendingGhostEntry == null || pendingGhostLoadIndex < 0) return;
+        final int index = loadIndex < 0 ? -loadIndex : loadIndex;
+        if (index != pendingGhostLoadIndex) return;
+        if (isCache && currentEncryptedChat == null && (arrived == null || arrived.isEmpty())) {
+            // An empty cache reply is always followed by the server reply for
+            // the same load index. Waiting for it keeps the snapshot inside a
+            // fully loaded neighbourhood instead of at the window edge.
+            return;
+        }
+        final PengramHistory.Entry entry = pendingGhostEntry;
+        final String query = pendingGhostQuery;
+        pengramCancelPendingGhost();
+        if (entry == null || getParentActivity() == null || !isCurrentLocalDeletedQuery(query)) {
+            return;
+        }
+        pengramFinishGhostNavigation(entry, query);
+    }
+
+    /**
+     * Insert and highlight the snapshot only after the chat has finished the
+     * fly-in to the loaded window. Otherwise RecyclerAnimationScrollHelper
+     * silently drops the second animation and the highlight is never seen.
+     */
+    private void pengramFinishGhostNavigation(final PengramHistory.Entry entry, final String query) {
+        if (entry == null || getParentActivity() == null) return;
+        if (chatAdapter == null || chatListView == null) return;
+        if (!TextUtils.isEmpty(query) && !isCurrentLocalDeletedQuery(query)) return;
+        if (chatAdapter.isFiltered) {
+            setFilterMessages(false);
+        }
+        final RecyclerView.ItemAnimator animator = chatListView.getItemAnimator();
+        if (chatListView.isFastScrollAnimationRunning() || animator != null && animator.isRunning()) {
+            if (pengramGhostScrollWait++ < 40) {
+                AndroidUtilities.runOnUIThread(() -> pengramFinishGhostNavigation(entry, query), 50);
+                return;
+            }
+            pengramGhostScrollWait = 0;
+        }
+        final MessageObject loaded = messagesDict[0].get(entry.messageId);
+        if (loaded != null) {
+            // The retained deleted bubble came from the cache — the ordinary
+            // navigation gives it the native fly-in and the highlight blink.
+            showMessagesSearchListView(false);
+            scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
+            return;
+        }
         showDeletedSearchGhost(entry, query);
     }
 
@@ -40444,6 +40743,7 @@ public class ChatActivity extends BaseFragment implements
             pendingDeletedSearchQuery = null;
             pendingDeletedServerResult = false;
             localDeletedSearchIndex = -1;
+            pengramCancelPendingGhost();
             clearSearchDeletedGhosts();
             updatePagedownButtonVisibility(true);
             updateSearchUpDownButtonVisibility(true);
@@ -40713,9 +41013,13 @@ public class ChatActivity extends BaseFragment implements
                 pendingDeletedSearchQuery = null;
                 pendingDeletedServerResult = false;
                 localDeletedSearchIndex = -1;
+                pengramCancelPendingGhost();
             }
             if (editText != null && !TextUtils.equals(searchingQuery, editText.getText().toString())
-                    && !searchDeletedGhosts.isEmpty()) clearSearchDeletedGhosts();
+                    && !searchDeletedGhosts.isEmpty()) {
+                pengramCancelPendingGhost();
+                clearSearchDeletedGhosts();
+            }
             if (messagesSearchAdapter != null && editText != null) {
                 messagesSearchAdapter.searchLocalDeleted(editText.getText().toString(), dialog_id, mergeDialogId,
                         threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,

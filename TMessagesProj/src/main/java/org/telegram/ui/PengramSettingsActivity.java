@@ -2951,6 +2951,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 }
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SHEETS, true, getString(R.string.PengramMD3Sheets)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_ALERTS, true, getString(R.string.PengramMD3Alerts)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_MENUS, true, getString(R.string.PengramMD3Menus)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SETTINGS, true, getString(R.string.PengramMD3Settings)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
             }

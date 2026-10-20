@@ -34,6 +34,8 @@ public final class PengramMD3 {
     public static final String KEY_SEARCH_BAR = "md3SearchBar";
     /** мягкая тень под строкой поиска (M3 elevated) */
     public static final String KEY_SEARCH_SHADOW = "md3SearchShadow";
+    /** всплывающие меню с крупным скруглением */
+    public static final String KEY_MENUS = "md3Menus";
 
     private PengramMD3() {
     }
@@ -86,6 +88,10 @@ public final class PengramMD3 {
         return isEnabled() && PengramConfig.getBool(KEY_ALERTS, true);
     }
 
+    public static boolean menus() {
+        return isEnabled() && PengramConfig.getBool(KEY_MENUS, true);
+    }
+
     public static boolean settingsScreen() {
         return isEnabled() && PengramConfig.getBool(KEY_SETTINGS, true);
     }
@@ -94,22 +100,119 @@ public final class PengramMD3 {
      * Подложка шторки или диалога со скруглением M3 (28dp).
      *
      * Родной девятипатч нужен ради отступов: по ним считается положение
-     * содержимого. Поэтому отступы берём у него, а рисуем свою фигуру — белую,
-     * чтобы уже существующий MULTIPLY-фильтр покрасил её в цвет темы.
+     * содержимого и место для тени. Поэтому отступы берём у него, а рисуем свою
+     * фигуру — белую, чтобы уже существующий MULTIPLY-фильтр покрасил её в цвет
+     * темы. Тень рисуем сами: девятипатч с ней мы больше не используем.
      */
     public static android.graphics.drawable.Drawable sheetBackground(android.graphics.drawable.Drawable original, boolean topCornersOnly) {
+        return roundedContainer(original, AndroidUtilities.dp(28), topCornersOnly);
+    }
+
+    /**
+     * Подложка всплывающего меню: 16dp вместо мелкого скругления девятипатча.
+     * Отступы снова берём у оригинала, поэтому геометрия меню не «прыгает».
+     */
+    public static android.graphics.drawable.Drawable menuBackground(android.graphics.drawable.Drawable original) {
+        return roundedContainer(original, AndroidUtilities.dp(16), false);
+    }
+
+    private static android.graphics.drawable.Drawable roundedContainer(android.graphics.drawable.Drawable original, int radius, boolean topCornersOnly) {
         final android.graphics.Rect padding = new android.graphics.Rect();
         if (original != null) {
             original.getPadding(padding);
         }
-        final android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
-        shape.setColor(0xFFFFFFFF);
-        final float r = AndroidUtilities.dp(28);
-        shape.setCornerRadii(topCornersOnly
-                ? new float[]{r, r, r, r, 0, 0, 0, 0}
-                : new float[]{r, r, r, r, r, r, r, r});
-        return new android.graphics.drawable.InsetDrawable(shape,
-                padding.left, padding.top, padding.right, padding.bottom);
+        return new RoundedContainerDrawable(radius, topCornersOnly, padding);
+    }
+
+    /**
+     * Скруглённый контейнер с мягкой тенью внутри отступов девятипатча.
+     * Тень нарисована несколькими полупрозрачными слоями: это дешевле, чем
+     * отдельный bitmap, и корректно работает на любой плотности экрана.
+     */
+    private static final class RoundedContainerDrawable extends android.graphics.drawable.Drawable {
+
+        private final android.graphics.Paint fillPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint shadowPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+        private final float[] radii = new float[8];
+        private final int paddingLeft;
+        private final int paddingTop;
+        private final int paddingRight;
+        private final int paddingBottom;
+        private int alpha = 255;
+        private android.graphics.ColorFilter colorFilter;
+
+        RoundedContainerDrawable(int radius, boolean topCornersOnly, android.graphics.Rect padding) {
+            fillPaint.setColor(0xFFFFFFFF);
+            shadowPaint.setColor(0xFF000000);
+            if (topCornersOnly) {
+                radii[0] = radii[1] = radius;
+                radii[2] = radii[3] = radius;
+            } else {
+                for (int i = 0; i < radii.length; i++) {
+                    radii[i] = radius;
+                }
+            }
+            paddingLeft = padding.left;
+            paddingTop = padding.top;
+            paddingRight = padding.right;
+            paddingBottom = padding.bottom;
+        }
+
+        @Override
+        public void draw(android.graphics.Canvas canvas) {
+            final android.graphics.Rect bounds = getBounds();
+            final float left = bounds.left + paddingLeft;
+            final float top = bounds.top + paddingTop;
+            final float right = bounds.right - paddingRight;
+            final float bottom = bounds.bottom - paddingBottom;
+            if (right <= left || bottom <= top) {
+                return;
+            }
+            final float step = AndroidUtilities.dpf2(0.9f);
+            final int layers = 6;
+            for (int i = layers; i >= 1; i--) {
+                final float grow = step * i;
+                rect.set(left - grow, top - grow, right + grow, bottom + grow);
+                // Постоянная альфа на слой: у самой фигуры слои складываются в
+                // более плотную кромку, к внешнему краю тень плавно сходит.
+                shadowPaint.setAlpha(Math.round(alpha * 0.026f));
+                final float shadowRadius = Math.max(radii[0], radii[2]) + grow;
+                canvas.drawRoundRect(rect, shadowRadius, shadowRadius, shadowPaint);
+            }
+            rect.set(left, top, right, bottom);
+            fillPaint.setAlpha(alpha);
+            canvas.drawRoundRect(rect, radii, fillPaint);
+        }
+
+        @Override
+        public void setAlpha(int value) {
+            if (alpha != value) {
+                alpha = value;
+                invalidateSelf();
+            }
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter filter) {
+            if (colorFilter != filter) {
+                colorFilter = filter;
+                fillPaint.setColorFilter(filter);
+                shadowPaint.setColorFilter(filter);
+                invalidateSelf();
+            }
+        }
+
+        @Override
+        public boolean getPadding(android.graphics.Rect padding) {
+            padding.set(paddingLeft, paddingTop, paddingRight, paddingBottom);
+            return paddingLeft != 0 || paddingTop != 0 || paddingRight != 0 || paddingBottom != 0;
+        }
+
+        @Override
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
+        }
     }
 
     /** скругление контейнера строки: M3 Expressive любит крупные радиусы */

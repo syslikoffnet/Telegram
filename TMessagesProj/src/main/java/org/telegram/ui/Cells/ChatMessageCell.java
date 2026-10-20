@@ -12660,6 +12660,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (getParent() != null) {
             ((View) getParent()).invalidate();
         }
+        if (currentMessageObject != null && currentMessageObject.pengramDeleted) {
+            // The search highlight is shown at full opacity; put the fade back
+            // as soon as the highlight goes away.
+            pengramUpdateFade();
+        }
     }
 
     @Override
@@ -28268,8 +28273,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public static final float PENGRAM_DELETED_ALPHA = 0.55f;
 
     private boolean pengramFaded() {
+        // A search hit is highlighted in full opacity: the standard blink would
+        // otherwise be almost invisible on a 55%-transparent deleted bubble.
         return currentMessageObject != null && currentMessageObject.pengramDeleted
-                && org.telegram.messenger.PengramConfig.isFadingDeleted();
+                && !isHighlighted && org.telegram.messenger.PengramConfig.isFadingDeleted();
     }
 
     /**

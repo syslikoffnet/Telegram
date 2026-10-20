@@ -11916,6 +11916,7 @@
         <string name="PengramMD3Tune">Fine-tune Material 3</string>
     <string name="PengramMD3Sheets">Rounded bottom sheets</string>
     <string name="PengramMD3Alerts">Rounded dialogs</string>
+    <string name="PengramMD3Menus">Rounded popup menus</string>
     <string name="PengramMD3Settings">Tonal settings screen</string>
     <string name="PengramMD3PreviewChat1">Design team</string>
     <string name="PengramMD3PreviewChat2">Nina</string>

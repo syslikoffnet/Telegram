@@ -163,6 +163,11 @@ public class ActionBarPopupWindow extends PopupWindow {
 
             if (resId != 0) {
                 backgroundDrawable = getResources().getDrawable(resId).mutate();
+                if (org.telegram.messenger.PengramMD3.menus()) {
+                    // Pengram: меню Material 3 — 16dp и своя мягкая тень;
+                    // отступы девятипатча сохраняем, чтобы вёрстка не съехала.
+                    backgroundDrawable = org.telegram.messenger.PengramMD3.menuBackground(backgroundDrawable);
+                }
                 setPadding(dp(8), dp(8), dp(8), dp(8));
             }
             if (backgroundDrawable != null) {

@@ -912,6 +912,7 @@
         <string name="PengramMD3Tune">Настроить Material 3</string>
     <string name="PengramMD3Sheets">Скруглённые шторки</string>
     <string name="PengramMD3Alerts">Скруглённые диалоги</string>
+    <string name="PengramMD3Menus">Скруглённые всплывающие меню</string>
     <string name="PengramMD3Settings">Тональный экран настроек</string>
     <string name="PengramMD3PreviewChat1">Команда дизайна</string>
     <string name="PengramMD3PreviewChat2">Нина</string>

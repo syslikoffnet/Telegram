@@ -70,7 +70,11 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
 
         ScaleStateListAnimator.apply(this);
         if (!isSubButton) {
-            setOutlineProvider(ViewOutlineProviderImpl.BOUNDS_OVAL);
+            // Pengram: контур для тени должен повторять форму кнопки, иначе
+            // скруглённый квадрат Material 3 отбрасывает овальную тень.
+            setOutlineProvider(org.telegram.messenger.PengramMD3.fab()
+                    ? ViewOutlineProviderImpl.boundsWithPaddingFromViewAndRoundRect(org.telegram.messenger.PengramMD3.fabRadius())
+                    : ViewOutlineProviderImpl.BOUNDS_OVAL);
             setTranslationZ(dpf2(0.5f));
         }
 

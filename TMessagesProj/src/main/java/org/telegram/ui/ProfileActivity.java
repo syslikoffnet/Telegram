@@ -16028,9 +16028,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 color2 = applyPeerColor2(color2);
                 iconColor = Color.WHITE;
             }
-            CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable,
-                    Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), color1, color2),
-                    0, 0);
+            // Pengram: Material 3 — тот же скруглённый квадрат, что и у кнопки
+            // «написать» в списке чатов, вместо круга.
+            final Drawable fillDrawable = org.telegram.messenger.PengramMD3.fab()
+                    ? Theme.createSimpleSelectorRoundRectDrawable(org.telegram.messenger.PengramMD3.fabRadius(), color1, color2)
+                    : Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), color1, color2);
+            CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable, fillDrawable, 0, 0);
             combinedDrawable.setIconSize(AndroidUtilities.dp(56), AndroidUtilities.dp(56));
             writeButton.setBackground(combinedDrawable);
             writeButton.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));

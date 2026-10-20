@@ -544,6 +544,9 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         if (title == R.string.PengramMD3Alerts) {
             addMd3ListedOption(title, PengramMD3.KEY_ALERTS, true, 0); return;
         }
+        if (title == R.string.PengramMD3Menus) {
+            addMd3ListedOption(title, PengramMD3.KEY_MENUS, true, 0); return;
+        }
         if (title == R.string.PengramHideWriteButton) {
             addToggle(title, PengramConfig.KEY_HIDE_WRITE_BUTTON, false); return;
         }
@@ -746,6 +749,7 @@ public class PengramLayoutEditorActivity extends BaseFragment {
         addToggle(md3, R.string.PengramMD3Settings, PengramMD3.KEY_SETTINGS, true);
         addToggle(md3, R.string.PengramMD3Sheets, PengramMD3.KEY_SHEETS, true);
         addToggle(md3, R.string.PengramMD3Alerts, PengramMD3.KEY_ALERTS, true);
+        addToggle(md3, R.string.PengramMD3Menus, PengramMD3.KEY_MENUS, true);
         if (org.telegram.messenger.PengramMonet.isSupported()) {
             final LinearLayout monet = addOptionsGroup(R.string.PengramMonetHeader);
             addToggle(monet, R.string.PengramMonetMessages, org.telegram.messenger.PengramMonet.KEY_MESSAGES, true);
