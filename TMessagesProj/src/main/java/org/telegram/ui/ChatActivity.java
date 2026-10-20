@@ -41012,6 +41012,12 @@ public class ChatActivity extends BaseFragment implements
             pendingLocalSearchOpenGeneration = 0;
             pengramCancelPendingGhost();
             clearSearchDeletedGhosts();
+            localDeletedNavigation = false;
+            if (messagesSearchAdapter != null) {
+                // The merged snapshots belong to this search session only: no
+                // stale local row may survive into the next query.
+                messagesSearchAdapter.searchLocalDeleted(null, dialog_id, mergeDialogId, false, null);
+            }
             updatePagedownButtonVisibility(true);
             updateSearchUpDownButtonVisibility(true);
             if (searchCalendarButton != null) {
