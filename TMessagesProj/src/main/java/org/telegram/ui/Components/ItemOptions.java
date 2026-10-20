@@ -1212,20 +1212,52 @@ public class ItemOptions {
                 ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = (ActionBarPopupWindow.ActionBarPopupWindowLayout) child;
                 if (popupLayout.getItemsCount() <= 0)
                     continue;
-                final View first = popupLayout.getItemAt(0);
-                final View last = popupLayout.getItemAt(popupLayout.getItemsCount() - 1);
+                // Крайними считаем именно видимые пункты: разделители (GapView)
+                // и скрытые строки не должны забирать себе скругление, иначе
+                // настоящий первый и последний пункт остаются с прямыми углами
+                // и выглядят съехавшими относительно меню.
+                View first = null;
+                View last = null;
+                boolean hasIcon = false;
+                for (int i = 0; i < popupLayout.getItemsCount(); ++i) {
+                    final View item = popupLayout.getItemAt(i);
+                    if (item == null || item.getVisibility() != View.VISIBLE || item instanceof ActionBarPopupWindow.GapView) {
+                        continue;
+                    }
+                    if (first == null) {
+                        first = item;
+                    }
+                    last = item;
+                    if (item instanceof ActionBarMenuSubItem
+                            && ((ActionBarMenuSubItem) item).getImageView().getVisibility() == View.VISIBLE) {
+                        hasIcon = true;
+                    }
+                }
+                if (first == null) {
+                    continue;
+                }
+                // Галочка вместо иконки должна стоять в иконочной колонке —
+                // иначе одна такая строка сдвинута на 9dp относительно соседей.
+                if (hasIcon) {
+                    for (int i = 0; i < popupLayout.getItemsCount(); ++i) {
+                        final View item = popupLayout.getItemAt(i);
+                        if (item instanceof ActionBarMenuSubItem) {
+                            ((ActionBarMenuSubItem) item).alignTextWithIcons();
+                        }
+                    }
+                }
                 if (first instanceof ActionBarMenuSubItem) {
                     ((ActionBarMenuSubItem) first).updateSelectorBackground(true, first == last, 12);
                 } else if (first instanceof MessagePreviewView.ToggleButton || first instanceof FrameLayout) {
                     first.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_dialogButtonSelector, resourcesProvider), 12, first == last ? 12 : 0));
-                } else if (first != null && first.getBackground() instanceof RippleDrawable) {
+                } else if (first.getBackground() instanceof RippleDrawable) {
                     first.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_dialogButtonSelector, resourcesProvider), 12, first == last ? 12 : 0));
                 }
                 if (last instanceof ActionBarMenuSubItem) {
                     ((ActionBarMenuSubItem) last).updateSelectorBackground(last == first, true, 12);
                 } else if (last instanceof MessagePreviewView.ToggleButton || last instanceof FrameLayout) {
                     last.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_dialogButtonSelector, resourcesProvider), first == last ? 12 : 0, 12));
-                } else if (last != null && last.getBackground() instanceof RippleDrawable) {
+                } else if (last.getBackground() instanceof RippleDrawable) {
                     last.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_dialogButtonSelector, resourcesProvider), first == last ? 12 : 0, 12));
                 }
             }

@@ -457,10 +457,14 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
-    /** хочет ли пользователь (или устройство) эффект жидкого стекла на панели */
+    /**
+     * Хочет ли пользователь (или устройство) эффект жидкого стекла на панели.
+     * Наш переключатель важнее системного флага: человек включает «жидкое
+     * стекло» и ждёт преломление, а не просто полупрозрачную плитку.
+     */
     private boolean pengramWantsLiquidGlass() {
-        return LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)
-                || org.telegram.messenger.PengramConfig.isTabBarLiquidGlass();
+        return org.telegram.messenger.PengramConfig.isTabBarLiquidGlass()
+                || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
     }
 
     private BlurredBackgroundDrawable createTabsBackground() {
@@ -469,10 +473,17 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (pengramViewPositionWatcher != null && tabsView != null) {
             pengramViewPositionWatcher.unsubscribe(tabsView);
         }
+        // Провайдер именно наш: штатный mainTabs() заливает размытие почти
+        // непрозрачной плёнкой (alpha 0.85/0.76), и сквозь панель ничего не
+        // видно. Наш оставляет контент читаемым и включает линзу-преломление.
         final BlurredBackgroundDrawable drawable = pengramGlassFactory.create(tabsView,
-                BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
+                org.telegram.ui.Components.PengramTabBarGlass.provider(resourceProvider));
         drawable.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
         drawable.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        if (pengramGlassEffectAllowed) {
+            drawable.setThickness(org.telegram.ui.Components.PengramTabBarGlass.thicknessPx());
+            drawable.setIntensity(org.telegram.ui.Components.PengramTabBarGlass.intensity());
+        }
         return drawable;
     }
 

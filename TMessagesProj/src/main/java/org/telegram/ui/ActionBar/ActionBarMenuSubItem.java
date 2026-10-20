@@ -347,6 +347,23 @@ public class ActionBarMenuSubItem extends FrameLayout {
         textView.setText(text);
     }
 
+    /**
+     * Pengram: строка с одной галочкой вместо иконки стоит в другой колонке,
+     * чем строки с иконками (текст начинается на 9dp левее). В смешанном меню
+     * из-за этого «съезжают» первый и последний пункты, поэтому выравниваем
+     * такую строку по иконочной колонке.
+     */
+    public void alignTextWithIcons() {
+        if (checkView == null || imageView == null || imageView.getVisibility() == VISIBLE) {
+            return;
+        }
+        if (checkViewLeft) {
+            textView.setPadding(dp(43), 0, 0, 0);
+        } else {
+            textView.setPadding(0, 0, dp(43), 0);
+        }
+    }
+
     public void setSubtextColor(int color) {
         if (subtextView != null) {
             subtextView.setTextColor(color);

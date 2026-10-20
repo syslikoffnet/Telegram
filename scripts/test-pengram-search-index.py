@@ -21,7 +21,9 @@ assert any(name == 'PengramQuoteRadius' for name, *_ in rows), 'labelled slider 
 assert any(name == 'PengramIdFormatHide' for name, *_ in rows), 'radio choice missing'
 assert any(name == 'PengramIdFormatPicker' and section == 'SECTION_PROFILE' for name, section, *_ in rows)
 assert any(name == 'PengramIdPlacementPicker' and section == 'SECTION_PROFILE' for name, section, *_ in rows)
-assert any(name == 'PengramSendStyle' and section == 'SECTION_CHATS' for name, section, *_ in rows)
+# стиль отправки живёт в одном месте — в разделе набора текста
+assert any(name == 'PengramSendStyle' and section == 'SECTION_TYPING' for name, section, *_ in rows)
+assert not any(name == 'PengramSendStyle' and section == 'SECTION_CHATS' for name, section, *_ in rows)
 assert any(name == 'PengramMediaTimeStickers' for name, *_ in rows), 'media radio missing'
 assert all(section in SETTINGS.read_text() for _, section, *_ in rows)
 

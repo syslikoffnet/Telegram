@@ -115,15 +115,16 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramQuoteRadius) {
             tags.append(" радиус скругления карточки цитаты quote corner");
         }
-        if (id == R.string.PengramMD3Menus) tags.append(" меню попап контекстное скругление углы menu popup context corners");
+        if (id == R.string.PengramMD3Menus) tags.append(" меню попап контекстное скругление углы menu popup context corners островок действий кнопки сообщения island message actions материал 3");
         if (id == R.string.PengramSendStyle) tags.append(" шрифт шрифтом писать написание написания текста жирный курсив моно цитата font bold italic quote");
         if (id == R.string.PengramSendStyleLargeEmoji) tags.append(" смайлы маленькие крупные эмодзи шрифт big emoji");
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
         if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
         if (id == R.string.PengramTabBarGlass) tags.append(" стекло размытие блюр прозрачность блик blur glass frosted transparency");
-        if (id == R.string.PengramMessageIslandMd3) tags.append(" материал 3 материал3 стиль островка кнопок material you md3 island");
         if (id == R.string.PengramMessageIslandLinkTrash) tags.append(" ссылка удаление корзина удалить убрать trash delete link");
         if (id == R.string.PengramOriginalNameProbe) tags.append(" имя контакт проверка настоящее официальное имя name contact check real");
+        if (id == R.string.PengramDeviceModel) tags.append(" устройство модель телефон ноутбук компьютер подмена сеансы device model phone laptop pc computer spoof sessions");
+        if (id == R.string.PengramDeviceSpoof) tags.append(" устройство модель телефон ноутбук компьютер подмена сеансы device model phone laptop pc computer spoof sessions samsung pixel");
         // This is a storage limit for profile HISTORY, not an avatar-size control.
         if (id == R.string.PengramProfileLimitSize) tags.append(" размер истории профиля хранилище storage limit");
         // Shared concept vocabulary applies to each OWN title, not to an entire

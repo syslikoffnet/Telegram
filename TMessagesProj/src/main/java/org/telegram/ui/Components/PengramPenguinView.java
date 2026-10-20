@@ -105,15 +105,18 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private float camDistance;
     private static final float CAM_FOV_DEG = 34f;
     private static final float CAM_TAN_HALF_FOV = (float) Math.tan(Math.toRadians(CAM_FOV_DEG * 0.5f));
-    /**
-     * Запас сверху: прыжок плюс наклон во время танца. Если оставить только
-     * высоту прыжка, макушка шляпы на пике подскока всё равно касается края.
-     */
-    private static final float CAM_TOP_HEADROOM = 0.40f;
     /** на сколько пингвин реально поднимается в прыжке */
     private static final float CAM_JUMP_LIMIT = 0.26f;
     /** нижняя точка пингвина (лапки) в мировых координатах */
     private static final float CONTENT_BOTTOM = -1.11f;
+    /**
+     * Какую долю высоты кадра занимает содержимое. 1.0 — впритык к краям,
+     * поэтому оставляем маленький воздух: на пике подскока ничего не
+     * касается края текстуры.
+     */
+    private static final float CAM_FILL = 0.94f;
+    /** воздух над шляпой и под лапками, в мировых единицах */
+    private static final float CAM_MARGIN = 0.06f;
 
     private final float[] projection = new float[16];
     private final float[] view = new float[16];
@@ -586,15 +589,19 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final float aspect = surfaceHeight == 0 ? 1f : (float) surfaceWidth / surfaceHeight;
         Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, aspect, 1f, 14f);
 
-        // Верх сцены — макушка или шляпа, низ — лапки. Камера ставится так,
-        // чтобы в кадр влезло всё целиком и остался запас на прыжок.
-        final float contentTop = Math.max(bodyMesh == null ? 1.2f : bodyMesh.maxY,
-                accessoryMesh == null ? 0f : accessoryMesh.maxY) - 0.1f;
-        final float fitTop = contentTop + CAM_TOP_HEADROOM;
-        final float fitHeight = Math.max(0.5f, fitTop - CONTENT_BOTTOM);
-        // половина высоты кадра с запасом ~10%: верх шляпы не касается края
-        final float targetDistance = Math.max(3.6f, (fitHeight * 0.55f) / CAM_TAN_HALF_FOV);
-        final float targetCenter = (fitTop + CONTENT_BOTTOM) * 0.5f;
+        // Верх сцены — макушка или шляпа, низ — лапки. Раньше камера отъезжала
+        // ещё на 0.40 сверху и на 10% запаса, и пингвин занимал меньше двух
+        // третей кадра — в шапке он выглядел и вовсе игрушечным. Теперь кадр
+        // считается от настоящего содержимого: сверху только высота прыжка и
+        // пара сантиметров воздуха, снизу — лапки.
+        final float contentTop = Math.max(bodyMesh == null ? 1.18f : bodyMesh.maxY,
+                accessoryMesh == null ? 0f : accessoryMesh.maxY);
+        final float fitTop = contentTop + CAM_JUMP_LIMIT + CAM_MARGIN;
+        final float fitBottom = CONTENT_BOTTOM + CAM_MARGIN;
+        final float fitHeight = Math.max(0.6f, fitTop - fitBottom);
+        // половина кадра — это fitHeight / (2 * CAM_FILL); отсюда расстояние
+        final float targetDistance = Math.max(3.2f, (fitHeight / CAM_FILL * 0.5f) / CAM_TAN_HALF_FOV);
+        final float targetCenter = (fitTop + fitBottom) * 0.5f;
         if (camDistance <= 0.01f) {
             camDistance = targetDistance;
             camCenter = targetCenter;

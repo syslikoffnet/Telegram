@@ -347,6 +347,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_MESSAGE_ISLAND_ITEMS = 1031;
     private static final int BTN_MESSAGE_ISLAND_POSITION = 1032;
     private static final int BTN_MESSAGE_ISLAND_TINT = 1033;
+    /** подмена имени устройства: выбор модели, случайная, «применить» */
+    private static final int BTN_DEVICE_MODEL = 1034;
+    private static final int BTN_DEVICE_RANDOM = 1035;
+    private static final int BTN_DEVICE_APPLY = 1036;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1087,10 +1091,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(aboutRow(R.string.PengramAboutAbi, org.telegram.messenger.PengramVersion.abi()));
         items.add(UItem.asButton(BTN_ABOUT_COPY, R.drawable.msg_copy, getString(R.string.PengramAboutCopy)));
         items.add(UItem.asShadow(getString(R.string.PengramAboutCopyInfo)));
-
-        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.msg_report,
-                getString(R.string.PengramCrashReports), org.telegram.ui.Components.PengramCrashDialogs.summary()));
-        items.add(UItem.asShadow(getString(R.string.PengramCrashReportsMovedInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramResetHeader)));
         items.add(UItem.asButton(BTN_RESET_ALL, R.drawable.msg_reset, getString(R.string.PengramResetAll)).red());
@@ -2097,6 +2097,20 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), zalgoInfo()));
         items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
 
+        // Имя устройства: сервер видит его в «Активных сеансах». Строка
+        // уходит в initConnection, поэтому после смены нужен перезапуск —
+        // для нового входа это происходит само собой.
+        items.add(UItem.asHeader(getString(R.string.PengramDeviceHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_ENABLED, false,
+                getString(R.string.PengramDeviceSpoof), getString(R.string.PengramDeviceSpoofInfo)));
+        if (org.telegram.messenger.PengramDeviceName.isEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_DEVICE_MODEL, R.drawable.msg2_devices,
+                    getString(R.string.PengramDeviceModel), org.telegram.messenger.PengramDeviceName.summary()));
+            items.add(UItem.asButton(BTN_DEVICE_RANDOM, R.drawable.msg_reset, getString(R.string.PengramDeviceRandom)));
+            items.add(UItem.asButton(BTN_DEVICE_APPLY, R.drawable.msg_retry, getString(R.string.PengramDeviceApply)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramDeviceInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramSystemHeader)));
         items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
         items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
@@ -2160,6 +2174,65 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int[] KEEP_DAYS = new int[]{0, 7, 30, 90, 365};
 
     /** универсальный выбор одного значения из списка — как родные диалоги Telegram */
+    /** список моделей: реальная, популярные и «своё» */
+    private void showDeviceModelPicker() {
+        final String[] values = org.telegram.messenger.PengramDeviceName.PRESETS;
+        final CharSequence[] options = new CharSequence[values.length + 1];
+        for (int a = 0; a < values.length; ++a) {
+            options[a] = getString(org.telegram.messenger.PengramDeviceName.presetNameRes(a));
+        }
+        options[values.length] = getString(R.string.PengramDeviceCustom);
+        final int current = org.telegram.messenger.PengramDeviceName.findPresetIndex();
+        final int selected = current < 0 ? values.length : current;
+        showChoicePicker(getString(R.string.PengramDeviceModel), options, selected, value -> {
+            if (value < values.length) {
+                org.telegram.messenger.PengramDeviceName.setValue(values[value]);
+                if (value == org.telegram.messenger.PengramDeviceName.PRESET_REAL) {
+                    org.telegram.messenger.PengramDeviceName.setEnabled(false);
+                }
+                refreshRows();
+                requestDeviceRestart();
+            } else {
+                showTextDialog(getString(R.string.PengramDeviceCustomTitle),
+                        org.telegram.messenger.PengramDeviceName.getValue(),
+                        getString(R.string.PengramDeviceCustomHint),
+                        text -> {
+                            final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
+                            if (clean.length() == 0) {
+                                return;
+                            }
+                            org.telegram.messenger.PengramDeviceName.setValue(clean);
+                            org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                            refreshRows();
+                            requestDeviceRestart();
+                        });
+            }
+        });
+    }
+
+    /** имя устройства читается при старте приложения — предлагаем перезапуск */
+    private void requestDeviceRestart() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(context, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramDeviceRestartTitle));
+        builder.setMessage(getString(R.string.PengramDeviceRestartInfo));
+        builder.setPositiveButton(getString(R.string.PengramDeviceRestartButton), (d, w) ->
+                org.telegram.messenger.PengramDeviceName.restartApp(
+                        org.telegram.messenger.ApplicationLoader.applicationContext));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** перестроить список строк: значения в подписях могли измениться */
+    private void refreshRows() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
     private void showChoicePicker(CharSequence title, CharSequence[] options, int selected, Utilities.Callback<Integer> onSelected) {
         final Context context = getContext();
         if (context == null) {
@@ -3125,7 +3198,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     items.add(UItem.asSettingsCell(BTN_MONET_STRENGTH, R.drawable.msg_colors,
                             getString(R.string.PengramMonetStrength), monetStrengthName()));
                 }
-                items.add(moreButton(GROUP_MONET, getString(R.string.PengramMD3Tune)));
+                items.add(moreButton(GROUP_MONET, getString(R.string.PengramShowMore)));
             }
             items.add(UItem.asShadow(getString(R.string.PengramMonetInfo)));
         } else {
@@ -3170,7 +3243,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
         items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
         if (PengramConfig.isForcedSnow()) {
-            items.add(moreButton(GROUP_SNOW, getString(R.string.PengramMD3Tune)));
+            items.add(moreButton(GROUP_SNOW, getString(R.string.PengramShowMore)));
             if (expanded(GROUP_SNOW)) {
                 items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
                         getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
@@ -3196,12 +3269,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
 
-        // Пузыри и время сообщений живут в «Чаты и кнопки → Сообщения» — здесь только переход,
-        // чтобы одна и та же настройка не лежала в двух местах.
-        items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
-                getString(R.string.PengramSubsectionMessages), null));
-        items.add(UItem.asShadow(getString(R.string.PengramBubblesMovedInfo)));
-
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
@@ -3209,7 +3276,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 + getString(R.string.PengramTabBarGlassInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
-        items.add(moreButton(GROUP_TEXT, getString(R.string.PengramMD3Tune)));
+        items.add(moreButton(GROUP_TEXT, getString(R.string.PengramShowMore)));
         if (expanded(GROUP_TEXT)) {
             items.add(UItem.asSettingsCell(BTN_FONT_SIZE, R.drawable.msg_customize, getString(R.string.TextSizeHeader), String.valueOf(SharedConfig.fontSize)));
             items.add(UItem.asSettingsCell(BTN_BUBBLE_RADIUS, R.drawable.msg_message, getString(R.string.BubbleRadius), String.valueOf(SharedConfig.bubbleRadius)));
@@ -3221,7 +3288,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         // Secondary visual effects stay available without taking up the default screen.
         items.add(UItem.asHeader(getString(R.string.PengramEffectsHeader)));
-        items.add(moreButton(GROUP_EFFECTS, getString(R.string.PengramMD3Tune)));
+        items.add(moreButton(GROUP_EFFECTS, getString(R.string.PengramShowMore)));
         if (expanded(GROUP_EFFECTS)) {
             items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
             items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
@@ -3708,9 +3775,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSubsectionMessages), ""));
         items.add(sectionRow(BTN_SECTION_TYPING, IconBackgroundColors.GREEN, R.drawable.msg_customize,
                 getString(R.string.PengramTypingSection), inputAnimationName()));
-        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit,
-                getString(R.string.PengramSendStyle),
-                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
         items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
                 getString(R.string.PengramQuoteSection), ""));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
@@ -3789,8 +3853,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                     PengramConfig.getMessageIslandItemsCount() + " / " + PengramConfig.MESSAGE_ISLAND_LIMIT));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LABELS, true,
                     getString(R.string.PengramMessageIslandLabels)));
-            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_MD3, true,
-                    getString(R.string.PengramMessageIslandMd3)));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_COMPACT, false,
                     getString(R.string.PengramMessageIslandCompact)));
             items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LINK_TRASH, true,
@@ -4684,6 +4746,18 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_CHAT_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT));
+                return;
+            case BTN_DEVICE_MODEL:
+                showDeviceModelPicker();
+                return;
+            case BTN_DEVICE_RANDOM:
+                org.telegram.messenger.PengramDeviceName.setValue(org.telegram.messenger.PengramDeviceName.randomPreset());
+                org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                refreshRows();
+                requestDeviceRestart();
+                return;
+            case BTN_DEVICE_APPLY:
+                requestDeviceRestart();
                 return;
             case BTN_MESSAGE_ISLAND_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE));
@@ -6334,6 +6408,13 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** Шапка настроек: живой 3D-пингвин, название и короткое описание */
     private class PengramHeaderView extends LinearLayout {
 
+        /**
+         * Базовый размер пингвина при ползунке 100%. Раньше было 132dp, и
+         * после подгонки камеры под шляпу пингвин в шапке стал читаться как
+         * иконка, а не как персонаж. 160dp — тот же кадр, но заметно крупнее.
+         */
+        private static final int BASE_SIZE_DP = 160;
+
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;
         private TextView bubble;
@@ -6390,14 +6471,14 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
                 });
                 // размер задаётся настройкой — иначе ползунок «размер пингвина»
-                // менял только контейнер, а сам пингвин оставался 132dp
-                penguinContainer.addView(penguinView, LayoutHelper.createFrame(132, 132, Gravity.CENTER));
+                // менял только контейнер, а сам пингвин оставался базового размера
+                penguinContainer.addView(penguinView, LayoutHelper.createFrame(BASE_SIZE_DP, BASE_SIZE_DP, Gravity.CENTER));
             } catch (Throwable e) {
                 org.telegram.messenger.FileLog.e(e);
                 penguinView = null;
             }
 
-            final int penguinSize = Math.round(132 * PengramConfig.getPenguinSize() / 100f);
+            final int penguinSize = Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f);
             if (penguinView != null) {
                 // кадр камеры считается по содержимому, поэтому шапка влезает
                 // при любом размере — просто масштабируем саму вьюху
@@ -6544,7 +6625,7 @@ public class PengramSettingsActivity extends UniversalFragment {
          * текстур. Масштабируем контейнер и сам кадр, камера подстроится сама.
          */
         public void applySize() {
-            final int size = Math.round(132 * PengramConfig.getPenguinSize() / 100f);
+            final int size = Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f);
             if (penguinView != null) {
                 final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
                 if (lp != null && (lp.width != size || lp.height != size)) {

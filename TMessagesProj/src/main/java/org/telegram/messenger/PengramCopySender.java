@@ -52,10 +52,15 @@ public final class PengramCopySender {
 
     private static final ArrayList<ProgressListener> listeners = new ArrayList<>();
 
-    private static long busyDialogId;
-    private static int busyTotal;
-    private static int busyDone;
-    private static boolean busyPreparing;
+    /**
+     * Состояние отправки — на каждый чат своё.
+     *
+     * Одно общее «идёт отправка» врало, как только в очереди оказывались два
+     * получателя: прогресс одного показывался в другом чате, а сброс одного
+     * гасил статус другого. Теперь у каждого получателя собственная запись
+     * {всего, отправлено, готовится, время старта}.
+     */
+    private static final HashMap<Long, int[]> jobs = new HashMap<>();
     private static long busySince;
     // Only the UI thread touches the job queue. Concurrent destinations must
     // not overwrite each other's progress or clear a still-running status.
@@ -91,18 +96,44 @@ public final class PengramCopySender {
 
     /** идёт ли прямо сейчас отправка копий в этот чат */
     public static boolean isBusy(long dialogId) {
-        if (busyTotal <= 0 || busyDialogId != dialogId) {
+        final int[] job = jobs.get(dialogId);
+        if (job == null || job[0] <= 0) {
             return false;
         }
-        return android.os.SystemClock.elapsedRealtime() - busySince < BUSY_MAX;
+        if (android.os.SystemClock.elapsedRealtime() - busySince >= BUSY_MAX) {
+            jobs.remove(dialogId);
+            return false;
+        }
+        return true;
     }
 
     public static int getTotal() {
-        return busyTotal;
+        final int[] job = anyJob();
+        return job == null ? 0 : job[0];
     }
 
     public static int getDone() {
-        return busyDone;
+        final int[] job = anyJob();
+        return job == null ? 0 : job[1];
+    }
+
+    public static int getTotal(long dialogId) {
+        final int[] job = jobs.get(dialogId);
+        return job == null ? 0 : job[0];
+    }
+
+    public static int getDone(long dialogId) {
+        final int[] job = jobs.get(dialogId);
+        return job == null ? 0 : job[1];
+    }
+
+    private static int[] anyJob() {
+        for (int[] job : jobs.values()) {
+            if (job[0] > 0) {
+                return job;
+            }
+        }
+        return null;
     }
 
     /**
@@ -113,17 +144,24 @@ public final class PengramCopySender {
      * зависшим.
      */
     public static boolean isPreparing() {
-        return busyTotal > 0 && busyPreparing;
+        final int[] job = anyJob();
+        return job != null && job[2] != 0;
+    }
+
+    public static boolean isPreparing(long dialogId) {
+        final int[] job = jobs.get(dialogId);
+        return job != null && job[0] > 0 && job[2] != 0;
     }
 
     private static void setBusy(long dialogId, int total, int done, boolean preparing) {
-        if (busyTotal <= 0 && total > 0) {
-            busySince = android.os.SystemClock.elapsedRealtime();
+        if (total <= 0) {
+            jobs.remove(dialogId);
+        } else {
+            if (jobs.isEmpty()) {
+                busySince = android.os.SystemClock.elapsedRealtime();
+            }
+            jobs.put(dialogId, new int[]{total, done, preparing ? 1 : 0});
         }
-        busyDialogId = dialogId;
-        busyTotal = total;
-        busyDone = done;
-        busyPreparing = preparing;
         notifyProgress();
     }
 
@@ -351,7 +389,7 @@ public final class PengramCopySender {
             return;
         }
 
-        setBusy(dialogId, busyTotal, busyDone, true);
+        setBusy(dialogId, getTotal(dialogId), getDone(dialogId), true);
         // Path lookup can decrypt a large .enc file; never do it on the UI thread.
         Utilities.globalQueue.postRunnable(() -> {
             final String ready = localPath(account, message);
@@ -365,7 +403,7 @@ public final class PengramCopySender {
                         sendFileAsync(account, message, dialogId, notify, path, done);
                     } else {
                         // A missing attachment is not a successfully sent photo.
-                        setBusy(dialogId, busyTotal, busyDone, false);
+                        setBusy(dialogId, getTotal(dialogId), getDone(dialogId), false);
                         done.run(false);
                     }
                 });
@@ -433,7 +471,7 @@ public final class PengramCopySender {
         Utilities.globalQueue.postRunnable(() -> {
             final String path = tempCopy(sourcePath, message);
             AndroidUtilities.runOnUIThread(() -> {
-                setBusy(dialogId, busyTotal, busyDone, false);
+                setBusy(dialogId, getTotal(dialogId), getDone(dialogId), false);
                 done.run(path != null && sendFile(account, message, dialogId, notify, path));
             });
         });

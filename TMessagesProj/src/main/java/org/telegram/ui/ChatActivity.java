@@ -805,6 +805,12 @@ public class ChatActivity extends BaseFragment implements
     private CharSequence formwardingNameText;
     private MessageObject forwardingMessage;
     private MessageObject.GroupedMessages forwardingMessageGroup;
+    /**
+     * Панель пересылки одноразовая: как только её содержимое ушло, повторный
+     * hideFieldPanel (а он вызывается из нескольких мест) не должен отправить
+     * то же медиа второй раз — уже в другой чат.
+     */
+    private boolean pengramForwardPanelConsumed;
     private MessageObject.GroupedMessages replyingQuoteGroup;
     public MessageObject replyingTopMessage;
     private ReplyQuote replyingQuote;
@@ -2042,8 +2048,8 @@ public class ChatActivity extends BaseFragment implements
         if (copying) {
             // у копий есть свой счётчик: сообщения в чате появляются уже после
             // того, как файл собран, и считать по ленте тут нечего
-            total = Math.max(org.telegram.messenger.PengramCopySender.getTotal(), pengramForwardTotal);
-            done = Math.min(total, org.telegram.messenger.PengramCopySender.getDone());
+            total = Math.max(org.telegram.messenger.PengramCopySender.getTotal(dialog_id), pengramForwardTotal);
+            done = Math.min(total, org.telegram.messenger.PengramCopySender.getDone(dialog_id));
         } else {
             total = Math.max(pengramForwardTotal, sending);
             done = Math.max(0, total - sending);
@@ -2054,7 +2060,7 @@ public class ChatActivity extends BaseFragment implements
         sb.setSpan(new TypefaceSpan(AndroidUtilities.bold()), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.setSpan(new ForegroundColorSpan(getThemedColor(Theme.key_featuredStickers_addButton)), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         sb.append("\n");
-        sb.append(LocaleController.getString(org.telegram.messenger.PengramCopySender.isPreparing()
+        sb.append(LocaleController.getString(org.telegram.messenger.PengramCopySender.isPreparing(dialog_id)
                 ? R.string.PengramForwardPreparing
                 : R.string.PengramForwardHold));
         return sb;
@@ -2531,7 +2537,11 @@ public class ChatActivity extends BaseFragment implements
         args.putBoolean("canSelectTopics", true);
         final DialogsActivity fragment = new DialogsActivity(args);
         fragment.setCurrentAccount(currentAccount);
+        final java.util.concurrent.atomic.AtomicBoolean pengramSent = new java.util.concurrent.atomic.AtomicBoolean();
         fragment.setDelegate((dialogsFragment, dids, message1, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            if (!pengramSent.compareAndSet(false, true)) {
+                return false;
+            }
             if (!TextUtils.isEmpty(message1)) {
                 AlertsCreator.showSendMediaAlert(26, this, themeDelegate);
                 return false;
@@ -15935,6 +15945,25 @@ public class ChatActivity extends BaseFragment implements
         showFieldPanel(show, null, null, messageObjectsToForward, null, true, 0, null, false, 0, true);
     }
 
+    /**
+     * Панель пересылки уехала в другой чат — здесь её надо погасить молча.
+     *
+     * Раньше панель оставалась в исходном чате: пользователь возвращался в
+     * него, и любое скрытие панели (клавиатура, обновление разметки, ошибка
+     * отправки) отправляло те же сообщения ещё раз — уже в этот чат. Отсюда и
+     * «видео прилетело и туда, и туда».
+     */
+    private void discardForwardPanel() {
+        pengramForwardPanelConsumed = true;
+        messagePreviewParams = null;
+        if (forwardingPreviewView != null && forwardingPreviewView.isShowing()) {
+            forwardingPreviewView.dismiss(false);
+        }
+        if (chatActivityEnterView != null) {
+            chatActivityEnterView.hideTopView(true);
+        }
+    }
+
     private String targetKey() {
         return dialog_id + ":" + getTopicId() + ":" + getUserConfig().getClientUserId();
     }
@@ -16590,6 +16619,9 @@ public class ChatActivity extends BaseFragment implements
                 if (messagePreviewParams.isEmpty() && editingMessageObject == null) {
                     messagePreviewParams = null;
                 }
+                // новая панель — новый шанс отправить; флаг снимаем здесь, а не
+                // в hideFieldPanel, иначе вторая пересылка подряд молча терялась
+                pengramForwardPanelConsumed = false;
                 editingMessageObject = null;
                 chatActivityEnterView.setEditingMessageObject(null, null, false);
                 forbidForwardingWithDismiss = false;
@@ -16941,13 +16973,17 @@ public class ChatActivity extends BaseFragment implements
             }
             if (messagePreviewParams != null && messagePreviewParams.forwardMessages != null) {
                 forbidForwardingWithDismiss = false;
-//                if (messagePreviewParams.quote == null) {
+                // Отправляем ровно один раз на панель. hideFieldPanel зовут и
+                // кнопка «отправить», и таймеры анимации, и обработчик ошибки —
+                // без флага одно и то же видео уезжало дважды.
+                if (!pengramForwardPanelConsumed) {
+                    pengramForwardPanelConsumed = true;
                     ArrayList<MessageObject> messagesToForward = new ArrayList<>();
                     if (messagePreviewParams.forwardMessages != null) {
                         messagePreviewParams.forwardMessages.getSelectedMessages(messagesToForward);
                     }
                     forwardMessages(messagesToForward, messagePreviewParams.hideForwardSendersName, messagePreviewParams.hideCaption, notify, scheduleDate != 0 && scheduleDate != 0x7ffffffe ? scheduleDate + 1 : scheduleDate, payStars);
-//                }
+                }
             }
             if (forwardingPreviewView == null) {
                 messagePreviewParams = null;
@@ -33493,7 +33529,7 @@ public class ChatActivity extends BaseFragment implements
 
             popupLayout.setBackground(scrimBlur3Factory.create(popupLayout, true)
                 .setColorProvider(BlurredBackgroundProviderImpl.messageMenuBackground(resourceProvider))
-                .setRadius(dp(12))
+                .setRadius(org.telegram.messenger.PengramMD3.menus() ? dp(16) : dp(12))
                 .setPadding(dp(8)));
 
             boolean addGap = false;
@@ -34323,6 +34359,20 @@ public class ChatActivity extends BaseFragment implements
                         && org.telegram.messenger.PengramConfig.getMessageIslandPosition()
                         == org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM;
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
+                // Крайние ячейки определяем по тем строкам, которые реально
+                // попадут в меню: пропущенная строка (например, «вернуть
+                // приветствие») не должна оставлять первый пункт без скругления.
+                int firstCellIndex = -1;
+                int lastCellIndex = -1;
+                for (int i = 0, size = items.size(); i < size; i++) {
+                    if (options.get(i) == OPTION_DELETE && showWelcomeMessageRevertOption(selectedObject)) {
+                        continue;
+                    }
+                    if (firstCellIndex < 0) {
+                        firstCellIndex = i;
+                    }
+                    lastCellIndex = i;
+                }
                 for (int a = 0, N = items.size(); a < N; a++) {
                     final Integer option = options.get(a);
                     if (option == OPTION_DELETE && showWelcomeMessageRevertOption(selectedObject)) {
@@ -34330,7 +34380,7 @@ public class ChatActivity extends BaseFragment implements
                     }
 
                     ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(),
-                            a == 0 && !islandAtTop, a == N - 1 && !islandAtBottom, themeDelegate);
+                            a == firstCellIndex && !islandAtTop, a == lastCellIndex && !islandAtBottom, themeDelegate);
                     cell.setMinimumWidth(AndroidUtilities.dp(200));
                     cell.setTextAndIcon(items.get(a), icons.get(a));
 
@@ -36979,6 +37029,19 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         }
+        // Снимок уже сделан: снимаем состояние пересылки и выделение до любых
+        // подтверждений и отправок. Иначе повторный вызов делегата (двойной тап
+        // по чату, возврат к выбору из стека) взял бы те же сообщения и отправил
+        // видео ещё раз — уже в другой чат.
+        if (forwardingMessage != null || selectedMessagesIds[0].size() + selectedMessagesIds[1].size() > 0) {
+            forwardingMessage = null;
+            forwardingMessageGroup = null;
+            for (int a = 1; a >= 0; a--) {
+                selectedMessagesCanCopyIds[a].clear();
+                selectedMessagesCanStarIds[a].clear();
+                selectedMessagesIds[a].clear();
+            }
+        }
         for (int j = 0; j < dids.size(); j++) {
             TLRPC.Chat chat = getMessagesController().getChat(-dids.get(j).dialogId);
             if (chat != null) {
@@ -37069,6 +37132,9 @@ public class ChatActivity extends BaseFragment implements
             MessagesStorage.TopicKey topicKey = dids.get(0);
             final long did = topicKey.dialogId;
             if (did != dialog_id || getTopicId() != topicKey.topicId || chatMode == MODE_PINNED) {
+                // Пересылка уходит в другой чат: свою панель гасим, иначе она
+                // сработает позже и отправит копию сюда же.
+                discardForwardPanel();
                 Bundle args = new Bundle();
                 args.putBoolean("scrollToTopOnResume", scrollToTopOnResume);
                 if (DialogObject.isEncryptedDialog(did)) {

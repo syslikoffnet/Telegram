@@ -361,6 +361,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     private RadialProgressView radialProgressView;
 
     private ImageView proxyButtonView;
+    /** Pengram: выбор имени устройства ещё до входа в аккаунт */
+    private ImageView deviceButtonView;
     private ProxyDrawable proxyDrawable;
 
     // Open animation stuff
@@ -771,6 +773,18 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         proxyButtonView.setAlpha(0f);
         proxyButtonView.setVisibility(View.GONE);
         sizeNotifierFrameLayout.addView(proxyButtonView, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.TOP, 16, 16, 16, 16));
+
+        // Имя устройства сервер запоминает в момент подключения, поэтому
+        // предлагаем выбрать его прямо на экране входа — до регистрации.
+        deviceButtonView = new ImageView(context);
+        deviceButtonView.setImageResource(R.drawable.msg2_devices);
+        deviceButtonView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        deviceButtonView.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6));
+        deviceButtonView.setColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteGrayIcon));
+        deviceButtonView.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 7));
+        deviceButtonView.setContentDescription(LocaleController.getString(R.string.PengramDeviceHeader));
+        deviceButtonView.setOnClickListener(v -> org.telegram.ui.Components.PengramDeviceNameSheet.show(this, getResourceProvider()));
+        sizeNotifierFrameLayout.addView(deviceButtonView, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.TOP, 16, 14, 54, 14));
         updateProxyButton(false, true);
 
         radialProgressView = new RadialProgressView(context);

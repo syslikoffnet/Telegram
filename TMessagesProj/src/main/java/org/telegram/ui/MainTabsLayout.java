@@ -322,6 +322,14 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     private long glassPressStart;
     private long glassPressRelease;
     private float glassPressX, glassPressY;
+    /**
+     * Палец можно не только приложить, но и провести по стеклу. Из смещения
+     * считаем направление и скорость, чтобы блик тянулся за пальцем, а не
+     * стоял точкой на месте первого касания.
+     */
+    private float glassPressLastX, glassPressLastY;
+    private float glassDragDx, glassDragDy, glassDragSpeed;
+    private long glassLastMove;
 
     private final Paint glassPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glassSheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -429,6 +437,8 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         glassSheenT = -1f;
         glassPressDown = false;
         glassPressRelease = 0;
+        glassDragSpeed = 0f;
+        glassDragDx = glassDragDy = 0f;
         super.onDetachedFromWindow();
     }
 
@@ -441,6 +451,15 @@ public class MainTabsLayout extends AnimatedLinearLayout {
             return 0f;
         }
         return Math.max(0f, 1f - (now - glassPressRelease) / 260f);
+    }
+
+    /** насколько сильно палец «тащит» стекло прямо сейчас (0 — покой) */
+    private float glassDragNow() {
+        if (glassDragSpeed <= 0.001f) {
+            return 0f;
+        }
+        final long idle = SystemClock.uptimeMillis() - glassLastMove;
+        return glassDragSpeed * Math.max(0f, 1f - idle / 420f);
     }
 
     private void ensureGlassShaders(int w, int h) {
@@ -533,26 +552,56 @@ public class MainTabsLayout extends AnimatedLinearLayout {
 
         // световое пятно под выбранной вкладкой: мягкий эллипс, а не полоса
         // от самого верха — иначе стекло выглядит подсвеченным с одной стороны
+        final float pressT = glassPressT();
+        final float drag = glassDragNow();
+        final float dragAngle = (float) Math.toDegrees(Math.atan2(glassDragDy, glassDragDx));
+        // под пальцем стекло «тянется» к нему: подсветка вкладки плавно
+        // смещается и вытягивается по ходу жеста — это и есть «жидкость»
         final float glowRadius = Math.max(1f, glassRect.width() * 0.17f);
+        final float pull = glassPressDown ? Math.max(pressT, 0.35f) : pressT;
+        final float glowCx = glassGlowX + (glassPressX - glassGlowX) * 0.45f * pull;
         glassMatrix.reset();
-        glassMatrix.setScale(glowRadius, Math.max(1f, glassRect.height() * 0.75f));
-        glassMatrix.postTranslate(glassGlowX, glassRect.centerY());
+        glassMatrix.setScale(glowRadius * (1f + 0.40f * drag),
+                Math.max(1f, glassRect.height() * 0.75f) * (1f - 0.18f * drag));
+        if (drag > 0.01f) {
+            glassMatrix.postRotate(dragAngle);
+        }
+        glassMatrix.postTranslate(glowCx, glassRect.centerY());
         glassGlow.setLocalMatrix(glassMatrix);
         glassGlowPaint.setShader(glassGlow);
-        glassGlowPaint.setAlpha((int) (255 * (0.75f + 0.25f * glassPressT())));
+        glassGlowPaint.setAlpha((int) (255 * (0.75f + 0.25f * pressT)));
         canvas.drawRect(glassRect, glassGlowPaint);
 
-        // отклик на касание: свет расходится из точки нажатия
-        final float pressT = glassPressT();
+        // отклик на касание: свет расходится из точки нажатия и вытягивается
+        // по направлению движения, если палец ведут
         if (pressT > 0.01f) {
             glassMatrix.reset();
             final float pressRadius = AndroidUtilities.dp(42) * (0.6f + 0.4f * pressT);
-            glassMatrix.setScale(pressRadius, pressRadius);
+            glassMatrix.setScale(pressRadius * (1f + 0.60f * drag),
+                    pressRadius * (1f - 0.30f * drag));
+            if (drag > 0.01f) {
+                glassMatrix.postRotate(dragAngle);
+            }
             glassMatrix.postTranslate(glassPressX, glassPressY);
             glassGlow.setLocalMatrix(glassMatrix);
             glassGlowPaint.setShader(glassGlow);
-            glassGlowPaint.setAlpha((int) (52 * pressT));
+            glassGlowPaint.setAlpha((int) (52 * pressT * (1f + 0.9f * drag)));
             canvas.drawRect(glassRect, glassGlowPaint);
+
+            // яркая точка под самим пальцем: место, где стекло «схвачено»
+            if (pressT > 0.25f) {
+                glassMatrix.reset();
+                final float core = AndroidUtilities.dp(13) * (0.7f + 0.5f * pressT);
+                glassMatrix.setScale(core * (1f + 0.25f * drag), core * (1f - 0.2f * drag));
+                if (drag > 0.01f) {
+                    glassMatrix.postRotate(dragAngle);
+                }
+                glassMatrix.postTranslate(glassPressX, glassPressY);
+                glassGlow.setLocalMatrix(glassMatrix);
+                glassGlowPaint.setShader(glassGlow);
+                glassGlowPaint.setAlpha((int) (36 * pressT));
+                canvas.drawRect(glassRect, glassGlowPaint);
+            }
         }
 
         glassGlowPaint.setShader(null);
@@ -625,7 +674,7 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (pengramGlass) {
             drawGlassBack(canvas);
-            if (glassPressDown || glassPressT() > 0f) {
+            if (glassPressDown || glassPressT() > 0f || glassDragNow() > 0.01f) {
                 postInvalidateOnAnimation();
             }
         }
@@ -932,12 +981,35 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         if (pengramGlass) {
             switch (ev.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    glassPressX = ev.getX();
-                    glassPressY = ev.getY();
+                    glassPressX = glassPressLastX = ev.getX();
+                    glassPressY = glassPressLastY = ev.getY();
+                    glassDragDx = glassDragDy = glassDragSpeed = 0f;
+                    glassLastMove = 0;
                     glassPressDown = true;
                     glassPressRelease = 0;
                     glassPressStart = SystemClock.uptimeMillis();
                     postInvalidateOnAnimation();
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (glassPressDown) {
+                        final float x = ev.getX(), y = ev.getY();
+                        final float dx = x - glassPressLastX, dy = y - glassPressLastY;
+                        final float step = (float) Math.hypot(dx, dy);
+                        if (step > 0.5f) {
+                            glassPressX = x;
+                            glassPressY = y;
+                            // сглаживаем направление: резкий рывок пальца не
+                            // должен превращать блик в мигающую полоску
+                            glassDragDx += (dx - glassDragDx) * 0.45f;
+                            glassDragDy += (dy - glassDragDy) * 0.45f;
+                            glassDragSpeed = Math.min(1f,
+                                    glassDragSpeed * 0.55f + Math.min(1f, step / 12f) * 0.45f);
+                            glassLastMove = SystemClock.uptimeMillis();
+                            glassPressLastX = x;
+                            glassPressLastY = y;
+                            postInvalidateOnAnimation();
+                        }
+                    }
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:

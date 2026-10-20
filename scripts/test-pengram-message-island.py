@@ -116,17 +116,21 @@ assert 'label.setTypeface(AndroidUtilities.bold());' in island
 assert 'label.setLetterSpacing(0.04f);' in island
 assert 'md3 ? 0.38f : 0.42f' in island
 assert 'public static final String KEY_MESSAGE_ISLAND_MD3 = "messageIslandMd3";' in config
-assert 'public static boolean isMessageIslandMd3() {\n        return getBool(KEY_MESSAGE_ISLAND_MD3, true);' in config
+# один переключатель Material 3 на всё меню: островок наследует стиль меню,
+# отдельного тумблера в настройках больше нет (иначе настройки дублировались)
+assert 'return org.telegram.messenger.PengramMD3.menus();' in config
 assert 'public static final String KEY_MESSAGE_ISLAND_LINK_TRASH = "messageIslandLinkTrash";' in config
-# переключатели обязаны быть на экране настроек и в поиске
-assert 'PengramConfig.KEY_MESSAGE_ISLAND_MD3' in settings
+assert 'PengramConfig.KEY_MESSAGE_ISLAND_MD3' not in settings
 assert 'PengramConfig.KEY_MESSAGE_ISLAND_LINK_TRASH' in settings
 search_index = (root / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java').read_text()
 search_meta = (root / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java').read_text()
-assert 'R.string.PengramMessageIslandMd3,' in search_index
+assert 'R.string.PengramMessageIslandMd3,' not in search_index
 assert 'R.string.PengramMessageIslandLinkTrash,' in search_index
-assert 'R.string.PengramMessageIslandMd3' in search_meta
 assert 'R.string.PengramMessageIslandLinkTrash' in search_meta
+# переключатель всего меню обязан находиться поиском по слову «островок»
+assert 'R.string.PengramMD3Menus' in search_index
+md3_meta = search_meta.split('R.string.PengramMD3Menus', 1)[1].split('\n', 1)[0]
+assert 'островок' in md3_meta
 for name in ('PengramIslandBtnDelete', 'PengramMessageIslandMd3', 'PengramMessageIslandLinkTrash'):
     for res in ('values', 'values-ru'):
         xml = (root / f'TMessagesProj/src/main/res/{res}/strings.xml').read_text()
@@ -145,7 +149,9 @@ assert 'protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)' i
 assert 'Math.max(hardMin, fit)' in island
 assert 'getDisplayMetrics().widthPixels' in island
 # скругление на стыке меню и полосы убирается
-assert 'a == 0 && !islandAtTop, a == N - 1 && !islandAtBottom' in menu
+# крайние ячейки считаются по реально добавленным строкам, а не по индексу
+assert 'a == firstCellIndex && !islandAtTop, a == lastCellIndex && !islandAtBottom' in menu
+assert 'lastCellIndex = i;' in menu
 
 # --- settings + reorder screen ----------------------------------------------
 assert 'BTN_MESSAGE_ISLAND_ITEMS = 1031;' in settings

@@ -1122,6 +1122,16 @@ public class PengramConfig {
         if (p != null) p.edit().putString(key, value).apply();
     }
 
+    /** строковая настройка: нужна подмене имени устройства и другим текстовым полям */
+    public static String getStringValue(String key, String def) {
+        SharedPreferences p = prefs();
+        return p == null ? def : p.getString(key, def);
+    }
+
+    public static void setStringValue(String key, String value) {
+        putString(key, value == null ? "" : value);
+    }
+
     private static void putInt(String key, int value) {
         if (stageVisual(key, value)) return;
         intCache.put(key, value);
@@ -1912,13 +1922,19 @@ public class PengramConfig {
                 ? MESSAGE_ISLAND_POSITION_BOTTOM : MESSAGE_ISLAND_POSITION_TOP);
     }
 
-    /** по умолчанию — материал 3: это новый вид островка, классический остаётся опцией */
+    /**
+     * Островок — часть того же всплывающего меню, поэтому и стиль у них общий:
+     * один переключатель Material 3 на всё меню (строки + островок), а не два
+     * разных тумблера в разных разделах настроек.
+     */
     public static boolean isMessageIslandMd3() {
-        return getBool(KEY_MESSAGE_ISLAND_MD3, true);
+        return org.telegram.messenger.PengramMD3.menus();
     }
 
+    /** оставлено для совместимости: пишем и общий флаг меню, и старый ключ */
     public static void setMessageIslandMd3(boolean value) {
         setBool(KEY_MESSAGE_ISLAND_MD3, value);
+        setBool(org.telegram.messenger.PengramMD3.KEY_MENUS, value);
     }
 
     /** пустой слот ссылки превращается в корзину — выключить можно настройкой */
