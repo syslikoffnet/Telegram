@@ -275,6 +275,8 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                     msg.out = e.out;
                     MessageObject object = new MessageObject(currentAccount, msg, false, false);
                     object.pengramDeleted = true;
+                    object.pengramArchived = true;
+                    object.pengramArchiveRowId = e.rowId;
                     deletedResults.put(object, e);
                     seenDeleted.add(key);
                     // A server/cached hit can share the same id yet show a

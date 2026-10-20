@@ -6963,7 +6963,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             lastTime = -2;
             lastPostAuthor = messageObject.messageOwner.post_author;
             if (messageIdChanged || groupChanged) {
+                // The search highlight belongs to one concrete message id. A
+                // recycled cell must not keep it: a stale flag kept the next
+                // deleted bubble fully opaque (or blink the wrong row).
                 isHighlightedAnimated = false;
+                isHighlighted = false;
+                highlightProgress = 0;
                 wasTranscriptionOpen = false;
                 if (highlightedQuote) {
                     resetUrlPaths();
@@ -12660,7 +12665,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (getParent() != null) {
             ((View) getParent()).invalidate();
         }
-        if (currentMessageObject != null && currentMessageObject.pengramDeleted) {
+        if (currentMessageObject != null && (currentMessageObject.pengramDeleted
+                || currentMessageObject.pengramArchived)) {
             // The search highlight is shown at full opacity; put the fade back
             // as soon as the highlight goes away.
             pengramUpdateFade();
@@ -18650,7 +18656,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         pengramMarkDrawn = false;
         pengramMarkWidth = 0;
         int pengramMarkRes = 0;
-        if (currentMessageObject.pengramDeleted) {
+        if (currentMessageObject.pengramDeleted || currentMessageObject.pengramArchived) {
             pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();
         } else if (edited) {
             pengramMarkRes = org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
@@ -20383,6 +20389,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     resetUrlPaths();
                 }
                 highlightedQuote = false;
+                // The bubble was drawn opaque for the blink; return the deleted
+                // fade now instead of waiting for the next recycle.
+                if (currentMessageObject != null && (currentMessageObject.pengramDeleted
+                        || currentMessageObject.pengramArchived)) {
+                    pengramUpdateFade();
+                }
             }
             invalidate();
             if (getParent() != null) {
@@ -24082,7 +24094,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         // в плашке времени живёт метка «удалено»/«изменено» — без неё удалённый стикер
         // ничем не отличается от обычного, поэтому такие сообщения не трогаем
-        if (pengramMarkDrawn || msg.pengramDeleted) {
+        if (pengramMarkDrawn || msg.pengramDeleted || msg.pengramArchived) {
             return false;
         }
         if (msg.isRoundVideo()) {
@@ -28275,8 +28287,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean pengramFaded() {
         // A search hit is highlighted in full opacity: the standard blink would
         // otherwise be almost invisible on a 55%-transparent deleted bubble.
-        return currentMessageObject != null && currentMessageObject.pengramDeleted
-                && !isHighlighted && org.telegram.messenger.PengramConfig.isFadingDeleted();
+        final MessageObject message = currentMessageObject;
+        if (message == null || !(message.pengramDeleted || message.pengramArchived)) {
+            return false;
+        }
+        if (!org.telegram.messenger.PengramConfig.isFadingDeleted()) {
+            return false;
+        }
+        // The blink itself has to be readable: brighten the bubble while the
+        // standard search highlight runs, then fade it back.
+        return !isHighlighted && highlightProgress <= 0;
     }
 
     /**

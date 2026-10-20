@@ -129,6 +129,9 @@ public final class PengramQuoteMaker {
         final ArrayList<Entry> albumEntries = new ArrayList<>();
         final ArrayList<Bitmap> albumImages = new ArrayList<>();
         int imageHeight, height, width;
+        boolean grouped;
+        boolean timeInline;
+        int gapBefore = 13;
     }
 
     private static final class Result {
@@ -704,7 +707,7 @@ public final class PengramQuoteMaker {
                                  boolean dark, int style, boolean jpeg, boolean sticker,
                                  QuotePalette palette, String chatName) throws Exception {
         final boolean followTheme = PengramConfig.getBool(KEY_THEME_STYLE, true);
-        final int accent = followTheme ? palette.ink
+        int accent = followTheme ? palette.ink
                 : new int[]{0xff5685f8, 0xff23ad85, 0xffd26496, 0xffeda546}[style];
         int bgType = sticker && PengramConfig.getBool(KEY_STICKER_TRANSPARENT, true) ? 1
                 : Math.max(0, Math.min(2, PengramConfig.getIntCached(KEY_BACKGROUND, 0)));
@@ -723,6 +726,9 @@ public final class PengramQuoteMaker {
         final int muted = followTheme ? palette.muted : dark ? 0xffa6b4ca : 0xff77869c;
         final boolean darkSurface = (Color.red(surface) * 299 + Color.green(surface) * 587
                 + Color.blue(surface) * 114) < 128000;
+        // A fixed accent can vanish on a dark or a white card. Keep the sender
+        // name readable instead of trusting the theme blindly.
+        accent = readableOn(accent, surface);
         float fontScale = Math.max(1f, Math.min(1.55f, activity.getResources().getConfiguration().fontScale));
         final boolean showAvatars = PengramConfig.getBool(KEY_NAME, true)
                 && PengramConfig.getBool(KEY_AVATAR, true);
@@ -746,7 +752,15 @@ public final class PengramQuoteMaker {
         final boolean hideMentions = PengramConfig.getBool(KEY_ANON_MENTIONS, false);
         for (int i = 0; i < entries.size(); i++) {
             final Entry e = entries.get(i);
-            final String name = showNames ? e.name : null;
+            // Consecutive messages from one sender are one group: the face and
+            // the name are printed once and the bubbles sit closer together,
+            // exactly like a dialog looks in the chat itself.
+            final boolean grouped = i > 0 && e.senderId != 0
+                    && entries.get(i - 1).senderId == e.senderId
+                    && TextUtils.equals(entries.get(i - 1).name, e.name);
+            e.grouped = grouped;
+            e.gapBefore = i == 0 ? 0 : grouped ? 6 : 13;
+            final String name = showNames && !grouped ? e.name : null;
             final String time = showTimes ? e.time : null;
             e.imageHeight = 0;
             e.media = null;
@@ -774,8 +788,6 @@ public final class PengramQuoteMaker {
             e.layout = TextUtils.isEmpty(displayText) ? null : new StaticLayout(displayText, body, contentWidth,
                     Layout.Alignment.ALIGN_NORMAL, 1.18f, 0, false);
             final int textHeight = e.layout == null ? 0 : e.layout.getHeight();
-            e.height = 26 + (name == null ? 0 : nameHeight) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
-                    + textHeight + (time == null ? 0 : timeHeight) + 23;
             float lineWidth = 0;
             if (e.layout != null) for (int line = 0; line < e.layout.getLineCount(); line++) {
                 lineWidth = Math.max(lineWidth, e.layout.getLineWidth(line));
@@ -785,7 +797,15 @@ public final class PengramQuoteMaker {
             float timeWidth = time == null ? 0 : body.measureText(time) * .76f;
             e.width = e.imageHeight > 0 ? WIDTH - pad * 2 : Math.min(WIDTH - pad * 2,
                     Math.max(230, Math.round(Math.max(lineWidth, Math.max(nameWidth, timeWidth)) + 76)));
-            total += e.height + 13;
+            // The time fits on the last text line often enough. Drawing it there
+            // removes an empty row and makes the card look typeset, not stacked.
+            if (time != null && e.layout != null && e.layout.getLineCount() > 0) {
+                final float lastLine = e.layout.getLineWidth(e.layout.getLineCount() - 1);
+                e.timeInline = 36 + lastLine + 12 + timeWidth <= e.width - 20;
+            }
+            e.height = 26 + (name == null ? 0 : nameHeight) + (e.imageHeight == 0 ? 0 : e.imageHeight + 14)
+                    + textHeight + (time == null || e.timeInline ? 0 : timeHeight) + 23;
+            total += e.height + e.gapBefore;
         }
         total += pad + 8;
         // Long albums should still render: reduce only the requested export scale,
@@ -805,11 +825,18 @@ public final class PengramQuoteMaker {
                 drawWallpaper(canvas, palette.wallpaper, total, paint);
             }
             int y = pad + 8;
+            final float mediaRadius = Math.max(6f, Math.min(18f, radius * 0.62f));
             for (Entry e : entries) {
-                final String name = showNames ? e.name : null;
+                final String name = showNames && !e.grouped ? e.name : null;
                 final String time = showTimes ? e.time : null;
+                y += e.gapBefore;
+                final RectF card = new RectF(pad, y, pad + e.width, y + e.height);
+                // A quote is a picture: the cards need their own soft shadow to
+                // separate from a wallpaper, plus a hairline on light themes.
+                drawCardShadow(canvas, card, radius, darkSurface, paint);
                 paint.setColor(surface);
-                canvas.drawRoundRect(new RectF(pad, y, pad + e.width, y + e.height), radius, radius, paint);
+                canvas.drawRoundRect(card, radius, radius, paint);
+                drawCardBorder(canvas, card, radius, darkSurface, paint);
                 int inner = y + 26;
                 if (name != null) {
                     paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -827,7 +854,9 @@ public final class PengramQuoteMaker {
                         if (face != null) {
                             canvas.save();
                             android.graphics.Path clip = new android.graphics.Path();
-                            if (roundedAvatar) clip.addRoundRect(faceRect, 7 * fontScale, 7 * fontScale,
+                            final float avatarRadius = roundedAvatar
+                                    ? Math.max(6f, avatarSize * 0.32f) : half;
+                            if (roundedAvatar) clip.addRoundRect(faceRect, avatarRadius, avatarRadius,
                                     android.graphics.Path.Direction.CW);
                             else clip.addCircle(cx, cy, half, android.graphics.Path.Direction.CW);
                             canvas.clipPath(clip);
@@ -840,7 +869,8 @@ public final class PengramQuoteMaker {
                             if (face != e.avatar) face.recycle();
                         } else {
                             paint.setColor(accent);
-                            if (roundedAvatar) canvas.drawRoundRect(faceRect, 7 * fontScale, 7 * fontScale, paint);
+                            if (roundedAvatar) canvas.drawRoundRect(faceRect, Math.max(6f, avatarSize * 0.32f),
+                                    Math.max(6f, avatarSize * 0.32f), paint);
                             else canvas.drawCircle(cx, cy, half, paint);
                             String initial = name.substring(0, Character.charCount(name.codePointAt(0)));
                             final boolean darkAccent = (Color.red(accent) * 299
@@ -851,6 +881,18 @@ public final class PengramQuoteMaker {
                             Paint.FontMetrics fm = paint.getFontMetrics();
                             canvas.drawText(initial, cx, cy - (fm.ascent + fm.descent) / 2f, paint);
                         }
+                        // Hairline ring: keeps the face readable on a bubble of
+                        // almost the same color as the avatar background.
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(Math.max(1f, 1.5f * fontScale));
+                        paint.setColor(darkSurface ? 0x2EFFFFFF : 0x26000000);
+                        if (roundedAvatar) {
+                            final float ringRadius = Math.max(6f, avatarSize * 0.32f);
+                            canvas.drawRoundRect(faceRect, ringRadius, ringRadius, paint);
+                        } else {
+                            canvas.drawCircle(cx, cy, Math.max(0, half - 0.75f * fontScale), paint);
+                        }
+                        paint.setStyle(Paint.Style.FILL);
                         // The face bitmap uses a white paint; restore name color,
                         // size and alignment for both the cached and fallback path.
                         paint.setColor(accent);
@@ -876,17 +918,17 @@ public final class PengramQuoteMaker {
                             int x = contentLeft + (j % 2) * (cell + 8);
                             int top = inner + (j / 2) * (cell + 8);
                             RectF bounds = new RectF(x, top, x + cell, top + cell);
-                            if (image != null) drawImage(canvas, paint, image, bounds, !tile.sticker, tile.sticker, surface);
-                            else drawMissingMedia(canvas, paint, bounds, tile.missingMediaLabel + " · " + tile.unavailableLabel, muted);
+                            if (image != null) drawImage(canvas, paint, image, bounds, !tile.sticker, tile.sticker, surface, mediaRadius);
+                            else drawMissingMedia(canvas, paint, bounds, tile.missingMediaLabel + " · " + tile.unavailableLabel, muted, mediaRadius);
                             if (image != null && tile.motion) drawPlayIcon(canvas, paint, x + 32, top + 32);
                         }
                     } else {
                         RectF bounds = new RectF(contentLeft, inner, WIDTH - contentLeft, inner + e.imageHeight);
                         if (e.media != null) {
-                            drawImage(canvas, paint, e.media, bounds, false, e.sticker, surface);
+                            drawImage(canvas, paint, e.media, bounds, false, e.sticker, surface, mediaRadius);
                             if (e.motion) drawPlayIcon(canvas, paint, contentLeft + 32, inner + 32);
                         } else {
-                            drawMissingMedia(canvas, paint, bounds, e.missingMediaLabel + " · " + e.unavailableLabel, muted);
+                            drawMissingMedia(canvas, paint, bounds, e.missingMediaLabel + " · " + e.unavailableLabel, muted, mediaRadius);
                         }
                     }
                     inner += e.imageHeight + 14;
@@ -902,10 +944,16 @@ public final class PengramQuoteMaker {
                     paint.setColor(muted);
                     paint.setTextSize(19 * fontScale);
                     paint.setTypeface(android.graphics.Typeface.DEFAULT);
-                    canvas.drawText(time, Math.max(contentLeft,
-                            pad + e.width - 20 - paint.measureText(time)), inner + 24 * fontScale, paint);
+                    if (e.timeInline && e.layout != null && e.layout.getLineCount() > 0) {
+                        final int last = e.layout.getLineCount() - 1;
+                        final float baseline = inner - e.layout.getHeight() + e.layout.getLineBaseline(last);
+                        canvas.drawText(time, contentLeft + e.layout.getLineWidth(last) + 12, baseline, paint);
+                    } else {
+                        canvas.drawText(time, Math.max(contentLeft,
+                                pad + e.width - 20 - paint.measureText(time)), inner + 24 * fontScale, paint);
+                    }
                 }
-                y += e.height + 13;
+                y += e.height;
             }
             if (PengramConfig.getBool(KEY_WATERMARK, false)) {
                 drawWatermark(canvas, total, PengramConfig.getBool(KEY_NAME, true) ? chatName : "",
@@ -970,34 +1018,145 @@ public final class PengramQuoteMaker {
         }
     }
 
-    private static void drawPlayIcon(Canvas canvas, Paint paint, float cx, float cy) {
-        paint.setColor(0xB3000000);
-        canvas.drawCircle(cx, cy, 23, paint);
-        paint.setColor(Color.WHITE);
-        paint.setTextSize(24);
-        paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        canvas.drawText("▶", cx - 10, cy + 8, paint);
-        paint.setTypeface(android.graphics.Typeface.DEFAULT);
+    /** Soft elevation for a card: several translucent layers, no blur filter. */
+    private static void drawCardShadow(Canvas canvas, RectF card, float radius, boolean dark, Paint paint) {
+        final float step = 1.7f;
+        final int layers = 5;
+        final Paint.Style oldStyle = paint.getStyle();
+        paint.setStyle(Paint.Style.FILL);
+        for (int i = layers; i >= 1; i--) {
+            final float grow = step * i;
+            final RectF shadow = new RectF(card.left - grow, card.top - grow + grow * 0.55f,
+                    card.right + grow, card.bottom + grow + grow * 0.55f);
+            paint.setColor(0xFF000000);
+            paint.setAlpha(dark ? 20 : 10);
+            canvas.drawRoundRect(shadow, radius + grow, radius + grow, paint);
+        }
+        paint.setAlpha(255);
+        paint.setStyle(oldStyle);
     }
 
-    private static void drawMissingMedia(Canvas canvas, Paint paint, RectF dest, String label, int muted) {
-        paint.setColor((muted & 0x00ffffff) | 0x22000000);
-        canvas.drawRoundRect(dest, 15, 15, paint);
+    /** A hairline stops a white card from melting into a light background. */
+    private static void drawCardBorder(Canvas canvas, RectF card, float radius, boolean dark, Paint paint) {
+        final Paint.Style oldStyle = paint.getStyle();
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1.5f);
+        paint.setColor(dark ? 0x1FFFFFFF : 0x14000000);
+        final float inset = 0.75f;
+        canvas.drawRoundRect(new RectF(card.left + inset, card.top + inset,
+                card.right - inset, card.bottom - inset), radius, radius, paint);
+        paint.setStyle(oldStyle);
+    }
+
+    /** Relative luminance of an sRGB color (WCAG 2.1). */
+    private static double luminance(int color) {
+        final double[] channel = new double[3];
+        final int[] raw = {Color.red(color), Color.green(color), Color.blue(color)};
+        for (int i = 0; i < 3; i++) {
+            final double c = raw[i] / 255.0;
+            channel[i] = c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        }
+        return channel[0] * 0.2126 + channel[1] * 0.7152 + channel[2] * 0.0722;
+    }
+
+    private static double contrast(int a, int b) {
+        final double la = luminance(a), lb = luminance(b);
+        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+    }
+
+    /** Blend towards white or black until the text is readable on the card. */
+    private static int readableOn(int color, int surface) {
+        if (contrast(color, surface) >= 3.0) {
+            return color;
+        }
+        final boolean dark = luminance(surface) < 0.5;
+        for (int i = 1; i <= 10; i++) {
+            final float ratio = i * 0.1f;
+            final int blended = Color.argb(Color.alpha(color),
+                    Math.round(Color.red(color) + ((dark ? 255 : 0) - Color.red(color)) * ratio),
+                    Math.round(Color.green(color) + ((dark ? 255 : 0) - Color.green(color)) * ratio),
+                    Math.round(Color.blue(color) + ((dark ? 255 : 0) - Color.blue(color)) * ratio));
+            if (contrast(blended, surface) >= 3.0) {
+                return blended;
+            }
+        }
+        return dark ? Color.WHITE : Color.BLACK;
+    }
+
+    private static void drawPlayIcon(Canvas canvas, Paint paint, float cx, float cy) {
+        // A drawn triangle instead of a font glyph: the same shape on every device.
+        final Paint.Style oldStyle = paint.getStyle();
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(0x40000000);
+        canvas.drawCircle(cx, cy, 26, paint);
+        paint.setColor(0xA6000000);
+        canvas.drawCircle(cx, cy, 21, paint);
+        paint.setColor(Color.WHITE);
+        final android.graphics.Path triangle = new android.graphics.Path();
+        triangle.moveTo(cx - 6, cy - 9);
+        triangle.lineTo(cx + 10, cy);
+        triangle.lineTo(cx - 6, cy + 9);
+        triangle.close();
+        paint.setStyle(Paint.Style.FILL_AND_STROKE);
+        paint.setStrokeWidth(2.5f);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        canvas.drawPath(triangle, paint);
+        paint.setStyle(oldStyle);
+        paint.setStrokeJoin(Paint.Join.MITER);
+    }
+
+    private static void drawMissingMedia(Canvas canvas, Paint paint, RectF dest, String label, int muted, float radius) {
+        final Paint.Style oldStyle = paint.getStyle();
+        paint.setStyle(Paint.Style.FILL);
         paint.setColor(muted);
-        paint.setTextSize(22);
+        paint.setAlpha(26);
+        canvas.drawRoundRect(dest, radius, radius, paint);
+        paint.setAlpha(255);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1.5f);
+        paint.setAlpha(70);
+        canvas.drawRoundRect(new RectF(dest.left + 1, dest.top + 1, dest.right - 1, dest.bottom - 1),
+                Math.max(0, radius - 1), Math.max(0, radius - 1), paint);
+        paint.setStyle(Paint.Style.FILL);
+        // A tiny picture glyph, so the empty tile reads as "media missing".
+        final float gx = dest.centerX();
+        final float gy = dest.centerY() - radius * 1.15f - 6;
+        paint.setAlpha(90);
+        canvas.drawRoundRect(gx - 21, gy - 15, gx + 21, gy + 15, 6, 6, paint);
+        paint.setAlpha(255);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2);
+        paint.setAlpha(150);
+        canvas.drawCircle(gx - 9, gy - 6, 3.5f, paint);
+        canvas.drawPath(mediaGlyph(new android.graphics.Path(), gx, gy), paint);
+        paint.setAlpha(255);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(muted);
+        paint.setTextSize(21);
         paint.setTypeface(android.graphics.Typeface.DEFAULT);
         paint.setTextAlign(Paint.Align.CENTER);
         canvas.drawText(TextUtils.ellipsize(label, new TextPaint(paint),
-                Math.max(12, dest.width() - 20), TextUtils.TruncateAt.END).toString(),
-                dest.centerX(), dest.centerY() + 8, paint);
+                Math.max(12, dest.width() - 24), TextUtils.TruncateAt.END).toString(),
+                dest.centerX(), gy + 34, paint);
         paint.setTextAlign(Paint.Align.LEFT);
+        paint.setStyle(oldStyle);
+    }
+
+    private static android.graphics.Path mediaGlyph(android.graphics.Path path, float cx, float cy) {
+        path.reset();
+        path.moveTo(cx - 15, cy + 9);
+        path.lineTo(cx - 4, cy - 2);
+        path.lineTo(cx + 3, cy + 5);
+        path.lineTo(cx + 8, cy);
+        path.lineTo(cx + 15, cy + 9);
+        return path;
     }
 
     private static void drawImage(Canvas canvas, Paint paint, Bitmap media, RectF dest,
-                                  boolean crop, boolean sticker, int surface) {
+                                  boolean crop, boolean sticker, int surface, float radius) {
         canvas.save();
         android.graphics.Path clip = new android.graphics.Path();
-        clip.addRoundRect(dest, 15, 15, android.graphics.Path.Direction.CW);
+        clip.addRoundRect(dest, radius, radius, android.graphics.Path.Direction.CW);
         canvas.clipPath(clip);
         // A sticker keeps its alpha: do not paint a blue JPEG-like thumbnail behind it.
         if (!sticker) {

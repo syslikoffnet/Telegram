@@ -423,6 +423,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
         if (entry.action == PengramHistory.ACTION_DELETED) {
             messageObject.pengramDeleted = true;
+            messageObject.pengramArchived = true;
         }
         Item item = new Item();
         item.entry = entry;

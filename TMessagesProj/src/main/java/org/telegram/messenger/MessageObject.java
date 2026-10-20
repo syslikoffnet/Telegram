@@ -227,6 +227,11 @@ public class MessageObject {
     public boolean deleted;
     /** Pengram: сообщение удалено собеседником, но оставлено локально */
     public boolean pengramDeleted;
+    /** Pengram: снимок из архива удалёнок — удалён по определению, даже если
+     * метка ещё не подгружена в кэш (иначе такой пузырь «светлеет») */
+    public boolean pengramArchived;
+    /** Pengram: к какому архивному id относится снимок (для навигации поиска) */
+    public long pengramArchiveRowId;
     public boolean deletedByThanos;
     public float audioProgress;
     public float forceSeekTo = -1;

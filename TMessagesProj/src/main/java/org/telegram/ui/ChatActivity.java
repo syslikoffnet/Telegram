@@ -1916,6 +1916,18 @@ public class ChatActivity extends BaseFragment implements
         if (message == null) {
             return;
         }
+        if (message.pengramArchived) {
+            // A snapshot from the archive is a deleted message by definition:
+            // never ask the mark cache about it, it may not be loaded yet and
+            // the bubble would silently turn into an ordinary one.
+            message.pengramDeleted = true;
+            if (cell instanceof ChatMessageCell) {
+                ((ChatMessageCell) cell).pengramUpdateFade();
+            } else if (cell != null) {
+                cell.setAlpha(pengramAlphaFor(message));
+            }
+            return;
+        }
         boolean deleted = false;
         boolean known = false;
         try {
@@ -2144,7 +2156,8 @@ public class ChatActivity extends BaseFragment implements
 
     /** Pengram: прозрачность ячейки для текущего состояния сообщения */
     private float pengramAlphaFor(MessageObject message) {
-        return message != null && message.pengramDeleted && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+        return message != null && (message.pengramDeleted || message.pengramArchived)
+                && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
     }
 
     /**
@@ -2304,6 +2317,8 @@ public class ChatActivity extends BaseFragment implements
         // Обычное сообщение должно показывать обычное «Переслать», с автором
         // и без повторной загрузки файла. Копирование — только для случаев,
         // где обычный серверный forward невозможен, и локальных удалёнок.
+        // Archived snapshots always carry pengramDeleted, see the ghost and
+        // search-adapter constructors, so one flag is enough here.
         return message.pengramDeleted
                 || org.telegram.messenger.PengramCopySender.isProtected(message);
     }
@@ -18540,7 +18555,14 @@ public class ChatActivity extends BaseFragment implements
         if (sideControlsButtonsLayout == null) {
             return;
         }
-        boolean show = !getMediaDataController().searchResultMessages.isEmpty() && searching && !searchingFiltered || chatMode == MODE_SEARCH && searchType == SEARCH_PUBLIC_POSTS && !messages.isEmpty();
+        // Archived hits live only in the local database: a chat whose messages
+        // were deleted on the server still needs the navigation arrows.
+        final boolean hasLocalHits = searching && !searchingFiltered && searchType == 0
+                && messagesSearchAdapter != null && messagesSearchAdapter.getLocalDeletedCount() > 0
+                && isCurrentLocalDeletedQuery(messagesSearchAdapter.getLocalQuery());
+        boolean show = hasLocalHits
+                || !getMediaDataController().searchResultMessages.isEmpty() && searching && !searchingFiltered
+                || chatMode == MODE_SEARCH && searchType == SEARCH_PUBLIC_POSTS && !messages.isEmpty();
 
         sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP, show, animated);
         sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_DOWN, show, animated);
@@ -25217,6 +25239,9 @@ public class ChatActivity extends BaseFragment implements
                 updateSearchUpDownButtonVisibility(true);
                 boolean jumpToMessage = (Boolean) args[6];
                 updateSearchButtons((Integer) args[2], (Integer) args[4], (Integer) args[5]);
+                if (pendingLocalSearchIndex >= 0) {
+                    pengramResumeLocalSearchNavigation();
+                }
                 // Wait for the matching local search before Telegram auto-jumps
                 // to an ordinary server hit. Keep a selected deleted ghost in view.
                 if (pendingDeletedSearchQuery != null) {
@@ -28581,6 +28606,16 @@ public class ChatActivity extends BaseFragment implements
     private boolean localDeletedNavigation;
     private String pendingDeletedSearchQuery;
     private boolean pendingDeletedServerResult;
+    // The merged search list contains both server hits and archived snapshots.
+    // Navigation is remembered by the hit identity, not by a raw index: the list
+    // is rebuilt whenever a page arrives and indexes would silently drift.
+    private long localSearchHitDialogId;
+    private int localSearchHitMessageId;
+    private String localSearchIndexQuery;
+    // A hit that is counted but not loaded yet: remember where the user wanted
+    // to go and resume as soon as the next page adds it.
+    private int pendingLocalSearchIndex = -1;
+    private int pendingLocalSearchOpenGeneration;
     // Search-only ghosts use real Telegram message cells, never the server DB.
     private final ArrayList<MessageObject> searchDeletedGhosts = new ArrayList<>();
 
@@ -28596,6 +28631,8 @@ public class ChatActivity extends BaseFragment implements
     private int pendingGhostRetries;
     private Runnable pendingGhostTimeout;
     private Runnable pendingGhostRetry;
+    private Runnable pendingGhostSpinnerShow;
+    private AlertDialog pendingGhostSpinner;
     private int pengramGhostScrollWait;
 
     private boolean isCurrentLocalDeletedQuery(String query) {
@@ -28605,13 +28642,27 @@ public class ChatActivity extends BaseFragment implements
 
     private void onLocalDeletedSearchResults() {
         if (messagesSearchAdapter == null || searchType != 0) return;
-        localDeletedSearchIndex = -1;
         final String query = messagesSearchAdapter.getLocalQuery();
         if (!isCurrentLocalDeletedQuery(query)) return;
+        if (!TextUtils.equals(localSearchIndexQuery, query)) {
+            // A new query invalidates the highlighted hit; the same query only
+            // refreshed its data and must keep the current position.
+            localSearchIndexQuery = query;
+            localDeletedSearchIndex = -1;
+            localSearchHitMessageId = 0;
+            localSearchHitDialogId = 0;
+            pendingLocalSearchIndex = -1;
+        }
         // Keep Telegram's search-in-chat view. Never open a result list or a
         // separate archive while the user is still typing.
         updateSearchButtons(getMediaDataController().getMask(), getMediaDataController().getSearchPosition(),
                 getMediaDataController().getSearchCount());
+        // Local hits are the only source of arrows for a chat whose history was
+        // deleted on the server: show them without waiting for the next packet.
+        updateSearchUpDownButtonVisibility(true);
+        if (pendingLocalSearchIndex >= 0) {
+            pengramResumeLocalSearchNavigation();
+        }
         if (TextUtils.equals(pendingDeletedSearchQuery, query)) {
             pendingDeletedSearchQuery = null;
             PengramHistory.Entry archived = messagesSearchAdapter.getLocalDeletedAt(0);
@@ -28621,6 +28672,92 @@ public class ChatActivity extends BaseFragment implements
                 getMediaDataController().jumpToSearchedMessage(classGuid, 0);
             }
             pendingDeletedServerResult = false;
+        }
+    }
+
+    /**
+     * Index of the currently opened local search hit inside the merged result
+     * list, or -1 when nothing has been opened yet for this query.
+     */
+    private int pengramCurrentLocalSearchIndex() {
+        if (messagesSearchAdapter == null) {
+            return -1;
+        }
+        if (localSearchHitMessageId != 0) {
+            final int byId = messagesSearchAdapter.indexOfResult(localSearchHitDialogId, localSearchHitMessageId);
+            if (byId >= 0) {
+                localDeletedSearchIndex = byId;
+                return byId;
+            }
+        }
+        if (localDeletedSearchIndex >= 0 && localDeletedSearchIndex < messagesSearchAdapter.loadedCount) {
+            return localDeletedSearchIndex;
+        }
+        return -1;
+    }
+
+    /** Ordinary hits and archived snapshots are counted together. */
+    private int pengramLocalSearchTotal() {
+        if (messagesSearchAdapter == null) {
+            return 0;
+        }
+        return Math.max(messagesSearchAdapter.loadedCount,
+                getMediaDataController().getSearchCount() + messagesSearchAdapter.getAdditionalDeletedCount());
+    }
+
+    /**
+     * The target row is counted by the header but its page has not arrived yet:
+     * load it and reopen the hit once the adapter has it. Without this the
+     * arrow looks broken — the counter says 21 while only one row is loaded.
+     */
+    private void pengramResumeLocalSearchNavigation() {
+        if (pendingLocalSearchIndex < 0 || messagesSearchAdapter == null || !localDeletedNavigation) {
+            return;
+        }
+        final int target = pendingLocalSearchIndex;
+        if (target < messagesSearchAdapter.loadedCount) {
+            pendingLocalSearchIndex = -1;
+            pengramOpenLocalSearchResult(target);
+            return;
+        }
+        if (getMediaDataController().searchEndReached() || ++pendingLocalSearchOpenGeneration > 8) {
+            // Nothing else can arrive: stop pretending the arrow can move and
+            // clamp the counter to the rows that really exist.
+            pendingLocalSearchIndex = -1;
+            pendingLocalSearchOpenGeneration = 0;
+            updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
+                    messagesSearchAdapter.loadedCount - messagesSearchAdapter.getAdditionalDeletedCount());
+            return;
+        }
+        getMediaDataController().loadMoreSearchMessages(true);
+        final int generation = pendingLocalSearchOpenGeneration;
+        AndroidUtilities.runOnUIThread(() -> {
+            if (generation == pendingLocalSearchOpenGeneration) {
+                pengramResumeLocalSearchNavigation();
+            }
+        }, 700);
+    }
+
+    private void pengramOpenLocalSearchResult(int position) {
+        if (messagesSearchAdapter == null) {
+            return;
+        }
+        final MessageObject result = messagesSearchAdapter.getLoadedResult(position);
+        if (result == null) {
+            return;
+        }
+        localDeletedSearchIndex = position;
+        localSearchHitDialogId = result.getDialogId();
+        localSearchHitMessageId = result.getId();
+        updateSearchButtons(getMediaDataController().getMask(), position, getMediaDataController().getSearchCount());
+        final PengramHistory.Entry deleted = messagesSearchAdapter.getDeletedResult(result);
+        if (deleted != null) {
+            navigateToDeletedSearchResult(deleted);
+        } else {
+            setFilterMessages(false);
+            showMessagesSearchListView(false);
+            scrollToMessageId(result.getId(), 0, true,
+                    result.getDialogId() == dialog_id ? 0 : 1, true, 0);
         }
     }
 
@@ -28636,7 +28773,8 @@ public class ChatActivity extends BaseFragment implements
         }
         // The cell may not have been bound yet, so pengramDeleted is not always
         // set even though the mark is already loaded from the local DB.
-        final boolean marked = loaded.pengramDeleted || PengramHistory.marksLoaded(currentAccount, dialog_id)
+        final boolean marked = loaded.pengramDeleted || loaded.pengramArchived
+                || PengramHistory.marksLoaded(currentAccount, dialog_id)
                 && PengramHistory.isMarkedDeleted(currentAccount, dialog_id, loaded.getId());
         if (!marked) {
             return false;
@@ -28660,6 +28798,17 @@ public class ChatActivity extends BaseFragment implements
         if (pendingGhostRetry != null) {
             AndroidUtilities.cancelRunOnUIThread(pendingGhostRetry);
             pendingGhostRetry = null;
+        }
+        if (pendingGhostSpinnerShow != null) {
+            AndroidUtilities.cancelRunOnUIThread(pendingGhostSpinnerShow);
+            pendingGhostSpinnerShow = null;
+        }
+        if (pendingGhostSpinner != null) {
+            final AlertDialog spinner = pendingGhostSpinner;
+            pendingGhostSpinner = null;
+            try {
+                spinner.dismiss();
+            } catch (Throwable ignore) {}
         }
     }
 
@@ -28747,6 +28896,8 @@ public class ChatActivity extends BaseFragment implements
                 if (previous && !TextUtils.isEmpty(saved.prevMediaPath)) msg.attachPath = saved.prevMediaPath;
                 MessageObject ghost = new MessageObject(currentAccount, msg, true, true);
                 ghost.pengramDeleted = true;
+                ghost.pengramArchived = true;
+                ghost.pengramArchiveRowId = saved.rowId;
                 ghost.stableId = lastStableId++;
                 if (chatAdapter.isFiltered) setFilterMessages(false);
                 // Newest first: skip messages newer than the snapshot, but step
@@ -28829,7 +28980,10 @@ public class ChatActivity extends BaseFragment implements
         int index = chatAdapter.getMessages().indexOf(ghost);
         if (index < 0) return;
         removeSelectedMessageHighlight();
-        highlightMessageId = ghost.getId();
+        // Do not reuse the id here: an ordinary message with the same id exists,
+        // and highlighting by id would blink the wrong row.
+        highlightMessageId = Integer.MAX_VALUE;
+        AndroidUtilities.runOnUIThread(() -> pengramBlinkGhostCell(ghost, 0), 60);
         final int position = chatAdapter.messagesStartRow + index;
         final int yOffset = getScrollOffsetForMessage(ghost);
         final int first = chatLayoutManager.findFirstVisibleItemPosition();
@@ -28871,9 +29025,36 @@ public class ChatActivity extends BaseFragment implements
         updatePagedownButtonVisibility(true);
     }
 
+    /**
+     * Blink a snapshot that cannot own its message id (an ordinary server row
+     * with the same id exists). The cell is found by object identity, so the
+     * wrong bubble is never highlighted.
+     */
+    private void pengramBlinkGhostCell(MessageObject ghost, int attempt) {
+        if (chatListView == null || ghost == null) {
+            return;
+        }
+        for (int i = 0; i < chatListView.getChildCount(); i++) {
+            final View child = chatListView.getChildAt(i);
+            if (child instanceof ChatMessageCell) {
+                final ChatMessageCell cell = (ChatMessageCell) child;
+                if (cell.getMessageObject() == ghost) {
+                    cell.setHighlightedAnimated();
+                    cell.invalidate();
+                    return;
+                }
+            }
+        }
+        if (attempt < 20) {
+            AndroidUtilities.runOnUIThread(() -> pengramBlinkGhostCell(ghost, attempt + 1), 50);
+        }
+    }
+
     private void navigateToDeletedSearchResult(PengramHistory.Entry entry) {
         if (entry == null || entry.account != currentAccount || getParentActivity() == null
                 || getUserConfig().getClientUserId() == 0) return;
+        localSearchHitDialogId = entry.dialogId;
+        localSearchHitMessageId = entry.messageId;
         if (messagesSearchAdapter != null && searchType == 0) {
             int position = messagesSearchAdapter.indexOfResult(entry.dialogId, entry.messageId);
             if (position >= 0) {
@@ -28883,6 +29064,15 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         final String query = messagesSearchAdapter != null ? messagesSearchAdapter.getLocalQuery() : "";
+        if (entry.dialogId != dialog_id && entry.dialogId == mergeDialogId && mergeDialogId != 0
+                && chatMode == MODE_DEFAULT) {
+            // A migrated group keeps its old history in the merge dialog. The
+            // snapshot cannot be injected there, but an ordinary retained bubble
+            // is still reachable by Telegram's own loader.
+            showMessagesSearchListView(false);
+            scrollToMessageId(entry.messageId, 0, true, 1, true, 0);
+            return;
+        }
         if (entry.dialogId != dialog_id || chatMode != MODE_DEFAULT) {
             // The archived snapshot belongs to one concrete chat. Other modes
             // keep their own navigation instead of injecting a foreign bubble.
@@ -28941,6 +29131,23 @@ public class ChatActivity extends BaseFragment implements
         pendingGhostQuery = query == null ? "" : query;
         pendingGhostLoadIndex = -1;
         pendingGhostRetries = 0;
+        // The context load is usually instant thanks to the local cache. If it
+        // takes longer, show the same spinner Telegram uses for its own jumps
+        // instead of leaving the user without any feedback.
+        pendingGhostSpinnerShow = () -> {
+            pendingGhostSpinnerShow = null;
+            if (pendingGhostEntry == null || getParentActivity() == null) return;
+            final AlertDialog spinner = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
+            spinner.setCanceledOnTouchOutside(false);
+            pendingGhostSpinner = spinner;
+            showDialog(spinner, dialog -> {
+                if (pendingGhostSpinner == spinner) {
+                    pendingGhostSpinner = null;
+                }
+                pengramCancelPendingGhost();
+            });
+        };
+        AndroidUtilities.runOnUIThread(pendingGhostSpinnerShow, 700);
         pengramRetryGhostContext(pendingGhostRequestId, 0);
     }
 
@@ -29087,18 +29294,35 @@ public class ChatActivity extends BaseFragment implements
                 && messagesSearchAdapter.getLocalDeletedCount() > 0 && !TextUtils.isEmpty(searchingQuery)
                 && isCurrentLocalDeletedQuery(messagesSearchAdapter.getLocalQuery());
         if (localDeletedNavigation) {
-            int loaded = messagesSearchAdapter.loadedCount;
-            count = Math.max(loaded, count + messagesSearchAdapter.getAdditionalDeletedCount());
-            if (localDeletedSearchIndex < 0) {
+            final int loaded = messagesSearchAdapter.loadedCount;
+            final int total = Math.max(loaded, count + messagesSearchAdapter.getAdditionalDeletedCount());
+            if (pengramCurrentLocalSearchIndex() < 0) {
+                // Nothing was opened for this query yet: continue from the hit
+                // Telegram itself selected, if it is part of the merged list.
                 ArrayList<MessageObject> nativeResults = getMediaDataController().getFoundMessageObjects();
                 if (num >= 0 && num < nativeResults.size()) {
                     MessageObject nativeHit = nativeResults.get(num);
-                    localDeletedSearchIndex = messagesSearchAdapter.indexOfResult(nativeHit.getDialogId(), nativeHit.getId());
+                    final int position = messagesSearchAdapter.indexOfResult(nativeHit.getDialogId(), nativeHit.getId());
+                    if (position >= 0) {
+                        localDeletedSearchIndex = position;
+                        localSearchHitDialogId = nativeHit.getDialogId();
+                        localSearchHitMessageId = nativeHit.getId();
+                    }
                 }
             }
+            if (localDeletedSearchIndex < 0) {
+                localDeletedSearchIndex = 0;
+            }
+            if (loaded > 0 && localDeletedSearchIndex >= loaded) {
+                localDeletedSearchIndex = loaded - 1;
+            }
             num = Math.max(0, localDeletedSearchIndex);
-            mask = (num + 1 < loaded || (mask & 1) != 0 ? (reversed ? 2 : 1) : 0)
-                    | (num > 0 ? (reversed ? 1 : 2) : 0);
+            count = Math.max(total, num + 1);
+            // Arrows are enabled by the *total* number of hits, not by the rows
+            // that happen to be paged in: the next tap loads the missing page.
+            final boolean canNext = num + 1 < count;
+            final boolean canPrev = num > 0;
+            mask = (canNext ? (reversed ? 2 : 1) : 0) | (canPrev ? (reversed ? 1 : 2) : 0);
         }
         if (sideControlsButtonsLayout != null) {
             sideControlsButtonsLayout.setButtonEnabled(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP, (mask & (reversed ? 2 : 1)) != 0, true);
@@ -40767,6 +40991,10 @@ public class ChatActivity extends BaseFragment implements
             pendingDeletedSearchQuery = null;
             pendingDeletedServerResult = false;
             localDeletedSearchIndex = -1;
+            localSearchHitDialogId = 0;
+            localSearchHitMessageId = 0;
+            pendingLocalSearchIndex = -1;
+            pendingLocalSearchOpenGeneration = 0;
             pengramCancelPendingGhost();
             clearSearchDeletedGhosts();
             updatePagedownButtonVisibility(true);
@@ -41037,6 +41265,10 @@ public class ChatActivity extends BaseFragment implements
                 pendingDeletedSearchQuery = null;
                 pendingDeletedServerResult = false;
                 localDeletedSearchIndex = -1;
+                localSearchHitDialogId = 0;
+                localSearchHitMessageId = 0;
+                pendingLocalSearchIndex = -1;
+                pendingLocalSearchOpenGeneration = 0;
                 pengramCancelPendingGhost();
             }
             if (editText != null && !TextUtils.equals(searchingQuery, editText.getText().toString())
@@ -41744,7 +41976,7 @@ public class ChatActivity extends BaseFragment implements
             if (messageObject == null) {
                 return;
             }
-            if (messageObject.pengramDeleted) {
+            if (messageObject.pengramDeleted || messageObject.pengramArchived) {
                 presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_DELETED));
             } else if (PengramConfig.isEditHistoryMarkEnabled()) {
                 presentFragment(new PengramHistoryChatActivity(messageObject.getDialogId(),
@@ -49302,24 +49534,29 @@ public class ChatActivity extends BaseFragment implements
         if (chatMode == MODE_SEARCH) {
             HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex + (searchUp ? 1 : -1), searchType);
         } else if (localDeletedNavigation && messagesSearchAdapter != null) {
-            int next = localDeletedSearchIndex + (searchUp ? 1 : -1);
-            MessageObject result = messagesSearchAdapter.getLoadedResult(next);
-            if (result != null) {
-                localDeletedSearchIndex = next;
-                updateSearchButtons(getMediaDataController().getMask(), next,
+            final int from = pengramCurrentLocalSearchIndex();
+            final int next = (from < 0 ? 0 : from) + (searchUp ? 1 : -1);
+            final int total = pengramLocalSearchTotal();
+            if (next < 0 || next >= total) {
+                // Boundary of the merged list: just refresh the arrows so the
+                // disabled direction is visible immediately.
+                updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
                         getMediaDataController().getSearchCount());
-                PengramHistory.Entry deleted = messagesSearchAdapter.getDeletedResult(result);
-                if (deleted != null) {
-                    navigateToDeletedSearchResult(deleted);
-                } else {
-                    setFilterMessages(false);
-                    showMessagesSearchListView(false);
-                    scrollToMessageId(result.getId(), 0, true,
-                            result.getDialogId() == dialog_id ? 0 : 1, true, 0);
-                }
-            } else if (searchUp && next >= messagesSearchAdapter.loadedCount) {
-                getMediaDataController().loadMoreSearchMessages(true);
+                return;
             }
+            final MessageObject result = messagesSearchAdapter.getLoadedResult(next);
+            if (result == null) {
+                // Counted but not paged in yet: load the missing page and keep
+                // the requested position instead of dropping the tap.
+                pendingLocalSearchIndex = next;
+                pendingLocalSearchOpenGeneration = 0;
+                updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
+                        getMediaDataController().getSearchCount());
+                getMediaDataController().loadMoreSearchMessages(true);
+                pengramResumeLocalSearchNavigation();
+                return;
+            }
+            pengramOpenLocalSearchResult(next);
         } else {
             getMediaDataController().searchMessagesInChat(null, dialog_id, mergeDialogId, classGuid, searchUp ? (reversed ? 2 : 1) : (reversed ? 1 : 2), threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
             showMessagesSearchListView(false);
