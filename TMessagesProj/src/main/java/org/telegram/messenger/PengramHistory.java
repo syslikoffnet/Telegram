@@ -1061,6 +1061,41 @@ public class PengramHistory extends SQLiteOpenHelper {
         return result;
     }
 
+    /** Read one archived search hit, including its original TL snapshot, on a worker. */
+    public static Entry getDeletedEntry(int account, long rowId) {
+        PengramHistory history = getInstance();
+        if (history == null || rowId <= 0 || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return null;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery(
+                    "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out, data, prev_data, prev_media_path " +
+                            "FROM " + TABLE + " WHERE account = ? AND id = ? AND action = ? LIMIT 1",
+                    new String[]{String.valueOf(account), String.valueOf(rowId), String.valueOf(ACTION_DELETED)});
+            if (!c.moveToFirst()) return null;
+            Entry e = new Entry();
+            e.rowId = c.getLong(0);
+            e.account = c.getInt(1);
+            e.dialogId = c.getLong(2);
+            e.messageId = c.getInt(3);
+            e.fromId = c.getLong(4);
+            e.date = c.getInt(5);
+            e.savedAt = c.getInt(6);
+            e.action = c.getInt(7);
+            e.text = c.getString(8);
+            e.prevText = c.getString(9);
+            e.out = c.getInt(10) != 0;
+            e.data = c.getBlob(11);
+            e.prevData = c.getBlob(12);
+            e.prevMediaPath = c.getString(13);
+            return e;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        } finally {
+            if (c != null) c.close();
+        }
+    }
+
     /** Stream deleted snapshots for one account/dialog without materialising the whole history. */
     public interface DeletedVisitor {
         void visit(Entry entry) throws Exception;

@@ -69,6 +69,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
     private final ArrayList<MessageObject> searchResultMessages = new ArrayList<>();
     private final ArrayList<PengramHistory.Entry> localDeleted = new ArrayList<>();
     private final IdentityHashMap<MessageObject, PengramHistory.Entry> deletedResults = new IdentityHashMap<>();
+    private int additionalDeletedCount;
     private String localQuery = "";
     private long localDialogId, localMergeDialogId;
     private int localGeneration;
@@ -90,6 +91,22 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
     public PengramHistory.Entry getDeletedResult(MessageObject message) {
         return deletedResults.get(message);
+    }
+
+    public int getAdditionalDeletedCount() {
+        return additionalDeletedCount;
+    }
+
+    public MessageObject getLoadedResult(int position) {
+        return position >= 0 && position < searchResultMessages.size() ? searchResultMessages.get(position) : null;
+    }
+
+    public int indexOfResult(long dialogId, int messageId) {
+        for (int i = 0; i < searchResultMessages.size(); i++) {
+            MessageObject result = searchResultMessages.get(i);
+            if (result.getDialogId() == dialogId && result.getId() == messageId) return i;
+        }
+        return -1;
     }
 
     public void searchLocalDeleted(String query, long dialogId, long mergeDialogId,
@@ -212,6 +229,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
         searchResultMessages.clear();
         deletedResults.clear();
+        additionalDeletedCount = 0;
         messageIds.clear();
         ArrayList<MessageObject> searchResults = searchType == 0 ? MediaDataController.getInstance(currentAccount).getFoundMessageObjects() : HashtagSearchController.getInstance(currentAccount).getMessages(searchType);
         for (int i = 0; i < searchResults.size(); ++i) {
@@ -268,6 +286,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                     } else {
                         positions.put(key, searchResultMessages.size());
                         searchResultMessages.add(object);
+                        additionalDeletedCount++;
                     }
                 } catch (Throwable ignore) { // corrupt old history row must not break search
                 }

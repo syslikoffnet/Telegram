@@ -32,24 +32,23 @@ assert 'seenDeleted.contains(key)' in adapter
 assert '() -> showMessagesSearchListView(true)' not in chat
 assert 'getLocalDeletedAt' in adapter and 'localDeletedNavigation' in chat
 assert 'deletedSearchShortcut' not in chat
-assert 'jumpToFirstRetainedDeleted(query, 0)' in chat
-readable = chat.split('private boolean isReadableDeletedBubble(', 1)[1].split('private void jumpToFirstRetainedDeleted(', 1)[0]
+readable = chat.split('private boolean isReadableDeletedBubble(', 1)[1].split('private void clearSearchDeletedGhosts(', 1)[0]
 assert 'loaded.pengramDeleted' in readable
 assert 'TextUtils.equals(loaded.messageOwner.message, entry.text)' in readable
-jump = chat.split('private void jumpToFirstRetainedDeleted(', 1)[1].split('private void navigateToDeletedSearchResult(', 1)[0]
-assert 'isReadableDeletedBubble(messagesDict[0].get(hit.messageId), hit, query)' in jump
-assert 'hasLocalMessage(' not in jump and 'scrollToMessageId(hit.messageId' in jump
 navigate = chat.split('private void navigateToDeletedSearchResult(', 1)[1].split('private void updateSearchButtons(', 1)[0]
 assert 'isReadableDeletedBubble(messagesDict[0].get(entry.messageId), entry, query)' in navigate
 assert 'hasLocalMessage(' not in navigate and 'ChatActivity.of(' not in navigate
-assert 'PengramHistoryChatActivity.MODE_DELETED, entry.messageId, entry.rowId, query' in navigate
-assert 'reader.setCurrentAccount(currentAccount)' in navigate
-assert 'searchCountText.setVisibility(localDeletedNavigation ? View.GONE : View.VISIBLE)' in chat
-assert 'focusedRowId = focusedRowId' in screen
-assert 'searchItem.setSearchFieldText(searchQuery, false)' in screen
-assert 'items.get(i).entry.rowId == focusedRowId' in screen
-assert '&& !TextUtils.isEmpty(entry.prevText)' in screen
-assert '(count == 0 || localDeletedSearchIndex >= 0)' in chat
+assert 'showDeletedSearchGhost(entry, query)' in navigate
+assert 'getDeletedEntry(currentAccount, hit.rowId)' in chat
+assert 'saved.account != currentAccount' in chat
+assert 'messages.add(at, ghost)' in chat and 'ghost.pengramDeleted = true' in chat
+assert 'messagesByDays.put(ghost.dateKey, day)' in chat
+assert 'clearSearchDeletedGhosts();' in chat
+assert 'getAdditionalDeletedCount()' in chat and 'searchCountText.setVisibility(View.VISIBLE)' in chat
+assert 'getLoadedResult(next)' in chat and 'getDeletedResult(result)' in chat
+assert 'getDeletedEntry(int account, long rowId)' in history
+assert 'account = ? AND id = ? AND action = ? LIMIT 1' in history
+assert 'pendingDeletedSearchQuery' in chat
 assert 'navigateToDeletedSearchResult(deleted)' in chat
 for locale in ('values', 'values-ru'):
     resources = ET.parse(root / f'TMessagesProj/src/main/res/{locale}/strings.xml')

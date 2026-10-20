@@ -8747,6 +8747,13 @@ public class ChatActivity extends BaseFragment implements
                         showMessagesSearchListView(false);
                     }
                 });
+            } else if (obj instanceof MessageObject && localDeletedNavigation) {
+                MessageObject hit = (MessageObject) obj;
+                localDeletedSearchIndex = messagesSearchAdapter.indexOfResult(hit.getDialogId(), hit.getId());
+                updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
+                        getMediaDataController().getSearchCount());
+                showMessagesSearchListView(false);
+                scrollToMessageId(hit.getId(), 0, true, hit.getDialogId() == dialog_id ? 0 : 1, true, 0);
             } else {
                 getMediaDataController().jumpToSearchedMessage(classGuid, position);
                 showMessagesSearchListView(false);
@@ -25197,9 +25204,18 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.chatSearchResultsAvailable) {
             if (classGuid == (Integer) args[0]) {
+                if (messagesSearchAdapter != null) messagesSearchAdapter.notifyDataSetChanged();
                 updateSearchUpDownButtonVisibility(true);
                 boolean jumpToMessage = (Boolean) args[6];
                 updateSearchButtons((Integer) args[2], (Integer) args[4], (Integer) args[5]);
+                // Wait for the matching local search before Telegram auto-jumps
+                // to an ordinary server hit. Keep a selected deleted ghost in view.
+                if (pendingDeletedSearchQuery != null) {
+                    pendingDeletedServerResult |= jumpToMessage;
+                    jumpToMessage = false;
+                } else if (localDeletedNavigation && localDeletedSearchIndex >= 0) {
+                    jumpToMessage = false;
+                }
                 if (jumpToMessage) {
                     int messageId = (Integer) args[1];
                     long did = (Long) args[3];
@@ -28554,6 +28570,10 @@ public class ChatActivity extends BaseFragment implements
 
     private int localDeletedSearchIndex = -1;
     private boolean localDeletedNavigation;
+    private String pendingDeletedSearchQuery;
+    private boolean pendingDeletedServerResult;
+    // Search-only ghosts use real Telegram message cells, never the server DB.
+    private final ArrayList<MessageObject> searchDeletedGhosts = new ArrayList<>();
 
     private boolean isCurrentLocalDeletedQuery(String query) {
         return searchItem != null && searchItem.getSearchField() != null
@@ -28567,11 +28587,17 @@ public class ChatActivity extends BaseFragment implements
         if (!isCurrentLocalDeletedQuery(query)) return;
         // Keep Telegram's search-in-chat view. Never open a result list or a
         // separate archive while the user is still typing.
-        if (getMediaDataController().getSearchCount() == 0) {
-            updateSearchButtons(0, 0, 0);
-        }
-        if (chatMode != MODE_SEARCH && !TextUtils.isEmpty(query)) {
-            jumpToFirstRetainedDeleted(query, 0);
+        updateSearchButtons(getMediaDataController().getMask(), getMediaDataController().getSearchPosition(),
+                getMediaDataController().getSearchCount());
+        if (TextUtils.equals(pendingDeletedSearchQuery, query)) {
+            pendingDeletedSearchQuery = null;
+            PengramHistory.Entry archived = messagesSearchAdapter.getLocalDeletedAt(0);
+            if (archived != null) {
+                navigateToDeletedSearchResult(archived);
+            } else if (pendingDeletedServerResult) {
+                getMediaDataController().jumpToSearchedMessage(classGuid, 0);
+            }
+            pendingDeletedServerResult = false;
         }
     }
 
@@ -28587,33 +28613,138 @@ public class ChatActivity extends BaseFragment implements
                 && entry.text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT));
     }
 
-    /** While typing, jump only to an already loaded and readable ghost.
-     * Do not scroll to an archived id that could load an ordinary message. */
-    private void jumpToFirstRetainedDeleted(String query, int index) {
-        if (messagesSearchAdapter == null || !isCurrentLocalDeletedQuery(query)
-                || index >= messagesSearchAdapter.getLocalDeletedCount()) return;
-        PengramHistory.Entry hit = messagesSearchAdapter.getLocalDeletedAt(index);
-        if (hit != null && hit.dialogId == dialog_id && hit.account == currentAccount
-                && isReadableDeletedBubble(messagesDict[0].get(hit.messageId), hit, query)) {
-            localDeletedSearchIndex = index;
-            if (localDeletedNavigation) updateSearchButtons(0, index, 0);
-            showMessagesSearchListView(false);
-            scrollToMessageId(hit.messageId, 0, true, 0, true, 0);
-        } else {
-            jumpToFirstRetainedDeleted(query, index + 1);
+    /** Do not leave a search-only snapshot in the ordinary chat after search closes. */
+    private void clearSearchDeletedGhosts() {
+        if (searchDeletedGhosts.isEmpty()) return;
+        for (MessageObject ghost : searchDeletedGhosts) {
+            messages.remove(ghost);
+            if (messagesDict[0].get(ghost.getId()) == ghost) {
+                messagesDict[0].remove(ghost.getId());
+            }
+            ArrayList<MessageObject> day = messagesByDays.get(ghost.dateKey);
+            if (day != null) {
+                day.remove(ghost);
+                if (day.isEmpty()) {
+                    messagesByDays.remove(ghost.dateKey);
+                    messagesByDaysSorted.remove(ghost.dateKeyInt);
+                    for (int i = messages.size() - 1; i >= 0; i--) {
+                        MessageObject item = messages.get(i);
+                        if (item.isDateObject && ghost.dateKey.equals(item.dateKey)) {
+                            messages.remove(i);
+                            break;
+                        }
+                    }
+                }
+            }
         }
+        searchDeletedGhosts.clear();
+        if (chatAdapter != null) chatAdapter.notifyDataSetChanged(false);
+    }
+
+    /** Show the archived snapshot inside the real chat, next to messages of
+     * its date. It exists only in this view, not in Telegram's server/cache. */
+    private void showDeletedSearchGhost(PengramHistory.Entry hit, String query) {
+        if (hit == null || hit.account != currentAccount || hit.dialogId != dialog_id
+                || getParentActivity() == null || chatMode != MODE_DEFAULT) return;
+        final long owner = getUserConfig().getClientUserId();
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final PengramHistory.Entry saved = PengramHistory.getDeletedEntry(currentAccount, hit.rowId);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (saved == null || saved.dialogId != dialog_id || saved.messageId != hit.messageId
+                        || saved.account != currentAccount || getParentActivity() == null
+                        || getUserConfig().getClientUserId() != owner || !isCurrentLocalDeletedQuery(query)
+                        || chatAdapter == null || chatListView == null) return;
+                for (MessageObject ghost : searchDeletedGhosts) {
+                    if (ghost.getId() == saved.messageId && ghost.getDialogId() == saved.dialogId) {
+                        scrollToSearchGhost(ghost);
+                        return;
+                    }
+                }
+                String text = saved.text;
+                boolean previous = !TextUtils.isEmpty(query) && !TextUtils.isEmpty(saved.prevText)
+                        && saved.prevText.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT))
+                        && (TextUtils.isEmpty(text) || !text.toLowerCase(java.util.Locale.ROOT).contains(query.toLowerCase(java.util.Locale.ROOT)));
+                if (previous) text = saved.prevText;
+                // A previous caption without its media snapshot must not borrow
+                // the newer attachment and misrepresent the deleted version.
+                TLRPC.Message msg = PengramHistory.deserialize(previous ? saved.prevData : saved.data, currentAccount);
+                if (msg == null) msg = new TLRPC.TL_message();
+                if (!TextUtils.equals(msg.message, text)) {
+                    msg.message = text == null ? "" : text;
+                    if (msg.entities != null) msg.entities.clear();
+                }
+                msg.id = saved.messageId;
+                msg.dialog_id = saved.dialogId;
+                msg.date = saved.date != 0 ? saved.date : saved.savedAt;
+                msg.out = saved.out;
+                msg.unread = false;
+                msg.send_state = MessageObject.MESSAGE_SEND_STATE_SENT;
+                if (msg.peer_id == null) msg.peer_id = getMessagesController().getPeer(saved.dialogId);
+                if (msg.from_id == null) {
+                    msg.from_id = getMessagesController().getPeer(saved.fromId != 0 ? saved.fromId : saved.dialogId);
+                    msg.flags |= TLRPC.MESSAGE_FLAG_HAS_FROM_ID;
+                }
+                if (msg.media == null) msg.media = new TLRPC.TL_messageMediaEmpty();
+                if (previous && !TextUtils.isEmpty(saved.prevMediaPath)) msg.attachPath = saved.prevMediaPath;
+                MessageObject ghost = new MessageObject(currentAccount, msg, true, true);
+                ghost.pengramDeleted = true;
+                ghost.stableId = lastStableId++;
+                if (chatAdapter.isFiltered) setFilterMessages(false);
+                int at = 0;
+                while (at < messages.size() && messages.get(at).messageOwner.date >= msg.date) at++;
+                messages.add(at, ghost);
+                ArrayList<MessageObject> day = messagesByDays.get(ghost.dateKey);
+                if (day == null) {
+                    day = new ArrayList<>();
+                    messagesByDays.put(ghost.dateKey, day);
+                    messagesByDaysSorted.put(ghost.dateKeyInt, day);
+                    TLRPC.TL_message date = new TLRPC.TL_message();
+                    date.message = LocaleController.formatDateChat(msg.date);
+                    java.util.Calendar calendar = java.util.Calendar.getInstance();
+                    calendar.setTimeInMillis((long) msg.date * 1000);
+                    calendar.set(java.util.Calendar.HOUR_OF_DAY, 0);
+                    calendar.set(java.util.Calendar.MINUTE, 0);
+                    calendar.set(java.util.Calendar.SECOND, 0);
+                    calendar.set(java.util.Calendar.MILLISECOND, 0);
+                    date.date = (int) (calendar.getTimeInMillis() / 1000);
+                    MessageObject separator = new MessageObject(currentAccount, date, false, false);
+                    separator.type = MessageObject.TYPE_DATE;
+                    separator.contentType = 1;
+                    separator.isDateObject = true;
+                    separator.stableId = getStableIdForDateObject(ghost.dateKeyInt);
+                    messages.add(at + 1, separator);
+                }
+                int dayAt = 0;
+                while (dayAt < day.size() && day.get(dayAt).messageOwner.date >= msg.date) dayAt++;
+                day.add(dayAt, ghost);
+                if (messagesDict[0].get(msg.id) == null) messagesDict[0].put(msg.id, ghost);
+                searchDeletedGhosts.add(ghost);
+                chatAdapter.notifyDataSetChanged(false);
+                scrollToSearchGhost(ghost);
+            });
+        });
+    }
+
+    private void scrollToSearchGhost(MessageObject ghost) {
+        if (chatAdapter == null || chatListView == null || ghost == null) return;
+        showMessagesSearchListView(false);
+        int index = chatAdapter.getMessages().indexOf(ghost);
+        if (index < 0) return;
+        chatAdapter.updateRowsSafe();
+        chatLayoutManager.scrollToPositionWithOffset(chatAdapter.messagesStartRow + index,
+                getScrollOffsetForMessage(ghost));
+        updateVisibleRows();
     }
 
     private void navigateToDeletedSearchResult(PengramHistory.Entry entry) {
         if (entry == null || entry.account != currentAccount || getParentActivity() == null
                 || getUserConfig().getClientUserId() == 0) return;
         if (messagesSearchAdapter != null && searchType == 0) {
-            for (int i = 0; i < messagesSearchAdapter.getLocalDeletedCount(); i++) {
-                if (messagesSearchAdapter.getLocalDeletedAt(i) == entry) {
-                    localDeletedSearchIndex = i;
-                    updateSearchButtons(0, i, 0);
-                    break;
-                }
+            int position = messagesSearchAdapter.indexOfResult(entry.dialogId, entry.messageId);
+            if (position >= 0) {
+                localDeletedSearchIndex = position;
+                updateSearchButtons(getMediaDataController().getMask(), position,
+                        getMediaDataController().getSearchCount());
             }
         }
         final String query = messagesSearchAdapter != null ? messagesSearchAdapter.getLocalQuery() : "";
@@ -28623,25 +28754,28 @@ public class ChatActivity extends BaseFragment implements
             scrollToMessageId(entry.messageId, 0, true, 0, true, 0);
             return;
         }
-        // This hit is an archived snapshot, not a server message. Show that
-        // snapshot even if an ordinary cached message happens to have its id.
-        PengramHistoryChatActivity reader = new PengramHistoryChatActivity(entry.dialogId,
-                PengramHistoryChatActivity.MODE_DELETED, entry.messageId, entry.rowId, query);
-        reader.setCurrentAccount(currentAccount);
-        presentFragment(reader);
+        // Never ask Telegram's server for a deleted id or open a separate
+        // archive. Render the original snapshot as a local chat bubble.
+        showDeletedSearchGhost(entry, query);
     }
 
     private void updateSearchButtons(int mask, int num, int count) {
-        localDeletedNavigation = searchType == 0 && (count == 0 || localDeletedSearchIndex >= 0)
-                && messagesSearchAdapter != null && messagesSearchAdapter.getLocalDeletedCount() > 0
-                && !TextUtils.isEmpty(searchingQuery);
+        localDeletedNavigation = searchType == 0 && messagesSearchAdapter != null
+                && messagesSearchAdapter.getLocalDeletedCount() > 0 && !TextUtils.isEmpty(searchingQuery)
+                && isCurrentLocalDeletedQuery(messagesSearchAdapter.getLocalQuery());
         if (localDeletedNavigation) {
-            count = messagesSearchAdapter.getLocalDeletedCount();
-            localDeletedSearchIndex = Math.min(localDeletedSearchIndex, count - 1);
+            int loaded = messagesSearchAdapter.loadedCount;
+            count = Math.max(loaded, count + messagesSearchAdapter.getAdditionalDeletedCount());
+            if (localDeletedSearchIndex < 0) {
+                ArrayList<MessageObject> nativeResults = getMediaDataController().getFoundMessageObjects();
+                if (num >= 0 && num < nativeResults.size()) {
+                    MessageObject nativeHit = nativeResults.get(num);
+                    localDeletedSearchIndex = messagesSearchAdapter.indexOfResult(nativeHit.getDialogId(), nativeHit.getId());
+                }
+            }
             num = Math.max(0, localDeletedSearchIndex);
-            // Local-only hits use Telegram's existing arrows, not another badge.
-            mask = (localDeletedSearchIndex + 1 < count ? (reversed ? 2 : 1) : 0)
-                    | (localDeletedSearchIndex > 0 ? (reversed ? 1 : 2) : 0);
+            mask = (num + 1 < loaded || (mask & 1) != 0 ? (reversed ? 2 : 1) : 0)
+                    | (num > 0 ? (reversed ? 1 : 2) : 0);
         }
         if (sideControlsButtonsLayout != null) {
             sideControlsButtonsLayout.setButtonEnabled(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP, (mask & (reversed ? 2 : 1)) != 0, true);
@@ -28651,9 +28785,8 @@ public class ChatActivity extends BaseFragment implements
         searchLastIndex = num;
         updateSearchCountText();
         if (searchCountText != null) {
-            // No separate counter for preserved deletions. Keep the original
-            // counter unchanged for ordinary search results.
-            searchCountText.setVisibility(localDeletedNavigation ? View.GONE : View.VISIBLE);
+            // One shared Telegram counter for ordinary and locally deleted hits.
+            searchCountText.setVisibility(View.VISIBLE);
         }
         if (searchExpandList != null) {
             searchExpandList.setClickable(count > 0);
@@ -40308,6 +40441,10 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public void onSearchCollapse() {
             searching = false;
+            pendingDeletedSearchQuery = null;
+            pendingDeletedServerResult = false;
+            localDeletedSearchIndex = -1;
+            clearSearchDeletedGhosts();
             updatePagedownButtonVisibility(true);
             updateSearchUpDownButtonVisibility(true);
             if (searchCalendarButton != null) {
@@ -40552,15 +40689,33 @@ public class ChatActivity extends BaseFragment implements
             }
 
             if (messagesSearchAdapter != null) {
+                boolean includeDeleted = !hashtags && threadMessageId == 0 && searchingReaction == null
+                        && searchingUserMessages == null && searchingChatMessages == null;
+                pendingDeletedSearchQuery = includeDeleted && !TextUtils.isEmpty(searchingQuery)
+                        ? searchingQuery.trim() : null;
+                pendingDeletedServerResult = false;
                 messagesSearchAdapter.searchLocalDeleted(searchingQuery, dialog_id, mergeDialogId,
-                        threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
-                        ChatActivity.this::onLocalDeletedSearchResults);
+                        includeDeleted, ChatActivity.this::onLocalDeletedSearchResults);
+                // Typing can have completed the local query before Enter. The
+                // adapter's same-query fast path will not invoke the callback.
+                if (pendingDeletedSearchQuery != null
+                        && TextUtils.equals(pendingDeletedSearchQuery, messagesSearchAdapter.getLocalQuery())
+                        && messagesSearchAdapter.getLocalDeletedCount() > 0) {
+                    onLocalDeletedSearchResults();
+                }
             }
             getMediaDataController().searchMessagesInChat(searchingQuery, dialog_id, mergeDialogId, classGuid, 0, threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
         }
 
         @Override
         public void onTextChanged(EditText editText) {
+            if (editText != null && !TextUtils.equals(pendingDeletedSearchQuery, editText.getText().toString().trim())) {
+                pendingDeletedSearchQuery = null;
+                pendingDeletedServerResult = false;
+                localDeletedSearchIndex = -1;
+            }
+            if (editText != null && !TextUtils.equals(searchingQuery, editText.getText().toString())
+                    && !searchDeletedGhosts.isEmpty()) clearSearchDeletedGhosts();
             if (messagesSearchAdapter != null && editText != null) {
                 messagesSearchAdapter.searchLocalDeleted(editText.getText().toString(), dialog_id, mergeDialogId,
                         threadMessageId == 0 && searchingReaction == null && searchingUserMessages == null && searchingChatMessages == null,
@@ -48820,11 +48975,22 @@ public class ChatActivity extends BaseFragment implements
             HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex + (searchUp ? 1 : -1), searchType);
         } else if (localDeletedNavigation && messagesSearchAdapter != null) {
             int next = localDeletedSearchIndex + (searchUp ? 1 : -1);
-            PengramHistory.Entry entry = messagesSearchAdapter.getLocalDeletedAt(next);
-            if (entry != null) {
+            MessageObject result = messagesSearchAdapter.getLoadedResult(next);
+            if (result != null) {
                 localDeletedSearchIndex = next;
-                updateSearchButtons(0, next, 0);
-                navigateToDeletedSearchResult(entry);
+                updateSearchButtons(getMediaDataController().getMask(), next,
+                        getMediaDataController().getSearchCount());
+                PengramHistory.Entry deleted = messagesSearchAdapter.getDeletedResult(result);
+                if (deleted != null) {
+                    navigateToDeletedSearchResult(deleted);
+                } else {
+                    setFilterMessages(false);
+                    showMessagesSearchListView(false);
+                    scrollToMessageId(result.getId(), 0, true,
+                            result.getDialogId() == dialog_id ? 0 : 1, true, 0);
+                }
+            } else if (searchUp && next >= messagesSearchAdapter.loadedCount) {
+                getMediaDataController().loadMoreSearchMessages(true);
             }
         } else {
             getMediaDataController().searchMessagesInChat(null, dialog_id, mergeDialogId, classGuid, searchUp ? (reversed ? 2 : 1) : (reversed ? 1 : 2), threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
