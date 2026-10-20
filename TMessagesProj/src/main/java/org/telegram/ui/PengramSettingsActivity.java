@@ -770,6 +770,17 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
         if (position < 0) {
+            // Совсем безымянные строки (слайдеры) ищутся по заголовку группы:
+            // подсветить сам слайдер нечем, но экран уже прокручен к нему.
+            for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+                final UItem item = listView.adapter.getItem(i);
+                if (item != null && item.text != null && TextUtils.equals(target, item.text)) {
+                    position = i;
+                    break;
+                }
+            }
+        }
+        if (position < 0) {
             // Раздел мог ещё не построить строки — ждём и пробуем снова.
             if (tries < 12 && listView.adapter.getItemCount() < 3) {
                 AndroidUtilities.runOnUIThread(() -> pengramJumpTo(stringRes, tries + 1), 60);

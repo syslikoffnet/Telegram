@@ -34295,6 +34295,14 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
                 }
+                // Островок стоит вплотную к строкам меню: скругление на стыке
+                // убираем, иначе над/под полосой остаётся «пустой» закруглённый край.
+                final boolean islandAtTop = messageIslandView != null
+                        && org.telegram.messenger.PengramConfig.getMessageIslandPosition()
+                        != org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM;
+                final boolean islandAtBottom = messageIslandView != null
+                        && org.telegram.messenger.PengramConfig.getMessageIslandPosition()
+                        == org.telegram.messenger.PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM;
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 for (int a = 0, N = items.size(); a < N; a++) {
                     final Integer option = options.get(a);
@@ -34302,7 +34310,8 @@ public class ChatActivity extends BaseFragment implements
                         continue;
                     }
 
-                    ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(), a == 0, a == N - 1, themeDelegate);
+                    ActionBarMenuSubItem cell = new ActionBarMenuSubItem(getParentActivity(),
+                            a == 0 && !islandAtTop, a == N - 1 && !islandAtBottom, themeDelegate);
                     cell.setMinimumWidth(AndroidUtilities.dp(200));
                     cell.setTextAndIcon(items.get(a), icons.get(a));
 

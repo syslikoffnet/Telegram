@@ -39,6 +39,8 @@ assert 'pengramTagRows(items);' in SETTINGS
 assert 'item.object instanceof Integer && (Integer) item.object == stringRes' in SETTINGS
 assert 'private void pengramJumpTo(int stringRes, int tries)' in SETTINGS
 assert "if (tries < 12 && listView.adapter.getItemCount() < 3)" in SETTINGS
+# заголовок группы — последний шанс для строк без собственного текста (слайдеры)
+assert SETTINGS.count('TextUtils.equals(target, item.text)') == 2
 assert 'R.string.PengramSearchParentOff' in SETTINGS
 
 # --- история запросов ---------------------------------------------------------

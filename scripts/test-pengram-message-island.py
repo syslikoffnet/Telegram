@@ -94,6 +94,15 @@ assert 'setVisibility(GONE);' in island  # empty island must not leave an empty 
 assert 'MESSAGE_ISLAND_TINT_ACCENT' in island and 'MESSAGE_ISLAND_TINT_PLAIN' in island
 # a preview must not fire real actions
 assert 'if (preview || listener == null || !isAvailable(position)) {' in island
+# недоступное действие остаётся на месте, но приглушено и не нажимается
+assert 'wrapper.setAlpha(available ? 1f : 0.42f);' in island
+assert 'wrapper.setClickable(!preview && available);' in island
+# ширина считается от реального места в поповере, а не от ширины экрана
+assert 'protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec)' in island
+assert 'Math.max(itemMinWidth, fit)' in island
+assert 'getDisplayMetrics().widthPixels' in island
+# скругление на стыке меню и полосы убирается
+assert 'a == 0 && !islandAtTop, a == N - 1 && !islandAtBottom' in menu
 
 # --- settings + reorder screen ----------------------------------------------
 assert 'BTN_MESSAGE_ISLAND_ITEMS = 1031;' in settings
