@@ -22,9 +22,15 @@ protected = copy.split('public static boolean isProtected(', 1)[1].split('public
 assert 'messageOwner.ttl_period' not in protected
 assert 'message.messageOwner.noforwards' in protected
 assert 'message.isSecretMedia()' in protected
-assert 'message.isOutOwner()' in protected
-assert 'full.noforwards_my_enabled : full.noforwards_peer_enabled' in copy
-assert 'isPeerRestricted(message.currentAccount, dialogId, message.isOutOwner())' in protected
+# Restrict saving content in a private profile can reject forwards of older
+# incoming OR outgoing messages even without messageOwner.noforwards. Treat
+# either profile switch as protecting the dialog, not just one direction.
+assert 'isPeerRestricted(message.currentAccount, dialogId)' in protected
+peer_policy = copy.split('public static boolean isPeerRestricted(int account, long dialogId)', 1)[1].split('public static boolean shouldCopy(', 1)[0]
+assert 'getUserFull(dialogId)' in peer_policy
+assert 'full.noforwards_my_enabled || full.noforwards_peer_enabled' in peer_policy
+assert 'ownMessage' not in peer_policy
+assert 'message.isOutOwner()' not in protected
 assert 'finished.compareAndSet(false, true)' in copy
 assert 'AndroidUtilities.runOnUIThread(() -> callback.run(path))' in copy
 assert 'waitingCopies.add(start)' in copy and 'waitingCopies.poll()' in copy

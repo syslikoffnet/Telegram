@@ -178,7 +178,7 @@ public final class PengramCopySender {
         // в ответ отказал бы.
         try {
             final long dialogId = message.getDialogId();
-            if (isPeerRestricted(message.currentAccount, dialogId, message.isOutOwner())) {
+            if (isPeerRestricted(message.currentAccount, dialogId)) {
                 return true;
             }
         } catch (Throwable ignore) {
@@ -187,17 +187,13 @@ public final class PengramCopySender {
     }
 
     /**
-     * Чат, из которого нельзя копировать.
-     *
-     * В личке источник проверяется для направления сообщения: настройка
-     * «защитить мои» не защищает входящие от собеседника, и наоборот.
+     * Protect the whole private dialog when either participant enabled the
+     * profile's "Restrict saving content" switch. Individual message flags
+     * are not reliable for older messages, and treating incoming/outgoing
+     * differently allowed a native forward that the server then rejected.
+     * A regular dialog still uses Telegram's attributed native forwarding.
      */
     public static boolean isPeerRestricted(int account, long dialogId) {
-        return isPeerRestricted(account, dialogId, null);
-    }
-
-    /** In a private chat each side can protect only its own messages. */
-    private static boolean isPeerRestricted(int account, long dialogId, Boolean ownMessage) {
         try {
             if (dialogId < 0) {
                 final TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
@@ -205,9 +201,7 @@ public final class PengramCopySender {
             }
             if (dialogId > 0) {
                 final TLRPC.UserFull full = MessagesController.getInstance(account).getUserFull(dialogId);
-                return full != null && (ownMessage == null
-                        ? full.noforwards_my_enabled || full.noforwards_peer_enabled
-                        : ownMessage ? full.noforwards_my_enabled : full.noforwards_peer_enabled);
+                return full != null && (full.noforwards_my_enabled || full.noforwards_peer_enabled);
             }
         } catch (Throwable e) {
             FileLog.e(e);
