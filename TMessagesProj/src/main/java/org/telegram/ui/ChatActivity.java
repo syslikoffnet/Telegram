@@ -48155,8 +48155,13 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
-                // одноразовые медиа уходят копией с диска — пункт нужен
-                final boolean pengramOnceMedia = org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()
+                // A protected message is forwarded as a new copy by
+                // SendMessagesHelper. Do not hide the entry before that path
+                // can run; keep the restriction for Verify and secret chats.
+                final boolean pengramProtectedForward = PengramConfig.isBypassingForwardRestrictions()
+                        && getDialogId() != UserObject.VERIFY && currentEncryptedChat == null
+                        && org.telegram.messenger.PengramCopySender.isProtected(selectedObject);
+                final boolean pengramOnceMedia = pengramProtectedForward
                     && selectedObject.messageOwner != null && selectedObject.messageOwner.media != null
                     && selectedObject.messageOwner.media.ttl_seconds != 0;
                 final boolean canForward = !selectedObject.isSponsored()
@@ -48165,7 +48170,7 @@ public class ChatActivity extends BaseFragment implements
                     && ((!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview()) || pengramOnceMedia)
                     && !selectedObject.isLiveLocation()
                     && selectedObject.type != MessageObject.TYPE_PHONE_CALL
-                    && !noforwards && selectedObject.type != MessageObject.TYPE_SHARING_OFFER
+                    && (!noforwards || pengramProtectedForward) && selectedObject.type != MessageObject.TYPE_SHARING_OFFER
                     && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM
                     && selectedObject.type != MessageObject.TYPE_GIFT_OFFER
                     && selectedObject.type != MessageObject.TYPE_COMMUNITY_CHANGED

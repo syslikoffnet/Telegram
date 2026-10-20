@@ -64,6 +64,17 @@ assert 'pengramCopySendError(\n                            fmessages, destinatio
 menu = chat.split('private boolean pengramCanResend(', 1)[1].split('private void pengramResend(', 1)[0]
 assert re.search(r'return message\.pengramDeleted\s*\|\|\s*org\.telegram\.messenger\.PengramCopySender\.isProtected\(message\)', menu)
 
+# The long-press menu must expose the *normal Forward action* for a protected
+# person's message when copying is enabled. Its handler then selects a chat;
+# SendMessagesHelper copies only protected items and forwards ordinary ones.
+forward_menu = chat.split('final boolean pengramProtectedForward =', 1)[1].split('if (canForward)', 1)[0]
+assert 'PengramConfig.isBypassingForwardRestrictions()' in forward_menu
+assert 'PengramCopySender.isProtected(selectedObject)' in forward_menu
+assert 'currentEncryptedChat == null' in forward_menu
+assert 'getDialogId() != UserObject.VERIFY' in forward_menu
+assert '(!noforwards || pengramProtectedForward)' in forward_menu
+assert 'options.add(OPTION_FORWARD)' in chat.split('if (canForward)', 1)[1]
+
 # Both the face and its name are measured/drawn with the same gap and size.
 for key in ('KEY_AVATAR_SIZE', 'KEY_AVATAR_GAP', 'KEY_AVATAR_ROUNDED'):
     assert key in quote and key in settings, key
