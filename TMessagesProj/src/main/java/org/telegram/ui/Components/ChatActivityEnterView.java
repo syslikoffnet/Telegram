@@ -15154,7 +15154,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (openProgress > 0 && w > 0 && h > 0) {
                     AndroidUtilities.rectTmp.set(right - w, cy - h / 2f, right, cy + h / 2f);
                     AndroidUtilities.rectTmp.inset(-dp(4), -dp(4));
-                    final float r = Math.min(w, h) / 2f + dp(4);
+                    final float r = pengramShapeRadius(w, h) + dp(4);
                     canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, scrimViewBackgroundPaint);
                 }
 
@@ -15276,7 +15276,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             updateColors();
             checkBackgroundRect();
             if (isNewDesignSendButton) {
-                canvas.drawRoundRect(backgroundRect, dp(RADIUS), dp(RADIUS), backgroundPaint);
+                final float bgRadius = Math.min(pengramShapeRadius(backgroundRect.width(), backgroundRect.height()),
+                        backgroundRect.height() / 2f);
+                canvas.drawRoundRect(backgroundRect, bgRadius, bgRadius, backgroundPaint);
             }
 
             final boolean inactive = isInactive();
@@ -15342,7 +15344,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (openProgress > 0) {
                 canvas.save();
                 path.rewind();
-                final float r = Math.min(w, h) / 2.0f;
+                final float r = Math.min(pengramShapeRadius(w, h), Math.min(w, h) / 2.0f);
                 AndroidUtilities.rectTmp.set(right - w, cy - h / 2.0f, right, cy + h / 2.0f);
                 path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
 
@@ -15622,6 +15624,21 @@ public class ChatActivityEnterView extends FrameLayout implements
                     getMeasuredWidth() - margin,
                     getMeasuredHeight() - margin
             );
+        }
+
+        /**
+         * Pengram: в Material 3 кнопка отправки — «сквиркл», как кнопка
+         * «написать» в списке чатов. Вытянутая «таблетка» с ценой звёзд
+         * остаётся стадионом: там крупное скругление выглядит обрезанным.
+         */
+        private float pengramShapeRadius(float w, float h) {
+            if (!org.telegram.messenger.PengramMD3.fab()) {
+                return Math.min(w, h) / 2f;
+            }
+            if (w > h * 1.15f) {
+                return h / 2f;
+            }
+            return dp(12);
         }
     }
 

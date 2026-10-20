@@ -421,6 +421,8 @@ public class PengramLayoutEditorActivity extends BaseFragment {
                     });
                 }
                 addOrderControls(PengramInteractivePreviewView.MENU_ROW, id);
+                // Вид самого меню тоже настраивается прямо здесь.
+                addToggle(R.string.PengramMD3Menus, PengramMD3.KEY_MENUS, true);
                 return;
             case PengramInteractivePreviewView.CHAT_BUTTON_ROW:
                 setPanelText(panelTitle, PengramConfig.getChatItemTitle(id));

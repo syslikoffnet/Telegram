@@ -412,7 +412,15 @@ public class ActionBarMenuSubItem extends FrameLayout {
     }
 
     public void updateBackground() {
-        setBackground(Theme.createRadSelectorDrawable(selectorColor, top ? selectorRad : 0, bottom ? selectorRad : 0));
+        if (org.telegram.messenger.PengramMD3.menus()) {
+            // Pengram: в Material 3 подсветка пункта меню — отдельная плашка
+            // со скруглением и отступом от краёв, а не заливка во всю ширину.
+            final Drawable pill = Theme.createRadSelectorDrawable(selectorColor,
+                    selectorRad, selectorRad, selectorRad, selectorRad);
+            setBackground(new android.graphics.drawable.InsetDrawable(pill, dp(8), dp(2), dp(8), dp(2)));
+        } else {
+            setBackground(Theme.createRadSelectorDrawable(selectorColor, top ? selectorRad : 0, bottom ? selectorRad : 0));
+        }
     }
 
     private int getThemedColor(int key) {
