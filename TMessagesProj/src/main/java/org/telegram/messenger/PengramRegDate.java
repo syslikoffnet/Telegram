@@ -91,13 +91,25 @@ public class PengramRegDate {
         final Long old = known.get(userId);
         if (old == null || unixtime < old) {
             known.put(userId, unixtime);
+            estimateCache.remove(userId);
         }
     }
+
+    /**
+     * Кэш оценок. Оценка зависит только от id и от уточнений в {@link #known},
+     * а запрашивается по нескольку раз на один и тот же профиль (строка ID,
+     * строка даты, подпись под именем) — считать её каждый раз незачем.
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, Long> estimateCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** @return примерный unixtime регистрации или 0, если оценить нельзя */
     public static long estimate(long userId) {
         if (userId <= 0) {
             return 0;
+        }
+        final Long cached = estimateCache.get(userId);
+        if (cached != null) {
+            return cached;
         }
         long value = interpolate(userId);
         if (value <= 0) {
@@ -109,7 +121,15 @@ public class PengramRegDate {
             value = upper;
         }
         final long now = System.currentTimeMillis() / 1000L;
-        return Math.min(value, now);
+        final long result = Math.min(value, now);
+        if (value < now - 3600L) {
+            // оценку в будущем не кэшируем: она «созреет» вместе со временем
+            if (estimateCache.size() > 512) {
+                estimateCache.clear();   // профили листают долго — кэш не растёт бесконечно
+            }
+            estimateCache.put(userId, result);
+        }
+        return result;
     }
 
     /** ядро: кусочно-линейная интерполяция с продолжением за последнюю точку */

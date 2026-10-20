@@ -114,9 +114,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
      * поэтому оставляем маленький воздух: на пике подскока ничего не
      * касается края текстуры.
      */
-    private static final float CAM_FILL = 0.94f;
+    private static final float CAM_FILL = 0.97f;
     /** воздух над шляпой и под лапками, в мировых единицах */
-    private static final float CAM_MARGIN = 0.06f;
+    private static final float CAM_MARGIN = 0.035f;
 
     private final float[] projection = new float[16];
     private final float[] view = new float[16];

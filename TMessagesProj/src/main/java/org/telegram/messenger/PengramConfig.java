@@ -1426,6 +1426,70 @@ public class PengramConfig {
         setBool(KEY_TAB_GLASS, value);
     }
 
+    // ---- тонкая настройка «жидкого стекла» ----------------------------------
+    // Стекло — это не один тумблер: кому-то нужна почти прозрачная плёнка,
+    // кому-то плотная плитка с толстой линзой. Значения читаются в отрисовке
+    // по многу раз за кадр, поэтому идут через кэш, а не через prefs.
+
+    /** насколько плотно стекло закрашивает размытие, 20…90 % */
+    public static final String KEY_GLASS_OPACITY = "tabBarGlassOpacity";
+    /** толщина линзы преломления, 4…30 dp */
+    public static final String KEY_GLASS_THICKNESS = "tabBarGlassThickness";
+    /** сила преломления, 0…150 % */
+    public static final String KEY_GLASS_INTENSITY = "tabBarGlassIntensity";
+    /** яркость блика под пальцем и при переключении, 0…150 % */
+    public static final String KEY_GLASS_GLOW = "tabBarGlassGlow";
+    /** бегущий блик при смене вкладки */
+    public static final String KEY_GLASS_SHEEN = "tabBarGlassSheen";
+    /** блик тянется за пальцем */
+    public static final String KEY_GLASS_DRAG = "tabBarGlassDrag";
+    /** светлый кант по кромке стекла */
+    public static final String KEY_GLASS_RIM = "tabBarGlassRim";
+
+    public static int getGlassOpacity() {
+        return Math.max(20, Math.min(90, getIntCached(KEY_GLASS_OPACITY, 42)));
+    }
+
+    public static void setGlassOpacity(int percent) {
+        setIntValue(KEY_GLASS_OPACITY, Math.max(20, Math.min(90, percent)));
+    }
+
+    public static int getGlassThicknessDp() {
+        return Math.max(4, Math.min(30, getIntCached(KEY_GLASS_THICKNESS, 16)));
+    }
+
+    public static void setGlassThicknessDp(int dp) {
+        setIntValue(KEY_GLASS_THICKNESS, Math.max(4, Math.min(30, dp)));
+    }
+
+    public static int getGlassIntensity() {
+        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_INTENSITY, 92)));
+    }
+
+    public static void setGlassIntensity(int percent) {
+        setIntValue(KEY_GLASS_INTENSITY, Math.max(0, Math.min(150, percent)));
+    }
+
+    public static int getGlassGlow() {
+        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_GLOW, 100)));
+    }
+
+    public static void setGlassGlow(int percent) {
+        setIntValue(KEY_GLASS_GLOW, Math.max(0, Math.min(150, percent)));
+    }
+
+    public static boolean isGlassSheenEnabled() {
+        return getBool(KEY_GLASS_SHEEN, true);
+    }
+
+    public static boolean isGlassDragEnabled() {
+        return getBool(KEY_GLASS_DRAG, true);
+    }
+
+    public static boolean isGlassRimEnabled() {
+        return getBool(KEY_GLASS_RIM, true);
+    }
+
     // ------------------------------- пункты экрана «Настройки» -------------------------------
 
     public static final int SETTINGS_ITEM_NOTIFICATIONS = 1;
@@ -2785,6 +2849,8 @@ public class PengramConfig {
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
             "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",
             "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
+            "tabBarGlassOpacity", "tabBarGlassThickness", "tabBarGlassIntensity",
+            "tabBarGlassGlow", "tabBarGlassSheen", "tabBarGlassDrag", "tabBarGlassRim",
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
             "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "voiceGainDb", "voiceGainPreset",

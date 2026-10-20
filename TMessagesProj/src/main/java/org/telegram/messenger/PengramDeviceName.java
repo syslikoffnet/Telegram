@@ -30,6 +30,10 @@ public final class PengramDeviceName {
     public static final String KEY_ENABLED = "deviceNameSpoof";
     /** что именно отправлять вместо реальной модели */
     public static final String KEY_VALUE = "deviceNameValue";
+    /** подменять ли версию системы вместе с именем устройства */
+    public static final String KEY_VERSION_ENABLED = "deviceVersionSpoof";
+    /** конкретная строка версии; пусто — берём подходящую к выбранной модели */
+    public static final String KEY_VERSION_VALUE = "deviceVersionValue";
 
     /**
      * Готовые варианты. Первый — «как есть» (реальное устройство), дальше
@@ -51,6 +55,37 @@ public final class PengramDeviceName {
     public static final int PRESET_REAL = 0;
     public static final int PRESET_RANDOM = -1;
 
+    // ------------------------------------------------------------------
+    // Тип устройства. Сервер и «Активные сеансы» показывают не только имя
+    // модели, но и платформу, поэтому выбранной модели нужно соответствие:
+    // iPhone — iOS, MacBook — macOS, Windows PC — Windows.
+    // ------------------------------------------------------------------
+
+    public static final int KIND_ANDROID = 0;
+    public static final int KIND_ANDROID_TABLET = 1;
+    public static final int KIND_IPHONE = 2;
+    public static final int KIND_IPAD = 3;
+    public static final int KIND_MAC = 4;
+    public static final int KIND_WINDOWS = 5;
+    public static final int KIND_LINUX = 6;
+    public static final int KIND_WEB = 7;
+
+    /**
+     * Версии для каждого типа устройства. Первая — та, что подставляется по
+     * умолчанию: она должна выглядеть как обычный свежий клиент, а не как
+     * «музейный экспонат» — по устаревшей версии легко вычислить подмену.
+     */
+    private static final String[][] KIND_VERSIONS = new String[][]{
+            {"SDK 35", "SDK 34", "SDK 33", "SDK 31"},              // KIND_ANDROID
+            {"SDK 35", "SDK 34", "SDK 33"},                        // KIND_ANDROID_TABLET
+            {"iOS 18.4", "iOS 18.0", "iOS 17.6", "iOS 16.7"},      // KIND_IPHONE
+            {"iPadOS 18.4", "iPadOS 18.0", "iPadOS 17.6"},         // KIND_IPAD
+            {"macOS 15.3", "macOS 14.6", "macOS 13.6"},            // KIND_MAC
+            {"Windows 11", "Windows 10"},                          // KIND_WINDOWS
+            {"Linux", "Ubuntu 24.04"},                             // KIND_LINUX
+            {"Web"}                                                // KIND_WEB
+    };
+
     private PengramDeviceName() {
     }
 
@@ -68,7 +103,148 @@ public final class PengramDeviceName {
     }
 
     public static void setValue(String value) {
-        PengramConfig.setStringValue(KEY_VALUE, sanitize(value));
+        final String clean = sanitize(value);
+        PengramConfig.setStringValue(KEY_VALUE, clean);
+        // Версия должна соответствовать новой модели: iPhone с «SDK 34» в
+        // сеансах выглядит как явная подмена. Пользователь может потом
+        // поставить свою версию — она сохранится до следующей смены модели.
+        PengramConfig.setStringValue(KEY_VERSION_VALUE,
+                clean.length() > 0 ? defaultVersionFor(kindOf(clean)) : "");
+    }
+
+    /** подменять ли версию системы */
+    public static boolean isVersionSpoofEnabled() {
+        return PengramConfig.getBool(KEY_VERSION_ENABLED, true);
+    }
+
+    public static void setVersionSpoofEnabled(boolean value) {
+        PengramConfig.setBool(KEY_VERSION_ENABLED, value);
+    }
+
+    /** выбранная вручную версия (может быть пустой) */
+    public static String getVersionValue() {
+        return PengramConfig.getStringValue(KEY_VERSION_VALUE, "");
+    }
+
+    public static void setVersionValue(String value) {
+        PengramConfig.setStringValue(KEY_VERSION_VALUE, sanitize(value));
+    }
+
+    /** что отправляет штатный клиент без подмены */
+    public static String realSystemVersion() {
+        return "SDK " + Build.VERSION.SDK_INT;
+    }
+
+    /**
+     * Итоговая строка версии для initConnection. Подмена версии работает
+     * только вместе с подменой имени: иначе получится «Samsung» с iOS.
+     */
+    public static String resolveSystemVersion() {
+        if (isEnabled() && isVersionSpoofEnabled()) {
+            final String custom = getVersionValue();
+            if (!TextUtils.isEmpty(custom)) {
+                return custom;
+            }
+            if (isSpoofed()) {
+                return defaultVersionFor(kind());
+            }
+        }
+        return realSystemVersion();
+    }
+
+    /** тип устройства по строке модели */
+    public static int kindOf(String model) {
+        final String m = model == null ? "" : model.toLowerCase(Locale.ROOT);
+        if (m.contains("ipad")) {
+            return KIND_IPAD;
+        }
+        if (m.contains("iphone") || m.contains("ipod")) {
+            return KIND_IPHONE;
+        }
+        if (m.contains("macbook") || m.contains("imac") || m.contains("macos")
+                || m.startsWith("mac") || m.contains(" mac")) {
+            return KIND_MAC;
+        }
+        if (m.contains("windows") || m.contains("win32") || m.equals("pc")
+                || m.endsWith(" pc") || m.startsWith("pc ")) {
+            return KIND_WINDOWS;
+        }
+        if (m.contains("linux") || m.contains("ubuntu")) {
+            return KIND_LINUX;
+        }
+        if (m.contains("web") || m.contains("browser")) {
+            return KIND_WEB;
+        }
+        if (m.contains("tab")) {
+            return KIND_ANDROID_TABLET;
+        }
+        return KIND_ANDROID;
+    }
+
+    /** тип устройства, который сейчас заявлен */
+    public static int kind() {
+        return kindOf(isSpoofed() ? getValue() : realDeviceModel());
+    }
+
+    /** иконка типа устройства — та же, что в «Активных сеансах» */
+    public static int iconResForKind(int kind) {
+        switch (kind) {
+            case KIND_IPHONE: return R.drawable.device_phone_ios;
+            case KIND_IPAD: return R.drawable.device_tablet_ios;
+            case KIND_MAC: return R.drawable.device_desktop_osx;
+            case KIND_WINDOWS: return R.drawable.device_desktop_win;
+            case KIND_LINUX: return R.drawable.device_desktop_other;
+            case KIND_WEB: return R.drawable.device_web_chrome;
+            case KIND_ANDROID_TABLET: return R.drawable.device_tablet_android;
+            case KIND_ANDROID:
+            default: return R.drawable.device_phone_android;
+        }
+    }
+
+    public static int iconRes() {
+        return iconResForKind(kind());
+    }
+
+    /** подпись типа устройства для бейджа */
+    public static int labelResForKind(int kind) {
+        switch (kind) {
+            case KIND_IPHONE: return R.string.PengramDeviceKindIphone;
+            case KIND_IPAD: return R.string.PengramDeviceKindIpad;
+            case KIND_MAC: return R.string.PengramDeviceKindMac;
+            case KIND_WINDOWS: return R.string.PengramDeviceKindWindows;
+            case KIND_LINUX: return R.string.PengramDeviceKindLinux;
+            case KIND_WEB: return R.string.PengramDeviceKindWeb;
+            case KIND_ANDROID_TABLET: return R.string.PengramDeviceKindAndroidTablet;
+            case KIND_ANDROID:
+            default: return R.string.PengramDeviceKindAndroid;
+        }
+    }
+
+    /** варианты версии для выбранного типа устройства */
+    public static String[] versionsFor(int kind) {
+        final int index = Math.max(0, Math.min(KIND_VERSIONS.length - 1, kind));
+        return KIND_VERSIONS[index];
+    }
+
+    public static String defaultVersionFor(int kind) {
+        final String[] versions = versionsFor(kind);
+        return versions.length == 0 ? realSystemVersion() : versions[0];
+    }
+
+    /**
+     * Бейдж «что за устройство» для строк настроек: тип и версия одной
+     * строкой. Именно это видно в сеансах, поэтому и подпись такая же.
+     */
+    public static String badgeSummary() {
+        return safeLabel(kind()) + " \u00b7 " + resolveSystemVersion();
+    }
+
+    private static String safeLabel(int kind) {
+        try {
+            return LocaleController.getString(labelResForKind(kind));
+        } catch (Throwable e) {
+            return "Android";
+        }
     }
 
     /** реальная модель в том же формате, что отправляет штатный клиент */

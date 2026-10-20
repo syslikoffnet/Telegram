@@ -351,6 +351,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_DEVICE_MODEL = 1034;
     private static final int BTN_DEVICE_RANDOM = 1035;
     private static final int BTN_DEVICE_APPLY = 1036;
+    private static final int BTN_DEVICE_VERSION = 1037;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -364,6 +365,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int GROUP_TEXT = 9;
     private static final int GROUP_SPY_ADVANCED = 10;
     private static final int GROUP_PROFILE_ID = 11;
+    private static final int GROUP_GLASS = 12;
 
     /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
     private static String expandedKey(int group) {
@@ -1384,6 +1386,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.KEY_HIDE_STORIES: return R.drawable.msg_media;
             case PengramConfig.KEY_DIALOG_SENDER_AVATARS: return R.drawable.msg_openprofile;
             case PengramConfig.KEY_PENGRAM_CARD: return R.drawable.msg_settings;
+            case org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED: return R.drawable.msg_info;
+            case PengramConfig.KEY_GLASS_SHEEN: return R.drawable.msg_theme;
+            case PengramConfig.KEY_GLASS_DRAG: return R.drawable.msg_reorder;
+            case PengramConfig.KEY_GLASS_RIM: return R.drawable.msg_customize;
             case org.telegram.messenger.PengramOriginalName.KEY_PROBE: return R.drawable.msg_contacts;
             default: return 0;
         }
@@ -1446,8 +1452,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         // короткая тактильная отдача: переключение должно ощущаться, а не только выглядеть
         AndroidUtilities.vibrateCursor(view);
         // слой Material 3 меняет отрисовку чужих экранов — просим их перерисоваться
+        if (org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED.equals(key)) {
+            // версия читается при старте так же, как имя устройства
+            requestDeviceRestart();
+        }
         if (PengramConfig.KEY_TAB_GLASS.equals(key)) {
             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+        } else if (PengramConfig.KEY_GLASS_SHEEN.equals(key)
+                || PengramConfig.KEY_GLASS_DRAG.equals(key)
+                || PengramConfig.KEY_GLASS_RIM.equals(key)) {
+            // блики и кант живут в слое панели — перерисовываем её сразу,
+            // без пересборки фона (она нужна только ползункам)
+            org.telegram.ui.MainTabsActivity.refreshPengramGlassOverlayOnly();
         }
         if (key.startsWith("md3")) {
             if (key.startsWith("md3Monet")) {
@@ -2104,8 +2120,19 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_ENABLED, false,
                 getString(R.string.PengramDeviceSpoof), getString(R.string.PengramDeviceSpoofInfo)));
         if (org.telegram.messenger.PengramDeviceName.isEnabled()) {
-            items.add(UItem.asSettingsCell(BTN_DEVICE_MODEL, R.drawable.msg2_devices,
+            // Иконка строки — не безликий «девайс», а именно то устройство,
+            // которое мы заявляем: Mac, Windows, iPhone, Android.
+            items.add(UItem.asSettingsCell(BTN_DEVICE_MODEL,
+                    org.telegram.messenger.PengramDeviceName.iconRes(),
                     getString(R.string.PengramDeviceModel), org.telegram.messenger.PengramDeviceName.summary()));
+            items.add(UItem.asSettingsCell(BTN_DEVICE_VERSION, R.drawable.msg_info,
+                    getString(R.string.PengramDeviceVersion),
+                    org.telegram.messenger.PengramDeviceName.resolveSystemVersion()));
+            items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED, true,
+                    getString(R.string.PengramDeviceVersionSpoof), getString(R.string.PengramDeviceVersionInfo)));
+            items.add(UItem.asShadow(org.telegram.messenger.LocaleController.formatString(
+                    R.string.PengramDeviceBadge,
+                    org.telegram.messenger.PengramDeviceName.badgeSummary())));
             items.add(UItem.asButton(BTN_DEVICE_RANDOM, R.drawable.msg_reset, getString(R.string.PengramDeviceRandom)));
             items.add(UItem.asButton(BTN_DEVICE_APPLY, R.drawable.msg_retry, getString(R.string.PengramDeviceApply)));
         }
@@ -2178,13 +2205,24 @@ public class PengramSettingsActivity extends UniversalFragment {
     private void showDeviceModelPicker() {
         final String[] values = org.telegram.messenger.PengramDeviceName.PRESETS;
         final CharSequence[] options = new CharSequence[values.length + 1];
+        final CharSequence[] subtitles = new CharSequence[values.length + 1];
         for (int a = 0; a < values.length; ++a) {
             options[a] = getString(org.telegram.messenger.PengramDeviceName.presetNameRes(a));
+            // подпись = бейдж: тип устройства и версия, которые уйдут серверу
+            final String model = a == org.telegram.messenger.PengramDeviceName.PRESET_REAL
+                    ? org.telegram.messenger.PengramDeviceName.realDeviceModel() : values[a];
+            final int kind = org.telegram.messenger.PengramDeviceName.kindOf(model);
+            final String version = a == org.telegram.messenger.PengramDeviceName.PRESET_REAL
+                    ? org.telegram.messenger.PengramDeviceName.realSystemVersion()
+                    : org.telegram.messenger.PengramDeviceName.defaultVersionFor(kind);
+            subtitles[a] = getString(org.telegram.messenger.PengramDeviceName.labelResForKind(kind))
+                    + " \u00b7 " + version;
         }
         options[values.length] = getString(R.string.PengramDeviceCustom);
+        subtitles[values.length] = null;
         final int current = org.telegram.messenger.PengramDeviceName.findPresetIndex();
         final int selected = current < 0 ? values.length : current;
-        showChoicePicker(getString(R.string.PengramDeviceModel), options, selected, value -> {
+        showChoicePicker(getString(R.string.PengramDeviceModel), options, subtitles, selected, value -> {
             if (value < values.length) {
                 org.telegram.messenger.PengramDeviceName.setValue(values[value]);
                 if (value == org.telegram.messenger.PengramDeviceName.PRESET_REAL) {
@@ -2203,6 +2241,59 @@ public class PengramSettingsActivity extends UniversalFragment {
                             }
                             org.telegram.messenger.PengramDeviceName.setValue(clean);
                             org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                            refreshRows();
+                            requestDeviceRestart();
+                        });
+            }
+        });
+    }
+
+    /**
+     * Версия системы. Список зависит от заявленного устройства: у iPhone не
+     * бывает «SDK 34», а у Windows — «iOS 18». Плюс две крайние строки:
+     * честная версия и своя.
+     */
+    private void showDeviceVersionPicker() {
+        final int kind = org.telegram.messenger.PengramDeviceName.kind();
+        final String[] versions = org.telegram.messenger.PengramDeviceName.versionsFor(kind);
+        final CharSequence[] options = new CharSequence[versions.length + 2];
+        for (int a = 0; a < versions.length; ++a) {
+            options[a] = versions[a];
+        }
+        options[versions.length] = getString(R.string.PengramDeviceVersionReal);
+        options[versions.length + 1] = getString(R.string.PengramDeviceCustom);
+        final String current = org.telegram.messenger.PengramDeviceName.getVersionValue();
+        int selected = versions.length;
+        for (int a = 0; a < versions.length; ++a) {
+            if (versions[a].equalsIgnoreCase(current)) {
+                selected = a;
+                break;
+            }
+        }
+        if (!org.telegram.messenger.PengramDeviceName.isVersionSpoofEnabled()) {
+            selected = versions.length;
+        }
+        showChoicePicker(getString(R.string.PengramDeviceVersion), options, selected, value -> {
+            if (value < versions.length) {
+                org.telegram.messenger.PengramDeviceName.setVersionValue(versions[value]);
+                org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(true);
+                refreshRows();
+                requestDeviceRestart();
+            } else if (value == versions.length) {
+                org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(false);
+                refreshRows();
+                requestDeviceRestart();
+            } else {
+                showTextDialog(getString(R.string.PengramDeviceVersionCustomTitle),
+                        org.telegram.messenger.PengramDeviceName.getVersionValue(),
+                        getString(R.string.PengramDeviceVersionCustomHint),
+                        text -> {
+                            final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
+                            if (clean.length() == 0) {
+                                return;
+                            }
+                            org.telegram.messenger.PengramDeviceName.setVersionValue(clean);
+                            org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(true);
                             refreshRows();
                             requestDeviceRestart();
                         });
@@ -2234,6 +2325,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void showChoicePicker(CharSequence title, CharSequence[] options, int selected, Utilities.Callback<Integer> onSelected) {
+        showChoicePicker(title, options, null, selected, onSelected);
+    }
+
+    /**
+     * Тот же выбор, но с подписью под каждой строкой — она и служит бейджем
+     * устройства («iPhone · iOS 18.4»), чтобы тип заявленного девайса был
+     * виден прямо в списке, а не угадывался по названию модели.
+     */
+    private void showChoicePicker(CharSequence title, CharSequence[] options, CharSequence[] subtitles,
+                                  int selected, Utilities.Callback<Integer> onSelected) {
         final Context context = getContext();
         if (context == null) {
             return;
@@ -2250,7 +2351,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
             cells[a].setPadding(dp(4), 0, dp(4), 0);
             cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
-            cells[a].setTextAndValue(options[a], selected == a);
+            if (subtitles != null && a < subtitles.length && subtitles[a] != null) {
+                cells[a].setTextAndText2AndValue(options[a], subtitles[a], selected == a);
+            } else {
+                cells[a].setTextAndValue(options[a], selected == a);
+            }
             cells[a].setBackground(Theme.getSelectorDrawable(false));
             cells[a].setOnClickListener(v -> {
                 for (int b = 0; b < cells.length; ++b) {
@@ -3272,6 +3377,47 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
+        if (PengramConfig.isTabBarLiquidGlass()) {
+            // Ползунки стекла раскрываются по требованию: включил эффект —
+            // рядом появилась его тонкая настройка, выключил — не мешает.
+            items.add(moreButton(GROUP_GLASS, getString(R.string.PengramGlassMore)));
+            if (expanded(GROUP_GLASS)) {
+                items.add(UItem.asHeader(getString(R.string.PengramGlassOpacity)));
+                items.add(UItem.asIntSlideView(1, 20, PengramConfig.getGlassOpacity(), 90,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassOpacity(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassThickness)));
+                items.add(UItem.asIntSlideView(1, 4, PengramConfig.getGlassThicknessDp(), 30,
+                        value -> value + " dp",
+                        value -> {
+                            PengramConfig.setGlassThicknessDp(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassIntensity)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getGlassIntensity(), 150,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassIntensity(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassGlow)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getGlassGlow(), 150,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassGlow(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_SHEEN, true,
+                        getString(R.string.PengramGlassSheen), getString(R.string.PengramGlassSheenInfo)));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_DRAG, true,
+                        getString(R.string.PengramGlassDrag), getString(R.string.PengramGlassDragInfo)));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_RIM, true,
+                        getString(R.string.PengramGlassRim), getString(R.string.PengramGlassRimInfo)));
+            }
+        }
         items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo) + "\n\n"
                 + getString(R.string.PengramTabBarGlassInfo)));
 
@@ -4749,6 +4895,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_DEVICE_MODEL:
                 showDeviceModelPicker();
+                return;
+            case BTN_DEVICE_VERSION:
+                showDeviceVersionPicker();
                 return;
             case BTN_DEVICE_RANDOM:
                 org.telegram.messenger.PengramDeviceName.setValue(org.telegram.messenger.PengramDeviceName.randomPreset());
@@ -6409,11 +6558,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     private class PengramHeaderView extends LinearLayout {
 
         /**
-         * Базовый размер пингвина при ползунке 100%. Раньше было 132dp, и
-         * после подгонки камеры под шляпу пингвин в шапке стал читаться как
-         * иконка, а не как персонаж. 160dp — тот же кадр, но заметно крупнее.
+         * Базовый размер пингвина при ползунке 100%. 132dp читались как
+         * иконка, 160dp всё ещё терялись на большом экране. 224dp — это уже
+         * полноценный персонаж: тело занимает ~87 % кадра (см. CAM_FILL), то
+         * есть почти 195dp по высоте на обычном телефоне.
          */
-        private static final int BASE_SIZE_DP = 160;
+        private static final int BASE_SIZE_DP = 224;
 
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;
@@ -6436,7 +6586,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             super(context);
             setOrientation(VERTICAL);
             setGravity(Gravity.CENTER_HORIZONTAL);
-            setPadding(dp(16), dp(14), dp(16), dp(18));
+            setPadding(dp(16), dp(10), dp(16), dp(18));
 
             penguinContainer = new FrameLayout(context);
 
@@ -6478,7 +6628,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 penguinView = null;
             }
 
-            final int penguinSize = Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f);
+            final int penguinSize = clampPenguinSize(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            // запасной логотип (если GL недоступен) — половина от размера
+            // пингвина, иначе в большой шапке он выглядел точкой
+            fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
+                    Math.round(penguinSize * 0.55f), Math.round(penguinSize * 0.55f), Gravity.CENTER));
             if (penguinView != null) {
                 // кадр камеры считается по содержимому, поэтому шапка влезает
                 // при любом размере — просто масштабируем саму вьюху
@@ -6536,6 +6691,16 @@ public class PengramSettingsActivity extends UniversalFragment {
                     () -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 4, 0, 0, 0));
             addView(links, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
                     Gravity.CENTER_HORIZONTAL, 16, 10, 16, 0));
+        }
+
+        /**
+         * Даже на 150 % пингвин не должен вылезать за экран: на узких
+         * устройствах 336dp могли упереться в края и обрезать шляпу.
+         */
+        private int clampPenguinSize(int size) {
+            final int width = AndroidUtilities.displaySize.x;
+            final int max = width > 0 ? width - dp(48) : size;
+            return Math.max(dp(96), Math.min(size, max));
         }
 
         /** маленькая «таблетка» со значком и подписью */
@@ -6625,7 +6790,12 @@ public class PengramSettingsActivity extends UniversalFragment {
          * текстур. Масштабируем контейнер и сам кадр, камера подстроится сама.
          */
         public void applySize() {
-            final int size = Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f);
+            final int size = clampPenguinSize(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            if (fallbackLogo != null) {
+                fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
+                        Math.round(size * 0.55f), Math.round(size * 0.55f), Gravity.CENTER));
+            }
             if (penguinView != null) {
                 final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
                 if (lp != null && (lp.width != size || lp.height != size)) {

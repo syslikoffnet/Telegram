@@ -196,6 +196,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private BlurredBackgroundDrawableViewFactory pengramGlassFactory;
     private ViewPositionWatcher pengramViewPositionWatcher;
     private boolean pengramGlassEffectAllowed;
+    /** отпечаток настроек стекла на момент создания фона */
+    private int pengramGlassSignature;
     private static java.lang.ref.WeakReference<MainTabsActivity> pengramInstance = new java.lang.ref.WeakReference<>(null);
     private View fadeView;
 
@@ -493,21 +495,59 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             tabsView.setPengramGlass(org.telegram.messenger.PengramConfig.isTabBarLiquidGlass());
         }
         final boolean want = pengramWantsLiquidGlass();
-        if (want != pengramGlassEffectAllowed && pengramGlassFactory != null && tabsView != null) {
+        // Провайдер запекает альфу, толщину линзы и кант в момент создания
+        // drawable. Правка ползунков в настройках должна быть видна сразу,
+        // поэтому сравниваем отпечаток и пересобираем фон при его изменении.
+        final int signature = org.telegram.ui.Components.PengramTabBarGlass.signature();
+        final boolean lookChanged = want == pengramGlassEffectAllowed
+                && signature != pengramGlassSignature;
+        if ((want != pengramGlassEffectAllowed || lookChanged)
+                && pengramGlassFactory != null && tabsView != null) {
             pengramGlassEffectAllowed = want;
+            pengramGlassSignature = signature;
             pengramGlassFactory.setLiquidGlassEffectAllowed(want);
             tabsViewBackground = createTabsBackground();
             tabsView.setBackground(tabsViewBackground);
             tabsView.invalidate();
         }
+        if (tabsView != null) {
+            // блики и преломление живут в самом макете — там своя геометрия
+            tabsView.invalidate();
+        }
     }
 
-    /** настройка поменялась на другом экране — применяем без перезапуска */
-    public static void refreshPengramGlass() {
+    /**
+     * Изменились только блики/кант — им не нужна пересборка фона, достаточно
+     * перерисовки слоя панели. Так ползунки и свитчи не дёргают лишнюю работу.
+     */
+    public static void refreshPengramGlassOverlayOnly() {
         final MainTabsActivity activity = pengramInstance.get();
         if (activity != null) {
-            AndroidUtilities.runOnUIThread(activity::applyPengramGlassOverlay);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (activity.tabsView != null) {
+                    activity.tabsView.invalidate();
+                }
+            });
         }
+    }
+
+    /**
+     * Настройка поменялась на другом экране — применяем без перезапуска.
+     * Ползунок присылает значение на каждый шаг, а пересборка стекла —
+     * создание RenderNode и шейдера. Склеиваем частые вызовы: во время
+     * протяжки панель пересобирается не чаще ~12 раз в секунду, после
+     * отпускания применяется последнее значение.
+     */
+    private static final Runnable pengramGlassRefresh = () -> {
+        final MainTabsActivity activity = pengramInstance.get();
+        if (activity != null) {
+            activity.applyPengramGlassOverlay();
+        }
+    };
+
+    public static void refreshPengramGlass() {
+        AndroidUtilities.cancelRunOnUIThread(pengramGlassRefresh);
+        AndroidUtilities.runOnUIThread(pengramGlassRefresh, 80);
     }
 
     @Override
@@ -582,6 +622,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         pengramGlassFactory = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
         pengramGlassFactory.setSourceRootView(viewPositionWatcher, contentView);
         pengramGlassEffectAllowed = pengramWantsLiquidGlass();
+        pengramGlassSignature = org.telegram.ui.Components.PengramTabBarGlass.signature();
         pengramGlassFactory.setLiquidGlassEffectAllowed(pengramGlassEffectAllowed);
 
         tabsViewBackground = createTabsBackground();

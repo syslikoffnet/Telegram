@@ -400,6 +400,10 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     }
 
     private void startGlassSheen(boolean forward) {
+        if (!org.telegram.messenger.PengramConfig.isGlassSheenEnabled()) {
+            glassSheenT = -1f;
+            return;
+        }
         glassSheenForward = forward;
         glassSheenT = 0f;
         if (glassSheenAnimator != null) {
@@ -455,7 +459,8 @@ public class MainTabsLayout extends AnimatedLinearLayout {
 
     /** насколько сильно палец «тащит» стекло прямо сейчас (0 — покой) */
     private float glassDragNow() {
-        if (glassDragSpeed <= 0.001f) {
+        if (glassDragSpeed <= 0.001f
+                || !org.telegram.messenger.PengramConfig.isGlassDragEnabled()) {
             return 0f;
         }
         final long idle = SystemClock.uptimeMillis() - glassLastMove;
@@ -558,6 +563,9 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         // под пальцем стекло «тянется» к нему: подсветка вкладки плавно
         // смещается и вытягивается по ходу жеста — это и есть «жидкость»
         final float glowRadius = Math.max(1f, glassRect.width() * 0.17f);
+        // сила блика — пользовательская: 0 % гасит подсветку совсем, 150 %
+        // делает стекло «мокрым», но всё ещё читаемым
+        final float glowK = org.telegram.ui.Components.PengramTabBarGlass.glowScale();
         final float pull = glassPressDown ? Math.max(pressT, 0.35f) : pressT;
         final float glowCx = glassGlowX + (glassPressX - glassGlowX) * 0.45f * pull;
         glassMatrix.reset();
@@ -569,7 +577,7 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         glassMatrix.postTranslate(glowCx, glassRect.centerY());
         glassGlow.setLocalMatrix(glassMatrix);
         glassGlowPaint.setShader(glassGlow);
-        glassGlowPaint.setAlpha((int) (255 * (0.75f + 0.25f * pressT)));
+        glassGlowPaint.setAlpha((int) (255 * Math.min(1f, (0.75f + 0.25f * pressT) * glowK)));
         canvas.drawRect(glassRect, glassGlowPaint);
 
         // отклик на касание: свет расходится из точки нажатия и вытягивается
@@ -585,7 +593,7 @@ public class MainTabsLayout extends AnimatedLinearLayout {
             glassMatrix.postTranslate(glassPressX, glassPressY);
             glassGlow.setLocalMatrix(glassMatrix);
             glassGlowPaint.setShader(glassGlow);
-            glassGlowPaint.setAlpha((int) (52 * pressT * (1f + 0.9f * drag)));
+            glassGlowPaint.setAlpha((int) (52 * pressT * (1f + 0.9f * drag) * glowK));
             canvas.drawRect(glassRect, glassGlowPaint);
 
             // яркая точка под самим пальцем: место, где стекло «схвачено»
@@ -599,7 +607,7 @@ public class MainTabsLayout extends AnimatedLinearLayout {
                 glassMatrix.postTranslate(glassPressX, glassPressY);
                 glassGlow.setLocalMatrix(glassMatrix);
                 glassGlowPaint.setShader(glassGlow);
-                glassGlowPaint.setAlpha((int) (36 * pressT));
+                glassGlowPaint.setAlpha((int) (36 * pressT * glowK));
                 canvas.drawRect(glassRect, glassGlowPaint);
             }
         }
@@ -608,13 +616,15 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         canvas.restoreToCount(save);
 
         // тонкий кант по верхней кромке — стекло «толщиной» в 1dp
-        glassPaint.setShader(glassRim);
-        glassPaint.setStyle(Paint.Style.STROKE);
-        glassPaint.setStrokeWidth(AndroidUtilities.dp(1));
-        glassRect.inset(AndroidUtilities.dp(0.5f), AndroidUtilities.dp(0.5f));
-        canvas.drawRoundRect(glassRect, radius - AndroidUtilities.dp(0.5f),
-                radius - AndroidUtilities.dp(0.5f), glassPaint);
-        glassPaint.setStyle(Paint.Style.FILL);
+        if (org.telegram.messenger.PengramConfig.isGlassRimEnabled()) {
+            glassPaint.setShader(glassRim);
+            glassPaint.setStyle(Paint.Style.STROKE);
+            glassPaint.setStrokeWidth(AndroidUtilities.dp(1));
+            glassRect.inset(AndroidUtilities.dp(0.5f), AndroidUtilities.dp(0.5f));
+            canvas.drawRoundRect(glassRect, radius - AndroidUtilities.dp(0.5f),
+                    radius - AndroidUtilities.dp(0.5f), glassPaint);
+            glassPaint.setStyle(Paint.Style.FILL);
+        }
         glassPaint.setShader(null);
     }
 

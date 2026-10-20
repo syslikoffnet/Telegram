@@ -235,7 +235,9 @@ public class ConnectionsManager extends BaseController {
             } else if (BuildVars.DEBUG_VERSION) {
                 appVersion += " beta";
             }
-            systemVersion = "SDK " + Build.VERSION.SDK_INT;
+            // Версия системы тоже подменяема: iPhone с «SDK 34» сразу выдаёт
+            // себя, поэтому строка идёт из того же раздела настроек.
+            systemVersion = org.telegram.messenger.PengramDeviceName.resolveSystemVersion();
         } catch (Exception e) {
             systemLangCode = "en";
             langCode = "";

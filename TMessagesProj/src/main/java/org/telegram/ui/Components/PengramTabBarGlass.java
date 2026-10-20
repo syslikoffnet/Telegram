@@ -24,19 +24,34 @@ public final class PengramTabBarGlass {
     private PengramTabBarGlass() {
     }
 
-    /** насколько плотно стекло закрашивает размытие (0 — совсем прозрачно) */
+    /**
+     * Насколько плотно стекло закрашивает размытие. Значение задаётся
+     * пользователем (20…90 %), по умолчанию 42 % — та самая прозрачность, при
+     * которой контент под панелью читается, а иконки остаются контрастными.
+     */
     public static float alpha(boolean isDark) {
-        return isDark ? 0.38f : 0.44f;
+        return org.telegram.messenger.PengramConfig.getGlassOpacity() / 100f;
     }
 
     /** толщина линзы в пикселях: меньше — тоньше и «водянистее» преломление */
     public static int thicknessPx() {
-        return Math.max(1, Math.round(AndroidUtilities.dp(16)));
+        return Math.max(1, Math.round(AndroidUtilities.dp(
+                org.telegram.messenger.PengramConfig.getGlassThicknessDp())));
     }
 
     /** сила преломления в шейдере */
     public static float intensity() {
-        return 0.92f;
+        return org.telegram.messenger.PengramConfig.getGlassIntensity() / 100f;
+    }
+
+    /** включён ли светлый кант по кромке */
+    public static boolean rimEnabled() {
+        return org.telegram.messenger.PengramConfig.isGlassRimEnabled();
+    }
+
+    /** множитель яркости бликов под пальцем и под выбранной вкладкой */
+    public static float glowScale() {
+        return org.telegram.messenger.PengramConfig.getGlassGlow() / 100f;
     }
 
     public static BlurredBackgroundProvider provider(Theme.ResourcesProvider resourcesProvider) {
@@ -48,11 +63,25 @@ public final class PengramTabBarGlass {
                 })
                 // Светлая тема: белый кант сверху читается как блик на стекле,
                 // тёмная — тот же блик, но тише, иначе он «светит» в темноте.
-                .setStrokeColorTop(0x38FFFFFF, 0x2AFFFFFF)
-                .setStrokeColorBottom(0x14FFFFFF, 0x14FFFFFF)
+                .setStrokeColorTop(rimEnabled() ? 0x38FFFFFF : 0, rimEnabled() ? 0x2AFFFFFF : 0)
+                .setStrokeColorBottom(rimEnabled() ? 0x14FFFFFF : 0, rimEnabled() ? 0x14FFFFFF : 0)
                 .setShadowColor(0x1C000000, 0x04000000)
                 .setShadowLayer(AndroidUtilities.dpf2(2.667f), 0, AndroidUtilities.dpf2(0.85f))
-                .setStrokeWidth(AndroidUtilities.dpf2(0.5f), AndroidUtilities.dpf2(0.5f))
+                .setStrokeWidth(rimEnabled() ? AndroidUtilities.dpf2(0.5f) : 0f,
+                        rimEnabled() ? AndroidUtilities.dpf2(0.5f) : 0f)
                 .build();
+    }
+
+    /**
+     * Отпечаток настроек стекла: по нему MainTabsActivity понимает, что фон
+     * панели надо пересобрать (альфа, толщина, кант живут в провайдере и
+     * запекаются при создании drawable).
+     */
+    public static int signature() {
+        int hash = org.telegram.messenger.PengramConfig.getGlassOpacity();
+        hash = hash * 31 + org.telegram.messenger.PengramConfig.getGlassThicknessDp();
+        hash = hash * 31 + org.telegram.messenger.PengramConfig.getGlassIntensity();
+        hash = hash * 31 + (rimEnabled() ? 1 : 0);
+        return hash;
     }
 }

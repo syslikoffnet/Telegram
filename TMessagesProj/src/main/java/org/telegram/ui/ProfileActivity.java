@@ -7371,17 +7371,36 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return text;
     }
 
+    /** Pengram: закэшированный ConstantState значка даты регистрации */
+    private Drawable.ConstantState pengramRegDateIconState;
+    private int pengramRegDateIconRes;
+    private int pengramRegDateIconColor;
+    private PorterDuffColorFilter pengramRegDateIconFilter;
+
     /** Pengram: значок даты регистрации нужного вида */
     private Drawable pengramRegDateDrawable(Context context) {
         final int res = PengramConfig.getRegDateIconRes();
         if (res == 0 || context == null) {
             return null;
         }
-        final Drawable drawable = ContextCompat.getDrawable(context, res);
-        if (drawable != null) {
+        // Значок запрашивается на каждую привязку строки ID и строки даты.
+        // Разбор ресурса и цветовой фильтр кэшируем: меняются они только при
+        // смене темы или выбранного значка.
+        final int color = dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false);
+        if (pengramRegDateIconState == null || pengramRegDateIconRes != res || pengramRegDateIconColor != color) {
+            final Drawable source = ContextCompat.getDrawable(context, res);
+            if (source == null || source.getConstantState() == null) {
+                return null;
+            }
+            pengramRegDateIconState = source.getConstantState();
+            pengramRegDateIconRes = res;
+            pengramRegDateIconColor = color;
             // SRC_IN, а не MULTIPLY: иначе чёрный силуэт пингвина на тёмной теме просто пропадал
-            drawable.mutate().setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.SRC_IN));
+            pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);
         }
+        final Drawable drawable = pengramRegDateIconState
+                .newDrawable(context.getResources(), context.getTheme()).mutate();
+        drawable.setColorFilter(pengramRegDateIconFilter);
         return drawable;
     }
 
@@ -16093,11 +16112,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         createBirthdayEffect();
     }
 
+    /**
+     * Кнопка «написать» на профиле. Раньше фон собирался заново при каждом
+     * onBecomeFullyVisible: инфлейт XML-тени, StateListDrawable, CombinedDrawable
+     * и два PorterDuffColorFilter. На входе в профиль это давало заметный
+     * рывок кадра, хотя меняются только цвета. Держим готовый фон и
+     * пересобираем его лишь когда действительно поменялся цвет или стиль.
+     */
+    private Drawable writeButtonBg;
+    private int writeButtonBgColor1;
+    private int writeButtonBgColor2;
+    private int writeButtonBgIconColor;
+    private boolean writeButtonBgMd3;
+    private boolean writeButtonBgValid;
+
     private void writeButtonSetBackground() {
-        if (writeButton == null) return;
+        if (writeButton == null || fragmentView == null) return;
         try {
-            Drawable shadowDrawable = fragmentView.getContext().getResources().getDrawable(R.drawable.floating_shadow_profile).mutate();
-            shadowDrawable.setColorFilter(new PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.MULTIPLY));
             int color1 = getThemedColor(Theme.key_profile_actionBackground);
             int color2 = getThemedColor(Theme.key_profile_actionPressedBackground);
             int iconColor = getThemedColor(Theme.key_profile_actionIcon);
@@ -16106,13 +16137,32 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 color2 = applyPeerColor2(color2);
                 iconColor = Color.WHITE;
             }
+            final boolean md3 = org.telegram.messenger.PengramMD3.fab();
+            if (writeButtonBgValid && writeButtonBg != null
+                    && writeButtonBgColor1 == color1 && writeButtonBgColor2 == color2
+                    && writeButtonBgIconColor == iconColor && writeButtonBgMd3 == md3) {
+                // цвета те же — просто возвращаем ранее собранный фон
+                if (writeButton.getBackground() != writeButtonBg) {
+                    writeButton.setBackground(writeButtonBg);
+                    writeButton.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
+                }
+                return;
+            }
+            Drawable shadowDrawable = fragmentView.getContext().getResources().getDrawable(R.drawable.floating_shadow_profile).mutate();
+            shadowDrawable.setColorFilter(new PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.MULTIPLY));
             // Pengram: Material 3 — тот же скруглённый квадрат, что и у кнопки
             // «написать» в списке чатов, вместо круга.
-            final Drawable fillDrawable = org.telegram.messenger.PengramMD3.fab()
+            final Drawable fillDrawable = md3
                     ? Theme.createSimpleSelectorRoundRectDrawable(org.telegram.messenger.PengramMD3.fabRadius(), color1, color2)
                     : Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), color1, color2);
             CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable, fillDrawable, 0, 0);
             combinedDrawable.setIconSize(AndroidUtilities.dp(56), AndroidUtilities.dp(56));
+            writeButtonBg = combinedDrawable;
+            writeButtonBgColor1 = color1;
+            writeButtonBgColor2 = color2;
+            writeButtonBgIconColor = iconColor;
+            writeButtonBgMd3 = md3;
+            writeButtonBgValid = true;
             writeButton.setBackground(combinedDrawable);
             writeButton.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
         } catch (Exception e) {
