@@ -17102,7 +17102,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         canvas.scale(s, s, AndroidUtilities.rectTmp.centerX(), AndroidUtilities.rectTmp.centerY());
                     }
 
-                    quoteLine.drawBackground(canvas, AndroidUtilities.rectTmp, 5, 5, 5, alpha);
+                    // The quote card follows the bubble: square bubbles keep
+                    // crisp corners, fully rounded ones get a soft 10dp cap.
+                    final float quoteRad = Math.max(6f, Math.min(10f, SharedConfig.bubbleRadius * 0.7f));
+                    quoteLine.drawBackground(canvas, AndroidUtilities.rectTmp, 5, quoteRad, quoteRad, alpha);
                     quoteLine.drawLine(canvas, AndroidUtilities.rectTmp, alpha);
 
                     if (quoteDrawable == null) {
