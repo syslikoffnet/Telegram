@@ -122,5 +122,16 @@ for path in files:
 assert "BUILD_TAG" in source
 assert '"--version"' in source
 
+# --- падения не роняют запуск: pin/photo/пост/темы/папка --------------------
+assert "async def pin_safe" in source
+assert "message_id_of" in source
+assert 'type(photo).__name__ in ("PhotoEmpty", "ChatPhotoEmpty")' in source
+assert "problems.clear()" in source and "def problem(" in source
+assert "Что не удалось" in source
+assert "Запуск прервался" in source            # общий перехват в main()
+assert "async def start_client" in source      # понятные ошибки входа
+assert 'parser.add_argument("--status"' in source
+assert "os.replace(tmp, STATE_PATH)" in source  # состояние пишется атомарно
+
 print("community setup: dry-run by default, forum topics, pinned texts, "
       "10 avatars, secrets kept out: OK")

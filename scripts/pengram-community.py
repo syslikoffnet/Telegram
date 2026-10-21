@@ -69,7 +69,7 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
-BUILD_TAG = "community 2026-10-21.5"
+BUILD_TAG = "community 2026-10-21.8"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
@@ -384,7 +384,7 @@ def download_avatar(number: int) -> Path | None:
                 url, {"Accept": "application/vnd.github.raw"} if "api." in url else None)
         except Exception:
             continue
-        if len(payload) < 10_000:
+        if len(payload) < 10_000 or not payload.startswith(b"\xff\xd8\xff"):
             continue  # пришёл текст ошибки, а не картинка
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
@@ -400,12 +400,36 @@ def name_for(number: int) -> str:
     raise Stop(f"Аватарки №{number} нет. Допустимо: 1–{len(AVATAR_CHOICES)}")
 
 
+def looks_like_jpeg(path: Path) -> bool:
+    """Файл действительно картинка JPEG, а не обрезанный кусок или страница.
+
+    Telegram отвечает Forbidden/PhotoExtInvalid на битый файл, поэтому
+    проверяем до загрузки: начало FF D8 FF, конец FF D9 и разумный размер.
+    """
+    try:
+        if path.stat().st_size < 10_000:
+            return False
+        with path.open("rb") as handle:
+            head = handle.read(3)
+            handle.seek(-2, os.SEEK_END)
+            tail = handle.read(2)
+        return head == b"\xff\xd8\xff" and tail == b"\xff\xd9"
+    except Exception:
+        return False
+
+
 def avatar_path(number: int, *, required: bool = True) -> Path | None:
     """Локальный файл, иначе — скачанный, иначе None (если not required)."""
     name = name_for(number)
     path = AVATAR_DIR / f"{name}.jpg"
     if path.exists():
-        return path
+        if looks_like_jpeg(path):
+            return path
+        warn(f"файл аватарки {path.name} повреждён — скачаю заново")
+        try:
+            path.unlink()
+        except Exception:
+            pass
     path = download_avatar(number)
     if path is not None:
         return path
@@ -425,8 +449,18 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
-    STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2),
-                          encoding="utf-8")
+    """Пишет состояние через временный файл.
+
+    Так обрыв питания или убитый Termux не оставит половину JSON: старый
+    файл останется целым, а новый появится только целиком.
+    """
+    data = json.dumps(state, ensure_ascii=False, indent=2)
+    try:
+        tmp = STATE_PATH.with_suffix(STATE_PATH.suffix + ".tmp")
+        tmp.write_text(data, encoding="utf-8")
+        os.replace(tmp, STATE_PATH)
+    except Exception as error:
+        warn(f"состояние не сохранилось ({error}) — продолжаю без него")
 
 
 def format_text(template: str, usernames: dict) -> str:
@@ -584,11 +618,19 @@ def _filter_title(item) -> str:
 
 
 def has_photo(entity) -> bool:
-    """У сущности реально есть аватарка (а не пустышка)."""
+    """У сущности реально есть аватарка.
+
+    У каналов и групп «пустая» аватарка — это ChatPhotoEmpty, у пользователей
+    PhotoEmpty. Раньше проверялся только второй вариант, поэтому канал с
+    непоставленной аватаркой считался готовым и фото больше не пытались ставить.
+    """
     photo = getattr(entity, "photo", None)
     if photo is None:
         return False
-    return type(photo).__name__ != "PhotoEmpty"
+    if type(photo).__name__ in ("PhotoEmpty", "ChatPhotoEmpty"):
+        return False
+    return bool(getattr(photo, "id", 0) or getattr(photo, "photo_id", 0)
+                or getattr(photo, "file_reference", None))
 
 
 def topic_key(title: str) -> str | None:
@@ -611,6 +653,19 @@ async def pinned_in_topic(client, group, topic_id: int):
             min_date=None, max_date=None, offset_id=0, add_offset=0,
             limit=1, max_id=0, min_id=0, hash=0, top_msg_id=topic_id))
         return bool(found.messages)
+    except Exception:
+        return None
+
+
+async def message_exists(client, entity, message_id) -> bool | None:
+    """Есть ли такое сообщение. None — проверить не удалось."""
+    try:
+        found = await client.get_messages(entity, ids=int(message_id))
+        if found is None:
+            return False
+        if isinstance(found, list):
+            return any(item is not None for item in found)
+        return True
     except Exception:
         return None
 
@@ -662,14 +717,30 @@ async def resolve_saved(client, state: dict, id_key: str, hash_key: str,
             pass
 
     try:
+        candidates = []
         async for dialog in client.iter_dialogs(limit=200):
             entity = dialog.entity
             if (getattr(entity, "title", None) == title
                     and bool(getattr(entity, "megagroup", False)) == megagroup):
-                state[id_key] = entity.id
-                state[hash_key] = getattr(entity, "access_hash", None)
-                save_state(state)
-                return entity
+                candidates.append(entity)
+        if candidates:
+            # Только свои: в чужом канале с тем же названием мы не сможем
+            # публиковать и ставить фото (Telegram ответит Forbidden).
+            mine = [e for e in candidates
+                    if getattr(e, "creator", False)
+                    or getattr(e, "admin_rights", None) is not None]
+            if not mine:
+                warn(f"нашёл «{title}», но вы там не создатель и не админ — "
+                     f"не трогаю его, создам свой")
+                return None
+            def rank(entity):
+                return (bool(getattr(entity, "creator", False)),
+                        getattr(entity, "admin_rights", None) is not None)
+            best = max(mine, key=rank)
+            state[id_key] = best.id
+            state[hash_key] = getattr(best, "access_hash", None)
+            save_state(state)
+            return best
     except Exception:
         pass
 
@@ -790,12 +861,32 @@ async def ensure_username(client, entity, candidates, *, label: str,
     return None
 
 
-async def post_safe(client, entity, text: str, *, topic_id=None):
-    """Публикует текст. topic_id — сообщение уходит внутрь темы форума.
+def message_id_of(result) -> int | None:
+    """id отправленного сообщения из ответа Telegram.
 
-    Через client.send_message этого не сделать: он не умеет ставить
-    top_msg_id, без которого форум отправляет сообщение в общую тему
-    (а в старых версиях вообще падал на InputReplyToMessage).
+    client(SendMessageRequest) возвращает Updates, а не Message: передать такой
+    объект в pin_message нельзя — Telethon ждёт номер и падает с TypeError.
+    """
+    for update in getattr(result, "updates", None) or []:
+        message = getattr(update, "message", None)
+        if message is not None and getattr(message, "id", None):
+            return message.id
+    for update in getattr(result, "updates", None) or []:
+        if type(update).__name__ == "UpdateMessageID":
+            return getattr(update, "id", None)
+    update = getattr(result, "update", None)
+    message = getattr(update, "message", None)
+    if message is not None and getattr(message, "id", None):
+        return message.id
+    return None
+
+
+async def post_safe(client, entity, text: str, *, topic_id=None):
+    """Публикует текст и возвращает id сообщения (или None).
+
+    topic_id — сообщение уходит внутрь темы форума. Через client.send_message
+    этого не сделать: он не умеет ставить top_msg_id, без которого форум
+    отправляет сообщение в общую тему.
     """
     from telethon.errors import FloodWaitError
     from telethon.tl.functions.messages import SendMessageRequest
@@ -807,31 +898,192 @@ async def post_safe(client, entity, text: str, *, topic_id=None):
             if topic_id:
                 reply_to = InputReplyToMessage(
                     reply_to_msg_id=topic_id, top_msg_id=topic_id)
-            return await client(SendMessageRequest(
+            result = await client(SendMessageRequest(
                 peer=peer(entity),
                 message=text,
                 random_id=random.getrandbits(63),
                 no_webpage=True,
                 reply_to=reply_to,
             ))
+            return message_id_of(result)
         except FloodWaitError as error:
             wait = int(getattr(error, "seconds", 5)) + 2
             warn(f"Telegram просит подождать {wait} с (flood) — жду")
             await asyncio.sleep(wait)
-    raise Stop("не удалось отправить сообщение: слишком много запросов")
+    raise RuntimeError("не удалось отправить сообщение: слишком много запросов")
 
 
-async def pin_safe(client, entity, message) -> None:
-    from telethon.errors import FloodWaitError
+async def pin_safe(client, entity, message_id) -> bool:
+    """Закрепляет сообщение по номеру. Ошибки не роняют запуск."""
+    from telethon.errors import FloodWaitError, RPCError
+
+    if not message_id:
+        warn("не знаю id сообщения — закреп пропущен")
+        return False
+
+    for attempt in range(2):
+        try:
+            await client.pin_message(entity, int(message_id), notify=False)
+            return True
+        except FloodWaitError as error:
+            if attempt:
+                break
+            await asyncio.sleep(int(getattr(error, "seconds", 5)) + 2)
+        except RPCError as error:
+            warn(f"закрепить не удалось: {error}")
+            return False
+        except Exception as error:
+            warn(f"закрепить не удалось: {error}")
+            return False
+    warn("закрепить не удалось: Telegram просит подождать")
+    return False
+
+
+problems: list[tuple[str, str]] = []
+
+
+def problem(where: str, error) -> None:
+    """Запоминает, что именно не встало, чтобы показать в конце списком."""
+    problems.append((where, str(error)))
+
+
+def photo_error_hint(error) -> str:
+    """Подсказка, если Telegram не принял фото."""
+    text = str(error)
+    low = text.lower()
+    if "forbidden" in low or "not enough rights" in low:
+        return (" — Telegram не дал этому аккаунту менять фото. Поставьте "
+                "вручную в приложении или повторите позже.")
+    if "photoextinvalid" in low or "photo_invalid" in low or "file_parts_invalid" in low:
+        return (" — Telegram не принял файл. Попробуйте другую аватарку: "
+                "--channel-avatar 2 (доступно 1–10).")
+    return ""
+
+
+async def start_client(client) -> None:
+    """Вход с понятными сообщениями вместо трейсбеков Telethon."""
+    from telethon.errors import (ApiIdInvalidError, AuthKeyDuplicatedError,
+                                 AuthKeyUnregisteredError, PhoneNumberBannedError,
+                                 SessionRevokedError)
 
     try:
-        await client.pin_message(entity, message, notify=False)
-    except FloodWaitError as error:
-        await asyncio.sleep(int(getattr(error, "seconds", 5)) + 2)
-        await client.pin_message(entity, message, notify=False)
+        await client.start()  # спросит телефон, код и пароль 2FA
+    except ApiIdInvalidError:
+        raise Stop("APP_ID/API_HASH не подходят. Возьмите свои на "
+                   "my.telegram.org → API development tools и впишите их в "
+                   "api.properties рядом со скриптом (APP_ID=…, APP_HASH=…).")
+    except AuthKeyDuplicatedError:
+        raise Stop("этот файл сессии уже использовали на другом устройстве, "
+                   "Telegram его отключил. Удалите " + str(SESSION_PATH) +
+                   " и войдите заново.")
+    except (AuthKeyUnregisteredError, SessionRevokedError):
+        raise Stop("сессия больше не действует (аккаунт вышел из неё или "
+                   "сбросил устройства). Удалите " + str(SESSION_PATH) +
+                   " и войдите заново.")
+    except PhoneNumberBannedError:
+        raise Stop("этот номер заблокирован в Telegram — войти нельзя.")
+
+
+async def show_status() -> None:
+    """Показывает, что реально стоит в Telegram прямо сейчас.
+
+    Ничего не создаёт и не меняет — только читает. Полезно, когда кажется,
+    что аватарка или закреп «не встали»: видно, где именно пусто.
+    """
+    print(f"[сборка] {BUILD_TAG}", flush=True)
+
+    if not SESSION_PATH.exists():
+        print(f"Ещё не было входа: файла {SESSION_PATH} нет. "
+              f"Запустите --apply один раз.", file=sys.stderr)
+        return
+
+    from telethon import TelegramClient
+
+    api_id, api_hash = read_api_credentials()
+    state = load_state()
+    client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
+    await start_client(client)
+    try:
+        me = await client.get_me()
+        print(f"  вход:   {getattr(me, 'first_name', '') or ''}"
+              f" @{getattr(me, 'username', '') or '—'}")
+
+        channel = await resolve_saved(client, state, "channel_id",
+                                      "channel_access_hash", CHANNEL["title"], False)
+        group = await resolve_saved(client, state, "group_id",
+                                    "group_access_hash", GROUP["title"], True)
+        comments = await resolve_saved(client, state, "comments_id",
+                                       "comments_access_hash", COMMENTS["title"], True)
+
+        def line(label, entity):
+            if entity is None:
+                print(f"  {label}: нет")
+                return
+            photo = "есть" if has_photo(entity) else "НЕТ"
+            user = getattr(entity, "username", None)
+            print(f"  {label}: {getattr(entity, 'title', '?')}"
+                  f"{' @' + user if user else ''} · аватарка: {photo}")
+
+        line("канал", channel)
+        line("чат", group)
+        line("комменты", comments)
+
+        if channel is not None:
+            pinned = await pinned_in_chat(client, channel)
+            print(f"  закреп канала: {'да' if pinned else 'НЕТ' if pinned is False else 'не проверить'}")
+
+        if group is not None:
+            print("  темы:")
+            try:
+                from telethon.tl.functions.messages import GetForumTopicsRequest
+                found = await client(GetForumTopicsRequest(
+                    peer=peer(group), offset_date=None, offset_id=0,
+                    offset_topic=0, limit=100))
+                by_key = {}
+                for item in found.topics:
+                    key = topic_key(getattr(item, "title", "") or "")
+                    if key:
+                        by_key[key] = item
+                for topic in TOPICS:
+                    item = by_key.get(topic["key"])
+                    if item is None:
+                        print(f"    • {topic['title']}: НЕТ")
+                        continue
+                    pinned = await pinned_in_topic(client, group, item.id)
+                    mark = "закреп есть" if pinned else "закрепа нет" if pinned is False else "закреп не проверить"
+                    print(f"    • {getattr(item, 'title', '?')} · {mark}")
+            except Exception as error:
+                print(f"    список тем не получен: {error}")
+
+            pinned = await pinned_in_chat(client, group)
+            print(f"  закреп общей темы: {'да' if pinned else 'НЕТ' if pinned is False else 'не проверить'}")
+
+        try:
+            from telethon.tl.functions.messages import GetDialogFiltersRequest
+            from telethon.tl.types import DialogFilter
+            filters = await client(GetDialogFiltersRequest())
+            mine = [f for f in getattr(filters, "filters", []) or []
+                    if isinstance(f, DialogFilter) and _filter_title(f) == FOLDER["title"]]
+            if mine:
+                emoticon = getattr(mine[0], "emoticon", None) or "—"
+                print(f"  папка: «{FOLDER['title']}» есть · эмодзи: {emoticon}")
+            else:
+                print(f"  папка: «{FOLDER['title']}» НЕТ")
+        except Exception as error:
+            print(f"  папка: не проверить ({error})")
+
+        links = state.get("links") or {}
+        if links:
+            print("  ссылки:")
+            for label, link in links.items():
+                print(f"    {label:<14} {link}")
+        print(f"  состояние: {STATE_PATH}")
+    finally:
+        await client.disconnect()
 
 
 async def apply_plan(args) -> None:
+    problems.clear()
     from telethon import TelegramClient
     from telethon.errors import ChannelsTooMuchError, FloodWaitError, RPCError
     from telethon.tl.functions.channels import (SetDiscussionGroupRequest,
@@ -847,9 +1099,12 @@ async def apply_plan(args) -> None:
     state = load_state()
 
     client = TelegramClient(str(SESSION_PATH), api_id, api_hash)
-    await client.start()  # спросит телефон, код и пароль 2FA
+    await start_client(client)  # спросит телефон, код и пароль 2FA
 
     me = await client.get_me()
+    if me is None:
+        raise Stop("Telegram не подтвердил вход. Удалите файл сессии и "
+                   "запустите заново: " + str(SESSION_PATH))
     who = " ".join(x for x in [(me.first_name or "").strip(),
                                ("@" + me.username) if me.username else ""] if x)
     log("вход", f"вы вошли как {who or me.id}")
@@ -890,16 +1145,23 @@ async def apply_plan(args) -> None:
             warn("аватарка канала недоступна — канал останется без фото")
         else:
             log("канал", f"ставлю аватарку: {photo.name}")
-            await set_photo(client, channel, photo)
+            try:
+                await set_photo(client, channel, photo)
+            except Exception as error:
+                warn(f"аватарку канала поставить не вышло: {error}{photo_error_hint(error)}"); problem("аватарка канала", error)
             state["channel_photo"] = args.channel_avatar
             save_state(state)
             await asyncio.sleep(STEP_PAUSE)
-            channel = await client.get_entity(peer(channel)) or channel
+            try:
+                channel = await client.get_entity(peer(channel)) or channel
+            except Exception:
+                pass
             if has_photo(channel):
                 log("канал", "аватарка на месте")
             else:
-                warn("аватарка канала не появилась — попробуйте позже или "
-                     "поставьте вручную")
+                warn("аватарка канала не появилась — поставлю при следующем "
+                     "запуске --repair")
+                problem("аватарка канала", "не появилась после загрузки")
 
     channel_username = await ensure_username(
         client, channel, CHANNEL["usernames"], label="канал",
@@ -941,16 +1203,23 @@ async def apply_plan(args) -> None:
             warn("аватарка чата недоступна — чат останется без фото")
         else:
             log("чат", f"ставлю аватарку: {photo.name}")
-            await set_photo(client, group, photo)
+            try:
+                await set_photo(client, group, photo)
+            except Exception as error:
+                warn(f"аватарку чата поставить не вышло: {error}{photo_error_hint(error)}"); problem("аватарка чата", error)
             state["group_photo"] = args.group_avatar
             save_state(state)
             await asyncio.sleep(STEP_PAUSE)
-            group = await client.get_entity(peer(group)) or group
+            try:
+                group = await client.get_entity(peer(group)) or group
+            except Exception:
+                pass
             if has_photo(group):
                 log("чат", "аватарка на месте")
             else:
-                warn("аватарка чата не появилась — попробуйте позже или "
-                     "поставьте вручную")
+                warn("аватарка чата не появилась — поставлю при следующем "
+                     "запуске --repair")
+                problem("аватарка чата", "не появилась после загрузки")
 
     group_username = await ensure_username(
         client, group, GROUP["usernames"], label="чат",
@@ -1004,15 +1273,36 @@ async def apply_plan(args) -> None:
             save_state(state)
             log("связка", f"создана группа «{COMMENTS['title']}»")
             await asyncio.sleep(STEP_PAUSE)
-
-            photo = avatar_path(getattr(args, "comments_avatar", 2), required=False)
-            if photo is not None:
-                await set_photo(client, comments, photo)
-                log("связка", f"аватарка: {photo.name}")
-                await asyncio.sleep(STEP_PAUSE)
-        except RPCError as error:
+        except Exception as error:
             warn(f"группу для комментариев создать не удалось: {error}")
+            problem("группа комментариев", error)
             comments = None
+
+    # аватарка группы комментариев: ставим и досоздаём при повторном запуске
+    if comments is not None:
+        try:
+            comments = await client.get_entity(peer(comments)) or comments
+        except Exception:
+            pass
+        if not has_photo(comments):
+            photo = avatar_path(getattr(args, "comments_avatar", 2), required=False)
+            if photo is None:
+                warn("аватарка группы комментариев недоступна — останется без фото")
+            else:
+                try:
+                    await set_photo(client, comments, photo)
+                    log("связка", f"аватарка комментариев: {photo.name}")
+                except Exception as error:
+                    warn(f"аватарку группы комментариев не поставить: {error}{photo_error_hint(error)}")
+                    problem("аватарка комментариев", error)
+                await asyncio.sleep(STEP_PAUSE)
+                try:
+                    comments = await client.get_entity(peer(comments)) or comments
+                except Exception:
+                    pass
+                if not has_photo(comments):
+                    warn("аватарка комментариев не появилась — повторю при --repair")
+                    problem("аватарка комментариев", "не появилась после загрузки")
 
     if not state.get("linked") and comments is not None:
         try:
@@ -1026,23 +1316,45 @@ async def apply_plan(args) -> None:
                  f"Вручную: канал → управление → «Обсуждение».")
         await asyncio.sleep(STEP_PAUSE)
 
-    if comments is not None and not state.get("comments_pin_done"):
-        message = await post_safe(
-            client, comments, format_text(COMMENTS["pinned"], usernames))
-        await pin_safe(client, comments, message)
-        state["comments_pin_done"] = True
-        save_state(state)
-        log("связка", "правила закреплены в группе комментариев")
+    if comments is not None:
+        live = await pinned_in_chat(client, comments)
+        if live is True or (live is None and state.get("comments_pin_done")):
+            log("связка", "правила в группе комментариев на месте")
+        else:
+            message_id = state.get("comments_pinned")
+            if not message_id:
+                try:
+                    message_id = await post_safe(
+                        client, comments,
+                        format_text(COMMENTS["pinned"], usernames))
+                except Exception as error:
+                    warn(f"правила в группе комментариев не отправились: {error}")
+                    problem("правила комментариев", error)
+                    message_id = None
+                state["comments_pinned"] = message_id
+                save_state(state)
+            if message_id and await pin_safe(client, comments, message_id):
+                state["comments_pin_done"] = True
+                save_state(state)
+                log("связка", "правила закреплены в группе комментариев")
+            else:
+                warn("правила в комментариях есть, но закреп не встал — "
+                     "повторю позже")
+                problem("правила комментариев", "не удалось закрепить")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- посты канала -----------------------------------------------------
     published = state.setdefault("posts", {})
     for post in CHANNEL_POSTS:
-        if post["key"] in published:
+        if published.get(post["key"]):
             continue
         text = format_text(post["text"], usernames)
-        message = await post_safe(client, channel, text)
-        published[post["key"]] = message.id
+        try:
+            message_id = await post_safe(client, channel, text)
+        except Exception as error:
+            warn(f"пост «{post['text'].splitlines()[0]}» не отправился: {error}"); problem("пост в канал", error)
+            continue
+        published[post["key"]] = message_id
         save_state(state)
         log("пост", f"{post['text'].splitlines()[0]}")
         await asyncio.sleep(STEP_PAUSE)
@@ -1056,16 +1368,13 @@ async def apply_plan(args) -> None:
     else:
         pinned_key = next((p["key"] for p in CHANNEL_POSTS if p["pinned"]), None)
         message_id = published.get(pinned_key) if pinned_key else None
-        try:
-            if message_id:
-                await client.pin_message(channel, message_id, notify=False)
-                state["channel_pin_done"] = True
-                save_state(state)
-            else:
-                raise RuntimeError("нет id поста")
+        if message_id and await pin_safe(client, channel, message_id):
+            state["channel_pin_done"] = True
+            save_state(state)
             log("канал", "закреплён первый пост")
-        except Exception as error:
-            warn(f"закрепить пост в канале не удалось: {error}")
+        else:
+            warn("закрепить пост в канале не удалось — попробую в следующий раз")
+            problem("закреп канала", "не удалось закрепить")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- закреп в общей теме чата ----------------------------------------
@@ -1075,12 +1384,24 @@ async def apply_plan(args) -> None:
     elif general_pinned is None and state.get("general_pin_done"):
         log("чат", "закреп уже ставили (проверить сейчас не вышло)")
     else:
-        message = await post_safe(client, group, format_text(GROUP_PINNED, usernames))
-        await pin_safe(client, group, message)
-        state["group_pinned"] = message.id
-        state["general_pin_done"] = True
-        save_state(state)
-        log("чат", "правила закреплены в общей теме")
+        message_id = state.get("group_pinned")
+        if not message_id:
+            try:
+                message_id = await post_safe(
+                    client, group, format_text(GROUP_PINNED, usernames))
+            except Exception as error:
+                warn(f"правила в чат не отправились: {error}")
+                problem("закреп в чате", error)
+                message_id = None
+            state["group_pinned"] = message_id
+            save_state(state)
+        if message_id and await pin_safe(client, group, message_id):
+            state["general_pin_done"] = True
+            save_state(state)
+            log("чат", "правила закреплены в общей теме")
+        else:
+            warn("правила в чате есть, но закреп не встал — повторю позже")
+            problem("закреп в чате", "не удалось закрепить")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- темы -------------------------------------------------------------
@@ -1145,21 +1466,65 @@ async def apply_plan(args) -> None:
 
     # --- закрепы в темах ---------------------------------------------------
     pinned_state = state.setdefault("topic_pinned", {})
+    pin_fails = state.setdefault("topic_pin_fails", {})
     for topic in TOPICS:
         key = topic["key"]
         topic_id = topics_state.get(key)
         if not topic_id:
             continue
+
         topic_pinned = await pinned_in_topic(client, group, topic_id)
-        if topic_pinned is True or (topic_pinned is None and key in pinned_state):
+        if topic_pinned is True:
+            pin_fails.pop(key, None)
             log("закреп", f"тема «{topic['title']}» уже с закрепом")
             continue
-        message = await post_safe(
-            client, group, topic["pinned"], topic_id=topic_id)
-        await pin_safe(client, group, message)
-        pinned_state[key] = message.id
-        save_state(state)
-        log("закреп", f"тема «{topic['title']}»")
+
+        saved = pinned_state.get(key)
+        if saved and topic_pinned is None:
+            # проверить не вышло — верим своей отметке, чтобы не наплодить дублей
+            log("закреп", f"тема «{topic['title']}» уже с закрепом (по отметке)")
+            continue
+
+        if saved and topic_pinned is False:
+            # Сообщение когда-то отправили, но закреп не встал: закрепляем
+            # именно его, а не публикуем шаблон заново — дублей не будет.
+            if await pin_safe(client, group, saved):
+                pin_fails.pop(key, None)
+                log("закреп", f"тема «{topic['title']}» — перезакрепил")
+                save_state(state)
+                continue
+            exists = await message_exists(client, group, saved)
+            if exists is False:
+                warn(f"шаблон в теме «{topic['title']}» пропал — опубликую заново")
+                pinned_state.pop(key, None)
+                pin_fails.pop(key, None)
+                save_state(state)
+                continue
+            pin_fails[key] = pin_fails.get(key, 0) + 1
+            save_state(state)
+            warn(f"закреп в теме «{topic['title']}» не встал — попробую ещё "
+                 f"раз в следующий запуск (шаблон уже на месте, дублей не будет)")
+            problem(f"тема «{topic['title']}»", "закреп не встал")
+            continue
+
+        try:
+            message_id = await post_safe(
+                client, group, topic["pinned"], topic_id=topic_id)
+        except Exception as error:
+            warn(f"шаблон в теме «{topic['title']}» не отправился: {error}")
+            problem(f"тема «{topic['title']}»", error)
+            continue
+
+        if message_id:
+            pinned_state[key] = message_id
+            pin_fails.pop(key, None)
+            save_state(state)
+        if message_id and await pin_safe(client, group, message_id):
+            log("закреп", f"тема «{topic['title']}»")
+        else:
+            warn(f"шаблон в теме «{topic['title']}» есть, но закреп не встал — "
+                 f"повторю позже, дублей не будет")
+            problem(f"тема «{topic['title']}»", "закреп не встал")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- папка в клиенте ---------------------------------------------------
@@ -1213,8 +1578,9 @@ async def apply_plan(args) -> None:
         state["folder_done"] = True
         save_state(state)
         log("папка", f"«{FOLDER['title']}» готова (канал + чат)")
-    except RPCError as error:
+    except Exception as error:
         warn(f"папка не создалась: {error}")
+        problem("папка", error)
     await asyncio.sleep(STEP_PAUSE)
 
     # --- ссылки -----------------------------------------------------------
@@ -1271,6 +1637,12 @@ async def apply_plan(args) -> None:
     print("  Дальше: зайдите в чат и проверьте темы, затем раздайте invite-ссылку.")
     print(f"  Состояние: {STATE_PATH}")
     print(f"  Сборка:    {BUILD_TAG}")
+    if problems:
+        print()
+        print("  Что не удалось:")
+        for where, error in problems:
+            print(f"    • {where}: {error}")
+        print("  Повторить: python3 pengram-community.py --repair")
     print()
 
     await client.disconnect()
@@ -1299,6 +1671,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="свой username для канала (без @)")
     parser.add_argument("--group-username", default=None,
                         help="свой username для чата (без @)")
+    parser.add_argument("--status", action="store_true",
+                        help="показать, что реально стоит в Telegram (ничего "
+                             "не меняет): аватарки, закрепы, темы, папка, ссылки")
     parser.add_argument("--show-texts", action="store_true",
                         help="в просмотре показать все тексты целиком")
     parser.add_argument("--repair", action="store_true",
@@ -1321,6 +1696,10 @@ def main() -> int:
 
         if args.avatar_list:
             print_avatars()
+            return 0
+
+        if args.status:
+            asyncio.run(show_status())
             return 0
 
         name_for(args.channel_avatar)
@@ -1346,6 +1725,17 @@ def main() -> int:
     except Stop as error:
         print(f"\nОстановился: {error}", file=sys.stderr)
         return 2
+    except Exception as error:
+        kind = type(error).__name__
+        text = f"{kind}: {error}"
+        print(f"\nЗапуск прервался: {text}", file=sys.stderr)
+        if "database is locked" in text or "locked" in text:
+            print("Файл сессии занят: закройте другие окна Termux, где запущен "
+                  "этот скрипт, и повторите.", file=sys.stderr)
+        print("Уже созданное сохранено. Запустите ещё раз ту же команду — "
+              "скрипт продолжит с того же места:", file=sys.stderr)
+        print("    python pengram-community.py --repair", file=sys.stderr)
+        return 3
     except KeyboardInterrupt:
         print("\nПрервано пользователем. Уже созданное сохранено в состоянии.",
               file=sys.stderr)
