@@ -272,6 +272,9 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+        // Observer only: by default it cannot send until master and each chat
+        // are explicitly enabled in AI settings.
+        PengramAIAutoReply.registerAll();
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();
@@ -292,6 +295,20 @@ public class ApplicationLoader extends Application {
 
     public ApplicationLoader() {
         super();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            PengramCovers.clear();
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        PengramCovers.clear();
     }
 
     @Override
@@ -392,24 +409,26 @@ public class ApplicationLoader extends Application {
         NotificationCenter.sanitize();
     });
 
-    public static void startPushService() {
-        SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (PengramConfig.isBackgroundMode()) {
-            enabled = true;
-        } else if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
+    /** Keep-alive is separate from FCM delivery and is opt-in per account. */
+    public static boolean shouldStartNotificationService() {
+        if (PengramConfig.isBackgroundMode()) return true;
+        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (UserConfig.getInstance(a).isClientActivated()
+                    && MessagesController.getNotificationsSettings(a).getBoolean("pushService",
+                        MessagesController.getMainSettings(a).getBoolean("keepAliveService", false))) {
+                return true;
+            }
         }
-        if (enabled) {
+        return false;
+    }
+
+    public static void startPushService() {
+        if (shouldStartNotificationService()) {
             try {
-                // сервис сразу поднимает себя в foreground — запускаем его правильно,
-                // иначе Android 8+ прибьёт его через несколько секунд
                 androidx.core.content.ContextCompat.startForegroundService(applicationContext,
                         new Intent(applicationContext, NotificationsService.class));
-            } catch (Throwable ignore) {
-
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));

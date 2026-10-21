@@ -53,6 +53,7 @@ public class TextCheckCell extends FrameLayout {
     private Switch checkBox;
     private boolean needDivider;
     private boolean isMultiline;
+    private boolean adaptiveLayout;
     private int height = 50;
     private int animatedColorBackground;
     private float animationProgress;
@@ -144,9 +145,29 @@ public class TextCheckCell extends FrameLayout {
         return checkBox;
     }
 
+    public void setAdaptiveLayout(boolean adaptive) {
+        adaptiveLayout = adaptive;
+        textView.setSingleLine(!adaptive);
+        textView.setMaxLines(adaptive ? Integer.MAX_VALUE : 1);
+        textView.setEllipsize(adaptive ? null : TextUtils.TruncateAt.END);
+        LayoutParams params = (LayoutParams) textView.getLayoutParams();
+        params.height = adaptive ? LayoutParams.WRAP_CONTENT : LayoutParams.MATCH_PARENT;
+        params.topMargin = adaptive ? AndroidUtilities.dp(10) : 0;
+        requestLayout();
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        if (isMultiline) {
+        if (adaptiveLayout) {
+            int width = MeasureSpec.getSize(widthMeasureSpec);
+            LayoutParams params = (LayoutParams) textView.getLayoutParams();
+            textView.measure(MeasureSpec.makeMeasureSpec(Math.max(1, width - params.leftMargin - params.rightMargin), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            int desired = Math.max(AndroidUtilities.dp(height),
+                    AndroidUtilities.dp(20) + textView.getMeasuredHeight());
+            super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(desired + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+        } else if (isMultiline) {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         } else {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(valueTextView.getVisibility() == VISIBLE ? 64 : height) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));

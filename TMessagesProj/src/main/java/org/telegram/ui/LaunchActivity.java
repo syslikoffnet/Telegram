@@ -232,6 +232,9 @@ import org.telegram.ui.Stories.recorder.StoryEntry;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 import org.telegram.ui.Stories.LiveStoryPipOverlay;
 import org.telegram.ui.TON.TONIntroActivity;
+import org.telegram.ui.Wallet.GramWalletStorageAuth;
+import org.telegram.ui.Wallet.WalletActivity;
+import org.telegram.ui.Wallet.WalletSendSelectSender;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
@@ -1481,6 +1484,13 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 rightActionBarLayout.getView().setVisibility(View.VISIBLE);
             }
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.passcodeDismissed, view);
+            if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(this);
+                    }
+                }, 350);
+            }
             try {
                 NotificationsController.getInstance(UserConfig.selectedAccount).showNotifications();
             } catch (Exception e) {
@@ -6661,6 +6671,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+        if (GramWalletStorageAuth.onActivityResult(this, requestCode, resultCode)) return;
         if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
                 VoIPService service = VoIPService.getSharedInstance();
@@ -6815,6 +6826,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     @Override
     protected void onStop() {
         super.onStop();
+        GramWalletStorageAuth.onActivityStopped(this);
         isStarted = false;
         pipActivityHandler.onStop();
         Browser.unbindCustomTabsService(this);
@@ -6875,6 +6887,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onDestroy() {
+        GramWalletStorageAuth.onActivityDestroyed(this);
         isActive = false;
         activeInstanceCount--;
         unregisterReceiver(batteryReceiver);
@@ -7009,9 +7022,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         checkFreeDiscSpace(0);
         MediaController.checkGallery();
         onPasscodeResume();
-        // Pengram: если прошлый запуск закончился вылетом, покажем отчёт —
-        // причина к этому моменту уже лежит в буфере обмена
-        if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+        // Recover native audio/JNI exits (Java's uncaught handler cannot see
+        // SIGABRT/SIGSEGV) before checking for a pending report.
+        org.telegram.messenger.PengramCrashReport.install();
+        org.telegram.messenger.PengramCrashReport.recoverNativeCrashIfAny();
+        if (org.telegram.messenger.PengramCrashReport.hasPending()
+                && (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE)) {
             AndroidUtilities.runOnUIThread(() -> {
                 if (!isFinishing() && !isDestroyed()) {
                     org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(LaunchActivity.this);
@@ -7709,6 +7725,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 ForumUtilities.switchAllFragmentsInStackToForum(chatId, actionBarLayout);
             }
         } else if (id == NotificationCenter.tlSchemeParseException) {
+            if (BuildConfig.DEBUG_PRIVATE_VERSION) {
+                return;
+            }
             if (tlErrorAlertDialog == null) {
                 final TLParseException error = (TLParseException) args[0];
 

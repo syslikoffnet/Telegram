@@ -65,7 +65,7 @@ public final class PengramAI {
         }
 
         public boolean isReady() {
-            return !TextUtils.isEmpty(baseUrl) && !TextUtils.isEmpty(model);
+            return !TextUtils.isEmpty(model) && PengramAITransport.isSafeEndpoint(endpoint());
         }
 
         /** короткая подпись под названием: домен и модель */
@@ -254,7 +254,7 @@ public final class PengramAI {
     }
 
     public static boolean isHistory() {
-        return getBool(KEY_HISTORY, true);
+        return getBool(KEY_HISTORY, false);
     }
 
     public static int historyDepth() {
@@ -267,6 +267,9 @@ public final class PengramAI {
 
     /** полный сброс раздела — на случай «начать с чистого листа» */
     public static void resetAll() {
+        // Stop pending auto replies and discard ephemeral context before removing consent.
+        PengramAIAutoReply.setEnabled(false);
+        PengramAIAutoReply.setContextEnabled(false);
         prefs().edit().clear().apply();
         PengramAIRoles.resetAll();
     }

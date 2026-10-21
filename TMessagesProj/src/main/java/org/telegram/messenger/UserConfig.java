@@ -266,6 +266,8 @@ public class UserConfig extends BaseController {
             currentUser = user;
             clientUserId = user.id;
             checkPremiumSelf(oldUser, user);
+            // An account added after app startup still needs its opt-in auto-reply observer.
+            AndroidUtilities.runOnUIThread(() -> PengramAIAutoReply.register(currentAccount));
         }
     }
 
@@ -461,6 +463,11 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        PengramAIAutoReply.clearAccount(currentAccount);
+        PengramProfileHistory.clearAccount(currentAccount);
+        PengramOriginalName.clearAccount(currentAccount);
+        PengramConfig.clearSpyProfile(currentAccount);
+        PengramHistory.clearAccount(currentAccount);
         getPreferences().edit().clear().apply();
 
         sharingMyLocationUntil = 0;

@@ -14,6 +14,10 @@ import static org.telegram.messenger.AndroidUtilities.dpf2;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
+import org.telegram.messenger.PengramConfig;
 import android.view.View;
 
 import androidx.core.graphics.ColorUtils;
@@ -40,6 +44,178 @@ public class SnowflakesEffect {
     Bitmap particleBitmap;
 
     private long lastAnimationTime;
+    private final CustomParticle[] customParticles = new CustomParticle[300];
+    private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path customPath = new Path();
+    private Bitmap sunwheelBitmap; // Built once on demand and shared by every particle.
+    private Bitmap solarCrossBitmap;
+    private static final char[] MATRIX_DIGITS = "0123456789".toCharArray();
+    private long customTime;
+    private int customMode = -1;
+
+    private static class CustomParticle {
+        float x, y, size, speed, phase, spin;
+    }
+
+    /** One reusable sprite per solar style, independent of emoji/fonts. */
+    private static Bitmap createSolarBitmap(boolean fourArms) {
+        final int size = Math.max(1, dp(40));
+        final float center = size / 2f;
+        final Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        final Canvas canvas = new Canvas(bitmap);
+        final Paint halo = new Paint(Paint.ANTI_ALIAS_FLAG);
+        halo.setShader(new RadialGradient(center, center, dp(17),
+                new int[]{0x48ffca59, 0x20ffae35, 0x00ffae35},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawCircle(center, center, dp(17), halo);
+
+        final Paint spoke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        spoke.setStyle(Paint.Style.STROKE);
+        spoke.setStrokeCap(Paint.Cap.ROUND);
+        spoke.setStrokeJoin(Paint.Join.ROUND);
+        final Path ray = new Path();
+        for (int layer = 0; layer < 2; layer++) {
+            spoke.setColor(layer == 0 ? 0xcf8e440e : 0xffffd06a);
+            spoke.setStrokeWidth(dp(layer == 0 ? 3.5f : 2.2f));
+            final int arms = fourArms ? 4 : 8;
+            for (int i = 0; i < arms; i++) {
+                final double angle = i * 2 * Math.PI / arms;
+                final float dx = (float) Math.cos(angle);
+                final float dy = (float) Math.sin(angle);
+                ray.reset();
+                if (fourArms) {
+                    // A four-armed hooked cross: each right-angle tip turns the same way.
+                    ray.moveTo(center, center);
+                    ray.lineTo(center + dx * dp(10f), center + dy * dp(10f));
+                    ray.lineTo(center + dx * dp(10f) - dy * dp(7f),
+                            center + dy * dp(10f) + dx * dp(7f));
+                } else {
+                    // Preserve the eight-spoke sunwheel's existing shape.
+                    ray.moveTo(center + dx * dp(4.5f), center + dy * dp(4.5f));
+                    ray.lineTo(center + dx * dp(11f), center + dy * dp(11f));
+                    ray.lineTo(center + dx * dp(12f) - dy * dp(4.5f),
+                            center + dy * dp(12f) + dx * dp(4.5f));
+                }
+                canvas.drawPath(ray, spoke);
+            }
+        }
+        if (!fourArms) {
+            spoke.setStyle(Paint.Style.FILL);
+            spoke.setColor(0xff9a4b13);
+            canvas.drawCircle(center, center, dp(4.7f), spoke);
+            spoke.setColor(0xffffd06a);
+            canvas.drawCircle(center, center, dp(3.4f), spoke);
+        }
+        return bitmap;
+    }
+
+    /** Reuses particles, paints and the solar sprites across frames. */
+    private void drawCustom(View parent, Canvas canvas) {
+        final int mode = PengramConfig.getParticleMode();
+        final int width = parent.getMeasuredWidth(), height = parent.getMeasuredHeight();
+        if (width <= 0 || height <= 0) return;
+        final int requestedCount = PengramConfig.getParticleCount();
+        final boolean isSunwheel = mode == PengramConfig.PARTICLE_SUNWHEEL;
+        final boolean isSolarCross = mode == PengramConfig.PARTICLE_SOLAR_CROSS;
+        final boolean isSolarSymbol = isSunwheel || isSolarCross;
+        // Bound work by the available surface. Full chat backgrounds retain the
+        // chosen density; small headers never spend a frame drawing hidden dots.
+        final int areaCount = (int) Math.min(300L, (long) width * height /
+                Math.max(1L, (long) dp(16) * dp(16)));
+        final int count = isSolarSymbol
+                ? (viewType == 0 ? Math.min(24, Math.max(8, requestedCount / 4))
+                        : Math.max(10, requestedCount / 2))
+                : viewType == 0 ? Math.min(requestedCount, Math.max(20, Math.min(120, areaCount)))
+                : Math.min(requestedCount, Math.max(20, areaCount));
+        final float opacity = PengramConfig.getParticleAlpha() / 100f;
+        final float speed = PengramConfig.getParticleSpeed();
+        final float rotation = PengramConfig.getParticleRotation();
+        final long now = android.os.SystemClock.uptimeMillis();
+        final float dt = customTime == 0 ? 0 : Math.max(0, Math.min(40, now - customTime)) / 1000f;
+        customTime = now;
+        if (mode != customMode) {
+            customMode = mode;
+            java.util.Arrays.fill(customParticles, null);
+        }
+        if (isSunwheel && sunwheelBitmap == null) {
+            sunwheelBitmap = createSolarBitmap(false);
+        } else if (isSolarCross && solarCrossBitmap == null) {
+            solarCrossBitmap = createSolarBitmap(true);
+        }
+        final Bitmap symbolBitmap = isSunwheel ? sunwheelBitmap : isSolarCross ? solarCrossBitmap : null;
+        final float invSwayHeight = 1f / Math.max(1, dp(35));
+        final float sway = dp(isSolarSymbol ? 9 : 3) * speed;
+        final float edge = dp(isSolarSymbol ? 20 : 12);
+        final float verticalSpeed = speed * (isSolarSymbol ? -0.65f : mode == 3 ? 2.3f : 1f);
+        final float angularSpeed = rotation * (isSolarSymbol ? 30f : 105f);
+        final float alphaBase = 255f * opacity;
+        final float wheelScaleBase = 1f / Math.max(1, dp(20));
+        final float invHeight = 1f / height;
+        final int tint = mode == 1 ? 0xffffa8cc : mode == 2 ? 0xff79f7b2
+                : mode == 4 ? 0xffffba63 : color;
+        customPaint.setShader(null);
+        customPaint.setStyle(Paint.Style.FILL);
+        customPaint.setColor(tint);
+        for (int i = 0; i < count; i++) {
+            CustomParticle p = customParticles[i];
+            if (p == null) {
+                p = new CustomParticle();
+                customParticles[i] = p;
+                p.x = Utilities.random.nextFloat() * width;
+                p.y = Utilities.random.nextFloat() * height;
+                p.size = isSolarSymbol
+                        ? dp(8f + Utilities.random.nextFloat() * 4f)
+                        : dp(2.5f + Utilities.random.nextFloat() * 3f);
+                p.speed = dp(isSolarSymbol
+                        ? 9 + Utilities.random.nextFloat() * 10
+                        : 12 + Utilities.random.nextFloat() * 22);
+                p.phase = Utilities.random.nextFloat() * 6.28f;
+                p.spin = Utilities.random.nextFloat() * 360f;
+            }
+            p.y += dt * p.speed * verticalSpeed;
+            p.x += dt * (float) Math.sin(p.phase + p.y * invSwayHeight) * sway;
+            p.spin += dt * angularSpeed;
+            if (isSolarSymbol ? p.y < -edge : p.y > height + edge) {
+                p.y = isSolarSymbol ? height + edge : -edge;
+                p.x = Utilities.random.nextFloat() * width;
+            }
+            if (p.x < 0) p.x += width;
+            if (p.x > width) p.x -= width;
+            final float shimmer = (float) Math.sin(p.phase + p.y * invHeight * 3.14f);
+            customPaint.setAlpha(Math.max(0, Math.min(255,
+                    (int) (alphaBase * (isSolarSymbol ? 0.75f + 0.25f * shimmer : 0.6f + 0.4f * shimmer)))));
+            // Only rotating shapes need a canvas matrix stack. The other styles
+            // keep exactly the same geometry while avoiding hundreds of save/restores.
+            if (isSolarSymbol || mode == 1 || mode == 4) {
+                canvas.save();
+                canvas.translate(p.x, p.y);
+                if (isSolarSymbol) {
+                    canvas.rotate(p.spin);
+                    final float scale = p.size * wheelScaleBase;
+                    canvas.scale(scale, scale);
+                    canvas.drawBitmap(symbolBitmap, -symbolBitmap.getWidth() / 2f,
+                            -symbolBitmap.getHeight() / 2f, customPaint);
+                } else {
+                    canvas.rotate(p.spin);
+                    customPath.reset();
+                    customPath.moveTo(0, -p.size);
+                    customPath.quadTo(p.size * 1.5f, 0, 0, p.size);
+                    customPath.quadTo(-p.size * 0.8f, 0, 0, -p.size);
+                    canvas.drawPath(customPath, customPaint);
+                }
+                canvas.restore();
+            } else if (mode == 2) {
+                customPaint.setTextSize(p.size * 3f);
+                canvas.drawText(MATRIX_DIGITS, i % 10, 1, p.x, p.y, customPaint);
+            } else if (mode == 3) {
+                customPaint.setStrokeWidth(Math.max(1, p.size / 3));
+                canvas.drawLine(p.x, p.y, p.x - p.size / 3, p.y + p.size * 3, customPaint);
+            } else {
+                canvas.drawCircle(p.x, p.y, p.size / 2, customPaint);
+            }
+        }
+        parent.postInvalidateDelayed(32);
+    }
 
     private class Particle {
         float x;
@@ -162,7 +338,16 @@ public class SnowflakesEffect {
     }
 
     public void onDraw(View parent, Canvas canvas) {
-        if (parent == null || canvas == null || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
+        if (parent == null || canvas == null) {
+            return;
+        }
+        // This is an explicit visual preference; Lite Mode only controls the seasonal animation.
+        if (PengramConfig.isForcedSnow()) {
+            drawCustom(parent, canvas);
+            return;
+        }
+        customTime = 0;
+        if (!LiteMode.isEnabled(LiteMode.FLAG_CHAT_BACKGROUND)) {
             return;
         }
 

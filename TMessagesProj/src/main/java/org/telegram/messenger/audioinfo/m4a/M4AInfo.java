@@ -16,9 +16,9 @@
 package org.telegram.messenger.audioinfo.m4a;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 
 import org.telegram.messenger.audioinfo.AudioInfo;
+import org.telegram.messenger.audioinfo.CoverDecode;
 import org.telegram.messenger.audioinfo.mp3.ID3v1Genre;
 
 import java.io.IOException;
@@ -210,25 +210,14 @@ public class M4AInfo extends AudioInfo {
 				}
 				break;
 			case "covr":
+                if (atom.getRemaining() > CoverDecode.MAX_COMPRESSED_BYTES) break;
                 try {
                     byte[] bytes = atom.readBytes();
-                    BitmapFactory.Options opts = new BitmapFactory.Options();
-                    opts.inJustDecodeBounds = true;
-                    opts.inSampleSize = 1;
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
-                    if (opts.outWidth > 800 || opts.outHeight > 800) {
-                        int size = Math.max(opts.outWidth, opts.outHeight);
-                        while (size > 800) {
-                            opts.inSampleSize *= 2;
-                            size /= 2;
-                        }
-                    }
-                    opts.inJustDecodeBounds = false;
-                    cover = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
+                    cover = CoverDecode.decode(bytes);
                     if (cover != null) {
                         float scale = Math.max(cover.getWidth(), cover.getHeight()) / 120.0f;
-                        if (scale > 0) {
-                            smallCover = Bitmap.createScaledBitmap(cover, (int) (cover.getWidth() / scale), (int) (cover.getHeight() / scale), true);
+                        if (scale > 1f) {
+                            smallCover = Bitmap.createScaledBitmap(cover, Math.max(1, (int) (cover.getWidth() / scale)), Math.max(1, (int) (cover.getHeight() / scale)), true);
                         } else {
                             smallCover = cover;
                         }

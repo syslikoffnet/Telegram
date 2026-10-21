@@ -260,6 +260,7 @@ public class SharedConfig {
     public static boolean storiesIntroShown;
     public static boolean disableVoiceAudioEffects;
     public static boolean forceDisableTabletMode;
+    public static boolean forceEnableTabletMode;
     public static boolean updateStickersOrderOnSend = true;
     public static boolean bigCameraForRound;
     public static Boolean useCamera2Force;
@@ -269,6 +270,7 @@ public class SharedConfig {
     public static boolean payByInvoice;
     public static int stealthModeSendMessageConfirm = 2;
     private static int lastLocalId = -210000;
+    public static boolean walletUseFingerprintLock = true;
 
     public static String storageCacheDir;
 
@@ -449,6 +451,7 @@ public class SharedConfig {
                 editor.putInt("autoLockIn", autoLockIn);
                 editor.putInt("lastPauseTime", lastPauseTime);
                 editor.putBoolean("useFingerprint", useFingerprintLock);
+                editor.putBoolean("walletUseFingerprintLock", walletUseFingerprintLock);
                 editor.putBoolean("allowScreenCapture", allowScreenCapture);
                 editor.putString("pushString2", pushString);
                 editor.putInt("pushType", pushType);
@@ -527,6 +530,7 @@ public class SharedConfig {
             autoLockIn = preferences.getInt("autoLockIn", 60 * 60);
             lastPauseTime = preferences.getInt("lastPauseTime", 0);
             useFingerprintLock = preferences.getBoolean("useFingerprint", true);
+            walletUseFingerprintLock = preferences.getBoolean("walletUseFingerprintLock", true);
             allowScreenCapture = preferences.getBoolean("allowScreenCapture", false);
             lastLocalId = preferences.getInt("lastLocalId", -210000);
             pushString = preferences.getString("pushString2", "");
@@ -625,6 +629,7 @@ public class SharedConfig {
             pauseMusicOnRecord = preferences.getBoolean("pauseMusicOnRecord", true);
             pauseMusicOnMedia = preferences.getBoolean("pauseMusicOnMedia", false);
             forceDisableTabletMode = preferences.getBoolean("forceDisableTabletMode", false);
+            forceEnableTabletMode = preferences.getBoolean("forceEnableTabletMode", false);
             streamAllVideo = preferences.getBoolean("streamAllVideo", BuildVars.DEBUG_VERSION);
             streamMkv = preferences.getBoolean("streamMkv", false);
             suggestStickers = preferences.getInt("suggestStickers", 0);
@@ -877,6 +882,7 @@ public class SharedConfig {
         autoLockIn = 60 * 60;
         lastPauseTime = 0;
         useFingerprintLock = true;
+        walletUseFingerprintLock = true;
         isWaitingForPasscodeEnter = false;
         allowScreenCapture = false;
         textSelectionHintShows = 0;
@@ -1380,12 +1386,24 @@ public class SharedConfig {
         LiteMode.toggleFlag(LiteMode.FLAG_CHAT_BLUR);
     }
 
+    /** 0 = automatic, 1 = force phone, 2 = force tablet. Keep the old preference compatible. */
+    public static int getTabletMode() {
+        return forceDisableTabletMode ? 1 : forceEnableTabletMode ? 2 : 0;
+    }
+
+    public static void setTabletMode(int mode) {
+        forceDisableTabletMode = mode == 1;
+        forceEnableTabletMode = mode == 2;
+        MessagesController.getGlobalMainSettings().edit()
+                .putBoolean("forceDisableTabletMode", forceDisableTabletMode)
+                .putBoolean("forceEnableTabletMode", forceEnableTabletMode).apply();
+        AndroidUtilities.resetTabletFlag();
+        AndroidUtilities.runOnUIThread(() -> NotificationCenter.getGlobalInstance()
+                .postNotificationName(NotificationCenter.reloadInterface));
+    }
+
     public static void toggleForceDisableTabletMode() {
-        forceDisableTabletMode = !forceDisableTabletMode;
-        SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putBoolean("forceDisableTabletMode", forceDisableTabletMode);
-        editor.apply();
+        setTabletMode(forceDisableTabletMode ? 0 : 1);
     }
 
     public static void toggleInappCamera() {

@@ -13,6 +13,7 @@ import android.view.View;
 import androidx.core.graphics.ColorUtils;
 
 import org.telegram.messenger.PengramConfig;
+import org.telegram.ui.ActionBar.Theme;
 
 /**
  * Pengram: миниатюра плеера — рисует, как будет выглядеть выбранный вид.
@@ -24,6 +25,7 @@ public class PengramPlayerMockView extends View {
     private final RectF rect = new RectF();
     private LinearGradient gradient;
     private int gradientHeight;
+    private int gradientBg = -1;
 
     private int style;
     private int accent = 0xFF5FD0A0;
@@ -59,16 +61,25 @@ public class PengramPlayerMockView extends View {
             return;
         }
 
-        // фон как в нашем плеере — градиент из «обложки»
-        if (gradient == null || gradientHeight != h) {
-            gradientHeight = h;
-            gradient = new LinearGradient(0, 0, 0, h,
-                    new int[]{ColorUtils.blendARGB(accent, 0xFF000000, 0.3f), 0xFF101018},
-                    null, Shader.TileMode.CLAMP);
+        // No actual album artwork is accessed here: the accent stands in for a cover.
+        final int bg = PengramConfig.getPlayerBg();
+        if (bg == PengramConfig.PLAYER_BG_THEME || bg == PengramConfig.PLAYER_BG_DARK) {
+            paint.setColor(bg == PengramConfig.PLAYER_BG_DARK ? 0xFF101014
+                    : ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhite), 0xFF000000, .55f));
+            canvas.drawRoundRect(rect, radius, radius, paint);
+        } else {
+            if (gradient == null || gradientHeight != h || gradientBg != bg) {
+                gradientHeight = h;
+                gradientBg = bg;
+                gradient = new LinearGradient(0, 0, 0, h,
+                        new int[]{ColorUtils.blendARGB(accent, 0xFF000000,
+                                bg == PengramConfig.PLAYER_BG_COVER ? .2f : .35f), 0xFF0E0E12},
+                        null, Shader.TileMode.CLAMP);
+            }
+            paint.setShader(gradient);
+            canvas.drawRoundRect(rect, radius, radius, paint);
+            paint.setShader(null);
         }
-        paint.setShader(gradient);
-        canvas.drawRoundRect(rect, radius, radius, paint);
-        paint.setShader(null);
 
         switch (style) {
             case PengramConfig.PLAYER_STYLE_LYRICS:
@@ -106,9 +117,9 @@ public class PengramPlayerMockView extends View {
         final float cover = Math.min(w - pad * 2, h * 0.46f);
         rect.set((w - cover) / 2f, pad + dp(6), (w + cover) / 2f, pad + dp(6) + cover);
         paint.setColor(0x4DFFFFFF);
-        canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+        canvas.drawRoundRect(rect, coverRadius(cover), coverRadius(cover), paint);
         paint.setColor(ColorUtils.setAlphaComponent(accent, 110));
-        canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+        canvas.drawRoundRect(rect, coverRadius(cover), coverRadius(cover), paint);
 
         float y = rect.bottom + dp(12);
         bar(canvas, pad, y, w * 0.62f, dp(6), 0xE6FFFFFF, dp(3));
@@ -132,7 +143,7 @@ public class PengramPlayerMockView extends View {
         y = h - dp(42);
         rect.set(pad, y, pad + dp(22), y + dp(22));
         paint.setColor(0x59FFFFFF);
-        canvas.drawRoundRect(rect, dp(5), dp(5), paint);
+        canvas.drawRoundRect(rect, coverRadius(dp(22)), coverRadius(dp(22)), paint);
         bar(canvas, pad + dp(28), y + dp(3), w * 0.4f, dp(5), 0xE6FFFFFF, dp(3));
         bar(canvas, pad + dp(28), y + dp(12), w * 0.28f, dp(4), 0x80FFFFFF, dp(2));
         dots(canvas, w / 2f, h - dp(12), 0xFFFFFFFF, dp(6));
@@ -155,7 +166,7 @@ public class PengramPlayerMockView extends View {
         final float cover = dp(lyrics ? 26 : 34);
         rect.set(pad, top + dp(10), pad + cover, top + dp(10) + cover);
         paint.setColor(ColorUtils.setAlphaComponent(accent, 150));
-        canvas.drawRoundRect(rect, dp(6), dp(6), paint);
+        canvas.drawRoundRect(rect, coverRadius(cover), coverRadius(cover), paint);
 
         if (lyrics) {
             float y = top + dp(10);
@@ -171,6 +182,14 @@ public class PengramPlayerMockView extends View {
         bar(canvas, pad, y, w - pad * 2, dp(3), 0x40FFFFFF, dp(2));
         bar(canvas, pad, y, (w - pad * 2) * 0.5f, dp(3), accent, dp(2));
         dots(canvas, w / 2f, y + dp(14), 0xFFFFFFFF, dp(6));
+    }
+
+    private float coverRadius(float diameter) {
+        switch (PengramConfig.getCoverShape()) {
+            case PengramConfig.COVER_SHAPE_CIRCLE: return diameter / 2f;
+            case PengramConfig.COVER_SHAPE_SQUARE: return 0;
+            default: return Math.min(dp(18), diameter / 2f);
+        }
     }
 
     private void drawOriginal(Canvas canvas, int w, int h, float radius) {

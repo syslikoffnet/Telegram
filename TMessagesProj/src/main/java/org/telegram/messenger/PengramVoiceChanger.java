@@ -2,7 +2,6 @@ package org.telegram.messenger;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.ShortBuffer;
 import java.security.SecureRandom;
 
 /**
@@ -13,13 +12,13 @@ import java.security.SecureRandom;
  * вообще не трогается. Длина выходного блока всегда равна длине входного, так что
  * длительность голосового и расчёт амплитуд остаются прежними.
  *
- * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> лимитер.
+ * Цепочка: гранулярный питч-шифтер -> формантный фильтр -> эффект режима -> усиление -> перегруз -> лимитер.
  *
  * Отдельная история — режим «Аноним». Он не просто меняет тон: все параметры
  * (сдвиг тона, формантная окраска, микро-таймварп, фазовое скремблирование и шумовая
  * подложка) выбираются криптослучайно на каждую запись и ещё и плавают во времени.
- * Никакой обратной обработкой оригинал не восстановить: кривая модуляции нигде не
- * сохраняется, а часть тонкой структуры сигнала необратимо затирается.
+ * Эффект меняет сигнал, но не обещает абсолютной анонимности: голос может
+ * распознаваться по манере речи и другим признакам.
  */
 public class PengramVoiceChanger {
 
@@ -40,10 +39,16 @@ public class PengramVoiceChanger {
     public static final int MODE_UNDERWATER = 14; // под водой
     public static final int MODE_WHISPER = 15;    // шёпот
     public static final int MODE_PHONE = 16;      // телефонная линия
+    // Original, locally synthesized timbres. These do not impersonate an actor
+    // and are not neural voice conversion models.
+    public static final int MODE_ASSISTANT = 17;  // clean electronic assistant
+    public static final int MODE_ARMOR = 18;      // cinematic helmet comms
+    public static final int MODE_TROLLING = 19;   // loud, intelligible conference speech
 
     /** порядок режимов в настройках */
     public static final int[] MODES = {
             MODE_OFF,
+            MODE_TROLLING,
             MODE_ANONYMOUS,
             MODE_FEMALE,
             MODE_MALE,
@@ -56,6 +61,8 @@ public class PengramVoiceChanger {
             MODE_ALIEN,
             MODE_RADIO,
             MODE_PHONE,
+            MODE_ASSISTANT,
+            MODE_ARMOR,
             MODE_CAVE,
             MODE_UNDERWATER,
             MODE_WHISPER,
@@ -65,8 +72,29 @@ public class PengramVoiceChanger {
     /** реальная частота записи: приходит из MediaController, по умолчанию 48 кГц */
     private static int sampleRate = 48000;
 
-    private static final int DELAY_SIZE = 8192;   // ~170 мс при 48 кГц
-    private static final int WINDOW = DELAY_SIZE / 2;
+    private static final int DELAY_SIZE = 8192;
+    private static final int DELAY_MASK = DELAY_SIZE - 1; // power-of-two ring
+    // A ~32 ms grain at any supported sample rate: avoids the old 256 ms
+    // pitch window at 16 kHz Bluetooth input without shortening the word.
+    private static int window = 1536;
+    private static final int WINDOW_TABLE_SIZE = 2048;
+    private static final double TWO_PI = 2.0 * Math.PI;
+    private static final double INVERSE_TWO_PI = 1.0 / TWO_PI;
+    private static final double LFO_TABLE_SCALE = WINDOW_TABLE_SIZE / TWO_PI;
+    private static float pitchWindowScale = (float) WINDOW_TABLE_SIZE / window;
+    private static final float[] windowSin = new float[WINDOW_TABLE_SIZE + 1];
+    private static final float[] windowCos = new float[WINDOW_TABLE_SIZE + 1];
+    private static final float[] lfoSin = new float[WINDOW_TABLE_SIZE + 1];
+    static {
+        for (int i = 0; i <= WINDOW_TABLE_SIZE; i++) {
+            lfoSin[i] = (float) Math.sin(2.0 * Math.PI * i / WINDOW_TABLE_SIZE);
+            double angle = Math.PI * i / WINDOW_TABLE_SIZE;
+            windowSin[i] = (float) Math.sin(angle);
+            windowCos[i] = Math.abs((float) Math.cos(angle));
+        }
+    }
+    private static float lp950, lp1800, lp2900, lp3400;
+    private static float hp330, hp420, hp700, hp2600;
 
     private static final short[] delay = new short[DELAY_SIZE];
     private static int writePos;
@@ -86,13 +114,37 @@ public class PengramVoiceChanger {
     private static float lowpassState;
     private static float highpassState;
     private static float highpassPrev;
+    public static final int SOURCE_VOICE = 1;
+    public static final int SOURCE_ROUND = 2;
+    public static final int SOURCE_CALL = 3;
+    private static int activeSource;
+    private static long lastSourceFrame;
+    private static int lastMode = MODE_OFF;
+    private static int slowFrames, overloadStrikes;
+    private static volatile boolean overloaded, disabledForSession;
+    private static long retryAfter;
+    private static float gateGain = 1f;
+    private static int frameFormant, frameEcho, frameDrive, frameRobot;
+    private static float frameMix, frameDriveGain, frameDriveScale;
     private static float limiterGain = 1f;
     private static float dryEnv;
     private static float wetEnv;
     private static float makeupGain = 1f;
+    // Dedicated zero-lookahead conference chain; never shares the pitch shifter
+    // or the deliberately distorted microphone boost preset.
+    private static float speechHp, speechHpPrevious, speechPresenceLow;
+    private static float speechEnvelope, speechGain = 1f, speechGate;
+    private static float speechHpCoefficient, speechPresenceCoefficient;
+    private static float speechEnvelopeAttack, speechEnvelopeRelease;
+    private static float speechGainAttack, speechGainRelease;
+    private static float speechGateAttack, speechGateRelease;
+
 
     // --- состояние анонимайзера (новое на каждую запись) ---
-    private static final SecureRandom secureRandom = new SecureRandom();
+    // Do not initialize SecureRandom when loading the class for an OFF call.
+    private static class AnonymousRandom {
+        static final SecureRandom INSTANCE = new SecureRandom();
+    }
     private static float anonPitch = 1f;          // базовый сдвиг
     private static float anonPitchTarget = 1f;    // куда плывём
     private static float anonPitchNow = 1f;
@@ -109,6 +161,16 @@ public class PengramVoiceChanger {
 
     /** сбрасываем состояние перед каждой новой записью */
     public static synchronized void reset() {
+        window = Math.max(256, Math.min(DELAY_SIZE / 2, Math.round(sampleRate * 0.032f)));
+        pitchWindowScale = (float) WINDOW_TABLE_SIZE / window;
+        lp950 = lowpassCoefficient(950f);
+        lp1800 = lowpassCoefficient(1800f);
+        lp2900 = lowpassCoefficient(2900f);
+        lp3400 = lowpassCoefficient(3400f);
+        hp330 = highpassCoefficient(330f);
+        hp420 = highpassCoefficient(420f);
+        hp700 = highpassCoefficient(700f);
+        hp2600 = highpassCoefficient(2600f);
         java.util.Arrays.fill(delay, (short) 0);
         java.util.Arrays.fill(echo, 0f);
         writePos = 0;
@@ -120,64 +182,201 @@ public class PengramVoiceChanger {
         highpassState = 0;
         highpassPrev = 0;
         limiterGain = 1f;
+        gateGain = 1f;
+        // DSP reset does not lift a CPU bypass in the middle of the same call.
         dryEnv = 0;
         wetEnv = 0;
         makeupGain = 1f;
         envelopeState = 0;
+        speechHp = speechHpPrevious = speechPresenceLow = speechEnvelope = speechGate = 0f;
+        speechGain = 1f;
+        speechHpCoefficient = highpassCoefficient(100f);
+        speechPresenceCoefficient = lowpassCoefficient(1900f);
+        speechEnvelopeAttack = timeCoefficient(0.008f);
+        speechEnvelopeRelease = timeCoefficient(0.09f);
+        speechGainAttack = timeCoefficient(0.012f);
+        speechGainRelease = timeCoefficient(0.06f);
+        speechGateAttack = timeCoefficient(0.003f);
+        speechGateRelease = timeCoefficient(0.14f);
         formant1.reset();
         formant2.reset();
         bandLow.reset();
         bandHigh.reset();
         anonAllpass1.reset();
         anonAllpass2.reset();
-        randomizeAnonymous();
+        final int mode = PengramConfig.getVoiceChangerMode();
+        if (mode == MODE_ANONYMOUS) {
+            randomizeAnonymous();
+        }
+        if (mode == MODE_CUSTOM) {
+            final int formant = PengramConfig.getVoiceFormant();
+            formant1.setPeaking(sampleRate, 750f + formant * 35f, 1.0f, formant * 1.4f);
+            formant2.setPeaking(sampleRate, 2100f + formant * 75f, 1.3f, -formant * 0.8f);
+        } else if (mode == MODE_FEMALE || mode == MODE_CHILD || mode == MODE_HELIUM) {
+            // Compensate for the dark resonance a time-domain pitch shift alone leaves behind.
+            formant1.setPeaking(sampleRate, 650f, 1.0f, -2.0f);
+            formant2.setPeaking(sampleRate, 2400f, 1.1f, mode == MODE_CHILD ? 3.5f : 2.5f);
+        } else if (mode == MODE_MALE || mode == MODE_DEEP || mode == MODE_MONSTER) {
+            formant1.setPeaking(sampleRate, 500f, 1.0f, 2.5f);
+            formant2.setPeaking(sampleRate, 2300f, 1.1f, -2.0f);
+        } else if (mode == MODE_ASSISTANT) {
+            formant1.setPeaking(sampleRate, 480f, 0.85f, -2.5f);
+            formant2.setPeaking(sampleRate, 2600f, 1.1f, 3.0f);
+        } else if (mode == MODE_ARMOR) {
+            formant1.setPeaking(sampleRate, 680f, 0.8f, 3.5f);
+            formant2.setPeaking(sampleRate, 2700f, 1.2f, -3.0f);
+        }
         initialized = true;
     }
 
     /**
      * Каждая запись получает свой случайный «отпечаток»: тон, форманты, дрожание,
      * фазовое скремблирование и уровень шумовой подложки. Параметры нигде не
-     * сохраняются, поэтому восстановить исходник обратной обработкой нельзя.
+     * сохраняются. Этого недостаточно для гарантии анонимности.
      */
     private static void randomizeAnonymous() {
-        final boolean up = secureRandom.nextBoolean();
+        final boolean up = AnonymousRandom.INSTANCE.nextBoolean();
         // ±(2.6 … 5.2) полутона — слышно другого человека, но речь остаётся разборчивой
-        final float semitones = 2.6f + secureRandom.nextFloat() * 2.6f;
+        final float semitones = 2.6f + AnonymousRandom.INSTANCE.nextFloat() * 2.6f;
         anonPitch = (float) Math.pow(2.0, (up ? semitones : -semitones) / 12.0);
         anonPitchTarget = anonPitch;
         anonPitchNow = anonPitch;
         anonDriftLeft = 0;
 
         // формантная окраска «уводит» тембр в сторону от оригинала
-        anonFormant1Freq = 420f + secureRandom.nextFloat() * 520f;
-        anonFormant2Freq = 1500f + secureRandom.nextFloat() * 1400f;
-        anonFormant1Gain = (secureRandom.nextBoolean() ? 1f : -1f) * (3.5f + secureRandom.nextFloat() * 3.5f);
+        anonFormant1Freq = 420f + AnonymousRandom.INSTANCE.nextFloat() * 520f;
+        anonFormant2Freq = 1500f + AnonymousRandom.INSTANCE.nextFloat() * 1400f;
+        anonFormant1Gain = (AnonymousRandom.INSTANCE.nextBoolean() ? 1f : -1f) * (3.5f + AnonymousRandom.INSTANCE.nextFloat() * 3.5f);
         // второй резонанс всегда в противофазе первому: тембр меняется, а общая громкость — нет
-        anonFormant2Gain = (anonFormant1Gain > 0 ? -1f : 1f) * (3f + secureRandom.nextFloat() * 4f);
+        anonFormant2Gain = (anonFormant1Gain > 0 ? -1f : 1f) * (3f + AnonymousRandom.INSTANCE.nextFloat() * 4f);
         anonMakeup = (float) Math.pow(10.0, -(anonFormant1Gain + anonFormant2Gain) / 40.0);
         if (anonMakeup > 1.25f) {
             anonMakeup = 1.25f;
         } else if (anonMakeup < 0.8f) {
             anonMakeup = 0.8f;
         }
-        anonTilt = -0.25f + secureRandom.nextFloat() * 0.5f;
+        anonTilt = -0.25f + AnonymousRandom.INSTANCE.nextFloat() * 0.5f;
 
         // микро-таймварп: две несинхронные медленные волны
-        anonJitterPhase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitterSpeed = 2.0 * Math.PI * (0.18 + secureRandom.nextFloat() * 0.22) / sampleRate;
-        anonJitter2Phase = secureRandom.nextFloat() * Math.PI * 2;
-        anonJitter2Speed = 2.0 * Math.PI * (0.55 + secureRandom.nextFloat() * 0.5) / sampleRate;
+        anonJitterPhase = AnonymousRandom.INSTANCE.nextFloat() * Math.PI * 2;
+        anonJitterSpeed = 2.0 * Math.PI * (0.18 + AnonymousRandom.INSTANCE.nextFloat() * 0.22) / sampleRate;
+        anonJitter2Phase = AnonymousRandom.INSTANCE.nextFloat() * Math.PI * 2;
+        anonJitter2Speed = 2.0 * Math.PI * (0.55 + AnonymousRandom.INSTANCE.nextFloat() * 0.5) / sampleRate;
 
-        anonNoise = 0.0016f + secureRandom.nextFloat() * 0.0016f;
-        anonAllpassMix = 0.35f + secureRandom.nextFloat() * 0.3f;
-        noiseSeed = secureRandom.nextLong() | 1L;
+        anonNoise = 0.0016f + AnonymousRandom.INSTANCE.nextFloat() * 0.0016f;
+        anonAllpassMix = 0.35f + AnonymousRandom.INSTANCE.nextFloat() * 0.3f;
+        noiseSeed = AnonymousRandom.INSTANCE.nextLong() | 1L;
 
         formant1.setPeaking(sampleRate, anonFormant1Freq, 1.1f, anonFormant1Gain);
         formant2.setPeaking(sampleRate, anonFormant2Freq, 1.3f, anonFormant2Gain);
     }
 
     public static boolean isEnabled() {
-        return PengramConfig.getVoiceChangerMode() != MODE_OFF;
+        return isEnabledFor(SOURCE_VOICE);
+    }
+
+    private static boolean isDryOnly(int mode) {
+        return (mode == MODE_CUSTOM || mode == MODE_ASSISTANT || mode == MODE_ARMOR)
+                && PengramConfig.getVoiceStudioMix() == 0;
+    }
+
+    public static boolean isEnabledFor(int source) {
+        final int mode = PengramConfig.getVoiceChangerMode();
+        return (PengramConfig.getVoiceGainDb() > 0 || PengramConfig.getVoiceGainDrive() > 0
+                || mode != MODE_OFF && !isDryOnly(mode)) &&
+                (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
+                        || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
+                        || source == SOURCE_CALL && PengramConfig.isVoiceCallsEnabled());
+    }
+
+    /** Called once by the shared WebRTC microphone handoff (Java, OpenSL ES, or AAudio). */
+    public static void processCallAudio(ByteBuffer buffer, int length, int rate) {
+        processForSource(buffer, length, rate, SOURCE_CALL);
+    }
+
+    /** PCM16 mono only. A competing recorder is bypassed, never mixed into another session's state. */
+    public static synchronized void processForSource(ByteBuffer buffer, int len, int rate, int source) {
+        if (!isEnabledFor(source) || buffer == null || len < 2) return;
+        final int mode = PengramConfig.getVoiceChangerMode();
+        if (buffer.isReadOnly() || rate < 8000 || rate > 96000) {
+            muteIfAnonymous(buffer, len, mode);
+            return;
+        }
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (activeSource != source || now - lastSourceFrame > 500) {
+            if (activeSource != 0 && activeSource != source && now - lastSourceFrame < 250) {
+                muteIfAnonymous(buffer, len, mode);
+                return;
+            }
+            activeSource = source;
+            initialized = false;
+            limiterGain = 1f;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
+        }
+        if (lastMode != mode) {
+            lastMode = mode;
+            initialized = false;
+            limiterGain = 1f;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
+        }
+        lastSourceFrame = now;
+        if (disabledForSession) {
+            muteIfAnonymous(buffer, len, mode);
+            return;
+        }
+        if (overloaded) {
+            if (now < retryAfter) {
+                muteIfAnonymous(buffer, len, mode);
+                return;
+            }
+            overloaded = false;
+            slowFrames = 0;
+            initialized = false;
+        }
+        final long started = android.os.SystemClock.elapsedRealtimeNanos();
+        process(buffer, len, rate);
+        // Leave most of the capture interval to Telegram/WebRTC. On slow
+        // hardware prefer original PCM over repeatedly stuttering the call.
+        final long packetNs = 1_000_000_000L * Math.min(len, buffer.limit()) / (2L * rate);
+        final long budgetNs = Math.min(8_000_000L, Math.max(2_000_000L, packetNs * 2L / 5L));
+        if (android.os.SystemClock.elapsedRealtimeNanos() - started > budgetNs) {
+            if (++slowFrames >= 3) {
+                slowFrames = 0;
+                if (++overloadStrikes >= 2) {
+                    disabledForSession = true; // until the next recording, call or mode change
+                } else {
+                    overloaded = true;
+                    retryAfter = now + 5000;
+                }
+            }
+        } else {
+            slowFrames = 0;
+        }
+    }
+
+    /** An advisory UI status; no latency-sensitive code waits on this. */
+    public static boolean isBypassedForPerformance() {
+        return overloaded || disabledForSession;
+    }
+
+    // Anonymous is a privacy setting: never silently substitute the user's
+    // original voice when the CPU cannot keep up with the effect.
+    private static void muteIfAnonymous(ByteBuffer buffer, int len, int mode) {
+        if (mode != MODE_ANONYMOUS || buffer == null || buffer.isReadOnly()) return;
+        final int count = Math.min(len, buffer.limit()) / 2;
+        for (int i = 0; i < count; ++i) buffer.putShort(i * 2, (short) 0);
+    }
+
+    public static synchronized void finishSource(int source) {
+        if (activeSource == source) {
+            activeSource = 0;
+            initialized = false;
+            limiterGain = 1f;
+            overloaded = disabledForSession = false;
+            slowFrames = overloadStrikes = 0;
+        }
     }
 
     public static boolean isAnonymous() {
@@ -202,6 +401,8 @@ public class PengramVoiceChanger {
             case MODE_WHISPER: return 1.04f;
             case MODE_UNDERWATER: return 0.92f;
             case MODE_ANONYMOUS: return anonPitch;
+            case MODE_ASSISTANT: return 1.06f;
+            case MODE_ARMOR: return 0.90f;
             case MODE_CUSTOM: return semitonesToFactor(PengramConfig.getVoiceChangerPitch());
             default: return 1.0f;
         }
@@ -231,29 +432,79 @@ public class PengramVoiceChanger {
             initialized = false;   // фильтры пересчитываем под новую частоту
         }
         final int mode = PengramConfig.getVoiceChangerMode();
-        if (mode == MODE_OFF || buffer == null || len < 2) {
+        if (buffer == null || buffer.isReadOnly() || len < 2 || buffer.limit() < 2) return;
+        if (mode == MODE_TROLLING) {
+            // Speech intelligibility wins over the separate +60 dB/overdrive
+            // preset. No pitch windows or extra conference latency.
+            try {
+                if (!initialized) reset();
+                processConferenceSpeech(buffer, len);
+            } catch (Throwable e) {
+                disabledForSession = true;
+                initialized = false;
+                FileLog.e(e);
+            }
             return;
         }
+        final int boostDb = PengramConfig.getVoiceGainDb();
+        final int overdrive = PengramConfig.getVoiceGainDrive();
+        final boolean dryOnly = mode == MODE_OFF || isDryOnly(mode);
+        if (dryOnly && boostDb == 0 && overdrive == 0) return;
+        // dB refers to voltage/amplitude, not power. Compute once per packet.
+        final float boost = boostDb == 0 ? 1f : (float) Math.pow(10.0, boostDb / 20.0);
         try {
+            if (dryOnly) {
+                final ByteOrder previousOrder = buffer.order();
+                buffer.order(ByteOrder.LITTLE_ENDIAN);
+                try {
+                    final int count = Math.min(len, buffer.limit()) / 2;
+                    for (int i = 0; i < count; ++i) {
+                        buffer.putShort(i * 2, (short) limit(microphoneOverdrive(buffer.getShort(i * 2) * boost, overdrive)));
+                    }
+                } finally {
+                    buffer.order(previousOrder);
+                }
+                return;
+            }
+
             if (!initialized) {
                 reset();
             }
-            final int oldPosition = buffer.position();
-            final int oldLimit = buffer.limit();
-            buffer.order(ByteOrder.nativeOrder());
-            buffer.position(0);
-            buffer.limit(len);
-            final ShortBuffer shorts = buffer.asShortBuffer();
-            final int count = shorts.limit();
+            // Absolute getShort/putShort respect limit, not capacity. A reused
+            // AudioRecord buffer may expose fewer valid bytes than it can hold.
+            final int count = Math.min(len, buffer.limit()) / 2;
+            final ByteOrder previousOrder = buffer.order();
+            buffer.order(ByteOrder.LITTLE_ENDIAN);
 
             final float basePitch = getPitchFactor(mode);
             final boolean anonymous = mode == MODE_ANONYMOUS;
+            final int gate = PengramConfig.getVoiceGate();
+            frameFormant = PengramConfig.getVoiceFormant();
+            frameEcho = PengramConfig.getVoiceEcho();
+            // Snapshot knobs once per packet, not for every microphone sample.
+            frameDrive = mode == MODE_CUSTOM ? PengramConfig.getVoiceStudioDrive() : 0;
+            if (frameDrive > 0) {
+                final float gain = 1f + frameDrive * 0.45f;
+                frameDriveGain = gain / 24000f;
+                frameDriveScale = 24000f / (float) Math.tanh(gain);
+            }
+            frameRobot = mode == MODE_CUSTOM ? PengramConfig.getVoiceStudioRobot() : 0;
+            frameMix = mode == MODE_CUSTOM || mode == MODE_ASSISTANT || mode == MODE_ARMOR
+                    ? PengramConfig.getVoiceStudioMix() / 100f : 1f;
 
+            try {
             for (int i = 0; i < count; ++i) {
-                final short in = shorts.get(i);
+                final short in = buffer.getShort(i * 2);
 
-                delay[writePos] = in;
-                writePos = (writePos + 1) % DELAY_SIZE;
+                if (gate > 0) {
+                    final int threshold = gate * 200;
+                    final float target = Math.abs(in) < threshold ? 0f : 1f;
+                    gateGain += (target - gateGain) * (target > gateGain ? 0.025f : 0.001f);
+                } else {
+                    gateGain = 1f;
+                }
+                delay[writePos] = (short) (in * gateGain);
+                writePos = (writePos + 1) & DELAY_MASK;
 
                 float pitch = basePitch;
                 if (anonymous) {
@@ -265,34 +516,53 @@ public class PengramVoiceChanger {
                     out = in;
                 } else {
                     readPhase += (pitch - 1f);
-                    if (readPhase >= WINDOW) {
-                        readPhase -= WINDOW;
+                    if (readPhase >= window) {
+                        readPhase -= window;
                     } else if (readPhase < 0) {
-                        readPhase += WINDOW;
+                        readPhase += window;
                     }
 
                     final float head1 = readPhase;
-                    final float head2 = readPhase + WINDOW / 2f >= WINDOW
-                            ? readPhase + WINDOW / 2f - WINDOW
-                            : readPhase + WINDOW / 2f;
+                    final float head2 = readPhase + window / 2f >= window
+                            ? readPhase - window / 2f
+                            : readPhase + window / 2f;
 
-                    // окна равной мощности (sin/cos): нет ни щелчков, ни провала громкости
-                    final float theta = (float) (Math.PI * head1 / WINDOW);
-                    final float gain1 = (float) Math.sin(theta);
-                    final float gain2 = Math.abs((float) Math.cos(theta));
+                    // Equal-power overlap: precomputed/interpolated windows save
+                    // two trigonometric calls for every sample on the audio thread.
+                    final float table = head1 * pitchWindowScale;
+                    // head1 >= 0; handle only the rare rounded-up table edge.
+                    final boolean edge = table >= WINDOW_TABLE_SIZE;
+                    final int step = edge ? WINDOW_TABLE_SIZE - 1 : (int) table;
+                    final float fraction = edge ? 1f : table - step;
+                    final float gain1 = windowSin[step] + (windowSin[step + 1] - windowSin[step]) * fraction;
+                    final float gain2 = windowCos[step] + (windowCos[step + 1] - windowCos[step]) * fraction;
 
                     out = read(head1) * gain1 + read(head2) * gain2;
                     out = makeup(out, in);
                 }
 
                 out = applyMode(mode, out, in);
-                out = limit(out);
-                shorts.put(i, (short) out);
+                if (frameMix < 1f) {
+                    out = in * (1f - frameMix) + out * frameMix;
+                }
+                out = limit(microphoneOverdrive(out * boost, overdrive));
+                buffer.putShort(i * 2, (short) (out * gateGain));
             }
 
-            buffer.limit(oldLimit);
-            buffer.position(oldPosition);
+            } finally {
+                // Keep LFO phase precision stable for long live calls.
+                lfoPhase %= 2.0 * Math.PI;
+                lfo2Phase %= 2.0 * Math.PI;
+                anonJitterPhase %= 2.0 * Math.PI;
+                anonJitter2Phase %= 2.0 * Math.PI;
+                buffer.order(previousOrder);
+            }
         } catch (Throwable e) {
+            // Never repeatedly throw/log on the microphone callback. The next
+            // packets remain unmodified until a fresh source starts.
+            disabledForSession = true;
+            initialized = false;
+            muteIfAnonymous(buffer, len, mode);
             FileLog.e(e);
         }
     }
@@ -321,8 +591,8 @@ public class PengramVoiceChanger {
     private static float anonymousPitch() {
         if (--anonDriftLeft <= 0) {
             // новая цель каждые 120…320 мс, отклонение до ±0.7 полутона от базы
-            anonDriftLeft = (int) (sampleRate * (0.12f + secureRandom.nextFloat() * 0.2f));
-            final float deviation = (secureRandom.nextFloat() - 0.5f) * 1.4f;
+            anonDriftLeft = (int) (sampleRate * (0.12f + AnonymousRandom.INSTANCE.nextFloat() * 0.2f));
+            final float deviation = (AnonymousRandom.INSTANCE.nextFloat() - 0.5f) * 1.4f;
             anonPitchTarget = anonPitch * (float) Math.pow(2.0, deviation / 12.0);
         }
         anonPitchNow += (anonPitchTarget - anonPitchNow) * 0.00008f;
@@ -330,12 +600,50 @@ public class PengramVoiceChanger {
         // микро-таймварп ±1.2%: ломает любую попытку «выровнять» запись обратно
         anonJitterPhase += anonJitterSpeed;
         anonJitter2Phase += anonJitter2Speed;
-        final float warp = 1f + (float) (Math.sin(anonJitterPhase) * 0.008 + Math.sin(anonJitter2Phase) * 0.004);
+        final float warp = 1f + (float) (sine(anonJitterPhase) * 0.008 + sine(anonJitter2Phase) * 0.004);
         return anonPitchNow * warp;
     }
 
     private static float applyMode(int mode, float x, float dry) {
         switch (mode) {
+            case MODE_CUSTOM: {
+                if (frameFormant != 0) {
+                    x = formant2.process(formant1.process(x));
+                }
+                final int echoLevel = frameEcho;
+                if (echoLevel > 0) {
+                    final float delayed = echoRead(sampleRate / 6);
+                    echoWrite(x + delayed * 0.2f);
+                    x += delayed * echoLevel * 0.09f;
+                }
+                if (frameRobot > 0) {
+                    lfoPhase += 2.0 * Math.PI * 68.0 / sampleRate;
+                    final float depth = frameRobot / 6f * 0.65f;
+                    x *= 1f - depth * (0.5f - 0.5f * sine(lfoPhase));
+                }
+                if (frameDrive > 0) {
+                    // Normalized soft saturation; the static coefficients are
+                    // calculated once per audio packet, not for each sample.
+                    x = (float) Math.tanh(x * frameDriveGain) * frameDriveScale;
+                }
+                return x;
+            }
+            case MODE_ASSISTANT: {
+                final float clear = formant2.process(formant1.process(highpass(x, 330f)));
+                lfoPhase += 2.0 * Math.PI * 54.0 / sampleRate;
+                final float shimmer = 0.88f + 0.12f * sine(lfoPhase);
+                final float tap = echoRead(Math.max(1, sampleRate / 35));
+                echoWrite(clear + tap * 0.15f);
+                return clear * shimmer + tap * 0.12f;
+            }
+            case MODE_ARMOR: {
+                final float band = highpass(lowpass(x, 3400f), 330f);
+                final float shaped = formant2.process(formant1.process(band));
+                final float compressed = (float) Math.tanh(shaped / 14000f) * 16000f;
+                final float tap = echoRead(Math.max(1, sampleRate / 12));
+                echoWrite(compressed + tap * 0.22f);
+                return compressed * 0.84f + tap * 0.23f;
+            }
             case MODE_ANONYMOUS: {
                 // формантная окраска + фазовое скремблирование + шумовая подложка
                 x = formant1.process(x);
@@ -350,20 +658,26 @@ public class PengramVoiceChanger {
                 x += noise() * anonNoise * 32768f;
                 return x * anonMakeup;
             }
+            case MODE_FEMALE:
+            case MODE_CHILD:
+            case MODE_HELIUM:
+            case MODE_MALE:
+            case MODE_DEEP:
+                return formant2.process(formant1.process(x));
             case MODE_ROBOT: {
                 lfoPhase += 2.0 * Math.PI * 75.0 / sampleRate;
-                final float mod = (float) (0.55 + 0.45 * Math.cos(lfoPhase));
+                final float mod = (float) (0.55 + 0.45 * sine(lfoPhase + Math.PI / 2));
                 return x * mod;
             }
             case MODE_MONSTER: {
                 lfoPhase += 2.0 * Math.PI * 32.0 / sampleRate;
-                final float mod = (float) (0.6 + 0.4 * Math.cos(lfoPhase));
-                return clip(x * mod * 1.25f, 26000f);
+                final float mod = (float) (0.6 + 0.4 * sine(lfoPhase + Math.PI / 2));
+                return clip(formant2.process(formant1.process(x)) * mod * 1.25f, 26000f);
             }
             case MODE_DEMON: {
                 lfoPhase += 2.0 * Math.PI * 24.0 / sampleRate;
                 lfo2Phase += 2.0 * Math.PI * 7.0 / sampleRate;
-                final float growl = (float) (0.62 + 0.38 * Math.cos(lfoPhase)) * (float) (0.85 + 0.15 * Math.cos(lfo2Phase));
+                final float growl = (float) (0.62 + 0.38 * sine(lfoPhase + Math.PI / 2)) * (float) (0.85 + 0.15 * sine(lfo2Phase + Math.PI / 2));
                 final float distorted = (float) Math.tanh(x * growl / 9000f) * 9000f;
                 final float demonEcho = echoRead(2600);
                 echoWrite(distorted + demonEcho * 0.28f);
@@ -371,7 +685,7 @@ public class PengramVoiceChanger {
             }
             case MODE_ALIEN: {
                 lfoPhase += 2.0 * Math.PI * 180.0 / sampleRate;
-                final float ring = (float) Math.cos(lfoPhase);
+                final float ring = (float) sine(lfoPhase + Math.PI / 2);
                 final float mixed = x * 0.55f + x * ring * 0.45f;
                 final float alienEcho = echoRead(1100);
                 echoWrite(mixed + alienEcho * 0.22f);
@@ -394,7 +708,7 @@ public class PengramVoiceChanger {
             }
             case MODE_UNDERWATER: {
                 lfoPhase += 2.0 * Math.PI * 1.6 / sampleRate;
-                final float wobble = (float) (0.88 + 0.12 * Math.cos(lfoPhase));
+                final float wobble = (float) (0.88 + 0.12 * sine(lfoPhase + Math.PI / 2));
                 final float muffled = lowpass(x, 950f);
                 final float waterEcho = echoRead(2200);
                 echoWrite(muffled + waterEcho * 0.2f);
@@ -411,19 +725,65 @@ public class PengramVoiceChanger {
         }
     }
 
+    /** Clean, leveled speech for calls and voice notes; all coefficients and
+     *  state are per microphone session and recalculated for the actual rate.
+     */
+    private static void processConferenceSpeech(ByteBuffer buffer, int len) {
+        final ByteOrder previousOrder = buffer.order();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            final int count = Math.min(len, buffer.limit()) / 2;
+            for (int i = 0; i < count; ++i) {
+                final float input = buffer.getShort(i * 2);
+                // Remove handling noise/rumble and lift articulation without
+                // changing pitch, adding echo or flattening consonants.
+                speechHp = speechHpCoefficient * (speechHp + input - speechHpPrevious);
+                speechHpPrevious = input;
+                speechPresenceLow += speechPresenceCoefficient * (speechHp - speechPresenceLow);
+                final float clear = speechHp + 0.16f * (speechHp - speechPresenceLow);
+                final float level = Math.abs(speechHp);
+                speechEnvelope += (level - speechEnvelope) *
+                        (level > speechEnvelope ? speechEnvelopeAttack : speechEnvelopeRelease);
+                // Moderate expander: do not pump room noise to full level
+                // between words. Starts opening well below ordinary speech.
+                final float activity = Math.max(0f, Math.min(1f, (speechEnvelope - 28f) / 112f));
+                speechGate += (activity - speechGate) *
+                        (activity > speechGate ? speechGateAttack : speechGateRelease);
+                // Target a strong speech envelope without slamming the 30k
+                // limiter on every syllable. Up to 20x for quiet words, down
+                // to 0.65x for shouting; fast down and slow up prevent pumping.
+                final float target = Math.max(0.65f, Math.min(20f,
+                        14000f / Math.max(500f, speechEnvelope)));
+                speechGain += (target - speechGain) *
+                        (target < speechGain ? speechGainAttack : speechGainRelease);
+                buffer.putShort(i * 2, (short) limit(clear * speechGain * speechGate));
+            }
+        } finally {
+            buffer.order(previousOrder);
+        }
+    }
+
     // ------------------------------------------------------------- утилиты DSP
+
+    /** Interpolated LFO. Phases are positive and normalized once per packet. */
+    private static float sine(double phase) {
+        if (phase < 0) phase -= Math.floor(phase * INVERSE_TWO_PI) * TWO_PI;
+        else phase -= (int) (phase * INVERSE_TWO_PI) * TWO_PI;
+        // 2π rounds to the end of the table on some sample rates.
+        final double index = phase * LFO_TABLE_SCALE;
+        final int a = (int) index;
+        if (a >= WINDOW_TABLE_SIZE) return lfoSin[WINDOW_TABLE_SIZE];
+        return lfoSin[a] + (lfoSin[a + 1] - lfoSin[a]) * (float) (index - a);
+    }
 
     /** линейная интерполяция по линии задержки, head — задержка в сэмплах от головы записи */
     private static float read(float head) {
-        float pos = writePos - WINDOW + head;
-        while (pos < 0) {
-            pos += DELAY_SIZE;
-        }
-        while (pos >= DELAY_SIZE) {
-            pos -= DELAY_SIZE;
-        }
+        // head is always in [0, window), window <= DELAY_SIZE / 2:
+        // a single wrap is sufficient, even at the buffer boundary.
+        float pos = writePos - window + head;
+        if (pos < 0) pos += DELAY_SIZE;
         final int i0 = (int) pos;
-        final int i1 = (i0 + 1) % DELAY_SIZE;
+        final int i1 = (i0 + 1) & DELAY_MASK;
         final float frac = pos - i0;
         return delay[i0] * (1f - frac) + delay[i1] * frac;
     }
@@ -443,19 +803,32 @@ public class PengramVoiceChanger {
     /** запись в линию задержки — ровно один раз на сэмпл */
     private static void echoWrite(float value) {
         echo[echoPos] = value;
-        echoPos = (echoPos + 1) % ECHO_SIZE;
+        if (++echoPos == ECHO_SIZE) echoPos = 0;
+    }
+
+    private static float timeCoefficient(float seconds) {
+        return (float) (1.0 - Math.exp(-1.0 / (seconds * sampleRate)));
+    }
+
+    private static float lowpassCoefficient(float cutoff) {
+        return (float) (1.0 - Math.exp(-2.0 * Math.PI * cutoff / sampleRate));
+    }
+
+    private static float highpassCoefficient(float cutoff) {
+        final float rc = 1f / (2f * (float) Math.PI * cutoff);
+        return rc / (rc + 1f / sampleRate);
     }
 
     private static float lowpass(float x, float cutoff) {
-        final float a = (float) (1.0 - Math.exp(-2.0 * Math.PI * cutoff / sampleRate));
+        final float a = cutoff == 950f ? lp950 : cutoff == 1800f ? lp1800
+                : cutoff == 2900f ? lp2900 : lp3400;
         lowpassState += a * (x - lowpassState);
         return lowpassState;
     }
 
     private static float highpass(float x, float cutoff) {
-        final float rc = 1f / (2f * (float) Math.PI * cutoff);
-        final float dt = 1f / sampleRate;
-        final float a = rc / (rc + dt);
+        final float a = cutoff == 330f ? hp330 : cutoff == 420f ? hp420
+                : cutoff == 700f ? hp700 : hp2600;
         highpassState = a * (highpassState + x - highpassPrev);
         highpassPrev = x;
         return highpassState;
@@ -488,22 +861,33 @@ public class PengramVoiceChanger {
         return x;
     }
 
+    /** Intentional saturation, separate from the final digital peak limiter.
+     *  The knee starts at 24k for a gentle drive, down to 6k at 100%. The
+     *  bounded rational curve avoids tanh on the latency-sensitive call path.
+     */
+    private static float microphoneOverdrive(float x, int drive) {
+        if (drive == 0) return x;
+        final float threshold = 24000f - drive * 180f;
+        final float amplitude = Math.abs(x);
+        if (amplitude <= threshold) return x;
+        final float headroom = 30000f - threshold;
+        final float excess = amplitude - threshold;
+        final float compressed = threshold + headroom * excess / (excess + headroom);
+        return x < 0f ? -compressed : compressed;
+    }
+
     /** мягкий лимитер: ничего не трещит даже на агрессивных режимах */
     private static float limit(float x) {
         final float peak = Math.abs(x);
         final float ceiling = 30000f;
         if (peak * limiterGain > ceiling) {
             limiterGain = ceiling / peak;
-        } else {
-            limiterGain += (1f - limiterGain) * 0.0008f;
         }
-        float out = x * limiterGain;
-        if (out > 32767f) {
-            out = 32767f;
-        } else if (out < -32768f) {
-            out = -32768f;
-        }
-        return out;
+        final float out = x * limiterGain;
+        // Recover AFTER calculating this sample; otherwise a sustained loud
+        // signal can exceed the ceiling on every alternate sample.
+        limiterGain += (1f - limiterGain) * 0.0008f;
+        return clip(out, ceiling);
     }
 
     /** биквад: пиковый фильтр для формант */
@@ -578,6 +962,9 @@ public class PengramVoiceChanger {
             case MODE_ALIEN: return LocaleController.getString(R.string.PengramVoiceAlien);
             case MODE_RADIO: return LocaleController.getString(R.string.PengramVoiceRadio);
             case MODE_PHONE: return LocaleController.getString(R.string.PengramVoicePhone);
+            case MODE_ASSISTANT: return LocaleController.getString(R.string.PengramVoiceAssistant);
+            case MODE_ARMOR: return LocaleController.getString(R.string.PengramVoiceArmor);
+            case MODE_TROLLING: return LocaleController.getString(R.string.PengramVoiceTrolling);
             case MODE_CAVE: return LocaleController.getString(R.string.PengramVoiceCave);
             case MODE_UNDERWATER: return LocaleController.getString(R.string.PengramVoiceUnderwater);
             case MODE_WHISPER: return LocaleController.getString(R.string.PengramVoiceWhisper);
@@ -600,6 +987,9 @@ public class PengramVoiceChanger {
             case MODE_ALIEN: return "\uD83D\uDC7D";
             case MODE_RADIO: return "\uD83D\uDCFB";
             case MODE_PHONE: return "\u260E\uFE0F";
+            case MODE_ASSISTANT: return "\uD83D\uDCBB";
+            case MODE_ARMOR: return "\uD83D\uDEE1\uFE0F";
+            case MODE_TROLLING: return "\uD83D\uDCE2";
             case MODE_CAVE: return "\uD83D\uDD73\uFE0F";
             case MODE_UNDERWATER: return "\uD83C\uDF0A";
             case MODE_WHISPER: return "\uD83E\uDD2B";
@@ -612,6 +1002,7 @@ public class PengramVoiceChanger {
     public static int getModeGroup(int mode) {
         switch (mode) {
             case MODE_OFF:
+            case MODE_TROLLING:
             case MODE_ANONYMOUS:
             case MODE_CUSTOM:
                 return 0;

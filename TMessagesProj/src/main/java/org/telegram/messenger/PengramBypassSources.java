@@ -100,10 +100,18 @@ public final class PengramBypassSources {
         }
 
         public boolean valid() {
-            if (TextUtils.isEmpty(host) || port <= 0 || port > 65535) {
-                return false;
+            if (TextUtils.isEmpty(host) || port <= 0 || port > 65535
+                    || !PengramProxyPolicy.validHost(host)
+                    || host.startsWith("-") || host.endsWith("-")) return false;
+            if (isWs()) {
+                if (uuid == null) return false;
+                try { if (!java.util.UUID.fromString(uuid).toString().equalsIgnoreCase(uuid)) return false; }
+                catch (IllegalArgumentException e) { return false; }
+                return tls && PengramProxyPolicy.validHost(sni) && PengramProxyPolicy.validHost(wsHost)
+                        && PengramProxyPolicy.validPath(path);
             }
-            return isWs() ? uuid.length() >= 32 : secret.length() >= 16;
+            return secret != null && secret.length() >= 16 && secret.length() <= 512
+                    && PengramProxyPolicy.validPath("/" + secret);
         }
 
         public String id() {
@@ -513,7 +521,7 @@ public final class PengramBypassSources {
             connection = (HttpURLConnection) new URL(url).openConnection();
             connection.setConnectTimeout(6000);
             connection.setReadTimeout(9000);
-            connection.setInstanceFollowRedirects(true);
+            connection.setInstanceFollowRedirects(false);
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) Pengram");
             if (connection.getResponseCode() / 100 != 2) {
                 return null;
@@ -523,9 +531,10 @@ public final class PengramBypassSources {
             final byte[] buffer = new byte[16384];
             int read;
             int guard = 0;
-            while ((read = in.read(buffer)) > 0 && guard < 4 * 1024 * 1024) {
-                out.write(buffer, 0, read);
+            while ((read = in.read(buffer, 0, Math.min(buffer.length, 4 * 1024 * 1024 - guard + 1))) > 0) {
                 guard += read;
+                if (guard > 4 * 1024 * 1024) return null;
+                out.write(buffer, 0, read);
             }
             in.close();
             return new String(out.toByteArray(), "UTF-8");

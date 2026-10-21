@@ -71,11 +71,9 @@ import android.webkit.MimeTypeMap;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.OptIn;
 import androidx.exifinterface.media.ExifInterface;
 
 import androidx.media3.common.C;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.common.Player;
 import androidx.media3.extractor.jpeg.MotionPhotoDescription;
@@ -801,7 +799,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     } else if (orientation.second == 2) {
                         matrix.postScale(1, -1);
                     }
-                    b = Bitmaps.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                    int width1 = bitmap.getWidth();
+                    int height1 = bitmap.getHeight();
+                    b = Bitmap.createBitmap(bitmap, 0, 0, width1, height1, matrix, true);
                     bitmap.recycle();
                 } else {
                     b = bitmap;
@@ -1126,7 +1126,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (len > 0) {
                     buffer.limit(len);
                     if (PengramVoiceChanger.isEnabled()) {
-                        PengramVoiceChanger.process(buffer, len, sampleRate);
+                        PengramVoiceChanger.processForSource(buffer, len, sampleRate, PengramVoiceChanger.SOURCE_VOICE);
                         buffer.position(0);
                         buffer.limit(len);
                     }
@@ -4414,6 +4414,30 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
 
     public ArrayList<MessageObject> getPlaylist() {
         return playlist;
+    }
+
+    /** The ordered list used by next/previous (unlike getPlaylist when shuffle is on). */
+    public ArrayList<MessageObject> getPlaybackPlaylist() {
+        return SharedConfig.shuffleMusic ? shuffledPlaylist : playlist;
+    }
+
+    /** Select a row in the actual playback order, preserving next/previous navigation. */
+    public void playMessageAtPlaybackIndex(int index) {
+        ArrayList<MessageObject> current = getPlaybackPlaylist();
+        if (index < 0 || index >= current.size()) {
+            return;
+        }
+        currentPlaylistNum = index;
+        MessageObject messageObject = current.get(index);
+        if (playingMessageObject != null && isSamePlayingMessage(messageObject)) {
+            playMessage(messageObject); // resumes if paused; do not leave playMusicAgain set
+            return;
+        }
+        playMusicAgain = true;
+        if (playingMessageObject != null) {
+            playingMessageObject.resetPlayingProgress();
+        }
+        playMessage(messageObject);
     }
 
     public MessagesController.SavedMusicList getMusicList() {

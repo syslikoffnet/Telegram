@@ -32,6 +32,10 @@ import java.util.ArrayList;
  */
 public class PengramChatLookActivity extends BaseFragment {
 
+    private final int highlightRes;
+    public PengramChatLookActivity() { this(0); }
+    public PengramChatLookActivity(int highlightRes) { this.highlightRes = highlightRes; }
+
     private PengramMessagePreviewView preview;
     private PengramAvatarPlacementView placement;
     private PengramDialogPreviewView dialogPreview;
@@ -63,7 +67,8 @@ public class PengramChatLookActivity extends BaseFragment {
         preview = new PengramMessagePreviewView(context, null);
         content.addView(preview, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-        content.addView(header(context, getString(R.string.PengramAvatarPos)));
+        final TextView avatarHeader = header(context, getString(R.string.PengramAvatarPos));
+        content.addView(avatarHeader);
         content.addView(hint(context, getString(R.string.PengramAvatarPlacementHint)));
 
         placement = new PengramAvatarPlacementView(context);
@@ -76,7 +81,8 @@ public class PengramChatLookActivity extends BaseFragment {
         content.addView(placement, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
 
         // ---------- аватарки в списке чатов ----------
-        content.addView(header(context, getString(R.string.PengramDialogAvatars)));
+        final TextView dialogHeader = header(context, getString(R.string.PengramDialogAvatars));
+        content.addView(dialogHeader);
         content.addView(hint(context, getString(R.string.PengramDialogAvatarsInfo)));
 
         dialogPreview = new PengramDialogPreviewView(context);
@@ -118,6 +124,14 @@ public class PengramChatLookActivity extends BaseFragment {
         more.setOnClickListener(v -> presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS)));
         content.addView(more, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 12, 18, 12, 0));
 
+        if (highlightRes == R.string.PengramAvatarPos || highlightRes == R.string.PengramDialogAvatars) {
+            final TextView target = highlightRes == R.string.PengramAvatarPos ? avatarHeader : dialogHeader;
+            scrollView.post(() -> {
+                scrollView.smoothScrollTo(0, Math.max(0, target.getTop() - dp(72)));
+                target.setBackgroundColor(Theme.getColor(Theme.key_listSelector));
+                target.postDelayed(() -> target.setBackgroundColor(android.graphics.Color.TRANSPARENT), 2200);
+            });
+        }
         fragmentView = scrollView;
         return fragmentView;
     }

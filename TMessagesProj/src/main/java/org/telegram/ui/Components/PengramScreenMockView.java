@@ -23,14 +23,15 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 
 import java.util.ArrayList;
 
 /**
- * Pengram: настоящий макет экрана Telegram, который можно перестраивать руками.
- * Элемент выбирается касанием, переносится долгим нажатием в подсвеченное место
- * и выключается одной кнопкой — всё это меняет реальные настройки приложения.
+ * Pengram: schematic chat preview with sample labels; it never reads real messages.
+ * Only the avatar and chat button bar can be moved into supported slots.
+ * Changes made here are saved to the shared appearance preferences.
  */
 public class PengramScreenMockView extends View {
 
@@ -75,7 +76,9 @@ public class PengramScreenMockView extends View {
     private final ArrayList<Element> elements = new ArrayList<>();
     private final ArrayList<RectF> dropSlots = new ArrayList<>();
     private final ArrayList<Integer> dropValues = new ArrayList<>();
-    private final RectF[] tabRects = new RectF[5];
+    private final RectF[] tabRects = new RectF[4];
+    private final String[] menuLabels = new String[4];
+    private int menuLabelCount;
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,6 +86,9 @@ public class PengramScreenMockView extends View {
     private final TextPaint text = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final TextPaint small = new TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    private android.graphics.drawable.Drawable deletedIcon;
+    private int deletedIconResource = -1;
+    private int deletedIconTint;
 
     private Element selected;
     private Element dragging;
@@ -93,6 +99,20 @@ public class PengramScreenMockView extends View {
     private float selectionPhase;
 
     private Listener listener;
+    private boolean embedded;
+    private String sampleMessage;
+
+    /** A local-only sample bubble; never forwarded to a Telegram dialog. */
+    public void setSampleMessage(String text) {
+        sampleMessage = text;
+        invalidate();
+    }
+
+    /** The enclosing visual editor supplies its own navigation bar. */
+    public void setEmbedded(boolean embedded) {
+        this.embedded = embedded;
+        invalidate();
+    }
 
     public PengramScreenMockView(Context context) {
         super(context);
@@ -110,6 +130,7 @@ public class PengramScreenMockView extends View {
         add(EL_MARK, R.string.PengramEditorMark, false, false, false);
         add(EL_MENU, R.string.PengramEditorMenu, true, true, false);
         add(EL_TABS, R.string.PengramEditorTabs, false, false, false);
+        updateMenuLabels();
     }
 
     private void add(int id, int titleRes, boolean draggable, boolean hideable, boolean sizeable) {
@@ -146,14 +167,38 @@ public class PengramScreenMockView extends View {
         return null;
     }
 
-    public void refresh() {
+    private int editorBubbleRadius = -1;
+    private int editorFontSize = -1;
+
+    /** These values are for the synthetic chat only, never the real message renderer. */
+    public void setEditorMessageSize(int radius, int fontSize) {
+        editorBubbleRadius = radius;
+        editorFontSize = fontSize;
         invalidate();
+    }
+
+    public void refresh() {
+        PengramConfig.withVisualPreview(this::updateMenuLabels);
+        invalidate();
+    }
+
+    private void updateMenuLabels() {
+        menuLabelCount = 0;
+        for (int id : PengramConfig.getChatItemsOrder()) {
+            if (menuLabelCount == menuLabels.length) break;
+            if (!PengramConfig.isChatItemHidden(id)
+                    && PengramConfig.getChatItemPlacement(id) == PengramConfig.CHAT_PLACE_ISLAND) {
+                menuLabels[menuLabelCount++] = getString(PengramConfig.getChatItemTitle(id));
+            }
+        }
     }
 
     // --------------------------------------------------------------- рисуем
 
     @Override
     protected void onDraw(Canvas canvas) {
+        PengramConfig.beginVisualPreviewRead();
+        try {
         final int width = getMeasuredWidth();
         final int height = getMeasuredHeight();
         if (width <= 0 || height <= 0) {
@@ -167,17 +212,22 @@ public class PengramScreenMockView extends View {
         final int textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
         final int hintColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
 
-        // корпус телефона
-        rect.set(dp(10), dp(6), width - dp(10), height - dp(6));
-        fill.setColor(gray);
-        canvas.drawRoundRect(rect, dp(22), dp(22), fill);
+        // A standalone constructor shows the phone frame. Inside the full-screen
+        // editor the chat occupies the entire available width without a nested phone.
+        rect.set(embedded ? 0 : dp(10), embedded ? 0 : dp(6),
+                embedded ? width : width - dp(10), embedded ? height : height - dp(6));
+        fill.setColor(embedded ? panel : gray);
+        if (embedded) canvas.drawRect(rect, fill);
+        else canvas.drawRoundRect(rect, dp(22), dp(22), fill);
 
         final float left = rect.left;
         final float right = rect.right;
-        final boolean menuTop = PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP;
+        final boolean menuTop = PengramConfig.getChatMenuPosition() == PengramConfig.MENU_POS_TOP;
 
         // ---------- шапка ----------
-        final float headerBottom = rect.top + dp(52);
+        final float headerBottom = rect.top + dp(embedded ? 4 : 52);
+        final Element title = elementById(EL_TITLE);
+        if (!embedded) {
         fill.setColor(panel);
         canvas.drawRect(left, rect.top + dp(16), right, headerBottom, fill);
         rect.set(left, rect.top, right, rect.top + dp(34));
@@ -188,7 +238,6 @@ public class PengramScreenMockView extends View {
         fill.setColor(ColorUtils.setAlphaComponent(accent, 90));
         canvas.drawCircle(left + dp(48), headerBottom - dp(18), dp(13), fill);          // аватар чата
 
-        final Element title = elementById(EL_TITLE);
         text.setColor(textColor);
         text.setTypeface(AndroidUtilities.bold());
         final String titleText = headerTitle();
@@ -202,18 +251,23 @@ public class PengramScreenMockView extends View {
             canvas.drawCircle(right - dp(22), headerBottom - dp(25) + a * dp(7), dp(1.8f), fill);
         }
 
+        } else {
+            title.bounds.setEmpty();
+        }
         float y = headerBottom + dp(10);
 
         // ---------- панель кнопок чата (сверху) ----------
         final Element menu = elementById(EL_MENU);
-        final boolean menuEnabled = PengramConfig.chatMenuEnabled;
+        final boolean menuEnabled = PengramConfig.isChatMenuEnabled();
         if (menuEnabled && menuTop && dragging != menu) {
             y = drawMenuRow(canvas, left, right, y, accent, panel, menu);
         }
 
         // ---------- сообщения ----------
-        final float radius = dp(Math.max(2, Math.min(17, SharedConfig.bubbleRadius)));
-        final float fontScale = Math.max(0.75f, Math.min(1.4f, SharedConfig.fontSize / 16f));
+        // Zero is a real bubble-radius option; never round it up in the preview.
+        final float radius = dp(Math.max(0, Math.min(17, editorBubbleRadius >= 0 ? editorBubbleRadius : SharedConfig.bubbleRadius)));
+        final float fontScale = Math.max(0.75f, Math.min(2f,
+                (editorFontSize >= 0 ? editorFontSize : SharedConfig.fontSize) / 16f * getResources().getConfiguration().fontScale));
         final int avatarPos = PengramConfig.getGroupAvatarPos();
         final boolean avatarVisible = avatarPos != PengramConfig.AVATAR_POS_HIDE;
         final Element avatar = elementById(EL_AVATAR);
@@ -266,34 +320,54 @@ public class PengramScreenMockView extends View {
         fill.setColor(Theme.getColor(Theme.key_chat_outBubble));
         canvas.drawRoundRect(rect, radius, radius, fill);
         text.setColor(Theme.getColor(Theme.key_chat_messageTextOut));
-        canvas.drawText(getString(R.string.PengramEditorMessageOut), rect.left + dp(10), rect.top + dp(24) * fontScale, text);
+        final String outgoing = sampleMessage == null || sampleMessage.isEmpty()
+                ? getString(R.string.PengramEditorMessageOut) : sampleMessage;
+        canvas.drawText(TextUtils.ellipsize(outgoing, text, Math.max(0, rect.width() - dp(20)),
+                TextUtils.TruncateAt.END).toString(), rect.left + dp(10), rect.top + dp(24) * fontScale, text);
 
         final Element mark = elementById(EL_MARK);
         small.setColor(ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_chat_messageTextOut), 180));
         final String markText = getString(R.string.PengramEditorDeleted);
         final int markIcon = PengramConfig.getDeletedMarkIcon();
         float markX = rect.left + dp(10);
-        if (markIcon != 0) {
-            try {
-                final android.graphics.drawable.Drawable icon = getContext().getResources().getDrawable(markIcon).mutate();
-                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(small.getColor(), android.graphics.PorterDuff.Mode.SRC_IN));
-                icon.setBounds((int) markX, (int) (rect.bottom - dp(17)), (int) (markX + dp(12)), (int) (rect.bottom - dp(5)));
-                icon.draw(canvas);
-                markX += dp(15);
-            } catch (Throwable ignore) {
+        if (deletedIconResource != markIcon) {
+            deletedIconResource = markIcon;
+            deletedIcon = null;
+            deletedIconTint = 0;
+            if (markIcon != 0) {
+                try {
+                    deletedIcon = getContext().getResources().getDrawable(markIcon).mutate();
+                } catch (Exception ignore) {
+                    // Preview remains usable if a themed drawable is unavailable.
+                }
             }
         }
+        if (deletedIcon != null) {
+            if (deletedIconTint != small.getColor()) {
+                deletedIconTint = small.getColor();
+                deletedIcon.setColorFilter(new android.graphics.PorterDuffColorFilter(deletedIconTint,
+                        android.graphics.PorterDuff.Mode.SRC_IN));
+            }
+            deletedIcon.setBounds((int) markX, (int) (rect.bottom - dp(17)),
+                    (int) (markX + dp(12)), (int) (rect.bottom - dp(5)));
+            deletedIcon.draw(canvas);
+            markX += dp(15);
+        }
+        small.setAlpha(PengramConfig.getDeletedMark() == PengramConfig.MARK_NONE ? 90 : 255);
         canvas.drawText(markText, markX, rect.bottom - dp(6), small);
+        small.setAlpha(255);
         mark.bounds.set(rect.left + dp(6), rect.bottom - dp(19), markX + small.measureText(markText) + dp(4), rect.bottom - dp(1));
 
         // ---------- панель кнопок чата (снизу) ----------
-        final float inputTop = getMeasuredHeight() - dp(6) - dp(54) - dp(44);
+        final float inputTop = getMeasuredHeight() - dp(6) - (embedded ? 0 : dp(54) + dp(44));
         if (menuEnabled && !menuTop && dragging != menu) {
             drawMenuRow(canvas, left, right, inputTop - dp(42), accent, panel, menu);
         } else if (!menuEnabled) {
             menu.bounds.set(left + dp(14), inputTop - dp(40), left + dp(120), inputTop - dp(8));
         }
 
+        // The parent editor provides a real, local-only EditText when embedded.
+        if (!embedded) {
         // ---------- строка ввода ----------
         fill.setColor(panel);
         canvas.drawRect(left, inputTop, right, inputTop + dp(44), fill);
@@ -304,9 +378,11 @@ public class PengramScreenMockView extends View {
         canvas.drawText(getString(R.string.PengramEditorInput), rect.left + dp(10), rect.centerY() + dp(3.5f), small);
         fill.setColor(accent);
         canvas.drawCircle(right - dp(30), inputTop + dp(22), dp(14), fill);
+        }
 
         // ---------- нижние вкладки ----------
         final float barTop = getMeasuredHeight() - dp(6) - dp(54);
+        if (!embedded) {
         fill.setColor(panel);
         rect.set(left, barTop, right, getMeasuredHeight() - dp(6));
         canvas.drawRoundRect(rect, dp(22), dp(22), fill);
@@ -315,6 +391,12 @@ public class PengramScreenMockView extends View {
         final Element tabs = elementById(EL_TABS);
         tabs.bounds.set(left, barTop, right, getMeasuredHeight() - dp(6));
         drawTabs(canvas, left, right, barTop, accent, hintColor);
+        } else {
+            elementById(EL_TABS).bounds.setEmpty();
+            for (RectF tabRect : tabRects) {
+                if (tabRect != null) tabRect.setEmpty();
+            }
+        }
 
         // ---------- точки, куда можно положить ----------
         dropSlots.clear();
@@ -363,17 +445,30 @@ public class PengramScreenMockView extends View {
                 postInvalidateOnAnimation();
             }
         }
+        } finally {
+            PengramConfig.endVisualPreviewRead();
+        }
     }
 
     private float drawMenuRow(Canvas canvas, float left, float right, float y, int accent, int panel, Element menu) {
         rect.set(left + dp(14), y, right - dp(14), y + dp(34));
         fill.setColor(ColorUtils.setAlphaComponent(accent, 30));
         canvas.drawRoundRect(rect, dp(12), dp(12), fill);
-        final float step = rect.width() / 4f;
-        fill.setColor(ColorUtils.setAlphaComponent(accent, 160));
-        for (int a = 0; a < 4; ++a) {
-            canvas.drawCircle(rect.left + step * (a + 0.5f), rect.centerY(), dp(5), fill);
+        small.setTextSize(dp(9));
+        small.setTextAlign(Paint.Align.CENTER);
+        small.setColor(accent);
+        if (menuLabelCount == 0) {
+            canvas.drawText("+", rect.centerX(), rect.centerY() + dp(3), small);
+        } else {
+            final float step = rect.width() / menuLabelCount;
+            for (int a = 0; a < menuLabelCount; a++) {
+                final float cx = rect.left + step * (a + .5f);
+                canvas.drawText(TextUtils.ellipsize(menuLabels[a], small, step - dp(8), TextUtils.TruncateAt.END).toString(),
+                        cx, rect.centerY() + dp(3), small);
+            }
         }
+        small.setTextSize(dp(10));
+        small.setTextAlign(Paint.Align.LEFT);
         menu.bounds.set(rect);
         return rect.bottom + dp(10);
     }
@@ -385,12 +480,15 @@ public class PengramScreenMockView extends View {
     }
 
     private void drawTabs(Canvas canvas, float left, float right, float barTop, int accent, int hintColor) {
+        // The real bottom bar has four slots: Calls and Settings share one slot.
+        final boolean calls = UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab;
         final String[] titles = new String[]{
                 getString(R.string.PengramTabChats), getString(R.string.PengramTabContacts),
-                getString(R.string.PengramTabCalls), getString(R.string.PengramTabSettings),
+                getString(calls ? R.string.PengramTabCalls : R.string.PengramTabSettings),
                 getString(R.string.PengramTabProfile)};
         final String[] keys = new String[]{null, PengramConfig.KEY_TAB_CONTACTS,
-                PengramConfig.KEY_TAB_CALLS, PengramConfig.KEY_TAB_SETTINGS, PengramConfig.KEY_TAB_PROFILE};
+                calls ? PengramConfig.KEY_TAB_CALLS : PengramConfig.KEY_TAB_SETTINGS,
+                PengramConfig.KEY_TAB_PROFILE};
         final float step = (right - left) / titles.length;
         small.setTextAlign(Paint.Align.CENTER);
         for (int a = 0; a < titles.length; ++a) {
@@ -452,6 +550,8 @@ public class PengramScreenMockView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        PengramConfig.beginVisualPreviewRead();
+        try {
         final float x = event.getX();
         final float y = event.getY();
         switch (event.getAction()) {
@@ -485,14 +585,15 @@ public class PengramScreenMockView extends View {
             case MotionEvent.ACTION_CANCEL: {
                 removeCallbacks(longPressCheck);
                 if (dragging != null) {
-                    final int slot = slotAt(x, y);
-                    if (slot >= 0 && slot < dropValues.size()) {
-                        applyDrop(dragging, dropValues.get(slot));
-                    }
+                    final int slot = event.getAction() == MotionEvent.ACTION_UP ? slotAt(x, y) : -1;
+                    final boolean changed = slot >= 0 && slot < dropValues.size()
+                            && applyDrop(dragging, dropValues.get(slot));
                     dragging = null;
                     hoverSlot = -1;
+                    dropSlots.clear();
+                    dropValues.clear();
                     invalidate();
-                    if (listener != null) {
+                    if (changed && listener != null) {
                         listener.onChanged();
                     }
                     return true;
@@ -505,9 +606,25 @@ public class PengramScreenMockView extends View {
             }
         }
         return true;
+        } finally {
+            PengramConfig.endVisualPreviewRead();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        removeCallbacks(longPressCheck);
+        dragging = null;
+        hoverSlot = -1;
+        dropSlots.clear();
+        dropValues.clear();
+        super.onDetachedFromWindow();
     }
 
     private final Runnable longPressCheck = () -> {
+        if (!isAttachedToWindow()) {
+            return;
+        }
         final Element hit = elementAt(downX, downY);
         if (hit == null || !hit.draggable) {
             return;
@@ -528,8 +645,9 @@ public class PengramScreenMockView extends View {
         for (int a = 1; a < tabRects.length; ++a) {
             if (tabRects[a] != null && tabRects[a].contains(x, y)) {
                 final String key = a == 1 ? PengramConfig.KEY_TAB_CONTACTS
-                        : a == 2 ? PengramConfig.KEY_TAB_CALLS
-                        : a == 3 ? PengramConfig.KEY_TAB_SETTINGS : PengramConfig.KEY_TAB_PROFILE;
+                        : a == 2 ? (UserConfig.getInstance(UserConfig.selectedAccount).showCallsTab
+                                ? PengramConfig.KEY_TAB_CALLS : PengramConfig.KEY_TAB_SETTINGS)
+                        : PengramConfig.KEY_TAB_PROFILE;
                 PengramConfig.setBool(key, !PengramConfig.getBool(key, false));
                 tap();
                 if (listener != null) {
@@ -566,24 +684,40 @@ public class PengramScreenMockView extends View {
         invalidate();
     }
 
-    private void applyDrop(Element element, int value) {
+    private boolean applyDrop(Element element, int value) {
         if (element.id == EL_AVATAR) {
+            if (PengramConfig.getGroupAvatarPos() == value) {
+                return false;
+            }
             PengramConfig.setGroupAvatarPos(value);
         } else if (element.id == EL_MENU) {
+            if (PengramConfig.getChatMenuPosition() == value) {
+                return false;
+            }
             PengramConfig.setChatMenuPosition(value);
+        } else {
+            return false;
         }
         tap();
+        return true;
     }
 
     private int slotAt(float x, float y) {
+        int best = -1;
+        float closest = Float.MAX_VALUE;
         for (int a = 0; a < dropSlots.size(); ++a) {
             final RectF slot = dropSlots.get(a);
             if (x >= slot.left - dp(16) && x <= slot.right + dp(16)
                     && y >= slot.top - dp(16) && y <= slot.bottom + dp(16)) {
-                return a;
+                final float distance = (x - slot.centerX()) * (x - slot.centerX())
+                        + (y - slot.centerY()) * (y - slot.centerY());
+                if (distance < closest) {
+                    closest = distance;
+                    best = a;
+                }
             }
         }
-        return -1;
+        return best;
     }
 
     private Element elementAt(float x, float y) {

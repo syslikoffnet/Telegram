@@ -58,13 +58,17 @@ cmd_setup() {
 
 cmd_check() {
     fetch_upstream
-    say "Новые релизы у DrKLO после нашей базы:"
-    git log --oneline --grep='^update to' "$BASE_COMMIT"..upstream/master || true
+    # Once a release has been merged, compare against the newest common
+    # ancestor, not the original 12.10.6 baseline on every subsequent check.
+    local since
+    since="$(git merge-base HEAD upstream/master 2>/dev/null || echo "$BASE_COMMIT")"
+    say "Новые релизы у DrKLO после последнего слияния:"
+    git log --oneline --grep='^update to' "$since"..upstream/master || true
     local behind
-    behind="$(git rev-list --count "$BASE_COMMIT"..upstream/master 2>/dev/null || echo 0)"
+    behind="$(git rev-list --count "$since"..upstream/master 2>/dev/null || echo 0)"
     say "Всего новых коммитов апстрима: $behind"
     say "Файлы апстрима, которые апстрим и мы правили одновременно (будущие конфликты):"
-    git diff --name-only "$BASE_COMMIT"..upstream/master > /tmp/pengram-upstream-changed.txt 2>/dev/null || true
+    git diff --name-only "$since"..upstream/master > /tmp/pengram-upstream-changed.txt 2>/dev/null || true
     if [ -f docs/fork-surface.txt ]; then
         comm -12 <(sort -u /tmp/pengram-upstream-changed.txt) <(sort -u docs/fork-surface.txt) | sed 's/^/  /' || true
     else

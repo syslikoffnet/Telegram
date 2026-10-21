@@ -56,6 +56,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
     public long longValue;
     public Utilities.Callback<Integer> intCallback;
 
+    public boolean adaptiveLayout;
     public View.OnClickListener clickCallback;
     public View.OnClickListener clickCallback2;
     public Utilities.Callback<View> bind;
@@ -228,6 +229,14 @@ public class UItem extends AdapterWithDiffUtils.Item {
         UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TEXT, false);
         i.id = id;
         i.text = text;
+        return i;
+    }
+
+    public static UItem asButtonLoadingValue(int id, CharSequence text) {
+        UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TEXT, false);
+        i.id = id;
+        i.text = text;
+        i.locked = true;
         return i;
     }
 

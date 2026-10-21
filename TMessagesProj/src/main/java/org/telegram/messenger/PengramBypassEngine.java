@@ -11,6 +11,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.MessageDigest;
 import java.nio.charset.Charset;
 import java.security.SecureRandom;
 import java.util.Collections;
@@ -411,9 +412,20 @@ public final class PengramBypassEngine {
 
     // ------------------------------------------------------------- туннель «через сайт»
 
+    /** Resolve once, reject every unsafe answer and connect to the checked IP,
+     * rather than looking up the hostname a second time (DNS rebinding). */
+    static InetSocketAddress publicProxyAddress(String host, int port) throws IOException {
+        InetAddress[] addresses = InetAddress.getAllByName(host);
+        if (addresses.length == 0) throw new IOException("empty proxy DNS response");
+        for (InetAddress address : addresses) {
+            if (!PengramProxyPolicy.isPublicAddress(address)) throw new IOException("private proxy address");
+        }
+        return new InetSocketAddress(addresses[0], port);
+    }
+
     private static Tunnel wsTunnel(PengramBypassSources.Node n, String host, int port, int timeout) throws Exception {
         Socket socket = new Socket();
-        socket.connect(new InetSocketAddress(n.host, n.port), timeout);
+        socket.connect(publicProxyAddress(n.host, n.port), timeout);
         socket.setTcpNoDelay(true);
         socket.setSoTimeout(timeout);
         if (n.tls) {
@@ -637,9 +649,29 @@ public final class PengramBypassEngine {
         out.flush();
 
         final String head = readHead(in);
-        if (!head.toLowerCase(Locale.US).startsWith("http/1.1 101")) {
+        final String[] lines = head.split("\r\n");
+        if (lines.length < 4 || !lines[0].matches("HTTP/1\\.[01] 101(?: .*)?"))
             throw new IOException("no upgrade");
+        String accept = null;
+        boolean upgrade = false, connection = false;
+        for (int i = 1; i < lines.length; i++) {
+            int colon = lines[i].indexOf(':');
+            if (colon <= 0) continue;
+            String name = lines[i].substring(0, colon).trim().toLowerCase(Locale.US);
+            String value = lines[i].substring(colon + 1).trim();
+            if ("sec-websocket-accept".equals(name)) {
+                if (accept != null) throw new IOException("duplicate websocket accept");
+                accept = value;
+            } else if ("upgrade".equals(name)) {
+                upgrade = "websocket".equalsIgnoreCase(value);
+            } else if ("connection".equals(name)) {
+                for (String token : value.split(",")) if ("upgrade".equalsIgnoreCase(token.trim())) connection = true;
+            }
         }
+        byte[] digest = MessageDigest.getInstance("SHA-1").digest(
+                (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(ASCII));
+        String expected = Base64.encodeToString(digest, Base64.NO_WRAP);
+        if (!upgrade || !connection || !expected.equals(accept)) throw new IOException("bad websocket accept");
     }
 
     /** читает ответ сервера до пустой строки */
@@ -660,6 +692,7 @@ public final class PengramBypassEngine {
                 state = 0;
             }
         }
+        if (state != 4) throw new IOException("oversized websocket handshake");
         return response.toString();
     }
 
@@ -940,7 +973,7 @@ public final class PengramBypassEngine {
         Socket socket = null;
         try {
             socket = new Socket();
-            socket.connect(new InetSocketAddress(n.host, n.port), timeout);
+            socket.connect(publicProxyAddress(n.host, n.port), timeout);
             return (int) Math.max(1, System.currentTimeMillis() - start);
         } catch (Throwable e) {
             return -1;

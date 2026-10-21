@@ -14,7 +14,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -29,6 +28,7 @@ public class NotificationsService extends Service {
     /** каналы разводим по важности: сменить важность у готового канала система не даёт */
     private static final String CHANNEL_QUIET = "pengram_background_quiet";
     private static final String CHANNEL_NORMAL = "pengram_background";
+    private boolean foregroundStarted;
 
     @Override
     public void onCreate() {
@@ -47,11 +47,10 @@ public class NotificationsService extends Service {
     }
 
     private void startPengramForeground() {
-        if (!PengramConfig.isBackgroundMode()) {
-            return;
-        }
         try {
-            final boolean quiet = PengramConfig.isBackgroundSilent();
+            // Every startForegroundService MUST call startForeground, including
+            // Telegram's per-account keep-alive when Pengram mode is off.
+            final boolean quiet = PengramConfig.isBackgroundMode() && PengramConfig.isBackgroundSilent();
             final String channelId = quiet ? CHANNEL_QUIET : CHANNEL_NORMAL;
             if (Build.VERSION.SDK_INT >= 26) {
                 final NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -72,10 +71,15 @@ public class NotificationsService extends Service {
             final PendingIntent contentIntent = PendingIntent.getActivity(this, 0, open,
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
+            // The notification is deliberately visual: no description of the
+            // background activity in the lock screen or notification shade.
+            final boolean penguinAwake = PengramConfig.isBackgroundMode();
             final NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-                    .setSmallIcon(R.drawable.notification)
-                    .setContentTitle(LocaleController.getString(R.string.PengramBackgroundTitle))
-                    .setContentText(LocaleController.getString(R.string.PengramBackgroundText))
+                    .setSmallIcon(PengramNotificationIcon.drawable())
+                    .setContentTitle(LocaleController.getString(penguinAwake
+                            ? R.string.PengramBackgroundTitle : R.string.PengramBackgroundSleepTitle))
+                    .setContentText(LocaleController.getString(penguinAwake
+                            ? R.string.PengramBackgroundText : R.string.PengramBackgroundSleepText))
                     .setContentIntent(contentIntent)
                     .setOngoing(true)
                     .setShowWhen(false)
@@ -90,10 +94,10 @@ public class NotificationsService extends Service {
             } else {
                 startForeground(PENGRAM_NOTIFICATION_ID, notification);
             }
+            foregroundStarted = true;
         } catch (Throwable e) {
-            // система может запретить поднимать сервис из фона — тогда просто
-            // остаёмся обычным сервисом, как было раньше
             FileLog.e(e);
+            stopSelf(); // never leave a started foreground service unpromoted
         }
     }
 
@@ -104,8 +108,7 @@ public class NotificationsService extends Service {
 
     public void onDestroy() {
         super.onDestroy();
-        SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        if (preferences.getBoolean("pushService", true)) {
+        if (foregroundStarted && ApplicationLoader.shouldStartNotificationService()) {
             Intent intent = new Intent("org.telegram.start");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);

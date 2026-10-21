@@ -195,9 +195,27 @@ public class PengramTextStyle {
     }
 
     public static Styled apply(String text, ArrayList<TLRPC.MessageEntity> entities) {
+        return apply(text, entities, true);
+    }
+
+    /**
+     * Only standalone emoji messages can use Telegram's large-emoji layout.
+     * Captions stay formatted normally: media captions never become large emoji.
+     * A null result leaves both the original text and manually added entities intact.
+     */
+    public static Styled apply(String text, ArrayList<TLRPC.MessageEntity> entities, boolean standaloneMessage) {
         final int style = PengramConfig.getSendTextStyle();
         if (style == PengramConfig.SEND_STYLE_OFF || text == null) {
             return null;
+        }
+        if (standaloneMessage && PengramConfig.isSendStyleLargeEmoji()) {
+            int[] emojiOnly = new int[1];
+            Emoji.parseEmojis(text, emojiOnly);
+            if (emojiOnly[0] > 0) {
+                // Bold/quote/code entities disable big emoji on every Telegram client.
+                // Do not remove any formatting the user explicitly applied to the draft.
+                return null;
+            }
         }
         final String trimmed = text.trim();
         if (trimmed.length() == 0) {

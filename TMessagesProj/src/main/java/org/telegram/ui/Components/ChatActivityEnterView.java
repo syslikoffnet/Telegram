@@ -5066,6 +5066,19 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         ItemOptions options = ItemOptions.makeOptions(this, resourcesProvider, sendButton);
 
+        // Work on the unsent text in place. This is a preview action, not a send action.
+        if (parentFragment != null && audioToSend == null && richDraftMessage == null
+                && messageEditText != null && !TextUtils.isEmpty(messageEditText.getTextToUse().toString().trim())) {
+            options.add(R.drawable.msg_bot, getString(R.string.PengramAIDraftAction), () -> {
+                final String draft = messageEditText.getText().toString();
+                if (messageSendPreview != null) {
+                    messageSendPreview.dismissInstant();
+                    messageSendPreview = null;
+                }
+                AndroidUtilities.runOnUIThread(() -> parentFragment.askPengramAIForDraft(draft), 60);
+            });
+        }
+
         final boolean self = parentFragment != null && UserObject.isUserSelf(parentFragment.getCurrentUser());
         boolean scheduleButtonValue = parentFragment != null && parentFragment.canScheduleMessage();
         boolean sendWithoutSoundButtonValue = !(self || slowModeTimer > 0 && !isInScheduleMode());
@@ -5312,6 +5325,25 @@ public class ChatActivityEnterView extends FrameLayout implements
     private ArrayList<TextWatcher> messageEditTextWatchers;
     private boolean messageEditTextEnabled = true;
     private long pengramLastTypingHaptic;
+    private TextView pengramWpmBadge;
+    private final Runnable pengramWpmIdle = () -> {
+        org.telegram.messenger.PengramTypingStats.finishSession();
+        if (pengramWpmBadge != null) pengramWpmBadge.setVisibility(GONE);
+    };
+
+    private void pengramUpdateWpm(int before, int count) {
+        if (pengramWpmBadge == null) return;
+        final boolean active = org.telegram.messenger.PengramTypingStats.enabled();
+        final int speed = org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count,
+                active && !ignoreTextChange && innerTextChange == 0 && !isPaste
+                        && messageEditText != null && messageEditText.isFocused());
+        removeCallbacks(pengramWpmIdle);
+        if (active) postDelayed(pengramWpmIdle, 3000);
+        final boolean show = active && org.telegram.messenger.PengramConfig.getBool(
+                org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true) && speed > 0;
+        pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
+        if (show) pengramWpmBadge.setText(speed + " WPM");
+    }
 
     /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
     private void pengramAnimateTyping(int start, int before, int count) {
@@ -5869,6 +5901,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         richDraftPreview.setPadding(dp(8), dp(9), dp(8), dp(10));
         richDraftPreview.setOnClickListener(v -> openRichEditor());
         messageEditTextContainer.addView(richDraftPreview, 2, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 52 - 8, 0, (isChat ? 50 : 2) - 8, 1.5f));
+        // Небольшой индикатор живёт в зарезервированной правой части композера,
+        // а не поверх набираемых строк. По умолчанию полностью скрыт.
+        pengramWpmBadge = new TextView(getContext());
+        pengramWpmBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        pengramWpmBadge.setTextColor(getThemedColor(Theme.key_chat_messagePanelHint));
+        pengramWpmBadge.setGravity(Gravity.CENTER);
+        pengramWpmBadge.setVisibility(GONE);
+        messageEditTextContainer.addView(pengramWpmBadge,
+                LayoutHelper.createFrame(50, 20, Gravity.RIGHT | Gravity.TOP, 0, 0, 0, 0));
         messageEditText.setOnKeyListener(new OnKeyListener() {
 
             @Override
@@ -5960,6 +6001,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!ignoreTextChange && innerTextChange == 0 && !isPaste) {
                     pengramAnimateTyping(start, before, count);
                 }
+                pengramUpdateWpm(before, count);
 
                 boolean allowChangeToSmile = true;
                 int currentPage;
@@ -6365,6 +6407,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         emojiView.switchToGifRecent();
     }
 
+    /** Show the persistent target indicator without unexpectedly opening the keyboard. */
+    public void showTargetTopView() {
+        if (topView == null || topViewShowed || getVisibility() != VISIBLE) return;
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) animatorTopViewVisibility.setValue(true, false);
+    }
+
     public void showTopView(boolean animated, final boolean openKeyboard) {
         showTopView(animated, openKeyboard, false);
     }
@@ -6534,6 +6584,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void onDestroy() {
+        removeCallbacks(pengramWpmIdle);
+        org.telegram.messenger.PengramTypingStats.finishSession();
         if (audioTimelineView != null) {
             audioTimelineView.destroy();
         }
@@ -7818,8 +7870,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (!hasOnlyEmoji) {
             text = AndroidUtilities.getTrimmedString(text);
         }
+        if (parentFragment != null && editingMessageObject == null && text.length() > 0) {
+            if (!parentFragment.pengramTargetCanSendText(replyingMessageObject)) return false;
+        }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
+        if (parentFragment != null && editingMessageObject == null) {
+            maxLength = Math.max(128, maxLength - parentFragment.pengramTargetMentionLength(replyingMessageObject));
+        }
         if (text.length() != 0) {
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
@@ -7866,6 +7924,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!hasOnlyEmoji) {
                     part = AndroidUtilities.getTrimmedString(part);
                 }
+                if (parentFragment != null && editingMessageObject == null) {
+                    part = parentFragment.pengramTargetTextForSend(part, replyingMessageObject);
+                }
                 CharSequence[] message = new CharSequence[]{ part };
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);
                 MessageObject.SendAnimationData sendAnimationData = null;
@@ -7894,7 +7955,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (replyToTopMsg == null && replyingTopMessage != null) {
                     replyToTopMsg = replyingTopMessage;
                 }
-                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, replyingMessageObject, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
+                MessageObject targetReply = parentFragment != null && editingMessageObject == null
+                        ? parentFragment.pengramTargetReplyForText(replyingMessageObject) : replyingMessageObject;
+                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, targetReply, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
                 params.sendMessageChatArguments = parentFragment != null ? parentFragment.getMessageChatSendParams() : null;
                 params.effect_id = effectId;
                 params.payStars = payStars;

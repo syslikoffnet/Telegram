@@ -221,6 +221,7 @@ public class WebRtcAudioRecord {
         }
       }
 
+      org.telegram.messenger.PengramVoiceChanger.finishSource(org.telegram.messenger.PengramVoiceChanger.SOURCE_CALL);
       try {
         if (audioRecord != null) {
           audioRecord.stop();

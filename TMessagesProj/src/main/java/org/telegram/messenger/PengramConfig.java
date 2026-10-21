@@ -76,6 +76,7 @@ public class PengramConfig {
     // --- история удалённых/изменённых ---
     public static boolean saveDeleted = true;
     public static boolean saveEdited = true;
+    public static boolean saveEditedMedia = false;
     public static boolean saveOutgoing = true;       // сохранять и свои сообщения (удалённые собеседником)
     public static boolean historyRowInProfile = true;
 
@@ -114,6 +115,8 @@ public class PengramConfig {
     public static int sendTextStyle = SEND_STYLE_OFF;
     /** применять стиль и к подписям к фото/видео */
     public static final String KEY_SEND_STYLE_CAPTIONS = "sendStyleCaptions";
+    /** оставлять сообщение только из эмодзи без автоматического форматирования */
+    public static final String KEY_SEND_STYLE_LARGE_EMOJI = "sendStyleLargeEmoji";
 
     // --- пересылка ---
     /** прятать ленту историй в списке чатов */
@@ -124,6 +127,8 @@ public class PengramConfig {
     /** убрать «хвостик» у пузырей сообщений */
     /** скрыть круглую кнопку «Написать» в списке чатов */
     public static final String KEY_HIDE_WRITE_BUTTON = "hideWriteButton";
+    /** Opt-in: export the opened chat history via the system document picker. */
+    public static final String KEY_EXPORT_CHAT = "exportChatEnabled";
     /** пункт «Копировать ID сообщения» в меню сообщения */
     public static final String KEY_MENU_COPY_MESSAGE_ID = "menuCopyMessageId";
     /** пункт «Сохранить в Избранное» в меню сообщения */
@@ -150,6 +155,39 @@ public class PengramConfig {
     public static final String KEY_REG_TAP_TEXT = "regTapText";
     /** всегда идёт снег в шапке */
     public static final String KEY_FORCE_SNOW = "forceSnow";
+    public static final String KEY_PARTICLE_MODE = "particleMode";
+    public static final String KEY_PARTICLE_COUNT = "particleCount";
+    public static final String KEY_PARTICLE_ALPHA = "particleAlpha";
+    public static final String KEY_PARTICLE_SPEED = "particleSpeed";
+    public static final String KEY_PARTICLE_ROTATION = "particleRotation";
+    public static final String KEY_VOICE_ROUND = "voiceChangerRound";
+    public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
+    public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
+    public static final String KEY_VOICE_GATE = "voiceChangerGate";
+    public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
+    public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
+    public static final String KEY_VOICE_STUDIO_MIX = "voiceStudioMix";
+    public static final String KEY_VOICE_STUDIO_DRIVE = "voiceStudioDrive";
+    public static final String KEY_VOICE_STUDIO_ROBOT = "voiceStudioRobot";
+    public static final String KEY_VOICE_GAIN_DB = "voiceGainDb"; // custom slot
+    public static final String KEY_VOICE_GAIN_CLEAR_DB = "voiceGainClearDb";
+    public static final String KEY_VOICE_GAIN_LOUD_DB = "voiceGainLoudDb";
+    public static final String KEY_VOICE_GAIN_BATTLE_DB = "voiceGainBattleDb";
+    public static final String KEY_VOICE_GAIN_OVERLOAD_DB = "voiceGainOverloadDb";
+    public static final String KEY_VOICE_GAIN_CLEAR_DRIVE = "voiceGainClearDrive";
+    public static final String KEY_VOICE_GAIN_LOUD_DRIVE = "voiceGainLoudDrive";
+    public static final String KEY_VOICE_GAIN_BATTLE_DRIVE = "voiceGainBattleDrive";
+    public static final String KEY_VOICE_GAIN_OVERLOAD_DRIVE = "voiceGainOverloadDrive";
+    public static final String KEY_VOICE_GAIN_CUSTOM_DRIVE = "voiceGainCustomDrive";
+    public static final String KEY_VOICE_GAIN_PRESET = "voiceGainPreset";
+    public static final int VOICE_GAIN_OFF = 0;
+    public static final int VOICE_GAIN_CLEAR = 1;
+    public static final int VOICE_GAIN_LOUD = 2;
+    public static final int VOICE_GAIN_BATTLE = 3;
+    public static final int VOICE_GAIN_CUSTOM = 4;
+    public static final int VOICE_GAIN_OVERLOAD = 5;
+    public static final int VOICE_GAIN_MAX_DB = 60;
+
     /** заголовок по центру */
     public static final String KEY_TITLE_CENTER = "titleCenter";
     /** мини-аватарки отправителей в списке чатов */
@@ -231,13 +269,13 @@ public class PengramConfig {
     public static boolean saveInBots = true;
     public static boolean saveReadDate = true;
     public static boolean saveLastOnline = true;
-    public static int voiceChangerMode;
+    public static volatile int voiceChangerMode;
     public static int voiceChangerPitch;
     public static int speedBoost = 1; // BOOST_FAST
     public static int mediaMaxSizeMb = 1024;   // 0 = без лимита
-    public static int historyKeepDays = 90;     // 0 = хранить всегда
+    public static int historyKeepDays = 0;      // 0 = хранить всегда; удаление — только явный выбор
     /** сколько записей истории держать максимум; 0 = без лимита */
-    public static int historyMaxEntries = 20000;
+    public static int historyMaxEntries = 0;     // no silent FIFO eviction by default
 
     // --- скрытие кнопок ---
     public static boolean hideMenuNewGroup = false;
@@ -325,12 +363,136 @@ public class PengramConfig {
     /** сами настройки открываем один раз, а не на каждый getBool */
     private static volatile SharedPreferences prefsCache;
 
+    /** Isolated, in-memory layout changes. Only keys used by the visual editor
+     * are deferred; unrelated app settings continue to work normally. */
+    public static final class VisualDraft {
+        private final java.util.LinkedHashMap<String, Object> changes = new java.util.LinkedHashMap<>();
+        private boolean finished;
+
+        private VisualDraft() { }
+
+        /** Return false without discarding the draft if preferences cannot be saved. */
+        public boolean save() {
+            if (finished || visualDraft != this) return false;
+            SharedPreferences p = prefs();
+            if (p == null) return false;
+            SharedPreferences.Editor editor = p.edit();
+            for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) value);
+                else if (value instanceof Integer) editor.putInt(entry.getKey(), (Integer) value);
+                else if (value instanceof String) editor.putString(entry.getKey(), (String) value);
+            }
+            // Never close the editor or update live fields when storage failed.
+            if (!editor.commit()) return false;
+            finished = true;
+            visualDraft = null;
+            // Only now expose staged layout fields to the live Telegram UI.
+            for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                if (key.equals("titleMode")) titleMode = (Integer) value;
+                else if (key.equals("titleCustom")) titleCustom = (String) value;
+                else if (key.equals("deletedMark")) deletedMark = (Integer) value;
+                else if (key.equals("appFont")) appFont = (Integer) value;
+                else if (key.equals("chatMenuPosition")) chatMenuPosition = (Integer) value;
+                else if (key.equals("chatMenuEnabled")) chatMenuEnabled = (Boolean) value;
+                else if (key.equals("hideMenuTheme")) hideMenuTheme = (Boolean) value;
+                else if (key.equals("hideMenuNewGroup")) hideMenuNewGroup = (Boolean) value;
+                else if (key.equals("hideMenuSavedMessages")) hideMenuSavedMessages = (Boolean) value;
+                else if (key.equals("hideMenuSettings")) hideMenuSettings = (Boolean) value;
+                boolCache.remove(key);
+                intCache.remove(key);
+            }
+            return true;
+        }
+
+        public void discard() {
+            if (finished || visualDraft != this) return;
+            finished = true;
+            visualDraft = null;
+            // No global fields or SharedPreferences were changed by staged edits.
+        }
+    }
+
+    private static VisualDraft visualDraft;
+
+    public static VisualDraft beginVisualDraft() {
+        init();
+        if (visualDraft != null) return visualDraft;
+        return visualDraft = new VisualDraft();
+    }
+
+    private static boolean visualKey(String key) {
+        return key.startsWith("md3") || key.startsWith("hideTab")
+                || key.startsWith("settingsHidden_") || key.startsWith("chatItemHidden_")
+                || key.startsWith("chatItemPlace_") || key.startsWith("hideMenu")
+                || key.equals("hideWriteButton") || key.equals("hideStories")
+                || key.equals("dialogSenderAvatars") || key.equals("dialogSenderAvatarPosition")
+                || key.equals("quoteShowName") || key.equals("quoteShowAvatar")
+                || key.equals("titleCenter") || key.equals("titleMode")
+                || key.equals("titleCustom") || key.equals("deletedMark")
+                || key.equals("groupAvatarPos") || key.equals("dialogAvatarShape")
+                || key.equals("playerStyle") || key.equals("playerBg")
+                || key.equals("coverShape") || key.equals("appFont")
+                || key.equals("chatMenuEnabled") || key.equals("chatMenuPosition")
+                || key.equals("settingsOrder") || key.equals("settingsOrderVersion")
+                || key.equals("chatItemsOrder") || key.equals("menuOrder");
+    }
+
+    private static boolean stageVisual(String key, Object value) {
+        if (visualDraft == null || !visualKey(key)
+                || android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) return false;
+        visualDraft.changes.put(key, value);
+        return true;
+    }
+
+    // Draft reads must be opt-in. The live Telegram UI shares the main thread
+    // with the editor; checking only Looper would leak unsaved edits into chats.
+    private static int visualPreviewDepth;
+
+    public static void beginVisualPreviewRead() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) visualPreviewDepth++;
+    }
+
+    public static void endVisualPreviewRead() {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            visualPreviewDepth = Math.max(0, visualPreviewDepth - 1);
+        }
+    }
+
+    public static void withVisualPreview(Runnable render) {
+        beginVisualPreviewRead();
+        try { render.run(); } finally { endVisualPreviewRead(); }
+    }
+
+    /** True only inside the sample editor's scoped draw/measure callbacks. */
+    public static boolean isVisualPreviewRead() {
+        return visualDraft != null && visualPreviewDepth > 0
+                && android.os.Looper.myLooper() == android.os.Looper.getMainLooper();
+    }
+
+    private static Object pendingVisual(String key) {
+        return visualDraft != null && visualPreviewDepth > 0
+                && android.os.Looper.myLooper() == android.os.Looper.getMainLooper()
+                ? visualDraft.changes.get(key) : null;
+    }
+
+    private static String visualString(String key) {
+        Object value = pendingVisual(key);
+        if (value instanceof String) return (String) value;
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString(key, "");
+    }
+
     /**
      * Чтение числовой настройки без похода в SharedPreferences.
      * Настройки читаются в анимациях по многу раз за кадр, поэтому держим их в памяти.
      */
     public static int getIntCached(String key, int def) {
         init();
+        Object pending = pendingVisual(key);
+        if (pending instanceof Integer) return (Integer) pending;
         final Integer cached = intCache.get(key);
         if (cached != null) {
             return cached;
@@ -343,6 +505,8 @@ public class PengramConfig {
 
     public static boolean getBool(String key, boolean def) {
         init();
+        Object pending = pendingVisual(key);
+        if (pending instanceof Boolean) return (Boolean) pending;
         final Boolean cached = boolCache.get(key);
         if (cached != null) {
             return cached;
@@ -355,13 +519,13 @@ public class PengramConfig {
 
     public static void setIntValue(String key, int value) {
         init();
-        intCache.put(key, value);
+        if (visualDraft == null || !visualKey(key)) intCache.put(key, value);
         putInt(key, value);
     }
 
     public static void setBool(String key, boolean value) {
         init();
-        boolCache.put(key, value);
+        if (visualDraft == null || !visualKey(key)) boolCache.put(key, value);
         putBoolean(key, value);
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
@@ -375,11 +539,16 @@ public class PengramConfig {
     }
 
     public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
+    public static boolean isKeepingDeletedInChat(int account) { return isSavingDeleted(account) && getBool(KEY_KEEP_DELETED, true); }
     public static boolean isFadingDeleted() { return getBool(KEY_FADE_DELETED, true); }
     /** ответ на удалённое в личке уходит с цитатой самого удалённого текста */
     public static boolean isDeletedReplyQuote() { return isKeepingDeletedInChat() && getBool(KEY_DELETED_REPLY_QUOTE, true); }
     /** и эта цитата подписана именем автора */
     public static boolean isDeletedReplySigned() { return isDeletedReplyQuote() && getBool(KEY_DELETED_REPLY_SIGN, true); }
+    public static final String KEY_EDIT_HISTORY_MARK = "editHistoryOpenMark";
+    public static final String KEY_EDIT_HISTORY_MENU = "editHistoryOpenMenu";
+    public static boolean isEditHistoryMarkEnabled() { return getBool(KEY_EDIT_HISTORY_MARK, true); }
+    public static boolean isEditHistoryMenuEnabled() { return getBool(KEY_EDIT_HISTORY_MENU, false); }
     public static boolean isMarkingEdited() { return getBool(KEY_MARK_EDITED, false); }
     public static boolean isSaveForMyselfDefault() { return getBool(KEY_SAVE_FOR_MYSELF_DEFAULT, false); }
     public static boolean isSaveForMyselfVisible() { return getBool(KEY_SAVE_FOR_MYSELF_SHOW, true); }
@@ -657,11 +826,11 @@ public class PengramConfig {
     public static boolean isLyricsAuto() { return getBool(KEY_LYRICS_AUTO, true); }
 
     public static final String KEY_LYRICS_STRETCH = "lyricsStretch";
-    public static boolean isLyricsStretch() { return isLyricsAuto() || getBool(KEY_LYRICS_STRETCH, true); }
+    public static boolean isLyricsStretch() { return getBool(KEY_LYRICS_STRETCH, true); }
 
     /** плавная подсветка между обновлениями прогресса плеера */
     public static final String KEY_LYRICS_SMOOTH = "lyricsSmooth";
-    public static boolean isLyricsSmooth() { return isLyricsAuto() || getBool(KEY_LYRICS_SMOOTH, true); }
+    public static boolean isLyricsSmooth() { return getBool(KEY_LYRICS_SMOOTH, true); }
 
     // ------------------------------------------------------------ бегущая строка
 
@@ -774,10 +943,11 @@ public class PengramConfig {
     public static boolean isBackgroundSilent() { return getBool(KEY_BACKGROUND_SILENT, true); }
     public static boolean isPremiumStatusLocal() { return isLocalPremium() && getBool(KEY_PREMIUM_STATUS, true); }
 
-    public static int getDeletedMark() { init(); return deletedMark; }
+    public static int getDeletedMark() { init(); return getIntCached("deletedMark", deletedMark); }
 
     public static void setDeletedMark(int mark) {
         init();
+        if (stageVisual("deletedMark", mark)) return;
         deletedMark = mark;
         putInt("deletedMark", mark);
     }
@@ -821,10 +991,13 @@ public class PengramConfig {
 
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
+        // History opens with a pencil by default. If the user chooses only the
+        // long-press menu, respect the independent edited-mark appearance setting.
         if (!isMarkingEdited()) {
-            return 0;
+            return isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
         }
-        return getEditedMarkIcon(getEditedMark());
+        int icon = getEditedMarkIcon(getEditedMark());
+        return icon != 0 ? icon : isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
     }
 
     private static boolean loaded;
@@ -851,6 +1024,7 @@ public class PengramConfig {
             tabBarSize = p.getInt("tabBarSize", 100);
             saveDeleted = p.getBoolean("saveDeleted", true);
             saveEdited = p.getBoolean("saveEdited", true);
+            saveEditedMedia = p.getBoolean("saveEditedMedia", false);
             saveOutgoing = p.getBoolean("saveOutgoing2", true);
             historyRowInProfile = p.getBoolean("historyRowInProfile", true);
             allowScreenshots = p.getBoolean("allowScreenshots", true);
@@ -871,8 +1045,8 @@ public class PengramConfig {
             saveReadDate = p.getBoolean("saveReadDate", true);
             saveLastOnline = p.getBoolean("saveLastOnline", true);
             mediaMaxSizeMb = p.getInt("mediaMaxSizeMb", 1024);
-            historyKeepDays = p.getInt("historyKeepDays", 90);
-            historyMaxEntries = p.getInt("historyMaxEntries", 20000);
+            historyKeepDays = p.getInt("historyKeepDays", 0);
+            historyMaxEntries = p.getInt("historyMaxEntries", 0);
             voiceChangerMode = p.getInt("voiceChangerMode", 0);
             voiceChangerPitch = p.getInt("voiceChangerPitch", 0);
             speedBoost = p.getInt("speedBoost", BOOST_FAST);
@@ -907,16 +1081,37 @@ public class PengramConfig {
     }
 
     private static void putBoolean(String key, boolean value) {
+        if (stageVisual(key, value)) return;
         SharedPreferences p = prefs();
         if (p != null) p.edit().putBoolean(key, value).apply();
     }
 
+    public static String getQuoteFakeName() {
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString("quoteFakeName", "");
+    }
+
+    public static void setQuoteFakeName(String name) {
+        putString("quoteFakeName", name == null ? "" : name.trim().substring(0, Math.min(50, name.trim().length())));
+    }
+
+    public static String getQuoteWatermarkText() {
+        SharedPreferences p = prefs();
+        return p == null ? "" : p.getString("quoteWatermarkText", "");
+    }
+
+    public static void setQuoteWatermarkText(String text) {
+        putString("quoteWatermarkText", text == null ? "" : text.trim().substring(0, Math.min(80, text.trim().length())));
+    }
+
     private static void putString(String key, String value) {
+        if (stageVisual(key, value)) return;
         SharedPreferences p = prefs();
         if (p != null) p.edit().putString(key, value).apply();
     }
 
     private static void putInt(String key, int value) {
+        if (stageVisual(key, value)) return;
         intCache.put(key, value);
         SharedPreferences p = prefs();
         if (p != null) p.edit().putInt(key, value).apply();
@@ -979,6 +1174,16 @@ public class PengramConfig {
         putBoolean("saveDeleted", saveDeleted);
     }
 
+    public static boolean isSavingEditedMedia(int account) {
+        return isSavingEdited(account) && getSpyOption(account, "saveEditedMedia");
+    }
+
+    public static void toggleSaveEditedMedia() {
+        init();
+        saveEditedMedia = !saveEditedMedia;
+        putBoolean("saveEditedMedia", saveEditedMedia);
+    }
+
     public static void toggleSaveEdited() {
         init();
         saveEdited = !saveEdited;
@@ -996,6 +1201,67 @@ public class PengramConfig {
         historyRowInProfile = !historyRowInProfile;
         putBoolean("historyRowInProfile", historyRowInProfile);
     }
+
+    // Spy collection: global by default; an account profile overrides only explicitly set flags.
+    // Use account slot IDs, never a user ID, so a logged-out account cannot leak its settings.
+    private static String spyProfileKey(int account) { return "spyProfile_" + account; }
+    private static String spyKey(int account, String key) { return "spyAccount_" + account + "_" + key; }
+
+    public static boolean hasSpyProfile(int account) {
+        return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
+                && getBool(spyProfileKey(account), false);
+    }
+
+    public static void setSpyProfile(int account, boolean enabled) {
+        if (account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT) setBool(spyProfileKey(account), enabled);
+    }
+
+    /** Account slot reuse must never inherit a previous user's spy collection preferences. */
+    public static void clearSpyProfile(int account) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return;
+        final String[] keys = {"saveDeleted", "saveEdited", "saveEditedMedia", "saveOutgoing2", "saveInBots",
+                "saveReadDate", "saveLastOnline"};
+        final SharedPreferences p = prefs();
+        if (p == null) return;
+        SharedPreferences.Editor editor = p.edit().remove(spyProfileKey(account));
+        boolCache.remove(spyProfileKey(account));
+        for (String key : keys) {
+            boolCache.remove(spyKey(account, key));
+            editor.remove(spyKey(account, key));
+        }
+        editor.apply();
+    }
+
+    public static boolean getSpyOption(int account, String key) {
+        init();
+        final boolean global;
+        switch (key) {
+            case "saveDeleted": global = saveDeleted; break;
+            case "saveEdited": global = saveEdited; break;
+            case "saveEditedMedia": global = saveEditedMedia; break;
+            case "saveOutgoing2": global = saveOutgoing; break;
+            case "saveInBots": global = saveInBots; break;
+            case "saveReadDate": global = saveReadDate; break;
+            case "saveLastOnline": global = saveLastOnline; break;
+            default: throw new IllegalArgumentException("Unknown spy option");
+        }
+        return hasSpyProfile(account) ? getBool(spyKey(account, key), global) : global;
+    }
+
+    public static void setSpyOption(int account, String key, boolean enabled) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || !hasSpyProfile(account)) return;
+        // Validate the option before writing any preference.
+        getSpyOption(account, key);
+        setBool(spyKey(account, key), enabled);
+    }
+
+    public static boolean isSavingDeleted(int account) { return getSpyOption(account, "saveDeleted"); }
+    public static boolean isSavingEdited(int account) { return getSpyOption(account, "saveEdited"); }
+    public static boolean isSavingOutgoing(int account) { return getSpyOption(account, "saveOutgoing2"); }
+    public static boolean isSavingInBots(int account) { return getSpyOption(account, "saveInBots"); }
+    public static boolean isSavingReadDate(int account) { return getSpyOption(account, "saveReadDate"); }
+    public static boolean isSavingLastOnline(int account) { return getSpyOption(account, "saveLastOnline"); }
+    public static boolean isSavingDeletedMedia(int account) { return isSavingDeleted(account) && saveDeletedMedia; }
 
     public static boolean isSavingDeleted() {
         init();
@@ -1066,9 +1332,19 @@ public class PengramConfig {
         }
     }
 
-    public static int getTitleMode() { init(); return titleMode; }
-    public static void setTitleMode(int mode) { init(); titleMode = Math.max(TITLE_MODE_DEFAULT, Math.min(TITLE_MODE_CUSTOM, mode)); putInt("titleMode", titleMode); }
-    public static String getTitleCustom() { init(); return titleCustom == null ? "" : titleCustom; }
+    public static int getTitleMode() { init(); Object pending = pendingVisual("titleMode"); return pending instanceof Integer ? (Integer) pending : titleMode; }
+    public static void setTitleMode(int mode) {
+        init();
+        int value = Math.max(TITLE_MODE_DEFAULT, Math.min(TITLE_MODE_CUSTOM, mode));
+        if (stageVisual("titleMode", value)) return;
+        titleMode = value;
+        putInt("titleMode", value);
+    }
+    public static String getTitleCustom() {
+        init();
+        Object pending = pendingVisual("titleCustom");
+        return pending instanceof String ? (String) pending : titleCustom == null ? "" : titleCustom;
+    }
 
     /** Единый источник бренда для шапок, диалогов, уведомлений и accessibility. */
     public static String resolveAppTitle(String telegramTitle) {
@@ -1099,7 +1375,13 @@ public class PengramConfig {
                 return telegramTitle;
         }
     }
-    public static void setTitleCustom(String text) { init(); titleCustom = text == null ? "" : text; putString("titleCustom", titleCustom); }
+    public static void setTitleCustom(String text) {
+        init();
+        String value = text == null ? "" : text;
+        if (stageVisual("titleCustom", value)) return;
+        titleCustom = value;
+        putString("titleCustom", value);
+    }
     public static boolean isTitleCentered() { return getBool(KEY_TITLE_CENTER, false); }
 
     public static int getTabBarSize() { init(); return Math.max(70, Math.min(130, tabBarSize)); }
@@ -1146,7 +1428,7 @@ public class PengramConfig {
             putString("settingsOrder", "");
             putInt("settingsOrderVersion", SETTINGS_ORDER_VERSION);
         }
-        final String saved = prefs().getString("settingsOrder", "");
+        final String saved = visualString("settingsOrder");
         if (saved != null && saved.length() > 0) {
             for (String part : saved.split(",")) {
                 try {
@@ -1354,6 +1636,21 @@ public class PengramConfig {
         putInt("trackForwardMode", mode < TRACK_FORWARD_ASK || mode > TRACK_FORWARD_WITH_AUTHOR ? TRACK_FORWARD_ASK : mode);
     }
 
+    // The share-card button sends to the currently open writable chat only.
+    public static final String KEY_TRACK_CARD_FORMAT = "trackCardFormat";
+    public static final String KEY_TRACK_CARD_LINK = "trackCardLink";
+    public static final String KEY_TRACK_CARD_BRAND = "trackCardBrand";
+    public static final int TRACK_CARD_IMAGE = 0;
+    public static final int TRACK_CARD_TEXT = 1;
+    public static int getTrackCardFormat() {
+        return getIntCached(KEY_TRACK_CARD_FORMAT, TRACK_CARD_IMAGE) == TRACK_CARD_TEXT ? TRACK_CARD_TEXT : TRACK_CARD_IMAGE;
+    }
+    public static void setTrackCardFormat(int format) {
+        putInt(KEY_TRACK_CARD_FORMAT, format == TRACK_CARD_TEXT ? TRACK_CARD_TEXT : TRACK_CARD_IMAGE);
+    }
+    public static boolean isTrackCardLink() { return getBool(KEY_TRACK_CARD_LINK, true); }
+    public static boolean isTrackCardBrand() { return getBool(KEY_TRACK_CARD_BRAND, true); }
+
     // ------------------------------- пункты меню чата -------------------------------
 
     public static final int CHAT_ITEM_PENGRAM = 1;
@@ -1411,7 +1708,7 @@ public class PengramConfig {
     public static java.util.ArrayList<Integer> getChatItemsOrder() {
         init();
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
-        final String saved = prefs().getString("chatItemsOrder", "");
+        final String saved = visualString("chatItemsOrder");
         if (saved != null && !saved.isEmpty()) {
             for (String part : saved.split(",")) {
                 try {
@@ -1574,7 +1871,7 @@ public class PengramConfig {
     /** порядок пунктов меню, с добавлением новых в конец */
     public static int[] getMenuOrder() {
         init();
-        final String saved = prefs() == null ? "" : prefs().getString("menuOrder", "");
+        final String saved = visualString("menuOrder");
         final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
         if (saved != null && !saved.isEmpty()) {
             for (String part : saved.split(",")) {
@@ -1649,6 +1946,8 @@ public class PengramConfig {
     public static boolean isMenuItemHidden(int id) {
         final String key = menuItemKey(id);
         final boolean def = menuItemHiddenDefault(id);
+        Object draftValue = pendingVisual(key);
+        if (draftValue instanceof Boolean) return (Boolean) draftValue;
         switch (id) {
             case MENU_ITEM_THEME: init(); return hideMenuTheme;
             case MENU_ITEM_NEW_GROUP: init(); return hideMenuNewGroup;
@@ -1659,6 +1958,8 @@ public class PengramConfig {
     }
 
     public static void setMenuItemHidden(int id, boolean hidden) {
+        String key = menuItemKey(id);
+        if (stageVisual(key, hidden)) return;
         switch (id) {
             case MENU_ITEM_THEME: init(); hideMenuTheme = hidden; putBoolean("hideMenuTheme", hidden); break;
             case MENU_ITEM_NEW_GROUP: init(); hideMenuNewGroup = hidden; putBoolean("hideMenuNewGroup", hidden); break;
@@ -1745,13 +2046,81 @@ public class PengramConfig {
     /** по нажатию на календарик показывать текст, а не открывать окно */
     public static boolean isRegTapText() { return getBool(KEY_REG_TAP_TEXT, true); }
     public static boolean isForcedSnow() { return getBool(KEY_FORCE_SNOW, false); }
+    /** Stable stored IDs: 0 snow, 1 sakura, 2 matrix, 3 rain, 4 leaves, 5 sunwheel, 6 solar cross. */
+    public static final int PARTICLE_SUNWHEEL = 5;
+    public static final int PARTICLE_SOLAR_CROSS = 6;
+    public static int getParticleMode() { return Math.max(0, Math.min(PARTICLE_SOLAR_CROSS, getIntCached(KEY_PARTICLE_MODE, 0))); }
+    public static int getParticleCount() { return Math.max(20, Math.min(300, getIntCached(KEY_PARTICLE_COUNT, 100))); }
+    public static int getParticleAlpha() { return Math.max(10, Math.min(100, getIntCached(KEY_PARTICLE_ALPHA, 100))); }
+    // Stored as tenths to keep sliders and backups deterministic.
+    public static float getParticleSpeed() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_SPEED, 10))) / 10f; }
+    public static float getParticleRotation() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_ROTATION, 10))) / 10f; }
+    public static boolean isVoiceMessagesEnabled() { return getBool(KEY_VOICE_MESSAGES, true); }
+    public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, false); }
+    public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, false); }
+    public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
+    public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
+    public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
+    public static int getVoiceStudioMix() { return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_STUDIO_MIX, 100))); }
+    public static int getVoiceStudioDrive() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_DRIVE, 0))); }
+    public static int getVoiceStudioRobot() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_STUDIO_ROBOT, 0))); }
+    /** Saved boost and saturation per slot; Original always passes through unchanged. */
+    public static int getVoiceGainPreset() { return Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_OVERLOAD, getIntCached(KEY_VOICE_GAIN_PRESET, VOICE_GAIN_OFF))); }
+    public static int getVoiceGainDbForPreset(int preset) {
+        switch (preset) {
+            case VOICE_GAIN_CLEAR: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_CLEAR_DB, 9)));
+            case VOICE_GAIN_LOUD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_LOUD_DB, 18)));
+            case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_BATTLE_DB, 30)));
+            case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_DB, 0)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(VOICE_GAIN_MAX_DB, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DB, VOICE_GAIN_MAX_DB)));
+            default: return 0;
+        }
+    }
+    public static int getVoiceGainDriveForPreset(int preset) {
+        switch (preset) {
+            case VOICE_GAIN_CLEAR: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_CLEAR_DRIVE, 0)));
+            case VOICE_GAIN_LOUD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_LOUD_DRIVE, 0)));
+            case VOICE_GAIN_BATTLE: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_BATTLE_DRIVE, 0)));
+            case VOICE_GAIN_CUSTOM: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_CUSTOM_DRIVE, 0)));
+            case VOICE_GAIN_OVERLOAD: return Math.max(0, Math.min(100, getIntCached(KEY_VOICE_GAIN_OVERLOAD_DRIVE, 100)));
+            default: return 0;
+        }
+    }
+    public static int getVoiceGainDb() { return getVoiceGainDbForPreset(getVoiceGainPreset()); }
+    public static int getVoiceGainDrive() { return getVoiceGainDriveForPreset(getVoiceGainPreset()); }
+    private static int editableVoiceGainPreset() {
+        int selected = getVoiceGainPreset();
+        return selected == VOICE_GAIN_OFF ? VOICE_GAIN_CUSTOM : selected;
+    }
+    public static void setVoiceGainDb(int db) {
+        final int preset = editableVoiceGainPreset();
+        final String key = preset == VOICE_GAIN_CLEAR ? KEY_VOICE_GAIN_CLEAR_DB
+                : preset == VOICE_GAIN_LOUD ? KEY_VOICE_GAIN_LOUD_DB
+                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DB
+                : preset == VOICE_GAIN_OVERLOAD ? KEY_VOICE_GAIN_OVERLOAD_DB : KEY_VOICE_GAIN_DB;
+        setIntValue(key, Math.max(0, Math.min(VOICE_GAIN_MAX_DB, db)));
+        setIntValue(KEY_VOICE_GAIN_PRESET, preset);
+    }
+    public static void setVoiceGainDrive(int drive) {
+        final int preset = editableVoiceGainPreset();
+        final String key = preset == VOICE_GAIN_CLEAR ? KEY_VOICE_GAIN_CLEAR_DRIVE
+                : preset == VOICE_GAIN_LOUD ? KEY_VOICE_GAIN_LOUD_DRIVE
+                : preset == VOICE_GAIN_BATTLE ? KEY_VOICE_GAIN_BATTLE_DRIVE
+                : preset == VOICE_GAIN_OVERLOAD ? KEY_VOICE_GAIN_OVERLOAD_DRIVE : KEY_VOICE_GAIN_CUSTOM_DRIVE;
+        setIntValue(key, Math.max(0, Math.min(100, drive)));
+        setIntValue(KEY_VOICE_GAIN_PRESET, preset);
+    }
+    public static void setVoiceGainPreset(int preset) {
+        setIntValue(KEY_VOICE_GAIN_PRESET, Math.max(VOICE_GAIN_OFF, Math.min(VOICE_GAIN_OVERLOAD, preset)));
+    }
+
     public static boolean isDialogSenderAvatars() { return getBool(KEY_DIALOG_SENDER_AVATARS, false); }
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
     /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
     public static boolean isResendDeletedAsMine() { return true; }
-    public static boolean isResendMenuVisible() { return true; }
+    public static boolean isResendMenuVisible() { return getBool("messageMenuResendHere", false) || getBool("messageMenuResendTo", false); }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
     /** подпись автора в копиях; по умолчанию выключена — она раскрывает собеседника */
@@ -1776,12 +2145,29 @@ public class PengramConfig {
         }
     }
     public static void toggleLocalPremium() { init(); localPremium = !localPremium; putBoolean("localPremium", localPremium); }
-    public static void toggleChatMenu() { init(); chatMenuEnabled = !chatMenuEnabled; putBoolean("chatMenuEnabled", chatMenuEnabled); }
-    public static void setChatMenuPosition(int pos) { init(); chatMenuPosition = pos; putInt("chatMenuPosition", pos); }
-    public static void setAppFont(int font) { init(); appFont = font; putInt("appFont", font); }
+    public static void toggleChatMenu() {
+        init();
+        boolean enabled = !isChatMenuEnabled();
+        if (stageVisual("chatMenuEnabled", enabled)) return;
+        chatMenuEnabled = enabled;
+        putBoolean("chatMenuEnabled", enabled);
+    }
+    public static void setChatMenuPosition(int pos) {
+        init();
+        if (stageVisual("chatMenuPosition", pos)) return;
+        chatMenuPosition = pos;
+        putInt("chatMenuPosition", pos);
+    }
+    public static void setAppFont(int font) {
+        init();
+        if (stageVisual("appFont", font)) return;
+        appFont = font;
+        putInt("appFont", font);
+    }
     public static int getSendTextStyle() { init(); return sendTextStyle; }
     public static void setSendTextStyle(int style) { init(); sendTextStyle = style; putInt("sendTextStyle", style); }
     public static boolean isSendStyleForCaptions() { return getBool(KEY_SEND_STYLE_CAPTIONS, true); }
+    public static boolean isSendStyleLargeEmoji() { return getBool(KEY_SEND_STYLE_LARGE_EMOJI, true); }
     public static boolean isForwardLockEnabled() { return getBool(KEY_FORWARD_LOCK, true); }
     public static boolean isHidingStories() { return getBool(KEY_HIDE_STORIES, false); }
     public static boolean isForwardDoneAlert() { return getBool(KEY_FORWARD_DONE_ALERT, true); }
@@ -1825,8 +2211,16 @@ public class PengramConfig {
     public static boolean isKeepingOnceMedia() { init(); return keepOnceMedia; }
     public static boolean isHidingAds() { init(); return hideAds; }
     public static boolean isLocalPremium() { init(); return localPremium; }
-    public static int getChatMenuPosition() { init(); return chatMenuPosition; }
-    public static boolean isChatMenuEnabled() { init(); return chatMenuEnabled; }
+    public static int getChatMenuPosition() {
+        init();
+        Object pending = pendingVisual("chatMenuPosition");
+        return pending instanceof Integer ? (Integer) pending : chatMenuPosition;
+    }
+    public static boolean isChatMenuEnabled() {
+        init();
+        Object pending = pendingVisual("chatMenuEnabled");
+        return pending instanceof Boolean ? (Boolean) pending : chatMenuEnabled;
+    }
     public static boolean isValidQuickUrl(String value) { return value != null && value.trim().matches("(?i)^(?:https://)?t\\.me/[A-Za-z0-9_]+/[0-9]+/?(?:\\?.*)?$"); }
 
     // Настраиваемые быстрые действия. Новая установка начинается с пустого списка.
@@ -1857,7 +2251,11 @@ public class PengramConfig {
         setQuickAction(count - 1, "", "", QUICK_ACTION_TEXT);
         setQuickActionCount(count - 1);
     }
-    public static int getAppFont() { init(); return appFont; }
+    public static int getAppFont() {
+        init();
+        Object pending = pendingVisual("appFont");
+        return pending instanceof Integer ? (Integer) pending : appFont;
+    }
 
     public static void toggleSaveDeletedMedia() { init(); saveDeletedMedia = !saveDeletedMedia; putBoolean("saveDeletedMedia", saveDeletedMedia); }
 
@@ -1966,7 +2364,8 @@ public class PengramConfig {
      */
     private static final java.util.HashSet<String> EXPORTABLE_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
             "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled", "playerTracksView",
-            "appFont", "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
+            "appFont", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle",
+            "typingStatsEnabled", "typingStatsBadge", "bypassEnabled",
             "chatItemsOrder", "chatMenuEnabled", "chatMenuPosition", "copyIdOnTap",
             "copyToClipboard", "coverShape", "deleteEffect", "deleteEffectIncoming",
             "deletedMark", "dialogAvatarShape", "dialogSenderAvatarPosition", "dialogSenderAvatars",
@@ -2007,13 +2406,17 @@ public class PengramConfig {
             "profileHistoryScope", "profileHistoryStorage", "quickActionCount", "quickTiles",
             "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",
             "resendAskChat", "resendDeletedAsMine", "resendDeletedMenu", "resendOnceMedia",
-            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveForMyselfDefault",
+            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia",
+            "editHistoryOpenMark", "editHistoryOpenMenu", "saveForMyselfDefault",
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
-            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendTextStyle",
+            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",
             "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
             "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
             "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
-            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "zalgoFilter"
+            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "voiceGainDb", "voiceGainPreset",
+            "voiceGainClearDb", "voiceGainLoudDb", "voiceGainBattleDb", "voiceGainOverloadDb",
+            "voiceGainClearDrive", "voiceGainLoudDrive", "voiceGainBattleDrive", "voiceGainOverloadDrive",
+            "voiceGainCustomDrive", "zalgoFilter"
     ));
 
     /** семейства ключей с именем, которое зависит от чата или человека */
@@ -2224,10 +2627,10 @@ public class PengramConfig {
         return false;
     }
 
-    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = mode; putInt("voiceChangerMode", mode); }
-    public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = semitones; putInt("voiceChangerPitch", semitones); }
-    public static int getVoiceChangerMode() { init(); return voiceChangerMode; }
-    public static int getVoiceChangerPitch() { init(); return voiceChangerPitch; }
+    public static void setVoiceChangerMode(int mode) { init(); voiceChangerMode = Math.max(0, Math.min(PengramVoiceChanger.MODE_TROLLING, mode)); putInt("voiceChangerMode", voiceChangerMode); }
+    public static void setVoiceChangerPitch(int semitones) { init(); voiceChangerPitch = Math.max(-12, Math.min(12, semitones)); putInt("voiceChangerPitch", voiceChangerPitch); }
+    public static int getVoiceChangerMode() { init(); return voiceChangerMode < 0 || voiceChangerMode > PengramVoiceChanger.MODE_TROLLING ? 0 : voiceChangerMode; }
+    public static int getVoiceChangerPitch() { init(); return Math.max(-12, Math.min(12, voiceChangerPitch)); }
 
     public static void setSpeedBoost(int level) { init(); speedBoost = level; putInt("speedBoost", level); }
     public static int getSpeedBoost() { init(); return speedBoost; }

@@ -11,7 +11,8 @@
 -keep class org.webrtc.* { *; }
 -keep class org.webrtc.audio.* { *; }
 -keep class org.webrtc.voiceengine.* { *; }
--keep class org.telegram.messenger.* { *; }
+# Telegram core is preserved below. Do not keep this whole package here:
+# PengramAI/PengramConfig/etc. live in it and must be eligible for R8 renaming.
 -keep class org.telegram.messenger.camera.* { *; }
 -keep class org.telegram.messenger.secretmedia.* { *; }
 -keep class org.telegram.messenger.support.* { *; }
@@ -28,6 +29,10 @@
 -keep class androidx.mediarouter.app.MediaRouteButton { *; }
 -keepclassmembers class ** {
     @android.webkit.JavascriptInterface <methods>;
+}
+
+-keep class org.telegram.utils.code.highlight.PrismaHighlighter {
+    private static native <methods>;
 }
 
 # https://developers.google.com/ml-kit/known-issues#android_issues
@@ -51,26 +56,30 @@
 -keep class ru.noties.jlatexmath.** { *; }
 -dontwarn org.scilab.forge.jlatexmath.**
 
-# Use -keep to explicitly keep any other classes shrinking would remove
-#-dontoptimize
-#-dontobfuscate
-# ------------------------------------------------------------------
-# Pengram: обфускация только нашего кода.
-#
-# Весь Telegram и все библиотеки остаются как есть — они полны рефлексии
-# и JNI-колбэков по именам, трогать их нельзя. А классы форка (Pengram*)
-# переименовываются: в декомпиляторе от них остаются буквы вместо смысла.
-# ------------------------------------------------------------------
--dontoptimize
+# Keep upstream Telegram/JNI/reflection contracts intact, but let R8 rename,
+# shrink and optimize our Pengram* classes. This is obfuscation, NOT encryption.
+# Do not add -dontoptimize here: it disables R8's optimizer for the whole app.
 -dontwarn **
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions
-# строки стектрейсов остаются читаемыми — иначе не разобрать падения беты
+# Keep line numbers for private retracing, but do not reveal original Java
+# source filenames in production stack traces or decompiler metadata.
 -keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# всё, кроме классов форка, сохраняем целиком
+# Keep upstream Telegram/JNI/reflection contracts intact; rename Pengram*
+# classes in every package, including org.telegram.messenger.
 -keep class !**.Pengram**, ** { *; }
 -keepclassmembers class !**.Pengram**, ** { *; }
 
-# то, что действительно нельзя переименовывать и у нас: компоненты из манифеста
--keep class org.telegram.messenger.PengramBackgroundService { *; }
--keep class org.telegram.messenger.PengramAntiCrash { *; }
+# Both PengramBackgroundService and PengramAntiCrash are plain Java helpers,
+# not Android components or JNI entry points. Do not keep their public names.
+# Put renamed fork-only classes into a short package, not the descriptive
+# org.telegram.* hierarchy. Kept upstream classes remain in their packages.
+-repackageclasses 'p'
+
+# WebRTC looks up only this tiny stable bridge by JNI name. The actual voice
+# DSP remains renameable; keeping its old Pengram class name is unnecessary.
+-keep class org.telegram.messenger.AudioEffectBridge {
+    public static boolean isCallAudioEnabled();
+    public static void processCallAudio(java.nio.ByteBuffer, int, int);
+}

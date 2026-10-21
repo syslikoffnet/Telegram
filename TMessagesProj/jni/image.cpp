@@ -648,12 +648,10 @@ JNIEXPORT void Java_org_telegram_messenger_Utilities_stackBlurBitmap(JNIEnv *env
     const int r1 = radius + 1;
     const int divsum = SQUARE((div + 1) >> 1);
 
-    // Small buffers
-    int stack[div * 4];
-    zeroClearInt(stack, div * 4);
-
-    int vmin[MAX(w, h)];
-    zeroClearInt(vmin, MAX(w, h));
+    // Clang's C++17 mode does not allow runtime-sized arrays on the stack.
+    // Keep their lifetime scoped to this blur, without risking a large stack frame.
+    std::vector<int> stack(div * 4, 0);
+    std::vector<int> vmin(MAX(w, h), 0);
 
     // Large buffers
     int *r = new int[wh];

@@ -123,6 +123,7 @@ import org.telegram.ui.Components.ScrimOptions;
 import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceBitmap;
 import org.telegram.ui.Components.blur3.utils.Blur3Utils;
+import org.telegram.ui.Wallet.WalletSendEnterAmount;
 import org.telegram.ui.recyclerview.LinearSmoothScrollerCustom;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerAdapter;
@@ -604,6 +605,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int delete_group = 45;
     private final static int enable_no_forwards = 46;
     private final static int disable_no_forwards = 47;
+    private final static int send_money = 48;
 
     private Rect rect = new Rect();
 
@@ -2767,6 +2769,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     openDiscussion();
                 } else if (id == gift_premium) {
                     onGiftPermiumClicked();
+                } else if (id == send_money) {
+                    presentFragment(new WalletSendEnterAmount(getMessagesController().getUser(userId)).setAllowOpenChat());
                 } else if (id == channel_stories) {
                     Bundle args = new Bundle();
                     args.putInt("type", MediaActivity.TYPE_ARCHIVED_CHANNEL_STORIES);
@@ -4563,7 +4567,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == pengramRow) {
                 presentFragment(new PengramSettingsActivity());
             } else if (position == pengramHistoryRow) {
-                presentFragment(new PengramHistoryActivity(userId != 0 ? userId : -chatId));
+                PengramHistoryChatActivity archive = new PengramHistoryChatActivity(userId != 0 ? userId : -chatId, PengramHistoryChatActivity.MODE_ALL);
+                archive.setCurrentAccount(currentAccount);
+                presentFragment(archive);
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
             } else if (position == questionRow) {
@@ -12447,6 +12453,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         otherItem.addSubItem(gift_premium, R.drawable.msg_gift_premium, LocaleController.getString(R.string.ProfileSendAGift));
                         giftAction = true;
                     }
+                    if (getMessagesController().config.walletAvailable.get() && !MessagesController.isSupportUser(user) && !UserObject.isService(user.id)) {
+                        otherItem.addSubItem(send_money, R.drawable.ic_gram, LocaleController.getString(R.string.WalletSendMoney));
+                    }
                     otherItem.addSubItem(start_secret_chat, R.drawable.msg_secret, LocaleController.getString(R.string.StartEncryptedChat));
                     otherItem.setSubItemShown(start_secret_chat, DialogObject.isEmpty(getMessagesController().isUserContactBlocked(userId)));
 
@@ -14173,7 +14182,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     } else if (position == pengramHistoryRow) {
                         final long did = userId != 0 ? userId : -chatId;
                         // счётчик из кэша: COUNT(*) прямо в onBindViewHolder подлагивал при прокрутке профиля
-                        final int savedCount = PengramHistory.getCountCached(did, () -> {
+                        final int savedCount = PengramHistory.getCountCached(currentAccount, did, () -> {
                             if (listAdapter != null && pengramHistoryRow >= 0) {
                                 listAdapter.notifyItemChanged(pengramHistoryRow);
                             }
@@ -14308,7 +14317,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (position == infoSectionRow) {
                         final long did = getDialogId();
                         TLObject obj = getMessagesController().getUserOrChat(did);
-                        TL_bots.botVerification bot_verification = userInfo != null ? userInfo.bot_verification : chatInfo != null ? chatInfo.bot_verification : null;
+                        TL_bots.BotVerification bot_verification = userInfo != null ? userInfo.bot_verification : chatInfo != null ? chatInfo.bot_verification : null;
                         Long bot_manager_id = userInfo != null && TLObject.hasFlag(userInfo.flags2, TLObject.FLAG_25) ? userInfo.bot_manager_id : null;
                         if (botAppRow >= 0 || bot_verification != null || bot_manager_id != null) {
                             cell.setFixedSize(0);
@@ -14328,7 +14337,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 sb.append("x");
                                 sb.setSpan(new AnimatedEmojiSpan(bot_verification.icon, cell.getTextView().getPaint().getFontMetricsInt()), sb.length() - 1, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                 sb.append(" ");
-                                SpannableString description = new SpannableString(bot_verification.description);
+                                SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(bot_verification.description));
                                 try {
                                     AndroidUtilities.addLinksSafe(description, Linkify.WEB_URLS, false, false);
                                     URLSpan[] spans = description.getSpans(0, description.length(), URLSpan.class);
@@ -14747,6 +14756,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public static class SearchResult {
 
             public String searchTitle;
+            public int[] pengramEntry;
             public Runnable openRunnable;
             public String rowName;
             public String[] path;
@@ -14905,7 +14915,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (name.contains("Phone") || name.contains("Reg") || name.contains("Id") || name.contains("Profile")) return PengramSettingsActivity.SECTION_PROFILE;
             if (name.contains("Screenshot") || name.contains("Premium") || name.contains("Ads") || name.contains("Bypass")) return PengramSettingsActivity.SECTION_FREEDOM;
             if (name.contains("Player") || name.contains("Lyrics")) return PengramSettingsActivity.SECTION_PLAYER;
-            if (name.contains("Penguin")) return PengramSettingsActivity.SECTION_PENGUIN;
             if (name.contains("Color") || name.contains("Appearance") || name.contains("Theme")) return PengramSettingsActivity.SECTION_APPEARANCE;
             return PengramSettingsActivity.SECTION_GENERAL;
         }
@@ -14925,7 +14934,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9008, getString(R.string.PengramSectionGeneral), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
                     new SearchResult(9009, getString(R.string.PengramSectionCustom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CUSTOM))),
                     new SearchResult(9080, getString(R.string.PengramSectionPlayer), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PLAYER))),
-                    new SearchResult(9081, getString(R.string.PengramSectionPenguin), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PENGUIN))),
                     new SearchResult(9082, getString(R.string.PengramSubsectionActions), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_ACTIONS))),
                     new SearchResult(9083, getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
                     new SearchResult(9084, getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_INTERFACE))),
@@ -15221,6 +15229,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             int generatedId = 20000;
+            final java.util.HashSet<String> indexedKeys = new java.util.HashSet<>();
             try {
                 // Индекс собран по самому экрану настроек (scripts/gen-search-index.py):
                 // в поиск попадают только сами функции — не заголовки разделов, не пояснения
@@ -15229,10 +15238,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 for (int[] entry : PengramSearchIndex.ITEMS) {
                     final String title = getString(entry[0]);
                     if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
-                            || title.length() > 60 || !knownTitles.add(title)) continue;
-                    final int targetSection = entry[1];
-                    all.add(new SearchResult(generatedId++, title, getString(R.string.PengramSettings), R.drawable.settings_features,
-                            () -> f.presentFragment(new PengramSettingsActivity(targetSection))));
+                            || title.length() > 60 || !indexedKeys.add(entry[0] + ":" + entry[1])) continue;
+                    // Older hand-written Pengram results opened only the section;
+                    // replace leaf duplicates with indexed results that jump to a row.
+                    if (entry[1] == PengramSettingsActivity.SECTION_ROOT && knownTitles.contains(title)) continue;
+                    if (entry[1] != PengramSettingsActivity.SECTION_ROOT) {
+                        all.removeIf(result -> result.guid >= 9000 && result.guid < 10000
+                                && title.equals(result.searchTitle));
+                    }
+                    final SearchResult indexed = new SearchResult(generatedId++, title,
+                            PengramSearchMetadata.path(entry), R.drawable.settings_features,
+                            () -> PengramSearchMetadata.open(f, entry));
+                    indexed.pengramEntry = entry;
+                    all.add(indexed);
                 }
             } catch (Throwable e) {
                 FileLog.e(e);
@@ -15338,6 +15356,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             switch (holder.getItemViewType()) {
                 case 0: {
                     SettingsSearchCell searchCell = (SettingsSearchCell) holder.itemView;
+                    searchCell.setPengramPath(null);
                     if (searchWas) {
                         if (position < searchResults.size()) {
                             SearchResult result = searchResults.get(position);
@@ -15349,6 +15368,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 icon = result.iconResId;
                             }
                             searchCell.setTextAndValueAndIcon(resultNames.get(position), result.path, icon, position < searchResults.size() - 1);
+                            if (result.pengramEntry != null) searchCell.setPengramPath(
+                                    PengramSearchMetadata.emphasizedPath(result.pengramEntry, lastSearchString));
                         } else {
                             position -= searchResults.size() + 1;
                             MessagesController.FaqSearchResult result = faqSearchResults.get(position);
@@ -15363,6 +15384,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             if (object instanceof SearchResult) {
                                 SearchResult result = (SearchResult) object;
                                 searchCell.setTextAndValue(result.searchTitle, result.path, false, position < recentSearches.size() - 1);
+                                if (result.pengramEntry != null) searchCell.setPengramPath(
+                                        PengramSearchMetadata.emphasizedPath(result.pengramEntry, ""));
                             } else if (object instanceof MessagesController.FaqSearchResult) {
                                 MessagesController.FaqSearchResult result = (MessagesController.FaqSearchResult) object;
                                 searchCell.setTextAndValue(result.title, result.path, true, position < recentSearches.size() - 1);
@@ -15534,9 +15557,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
 
+                final String[] pengramTerms = PengramSearchMetadata.queryTerms(text);
                 for (int a = 0; a < searchArray.length; a++) {
                     SearchResult result = searchArray[a];
                     if (result == null) {
+                        continue;
+                    }
+                    if (result.pengramEntry != null && PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)) {
+                        results.add(result);
+                        SpannableStringBuilder matchName = new SpannableStringBuilder(result.searchTitle);
+                        matchName.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                                0, matchName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        names.add(matchName);
                         continue;
                     }
                     String title = " " + result.searchTitle.toLowerCase();

@@ -2518,7 +2518,7 @@ public class AlertsCreator {
         final AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
 
         final CheckBoxCell[] cell = new CheckBoxCell[1];
-        final boolean[] value = new boolean[1];
+        final boolean[] value = new boolean[] { false };
 
         final TextView messageTextView = new TextView(context) {
             @Override
@@ -6797,6 +6797,14 @@ public class AlertsCreator {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodoAll));
         } else if (result == 22) {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodo));
+        } else if (result == 23) {
+            builder.setMessage(getString(R.string.PengramCopyCannotSchedule));
+        } else if (result == 24) {
+            builder.setMessage(getString(R.string.PengramCopyCannotPay));
+        } else if (result == 25) {
+            builder.setMessage(getString(R.string.PengramCopyCannotTopic));
+        } else if (result == 26) {
+            builder.setMessage(getString(R.string.PengramCopyCannotComment));
         }
 
         builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
@@ -8125,7 +8133,7 @@ public class AlertsCreator {
         // Pengram: «Сохранить у себя» — сообщение удаляется у всех, но остаётся локально
         if (!scheduled && !isSavedMessages && !quickReplies && encryptedChat == null
                 && org.telegram.messenger.PengramConfig.isSaveForMyselfVisible()
-                && org.telegram.messenger.PengramConfig.isSavingDeleted()) {
+                && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount)) {
             final FrameLayout saveFrame = new FrameLayout(activity);
             final CheckBoxCell saveCell = new CheckBoxCell(activity, 1, resourcesProvider);
             saveCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));

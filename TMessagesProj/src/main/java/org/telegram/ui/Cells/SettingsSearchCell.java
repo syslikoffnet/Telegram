@@ -28,6 +28,7 @@ import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalRecyclerView;
 import org.telegram.ui.ProfileActivity;
+import org.telegram.ui.PengramSearchMetadata;
 
 public class SettingsSearchCell extends FrameLayout {
 
@@ -36,6 +37,7 @@ public class SettingsSearchCell extends FrameLayout {
     private ImageView imageView;
     private boolean needDivider;
     private int left;
+    private boolean pengramPath;
 
     public static class VerticalImageSpan extends ImageSpan {
 
@@ -106,9 +108,28 @@ public class SettingsSearchCell extends FrameLayout {
         addView(imageView, LayoutHelper.createFrame(48, 48, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, 10, 8, 10, 0));
     }
 
+    /** Multiline breadcrumb only for indexed Pengram settings; standard Telegram
+     * search results retain their existing single-line layout. */
+    public void setPengramPath(CharSequence path) {
+        pengramPath = path != null;
+        valueTextView.setSingleLine(!pengramPath);
+        valueTextView.setMaxLines(pengramPath ? Integer.MAX_VALUE : 1);
+        valueTextView.setEllipsize(pengramPath ? null : TextUtils.TruncateAt.END);
+        if (pengramPath) valueTextView.setText(path);
+        requestLayout();
+    }
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(64) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+        int height = AndroidUtilities.dp(64);
+        if (pengramPath) {
+            int width = Math.max(1, MeasureSpec.getSize(widthMeasureSpec) - AndroidUtilities.dp(90));
+            valueTextView.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            height = Math.max(height, AndroidUtilities.dp(43) + valueTextView.getMeasuredHeight());
+        }
+        super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
     }
 
     public void setTextAndValueAndIcon(CharSequence text, String[] value, int icon, boolean divider) {
@@ -223,9 +244,12 @@ public class SettingsSearchCell extends FrameLayout {
             if (item.object instanceof ProfileActivity.SearchAdapter.SearchResult) {
                 final ProfileActivity.SearchAdapter.SearchResult r = (ProfileActivity.SearchAdapter.SearchResult) item.object;
                 ((SettingsSearchCell) view).setTextAndValueAndIcon(item.text, r.path, r.iconResId, divider);
+                ((SettingsSearchCell) view).setPengramPath(r.pengramEntry == null ? null
+                        : PengramSearchMetadata.emphasizedPath(r.pengramEntry, ""));
             } else if (item.object instanceof MessagesController.FaqSearchResult) {
                 final MessagesController.FaqSearchResult r = (MessagesController.FaqSearchResult) item.object;
                 ((SettingsSearchCell) view).setTextAndValue(item.text, r.path, true, divider);
+                ((SettingsSearchCell) view).setPengramPath(null);
             }
         }
 

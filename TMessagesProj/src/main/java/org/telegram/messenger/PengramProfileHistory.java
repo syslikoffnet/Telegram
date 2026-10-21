@@ -63,30 +63,156 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {}
 
+    /** Bind each numeric slot to the actual Telegram identity. Legacy slot-only rows have
+     * no provable owner and must not be read or uploaded under a newly logged-in user. */
+    public static boolean ensureAccountOwner(int account) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return false;
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        if (owner == 0 || ApplicationLoader.applicationContext == null) return false;
+        android.content.SharedPreferences owners = ApplicationLoader.applicationContext
+                .getSharedPreferences("pengram_profile_owners", Context.MODE_PRIVATE);
+        String key = "owner_" + account;
+        synchronized (lock) {
+            long previous = owners.getLong(key, 0);
+            if (previous == owner) return true;
+            PengramProfileHistory h = getInstance();
+            if (h == null) return false;
+            SQLiteDatabase db = h.getWritableDatabase();
+            db.beginTransaction();
+            try {
+                String[] args = {String.valueOf(account)};
+                db.delete("changes", "account=?", args);
+                db.delete("tracked", "account=?", args);
+                db.delete("cloud_queue", "account=?", args);
+                db.execSQL("CREATE TABLE IF NOT EXISTS cloud_meta(account INTEGER PRIMARY KEY,channel_id INTEGER NOT NULL DEFAULT 0)");
+                db.execSQL("CREATE TABLE IF NOT EXISTS cloud_avatars(account INTEGER NOT NULL,hash TEXT NOT NULL,PRIMARY KEY(account,hash))");
+                db.delete("cloud_meta", "account=?", args);
+                db.delete("cloud_avatars", "account=?", args);
+                db.setTransactionSuccessful();
+            } finally { db.endTransaction(); }
+            PengramProfileCloud.forgetAccount(account);
+            Utilities.globalQueue.postRunnable(PengramProfileHistory::pruneUnreferencedAvatars);
+            synchronized (trackedCache) {
+                trackedCache.removeIf(value -> value.startsWith(account + ":"));
+                trackedCacheLoaded = false;
+            }
+            return owners.edit().putLong(key, owner).commit();
+        }
+    }
+
+    public static void clearAccount(int account) {
+        // Called BEFORE UserConfig clears the identity. Do not keep unsent bio or a
+        // channel id that could be reused by whoever logs into this slot next.
+        synchronized (lock) {
+            PengramProfileCloud.forgetAccount(account);
+            PengramProfileHistory h = getInstance();
+            if (h != null) {
+                SQLiteDatabase db = h.getWritableDatabase();
+                String[] args = {String.valueOf(account)};
+                db.beginTransaction();
+                try {
+                    db.delete("changes", "account=?", args);
+                    db.delete("tracked", "account=?", args);
+                    db.delete("cloud_queue", "account=?", args);
+                    db.execSQL("CREATE TABLE IF NOT EXISTS cloud_meta(account INTEGER PRIMARY KEY,channel_id INTEGER NOT NULL DEFAULT 0)");
+                    db.execSQL("CREATE TABLE IF NOT EXISTS cloud_avatars(account INTEGER NOT NULL,hash TEXT NOT NULL,PRIMARY KEY(account,hash))");
+                    db.delete("cloud_meta", "account=?", args);
+                    db.delete("cloud_avatars", "account=?", args);
+                    db.setTransactionSuccessful();
+                } finally { db.endTransaction(); }
+            }
+            synchronized (trackedCache) {
+                trackedCache.removeIf(value -> value.startsWith(account + ":"));
+                trackedCacheLoaded = false;
+            }
+            // Keep the last identity in preferences: a new login can never adopt
+            // rows that another process left behind during a crash.
+        }
+        Utilities.globalQueue.postRunnable(PengramProfileHistory::pruneUnreferencedAvatars);
+    }
+    private static void pruneUnreferencedAvatars() {
+        synchronized (lock) {
+            PengramProfileHistory h = getInstance();
+            if (h == null) return;
+            File[] files = avatarDir().listFiles();
+            if (files == null) return;
+            for (File file : files) {
+                if (!file.getName().matches("[0-9a-f]{32}\\.webp")) continue;
+                String hash = file.getName().substring(0, 32);
+                try (Cursor c = h.getReadableDatabase().rawQuery(
+                        "SELECT 1 FROM changes WHERE avatar_hash=? LIMIT 1", new String[]{hash})) {
+                    if (!c.moveToFirst()) file.delete();
+                }
+            }
+        }
+    }
+
     public static boolean enabled() { return PengramConfig.getBool(KEY_ENABLED, false); }
     private static String trackedKey(int account,long userId){return account+":"+userId;}
     private static void ensureTrackedCache(){
-        if(trackedCacheLoaded||trackedCacheLoading)return;trackedCacheLoading=true;
-        Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h!=null)try(Cursor c=h.getReadableDatabase().rawQuery("SELECT account,user_id FROM tracked",null)){synchronized(trackedCache){while(c.moveToNext())trackedCache.add(trackedKey(c.getInt(0),c.getLong(1)));}}trackedCacheLoaded=true;trackedCacheLoading=false;});
+        synchronized (trackedCache) {
+            if (trackedCacheLoaded || trackedCacheLoading) return;
+            trackedCacheLoading = true;
+        }
+        Utilities.globalQueue.postRunnable(() -> {
+            synchronized (lock) {
+                try {
+                    PengramProfileHistory h = getInstance();
+                    if (h != null) try (Cursor c = h.getReadableDatabase().rawQuery("SELECT account,user_id FROM tracked", null)) {
+                        synchronized (trackedCache) {
+                            while (c.moveToNext()) trackedCache.add(trackedKey(c.getInt(0), c.getLong(1)));
+                            trackedCacheLoaded = true;
+                        }
+                    }
+                } finally { synchronized (trackedCache) { trackedCacheLoading = false; } }
+            }
+        });
     }
     public static boolean isTracked(int account, long userId) {
-        ensureTrackedCache();synchronized(trackedCache){return trackedCache.contains(trackedKey(account,userId));}
+        if (!ensureAccountOwner(account)) return false;
+        ensureTrackedCache();
+        synchronized (trackedCache) {
+            if (trackedCache.contains(trackedKey(account, userId))) return true;
+            if (trackedCacheLoaded) return false;
+        }
+        // Do not silently miss a manually tracked profile while the async cache
+        // is still warming up after startup or an account switch.
+        PengramProfileHistory h = getInstance();
+        if (h == null) return false;
+        try (Cursor c = h.getReadableDatabase().rawQuery(
+                "SELECT 1 FROM tracked WHERE account=? AND user_id=? LIMIT 1",
+                new String[]{String.valueOf(account), String.valueOf(userId)})) {
+            return c.moveToFirst();
+        }
     }
     public static void setTracked(int account, long userId, boolean tracked) {
+        if (!ensureAccountOwner(account)) return;
         ensureTrackedCache();synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}
-        Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h==null)return;if(tracked)h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)",new Object[]{account,userId});else h.getWritableDatabase().delete("tracked","account=? AND user_id=?",new String[]{""+account,""+userId});synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}});
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        Utilities.globalQueue.postRunnable(()->{PengramProfileHistory h=getInstance();if(h==null||owner==0||UserConfig.getInstance(account).getClientUserId()!=owner||!ensureAccountOwner(account))return;if(tracked)h.getWritableDatabase().execSQL("INSERT OR IGNORE INTO tracked(account,user_id) VALUES(?,?)",new Object[]{account,userId});else h.getWritableDatabase().delete("tracked","account=? AND user_id=?",new String[]{""+account,""+userId});synchronized(trackedCache){if(tracked)trackedCache.add(trackedKey(account,userId));else trackedCache.remove(trackedKey(account,userId));}});
+    }
+
+    static boolean canObserve(int account, TLRPC.User user, boolean fromCache) {
+        if (user == null || !enabled() || !ensureAccountOwner(account)) return false;
+        int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
+        boolean tracked = (scope == SCOPE_MANUAL || scope == SCOPE_INTERACTED)
+                && isTracked(account, user.id);
+        boolean inDialogs = (scope == SCOPE_INTERACTED || scope == SCOPE_CONTACTS_CHATS)
+                && MessagesController.getInstance(account).dialogs_dict.get(user.id) != null;
+        return PengramProfilePolicy.allows(scope, true, true, fromCache,
+                user.self || user.id == UserConfig.getInstance(account).getClientUserId(),
+                user.bot, user.deleted, user.support,
+                user.id == UserObject.VERIFY || UserObject.isService(user.id),
+                tracked, user.contact, inDialogs);
     }
 
     public static void observeUser(int account, TLRPC.User user, boolean fromCache) {
-        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.support || UserObject.isService(user.id) || user.id == UserObject.VERIFY || user.self) return;
-        int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
-        if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
-        if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
-        if (scope == SCOPE_INTERACTED && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null && !isTracked(account, user.id)) return;
+        if (!canObserve(account, user, fromCache)) return;
         final String name = ContactsController.formatName(user.first_name, user.last_name);
         final String username = collectUsernames(user);
         final String avatarToken = user.photo == null ? null : String.valueOf(user.photo.photo_id);
-        Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, name, username, null, avatarToken, user));
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, owner, user.id, name, username, null, avatarToken, user));
     }
 
     /** Primary, additional and collectible usernames in stable Telegram order. */
@@ -103,24 +229,27 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
     }
 
     public static void observeAdditionalUsernames(int account, TLRPC.User user, boolean fromCache) {
-        if (!enabled() || user == null || fromCache || user.bot || user.deleted || user.support || UserObject.isService(user.id) || user.id == UserObject.VERIFY || user.self) return;
-        int scope = PengramConfig.getIntCached(KEY_SCOPE, SCOPE_MANUAL);
-        if (scope == SCOPE_MANUAL && !isTracked(account, user.id)) return;
-        if (scope == SCOPE_CONTACTS_CHATS && !user.contact && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null) return;
-        if (scope == SCOPE_INTERACTED && MessagesController.getInstance(account).dialogs_dict.get(user.id) == null && !isTracked(account, user.id)) return;
+        if (!canObserve(account, user, fromCache)) return;
         final String usernames = collectUsernames(user);
         if (TextUtils.isEmpty(usernames)) return;
-        Utilities.globalQueue.postRunnable(() -> saveDelta(account, user.id, null, usernames, null, null, null));
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, owner, user.id, null, usernames, null, null, user));
     }
 
-    public static void observeBio(int account, long userId, String bio) {
-        if (!enabled() || !PengramConfig.getBool(KEY_BIO, true)) return;
-        Utilities.globalQueue.postRunnable(() -> saveDelta(account, userId, null, null, bio, null, null));
+    public static void observeBio(int account, TLRPC.User user, String bio, boolean fromCache) {
+        if (!PengramConfig.getBool(KEY_BIO, true) || !canObserve(account, user, fromCache)
+                || bio == null) return;
+        final long owner = UserConfig.getInstance(account).getClientUserId();
+        Utilities.globalQueue.postRunnable(() -> saveDelta(account, owner, user.id, null, null, bio, null, user));
     }
 
-    private static void saveDelta(int account, long userId, String name, String username, String bio, String avatarToken, TLRPC.User user) {
+    private static void saveDelta(int account, long owner, long userId, String name, String username, String bio, String avatarToken, TLRPC.User user) {
+        if (owner == 0 || UserConfig.getInstance(account).getClientUserId() != owner
+                || !canObserve(account, user, false)) return;
         PengramProfileHistory h = getInstance(); if (h == null) return;
         synchronized (lock) {
+            if (UserConfig.getInstance(account).getClientUserId() != owner
+                    || !canObserve(account, user, false)) return;
             String oldName=null, oldUsername=null, oldBio=null, oldAvatar=null;
             try (Cursor c=h.getReadableDatabase().rawQuery("SELECT name,username,bio,avatar_hash FROM changes WHERE account=? AND user_id=? ORDER BY id DESC",new String[]{""+account,""+userId})) {
                 while(c.moveToNext() && (oldName==null||oldUsername==null||oldBio==null||oldAvatar==null)) {
@@ -134,13 +263,14 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             String currentAvatar = null;
             if (avatarToken != null && user != null && PengramConfig.getBool(KEY_AVATARS, false)) {
                 currentAvatar = saveAvatar(account, user);
-                if (currentAvatar == null) ensureAvatarAvailable(account, user, avatarToken);
+                if (currentAvatar == null) ensureAvatarAvailable(account, owner, user, avatarToken);
             }
             String da=currentAvatar!=null&&!TextUtils.equals(currentAvatar,oldAvatar)?currentAvatar:null;
             if(dn==null&&du==null&&db==null&&da==null)return;
             h.getWritableDatabase().execSQL("INSERT INTO changes(account,user_id,time,name,username,bio,avatar_hash) VALUES(?,?,?,?,?,?,?)",new Object[]{account,userId,System.currentTimeMillis()/1000,dn,du,db,da});
             int storage=PengramConfig.getIntCached(KEY_STORAGE,STORAGE_LOCAL);
-            if(storage!=STORAGE_LOCAL) enqueueCloud(h,account,userId,dn,du,db,da);
+            if (PengramProfilePolicy.queueToCloud(storage, true))
+                enqueueCloud(h,account,userId,dn,du,db,da);
             trimToLimit();
         }
     }
@@ -154,7 +284,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         PengramProfileCloud.schedule(account);
     }
 
-    private static void ensureAvatarAvailable(int account, TLRPC.User user, String token) {
+    private static void ensureAvatarAvailable(int account, long owner, TLRPC.User user, String token) {
         final String loadKey=account+":"+user.id+":"+token;
         synchronized(avatarLoads){if(avatarLoads.contains(loadKey)||avatarLoads.size()>=4)return;avatarLoads.add(loadKey);}
         try {
@@ -170,8 +300,12 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             for (int i = 1; i <= 3; i++) {
                 final int attempt = i;
                 Utilities.globalQueue.postRunnable(() -> {
+                    if (owner != UserConfig.getInstance(account).getClientUserId()) {
+                        synchronized (avatarLoads) { avatarLoads.remove(loadKey); }
+                        return;
+                    }
                     File ready = FileLoader.getInstance(account).getPathToAttach(user.photo.photo_small, true);
-                    if (ready != null && ready.exists()) { synchronized(avatarLoads){avatarLoads.remove(loadKey);} saveDelta(account, user.id, null, null, null, token, user); }
+                    if (ready != null && ready.exists()) { synchronized(avatarLoads){avatarLoads.remove(loadKey);} saveDelta(account, owner, user.id, null, null, null, token, user); }
                     else if(attempt==3)synchronized(avatarLoads){avatarLoads.remove(loadKey);}
                 }, attempt * attempt * 2500L);
             }
@@ -209,11 +343,13 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         }catch(Throwable e){FileLog.e(e); return null;}
     }
 
-    public static ArrayList<Change> getChanges(long userId) { return getChanges(userId, null); }
-    public static ArrayList<Change> getChanges(long userId, String query) {
-        ArrayList<Change> out=new ArrayList<>(); PengramProfileHistory h=getInstance(); if(h==null)return out;
-        StringBuilder where = new StringBuilder(); ArrayList<String> args = new ArrayList<>();
-        if (userId != 0) { where.append("user_id=?"); args.add("" + userId); }
+    public static ArrayList<Change> getChanges(int account, long userId) { return getChanges(account, userId, null); }
+    public static ArrayList<Change> getChanges(int account, long userId, String query) {
+        ArrayList<Change> out=new ArrayList<>(); if (!ensureAccountOwner(account)) return out;
+        PengramProfileHistory h=getInstance(); if(h==null)return out;
+        StringBuilder where = new StringBuilder("account=?"); ArrayList<String> args = new ArrayList<>();
+        args.add(String.valueOf(account));
+        if (userId != 0) { where.append(" AND user_id=?"); args.add("" + userId); }
         if (!TextUtils.isEmpty(query)) {
             if (where.length() > 0) where.append(" AND ");
             where.append("(name LIKE ? OR username LIKE ? OR bio LIKE ? OR CAST(user_id AS TEXT) LIKE ?)");
@@ -224,7 +360,7 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
             while(c.moveToNext()){Change x=new Change();x.id=c.getLong(0);x.account=c.getInt(1);x.userId=c.getLong(2);x.time=c.getLong(3);x.name=c.getString(4);x.username=c.getString(5);x.bio=c.getString(6);x.avatarHash=c.getString(7);out.add(x);}
         } return out;
     }
-    public static int count(long userId){PengramProfileHistory h=getInstance();if(h==null)return 0;try(Cursor c=h.getReadableDatabase().rawQuery("SELECT count(*) FROM changes WHERE user_id=?",new String[]{""+userId})){return c.moveToFirst()?c.getInt(0):0;}}
+    public static int count(int account,long userId){if(!ensureAccountOwner(account))return 0;PengramProfileHistory h=getInstance();if(h==null)return 0;try(Cursor c=h.getReadableDatabase().rawQuery("SELECT count(*) FROM changes WHERE account=? AND user_id=?",new String[]{""+account,""+userId})){return c.moveToFirst()?c.getInt(0):0;}}
     public static void applyRetentionNow() { Utilities.globalQueue.postRunnable(PengramProfileHistory::trimToLimit); }
     private static void trimToLimit() {
         final int days = PengramConfig.getIntCached(KEY_LIMIT_DAYS, 0);
@@ -274,5 +410,22 @@ public final class PengramProfileHistory extends SQLiteOpenHelper {
         }
     }
     public static void clearAvatars(){Utilities.globalQueue.postRunnable(()->{File[] fs=avatarDir().listFiles();if(fs!=null)for(File f:fs)if(f.getName().endsWith(".webp"))f.delete();PengramProfileHistory h=getInstance();if(h!=null)h.getWritableDatabase().execSQL("UPDATE changes SET avatar_hash=NULL");});}
-    public static void clearLocal() { synchronized(trackedCache){trackedCache.clear();trackedCacheLoaded=true;}Utilities.globalQueue.postRunnable(() -> { PengramProfileHistory h=getInstance(); if(h!=null){h.getWritableDatabase().delete("changes",null,null);h.getWritableDatabase().delete("tracked",null,null);} clearAvatars(); }); }
+    public static void clearLocal() {
+        synchronized (lock) {
+            PengramProfileHistory h = getInstance();
+            if (h != null) {
+                SQLiteDatabase db = h.getWritableDatabase();
+                db.beginTransaction();
+                try {
+                    db.delete("changes", null, null);
+                    db.delete("tracked", null, null);
+                    db.delete("cloud_queue", null, null);
+                    db.setTransactionSuccessful();
+                } finally { db.endTransaction(); }
+            }
+            synchronized (trackedCache) { trackedCache.clear(); trackedCacheLoaded = false; }
+        }
+        for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) PengramProfileCloud.discardPending(account);
+        clearAvatars();
+    }
 }

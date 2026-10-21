@@ -28,6 +28,7 @@ on:
       - "arena/01a10249-telegram"
       - "arena/01a105ae-telegram"
       - "arena/01a10850-telegram"
+      - "arena/28564dc4-telegram"
     tags:
       - "build-*"
 
@@ -81,7 +82,7 @@ jobs:
           echo "=== after ==="; df -h /
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -255,6 +256,64 @@ jobs:
           fi
           exit $STATUS
 
+      - name: Verify Pengram code is obfuscated
+        if: env.BUILD_TYPE == 'standalone'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Never publish mapping.txt: it reverses the R8 renaming. A compile
+          # success alone does not prove our broad Telegram keep rules are safe.
+          found=0
+          for class in \
+            org.telegram.messenger.PengramAIClient \
+            org.telegram.messenger.PengramAntiCrash \
+            org.telegram.messenger.PengramVoiceChanger \
+            org.telegram.ui.Components.PengramQuoteMaker; do
+            original="${class//./\\.}"
+            line=''
+            while IFS= read -r map; do
+              line=$(grep -m1 -E "^${original} -> " "$map" || true)
+              if [ -n "$line" ]; then break; fi
+            done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+            if [ -z "$line" ]; then
+              echo "::error::No R8 mapping for $class"
+              exit 1
+            fi
+            mapped="${line#* -> }"
+            mapped="${mapped%:}"
+            if [ "$mapped" = "$class" ]; then
+              echo "::error::$class was not renamed by R8"
+              exit 1
+            fi
+            # AGP may emit a library mapping before the app mapping; package
+            # relocation is best-effort, unlike class renaming, which we require.
+            if [[ "$mapped" != p.* ]]; then
+              echo "::warning::$class renamed but not relocated by this R8 stage"
+            fi
+            found=$((found + 1))
+          done
+          echo "$found fork classes renamed by R8; mapping stays on the runner."
+          # Unlike ordinary fork classes, WebRTC loads this JNI bridge by its
+          # literal Java name. Renaming it makes an audio call abort in native code.
+          bridge='org.telegram.messenger.AudioEffectBridge'
+          found_bridge=0
+          while IFS= read -r map; do
+            line=$(grep -m1 -F "${bridge} -> " "$map" || true)
+            if [ -n "$line" ]; then
+              mapped="${line#* -> }"
+              mapped="${mapped%:}"
+              if [ "$mapped" != "$bridge" ]; then
+                echo "::error::WebRTC JNI voice bridge was renamed by R8"
+                exit 1
+              fi
+              found_bridge=1
+            fi
+          done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+          if [ "$found_bridge" -ne 1 ]; then
+            echo "::error::No R8 mapping for WebRTC JNI voice bridge"
+            exit 1
+          fi
+
       - name: ccache stats
         if: always()
         run: |
@@ -297,31 +356,22 @@ jobs:
           generate_release_notes: true
           prerelease: true
 
-      - name: Publish failure log to repo
-        # только для веток: у тега пушить логи некуда
-        if: failure() && github.ref_type == 'branch' && hashFiles('build.log') != ''
-        env:
-          LOG_BRANCH: ${{ github.ref_name }}
+      - name: Report build errors
+        if: failure() && hashFiles('build.log') != ''
         run: |
-          set -eux
-          # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
-          grep -nE "error:|e: |^FAILURE|What went wrong|Execution failed" build.log | tail -n 40 | while IFS= read -r line; do
+          # 'e: ' also matches every C++ 'note: ' and tail hid the actual
+          # compiler failure behind dozens of macro-expansion notes.
+          grep -nE 'error:|^e: |^FAILURE|What went wrong|Execution failed|FAILED:' build.log | head -n 35 | while IFS= read -r line; do
             echo "::error::$line"
           done || true
 
-          mkdir -p ci-logs
-          tail -n 400 build.log > ci-logs/last-failure.log || echo "no build.log" > ci-logs/last-failure.log
-          grep -nE "error:|e: |warning: unchecked" build.log | tail -n 200 > ci-logs/last-errors.log || true
-
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git fetch origin "$LOG_BRANCH"
-          git stash -u || true
-          git checkout -B ci-log-tmp "origin/$LOG_BRANCH"
-          git stash pop || true
-          git add -f ci-logs/last-failure.log ci-logs/last-errors.log
-          git commit -m "ci: build failure log [skip ci]" || exit 0
-          git push origin "ci-log-tmp:$LOG_BRANCH"
+      - name: Upload build log on failure
+        if: failure() && hashFiles('build.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
 
       - name: Upload build reports on failure
         if: failure()

@@ -73,9 +73,9 @@ public final class PengramOriginalName {
      * контактов: человек ещё не в контактах или это сокращённая (min) запись из
      * группы либо канала.
      */
-    public static void observe(TLRPC.User incoming, TLRPC.User local) {
+    public static void observe(int account, TLRPC.User incoming, TLRPC.User local, boolean fromCache) {
         try {
-            if (incoming == null || incoming.deleted || incoming.self) {
+            if (!PengramProfileHistory.canObserve(account, incoming, fromCache)) {
                 return;
             }
             if (incoming.contact && !incoming.min) {
@@ -85,7 +85,7 @@ public final class PengramOriginalName {
             if (TextUtils.isEmpty(name)) {
                 return;
             }
-            final String key = Long.toString(incoming.id);
+            final String key = key(account, incoming.id);
             final android.content.SharedPreferences prefs = prefs();
             if (name.equals(prefs.getString(key, null))) {
                 return;
@@ -96,12 +96,30 @@ public final class PengramOriginalName {
     }
 
     /** имя, которое видят остальные, если Pengram успел его встретить */
-    private static String fromPublicCache(long userId) {
+    private static String key(int account, long userId) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        return account + ":" + owner + ":" + userId;
+    }
+
+    private static String fromPublicCache(int account, TLRPC.User user) {
+        // The display path obeys the same opt-out and scope as collection.
+        if (!PengramProfileHistory.canObserve(account, user, false)) return null;
         try {
-            return prefs().getString(Long.toString(userId), null);
+            return prefs().getString(key(account, user.id), null);
         } catch (Throwable ignore) {
             return null;
         }
+    }
+
+    public static void clearAccount(int account) {
+        try {
+            android.content.SharedPreferences store = prefs();
+            android.content.SharedPreferences.Editor edit = store.edit();
+            for (String key : store.getAll().keySet()) {
+                if (key.startsWith(account + ":")) edit.remove(key);
+            }
+            edit.apply();
+        } catch (Throwable ignore) { }
     }
 
     public static class Result {
@@ -126,12 +144,12 @@ public final class PengramOriginalName {
         }
         final String shown = clean(ContactsController.formatName(user.first_name, user.last_name));
 
-        final String open = clean(fromPublicCache(user.id));
+        final String open = clean(fromPublicCache(account, user));
         if (!TextUtils.isEmpty(open) && !open.equalsIgnoreCase(shown)) {
             return new Result(open, SOURCE_PUBLIC);
         }
 
-        final String history = clean(fromHistory(user.id));
+        final String history = clean(fromHistory(account, user.id));
         if (!TextUtils.isEmpty(history) && !history.equalsIgnoreCase(shown)) {
             return new Result(history, SOURCE_HISTORY);
         }
@@ -148,9 +166,9 @@ public final class PengramOriginalName {
     }
 
     /** самое раннее имя, которое Pengram успел увидеть до переименования */
-    private static String fromHistory(long userId) {
+    private static String fromHistory(int account, long userId) {
         try {
-            final java.util.ArrayList<PengramProfileHistory.Change> changes = PengramProfileHistory.getChanges(userId);
+            final java.util.ArrayList<PengramProfileHistory.Change> changes = PengramProfileHistory.getChanges(account, userId);
             // список идёт от свежих к старым — нам нужно самое первое имя
             for (int i = changes.size() - 1; i >= 0; i--) {
                 final PengramProfileHistory.Change change = changes.get(i);
