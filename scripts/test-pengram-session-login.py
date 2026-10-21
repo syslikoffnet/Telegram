@@ -9,7 +9,8 @@
   round-trip шифрования/дешифрования обязан сойтись;
 * настоящие данные не принимаются «на веру»: небезопасные записи архива,
   несколько сессий в базе и tdata с паролем отклоняются с понятным кодом;
-* в приложении есть вход, оба режима и нативный мост с точной сигнатурой.
+* в приложении есть вход без вопросов о режиме, выгрузка сессии и нативный
+  мост с точной сигнатурой.
 """
 
 import hashlib
@@ -24,6 +25,7 @@ root = Path(__file__).resolve().parent.parent
 java = root / 'TMessagesProj/src/main/java'
 
 formats = (java / 'org/telegram/messenger/PengramSessionFormats.java').read_text()
+export = (java / 'org/telegram/messenger/PengramSessionExport.java').read_text()
 login = (java / 'org/telegram/messenger/PengramSessionLogin.java').read_text()
 activity = (java / 'org/telegram/ui/LoginActivity.java').read_text()
 manager = (java / 'org/telegram/tgnet/ConnectionsManager.java').read_text()
@@ -75,8 +77,11 @@ assert 'authorized = true;' in datacenter
 assert 'suspendConnections(false);' in datacenter       # старые сокеты закрываются
 
 # --- режимы ----------------------------------------------------------------
+# Автоматический вход: ни одного вопроса о «безопасном» и «мгновенном» режиме.
+assert 'public static final String MODE_AUTO = "auto";' in login
 assert 'public static final String MODE_SAFE = "safe";' in login
 assert 'public static final String MODE_INSTANT = "instant";' in login
+assert 'FALLBACK_CODES' in login and 'instant(flow);' in login
 assert 'TL_auth_exportLoginToken' in login
 assert 'TL_auth_acceptLoginToken' in login
 assert 'TL_auth_importLoginToken' in login
@@ -110,9 +115,10 @@ assert 'getString(R.string.PengramSessionLogin)' in activity
 assert 'pengramShowSessionLogin()' in activity
 assert 'REQUEST_PICK_SESSION' in activity
 assert 'Intent.ACTION_OPEN_DOCUMENT' in activity
-assert 'pengramShowSessionMode(accounts.get(0))' in activity
-assert 'MODE_SAFE' in activity and 'MODE_INSTANT' in activity
-assert 'setNeutralButton(getString(R.string.PengramSessionModeInstant)' in activity
+assert 'pengramStartSessionLogin(accounts.get(0))' in activity
+assert 'pengramShowSessionMode' not in activity       # выбора режима больше нет
+assert 'PengramSessionModeTitle' not in activity
+assert 'MODE_AUTO' in activity
 assert 'pengramSessionError("unsupported_file")' in activity
 assert 'temp.delete();' in activity                      # за собой убираем
 assert 'syncContacts = false;' in activity
@@ -120,6 +126,7 @@ assert 'syncContacts = false;' in activity
 # --- строки в обеих локалях -------------------------------------------------
 needed = set(re.findall(r'R\.string\.(PengramSession[A-Za-z]+)', activity))
 needed |= set(re.findall(r'R\.string\.(PengramSession[A-Za-z]+)', login))
+needed |= set(re.findall(r'R\.string\.(PengramExport[A-Za-z]+)', export))
 needed.add('PengramSessionErrBroken')
 for name in sorted(needed):
     assert 'name="%s"' % name in en, 'EN missing ' + name
@@ -205,7 +212,37 @@ if Cipher is not None:
 assert len(account_filename(0)) == 16
 assert account_filename(1) == account_filename(1).upper()
 assert account_filename(0) != account_filename(1)
-assert 'Character.toUpperCase' in formats
+assert '0123456789ABCDEF' in formats
+assert 'static String accountFilename(int index)' in formats
+
+# --- выгрузка сессии --------------------------------------------------------
+assert 'public static byte[] exportTdata' in formats
+assert 'public static void exportTelethonSession' in formats
+assert 'public static void exportPyrogramSession' in formats
+assert 'public static String telethonStringSession' in formats
+assert 'public static String pyrogramStringSession' in formats
+# файл аккаунта Desktop пишет как QByteArray, а не «голым» шифроблоком
+assert 'tdfEncode(beBlob(accountPayload))' in formats
+assert 'outer.blob()' in formats
+# поле длины шифроблока считает и свой заголовок — как в PrepareEncrypted
+assert 'final int sizeField = 4 + plain.length;' in formats
+assert 'System.arraycopy(le32(sizeField), 0, block, 0, 4);' in formats
+# живая обёртка пароля = файл закрыт паролем, открытый ключ не используем
+assert 'hasLivePasscodeWrap' in formats and 'liveWrap' in formats
+assert 'CREATE TABLE sessions (dc_id integer primary key' in formats
+assert 'insert into version values (7)' in formats
+assert 'insert into version values (3)' in formats
+# предупреждения об опасности стоят до выбора формата
+assert 'PengramExportWarning' in export and 'PengramExportConfirmFile' in export
+assert export.index('PengramExportWarning') < export.index('showFormatPicker')
+assert 'private static void checkExportTarget' in formats
+assert 'native_pengramCopyAuthKey' in manager
+assert 'public static native int native_pengramCopyAuthKey(int currentAccount, byte[] out);' in manager
+assert '{"native_pengramCopyAuthKey", "(I[B)I", (void *) copyAuthKey},' in wrapper
+assert 'ConnectionsManager::pengramCopyAuthKey' in native_manager
+assert 'getDatacenterWithId(DEFAULT_DATACENTER_ID)' in native_manager
+assert 'PengramSessionExport.show(this, currentAccount)' in (
+    java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
 
 # TDF-контроль: испорченный байт обязан не сойтись
 payload = bytes(range(64))
@@ -221,4 +258,5 @@ sha = hashlib.sha1(bytes(range(256))).digest()
 assert key_id(bytes(range(256))) == int.from_bytes(sha[12:20], 'little')
 
 print('session login: read-only parsers (Telethon/Pyrogram/tdata/string), '
-      'safe token + instant modes, native key import, %d strings: OK' % len(needed))
+      'automatic sign-in with instant fallback, native key export/import, '
+      '%d strings: OK' % len(needed))

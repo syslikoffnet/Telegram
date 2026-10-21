@@ -274,6 +274,32 @@ void importAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId, j
     }
 }
 
+/**
+ * Pengram: копия постоянного ключа в Java-массив (экспорт сессии).
+ * Возвращает id DC или 0, если ключа нет. Вызывается из фонового потока:
+ * внутри ждём сетевой поток, на UI это делать нельзя.
+ */
+jint copyAuthKey(JNIEnv *env, jclass c, jint instanceNum, jbyteArray out) {
+    if (out == 0 || env->GetArrayLength(out) < 256) {
+        return 0;
+    }
+    std::string key;
+    uint32_t datacenterId = 0;
+    if (!ConnectionsManager::getInstance(instanceNum).pengramCopyAuthKey(&key, &datacenterId)) {
+        return 0;
+    }
+    jbyte *bytes = env->GetByteArrayElements(out, 0);
+    if (bytes != 0) {
+        memcpy(bytes, key.data(), 256);
+        env->ReleaseByteArrayElements(out, bytes, 0);
+    }
+    volatile char *raw = &key[0];
+    for (size_t i = 0; i < key.size(); ++i) {
+        raw[i] = 0;
+    }
+    return (jint) datacenterId;
+}
+
 void selectHomeDatacenter(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
     ConnectionsManager::getInstance(instanceNum).pengramSelectHomeDatacenter((uint32_t) datacenterId);
 }
@@ -668,6 +694,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_pengramSignatureTrusted", "([B)Z", (void *) pengramSignatureTrusted},
         {"native_pengramImportAuthKey", "(II[BJ)V", (void *) importAuthKey},
         {"native_pengramSelectHomeDatacenter", "(II)V", (void *) selectHomeDatacenter},
+        {"native_pengramCopyAuthKey", "(I[B)I", (void *) copyAuthKey},
 };
 
 

@@ -66,6 +66,9 @@ public:
     void importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId);
     /** Pengram: сделать DC домашним, не трогая авторизацию (вход по токену) */
     void pengramSelectHomeDatacenter(uint32_t datacenterId);
+    /** Pengram: отдать копию постоянного ключа (экспорт сессии).
+     *  Вызывать только не с UI-потока: ждём сетевой поток. */
+    bool pengramCopyAuthKey(std::string *key, uint32_t *datacenterId);
     void setDelegate(ConnectiosManagerDelegate *connectiosManagerDelegate);
     ConnectionState getConnectionState();
     void setUserId(int64_t userId);

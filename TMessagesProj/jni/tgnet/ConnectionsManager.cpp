@@ -17,6 +17,8 @@
 #include <openssl/rand.h>
 #include <zlib.h>
 #include <memory>
+#include <mutex>
+#include <condition_variable>
 #include <string>
 #include <cinttypes>
 #include "ConnectionsManager.h"
@@ -3621,6 +3623,60 @@ void ConnectionsManager::pengramSelectHomeDatacenter(uint32_t datacenterId) {
         }
         processRequestQueue(0, 0);
     });
+}
+
+bool ConnectionsManager::pengramCopyAuthKey(std::string *key, uint32_t *datacenterId) {
+    // Ключ читается только на сетевом потоке. Заходим туда задачей и ждём
+    // результат с тайм-аутом: экспорт вызывается из фонового потока.
+    struct State {
+        std::mutex mutex;
+        std::condition_variable condition;
+        bool done = false;
+        std::string key;
+        uint32_t datacenterId = 0;
+    };
+    auto state = std::make_shared<State>();
+    scheduleTask([state] {
+        Datacenter *datacenter = getDatacenterWithId(DEFAULT_DATACENTER_ID);
+        if (datacenter != nullptr) {
+            ByteArray *authKey = datacenter->getAuthKey(ConnectionTypeGeneric, true, nullptr, 0);
+            if (authKey != nullptr && authKey->length == 256) {
+                state->key.assign((const char *) authKey->bytes, (size_t) authKey->length);
+                state->datacenterId = datacenter->getDatacenterId();
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->done = true;
+        }
+        state->condition.notify_all();
+    });
+
+    bool result = false;
+    {
+        std::unique_lock<std::mutex> lock(state->mutex);
+        state->condition.wait_for(lock, std::chrono::seconds(3), [state] {
+            return state->done;
+        });
+        if (state->done && state->key.size() == 256) {
+            if (key != nullptr) {
+                *key = state->key;
+            }
+            if (datacenterId != nullptr) {
+                *datacenterId = state->datacenterId;
+            }
+            result = true;
+        }
+    }
+    if (!state->key.empty()) {
+        // ключ не должен остаться в куче после экспорта
+        volatile char *raw = &state->key[0];
+        for (size_t i = 0; i < state->key.size(); ++i) {
+            raw[i] = 0;
+        }
+        state->key.clear();
+    }
+    return result;
 }
 
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {

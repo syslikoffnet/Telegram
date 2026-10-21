@@ -1845,7 +1845,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     /** несколько аккаунтов в tdata — сначала выбираем, кем входить */
     private void pengramShowSessionChoice(final ArrayList<org.telegram.messenger.PengramSessionFormats.Account> accounts) {
         if (accounts.size() == 1) {
-            pengramShowSessionMode(accounts.get(0));
+            pengramStartSessionLogin(accounts.get(0));
             return;
         }
         final CharSequence[] names = new CharSequence[accounts.size()];
@@ -1854,30 +1854,17 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         }
         final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
         builder.setTitle(getString(R.string.PengramSessionChoose));
-        builder.setItems(names, (dialog, which) -> pengramShowSessionMode(accounts.get(which)));
+        builder.setItems(names, (dialog, which) -> pengramStartSessionLogin(accounts.get(which)));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
     }
 
     /**
-     * Режим входа: безопасный (одноразовый токен, старый ключ не дублируется)
-     * или мгновенный (ключ переносится прямо сюда). По умолчанию — безопасный.
+     * Вход без единого вопроса: режим выбирается сам. Сначала штатная схема
+     * с одноразовым токеном (новая сессия, как при обычном входе), при её
+     * сбое — прямое копирование ключа.
      */
-    private void pengramShowSessionMode(final org.telegram.messenger.PengramSessionFormats.Account account) {
-        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(getString(R.string.PengramSessionModeTitle));
-        builder.setMessage(getString(R.string.PengramSessionModeInfo) + "\n\n"
-                + getString(R.string.PengramSessionModeInstantInfo));
-        builder.setPositiveButton(getString(R.string.PengramSessionModeSafe), (dialog, which) ->
-                pengramStartSessionLogin(account, org.telegram.messenger.PengramSessionLogin.MODE_SAFE));
-        builder.setNeutralButton(getString(R.string.PengramSessionModeInstant), (dialog, which) ->
-                pengramStartSessionLogin(account, org.telegram.messenger.PengramSessionLogin.MODE_INSTANT));
-        builder.setNegativeButton(getString(R.string.Cancel), null);
-        showDialog(builder.create());
-    }
-
-    private void pengramStartSessionLogin(final org.telegram.messenger.PengramSessionFormats.Account account,
-                                          final String mode) {
+    private void pengramStartSessionLogin(final org.telegram.messenger.PengramSessionFormats.Account account) {
         if (getParentActivity() == null) {
             return;
         }
@@ -1885,7 +1872,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         // Сессию из файла не «привязываем» к телефонной книге: это чужой
         // аккаунт, и контакты ему не нужны.
         syncContacts = false;
-        org.telegram.messenger.PengramSessionLogin.start(currentAccount, account, mode,
+        org.telegram.messenger.PengramSessionLogin.start(currentAccount, account,
+                org.telegram.messenger.PengramSessionLogin.MODE_AUTO,
                 new org.telegram.messenger.PengramSessionLogin.Listener() {
                     @Override
                     public void onSuccess(TLRPC.TL_auth_authorization authorization) {

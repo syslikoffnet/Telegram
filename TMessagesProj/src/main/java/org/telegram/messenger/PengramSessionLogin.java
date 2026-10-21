@@ -32,8 +32,17 @@ import java.util.Arrays;
  */
 public final class PengramSessionLogin {
 
+    /** основной режим: ни одного вопроса пользователю, вход сразу после файла */
+    public static final String MODE_AUTO = "auto";
     public static final String MODE_SAFE = "safe";
     public static final String MODE_INSTANT = "instant";
+
+    /**
+     * Когда автоматический вход уходит в прямое копирование ключа: только
+     * если сама схема с токеном сломалась, а не если сломан аккаунт.
+     */
+    private static final java.util.List<String> FALLBACK_CODES = Arrays.asList(
+            "token_expired", "login_timeout", "unexpected_response", "no_slot");
 
     /** без логина, но с правом неавторизованного запроса и внятной ошибкой */
     private static final int FLAGS = ConnectionsManager.RequestFlagWithoutLogin
@@ -73,6 +82,8 @@ public final class PengramSessionLogin {
         /** токен, который уже отправлен на подтверждение: повторно не шлём */
         byte[] acceptedToken;
         boolean cancelled;
+        /** остался ли ещё один, резервный, способ входа */
+        boolean autoFallback;
 
         Flow(int account, PengramSessionFormats.Account session, Listener listener) {
             this.account = account;
@@ -116,10 +127,13 @@ public final class PengramSessionLogin {
         }
         cancel();
         final Flow flow = new Flow(targetAccount, session, listener);
+        flow.autoFallback = MODE_AUTO.equals(mode) || mode == null;
         active = flow;
         if (MODE_INSTANT.equals(mode)) {
             instant(flow);
         } else {
+            // Безопасный путь первым и без вопросов: он создаёт новую сессию,
+            // как обычный вход, и не убивает ту, из которой взят файл.
             exportToken(flow);
         }
     }
@@ -325,6 +339,18 @@ public final class PengramSessionLogin {
     }
 
     private static void fail(Flow flow, String code) {
+        if (active == flow && flow.autoFallback && flow.session.isUsable()
+                && FALLBACK_CODES.contains(code)) {
+            // Штатная схема не сложилась (нет свободного слота, сервер не отдал
+            // токен) — не показываем ошибку, а один раз пробуем напрямую.
+            flow.autoFallback = false;
+            releaseSource(flow);
+            flow.round = 0;
+            flow.migrations = 0;
+            flow.acceptedToken = null;
+            instant(flow);
+            return;
+        }
         if (active == flow) {
             active = null;
         }

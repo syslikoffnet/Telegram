@@ -20,6 +20,7 @@ public final class PengramSearchIndex {
             {R.string.PengramSecurityObfuscation, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
             {R.string.PengramSecuritySigningSchemes, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
             {R.string.PengramSecurityNativeGuard, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
+            {R.string.PengramExportRow, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramExportHeader, 0, R.string.PengramExportRowInfo},
             {R.string.PengramAboutVersion, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},
             {R.string.PengramAboutBase, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},
             {R.string.PengramAboutPackage, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},

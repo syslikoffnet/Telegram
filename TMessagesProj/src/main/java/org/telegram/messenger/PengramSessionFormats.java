@@ -220,6 +220,9 @@ public final class PengramSessionFormats {
                         || name.contains("..") || name.indexOf('\0') >= 0) {
                     throw new Failure("unsafe_archive");
                 }
+                if (entry.isDirectory()) {
+                    continue;
+                }
                 if (entries.put(name, entry) != null) {
                     throw new Failure("unsafe_archive");
                 }
@@ -227,34 +230,42 @@ public final class PengramSessionFormats {
                     throw new Failure("archive_limits");
                 }
             }
-            // Корень tdata ищем по master-key файлу: у Desktop рядом с ним
-            // лежат key_datas и папки аккаунтов.
+
+            // Корень tdata — папка, где лежит key_data*. Архив может быть как
+            // самим tdata, так и «tdata.zip» с папкой tdata внутри, поэтому
+            // корень вычисляем, а не угадываем. Из нескольких key_data (0/1 —
+            // с паролем и без) берём самый свежий.
             String prefix = null;
-            for (String name : entries.keySet()) {
-                final int slash = name.lastIndexOf('/');
-                final String stem = slash < 0 ? name : name.substring(slash + 1);
-                if ("key_datas".equals(stem) || "key_data0".equals(stem) || "key_data1".equals(stem)) {
-                    final String root = slash < 0 ? "" : name.substring(0, slash + 1);
-                    if (prefix != null && !prefix.equals(root)) {
-                        throw new Failure("multiple_tdata");
-                    }
-                    prefix = root;
+            ZipEntry masterEntry = null;
+            for (ZipEntry entry : entries.values()) {
+                final String name = entry.getName();
+                if (!isKeyDataStem(stemOf(name))) {
+                    continue;
+                }
+                if (masterEntry == null || entry.getTime() > masterEntry.getTime()) {
+                    masterEntry = entry;
+                    prefix = parentOf(name);
                 }
             }
-            if (prefix == null) {
+            if (masterEntry == null || prefix == null) {
                 throw new Failure("tdata_not_found");
             }
-            final TdataReader reader = new TdataReader(zip, entries, prefix);
 
-            final byte[] masterPayload = reader.read("key_data");
-            final byte[][] unwrapped = unwrapKey(masterPayload);
+            final TdataReader reader = new TdataReader(zip, entries, prefix);
+            final byte[][] unwrapped = unwrapKey(reader.readEntry(masterEntry));
             // masterKey расшифровывает и список аккаунтов, и сами файлы аккаунтов
             final byte[] masterKey = unwrapped[0];
-            final byte[] infoPayload = decryptLocal(unwrapped[1], masterKey);
+            final byte[] infoPayload;
+            try {
+                infoPayload = decryptLocal(unwrapped[1], masterKey);
+            } catch (Failure failure) {
+                // ключ есть, но не подходит: файл закрыт паролем Desktop
+                throw new Failure("password_tdata");
+            }
 
             final Reader info = new Reader(infoPayload);
             final int count = info.i32();
-            if (count < 1 || count > 6) {
+            if (count < 0 || count > 6) {
                 throw new Failure("invalid_file");
             }
             final int[] indices = new int[count];
@@ -265,14 +276,12 @@ public final class PengramSessionFormats {
                 }
             }
             for (int index : indices) {
-                final Reader outer = new Reader(reader.read(accountFilename(index)));
-                final byte[] encrypted = outer.blob();
-                if (outer.remaining() != 0) {
-                    throw new Failure("unsupported_tdata");
-                }
-                accounts.add(readAuthorization(decryptLocal(encrypted, masterKey), index));
+                accounts.add(readCopies(reader, index, masterKey));
             }
             Arrays.fill(masterKey, (byte) 0);
+            if (accounts.isEmpty()) {
+                throw new Failure("tdata_not_found");
+            }
             return accounts;
         } catch (Failure failure) {
             for (Account account : accounts) {
@@ -294,86 +303,147 @@ public final class PengramSessionFormats {
         }
     }
 
+    /**
+     * Файлы одного аккаунта. Desktop держит до трёх копий (`s` — актуальная,
+     * `0`/`1` — прошлые), и какая из них читается, заранее не известно: после
+     * смены пароля старые копии не расшифровываются. Поэтому пробуем все, а не
+     * только первую по имени.
+     */
+    private static Account readCopies(TdataReader reader, int index, byte[] masterKey) throws Failure {
+        Failure last = new Failure("incomplete_tdata");
+        for (byte[] payload : reader.readAccountFiles(accountFilename(index))) {
+            try {
+                // Полезная нагрузка файла аккаунта — это QByteArray, а не сам
+                // шифроблок: Desktop пишет его через stream << encrypted.
+                final Reader outer = new Reader(payload);
+                final byte[] encrypted = outer.blob();
+                if (outer.remaining() != 0 || encrypted.length <= 16) {
+                    throw new Failure("invalid_file");
+                }
+                return readAuthorization(decryptLocal(encrypted, masterKey), index);
+            } catch (Failure failure) {
+                last = failure;
+            }
+        }
+        throw last;
+    }
+
     /** master-key: salt, зашифрованный ключ, зашифрованный список аккаунтов */
     private static byte[][] unwrapKey(byte[] payload) throws Failure {
         final Reader stream = new Reader(payload);
         final byte[] salt = stream.blob();
         final byte[] encryptedKey = stream.blob();
         final byte[] encryptedInfo = stream.blob();
-        if (stream.remaining() != 0) {
-            // v2-контейнер с memory-hard KDF: без пароля такой файл не открыть,
-            // а притворяться, что открыли, нельзя.
+        boolean trailer = false;
+        boolean liveWrap = false;
+        if (stream.remaining() > 0) {
+            trailer = true;
+            final byte[] trailerPayload = stream.blob();
+            if (stream.remaining() != 0 || !hasKeyDataMagic(trailerPayload)) {
+                // непонятный хвост — не рискуем угадывать, что внутри
+                throw new Failure("password_tdata");
+            }
+            liveWrap = hasLivePasscodeWrap(trailerPayload);
+        }
+        // Живая обёртка пароля означает, что открытый ключ уже не действует:
+        // пароль снят только тогда, когда committed не совпадает ни с одной
+        // обёрткой. Читать такой файл без пароля нельзя.
+        if (liveWrap) {
             throw new Failure("password_tdata");
         }
-        if (salt.length != 32 || encryptedKey.length <= 16) {
+        // Пустой openKeyEncrypted означает, что локальный ключ закрыт паролем:
+        // без него master-key не достать. Пустой пароль здесь не поможет.
+        if (encryptedKey.length == 0) {
+            throw new Failure("password_tdata");
+        }
+        // Salt обязан быть непустым: иначе CreateLocalKey вырождается, и любой
+        // архив «открывался» бы мусорным ключом.
+        if (salt.length < 8 || encryptedKey.length <= 16) {
             throw new Failure("invalid_file");
         }
         final byte[] localKey = deriveLocalKey("", salt);
-        final byte[] masterKey = decryptLocal(encryptedKey, localKey);
-        Arrays.fill(localKey, (byte) 0);
+        final byte[] masterKey;
+        try {
+            masterKey = decryptLocal(encryptedKey, localKey);
+        } catch (Failure failure) {
+            Arrays.fill(localKey, (byte) 0);
+            if (trailer) {
+                // modern-файл без открытого ключа — это пароль Desktop
+                throw new Failure("password_tdata");
+            }
+            throw failure;
+        } finally {
+            Arrays.fill(localKey, (byte) 0);
+        }
         if (masterKey.length != 256) {
             throw new Failure("invalid_key");
         }
         return new byte[][]{masterKey, encryptedInfo};
     }
 
-    private static Account readAuthorization(byte[] payload, int index) throws Failure {
-        final Reader stream = new Reader(payload);
-        if (stream.u32() != 0x4B) {
-            throw new Failure("unsupported_tdata");
+    /**
+     * Есть ли в трейлере обёртка, которая совпадает с committed. Только номер
+     * поколения: сами параметры KDF (memory/time/parallel) читаем, но никогда
+     * не применяем — их задаёт автор файла, а не мы.
+     */
+    private static boolean hasLivePasscodeWrap(byte[] trailer) {
+        try {
+            final Reader fields = new Reader(trailer);
+            if (fields.u32() != 0x4B443200 || fields.u32() != 2) {
+                return false;
+            }
+            final int committed = fields.u32();
+            final int count = fields.u32();
+            if (count < 0 || count > 2) {
+                return false;
+            }
+            for (int a = 0; a < count; ++a) {
+                final int kind = fields.u32();
+                final int generation = fields.u32();
+                fields.u32();
+                fields.u32();
+                fields.u32();
+                final byte[] salt = fields.blob();
+                final byte[] key = fields.blob();
+                if (kind < 0 || salt == null || key == null) {
+                    return false;
+                }
+                if (generation == committed) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Throwable error) {
+            return false;
         }
-        final Reader auth = new Reader(stream.blob());
-        if (stream.remaining() != 0) {
-            throw new Failure("unsupported_tdata");
-        }
-        final byte[] first = auth.read(8);
-        final long userId;
-        final int dcId;
-        if (allFFBytes(first)) {
-            userId = auth.u64();
-            dcId = auth.i32();
-        } else {
-            userId = readIntBE(first, 0);
-            dcId = readIntBE(first, 4);
-        }
-        final int keyCount = auth.i32();
-        if (keyCount < 1 || keyCount > 32) {
-            throw new Failure("invalid_file");
-        }
-        final HashMap<Integer, byte[]> keys = new HashMap<>();
-        for (int a = 0; a < keyCount; ++a) {
-            final int keyDc = auth.i32();
-            final byte[] key = auth.read(256);
-            keys.put(keyDc, key);
-        }
-        final int destroy = auth.i32();
-        if (destroy < 0 || destroy > 32) {
-            throw new Failure("invalid_file");
-        }
-        auth.read(destroy * 260);
-        if (auth.remaining() != 0 || userId == 0 || !keys.containsKey(dcId)) {
-            throw new Failure("invalid_file");
-        }
-        final Account account = new Account();
-        account.kind = KIND_TDESKTOP;
-        account.dcId = dcId;
-        account.authKey = keys.get(dcId);
-        account.userId = userId;
-        account.detail = "#" + index;
-        return account;
     }
 
-    /** имя файла аккаунта: md5 от "data"/"data#N" с переставленными полубайтами */
-    static String accountFilename(int index) {
-        final String name = index == 0 ? "data" : "data#" + (index + 1);
-        final byte[] digest = md5(name.getBytes());
-        final StringBuilder builder = new StringBuilder();
-        for (int a = 0; a < 8; ++a) {
-            final int value = digest[a] & 0xFF;
-            builder.append(Character.toUpperCase(Character.forDigit(value & 0x0F, 16)));
-            builder.append(Character.toUpperCase(Character.forDigit(value >> 4, 16)));
+    /** magic трейлера key_data: 0x4B443200 («KD2\0») */
+    private static boolean hasKeyDataMagic(byte[] trailer) {
+        return trailer != null && trailer.length >= 8
+                && (trailer[0] & 0xFF) == 0x4B && (trailer[1] & 0xFF) == 0x44
+                && (trailer[2] & 0xFF) == 0x32 && (trailer[3] & 0xFF) == 0x00;
+    }
+
+    private static boolean isKeyDataStem(String stem) {
+        if (stem == null) {
+            return false;
         }
-        return builder.toString();
+        if ("key_data".equals(stem) || "key_datas".equals(stem)) {
+            return true;
+        }
+        return stem.length() == 9 && stem.startsWith("key_data")
+                && Character.isDigit(stem.charAt(8));
+    }
+
+    private static String stemOf(String name) {
+        final int slash = name.lastIndexOf('/');
+        return slash < 0 ? name : name.substring(slash + 1);
+    }
+
+    private static String parentOf(String name) {
+        final int slash = name.lastIndexOf('/');
+        return slash < 0 ? "" : name.substring(0, slash + 1);
     }
 
     private static final class TdataReader {
@@ -387,29 +457,92 @@ public final class PengramSessionFormats {
             this.prefix = prefix;
         }
 
+        byte[] readEntry(ZipEntry entry) throws Failure {
+            if (entry.getSize() > MAX_RECORD) {
+                throw new Failure("archive_limits");
+            }
+            try {
+                return tdfPayload(readStream(zip.getInputStream(entry), MAX_RECORD));
+            } catch (Failure failure) {
+                throw failure;
+            } catch (Throwable error) {
+                throw new Failure("invalid_file");
+            }
+        }
+
+        /** ключ Desktop: key_data, key_datas или key_dataN — что найдётся */
         byte[] read(String stem) throws Failure {
-            Failure last = null;
+            final ArrayList<ZipEntry> candidates = new ArrayList<>();
+            final ZipEntry direct = entries.get(prefix + stem);
+            if (direct != null) {
+                candidates.add(direct);
+            }
             for (String suffix : new String[]{"s", "0", "1"}) {
                 final ZipEntry entry = entries.get(prefix + stem + suffix);
-                if (entry == null) {
+                if (entry != null) {
+                    candidates.add(entry);
+                }
+            }
+            // у аккаунта может не быть суффикса — ищем «начинается с нашего хеша»
+            for (ZipEntry entry : entries.values()) {
+                final String name = entry.getName();
+                if (!name.startsWith(prefix) || name.indexOf('/', prefix.length()) >= 0) {
                     continue;
                 }
-                if (entry.getSize() > MAX_RECORD) {
-                    throw new Failure("archive_limits");
+                final String file = name.substring(prefix.length());
+                if (file.startsWith(stem) && !candidates.contains(entry)) {
+                    candidates.add(entry);
                 }
+            }
+            if (candidates.isEmpty()) {
+                throw new Failure("incomplete_tdata");
+            }
+            Failure last = null;
+            for (ZipEntry entry : candidates) {
                 try {
-                    final byte[] data = readStream(zip.getInputStream(entry), MAX_RECORD);
-                    return tdfPayload(data);
+                    return readEntry(entry);
                 } catch (Failure failure) {
                     last = failure;
-                } catch (Throwable error) {
-                    last = new Failure("invalid_file");
                 }
             }
-            if (last != null) {
-                throw last;
+            throw last != null ? last : new Failure("incomplete_tdata");
+        }
+
+        /**
+         * Все читаемые копии файлов аккаунта: имя, затем любые записи с тем же
+         * хешем где угодно в архиве (архив мог быть собран из другой папки).
+         */
+        ArrayList<byte[]> readAccountFiles(String stem) throws Failure {
+            final ArrayList<ZipEntry> candidates = new ArrayList<>();
+            for (String suffix : new String[]{"s", "0", "1", ""}) {
+                final ZipEntry entry = entries.get(prefix + stem + suffix);
+                if (entry != null && !candidates.contains(entry)) {
+                    candidates.add(entry);
+                }
             }
-            throw new Failure("incomplete_tdata");
+            for (ZipEntry entry : entries.values()) {
+                final String name = entry.getName();
+                if (name.endsWith(stem + "s") || name.endsWith(stem + "0")
+                        || name.endsWith(stem + "1") || name.endsWith(stem)) {
+                    if (!candidates.contains(entry)) {
+                        candidates.add(entry);
+                    }
+                }
+            }
+            final ArrayList<byte[]> result = new ArrayList<>();
+            for (ZipEntry entry : candidates) {
+                try {
+                    if (entry.getSize() > MAX_RECORD) {
+                        continue;
+                    }
+                    result.add(tdfPayload(readStream(zip.getInputStream(entry), MAX_RECORD)));
+                } catch (Throwable ignore) {
+                }
+            }
+            if (result.isEmpty()) {
+                throw new Failure("incomplete_tdata");
+            }
+            return result;
         }
     }
 
@@ -573,54 +706,380 @@ public final class PengramSessionFormats {
 
     private static Account readStringSession(String raw) {
         final String text = raw.replaceAll("\\s+", "");
-        if (text.length() < 64 || text.length() > 1024) {
+        if (text.length() < 64 || text.length() > 2048) {
             return null;
         }
-        byte[] data;
-        try {
-            data = Base64.decode(text, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
-        } catch (Throwable error) {
-            try {
-                data = Base64.decode(text, Base64.DEFAULT);
-            } catch (Throwable second) {
-                return null;
+        // Telethon StringSession: первый символ — версия формата ('1'),
+        // дальше base64 от [dc 1][ip 4|16][port 2 BE][key 256].
+        if (text.charAt(0) == '1' || text.charAt(0) == '2') {
+            final byte[] data = decodeBase64(text.substring(1));
+            if (data != null && (data.length == 263 || data.length == 275)) {
+                final int ipLength = data.length == 263 ? 4 : 16;
+                final Account account = new Account();
+                account.kind = KIND_STRING;
+                account.dcId = data[0] & 0xFF;
+                account.authKey = Arrays.copyOfRange(data, 1 + ipLength + 2, 1 + ipLength + 2 + 256);
+                account.detail = "Telethon";
+                return account.isUsable() ? account : null;
             }
         }
-        if (data == null || data.length < 260) {
+        // Pyrogram: >BI?256sQ? — dc, api_id, test, ключ, user_id, is_bot
+        final byte[] data = decodeBase64(text);
+        if (data == null) {
             return null;
         }
-        // Telethon StringSession: версия 1, dc (1 байт), адрес (4 или 16),
-        // порт (2), ключ (256).
-        if (data[0] == 1 && (data.length == 1 + 1 + 4 + 2 + 256
-                || data.length == 1 + 1 + 16 + 2 + 256)) {
-            final int keyOffset = 1 + 1 + (data.length == 264 ? 4 : 16) + 2;
-            final Account account = new Account();
-            account.kind = KIND_STRING;
-            account.dcId = data[1] & 0xFF;
-            account.authKey = Arrays.copyOfRange(data, keyOffset, keyOffset + 256);
-            account.detail = "Telethon";
-            return account.isUsable() ? account : null;
-        }
-        // Pyrogram: dc (1), api_id (4 BE), test (1), ключ (256), user_id (8)
-        if (data.length == 1 + 4 + 1 + 256 + 8) {
-            final Account account = new Account();
-            account.kind = KIND_STRING;
+        final Account account = new Account();
+        account.kind = KIND_STRING;
+        account.detail = "Pyrogram";
+        if (data.length == 271) {
             account.dcId = data[0] & 0xFF;
             account.apiId = readIntBE(data, 1);
             account.testMode = data[5] != 0;
             account.authKey = Arrays.copyOfRange(data, 6, 6 + 256);
-            account.userId = ((long) readIntBE(data, 262) << 32) | (readIntBE(data, 266) & 0xFFFFFFFFL);
-            account.detail = "Pyrogram";
-            if (account.testMode) {
-                return null;
+            account.userId = readLongBE(data, 262);
+        } else if (data.length == 267) {
+            // старый формат без api_id
+            account.dcId = data[0] & 0xFF;
+            account.testMode = data[1] != 0;
+            account.authKey = Arrays.copyOfRange(data, 2, 2 + 256);
+            account.userId = readLongBE(data, 258);
+        } else if (data.length == 263) {
+            account.dcId = data[0] & 0xFF;
+            account.testMode = data[1] != 0;
+            account.authKey = Arrays.copyOfRange(data, 2, 2 + 256);
+            account.userId = readIntBE(data, 258) & 0xFFFFFFFFL;
+        } else {
+            return null;
+        }
+        if (account.testMode) {
+            return null;
+        }
+        return account.isUsable() ? account : null;
+    }
+
+    /** base64 от пользователя приходит и с padding, и без, и url-safe */
+    private static byte[] decodeBase64(String text) {
+        final StringBuilder padded = new StringBuilder(text);
+        while (padded.length() % 4 != 0) {
+            padded.append('=');
+        }
+        for (int flags : new int[]{Base64.URL_SAFE | Base64.NO_WRAP,
+                Base64.DEFAULT | Base64.NO_WRAP}) {
+            try {
+                final byte[] data = Base64.decode(padded.toString(), flags);
+                if (data != null && data.length > 0) {
+                    return data;
+                }
+            } catch (Throwable ignore) {
             }
-            return account.isUsable() ? account : null;
         }
         return null;
     }
 
+    // ---------------------------------------------------------------- экспорт
+
+    /**
+     * Имя файла аккаунта в tdata: MD5 имени данных (data, data#2, ...), первые
+     * восемь байт, по полубайту снизу вверх — ровно как ToFilePart у Desktop.
+     */
+    static String accountFilename(int index) {
+        final String dataName = index <= 0 ? "data" : "data#" + (index + 1);
+        final byte[] digest = md5Digest().digest(dataName.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        final StringBuilder name = new StringBuilder(16);
+        final char[] hex = "0123456789ABCDEF".toCharArray();
+        for (int a = 0; a < 8; ++a) {
+            name.append(hex[digest[a] & 0x0F]);
+            name.append(hex[(digest[a] >> 4) & 0x0F]);
+        }
+        return name.toString();
+    }
+
+    /** стандартные адреса DC: их ждут Telethon/Pyrogram в файле сессии */
+    private static final String[] DC_ADDRESS = {
+            "", "149.154.175.53", "149.154.167.51", "149.154.175.100",
+            "149.154.167.91", "91.108.56.130"
+    };
+    /** версия формата TDF, которую понимает любой Desktop */
+    private static final int TDF_VERSION = 3000000;
+
+    /**
+     * tdata.zip с текущим аккаунтом: ровно та структура, которую пишет
+     * Telegram Desktop (key_datas + файл аккаунта, TDF-обёртки, QDataStream).
+     *
+     * <p>Ключ, попавший в архив, — это полный доступ к аккаунту, поэтому файл
+     * создаётся только по явному подтверждению и пишется во временный кэш.
+     */
+    public static byte[] exportTdata(byte[] authKey, int dcId, long userId) throws Failure {
+        if (authKey == null || authKey.length != 256 || dcId < 1 || dcId > 5 || userId == 0) {
+            throw new Failure("invalid_key");
+        }
+        final byte[] salt = new byte[32];
+        new java.security.SecureRandom().nextBytes(salt);
+        final byte[] masterKey = new byte[256];
+        new java.security.SecureRandom().nextBytes(masterKey);
+
+        final byte[] localKey = deriveLocalKey("", salt);
+        final byte[] openKeyEncrypted = prepareEncrypted(masterKey, localKey);
+        Arrays.fill(localKey, (byte) 0);
+
+        final byte[] info = concat(be32(1), be32(0), be32(0));
+        final byte[] infoEncrypted = prepareEncrypted(info, masterKey);
+
+        final byte[] authSerialized = concat(
+                be64(-1L), be64(userId), be32(dcId),      // wide tag, userId, main dc
+                be32(1), be32(dcId), authKey,             // ключи: один, наш
+                be32(0));                                 // ключи на уничтожение
+        final byte[] accountPayload = prepareEncrypted(
+                concat(be32(0x4B), beBlob(authSerialized)), masterKey);
+
+        final byte[] keyFile = tdfEncode(concat(beBlob(salt), beBlob(openKeyEncrypted), beBlob(infoEncrypted)));
+        // файл аккаунта Desktop пишет как QByteArray с шифроблоком внутри
+        final byte[] accountFile = tdfEncode(beBlob(accountPayload));
+        Arrays.fill(masterKey, (byte) 0);
+
+        try {
+            final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            final java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(bytes);
+            // Внутри архива — готовая папка tdata: её достаточно распаковать
+            // рядом с Telegram Desktop.
+            putZipEntry(zip, "tdata/key_datas", keyFile);
+            final String account = "tdata/" + accountFilename(0);
+            putZipEntry(zip, account, accountFile);
+            // прошлые версии Desktop читали только файл с суффиксом s
+            putZipEntry(zip, account + "s", accountFile);
+            zip.finish();
+            zip.close();
+            return bytes.toByteArray();
+        } catch (Throwable error) {
+            throw new Failure("export_failed");
+        }
+    }
+
+    /**
+     * Файл .session для Telethon: та же схема, что создаёт сам Telethon
+     * (версия 7, таблицы version/sessions/entities/sent_files/update_state).
+     */
+    public static void exportTelethonSession(File target, byte[] authKey, int dcId) throws Failure {
+        checkExportTarget(target, authKey, dcId);
+        SQLiteDatabase database = null;
+        try {
+            deleteDatabase(target);
+            database = SQLiteDatabase.openOrCreateDatabase(target, null);
+            database.execSQL("CREATE TABLE version (version integer primary key)");
+            database.execSQL("CREATE TABLE sessions (dc_id integer primary key, server_address text, port integer, auth_key blob, takeout_id integer)");
+            database.execSQL("CREATE TABLE entities (id integer primary key, hash integer not null, username text, phone integer, name text, date integer)");
+            database.execSQL("CREATE TABLE sent_files (md5_digest blob, file_size integer, type integer, id integer, hash integer, primary key(md5_digest, file_size, type))");
+            database.execSQL("CREATE TABLE update_state (id integer primary key, pts integer, qts integer, date integer, seq integer)");
+            database.execSQL("insert into version values (7)");
+            database.execSQL("insert into sessions values (?,?,?,?,?)",
+                    new Object[]{dcId, DC_ADDRESS[dcId], 443, authKey, null});
+        } catch (Throwable error) {
+            throw new Failure("export_failed");
+        } finally {
+            if (database != null) {
+                try {
+                    database.close();
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+    }
+
+    /** Файл .session для Pyrogram (версия 3 и полная схема его storage) */
+    public static void exportPyrogramSession(File target, byte[] authKey, int dcId,
+                                             int apiId, long userId, boolean bot) throws Failure {
+        checkExportTarget(target, authKey, dcId);
+        SQLiteDatabase database = null;
+        try {
+            deleteDatabase(target);
+            database = SQLiteDatabase.openOrCreateDatabase(target, null);
+            database.execSQL("CREATE TABLE sessions (dc_id INTEGER PRIMARY KEY, api_id INTEGER, test_mode INTEGER, auth_key BLOB, date INTEGER NOT NULL, user_id INTEGER, is_bot INTEGER)");
+            database.execSQL("CREATE TABLE peers (id INTEGER PRIMARY KEY, access_hash INTEGER, type INTEGER NOT NULL, username TEXT, phone_number TEXT, last_update_on INTEGER NOT NULL DEFAULT (CAST(STRFTIME('%s', 'now') AS INTEGER)))");
+            database.execSQL("CREATE TABLE version (number INTEGER PRIMARY KEY)");
+            database.execSQL("insert into version values (3)");
+            database.execSQL("insert into sessions values (?,?,?,?,?,?,?)",
+                    new Object[]{dcId, apiId > 0 ? apiId : null, 0, authKey,
+                            System.currentTimeMillis() / 1000, userId, bot ? 1 : 0});
+        } catch (Throwable error) {
+            throw new Failure("export_failed");
+        } finally {
+            if (database != null) {
+                try {
+                    database.close();
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+    }
+
+    /** строка Telethon: '1' + base64(dc, ip, port, key) */
+    public static String telethonStringSession(byte[] authKey, int dcId) throws Failure {
+        checkExportTarget(null, authKey, dcId);
+        final byte[] ip = ipv4(DC_ADDRESS[dcId]);
+        final byte[] packed = concat(new byte[]{(byte) dcId}, ip,
+                new byte[]{(byte) (443 >> 8), (byte) (443 & 0xFF)}, authKey);
+        return "1" + Base64.encodeToString(packed, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+    }
+
+    /** строка Pyrogram: base64(dc, api_id, test, key, user_id, is_bot) */
+    public static String pyrogramStringSession(byte[] authKey, int dcId, int apiId,
+                                               long userId, boolean bot) throws Failure {
+        checkExportTarget(null, authKey, dcId);
+        final byte[] packed = concat(new byte[]{(byte) dcId}, be32(apiId > 0 ? apiId : 0),
+                new byte[]{0}, authKey, be64(userId), new byte[]{(byte) (bot ? 1 : 0)});
+        return Base64.encodeToString(packed, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+    }
+
+    private static void checkExportTarget(File target, byte[] authKey, int dcId) throws Failure {
+        if (target == null && authKey == null) {
+            throw new Failure("export_failed");
+        }
+        if (authKey == null || authKey.length != 256 || dcId < 1 || dcId > 5) {
+            throw new Failure("invalid_key");
+        }
+    }
+
+    private static void deleteDatabase(File target) {
+        for (String suffix : new String[]{"", "-journal", "-wal", "-shm"}) {
+            final File file = new File(target.getAbsolutePath() + suffix);
+            if (file.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
+    }
+
+    private static byte[] ipv4(String address) {
+        final String[] parts = address.split("\\.");
+        final byte[] result = new byte[4];
+        for (int a = 0; a < 4 && a < parts.length; ++a) {
+            result[a] = (byte) Integer.parseInt(parts[a]);
+        }
+        return result;
+    }
+
+    private static void putZipEntry(java.util.zip.ZipOutputStream zip, String name, byte[] data)
+            throws java.io.IOException {
+        final java.util.zip.ZipEntry entry = new java.util.zip.ZipEntry(name);
+        entry.setTime(System.currentTimeMillis());
+        zip.putNextEntry(entry);
+        zip.write(data);
+        zip.closeEntry();
+    }
+
+    /** TDF$ + версия + данные + md5(данные, длина, версия, магия) */
+    private static byte[] tdfEncode(byte[] payload) {
+        final byte[] result = new byte[8 + payload.length + 16];
+        result[0] = 'T';
+        result[1] = 'D';
+        result[2] = 'F';
+        result[3] = '$';
+        System.arraycopy(le32(payload.length), 0, result, 4, 4);
+        System.arraycopy(payload, 0, result, 8, payload.length);
+        final MessageDigest digest = md5Digest();
+        digest.update(payload);
+        digest.update(le32(payload.length));
+        digest.update(le32(TDF_VERSION));
+        digest.update(new byte[]{'T', 'D', 'F', '$'});
+        System.arraycopy(digest.digest(), 0, result, 8 + payload.length, 16);
+        return result;
+    }
+
+    /**
+     * Дескриптор Desktop: [u32 длина][данные][паддинг] и AES-IGE со старым
+     * расписанием, а первые 16 байт — SHA-1 от открытого блока.
+     */
+    static byte[] prepareEncrypted(byte[] plain, byte[] key) throws Failure {
+        // Поле длины считает и собственный заголовок: Desktop пишет размер
+        // всего расшифрованного блока, а не только полезной нагрузки.
+        final int sizeField = 4 + plain.length;
+        int fullSize = sizeField;
+        if (fullSize % 16 != 0) {
+            fullSize += 16 - (fullSize % 16);
+        }
+        final byte[] block = new byte[fullSize];
+        System.arraycopy(le32(sizeField), 0, block, 0, 4);
+        System.arraycopy(plain, 0, block, 4, plain.length);
+        if (fullSize > 4 + plain.length) {
+            // паддинг пишем прямо в блок: копия ушла бы в мусор, а хвост
+            // остался бы нулевым — это лишняя подсказка для анализа файла
+            final byte[] padding = new byte[fullSize - 4 - plain.length];
+            new java.security.SecureRandom().nextBytes(padding);
+            System.arraycopy(padding, 0, block, 4 + plain.length, padding.length);
+        }
+        try {
+            final byte[] messageKey = Arrays.copyOf(sha1(block), 16);
+            final byte[][] schedule = oldMtpAes(key, messageKey);
+            return concat(messageKey, aesIgeEncrypt(block, schedule[0], schedule[1]));
+        } catch (Failure failure) {
+            throw failure;
+        } catch (Throwable error) {
+            throw new Failure("export_failed");
+        }
+    }
+
+    /** AES-IGE: C[i] = E(P[i] ^ C[i-1]) ^ P[i-1], C[-1]=iv[0..16), P[-1]=iv[16..32) */
+    static byte[] aesIgeEncrypt(byte[] data, byte[] key, byte[] iv) throws Failure {
+        if (data.length == 0 || data.length % 16 != 0) {
+            throw new Failure("invalid_file");
+        }
+        try {
+            final Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"));
+            final byte[] output = new byte[data.length];
+            byte[] previousCipher = Arrays.copyOfRange(iv, 0, 16);
+            byte[] previousPlain = Arrays.copyOfRange(iv, 16, 32);
+            final byte[] block = new byte[16];
+            for (int offset = 0; offset < data.length; offset += 16) {
+                for (int a = 0; a < 16; ++a) {
+                    block[a] = (byte) (data[offset + a] ^ previousPlain[a]);
+                }
+                final byte[] encrypted = cipher.doFinal(block);
+                final byte[] result = new byte[16];
+                for (int a = 0; a < 16; ++a) {
+                    result[a] = (byte) (encrypted[a] ^ previousCipher[a]);
+                }
+                System.arraycopy(result, 0, output, offset, 16);
+                previousCipher = result;
+                previousPlain = Arrays.copyOfRange(data, offset, offset + 16);
+            }
+            return output;
+        } catch (Throwable error) {
+            throw new Failure("invalid_file");
+        }
+    }
+
+    private static byte[] be32(int value) {
+        return new byte[]{(byte) (value >>> 24), (byte) (value >>> 16),
+                (byte) (value >>> 8), (byte) value};
+    }
+
+    private static byte[] le32(int value) {
+        return new byte[]{(byte) value, (byte) (value >>> 8),
+                (byte) (value >>> 16), (byte) (value >>> 24)};
+    }
+
+    private static byte[] be64(long value) {
+        return concat(be32((int) (value >>> 32)), be32((int) value));
+    }
+
+    private static byte[] beBlob(byte[] data) {
+        return concat(be32(data.length), data);
+    }
+
+    private static long readLongBE(byte[] data, int offset) {
+        return ((long) readIntBE(data, offset) << 32)
+                | (readIntBE(data, offset + 4) & 0xFFFFFFFFL);
+    }
+
     // ---------------------------------------------------------------- утилиты
 
+    /**
+     * Чтение структур tdata. Desktop пишет их через QDataStream, а он по
+     * умолчанию big-endian: и длины блобов, и все числа идут старшим байтом
+     * вперёд. Младший порядок здесь — самая дорогая ошибка: любой настоящий
+     * key_datas тогда читается как «повреждённый файл».
+     */
     static final class Reader {
         private final byte[] data;
         private int position;
@@ -646,8 +1105,8 @@ public final class PengramSessionFormats {
             if (remaining() < 4) {
                 throw new Failure("invalid_file");
             }
-            final int value = (data[position] & 0xFF) | ((data[position + 1] & 0xFF) << 8)
-                    | ((data[position + 2] & 0xFF) << 16) | ((data[position + 3] & 0xFF) << 24);
+            final int value = ((data[position] & 0xFF) << 24) | ((data[position + 1] & 0xFF) << 16)
+                    | ((data[position + 2] & 0xFF) << 8) | (data[position + 3] & 0xFF);
             position += 4;
             return value;
         }
@@ -657,11 +1116,12 @@ public final class PengramSessionFormats {
         }
 
         long u64() throws Failure {
-            final long low = u32() & 0xFFFFFFFFL;
             final long high = u32() & 0xFFFFFFFFL;
+            final long low = u32() & 0xFFFFFFFFL;
             return (high << 32) | low;
         }
 
+        /** QByteArray: длина u32, а 0xFFFFFFFF — «пустой» */
         byte[] blob() throws Failure {
             final int length = u32();
             if (length == 0xFFFFFFFF) {
@@ -671,6 +1131,13 @@ public final class PengramSessionFormats {
                 throw new Failure("invalid_file");
             }
             return read(length);
+        }
+
+        /** остаток потока — для необязательных хвостов (например, active-индекса) */
+        byte[] rest() {
+            final byte[] value = Arrays.copyOfRange(data, position, data.length);
+            position = data.length;
+            return value;
         }
     }
 

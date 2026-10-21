@@ -362,6 +362,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECURITY_COPY_FINGERPRINT = 1043;
     /** строки-датчики: у них нет действия, только значение */
     private static final int BTN_SECURITY_STATUS_BASE = 1044;
+    /** выгрузка сессии в файл другого клиента */
+    private static final int BTN_SECURITY_EXPORT = 1051;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1132,6 +1134,14 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSecurityNativeGuard),
                 getString(R.string.PengramSecurityNativeGuardValue)));
         items.add(UItem.asShadow(getString(R.string.PengramSecurityMTHint)));
+
+        // Экспорт сессии намеренно спрятан в конце раздела: это не настройка,
+        // а действие с полным доступом к аккаунту, и оно должно быть далеко от
+        // повседневных переключателей.
+        items.add(UItem.asHeader(getString(R.string.PengramExportHeader)));
+        items.add(UItem.asSettingsCell(BTN_SECURITY_EXPORT, R.drawable.msg_share,
+                getString(R.string.PengramExportRow), getString(R.string.PengramExportRowValue)));
+        items.add(UItem.asShadow(getString(R.string.PengramExportRowInfo)));
     }
 
     /** строка-датчик: «Отладчик — есть/нет» */
@@ -5247,6 +5257,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 refreshRows();
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
                         getString(R.string.PengramSecurityRechecked)).show();
+                return;
+            case BTN_SECURITY_EXPORT:
+                org.telegram.messenger.PengramSessionExport.show(this, currentAccount);
                 return;
             case BTN_SECURITY_COPY_FINGERPRINT: {
                 final String fingerprint = org.telegram.messenger.PengramGuard.fingerprint();
