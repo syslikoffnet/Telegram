@@ -15,6 +15,11 @@ public final class PengramSearchIndex {
 
     /** {строка, раздел, группа, внешний экран (0=нет), собственное описание (0=нет)} */
     public static final int[][] ITEMS = {
+            {R.string.PengramSecuritySignature, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecuritySignatureHeader, 0, R.string.PengramSecuritySignatureInfo},
+            {R.string.PengramSecurityRecheck, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecuritySignatureHeader, 0, 0},
+            {R.string.PengramSecurityObfuscation, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
+            {R.string.PengramSecuritySigningSchemes, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
+            {R.string.PengramSecurityNativeGuard, PengramSettingsActivity.SECTION_SECURITY, R.string.PengramSecurityProtectionHeader, 0, 0},
             {R.string.PengramAboutVersion, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},
             {R.string.PengramAboutBase, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},
             {R.string.PengramAboutPackage, PengramSettingsActivity.SECTION_ABOUT, R.string.PengramAboutBuildHeader, 0, 0},
@@ -35,6 +40,7 @@ public final class PengramSearchIndex {
             {R.string.PengramSectionFreedom, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupExtra, 0, 0},
             {R.string.PengramSectionGeneral, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupExtra, 0, 0},
             {R.string.PengramEditor, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupExtra, 0, 0},
+            {R.string.PengramSecuritySection, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupExtra, 0, 0},
             {R.string.PengramAbout, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupExtra, 0, 0},
             {R.string.PengramNoRounding, PengramSettingsActivity.SECTION_GENERAL, R.string.PengramGeneralHeader, 0, R.string.PengramNoRoundingInfo},
             {R.string.PengramTimeSeconds, PengramSettingsActivity.SECTION_GENERAL, R.string.PengramGeneralHeader, 0, R.string.PengramTimeSecondsInfo},

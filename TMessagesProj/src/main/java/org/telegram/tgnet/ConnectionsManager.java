@@ -1041,6 +1041,10 @@ public class ConnectionsManager extends BaseController {
     public static native void native_setLangCode(int currentAccount, String langCode);
     /** Pengram: платформа (lang_pack) и отказ от android-параметров initConnection */
     public static native void native_pengramSetPlatform(int currentAccount, String langPack, boolean desktopSpoof);
+    /** Pengram: отладчик/хуки/root — биты см. {@link org.telegram.messenger.PengramGuard} */
+    public static native int native_pengramSecurityFlags();
+    /** Pengram: сверка сертификата APK с отпечатком, зашитым в сборку */
+    public static native boolean native_pengramSignatureTrusted(byte[] certificate);
     public static native void native_setRegId(int currentAccount, String regId);
     public static native void native_setSystemLangCode(int currentAccount, String langCode);
     public static native void native_setJava(boolean useJavaByteBuffers);

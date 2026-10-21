@@ -88,6 +88,7 @@ jobs:
           python3 scripts/test-pengram-mention-all.py
           python3 scripts/test-pengram-text-overflow.py
           python3 scripts/test-pengram-lyrics-header.py
+          python3 scripts/test-pengram-protection.py
 
       - name: Test Pengram lyric timing
         run: |

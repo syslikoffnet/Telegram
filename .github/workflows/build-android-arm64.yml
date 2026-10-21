@@ -269,6 +269,7 @@ jobs:
             org.telegram.messenger.PengramAIClient \
             org.telegram.messenger.PengramAntiCrash \
             org.telegram.messenger.PengramVoiceChanger \
+            org.telegram.messenger.PengramGuard \
             org.telegram.ui.Components.PengramQuoteMaker; do
             original="${class//./\\.}"
             line=''
@@ -351,6 +352,16 @@ jobs:
             fi
           done
           { echo "### Signing"; echo '```'; cat signing.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Pengram protection
+        if: env.BUILD_TYPE == 'standalone'
+        run: |
+          set -euo pipefail
+          APK=$(ls out/*.apk | head -n 1)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          # Отпечаток из keystore должен оказаться внутри .so и совпасть с
+          # сертификатом подписи — иначе сверка подписи в рантайме выключена.
+          python3 scripts/verify-pengram-protection.py "$APK" --apksigner "$BUILD_TOOLS/apksigner"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

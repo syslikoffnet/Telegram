@@ -169,6 +169,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_LYRICS = 18;
     public static final int SECTION_TYPING = 19;
     public static final int SECTION_QUOTES = 20;
+    public static final int SECTION_SECURITY = 21;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -355,6 +356,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_MENTION_ALL_MODE = 1038;
     private static final int BTN_MENTION_ALL_LIMIT = 1039;
     private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
+    private static final int BTN_SECTION_SECURITY = 1041;
+    private static final int BTN_SECURITY_RECHECK = 1042;
+    private static final int BTN_SECURITY_COPY_FINGERPRINT = 1043;
+    /** строки-датчики: у них нет действия, только значение */
+    private static final int BTN_SECURITY_STATUS_BASE = 1044;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -602,6 +608,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return IconBackgroundColors.ORANGE_DEEP;
             case SECTION_PENGUIN: return IconBackgroundColors.BLUE_LIGHT;
             case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
+            case SECTION_SECURITY: return IconBackgroundColors.GREEN;
             case SECTION_ABOUT: return IconBackgroundColors.BLUE_LIGHT;
             case SECTION_AI: return IconBackgroundColors.PURPLE;
             case SECTION_LYRICS: return IconBackgroundColors.ORANGE;
@@ -627,6 +634,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return R.string.PengramHeroPlayer;
             case SECTION_PENGUIN: return R.string.PengramHeroPenguin;
             case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
+            case SECTION_SECURITY: return R.string.PengramHeroSecurity;
             case SECTION_ABOUT: return R.string.PengramHeroAbout;
             case SECTION_AI: return R.string.PengramHeroAI;
             case SECTION_LYRICS: return R.string.PengramHeroLyrics;
@@ -654,6 +662,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PLAYER: return R.drawable.msg_played;
             case SECTION_PENGUIN: return R.drawable.pengram_penguin_glyph;
             case SECTION_FREEDOM: return R.drawable.settings_features;
+            case SECTION_SECURITY: return R.drawable.settings_privacy;
             case SECTION_ABOUT: return R.drawable.msg_info;
             case SECTION_AI: return R.drawable.msg_bot;
             case SECTION_LYRICS: return R.drawable.msg_msgbubble3;
@@ -681,6 +690,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CUSTOM: return getString(R.string.PengramSectionCustom);
             case SECTION_PENGUIN: return getString(R.string.PengramSectionPenguin);
             case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
+            case SECTION_SECURITY: return getString(R.string.PengramSecuritySection);
             case SECTION_ABOUT: return getString(R.string.PengramAbout);
             case SECTION_AI: return getString(R.string.PengramSectionAI);
             case SECTION_LYRICS: return getString(R.string.PengramLyricsSection);
@@ -942,6 +952,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_ABOUT: fillAbout(items); break;
             case SECTION_AI: fillAI(items); break;
             case SECTION_LYRICS: fillLyrics(items); break;
+            case SECTION_SECURITY: fillSecurity(items); break;
             default: fillRoot(items); break;
         }
         addResetRow(items);
@@ -1078,6 +1089,76 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asButton(BTN_RESET_SECTION, R.drawable.msg_reset, getString(R.string.PengramResetSection)).red());
         items.add(UItem.asShadow(getString(R.string.PengramResetSectionInfo)));
+    }
+
+    /**
+     * Раздел «Защита»: что реально защищает сборку и что видно на этом телефоне.
+     *
+     * <p>Это не «настройки безопасности» — переключать здесь нечего. Экран нужен,
+     * чтобы защиту можно было проверить, а не верить ей на слово: отпечаток
+     * подписи, совпадение с зашитым в сборку, отладчик, хуки, root.
+     */
+    private void fillSecurity(ArrayList<UItem> items) {
+        // Кнопка «Проверить снова» опрашивает окружение заново и принудительно;
+        // при обычном входе хватает снимка, снятого на старте или при прошлом
+        // открытии. Карта памяти бывает в несколько мегабайт — лишний раз
+        // читать её в основном потоке на входе в раздел незачем.
+        org.telegram.messenger.PengramGuard.refreshIfStale();
+
+        items.add(UItem.asHeader(getString(R.string.PengramSecuritySignatureHeader)));
+        items.add(UItem.asSettingsCell(BTN_SECURITY_COPY_FINGERPRINT, R.drawable.settings_privacy,
+                getString(R.string.PengramSecuritySignature), securitySignatureValue()));
+        items.add(statusRow(0, R.drawable.settings_devices, R.string.PengramSecurityDebugger,
+                org.telegram.messenger.PengramGuard.hasDebugger()));
+        items.add(statusRow(1, R.drawable.settings_features, R.string.PengramSecurityHooks,
+                org.telegram.messenger.PengramGuard.hasHooks()));
+        items.add(statusRow(2, R.drawable.settings_policy, R.string.PengramSecurityRoot,
+                org.telegram.messenger.PengramGuard.hasRoot()));
+        items.add(UItem.asButton(BTN_SECURITY_RECHECK, R.drawable.msg_reset,
+                getString(R.string.PengramSecurityRecheck)));
+        items.add(UItem.asShadow(getString(R.string.PengramSecuritySignatureInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSecurityProtectionHeader)));
+        items.add(UItem.asSettingsCell(BTN_SECURITY_STATUS_BASE + 3, R.drawable.msg_customize,
+                getString(R.string.PengramSecurityObfuscation),
+                getString(R.string.PengramSecurityObfuscationValue)));
+        items.add(UItem.asSettingsCell(BTN_SECURITY_STATUS_BASE + 4, R.drawable.settings_policy,
+                getString(R.string.PengramSecuritySigningSchemes),
+                getString(R.string.PengramSecuritySigningSchemesValue)));
+        items.add(UItem.asSettingsCell(BTN_SECURITY_STATUS_BASE + 5, R.drawable.msg_info,
+                getString(R.string.PengramSecurityNativeGuard),
+                getString(R.string.PengramSecurityNativeGuardValue)));
+        items.add(UItem.asShadow(getString(R.string.PengramSecurityMTHint)));
+    }
+
+    /** строка-датчик: «Отладчик — есть/нет» */
+    private UItem statusRow(int index, int icon, int titleRes, boolean found) {
+        return UItem.asSettingsCell(BTN_SECURITY_STATUS_BASE + index, icon, getString(titleRes),
+                getString(found ? R.string.PengramSecurityFound : R.string.PengramSecurityNone));
+    }
+
+    private CharSequence securitySignatureValue() {
+        final String shortFingerprint = org.telegram.messenger.PengramGuard.shortFingerprint();
+        switch (org.telegram.messenger.PengramGuard.signatureState()) {
+            case org.telegram.messenger.PengramGuard.SIGNATURE_TRUSTED:
+                return LocaleController.formatString(R.string.PengramSecuritySignatureOk, shortFingerprint);
+            case org.telegram.messenger.PengramGuard.SIGNATURE_MISMATCH:
+                return LocaleController.formatString(R.string.PengramSecuritySignatureTampered, shortFingerprint);
+            default:
+                return getString(R.string.PengramSecuritySignatureUnknown);
+        }
+    }
+
+    /** значение строки раздела в корне настроек */
+    private CharSequence securitySectionValue() {
+        org.telegram.messenger.PengramGuard.refreshIfStale();
+        if (org.telegram.messenger.PengramGuard.isRepackaged()) {
+            return getString(R.string.PengramSecurityValueTampered);
+        }
+        if (org.telegram.messenger.PengramGuard.hasDebugger() || org.telegram.messenger.PengramGuard.hasHooks()) {
+            return getString(R.string.PengramSecurityValueAttention);
+        }
+        return getString(R.string.PengramSecurityValueOk);
     }
 
     /** экран «О программе»: всё, что нужно приложить к баг-репорту */
@@ -2089,6 +2170,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSectionGeneral), null));
         items.add(sectionRow(BTN_VISUAL_EDITOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_customize,
                 getString(R.string.PengramEditor), getString(R.string.PengramEditorPreviewEntry)));
+        items.add(sectionRow(BTN_SECTION_SECURITY, IconBackgroundColors.GREEN, R.drawable.settings_privacy,
+                getString(R.string.PengramSecuritySection), securitySectionValue()));
         items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
                 getString(R.string.PengramAbout), org.telegram.messenger.PengramVersion.shortLine()));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
@@ -5105,6 +5188,24 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_QUOTES:
                 presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
                 return;
+            case BTN_SECTION_SECURITY:
+                presentFragment(new PengramSettingsActivity(SECTION_SECURITY));
+                return;
+            case BTN_SECURITY_RECHECK:
+                org.telegram.messenger.PengramGuard.refresh();
+                refreshRows();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
+                        getString(R.string.PengramSecurityRechecked)).show();
+                return;
+            case BTN_SECURITY_COPY_FINGERPRINT: {
+                final String fingerprint = org.telegram.messenger.PengramGuard.fingerprint();
+                if (!TextUtils.isEmpty(fingerprint)) {
+                    AndroidUtilities.addToClipboard(fingerprint.toUpperCase());
+                    BulletinFactory.of(this).createCopyBulletin(
+                            getString(R.string.PengramSecurityFingerprintCopied)).show();
+                }
+                return;
+            }
             case BTN_QUOTE_RESET_APPEARANCE:
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);
                 PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);

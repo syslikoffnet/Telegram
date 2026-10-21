@@ -4,6 +4,7 @@
 #include "tgnet/NativeByteBuffer.h"
 #include "tgnet/ConnectionsManager.h"
 #include "tgnet/PengramDesync.h"
+#include "tgnet/PengramGuard.h"
 #include "tgnet/MTProtoScheme.h"
 #include "tgnet/ConnectionSocket.h"
 #include "tgnet/FileLog.h"
@@ -570,6 +571,32 @@ void setJava(JNIEnv *env, jclass c, jboolean useJavaByteBuffers) {
 }
 
 static const char *ConnectionsManagerClassPathName = "org/telegram/tgnet/ConnectionsManager";
+/**
+ * Pengram: окружение сборки — отладчик, хуки, root.
+ * Считается в нативной части, чтобы проверку нельзя было вырезать правкой DEX.
+ */
+jint pengramSecurityFlags(JNIEnv *env, jclass c) {
+    return (jint) pengram::securityFlags();
+}
+
+/**
+ * Pengram: сверка сертификата установленного APK с отпечатком, зашитым в .so.
+ * Отпечаток передаёт сборка (PENGRAM_CERT_SHA256_BYTES), в DEX его нет.
+ */
+jboolean pengramSignatureTrusted(JNIEnv *env, jclass c, jbyteArray certificate) {
+    if (certificate == 0) {
+        return JNI_FALSE;
+    }
+    const jsize length = env->GetArrayLength(certificate);
+    jbyte *bytes = env->GetByteArrayElements(certificate, 0);
+    bool trusted = false;
+    if (bytes != 0) {
+        trusted = pengram::signatureTrusted((const uint8_t *) bytes, (size_t) length);
+        env->ReleaseByteArrayElements(certificate, bytes, JNI_ABORT);
+    }
+    return trusted ? JNI_TRUE : JNI_FALSE;
+}
+
 static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_getCurrentTimeMillis", "(I)J", (void *) getCurrentTimeMillis},
         {"native_getCurrentTime", "(I)I", (void *) getCurrentTime},
@@ -611,6 +638,8 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_isGoodPrime", "([BI)Z", (void *) isGoodPrime},
         {"native_pengramSetDesync", "(ZIIIIZIZIZZI)V", (void *) pengramSetDesync},
         {"native_pengramDesyncFakeSupport", "()I", (void *) pengramDesyncFakeSupport},
+        {"native_pengramSecurityFlags", "()I", (void *) pengramSecurityFlags},
+        {"native_pengramSignatureTrusted", "([B)Z", (void *) pengramSignatureTrusted},
 };
 
 

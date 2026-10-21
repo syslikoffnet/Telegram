@@ -366,6 +366,9 @@ public class ApplicationLoader extends Application {
         } catch (UnsatisfiedLinkError error) {
             throw new RuntimeException("can't load native libraries " +  Build.CPU_ABI + " lookup folder " + NativeLoader.getAbiFolder());
         }
+        // Pengram: состояние защиты сборки (подпись, отладчик, хуки). Нативная
+        // часть уже загружена, опрос идёт в фоне и на старт не влияет.
+        PengramGuard.install();
         new ForegroundDetector(this) {
             @Override
             public void onActivityStarted(Activity activity) {

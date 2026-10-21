@@ -169,7 +169,11 @@ android {
         externalNativeBuild {
             cmake {
                 version '3.22.1'
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21' //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+                // Отпечаток сертификата уходит в нативную часть байтами: в DEX
+                // его нет, в .so он не читается как строка, а патч Java-проверки
+                // ничего не даёт — сверка происходит в libtmessages.
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21',
+                        '-DPENGRAM_CERT_SHA256_BYTES=' + pengramCertSha256Bytes() //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
                 targets 'tmessages.49'
             }
         }
@@ -325,6 +329,43 @@ def pengramSecret(String name, String fallback) {
         return fallback
     }
     return value.toString().trim()
+}
+
+/**
+ * SHA-256 сертификата, которым подписывается APK, — байтами через запятую.
+ *
+ * Отпечаток читается из того же keystore, что указан в signingConfigs всех
+ * app-модулей (CI подменяет файл своим ключом до сборки, поэтому отпечаток
+ * всегда соответствует итоговой подписи). Нативная часть сверяет его с
+ * сертификатом установленного APK: сборка, подписанная чужим ключом (перепаковка
+ * и переподпись), перестаёт считаться своей. Пустая строка — проверка выключена,
+ * например если keystore не читается паролем из gradle.properties.
+ */
+def pengramCertSha256Bytes() {
+    try {
+        def storeFile = rootProject.file('TMessagesProj/config/release.keystore')
+        if (!storeFile.exists()) {
+            return ""
+        }
+        def password = pengramProp("RELEASE_STORE_PASSWORD", "android")
+        def alias = pengramProp("RELEASE_KEY_ALIAS", "androidkey")
+        // getInstance(File, char[]) определяет тип хранилища сам (JKS/PKCS12):
+        // в репозитории лежит PKCS12, а CI может подложить ключ в любом из
+        // форматов — отдельный RELEASE_STORE_TYPE для чтения не нужен.
+        def keyStore = java.security.KeyStore.getInstance(storeFile, password.toCharArray())
+        def certificate = keyStore.getCertificate(alias)
+        if (certificate == null) {
+            logger.warn("[Pengram] в keystore нет ключа ${alias} — проверка подписи выключена")
+            return ""
+        }
+        return java.security.MessageDigest.getInstance("SHA-256")
+                .digest(certificate.getEncoded())
+                .collect { String.format("0x%02x", it & 0xff) }
+                .join(",")
+    } catch (Throwable error) {
+        logger.warn("[Pengram] сертификат сборки не прочитан, проверка подписи выключена: ${error.message}")
+        return ""
+    }
 }
 
 /**

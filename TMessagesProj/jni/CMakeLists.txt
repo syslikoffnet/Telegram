@@ -4,8 +4,33 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS "-DANDROID -g")
-set(CMAKE_C_FLAGS "-w -std=c11 -DANDROID -D_LARGEFILE_SOURCE=1 -g -Wno-error=implicit-function-declaration")
+# --- отладочная информация -------------------------------------------------
+# В релизной .so не должно быть DWARF: он раздувает библиотеку, хранит пути
+# исходников и даёт IDA/Ghidra готовые имена функций и структуры. AGP собирает
+# non-debuggable варианты как RelWithDebInfo, а его флаги по умолчанию содержат
+# -g, поэтому -g снимается здесь, а не только strip'ом при упаковке.
+# Отладочная сборка (CMAKE_BUILD_TYPE=Debug) остаётся с символами.
+if (NOT DEFINED PENGRAM_DEBUG_INFO)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(PENGRAM_DEBUG_INFO ON)
+    else()
+        set(PENGRAM_DEBUG_INFO OFF)
+    endif()
+endif()
+
+set(PENGRAM_DEBUG_FLAG "")
+if (NOT PENGRAM_DEBUG_INFO)
+    set(PENGRAM_DEBUG_FLAG "")
+    foreach (PENGRAM_LANG C CXX)
+        string(REGEX REPLACE "(^| )-g( |$)" "\\1"
+                CMAKE_${PENGRAM_LANG}_FLAGS_RELWITHDEBINFO "${CMAKE_${PENGRAM_LANG}_FLAGS_RELWITHDEBINFO}")
+        string(REGEX REPLACE "(^| )-g( |$)" "\\1"
+                CMAKE_${PENGRAM_LANG}_FLAGS_RELEASE "${CMAKE_${PENGRAM_LANG}_FLAGS_RELEASE}")
+    endforeach ()
+endif()
+
+set(CMAKE_CXX_FLAGS "-DANDROID ${PENGRAM_DEBUG_FLAG}")
+set(CMAKE_C_FLAGS "-w -std=c11 -DANDROID -D_LARGEFILE_SOURCE=1 ${PENGRAM_DEBUG_FLAG} -Wno-error=implicit-function-declaration")
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections -fvisibility=hidden -flto=full")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections -fvisibility=hidden -fvisibility-inlines-hidden -flto=full")
@@ -114,6 +139,7 @@ add_library(tgnet STATIC
         tgnet/TLSHello.cpp
         tgnet/ConnectionSocket.cpp
         tgnet/PengramDesync.cpp
+        tgnet/PengramGuard.cpp
         tgnet/Datacenter.cpp
         tgnet/EventObject.cpp
         tgnet/FileLog.cpp
@@ -127,6 +153,16 @@ add_library(tgnet STATIC
         tgnet/Config.cpp)
 target_compile_options(tgnet PUBLIC
         -Wall -frtti -finline-functions -ffast-math -Oz)
+
+# --- Pengram: отпечаток сертификата сборки -----------------------------------
+# Передаётся байтами (0x1a,0x2b,...), а не hex-строкой: в .so не остаётся
+# читаемого отпечатка, а в DEX его нет вовсе — его передаёт Gradle из того же
+# keystore, которым подписывается APK. Пустое значение (сборка без ключа)
+# выключает проверку, но не ломает компиляцию.
+if(NOT DEFINED PENGRAM_CERT_SHA256_BYTES OR PENGRAM_CERT_SHA256_BYTES STREQUAL "")
+    set(PENGRAM_CERT_SHA256_BYTES "0")
+endif()
+target_compile_definitions(tgnet PRIVATE PENGRAM_CERT_SHA256_BYTES=${PENGRAM_CERT_SHA256_BYTES})
 set_target_properties(tgnet PROPERTIES
         ANDROID_ARM_MODE arm)
 target_compile_definitions(tgnet PUBLIC
