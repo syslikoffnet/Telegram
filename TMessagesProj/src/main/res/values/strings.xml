@@ -11837,10 +11837,13 @@
     <string name="PengramSecurityNativeGuardValue">in libtmessages, strings encoded</string>
     <string name="PengramSecurityMTHint">MT Manager shows the name of a known packer (Legu, Bangcle, DexGuard…) in its “Protection” tab, not the level of protection. An ordinary APK has no packer — that is why it says “no protection detected”. Since v2.26.2 MT itself calls this “not detected”, not “unprotected”. Everything listed above works without a packer.</string>
 
+    <string name="PengramMentionsHeader">Mentions</string>
+    <string name="PengramMentionName">Mention by name on long press</string>
+    <string name="PengramMentionNameInfo">In the @ list, long-press a person to insert the name they are saved under in your contacts, with a hidden mention attached. Their @username stays out of the text, and people without a username can be mentioned too.</string>
     <string name="PengramMentionAllHeader">Mentions in groups</string>
     <string name="PengramMentionAll">Mention everyone with @all</string>
     <string name="PengramMentionAllInfo">Type @all in a group and it becomes ordinary mentions of its members. There is a hard cap of 100 people and a pause between uses, so the account is not flagged for spam. Off by default, groups only.</string>
-    <string name="PengramMentionAllShadow">@all, @все and @everyone work. Members without a username are mentioned by name. Only admins can be mentioned too, and the list they see is the same as a normal mention: no bots, no deleted accounts, never yourself.</string>
+    <string name="PengramMentionAllShadow">@all, @все and @everyone work. Members without a username are mentioned by name. Only admins can be mentioned too, and the list they see is the same as a normal mention: no bots, no deleted accounts, never yourself. “Invisible” pings everyone too, but the message itself has almost no text.</string>
     <string name="PengramMentionAllMode">Who to mention</string>
     <string name="PengramMentionAllEveryone">All members</string>
     <string name="PengramMentionAllAdmins">Admins only</string>
@@ -11848,6 +11851,10 @@
     <string name="PengramMentionAllPeople">%1$d people</string>
     <string name="PengramMentionAllCooldown">Pause between mentions</string>
     <string name="PengramMentionAllMinutes">%1$d min</string>
+    <string name="PengramMentionAllStyle">Mention style</string>
+    <string name="PengramMentionAllStyleFull">Names and @usernames</string>
+    <string name="PengramMentionAllStyleUsernames">@usernames, one line</string>
+    <string name="PengramMentionAllStyleHidden">Invisible</string>
     <string name="PengramMentionAllLoading">Loading the member list — send again in a second</string>
     <string name="PengramMentionAllWait">Mass mention is on a pause: %1$d min left</string>
     <string name="PengramMentionAllEmpty">Nobody to mention: no members with a name</string>

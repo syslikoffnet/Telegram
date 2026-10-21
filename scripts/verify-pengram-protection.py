@@ -38,21 +38,40 @@ FORBIDDEN_IN_NATIVE = (
 )
 
 
+def fail(message: str) -> None:
+    """Ошибка шага CI: workflow-команда должна быть в stdout, иначе её не видно."""
+    print('::error::' + message)
+    raise SystemExit(1)
+
+
+def parse_signer_digest(output: str) -> str:
+    # apksigner печатает отпечаток через двоеточия: AA:BB:CC:...
+    match = re.search(r'Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F:]+)', output)
+    if not match:
+        raise ValueError('apksigner did not print a SHA-256 digest')
+    digest = match.group(1).replace(':', '').strip().lower()
+    if len(digest) != 64 or re.fullmatch(r'[0-9a-f]{64}', digest) is None:
+        raise ValueError('unexpected SHA-256 digest length: %d' % len(digest))
+    return digest
+
+
 def signer_sha256(apk: Path, apksigner: str) -> str:
     result = subprocess.run(
         [apksigner, 'verify', '--print-certs', '-v', str(apk)],
-        check=True, capture_output=True, text=True)
-    match = re.search(r'Signer #1 certificate SHA-256 digest:\s*([0-9a-fA-F]+)', result.stdout)
-    if not match:
-        raise SystemExit('apksigner did not print a SHA-256 digest:\n' + result.stdout)
-    return match.group(1).lower()
+        check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        fail('apksigner verify failed: ' + (result.stderr or result.stdout).strip()[:400])
+    try:
+        return parse_signer_digest(result.stdout)
+    except ValueError as error:
+        fail('%s\n%s' % (error, result.stdout.strip()[:800]))
 
 
 def native_libraries(archive: zipfile.ZipFile):
     names = [n for n in archive.namelist()
              if re.match(r'lib/[^/]+/libtmessages[^/]*\.so$', n)]
     if not names:
-        raise SystemExit('APK has no libtmessages .so — native guard cannot run')
+        fail('APK has no libtmessages .so — the native guard cannot run')
     return names
 
 
@@ -75,18 +94,16 @@ def main() -> int:
                 found_in = name
                 break
         if found_in is None:
-            raise SystemExit(
-                '::error::the signed certificate fingerprint is not embedded in any '
-                'libtmessages .so — runtime signature pinning is disabled')
+            fail('the signer certificate fingerprint is not embedded in any '
+                 'libtmessages .so — runtime signature pinning is disabled')
         print('fingerprint embedded in:', found_in)
 
         for name in libraries:
             data = archive.read(name)
             for needle in FORBIDDEN_IN_NATIVE:
                 if needle in data.lower():
-                    raise SystemExit(
-                        '::error::plaintext "%s" in %s — anti-debug strings are not encoded'
-                        % (needle.decode(), name))
+                    fail('plaintext "%s" in %s — anti-debug strings are not encoded'
+                         % (needle.decode(), name))
         print('%d native libraries: no plaintext hook/debug strings' % len(libraries))
 
         hex_digest = digest.encode()
@@ -95,9 +112,8 @@ def main() -> int:
                 continue
             dex = archive.read(name)
             if pin in dex or hex_digest in dex.lower():
-                raise SystemExit(
-                    '::error::certificate fingerprint found in %s — it belongs in native code only'
-                    % name)
+                fail('certificate fingerprint found in %s — it belongs in native code only'
+                     % name)
         print('DEX files carry neither the raw pin nor its hex form')
 
     print('Pengram protection: OK')

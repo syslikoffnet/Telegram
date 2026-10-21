@@ -178,6 +178,7 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.PengramMentionAll;
+import org.telegram.messenger.PengramMentionName;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
@@ -8621,10 +8622,21 @@ public class ChatActivity extends BaseFragment implements
             }
         });
         mentionContainer.getListView().setOnItemLongClickListener((view, position) -> {
-            if (getParentActivity() == null || !mentionContainer.getAdapter().isLongClickEnabled()) {
+            if (getParentActivity() == null) {
                 return false;
             }
             if (position == 0 || mentionContainer.getAdapter().isBannedInline()) {
+                return false;
+            }
+            if (!mentionContainer.getAdapter().isLongClickEnabled()) {
+                // Pengram: в обычном списке «@…» долгое нажатие ставит упоминание
+                // по имени из контактов — без раскрытия @юзернейма.
+                if (PengramMentionName.isEnabled()) {
+                    final Object mentionItem = mentionContainer.getAdapter().getItem(position - 1);
+                    if (mentionItem instanceof TLRPC.User) {
+                        return pengramInsertMentionByName((TLRPC.User) mentionItem, view);
+                    }
+                }
                 return false;
             }
             position--;
@@ -16180,6 +16192,31 @@ public class ChatActivity extends BaseFragment implements
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return value;
+    }
+
+    /**
+     * Pengram: вставка упоминания по имени из контактов. Возвращает false,
+     * если имени нет — тогда жест ничего не делает и список остаётся открытым,
+     * как будто долгого нажатия не было.
+     */
+    private boolean pengramInsertMentionByName(TLRPC.User user, android.view.View view) {
+        final CharSequence mention = PengramMentionName.buildMention(user);
+        if (mention == null || chatActivityEnterView == null || mentionContainer == null) {
+            return false;
+        }
+        final MentionsAdapter adapter = mentionContainer.getAdapter();
+        if (adapter == null) {
+            return false;
+        }
+        chatActivityEnterView.replaceWithText(adapter.getResultStartPosition(),
+                adapter.getResultLength(), mention, false);
+        mentionContainer.updateVisibility(false);
+        try {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS,
+                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+        } catch (Exception ignore) {
+        }
+        return true;
     }
 
     /** Pengram: список участников для «@all» грузим, пока текст ещё набирают */

@@ -833,10 +833,13 @@
     <string name="PengramSecurityNativeGuardValue">в libtmessages, строки закодированы</string>
     <string name="PengramSecurityMTHint">MT Manager в разделе «Защита» показывает имя известного упаковщика (Legu, Bangcle, DexGuard…), а не уровень защиты. У обычного APK упаковщика нет — поэтому там и написано «защита не обнаружена». С версии 2.26.2 MT сам называет это «не обнаружено», а не «не защищено». Всё перечисленное выше работает без упаковщика.</string>
 
+    <string name="PengramMentionsHeader">Упоминания</string>
+    <string name="PengramMentionName">Упоминать по имени долгим нажатием</string>
+    <string name="PengramMentionNameInfo">В списке «@…» зажмите человека — вставится имя, под которым он записан у вас в контактах, со скрытой сущностью упоминания. @юзернейм в тексте не появляется, а упомянуть можно и тех, у кого юзернейма нет.</string>
     <string name="PengramMentionAllHeader">Упоминания в группах</string>
     <string name="PengramMentionAll">Упоминать всех через @all</string>
     <string name="PengramMentionAllInfo">Наберите @all в группе — и он превратится в обычные упоминания участников. Жёсткий потолок 100 человек и пауза между использованиями: так аккаунт не улетает в спам-фильтры. По умолчанию выключено, работает только в группах.</string>
-    <string name="PengramMentionAllShadow">Работают @all, @все и @everyone. Участники без юзернейма упоминаются по имени. Можно упоминать только админов. В список не попадают боты, удалённые аккаунты и вы сами.</string>
+    <string name="PengramMentionAllShadow">Работают @all, @все и @everyone. Участники без юзернейма упоминаются по имени. Можно упоминать только админов. В список не попадают боты, удалённые аккаунты и вы сами. «Невидимые» тоже уведомляют всех, но текста в сообщении почти нет.</string>
     <string name="PengramMentionAllMode">Кого упоминать</string>
     <string name="PengramMentionAllEveryone">Всех участников</string>
     <string name="PengramMentionAllAdmins">Только админов</string>
@@ -844,6 +847,10 @@
     <string name="PengramMentionAllPeople">%1$d чел.</string>
     <string name="PengramMentionAllCooldown">Пауза между упоминаниями</string>
     <string name="PengramMentionAllMinutes">%1$d мин</string>
+    <string name="PengramMentionAllStyle">Стиль упоминаний</string>
+    <string name="PengramMentionAllStyleFull">Имена и @юзернеймы</string>
+    <string name="PengramMentionAllStyleUsernames">@юзернеймы одной строкой</string>
+    <string name="PengramMentionAllStyleHidden">Невидимые</string>
     <string name="PengramMentionAllLoading">Загружаю список участников — отправьте ещё раз через секунду</string>
     <string name="PengramMentionAllWait">Массовое упоминание на паузе: осталось %1$d мин</string>
     <string name="PengramMentionAllEmpty">Некого упоминать: нет участников с именем</string>

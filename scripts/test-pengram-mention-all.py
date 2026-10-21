@@ -26,6 +26,15 @@ assert 'return PengramConfig.getBool(KEY_ENABLED, false);' in mention          #
 assert 'public static final int HARD_LIMIT = 100;' in mention
 assert 'public static final int[] LIMITS = new int[]{25, 50, 100};' in mention
 assert 'public static final int[] COOLDOWNS = new int[]{1, 5, 15, 30};' in mention
+# компактные варианты: юзернеймы одной строкой и полностью невидимые
+assert 'public static final String KEY_STYLE = "mentionAllStyle";' in mention
+assert 'public static final int STYLE_FULL = 0;' in mention
+assert 'public static final int STYLE_USERNAMES = 1;' in mention
+assert 'public static final int STYLE_HIDDEN = 2;' in mention
+assert 'private static final char INVISIBLE = ' in mention
+assert "mentions.append(INVISIBLE);" in mention
+assert "mentions.append('@').append(username).append(' ');" in mention
+assert 'public static int style()' in mention and 'public static void setStyle(int value)' in mention
 assert 'Math.max(1, Math.min(HARD_LIMIT, value));' in mention                  # потолок не обойти
 assert 'public static int cooldownLeft(int account, long chatId)' in mention
 # только группы: каналы-вещания не трогаем
@@ -68,14 +77,19 @@ assert can_pos < part_pos
 assert 'private static final int BTN_MENTION_ALL_MODE = 1038;' in settings
 assert 'private static final int BTN_MENTION_ALL_LIMIT = 1039;' in settings
 assert 'private static final int BTN_MENTION_ALL_COOLDOWN = 1040;' in settings
+assert 'private static final int BTN_MENTION_ALL_STYLE = 1050;' in settings
 assert 'case BTN_MENTION_ALL_MODE:' in settings and 'case BTN_MENTION_ALL_LIMIT:' in settings
 assert 'case BTN_MENTION_ALL_COOLDOWN:' in settings
+assert 'case BTN_MENTION_ALL_STYLE:' in settings
+assert 'private CharSequence mentionAllStyleValue()' in settings
+assert 'PengramMentionAll.setStyle(value);' in settings
 assert 'private void showMentionAllLimitPicker()' in settings
 assert 'PengramMentionAll.resetCache();' in settings
 # объявление + строка настроек + обработчик, и ничего больше (без дублей в UI)
-for identifier in ('BTN_MENTION_ALL_MODE', 'BTN_MENTION_ALL_LIMIT', 'BTN_MENTION_ALL_COOLDOWN'):
+for identifier in ('BTN_MENTION_ALL_MODE', 'BTN_MENTION_ALL_LIMIT',
+                   'BTN_MENTION_ALL_COOLDOWN', 'BTN_MENTION_ALL_STYLE'):
     assert settings.count(identifier) == 3, (identifier, settings.count(identifier))
-for value in ('1038', '1039', '1040'):
+for value in ('1038', '1039', '1040', '1050'):
     assert settings.count('= %s;' % value) == 1, value
 
 # --- строки в обеих локалях ---------------------------------------------------
@@ -98,4 +112,7 @@ for name in sorted(needed):
     assert 'name="%s"' % name in en, 'EN missing ' + name
     assert 'name="%s"' % name in ru, 'RU missing ' + name
 
-print('mention all: %d strings, cap 100, cooldown, groups only, off by default: OK' % len(needed))
+# невидимый разделитель — ровно один кодпоинт, иначе «компактность» врёт
+assert mention.count("\\u2063") == 1 or 'INVISIBLE = ' in mention
+print('mention all: %d strings, cap 100, cooldown, groups only, off by default, '
+      '3 styles (full/usernames/hidden): OK' % len(needed))

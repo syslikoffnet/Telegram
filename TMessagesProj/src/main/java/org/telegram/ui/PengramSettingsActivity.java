@@ -356,6 +356,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_MENTION_ALL_MODE = 1038;
     private static final int BTN_MENTION_ALL_LIMIT = 1039;
     private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
+    private static final int BTN_MENTION_ALL_STYLE = 1050;
     private static final int BTN_SECTION_SECURITY = 1041;
     private static final int BTN_SECURITY_RECHECK = 1042;
     private static final int BTN_SECURITY_COPY_FINGERPRINT = 1043;
@@ -422,6 +423,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
     private PengramHeaderView headerView;
+    /** шапка корня: тот же пингвин, но компактной карточкой */
+    private PengramHeaderView headerViewCompact;
     /** UI-only disclosure state. Reopening the section always starts compact. */
     private boolean ghostExpanded;
     /** -1 edits the shared defaults, otherwise edits an account override. */
@@ -2119,10 +2122,12 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillRoot(ArrayList<UItem> items) {
-        if (headerView == null) {
-            headerView = new PengramHeaderView(getContext());
+        if (headerViewCompact == null) {
+            headerViewCompact = new PengramHeaderView(getContext(), true);
         }
-        items.add(UItem.asCustom(headerView));
+        // asFullyCustom, а не asCustom: custom-строка получает MATCH_PARENT по
+        // высоте и растягивается на весь список, а шапка должна обнимать себя
+        items.add(UItem.asFullyCustom(headerViewCompact));
         items.add(UItem.asShadow(null));
 
         if (getContext() != null && PengramConfig.getQuickTilesCount() > 0) {
@@ -2250,11 +2255,19 @@ public class PengramSettingsActivity extends UniversalFragment {
                 : LocaleController.formatString(R.string.PengramHistoryMaxValue, limit);
     }
 
-    /** после сброса настроек перерисовываем всё, до чего дотягиваемся */
-    private void rebuildAfterReset() {
+    /** переодеть оба пингвина: шапку корня и большое превью раздела */
+    private void applyPenguinSkinToHeaders() {
         if (headerView != null) {
             headerView.applySkin();
         }
+        if (headerViewCompact != null) {
+            headerViewCompact.applySkin();
+        }
+    }
+
+    /** после сброса настроек перерисовываем всё, до чего дотягиваемся */
+    private void rebuildAfterReset() {
+        applyPenguinSkinToHeaders();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
         // общий хвост с импортом бэкапа: перезапуск сервисов, премиум-статус, бюллетень
         afterSettingsReplaced(getString(R.string.PengramResetDone));
@@ -3796,7 +3809,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (headerView == null) {
             headerView = new PengramHeaderView(getContext());
         }
-        items.add(UItem.asCustom(headerView));
+        // asFullyCustom, а не asCustom: custom-строка получает MATCH_PARENT по
+        // высоте и растягивается на весь список, а шапка должна обнимать себя
+        items.add(UItem.asFullyCustom(headerView));
         items.add(UItem.asShadow(getString(R.string.PengramPenguinInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramSkinsHeader)));
@@ -4142,6 +4157,13 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramMessageIslandInfo)));
 
+        // --- упоминания -------------------------------------------------------
+        // Долгое нажатие в списке «@…» вставляет имя из контакта: ник человека
+        // не раскрывается, а люди без юзернейма упоминаются полным именем.
+        items.add(UItem.asHeader(getString(R.string.PengramMentionsHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramMentionName.KEY_ENABLED, true,
+                getString(R.string.PengramMentionName), getString(R.string.PengramMentionNameInfo)));
+
         // --- массовое упоминание в группах -----------------------------------
         // По умолчанию выключено и живёт только в группах: это самый быстрый
         // способ получить спам-блокировку, поэтому лимит жёсткий, а пауза
@@ -4160,8 +4182,22 @@ public class PengramSettingsActivity extends UniversalFragment {
                     getString(R.string.PengramMentionAllCooldown),
                     LocaleController.formatString(R.string.PengramMentionAllMinutes,
                             org.telegram.messenger.PengramMentionAll.cooldownMinutes())));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_STYLE, R.drawable.msg_mention,
+                    getString(R.string.PengramMentionAllStyle), mentionAllStyleValue()));
         }
         items.add(UItem.asShadow(getString(R.string.PengramMentionAllShadow)));
+    }
+
+    /** «как выглядит упоминание» одной строкой */
+    private CharSequence mentionAllStyleValue() {
+        switch (org.telegram.messenger.PengramMentionAll.style()) {
+            case org.telegram.messenger.PengramMentionAll.STYLE_USERNAMES:
+                return getString(R.string.PengramMentionAllStyleUsernames);
+            case org.telegram.messenger.PengramMentionAll.STYLE_HIDDEN:
+                return getString(R.string.PengramMentionAllStyleHidden);
+            default:
+                return getString(R.string.PengramMentionAllStyleFull);
+        }
     }
 
     /** «кого упоминать» одной строкой */
@@ -4660,9 +4696,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         // выбор скина пингвина — применяется мгновенно, прямо на превью сверху
         if (item.id >= BTN_SKIN_BASE && item.id < BTN_SKIN_BASE + PengramConfig.SKIN_COUNT) {
             PengramConfig.setPenguinSkin(item.id - BTN_SKIN_BASE);
-            if (headerView != null) {
-                headerView.applySkin();
-            }
+            applyPenguinSkinToHeaders();
             if (listView != null && listView.adapter != null) {
                 listView.adapter.update(true);
             }
@@ -5071,6 +5105,17 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_MENTION_ALL_LIMIT:
                 showMentionAllLimitPicker();
                 return;
+            case BTN_MENTION_ALL_STYLE:
+                showChoicePicker(getString(R.string.PengramMentionAllStyle), new CharSequence[]{
+                                getString(R.string.PengramMentionAllStyleFull),
+                                getString(R.string.PengramMentionAllStyleUsernames),
+                                getString(R.string.PengramMentionAllStyleHidden)},
+                        org.telegram.messenger.PengramMentionAll.style(),
+                        value -> {
+                            org.telegram.messenger.PengramMentionAll.setStyle(value);
+                            refreshRows();
+                        });
+                return;
             case BTN_MENTION_ALL_COOLDOWN:
                 showChoicePicker(getString(R.string.PengramMentionAllCooldown),
                         mentionAllCooldownNames(),
@@ -5123,9 +5168,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 }
                 showChoicePicker(getString(R.string.PengramPenguinSkin), options, PengramConfig.getPenguinSkin(), value -> {
                     PengramConfig.setPenguinSkin(value);
-                    if (headerView != null) {
-                        headerView.applySkin();
-                    }
+                    applyPenguinSkinToHeaders();
                 });
                 return;
             }
@@ -5849,6 +5892,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (headerView != null) {
             headerView.setPaused(true);
         }
+        if (headerViewCompact != null) {
+            headerViewCompact.setPaused(true);
+        }
     }
 
     @Override
@@ -5856,6 +5902,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         super.onResume();
         if (headerView != null) {
             headerView.setPaused(false);
+        }
+        if (headerViewCompact != null) {
+            headerViewCompact.setPaused(false);
         }
         // значения справа в строках разделов могли измениться на вложенном экране
         if (listView != null && listView.adapter != null) {
@@ -6788,18 +6837,37 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         };
 
+        /** компактная шапка корня: пингвин слева, тексты справа */
+        private final boolean compact;
+
         public PengramHeaderView(Context context) {
+            this(context, false);
+        }
+
+        public PengramHeaderView(Context context, boolean compact) {
             super(context);
+            this.compact = compact;
             setOrientation(VERTICAL);
             setGravity(Gravity.CENTER_HORIZONTAL);
-            setPadding(dp(16), dp(10), dp(16), dp(18));
+            if (compact) {
+                setPadding(dp(14), dp(12), dp(14), dp(12));
+                buildCompact(context);
+            } else {
+                setPadding(dp(16), dp(10), dp(16), dp(18));
+                buildFull(context);
+            }
+        }
 
+        /** 3D-пингвин с запасным логотипом; размер кадра задаётся один раз */
+        private void createPenguin(Context context, int penguinSize) {
             penguinContainer = new FrameLayout(context);
 
             fallbackLogo = new android.widget.ImageView(context);
             fallbackLogo.setImageResource(R.drawable.pengram_logo);
             fallbackLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            penguinContainer.addView(fallbackLogo, LayoutHelper.createFrame(96, 96, Gravity.CENTER));
+            // запасной логотип (если GL недоступен) — половина от размера пингвина
+            penguinContainer.addView(fallbackLogo, LayoutHelper.createFrame(
+                    Math.round(penguinSize * 0.55f), Math.round(penguinSize * 0.55f), Gravity.CENTER));
 
             try {
                 penguinView = new PengramPenguinView(context);
@@ -6826,77 +6894,121 @@ public class PengramSettingsActivity extends UniversalFragment {
                         fallbackLogo.animate().alpha(0f).setDuration(180).start();
                     }
                 });
-                // размер задаётся настройкой — иначе ползунок «размер пингвина»
-                // менял только контейнер, а сам пингвин оставался базового размера
-                penguinContainer.addView(penguinView, LayoutHelper.createFrame(BASE_SIZE_DP, BASE_SIZE_DP, Gravity.CENTER));
+                // кадр камеры считается по содержимому, поэтому шапка влезает
+                // при любом размере — просто масштабируем саму вьюху
+                penguinContainer.addView(penguinView, LayoutHelper.createFrame(penguinSize, penguinSize, Gravity.CENTER));
             } catch (Throwable e) {
                 org.telegram.messenger.FileLog.e(e);
                 penguinView = null;
             }
+        }
 
+        /** большое превью: раздел «Пингвин», где его крутят и переодевают */
+        private void buildFull(Context context) {
             final int penguinSize = clampPenguinSize(
                     Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
-            // запасной логотип (если GL недоступен) — половина от размера
-            // пингвина, иначе в большой шапке он выглядел точкой
-            fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
-                    Math.round(penguinSize * 0.55f), Math.round(penguinSize * 0.55f), Gravity.CENTER));
-            if (penguinView != null) {
-                // кадр камеры считается по содержимому, поэтому шапка влезает
-                // при любом размере — просто масштабируем саму вьюху
-                android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
-                lp.width = penguinSize;
-                lp.height = penguinSize;
-                penguinView.setLayoutParams(lp);
-            }
+            createPenguin(context, penguinSize);
             addView(penguinContainer, LayoutHelper.createLinear(penguinSize, penguinSize, Gravity.CENTER_HORIZONTAL));
 
             // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
-            bubble = new TextView(context);
-            bubble.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            bubble.setGravity(Gravity.CENTER);
-            bubble.setMaxLines(2);
-            bubble.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            bubble.setPadding(dp(12), dp(6), dp(12), dp(7));
-            bubble.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            bubble.setBackground(Theme.createRoundRectDrawable(dp(12),
-                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
-            bubble.setOnClickListener(v -> nextPhrase(true));
+            bubble = createBubble(context, Gravity.CENTER);
             addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 2, 24, 0));
 
+            addView(createTitle(context, Gravity.CENTER_HORIZONTAL),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+            addView(createSubtitle(context, Gravity.CENTER_HORIZONTAL),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 4, 24, 0));
+
+            // Канал и автор — сразу под шапкой, а не в конце списка.
+            addView(createLinks(context, 32), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,
+                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 10, 16, 0));
+        }
+
+        /**
+         * Компактная шапка корня: пингвин слева, заголовок, версия и реплика
+         * справа. Та же вертикальная шапка, что в разделе «Пингвин», на входе
+         * в настройки занимала пол-экрана — здесь она ужата до карточки.
+         */
+        private void buildCompact(Context context) {
+            final int size = dp(88);
+            createPenguin(context, size);
+
+            final LinearLayout row = new LinearLayout(context);
+            row.setOrientation(HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_VERTICAL, 0, 0, dp(14), 0));
+
+            final LinearLayout column = new LinearLayout(context);
+            column.setOrientation(VERTICAL);
+            column.setGravity(Gravity.START);
+            column.addView(createTitle(context, Gravity.START),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            column.addView(createSubtitle(context, Gravity.START),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+            bubble = createBubble(context, Gravity.START);
+            column.addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+            row.addView(column, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL));
+            addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+            addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,
+                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0));
+        }
+
+        private TextView createTitle(Context context, int gravity) {
             final TextView title = new TextView(context);
             title.setText("Pengram");
-            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compact ? 18 : 20);
             title.setTypeface(AndroidUtilities.bold());
-            title.setGravity(Gravity.CENTER_HORIZONTAL);
+            title.setSingleLine(true);
+            title.setGravity(gravity);
             title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+            return title;
+        }
 
+        private TextView createSubtitle(Context context, int gravity) {
             final String versionText = getAppVersion();
             final TextView subtitle = new TextView(context);
             subtitle.setText(versionText);
-            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-            subtitle.setGravity(Gravity.CENTER_HORIZONTAL);
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compact ? 13 : 14);
+            subtitle.setGravity(gravity);
+            subtitle.setSingleLine(true);
+            subtitle.setEllipsize(TextUtils.TruncateAt.END);
             subtitle.setLineSpacing(dp(2), 1f);
             subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
-            subtitle.setPadding(dp(10), dp(4), dp(10), dp(4));
-            subtitle.setBackground(Theme.createRadSelectorDrawable(Theme.getColor(Theme.key_listSelector, getResourceProvider()), 8, 8));
+            subtitle.setPadding(dp(compact ? 0 : 10), dp(4), dp(compact ? 0 : 10), dp(4));
+            subtitle.setBackground(Theme.createRadSelectorDrawable(
+                    Theme.getColor(Theme.key_listSelector, getResourceProvider()), 8, 8));
             subtitle.setOnClickListener(v -> {
                 AndroidUtilities.addToClipboard(versionText);
                 BulletinFactory.of(PengramSettingsActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
             });
-            addView(subtitle, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 4, 24, 0));
+            return subtitle;
+        }
 
-            // Канал и автор — сразу под шапкой. Раньше они лежали в самом низу списка,
-            // куда никто не доскроллит.
+        private TextView createBubble(Context context, int gravity) {
+            final TextView view = new TextView(context);
+            view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            view.setGravity(gravity);
+            view.setMaxLines(2);
+            view.setEllipsize(TextUtils.TruncateAt.END);
+            view.setPadding(dp(12), dp(6), dp(12), dp(7));
+            view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            view.setBackground(Theme.createRoundRectDrawable(dp(12),
+                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
+            view.setOnClickListener(v -> nextPhrase(true));
+            return view;
+        }
+
+        /** маленькие «таблетки» со ссылками на канал и автора */
+        private LinearLayout createLinks(Context context, int chipHeight) {
             final LinearLayout links = new LinearLayout(context);
             links.setOrientation(HORIZONTAL);
             links.setGravity(Gravity.CENTER_HORIZONTAL);
             links.addView(linkChip(context, R.drawable.msg_channel, getString(R.string.PengramLinkChannel),
-                    () -> openLink(LINK_CHANNEL)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 0, 0, 4, 0));
+                    () -> openLink(LINK_CHANNEL)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 0, 0, 4, 0));
             links.addView(linkChip(context, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor),
-                    () -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 32, 4, 0, 0, 0));
-            addView(links, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
-                    Gravity.CENTER_HORIZONTAL, 16, 10, 16, 0));
+                    () -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 4, 0, 0, 0));
+            return links;
         }
 
         /**
@@ -6905,7 +7017,12 @@ public class PengramSettingsActivity extends UniversalFragment {
          */
         private int clampPenguinSize(int size) {
             final int width = AndroidUtilities.displaySize.x;
-            final int max = width > 0 ? width - dp(48) : size;
+            final int height = AndroidUtilities.displaySize.y;
+            // по ширине — поля 48dp, по высоте — место под пузырь, версию и ссылки;
+            // иначе в горизонтальной ориентации шапка выше экрана и список её обрежет
+            final int maxWidth = width > 0 ? width - dp(48) : size;
+            final int maxHeight = height > 0 ? height - dp(240) : size;
+            final int max = Math.max(dp(96), Math.min(maxWidth, maxHeight));
             return Math.max(dp(96), Math.min(size, max));
         }
 
@@ -6996,6 +7113,10 @@ public class PengramSettingsActivity extends UniversalFragment {
          * текстур. Масштабируем контейнер и сам кадр, камера подстроится сама.
          */
         public void applySize() {
+            if (compact) {
+                // ползунок размера относится к большому превью в разделе «Пингвин»
+                return;
+            }
             final int size = clampPenguinSize(
                     Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
             if (fallbackLogo != null) {

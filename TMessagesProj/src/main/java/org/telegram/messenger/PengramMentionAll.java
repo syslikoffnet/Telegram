@@ -36,9 +36,21 @@ public final class PengramMentionAll {
     public static final String KEY_LIMIT = "mentionAllLimit";
     /** пауза между массовыми упоминаниями, минут */
     public static final String KEY_COOLDOWN = "mentionAllCooldown";
+    /** как выглядит подстановка: имена, юзернеймы одной строкой или невидимые */
+    public static final String KEY_STYLE = "mentionAllStyle";
 
     public static final int MODE_EVERYONE = 0;
     public static final int MODE_ADMINS = 1;
+
+    /** имена и @юзернеймы — как раньше, но это длинно */
+    public static final int STYLE_FULL = 0;
+    /** только @юзернеймы в одну строку; у кого ника нет — невидимое упоминание */
+    public static final int STYLE_USERNAMES = 1;
+    /** без видимого текста: уведомление приходит, сообщение остаётся пустым */
+    public static final int STYLE_HIDDEN = 2;
+
+    /** U+2063 INVISIBLE SEPARATOR: один символ — одно скрытое упоминание */
+    private static final char INVISIBLE = '\u2063';
 
     /** выше этого не поднимаемся никогда — даже если настройку подменили */
     public static final int HARD_LIMIT = 100;
@@ -103,6 +115,16 @@ public final class PengramMentionAll {
 
     public static void setLimit(int value) {
         PengramConfig.setIntValue(KEY_LIMIT, Math.max(1, Math.min(HARD_LIMIT, value)));
+    }
+
+    public static int style() {
+        final int value = PengramConfig.getIntCached(KEY_STYLE, STYLE_FULL);
+        return value == STYLE_USERNAMES || value == STYLE_HIDDEN ? value : STYLE_FULL;
+    }
+
+    public static void setStyle(int value) {
+        PengramConfig.setIntValue(KEY_STYLE,
+                value == STYLE_USERNAMES || value == STYLE_HIDDEN ? value : STYLE_FULL);
     }
 
     public static int cooldownMinutes() {
@@ -339,25 +361,31 @@ public final class PengramMentionAll {
             return result;
         }
         final SpannableStringBuilder mentions = new SpannableStringBuilder();
+        final int style = style();
         int mentioned = 0;
         for (TLRPC.User user : picked) {
             final String username = UserObject.getPublicUsername(user);
-            final String label;
-            if (!TextUtils.isEmpty(username)) {
-                label = "@" + username;
-            } else {
-                label = UserObject.getFirstName(user, false);
-            }
-            if (TextUtils.isEmpty(label)) {
-                continue;
-            }
             final int start = mentions.length();
-            mentions.append(label);
-            mentions.append(' ');
+            if (style == STYLE_HIDDEN || (style == STYLE_USERNAMES && TextUtils.isEmpty(username))) {
+                // Скрытое упоминание: невидимый символ с сущностью mention_name.
+                // Telegram уведомляет по сущности, поэтому текст сообщения может
+                // остаться пустым — это и есть «компактный @all».
+                mentions.append(INVISIBLE);
+            } else if (style == STYLE_USERNAMES) {
+                mentions.append('@').append(username).append(' ');
+            } else {
+                final String label = TextUtils.isEmpty(username)
+                        ? UserObject.getFirstName(user, false) : "@" + username;
+                if (TextUtils.isEmpty(label)) {
+                    continue;
+                }
+                mentions.append(label);
+                mentions.append(' ');
+            }
             // Сущность важна в обоих случаях: с юзернеймом текст выглядит обычным
             // @упоминанием, без юзернейма — только сущность и делает его упоминанием.
             mentions.setSpan(new URLSpanUserMention(String.valueOf(user.id), 3),
-                    start, start + label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    start, mentions.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             mentioned++;
         }
         if (mentioned == 0) {

@@ -565,7 +565,17 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private void drawFrame(float dt) {
         update(dt);
 
-        GLES20.glViewport(0, 0, surfaceWidth, surfaceHeight);
+        // Кадр всегда квадратный и центрированный. Вьюха может оказаться
+        // вытянутой (шапка списка, обложка в плеере) — тогда TextureView
+        // растянул бы картинку по своей форме, и пингвин выглядел бы
+        // сплющенным. Квадратный вьюпорт с полями делает растяжение
+        // невозможным при любой вёрстке.
+        final int viewWidth = Math.max(1, surfaceWidth);
+        final int viewHeight = Math.max(1, surfaceHeight);
+        final int side = Math.min(viewWidth, viewHeight);
+        final int viewportX = (viewWidth - side) / 2;
+        final int viewportY = (viewHeight - side) / 2;
+        GLES20.glViewport(viewportX, viewportY, side, side);
         GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
@@ -586,8 +596,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             }
         }
 
-        final float aspect = surfaceHeight == 0 ? 1f : (float) surfaceWidth / surfaceHeight;
-        Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, aspect, 1f, 14f);
+        // вьюпорт квадратный (см. выше), поэтому и проекция строго 1:1
+        Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, 1f, 1f, 14f);
 
         // Верх сцены — макушка или шляпа, низ — лапки. Раньше камера отъезжала
         // ещё на 0.40 сверху и на 10% запаса, и пингвин занимал меньше двух
