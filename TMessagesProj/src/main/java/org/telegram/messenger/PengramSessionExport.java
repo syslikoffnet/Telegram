@@ -7,6 +7,7 @@
 package org.telegram.messenger;
 
 import android.app.Activity;
+import android.os.Build;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
@@ -313,7 +314,7 @@ public final class PengramSessionExport {
             @Override
             public void onString(String value, boolean pyrogram) {
                 dismiss(progress);
-                AndroidUtilities.addToClipboard(value);
+                copySensitive(value);
                 final Activity current = fragment.getParentActivity();
                 if (current != null) {
                     BulletinFactory.of(fragment)
@@ -359,6 +360,33 @@ public final class PengramSessionExport {
             android.widget.Toast.makeText(activity,
                     LocaleController.getString(R.string.PengramExportShareFailed),
                     android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /**
+     * Строковая сессия — это тот же ключ, только текстом. Кладём её в буфер
+     * как «чувствительные данные»: Android 13+ тогда не показывает превью и не
+     * отдаёт содержимое другим приложениям автоматически.
+     */
+    private static void copySensitive(CharSequence value) {
+        try {
+            final android.content.ClipboardManager manager =
+                    (android.content.ClipboardManager) ApplicationLoader.applicationContext
+                            .getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (manager == null) {
+                throw new IllegalStateException("no clipboard");
+            }
+            final android.content.ClipData clip =
+                    android.content.ClipData.newPlainText("Pengram session", value);
+            if (Build.VERSION.SDK_INT >= 24) {
+                final android.os.PersistableBundle extras = new android.os.PersistableBundle();
+                extras.putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE, true);
+                clip.getDescription().setExtras(extras);
+            }
+            manager.setPrimaryClip(clip);
+        } catch (Throwable error) {
+            FileLog.e(error);
+            AndroidUtilities.addToClipboard(value);
         }
     }
 

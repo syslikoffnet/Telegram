@@ -258,20 +258,33 @@ def main() -> int:
 
 # ------------------------------------------------------- исходники в APK
 
-SOURCE_SUFFIXES = ('.java', '.kt', '.kts', '.scala', '.groovy', '.mapping')
+SOURCE_SUFFIXES = ('.kt', '.kts', '.scala', '.groovy', '.mapping')
 SECRET_NAMES = ('api.properties', 'local.properties', 'keystore', '.jks', '.keystore')
+
+# Чужие AAR иногда кладут в APK служебный R.java (например,
+# com.google.android.search.verification.client). Это не исходник приложения,
+# но собственный код выдаёт себя пакетом внутри файла — по нему и проверяем.
+TELEGRAM_SOURCE_MARKERS = (b'package org.telegram', b'import org.telegram', b'Pengram')
 
 
 def verify_no_sources(archive: zipfile.ZipFile) -> None:
     """В APK не должно быть ни исходников, ни ключей: это самый простой способ
     «скопировать код» и самый простой способ потерять аккаунт."""
+    foreign_java = 0
     for name in archive.namelist():
         lower = name.lower()
         if lower.endswith(SOURCE_SUFFIXES):
             fail('%s is a source/mapping file inside the APK' % name)
         if lower.startswith('assets/') and any(part in lower for part in SECRET_NAMES):
             fail('%s is a key or secret file inside the APK' % name)
-    print('no sources, mappings or key files in the APK')
+        if lower.endswith('.java'):
+            data = archive.read(name)
+            if any(marker in data for marker in TELEGRAM_SOURCE_MARKERS):
+                fail('%s contains Telegram source code inside the APK' % name)
+            foreign_java += 1
+    print('no sources, mappings or key files in the APK'
+          + (' (%d third-party .java resources are not app code)' % foreign_java
+             if foreign_java else ''))
 
 
 # ---------------------------------------------------------- обфускация

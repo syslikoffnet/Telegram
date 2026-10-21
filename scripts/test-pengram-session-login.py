@@ -248,6 +248,18 @@ assert 'ConnectionsManager::pengramCopyAuthKey' in native_manager
 assert 'getDatacenterWithId(DEFAULT_DATACENTER_ID)' in native_manager
 assert 'PengramSessionExport.show(this, currentAccount)' in (
     java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
+# выгрузка не должна переживать сам экспорт: файл содержит ключ
+assert 'EXPORT_LIFETIME_MS = 10 * 60 * 1000L' in export
+assert 'static void wipeStale()' in export and 'scheduleWipe(result);' in export
+assert 'PengramSessionExport::wipeStale' in (java / 'org/telegram/messenger/ApplicationLoader.java').read_text()
+# строковая сессия уходит в буфер как «чувствительная»
+assert 'copySensitive(value);' in export
+assert 'android.content.ClipDescription.EXTRA_IS_SENSITIVE' in export
+# если «Поделиться» не открылось, человек об этом узнаёт, а не молчит экран
+assert 'R.string.PengramExportShareFailed' in export
+# перепакованная сборка не отдаёт ключ
+assert 'if (PengramGuard.isRepackaged()) {' in export
+assert 'R.string.PengramExportBlocked' in export
 
 # TDF-контроль: испорченный байт обязан не сойтись
 payload = bytes(range(64))
