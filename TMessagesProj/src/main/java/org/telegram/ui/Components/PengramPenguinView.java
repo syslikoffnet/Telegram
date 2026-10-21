@@ -836,8 +836,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             "  float spec = pow(clamp(dot(n, halfV), 0.0, 1.0), mix(52.0, 14.0, lum));\n" +
             // блик еле дышит, иначе поверхность выглядит отполированной до пластика
             "  spec *= 0.85 + 0.15 * sin(uTime * 1.7);\n" +
-            "  vec3 color = vColor * (ambient * 0.55 + diff * 0.74 + fill * 0.10);\n" +
-            "  color += sky * fres * 0.55;\n" +
+            "  vec3 color = vColor * (ambient * 0.55 + diff * 0.74 * (1.0 - 0.25 * lum) + fill * 0.10);\n" +
+            "  color += sky * fres * (0.58 - 0.30 * lum);\n" +
             "  color += vec3(1.0, 0.97, 0.90) * spec * (0.26 + 0.24 * (1.0 - lum));\n" +
             // микроворс перьев: почти незаметная рябь убирает «пластик»
             "  float feather = sin(vPos.x * 46.0 + sin(vPos.z * 31.0)) * sin(vPos.y * 38.0 + 1.7);\n" +

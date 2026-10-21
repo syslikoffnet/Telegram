@@ -18,7 +18,9 @@ assert 'float hemi = n.y * 0.5 + 0.5;' in view
 assert 'float diff = clamp((dot(n, keyDir) + 0.30) / 1.30, 0.0, 1.0);' in view
 assert 'float fill = clamp(dot(n, normalize(vec3(-0.78, -0.10, 0.52))) * 0.5 + 0.5, 0.0, 1.0);' in view
 assert 'float fres = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);' in view
-assert 'color += sky * fres * 0.55;' in view
+assert 'color += sky * fres * (0.58 - 0.30 * lum);' in view   # белому пузу меньше контрового
+# белое пузо не выжигается в чистый белый: диффуз ослаблен по яркости материала
+assert 'diff * 0.74 * (1.0 - 0.25 * lum)' in view
 
 # --- разная матовость: чёрное глянцевее белого -----------------------------
 assert 'float lum = dot(vColor, vec3(0.299, 0.587, 0.114));' in view
