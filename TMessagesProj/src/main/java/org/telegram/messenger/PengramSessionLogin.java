@@ -132,9 +132,9 @@ public final class PengramSessionLogin {
         // первый же запрос ушёл бы «чужим» ключом. Чистим до импорта.
         manager.cleanup(true);
         manager.importAuthorization(session.dcId, session.authKey, authKeyId(session.authKey));
-        if (session.userId > 0) {
-            manager.setUserId(session.userId);
-        }
+        // userId до проверки не ставим: если ключ не подойдёт, аккаунт выглядел
+        // бы наполовину вошедшим. Проверочный запрос идёт без логина, а
+        // настоящий id ставит onAuthSuccess обычным путём.
 
         final TLRPC.TL_users_getFullUser request = new TLRPC.TL_users_getFullUser();
         request.id = new TLRPC.TL_inputUserSelf();

@@ -290,13 +290,18 @@ def verify_no_sources(archive: zipfile.ZipFile) -> None:
 # ---------------------------------------------------------- обфускация
 
 # Классы, которые обязаны быть переименованы: они не упомянуты ни в манифесте,
-# ни в разметке, поэтому R8 не имеет причин оставлять их имена. Если имя
-# нашлось в DEX, значит правило keep снова «оставило всё» и код уезжает открытым.
+# ни в разметке, поэтому R8 не имеет причин оставлять их имена.
+#
+# Ищем не короткое имя, а дескриптор типа — `Lorg/telegram/.../PengramFoo;`.
+# Короткие имена совпадают с именами строковых ресурсов (`PengramSessionLogin`
+# есть и как <string name=...>), поэтому простой поиск по подстроке давал
+# ложные срабатывания. Дескриптор в пуле строк остаётся только у класса,
+# который R8 не тронул.
 RENAMED_MARKERS = (
-    b'PengramSessionFormats',
-    b'PengramSessionLogin',
-    b'PengramPenguinView',
-    b'PengramLyricsView',
+    b'Lorg/telegram/messenger/PengramSessionFormats;',
+    b'Lorg/telegram/messenger/PengramSessionLogin;',
+    b'Lorg/telegram/ui/Components/PengramPenguinView;',
+    b'Lorg/telegram/ui/Components/PengramLyricsView;',
 )
 
 
