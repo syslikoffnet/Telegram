@@ -134,6 +134,9 @@ public final class PengramSessionExport {
                 if (code != null) {
                     callback.onError(code);
                 } else if (result != null) {
+                    // копия на диске живёт ограниченное время, даже если её
+                    // никто не забрал из «Поделиться»
+                    scheduleWipe(result);
                     callback.onFile(result, resultMime);
                 } else if (text != null) {
                     callback.onString(text, FORMAT_PYROGRAM_STRING.equals(format));
@@ -158,16 +161,51 @@ public final class PengramSessionExport {
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
         // прошлые выгрузки не должны лежать рядом: это те же ключи
-        final File[] old = dir.listFiles();
-        if (old != null) {
+        wipeStale();
+        return new File(dir, name);
+    }
+
+    /** сколько живёт выгрузка: файл содержит ключ, а не картинку */
+    private static final long EXPORT_LIFETIME_MS = 10 * 60 * 1000L;
+
+    /**
+     * Убирает выгрузки, которые никто не забрал. Раньше файл с ключом лежал
+     * в files/cache до следующего экспорта — то есть мог остаться там навсегда.
+     */
+    static void wipeStale() {
+        try {
+            final File dir = new File(ApplicationLoader.applicationContext.getFilesDir(), CACHE_DIR);
+            final File[] old = dir.listFiles();
+            if (old == null) {
+                return;
+            }
+            final long now = System.currentTimeMillis();
             for (File file : old) {
-                if (file != null && file.getName().startsWith(FILE_PREFIX)) {
+                if (file == null || !file.getName().startsWith(FILE_PREFIX)) {
+                    continue;
+                }
+                if (now - file.lastModified() >= EXPORT_LIFETIME_MS) {
                     //noinspection ResultOfMethodCallIgnored
                     file.delete();
                 }
             }
+        } catch (Throwable error) {
+            FileLog.e(error);
         }
-        return new File(dir, name);
+    }
+
+    /** Удаление по таймеру: даже если файл уже отдали в «Поделиться», копия не живёт вечно. */
+    private static void scheduleWipe(final File file) {
+        try {
+            Utilities.globalQueue.postRunnable(() -> {
+                try {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                } catch (Throwable ignore) {
+                }
+            }, EXPORT_LIFETIME_MS);
+        } catch (Throwable ignore) {
+        }
     }
 
     private static void writeBytes(File file, byte[] data) throws PengramSessionFormats.Failure {
@@ -318,6 +356,9 @@ public final class PengramSessionExport {
             // сюда попадаем, только если система не смогла открыть «Поделиться»:
             // файл уже лежит в кэше, поэтому говорим об этом честно
             FileLog.e(error);
+            android.widget.Toast.makeText(activity,
+                    LocaleController.getString(R.string.PengramExportShareFailed),
+                    android.widget.Toast.LENGTH_LONG).show();
         }
     }
 

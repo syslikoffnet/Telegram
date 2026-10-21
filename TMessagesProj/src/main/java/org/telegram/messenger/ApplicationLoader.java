@@ -369,6 +369,8 @@ public class ApplicationLoader extends Application {
         // Pengram: состояние защиты сборки (подпись, отладчик, хуки). Нативная
         // часть уже загружена, опрос идёт в фоне и на старт не влияет.
         PengramGuard.install();
+        // выгрузки сессий содержат ключ: не даём им переживать перезапуск
+        Utilities.globalQueue.postRunnable(PengramSessionExport::wipeStale);
         new ForegroundDetector(this) {
             @Override
             public void onActivityStarted(Activity activity) {

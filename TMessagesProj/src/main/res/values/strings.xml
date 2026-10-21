@@ -11843,6 +11843,7 @@
     <string name="PengramExportRowValue">Full access</string>
     <string name="PengramExportRowInfo">Creates a file that signs in to this account without a code or password. Only for moving the account to another client you control.</string>
     <string name="PengramExportBlockedTitle">Build signature mismatch</string>
+    <string name="PengramExportShareFailed">Could not open the share sheet. The file is in the app cache and will be deleted in 10 minutes.</string>
     <string name="PengramExportBlocked">This APK is signed with a key that differs from the build key, so session export is disabled: in a repackaged app the authorization key would go to whoever rebuilt it.</string>
     <string name="PengramSessionBlockedTitle">Session import disabled</string>
     <string name="PengramSessionBlocked">This APK is signed with a key that differs from the build key, so importing a session file is disabled.</string>

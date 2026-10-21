@@ -839,6 +839,7 @@
     <string name="PengramExportRowValue">Полный доступ</string>
     <string name="PengramExportRowInfo">Создаёт файл, который входит в аккаунт без кода и пароля. Только чтобы перенести аккаунт в другой свой клиент.</string>
     <string name="PengramExportBlockedTitle">Подпись сборки не совпадает</string>
+    <string name="PengramExportShareFailed">Не удалось открыть «Поделиться». Файл лежит в кэше приложения и удалится через 10 минут.</string>
     <string name="PengramExportBlocked">APK подписан не тем ключом, которым собран: экспорт сессии отключён. Из перепакованного приложения ключ авторизации ушёл бы тому, кто его пересобрал.</string>
     <string name="PengramSessionBlockedTitle">Импорт сессии отключён</string>
     <string name="PengramSessionBlocked">APK подписан не тем ключом, которым собран: импорт файла сессии в перепакованной сборке запрещён.</string>
