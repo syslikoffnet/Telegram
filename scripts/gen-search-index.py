@@ -106,12 +106,12 @@ def main():
         # A labelled slider has no separate cell: its header IS the visible
         # setting. Keep it searchable and use the label as the jump target.
         if pending_slider is not None:
-            if "UItem.asIntSlideView(" in raw and section == pending_slider[1]:
+            if ("UItem.asIntSlideView(" in raw or "items.add(typingStep(" in raw) and section == pending_slider[1]:
                 name, sec, parent = pending_slider
                 if (name, sec) not in seen:
                     seen.add((name, sec))
                     entries.append((name, sec, parent))
-            if "UItem.asIntSlideView(" in raw and section == pending_slider[1] and header_by_section.get(section) == pending_slider[0]:
+            if ("UItem.asIntSlideView(" in raw or "items.add(typingStep(" in raw) and section == pending_slider[1] and header_by_section.get(section) == pending_slider[0]:
                 header_by_section[section] = pending_slider[2]
             pending_slider = None
         if "UItem.asHeader(" in raw:

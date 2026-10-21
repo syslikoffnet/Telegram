@@ -5326,6 +5326,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private boolean messageEditTextEnabled = true;
     private long pengramLastTypingHaptic;
     private TextView pengramWpmBadge;
+    private boolean pengramWpmWatching;
     private final Runnable pengramWpmIdle = () -> {
         org.telegram.messenger.PengramTypingStats.finishSession();
         if (pengramWpmBadge != null) pengramWpmBadge.setVisibility(GONE);
@@ -5334,25 +5335,34 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void pengramUpdateWpm(int before, int count) {
         if (pengramWpmBadge == null) return;
         final boolean active = org.telegram.messenger.PengramTypingStats.enabled();
-        final int speed = org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count,
-                active && !ignoreTextChange && innerTextChange == 0 && !isPaste
-                        && messageEditText != null && messageEditText.isFocused());
+        final boolean userEdit = active && isChat && !ignoreTextChange && innerTextChange == 0
+                && !isPaste && pengramExternalEditDepth == 0 && messageEditText != null && messageEditText.isFocused();
+        final boolean composition = userEdit && (pengramImeComposing || PengramTypingEffects.composing(messageEditText));
+        final int speed = composition
+                ? org.telegram.messenger.PengramTypingStats.onCompositionEdit(currentAccount, before, count)
+                : org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count, userEdit);
         removeCallbacks(pengramWpmIdle);
         if (active) postDelayed(pengramWpmIdle, 3000);
-        final boolean show = active && org.telegram.messenger.PengramConfig.getBool(
+        final boolean show = active && isChat && org.telegram.messenger.PengramConfig.getBool(
                 org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true) && speed > 0;
         pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
         if (show) pengramWpmBadge.setText(speed + " WPM");
     }
 
     /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
+    private boolean pengramImeComposing;
+    private int pengramExternalEditDepth;
+
     private void pengramAnimateTyping(int start, int before, int count) {
-        if (messageEditText == null) return;
-        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
+        if (messageEditText == null || !isChat || editingMessageObject != null) { PengramTypingEffects.clear(messageEditText); return; }
+        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count, isPaste || pengramExternalEditDepth > 0);
         final long now = SystemClock.uptimeMillis();
-        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && count <= 2 && now - pengramLastTypingHaptic >= 90) {
+        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && PengramTypingEffects.motionAllowed()
+                && org.telegram.messenger.PengramConfig.getInputAnimation() != org.telegram.messenger.PengramConfig.INPUT_ANIM_NONE
+                && !isPaste && pengramExternalEditDepth == 0 && !pengramImeComposing && !PengramTypingEffects.composing(messageEditText)
+                && (before == 0 && count > 0 && count <= 2 || before > 0 && count == 0) && now - pengramLastTypingHaptic >= 90) {
             pengramLastTypingHaptic = now;
-            messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         }
     }
 
@@ -5364,7 +5374,10 @@ public class ChatActivityEnterView extends FrameLayout implements
             addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                    if (count > 0) {
+                    if (!isChat || ignoreTextChange || innerTextChange != 0 || isPaste || pengramExternalEditDepth > 0
+                            || pengramImeComposing || editingMessageObject != null) {
+                        PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
+                    } else if (count > 0 && after == 0) {
                         PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
                     }
                 }
@@ -5379,10 +5392,50 @@ public class ChatActivityEnterView extends FrameLayout implements
             });
         }
 
+        @Override protected void onDetachedFromWindow() {
+            PengramTypingEffects.clear(this);
+            super.onDetachedFromWindow();
+        }
+        @Override protected void onFocusChanged(boolean focused, int direction, Rect previous) {
+            super.onFocusChanged(focused, direction, previous);
+            if (focused && isChat && editingMessageObject == null) PengramTypingEffects.wake(this); else PengramTypingEffects.clear(this);
+        }
+        @Override public void onWindowFocusChanged(boolean focused) {
+            super.onWindowFocusChanged(focused);
+            if (focused && isChat && editingMessageObject == null) PengramTypingEffects.wake(this); else PengramTypingEffects.clear(this);
+        }
+        @Override protected void onWindowVisibilityChanged(int visibility) {
+            super.onWindowVisibilityChanged(visibility);
+            if (visibility != VISIBLE) PengramTypingEffects.clear(this);
+        }
+        @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            if (w != oldw || h != oldh) PengramTypingEffects.clear(this);
+        }
+        @Override public boolean onKeyDown(int code, KeyEvent event) {
+            final boolean undo = event.isCtrlPressed() && (code == KeyEvent.KEYCODE_Z || code == KeyEvent.KEYCODE_Y);
+            if (undo) { pengramExternalEditDepth++; PengramTypingEffects.clear(this); }
+            try { return super.onKeyDown(code, event); } finally { if (undo) pengramExternalEditDepth--; }
+        }
+        @Override public boolean performAccessibilityAction(int action, android.os.Bundle arguments) {
+            final boolean external = action == android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT;
+            if (external) { pengramExternalEditDepth++; PengramTypingEffects.clear(this); }
+            try { return super.performAccessibilityAction(action, arguments); } finally { if (external) pengramExternalEditDepth--; }
+        }
+        @android.annotation.TargetApi(26)
+        @Override public void autofill(android.view.autofill.AutofillValue value) {
+            final boolean previous = isPaste;
+            isPaste = true;
+            PengramTypingEffects.clear(this);
+            pengramExternalEditDepth++;
+            try { super.autofill(value); } finally { pengramExternalEditDepth--; isPaste = previous; }
+        }
+
         CanvasButton canvasButton;
 
         @Override
         protected void onDraw(android.graphics.Canvas canvas) {
+            PengramTypingEffects.prepareDraw(this);
             super.onDraw(canvas);
             // Pengram: анимация только что набранных букв рисуется поверх текста,
             // чтобы не трогать разметку строки (иначе текст мигает и прыгает)
@@ -5433,7 +5486,55 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         @Override
         public InputConnection onCreateInputConnection(EditorInfo editorInfo) {
-            final InputConnection ic = super.onCreateInputConnection(editorInfo);
+            final InputConnection original = super.onCreateInputConnection(editorInfo);
+            final InputConnection ic = original == null ? null : new android.view.inputmethod.InputConnectionWrapper(original, false) {
+                @Override public boolean setComposingText(CharSequence text, int position) {
+                    pengramImeComposing = true;
+                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
+                    try { return super.setComposingText(text, position); }
+                    finally { pengramImeComposing = false; }
+                }
+                @Override public boolean setComposingRegion(int start, int end) {
+                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
+                    return super.setComposingRegion(start, end);
+                }
+                @android.annotation.TargetApi(33)
+                @Override public boolean setComposingRegion(int start, int end, android.view.inputmethod.TextAttribute attributes) {
+                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
+                    return super.setComposingRegion(start, end, attributes);
+                }
+                @android.annotation.TargetApi(33)
+                @Override public boolean setComposingText(CharSequence text, int position, android.view.inputmethod.TextAttribute attributes) {
+                    pengramImeComposing = true;
+                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
+                    try { return super.setComposingText(text, position, attributes); }
+                    finally { pengramImeComposing = false; }
+                }
+                @android.annotation.TargetApi(33)
+                @Override public boolean commitText(CharSequence text, int position, android.view.inputmethod.TextAttribute attributes) {
+                    int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                    boolean result = super.commitText(text, position, attributes);
+                    if (result && text != null && isChat && start >= 0 && !ignoreTextChange && innerTextChange == 0
+                            && !isPaste && pengramExternalEditDepth == 0 && editingMessageObject == null)
+                        PengramTypingEffects.committed(ChatActivityEditTextCaption.this, start, start + text.length());
+                    return result;
+                }
+                @Override public boolean commitText(CharSequence text, int position) {
+                    int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                    boolean result = super.commitText(text, position);
+                    if (result && text != null && isChat && start >= 0 && pengramExternalEditDepth == 0 && !ignoreTextChange && innerTextChange == 0 && !isPaste && editingMessageObject == null)
+                        PengramTypingEffects.committed(ChatActivityEditTextCaption.this, start, start + text.length());
+                    return result;
+                }
+                @Override public boolean finishComposingText() {
+                    int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                    int end = android.view.inputmethod.BaseInputConnection.getComposingSpanEnd(getText());
+                    boolean result = super.finishComposingText();
+                    if (result && isChat && pengramExternalEditDepth == 0 && !ignoreTextChange && innerTextChange == 0 && !isPaste && editingMessageObject == null)
+                        PengramTypingEffects.committed(ChatActivityEditTextCaption.this, start, end);
+                    return result;
+                }
+            };
             if (ic == null) {
                 return null;
             }
@@ -5562,6 +5663,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         @Override
         protected void onSelectionChanged(int selStart, int selEnd) {
             super.onSelectionChanged(selStart, selEnd);
+            if (isChat && !ignoreTextChange && innerTextChange == 0 && pengramExternalEditDepth == 0 && !isPaste
+                    && editingMessageObject == null && !isPaused) PengramTypingEffects.wake(this);
             if (delegate != null) {
                 delegate.onTextSelectionChanged(selStart, selEnd);
             }
@@ -5596,7 +5699,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         @Override
         public boolean onTextContextMenuItem(int id) {
-            if (id == android.R.id.paste) {
+            if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
                 isPaste = true;
 
                 ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
@@ -5607,7 +5710,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                     }
                 }
             }
-            return super.onTextContextMenuItem(id);
+            final boolean suppress = isPaste || id == android.R.id.undo || id == android.R.id.redo;
+            if (suppress) { isPaste = true; pengramExternalEditDepth++; PengramTypingEffects.clear(this); }
+            try { return super.onTextContextMenuItem(id); }
+            finally { if (suppress) { pengramExternalEditDepth--; isPaste = false; } }
         }
 
         private void editPhoto(Uri uri, String mime) {
@@ -5907,9 +6013,22 @@ public class ChatActivityEnterView extends FrameLayout implements
         pengramWpmBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
         pengramWpmBadge.setTextColor(getThemedColor(Theme.key_chat_messagePanelHint));
         pengramWpmBadge.setGravity(Gravity.CENTER);
+        pengramWpmBadge.setSingleLine(true);
+        pengramWpmBadge.setEllipsize(TextUtils.TruncateAt.END);
         pengramWpmBadge.setVisibility(GONE);
         messageEditTextContainer.addView(pengramWpmBadge,
                 LayoutHelper.createFrame(50, 20, Gravity.RIGHT | Gravity.TOP, 0, 0, 0, 0));
+        if (!pengramWpmWatching) {
+            pengramWpmWatching = true;
+            PengramTypingEffects.watch(this, () -> {
+                if (!org.telegram.messenger.PengramTypingStats.enabled()
+                        || !org.telegram.messenger.PengramConfig.getBool(org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true)) {
+                    removeCallbacks(pengramWpmIdle);
+                    org.telegram.messenger.PengramTypingStats.finishSession();
+                    pengramWpmBadge.setVisibility(GONE);
+                }
+            });
+        }
         messageEditText.setOnKeyListener(new OnKeyListener() {
 
             @Override
@@ -5998,9 +6117,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (ignorePrevTextChange) {
                     return;
                 }
-                if (!ignoreTextChange && innerTextChange == 0 && !isPaste) {
+                if (!ignoreTextChange && innerTextChange == 0 && !pengramImeComposing && editingMessageObject == null) {
                     pengramAnimateTyping(start, before, count);
-                }
+                } else PengramTypingEffects.clear(messageEditText);
                 pengramUpdateWpm(before, count);
                 // Pengram: пока «@all» набран, но не отправлен, тянем список
                 // участников — к отправке он уже в кэше, и сообщение уходит сразу
@@ -6065,6 +6184,8 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             @Override
             public void afterTextChanged(Editable editable) {
+                if (isChat && !ignorePrevTextChange && !ignoreTextChange && innerTextChange == 0 && !pengramImeComposing && pengramExternalEditDepth == 0
+                        && !PengramTypingEffects.composing(messageEditText)) PengramTextFormatting.apply(editable);
                 if (ignorePrevTextChange) {
                     return;
                 }
@@ -6712,6 +6833,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private Runnable hideKeyboardRunnable;
 
     public void onPause() {
+        PengramTypingEffects.clear(messageEditText);
         isPaused = true;
         if (senderSelectPopupWindow != null) {
             senderSelectPopupWindow.setPauseNotifications(false);
@@ -6767,6 +6889,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void setDialogId(long id, int account) {
+        if (id != dialog_id || account != currentAccount) PengramTypingEffects.clear(messageEditText);
         dialog_id = id;
         if (currentAccount != account) {
             notificationsLocker.unlock();
@@ -13393,6 +13516,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         boolean oldValue = keyboardVisible;
         keyboardVisible = height > 0;
+        if (oldValue && !keyboardVisible) PengramTypingEffects.clear(messageEditText);
         checkBotMenu();
         if (keyboardVisible && isPopupShowing() && stickersExpansionAnim == null) {
             showPopup(0, currentPopupContentType);

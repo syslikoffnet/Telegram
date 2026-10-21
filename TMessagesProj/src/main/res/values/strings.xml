@@ -12785,8 +12785,8 @@
     <string name="PengramInputIntensitySoft">Soft</string>
     <string name="PengramInputIntensityMedium">Medium</string>
     <string name="PengramInputIntensityStrong">Strong</string>
-    <string name="PengramTypingBlur">Emerge from blur</string>
-    <string name="PengramTypingBlurRadius">Blur strength</string>
+    <string name="PengramTypingBlur">Dissolve on appearance</string>
+    <string name="PengramTypingBlurRadius">Dissolve strength</string>
     <string name="PengramTypingBehaviorHeader">Behavior</string>
     <string name="PengramTypingIgnoreSpaces">Ignore spaces</string>
     <string name="PengramTypingAllLines">Animate every line</string>
@@ -13339,4 +13339,21 @@
     <string name="PengramSettingsSurfaceGlass">Glass over artwork and lists</string>
     <string name="PengramSettingsSurfaceGlassInfo">Adds a lens to the player header over artwork and the floating menu editor bar. Uses the shared glass parameters. No glass is added over plain backgrounds.</string>
     <string name="PengramMenuDoneCount">Done · Visible items: %1$d</string>
+
+    <!-- Pengram: настройки локального наложения, не самого текста. -->
+    <string name="PengramTypingEffectsOff">Effects are off</string>
+    <string name="PengramTypingReducedMotion">System or app animations are disabled — typing effects are limited.</string>
+    <string name="PengramTypingPreset">Typing animation preset</string>
+    <string name="PengramTypingPresetCalm">Calm</string>
+    <string name="PengramTypingPresetLively">Lively</string>
+    <string name="PengramTypingPresetMaximum">Maximum</string>
+    <string name="PengramTypingPresetCustom">Custom settings</string>
+    <string name="PengramTypingAdvancedHeader">Advanced</string>
+    <string name="PengramTypingPerformanceHint">Effects are local overlays. Dissolve replaces hardware text blur. More particles use more power; unsupported glyphs fall back to dust.</string>
+    <string name="PengramTypingStepLow">Low</string>
+    <string name="PengramTypingStepMedium">Medium</string>
+    <string name="PengramTypingStepHigh">High</string>
+    <string name="PengramTypingStepMaximum">Maximum</string>
+    <string name="PengramTypingReset">Reset typing animations</string>
+    <string name="PengramTypingResetConfirm">Restore default typing effects? Message styles, text and WPM counters will not change.</string>
 </resources>

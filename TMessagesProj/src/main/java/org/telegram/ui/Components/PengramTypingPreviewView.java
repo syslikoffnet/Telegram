@@ -20,6 +20,7 @@ import org.telegram.ui.ActionBar.Theme;
 public class PengramTypingPreviewView extends FrameLayout {
     private final EditText input;
     private final TextView caption;
+    private boolean suppress;
 
     public PengramTypingPreviewView(Context context) {
         super(context);
@@ -28,18 +29,75 @@ public class PengramTypingPreviewView extends FrameLayout {
         caption = new TextView(context);
         caption.setTextSize(13);
         caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-        addView(caption, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 24, Gravity.TOP | Gravity.LEFT));
+        addView(caption, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.START));
 
         input = new EditTextBoldCursor(context) {
             @Override
             protected void onDraw(android.graphics.Canvas canvas) {
+                PengramTypingEffects.prepareDraw(this);
                 super.onDraw(canvas);
                 PengramTypingEffects.drawOverlay(this, canvas);
+            }
+            @Override protected void onFocusChanged(boolean focused, int direction, android.graphics.Rect previous) {
+                super.onFocusChanged(focused, direction, previous);
+                if (focused) PengramTypingEffects.wake(this); else PengramTypingEffects.clear(this);
+            }
+            @Override public void onWindowFocusChanged(boolean focused) {
+                super.onWindowFocusChanged(focused);
+                if (focused) PengramTypingEffects.wake(this); else PengramTypingEffects.clear(this);
+            }
+            @Override protected void onSelectionChanged(int start, int end) {
+                super.onSelectionChanged(start, end);
+                if (!suppress) PengramTypingEffects.wake(this);
+            }
+            @android.annotation.TargetApi(26)
+            @Override public void autofill(android.view.autofill.AutofillValue value) {
+                suppress = true;
+                try { super.autofill(value); } finally { suppress = false; }
+            }
+            @Override public boolean onTextContextMenuItem(int id) {
+                suppress = id == android.R.id.paste || id == android.R.id.pasteAsPlainText || id == android.R.id.undo || id == android.R.id.redo;
+                try { return super.onTextContextMenuItem(id); } finally { suppress = false; }
+            }
+            @Override public android.view.inputmethod.InputConnection onCreateInputConnection(android.view.inputmethod.EditorInfo info) {
+                android.view.inputmethod.InputConnection original = super.onCreateInputConnection(info);
+                if (original == null) return null;
+                return new android.view.inputmethod.InputConnectionWrapper(original, false) {
+                    @Override public boolean setComposingRegion(int start, int end) {
+                        PengramTypingEffects.clear(input);
+                        return super.setComposingRegion(start, end);
+                    }
+                    @android.annotation.TargetApi(33)
+                    @Override public boolean setComposingRegion(int start, int end, android.view.inputmethod.TextAttribute attributes) {
+                        PengramTypingEffects.clear(input);
+                        return super.setComposingRegion(start, end, attributes);
+                    }
+                    @android.annotation.TargetApi(33)
+                    @Override public boolean commitText(CharSequence text, int position, android.view.inputmethod.TextAttribute attributes) {
+                        int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                        boolean result = super.commitText(text, position, attributes);
+                        if (result && text != null) PengramTypingEffects.committed(input, start, start + text.length());
+                        return result;
+                    }
+                    @Override public boolean commitText(CharSequence text, int position) {
+                        int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                        boolean result = super.commitText(text, position);
+                        if (result && text != null) PengramTypingEffects.committed(input, start, start + text.length());
+                        return result;
+                    }
+                    @Override public boolean finishComposingText() {
+                        int start = android.view.inputmethod.BaseInputConnection.getComposingSpanStart(getText());
+                        int end = android.view.inputmethod.BaseInputConnection.getComposingSpanEnd(getText());
+                        boolean result = super.finishComposingText();
+                        if (result) PengramTypingEffects.committed(input, start, end);
+                        return result;
+                    }
+                };
             }
         };
         input.setTextSize(17);
         input.setSingleLine(true);
-        input.setGravity(Gravity.CENTER_VERTICAL);
+        input.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         input.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
         input.setHint(LocaleController.getString(R.string.PengramInputPreviewHint));
@@ -48,16 +106,28 @@ public class PengramTypingPreviewView extends FrameLayout {
         addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 28, 0, 0));
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                if (count > 0) {
+                if (!suppress && count > 0 && after == 0) {
                     PengramTypingEffects.captureBefore(input, s, start, count);
                 }
             }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                PengramTypingEffects.apply(input, input.getText(), start, before, count);
+                PengramTypingEffects.apply(input, input.getText(), start, before, count, suppress);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
-        update();
+        PengramTypingEffects.watch(this, this::update);
+    }
+
+    @Override protected void onMeasure(int widthSpec, int heightSpec) {
+        // Фиксированные 90 dp обрезали подпись reduce motion при шрифте 2×.
+        final int width = Math.max(0, MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight());
+        caption.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) input.getLayoutParams();
+        params.topMargin = caption.getMeasuredHeight() + dp(6);
+        params.height = Math.max(dp(48), input.getPaint().getFontMetricsInt(null) + dp(12));
+        super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(getPaddingTop() + params.topMargin
+                + params.height + getPaddingBottom(), MeasureSpec.EXACTLY));
     }
 
     private GradientDrawable createBackground() {
@@ -71,8 +141,15 @@ public class PengramTypingPreviewView extends FrameLayout {
     public void update() {
         final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
                 R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
-        caption.setText(LocaleController.formatString(R.string.PengramInputPreviewCurrent,
+        setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
+        caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        PengramTypingEffects.refreshMotionPreference();
+        boolean enabled = PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE;
+        caption.setText(!enabled ? LocaleController.getString(R.string.PengramTypingEffectsOff)
+                : !PengramTypingEffects.motionAllowed() ? LocaleController.getString(R.string.PengramTypingReducedMotion)
+                : LocaleController.formatString(R.string.PengramInputPreviewCurrent,
                 LocaleController.getString(names[PengramConfig.getInputAnimation()])));
+        input.setCursorVisible(enabled && PengramTypingEffects.motionAllowed());
         PengramTypingEffects.clear(input);
         // Re-apply theme colors because this view can survive a live day/night theme switch.
         input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));

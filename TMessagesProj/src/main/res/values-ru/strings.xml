@@ -1774,8 +1774,8 @@
     <string name="PengramInputIntensitySoft">Слабо</string>
     <string name="PengramInputIntensityMedium">Средне</string>
     <string name="PengramInputIntensityStrong">Сильно</string>
-    <string name="PengramTypingBlur">Появляться из размытия</string>
-    <string name="PengramTypingBlurRadius">Сила размытия</string>
+    <string name="PengramTypingBlur">Растворение при появлении</string>
+    <string name="PengramTypingBlurRadius">Сила растворения</string>
     <string name="PengramTypingBehaviorHeader">Поведение текста</string>
     <string name="PengramTypingIgnoreSpaces">Игнорировать пробелы</string>
     <string name="PengramTypingAllLines">Анимировать каждую строку</string>
@@ -2067,4 +2067,21 @@
     <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
     <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
     <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
+
+    <!-- Pengram: настройки локального наложения, не самого текста. -->
+    <string name="PengramTypingEffectsOff">Эффекты выключены</string>
+    <string name="PengramTypingReducedMotion">Анимации системы или приложения отключены — эффекты набора ограничены.</string>
+    <string name="PengramTypingPreset">Пресет анимаций набора</string>
+    <string name="PengramTypingPresetCalm">Спокойно</string>
+    <string name="PengramTypingPresetLively">Живо</string>
+    <string name="PengramTypingPresetMaximum">Максимум</string>
+    <string name="PengramTypingPresetCustom">Свои настройки</string>
+    <string name="PengramTypingAdvancedHeader">Дополнительно</string>
+    <string name="PengramTypingPerformanceHint">Эффекты — локальное наложение. Растворение заменяет аппаратное размытие текста. Больше частиц — выше расход энергии; неподдерживаемые глифы заменяются пылью.</string>
+    <string name="PengramTypingStepLow">Слабо</string>
+    <string name="PengramTypingStepMedium">Средне</string>
+    <string name="PengramTypingStepHigh">Сильно</string>
+    <string name="PengramTypingStepMaximum">Максимум</string>
+    <string name="PengramTypingReset">Сбросить анимации набора</string>
+    <string name="PengramTypingResetConfirm">Вернуть стандартные эффекты набора? Стили сообщений, текст и счётчики WPM не изменятся.</string>
 </resources>

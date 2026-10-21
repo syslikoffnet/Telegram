@@ -265,6 +265,7 @@ public final class PengramSearchMetadata {
         if (has(own, "цитат", "quote")) tags.append(" цитирование цитата quote");
         if (has(own, "голос", "voice")) tags.append(" речь аудио голосовые войсы voice speech");
         if (has(own, "отправ", "send", "sent")) tags.append(" послать отправка отправлять переслать send submit");
+        if (entry[1] == PengramSettingsActivity.SECTION_TYPING) tags.append(" анимация ввода печатание каретка курсор частицы исчезновение эмодзи typing caret cursor particles deletion emoji");
         if (has(own, "ввод", "набор", "писать", "typing")) tags.append(" печатать клавиатура текст набор ввода typing keyboard");
         if (has(own, "анимац", "эффект", "animation", "effect")) tags.append(" движение эффекты плавно animate motion");
         if (has(own, "пузыр", "bubble")) tags.append(" бабл баллон сообщение bubble chat");

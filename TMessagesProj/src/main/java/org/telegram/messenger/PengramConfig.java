@@ -537,7 +537,7 @@ public class PengramConfig {
         init();
         if (visualDraft == null || !visualKey(key)) intCache.put(key, value);
         putInt(key, value);
-        if (visualDraft == null || !visualKey(key)) notifyAppearanceKey(key);
+        if (visualDraft == null || !visualKey(key)) { notifyAppearanceKey(key); notifyTypingKey(key); }
     }
 
     private static void notifyAppearanceKey(String key) {
@@ -554,7 +554,7 @@ public class PengramConfig {
         init();
         if (visualDraft == null || !visualKey(key)) boolCache.put(key, value);
         putBoolean(key, value);
-        if (visualDraft == null || !visualKey(key)) notifyAppearanceKey(key);
+        if (visualDraft == null || !visualKey(key)) { notifyAppearanceKey(key); notifyTypingKey(key); }
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
         }
@@ -564,6 +564,62 @@ public class PengramConfig {
         final boolean value = !getBool(key, def);
         setBool(key, value);
         return value;
+    }
+
+    private static void notifyTypingKey(String key) {
+        if (key.startsWith("typingStats")) AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
+        if (key.startsWith("inputAnimation") || key.startsWith("typing") && !key.startsWith("typingStats")) {
+            SharedPreferences p = prefs();
+            if (p != null) p.edit().putInt("typingAnimationPreset", 4).apply();
+            intCache.remove("typingAnimationPreset");
+            AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
+        }
+    }
+
+    private static final String[] TYPING_INTS = {KEY_INPUT_ANIMATION, KEY_INPUT_ANIMATION_SPEED,
+            KEY_INPUT_ANIMATION_INTENSITY, KEY_TYPING_BLUR_RADIUS, KEY_TYPING_DELETE_STYLE,
+            KEY_TYPING_DELETE_COUNT, KEY_TYPING_DELETE_SPEED, KEY_TYPING_DELETE_SPREAD,
+            KEY_TYPING_DELETE_SIZE, KEY_TYPING_CURSOR_SPEED, KEY_TYPING_CURSOR_WIDTH, KEY_TYPING_CURSOR_LIQUID_SCALE};
+    private static final String[] TYPING_BOOLS = {KEY_INPUT_ANIMATION_HAPTIC, KEY_TYPING_BLUR,
+            KEY_TYPING_IGNORE_SPACES, KEY_TYPING_ALL_LINES, KEY_TYPING_DELETE, KEY_TYPING_CURSOR,
+            KEY_TYPING_CURSOR_LIQUID, KEY_TYPING_SELECTION};
+    private static final int[][] TYPING_PRESET_INTS = {
+            {0,1,1,0,0,0,50,50,50,25,2,0}, {1,2,1,0,0,0,40,25,30,20,2,0},
+            {2,1,2,8,0,3,50,50,50,35,2,15}, {5,0,3,14,1,8,75,75,70,45,3,30}};
+    private static final boolean[][] TYPING_PRESET_BOOLS = {
+            {false,false,true,false,false,false,false,false}, {false,false,true,false,false,true,false,false},
+            {false,true,true,false,true,true,true,false}, {true,true,true,true,true,true,true,true}};
+
+    private static final int[] TYPING_DEFAULT_INTS = {1,1,2,10,0,5,50,50,50,25,2,15};
+    private static final boolean[] TYPING_DEFAULT_BOOLS = {false,true,true,false,true,true,false,false};
+    public static int getTypingPreset() {
+        int preset = getIntCached("typingAnimationPreset", 4);
+        if (preset < 0 || preset > 3) return 4;
+        for (int i = 0; i < TYPING_INTS.length; i++) if (getIntCached(TYPING_INTS[i], TYPING_DEFAULT_INTS[i]) != TYPING_PRESET_INTS[preset][i]) return 4;
+        for (int i = 0; i < TYPING_BOOLS.length; i++) if (getBool(TYPING_BOOLS[i], TYPING_DEFAULT_BOOLS[i]) != TYPING_PRESET_BOOLS[preset][i]) return 4;
+        return preset;
+    }
+    public static void setTypingPreset(int preset) {
+        if (preset < 0 || preset > 3) return;
+        SharedPreferences p = prefs();
+        if (p == null) return;
+        SharedPreferences.Editor editor = p.edit();
+        for (int i = 0; i < TYPING_INTS.length; i++) { editor.putInt(TYPING_INTS[i], TYPING_PRESET_INTS[preset][i]); intCache.remove(TYPING_INTS[i]); }
+        for (int i = 0; i < TYPING_BOOLS.length; i++) { editor.putBoolean(TYPING_BOOLS[i], TYPING_PRESET_BOOLS[preset][i]); boolCache.remove(TYPING_BOOLS[i]); }
+        editor.putInt("typingAnimationPreset", preset).apply();
+        intCache.remove("typingAnimationPreset");
+        AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
+    }
+    public static void resetTypingAnimations() {
+        SharedPreferences p = prefs();
+        if (p == null) return;
+        SharedPreferences.Editor editor = p.edit();
+        for (String key : TYPING_INTS) { editor.remove(key); intCache.remove(key); }
+        for (String key : TYPING_BOOLS) { editor.remove(key); boolCache.remove(key); }
+        editor.remove("typingAnimationPreset").apply();
+        intCache.remove("typingAnimationPreset");
+        // Счётчики WPM, отправляемый стиль и пользовательский текст не трогаем.
+        AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
     }
 
     public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
@@ -2822,11 +2878,11 @@ public class PengramConfig {
     public static boolean isMusicSmartArtist() { return getBool(KEY_MUSIC_SMART_ARTIST, true); }
     public static boolean isPlayerSwipe() { return getBool(KEY_PLAYER_SWIPE, true); }
     public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
-    public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
+    public static void setInputAnimation(int value) { setIntValue(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
-    public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
+    public static void setInputAnimationSpeed(int value) { setIntValue(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
     public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
-    public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
+    public static void setInputAnimationIntensity(int value) { setIntValue(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
 
     // ------------------------------------------------- анимация ввода: детали
     public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }

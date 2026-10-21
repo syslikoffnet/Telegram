@@ -50,9 +50,10 @@ assert 'PengramHistory.removeChangeListener(historyChanged)' in screen
 # baseline lands at 100px (double subtraction), rather than 200px.
 assert 300 - 100 == 200 and 300 - 100 - 100 != 200
 assert 'targetY = layout.getLineBaseline(line) + paddingTop;' in effects
-assert 'final float baseline = layout.getLineBaseline(line) + paddingTop;' in effects
+assert 'canvas.drawBitmap(g.raster.bitmap, rect.left, rect.top, paint)' in effects
+assert 'layout.getLineTop(line) + edit.getTotalPaddingTop()' in effects
 assert 'removedBaseline[n] = layout.getLineBaseline(line) + paddingTop;' in effects
-assert 'canvas.clipRect(edit.getCompoundPaddingLeft() + scrollX - dp(2), scrollY,' in effects
+assert 'canvas.clipRect(edit.getCompoundPaddingLeft() + scrollX, scrollY,' in effects
 assert not re.search(r'(?:targetY|targetTop|targetBottom|removedBaseline\[n\]|final float baseline)\s*=.*-\s*(?:edit\.getScrollY\(\)|scrollY)', effects)
 
 # Schema upgrade preserves old rows and adds crash-recovery storage without
