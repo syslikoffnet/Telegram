@@ -1470,6 +1470,13 @@ public class PengramSettingsActivity extends UniversalFragment {
             // без пересборки фона (она нужна только ползункам)
             org.telegram.ui.MainTabsActivity.refreshPengramGlassOverlayOnly();
         }
+        if (org.telegram.messenger.PengramLocalKeep.KEY_ENABLED.equals(key)) {
+            // локальная копия меняет судьбу удалённых сообщений — открытые чаты
+            // должны перекраситься сразу, без перезахода
+            org.telegram.messenger.PengramHistory.notifyMarksChanged();
+            org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                    .postNotificationName(org.telegram.messenger.NotificationCenter.dialogsNeedReload, true);
+        }
         if (key.startsWith("md3")) {
             if (key.startsWith("md3Monet")) {
                 org.telegram.messenger.PengramMonet.update(getContext());
@@ -5658,6 +5665,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 if (spySelectedAccount >= 0) {
                     PengramConfig.setSpyOption(spySelectedAccount, "saveDeleted", !PengramConfig.isSavingDeleted(spySelectedAccount));
                 } else PengramConfig.toggleSaveDeleted();
+                // метки и прозрачность читаются открытыми чатами — обновляем их сразу
+                org.telegram.messenger.PengramHistory.notifyMarksChanged();
                 updateAll = true;
                 break;
             case BTN_HIST_EDITED:

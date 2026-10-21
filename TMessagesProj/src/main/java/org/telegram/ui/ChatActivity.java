@@ -1939,7 +1939,7 @@ public class ChatActivity extends BaseFragment implements
         boolean deleted = false;
         boolean known = false;
         try {
-            final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount);
+            final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount);
             known = !enabled || org.telegram.messenger.PengramHistory.marksLoaded(currentAccount, dialog_id);
             deleted = enabled && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, message.getId());
         } catch (Throwable ignore) {}
@@ -1968,6 +1968,7 @@ public class ChatActivity extends BaseFragment implements
         v = v * 31 + (org.telegram.messenger.PengramConfig.isFadingDeleted() ? 1 : 0);
         v = v * 31 + (org.telegram.messenger.PengramConfig.isKeepingDeletedInChat(currentAccount) ? 1 : 0);
         v = v * 31 + (org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount) ? 1 : 0);
+        v = v * 31 + (org.telegram.messenger.PengramLocalKeep.keepDeletedMessages() ? 1 : 0);
         return v;
     }
 
@@ -1979,7 +1980,20 @@ public class ChatActivity extends BaseFragment implements
         }
         final boolean first = pengramMarksSignature == -1;
         pengramMarksSignature = signature;
-        if (first || chatListView == null) {
+        if (first) {
+            return;
+        }
+        pengramRefreshMarkedCells();
+    }
+
+    /**
+     * Pengram: перекрасить видимые сообщения по актуальным меткам. Вызывается и
+     * при смене настроек, и когда набор меток изменился (пришло удаление с
+     * другого устройства, локальная копия только что включилась и т. п.) —
+     * без перезахода в чат.
+     */
+    private void pengramRefreshMarkedCells() {
+        if (chatListView == null || !chatListView.isAttachedToWindow()) {
             return;
         }
         for (int i = 0; i < chatListView.getChildCount(); i++) {
@@ -1997,6 +2011,9 @@ public class ChatActivity extends BaseFragment implements
             cell.invalidate();
         }
     }
+
+    /** набор «удалено» поменялся — обновляем то, что видно */
+    private final Runnable pengramMarksListener = this::pengramRefreshMarkedCells;
 
     // ================= Pengram: статус пересылки вместо поля ввода =================
 
@@ -2242,7 +2259,7 @@ public class ChatActivity extends BaseFragment implements
         if (getUserConfig().getClientUserId() == dialog_id) {
             return false;
         }
-        if (!org.telegram.messenger.PengramHistory.shouldKeep(currentAccount, ids)) {
+        if (!org.telegram.messenger.PengramHistory.keepInChat(currentAccount, ids)) {
             return false;
         }
         org.telegram.messenger.PengramHistory.markDeleted(currentAccount, dialog_id, ids);
@@ -3938,6 +3955,10 @@ public class ChatActivity extends BaseFragment implements
 
         observersGroup = getNotificationCenter().createObserversGroup(this);
 
+        // метки «удалено» приходят и с других устройств, и из локальной копии —
+        // чат должен перекраситься сам, без перезахода
+        org.telegram.messenger.PengramHistory.addChangeListener(pengramMarksListener);
+
         getNotificationCenter().addPostponeNotificationsCallback(postponeNotificationsWhileLoadingCallback);
         getNotificationCenter().addObserver(this, NotificationCenter.closeChats);
 
@@ -4426,6 +4447,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onFragmentDestroy() {
+        org.telegram.messenger.PengramHistory.removeChangeListener(pengramMarksListener);
         if (pengramChatExport != null) pengramChatExport.cancel();
         pengramCancelPendingGhost();
         super.onFragmentDestroy();
@@ -4644,7 +4666,7 @@ public class ChatActivity extends BaseFragment implements
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
 
-        if (dialog_id != 0 && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount)) {
+        if (dialog_id != 0 && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount)) {
             org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
                 try {
                     if (chatAdapter != null) {

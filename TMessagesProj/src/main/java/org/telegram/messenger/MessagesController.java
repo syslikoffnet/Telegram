@@ -19018,19 +19018,19 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogs_read_outbox_max.put(dialogId, Math.max(value, update.max_id));
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteMessages) {
                 TL_update.TL_updateDeleteMessages update = (TL_update.TL_updateDeleteMessages) baseUpdate;
-                // Pengram: локальная копия — удалённые сообщения остаются в чате
-                // и в кэше, поэтому список на удаление не собираем вовсе
-                if (!PengramLocalKeep.keepDeletedMessages()) {
-                    if (deletedMessages == null) {
-                        deletedMessages = new LongSparseArray<>();
-                    }
-                    ArrayList<Integer> arrayList = deletedMessages.get(0);
-                    if (arrayList == null) {
-                        arrayList = new ArrayList<>();
-                        deletedMessages.put(0, arrayList);
-                    }
-                    arrayList.addAll(update.messages);
+                // Pengram: даже когда включена локальная копия, удаление надо
+                // провести по всему пути — иначе сообщение остаётся в чате без
+                // метки «удалено» и без прозрачности. Решение «оставить или
+                // стереть» принимает хранилище, здесь мы только собираем id.
+                if (deletedMessages == null) {
+                    deletedMessages = new LongSparseArray<>();
                 }
+                ArrayList<Integer> arrayList = deletedMessages.get(0);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(0, arrayList);
+                }
+                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteQuickReplyMessages) {
                 TL_update.TL_updateDeleteQuickReplyMessages update = (TL_update.TL_updateDeleteQuickReplyMessages) baseUpdate;
                 if (deletedQuickReplyMessages == null) {
@@ -19547,20 +19547,18 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d(baseUpdate + " channelId = " + update.channel_id);
                 }
-                // Pengram: локальная копия — удалённые сообщения остаются в чате
-                // и в кэше, поэтому список на удаление не собираем вовсе
-                if (!PengramLocalKeep.keepDeletedMessages()) {
-                    if (deletedMessages == null) {
-                        deletedMessages = new LongSparseArray<>();
-                    }
-                    long dialogId = -update.channel_id;
-                    ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
-                    if (arrayList == null) {
-                        arrayList = new ArrayList<>();
-                        deletedMessages.put(dialogId, arrayList);
-                    }
-                    arrayList.addAll(update.messages);
+                // Pengram: см. комментарий выше — локальная копия больше не
+                // выключает обработку удалений, она решает только их исход.
+                if (deletedMessages == null) {
+                    deletedMessages = new LongSparseArray<>();
                 }
+                long dialogId = -update.channel_id;
+                ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
+                if (arrayList == null) {
+                    arrayList = new ArrayList<>();
+                    deletedMessages.put(dialogId, arrayList);
+                }
+                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateChannel) {
                 if (BuildVars.LOGS_ENABLED) {
                     TL_update.TL_updateChannel update = (TL_update.TL_updateChannel) baseUpdate;

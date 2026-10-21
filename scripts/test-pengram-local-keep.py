@@ -17,6 +17,9 @@ keep = (java / 'org/telegram/messenger/PengramLocalKeep.java').read_text()
 messages = (java / 'org/telegram/messenger/MessagesController.java').read_text()
 connections = (java / 'org/telegram/tgnet/ConnectionsManager.java').read_text()
 settings = (java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
+storage = (java / 'org/telegram/messenger/MessagesStorage.java').read_text()
+history = (java / 'org/telegram/messenger/PengramHistory.java').read_text()
+chat = (java / 'org/telegram/ui/ChatActivity.java').read_text()
 en = (root / 'TMessagesProj/src/main/res/values/strings.xml').read_text()
 ru = (root / 'TMessagesProj/src/main/res/values-ru/strings.xml').read_text()
 
@@ -41,8 +44,24 @@ assert 'if (!PengramLocalKeep.keepDialog()) {\n                                 
 assert 'if (currentDialog.top_message == 0 && !PengramLocalKeep.keepDialog()) {' in messages
 
 # --- удалённые сообщения остаются -------------------------------------------
-assert messages.count('PengramLocalKeep.keepDeletedMessages()') == 2
-assert messages.count('if (!PengramLocalKeep.keepDeletedMessages()) {') == 2
+# Обработку удалений локальная копия больше НЕ выключает: иначе сообщение
+# остаётся в чате, но без метки «удалено» и без прозрачности. Решение
+# «оставить или стереть» принимает хранилище.
+assert 'PengramLocalKeep.keepDeletedMessages()' not in messages
+assert 'keepInChat(currentAccount, messages)' in storage
+assert 'keepInChat(currentAccount, ids)' in chat
+assert 'public static boolean keepInChat(int account' in history
+assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, ids)' in history
+assert 'public static boolean marksEnabled(int account)' in history
+assert 'PengramLocalKeep.keepDeletedMessages() || PengramConfig.isSavingDeleted(account)' in history
+# метки живут и в хранилище, и в открытом чате
+assert 'marksEnabled(currentAccount)' in chat
+assert 'PengramHistory.marksEnabled(currentAccount)' in chat
+assert 'notifyMarksChanged' in history
+assert 'PengramHistory.addChangeListener(pengramMarksListener)' in chat
+assert 'PengramHistory.removeChangeListener(pengramMarksListener)' in chat
+# явное «удалить у себя» сильнее локальной копии
+assert 'userDeletedGuard.containsKey(id)' in history
 
 # --- пользовательские удаления не тронуты -----------------------------------
 # deleteDialog(did, onlyHistory) и ветка «пользователь сам удалил чат» без охраны
@@ -56,6 +75,7 @@ assert pos_guard < pos_clear
 
 # --- настройки и строки ------------------------------------------------------
 assert 'items.add(checkInfo(org.telegram.messenger.PengramLocalKeep.KEY_ENABLED, true,' in settings
+assert 'PengramHistory.notifyMarksChanged()' in settings
 assert 'getString(R.string.PengramLocalKeepHeader)' in settings
 assert 'getString(R.string.PengramLocalKeepInfo)' in settings
 for locale, text in (('en', en), ('ru', ru)):

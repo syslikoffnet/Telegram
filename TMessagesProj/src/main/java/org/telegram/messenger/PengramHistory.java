@@ -68,6 +68,15 @@ public class PengramHistory extends SQLiteOpenHelper {
         });
     }
 
+    /**
+     * Pengram: набор «удалено» поменялся. Открытый чат должен перекрасить
+     * видимые сообщения сразу, а не после перезахода. Слушатели те же, что у
+     * истории, поэтому отдельной подписки держать не нужно.
+     */
+    public static void notifyMarksChanged() {
+        notifyChanged();
+    }
+
     public static class Entry {
         public long rowId;
         public int account;
@@ -551,6 +560,27 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     /** Account + dialog: IDs may coincide across logged-in accounts. */
     private static final android.util.SparseArray<android.util.LongSparseArray<java.util.HashSet<Integer>>> marksCache = new android.util.SparseArray<>();
+    /**
+     * Какие диалоги мы уже прочитали из базы. Отдельно от marksCache: кэш может
+     * быть заполнен «на лету» (пришло удаление), и тогда раннее «ключ есть —
+     * значит всё загружено» навсегда скрывало старые метки этого диалога.
+     */
+    private static final java.util.HashSet<String> marksLoadedDialogs = new java.util.HashSet<>();
+
+    private static String marksKey(int account, long dialogId) {
+        return account + ":" + dialogId;
+    }
+
+    /** minSdk 23: без Collection.removeIf — обычный итератор */
+    private static void forgetLoadedMarks(int account) {
+        final String prefix = account + ":";
+        java.util.Iterator<String> it = marksLoadedDialogs.iterator();
+        while (it.hasNext()) {
+            if (it.next().startsWith(prefix)) {
+                it.remove();
+            }
+        }
+    }
 
     /** Called while holding marksCache's monitor; avoids allocating keys on every chat row. */
     private static android.util.LongSparseArray<java.util.HashSet<Integer>> accountMarks(int account) {
@@ -683,6 +713,10 @@ public class PengramHistory extends SQLiteOpenHelper {
             }
             set.addAll(copy);
         }
+        // старые метки этого диалога могли быть ещё не прочитаны — дочитаем,
+        // память при слиянии главнее, так что новые метки не потеряются
+        loadMarks(account, dialogId, null);
+        notifyMarksChanged();
         final PengramHistory history = getInstance();
         if (history == null) {
             return;
@@ -725,7 +759,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     /** успели ли подгрузить метки этого диалога (до этого «не удалено» ничего не значит) */
     public static boolean marksLoaded(int account, long dialogId) {
         synchronized (marksCache) {
-            return accountMarks(account).indexOfKey(dialogId) >= 0;
+            return marksLoadedDialogs.contains(marksKey(account, dialogId));
         }
     }
 
@@ -743,13 +777,18 @@ public class PengramHistory extends SQLiteOpenHelper {
             return;
         }
         synchronized (marksCache) {
-            if (accountMarks(account).indexOfKey(dialogId) >= 0) {
+            if (marksLoadedDialogs.contains(marksKey(account, dialogId))) {
                 if (done != null) AndroidUtilities.runOnUIThread(done);
                 return;
             }
         }
         final PengramHistory history = getInstance();
         if (history == null) {
+            // без базы меток нет, но вызывающая сторона не должна ждать вечно
+            notifyMarksChanged();
+            if (done != null) {
+                AndroidUtilities.runOnUIThread(done);
+            }
             return;
         }
         executor.execute(() -> {
@@ -773,7 +812,10 @@ public class PengramHistory extends SQLiteOpenHelper {
                     set.addAll(existing);
                 }
                 accountMarks(account).put(dialogId, set);
+                marksLoadedDialogs.add(marksKey(account, dialogId));
             }
+            // метки появились — открытый чат должен перекраситься сразу
+            notifyMarksChanged();
             if (done != null) {
                 AndroidUtilities.runOnUIThread(done);
             }
@@ -791,6 +833,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 set.removeAll(copy);
             }
         }
+        notifyMarksChanged();
         final PengramHistory history = getInstance();
         if (history == null) return;
         executor.execute(() -> {
@@ -812,7 +855,13 @@ public class PengramHistory extends SQLiteOpenHelper {
             } else {
                 accountMarks(account).remove(dialogId);
             }
+            if (dialogId == 0) {
+                forgetLoadedMarks(account);
+            } else {
+                marksLoadedDialogs.remove(marksKey(account, dialogId));
+            }
         }
+        notifyMarksChanged();
         final PengramHistory history = getInstance();
         if (history == null) return;
         executor.execute(() -> {
@@ -834,6 +883,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static void clearAccount(int account) {
         synchronized (marksCache) {
             marksCache.remove(account);
+            forgetLoadedMarks(account);
         }
         for (String key : pendingEdits.keySet()) {
             if (key.startsWith(account + ":")) pendingEdits.remove(key);
@@ -979,6 +1029,50 @@ public class PengramHistory extends SQLiteOpenHelper {
             return true;
         }
         return PengramConfig.isKeepingDeletedInChat(account);
+    }
+
+    /**
+     * Pengram: оставлять ли сообщения видимыми в чате.
+     *
+     * <p>Кроме «слежки» за удалёнными есть локальная копия: пока она включена,
+     * ничего из уже увиденного не исчезает. Раньше два этих механизма жили
+     * раздельно, и при включённой локальной копии апдейт об удалении вообще не
+     * доходил до разбора — сообщение оставалось в чате, но без метки и без
+     * прозрачности. Теперь оба идут одним путём: остаётся и помечается.
+     *
+     * <p>Явное «удалить у себя» по-прежнему сильнее любой настройки.
+     */
+    public static boolean keepInChat(int account, java.util.Collection<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return false;
+        }
+        boolean anyReal = false;
+        for (Integer id : ids) {
+            if (isRealId(id)) {
+                anyReal = true;
+                break;
+            }
+        }
+        if (!anyReal) {
+            return false;
+        }
+        synchronized (userDeletedGuard) {
+            cleanupGuard(System.currentTimeMillis());
+            for (Integer id : ids) {
+                if (isRealId(id) && userDeletedGuard.containsKey(id)) {
+                    return false;
+                }
+            }
+        }
+        return PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, ids);
+    }
+
+    /**
+     * Pengram: нужно ли вообще знать про удаления в этом аккаунте — то есть
+     * читать и писать метки. Метки нужны и «слежке», и локальной копии.
+     */
+    public static boolean marksEnabled(int account) {
+        return PengramLocalKeep.keepDeletedMessages() || PengramConfig.isSavingDeleted(account);
     }
 
     /** последний сохранённый вариант текста этого сообщения (для цепочки правок) */
