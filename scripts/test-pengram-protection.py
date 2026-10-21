@@ -57,6 +57,9 @@ assert 'sha256' not in guard_java.lower() or 'computeSHA256' in guard_java
 # --- нативная проверка -------------------------------------------------------
 assert 'int securityFlags();' in guard_h
 assert 'bool signatureTrusted(const uint8_t *der, size_t length);' in guard_h
+assert '#include "PengramGuard.h"' in guard_cpp
+# tgnet/... не резолвится: у цели tgnet в include-путях нет каталога jni
+assert '#include "tgnet/PengramGuard.h"' not in guard_cpp
 assert 'const uint8_t kPin[] = {PENGRAM_CERT_SHA256_BYTES};' in guard_cpp
 assert 'return sizeof(kPin) == 32;' in guard_cpp
 # сравнение с отпечатком идёт по volatile-указателю: компилятор не свернёт
