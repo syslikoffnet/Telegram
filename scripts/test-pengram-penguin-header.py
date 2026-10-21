@@ -29,7 +29,9 @@ assert 'private void buildFull(Context context)' in settings
 assert 'final int size = dp(72);' in settings                # пингвин, а не точка
 # компактная шапка — та же центрированная композиция, что и большая:
 # ни пингвин, ни ссылки не должны уезжать влево
-assert 'addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));' in settings
+# Готовые px нельзя передавать в LayoutHelper: он снова применяет density.
+assert 'new LinearLayout.LayoutParams(size, size)' in settings
+assert 'penguinParams.gravity = Gravity.CENTER_HORIZONTAL;' in settings
 assert 'column.addView(createTitle' not in settings
 assert 'addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,\n                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));' in settings
 assert 'bubble = createBubble(context, Gravity.CENTER);' in settings
@@ -54,7 +56,7 @@ assert 'Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, 1f, 1f, 14f);' in view
 assert 'float aspect = surfaceHeight == 0' not in view       # старый расчёт убран
 
 # --- размер ограничен обоими измерениями ------------------------------------
-assert 'final int maxHeight = height > 0 ? height - dp(240) : size;' in settings
+assert 'final int maxHeight = height > 0 ? Math.max(1, height - dp(240)) : size;' in settings
 assert 'Math.min(maxWidth, maxHeight)' in settings
 
 print('penguin header: full row width, centred content, square viewport, size capped: OK')

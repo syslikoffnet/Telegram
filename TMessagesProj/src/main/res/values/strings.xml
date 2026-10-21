@@ -11561,8 +11561,6 @@
     <string name="PengramMarkDot">Dot</string>
     <string name="PengramEditedMark">Edited mark</string>
     <string name="PengramEditedMarkTitle">Edited mark</string>
-    <string name="PengramHeaderVersion">Version %1$s (%2$d)</string>
-    <string name="PengramHeaderVersionShort">Version %1$s</string>
     <string name="PengramBurnAction">Burn</string>
     <string name="PengramBurnTitle">Burn this media?</string>
     <string name="PengramBurnPhotoMessage">The photo will disappear for the sender, as if you had just viewed it. Your copy stays in the chat.</string>
@@ -11691,8 +11689,6 @@
     <string name="PengramForwardDoneAlert">Notify when finished</string>
     <string name="PengramForwardInfo">Copy preparation shows a status. Ordinary forwarding does not block input. Hold the status to continue in the background.</string>
     <string name="PengramTabsInfo2">Switch off a button to remove it from the bar at the bottom of the main screen. Turning off Contacts leaves three perfectly spaced buttons.</string>
-    <string name="PengramTabHidden">Button hidden</string>
-    <string name="PengramTabVisible">Button is shown</string>
     <string name="PengramSendStyleHeader">Sent text</string>
     <string name="PengramSendStyle">Sending style</string>
     <string name="PengramSendStyleCaptions">Apply to media captions</string>

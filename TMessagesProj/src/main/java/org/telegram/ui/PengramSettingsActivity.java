@@ -101,7 +101,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIST_EDITED = 401;
     private static final int BTN_HIST_EDITED_MEDIA = 408;
     private static final int BTN_HIST_OUTGOING = 402;
-    private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
     private static final int BTN_PROFILE_HISTORY = 406;
@@ -277,8 +276,6 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SWIPE_ACTION = 1421;
     private static final int BTN_CHAT_ITEMS = 1418;
     private static final int BTN_PENGUIN_SKIN = 1422;
-    private static final int BTN_FIND_BY_ID = 1423;
-    private static final int BTN_SELECTION_LIMIT = 1424;
     private static final int BTN_AVATAR_POS = 1425;
     private static final int BTN_LYRICS_ANIM = 1426;
     private static final int BTN_LYRICS_ALIGN = 1427;
@@ -2041,9 +2038,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         return LocaleController.formatString(R.string.PengramMenuItemsHidden, hidden);
     }
 
-    private CharSequence tabStateText(String key) {
-        return getString(PengramConfig.getBool(key, false) ? R.string.PengramTabHidden : R.string.PengramTabVisible);
-    }
 
     /** живой пример выбранного стиля отправки */
     private CharSequence sendStyleInfo() {
@@ -3820,16 +3814,6 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     }
 
-    /** эффекты, которые всегда видны в свёрнутом списке */
-    private static boolean isPrimaryVoiceMode(int mode) {
-        return mode == PengramVoiceChanger.MODE_OFF
-                || mode == PengramVoiceChanger.MODE_ANONYMOUS
-                || mode == PengramVoiceChanger.MODE_TROLLING
-                || mode == PengramVoiceChanger.MODE_FEMALE
-                || mode == PengramVoiceChanger.MODE_MALE
-                || mode == PengramVoiceChanger.MODE_CHILD;
-    }
-
     private CharSequence[] particleNames() {
         return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
                 getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
@@ -4687,14 +4671,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         });
     }
 
-    private CharSequence quickUrlPreview(String value) {
-        if (value == null) return "";
-        String text = value.replaceFirst("(?i)^https?://", "");
-        if (text.length() <= 26) return text;
-        final int slash = text.lastIndexOf('/');
-        final String tail = slash >= 0 ? text.substring(slash) : "";
-        return text.substring(0, Math.min(18, text.length())) + "…" + tail;
-    }
 
     private CharSequence inputAnimationName() {
         final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
@@ -6030,7 +6006,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     BulletinFactory.of(this).createCopyLinkBulletin().show();
                 })
                 .add(R.drawable.msg_share, getString(R.string.PengramShareLink), () -> shareLink(url))
-                .setGravity(android.view.Gravity.RIGHT)
+                // ItemOptions сравнивает физические LEFT/RIGHT: END здесь не поддерживается.
+                .setGravity(LocaleController.isRTL ? android.view.Gravity.LEFT : android.view.Gravity.RIGHT)
                 .show();
         return true;
     }
@@ -6934,6 +6911,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         /** компактная шапка корня: пингвин слева, тексты справа */
         private final boolean compact;
+        private int requestedPenguinPercent;
 
         public PengramHeaderView(Context context) {
             this(context, false);
@@ -6965,6 +6943,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (width > 0) {
                 widthMeasureSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
             }
+            if (!compact && penguinContainer != null) {
+                updatePenguinSize(width);
+            }
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         }
 
@@ -6975,9 +6956,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             fallbackLogo = new android.widget.ImageView(context);
             fallbackLogo.setImageResource(R.drawable.pengram_logo);
             fallbackLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            // запасной логотип (если GL недоступен) — половина от размера пингвина
+            // Размер задаёт только контейнер; доля логотипа не зависит от density.
+            fallbackLogo.setScaleX(0.78f);
+            fallbackLogo.setScaleY(0.78f);
             penguinContainer.addView(fallbackLogo, LayoutHelper.createFrame(
-                    Math.round(penguinSize * 0.55f), Math.round(penguinSize * 0.55f), Gravity.CENTER));
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
 
             try {
                 penguinView = new PengramPenguinView(context);
@@ -6999,6 +6982,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                         }
                     } catch (Throwable ignore) {}
                 });
+                penguinView.whenUnavailable(() -> {
+                    fallbackLogo.animate().cancel();
+                    fallbackLogo.setAlpha(1f);
+                });
                 penguinView.whenReady(() -> {
                     if (fallbackLogo != null) {
                         fallbackLogo.animate().alpha(0f).setDuration(180).start();
@@ -7006,7 +6993,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 });
                 // кадр камеры считается по содержимому, поэтому шапка влезает
                 // при любом размере — просто масштабируем саму вьюху
-                penguinContainer.addView(penguinView, LayoutHelper.createFrame(penguinSize, penguinSize, Gravity.CENTER));
+                penguinContainer.addView(penguinView, LayoutHelper.createFrame(
+                        LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
             } catch (Throwable e) {
                 org.telegram.messenger.FileLog.e(e);
                 penguinView = null;
@@ -7015,10 +7003,13 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         /** большое превью: раздел «Пингвин», где его крутят и переодевают */
         private void buildFull(Context context) {
+            requestedPenguinPercent = PengramConfig.getPenguinSize();
             final int penguinSize = clampPenguinSize(
-                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+                    dp(BASE_SIZE_DP * requestedPenguinPercent / 100f));
             createPenguin(context, penguinSize);
-            addView(penguinContainer, LayoutHelper.createLinear(penguinSize, penguinSize, Gravity.CENTER_HORIZONTAL));
+            final LinearLayout.LayoutParams penguinParams = new LinearLayout.LayoutParams(penguinSize, penguinSize);
+            penguinParams.gravity = Gravity.CENTER_HORIZONTAL;
+            addView(penguinContainer, penguinParams);
 
             // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
             bubble = createBubble(context, Gravity.CENTER);
@@ -7046,7 +7037,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             // строкой снизу, и шапка выглядела съехавшей влево.
             final int size = dp(72);
             createPenguin(context, size);
-            addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));
+            final LinearLayout.LayoutParams penguinParams = new LinearLayout.LayoutParams(size, size);
+            penguinParams.gravity = Gravity.CENTER_HORIZONTAL;
+            addView(penguinContainer, penguinParams);
 
             addView(createTitle(context, Gravity.CENTER),
                     LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
@@ -7125,14 +7118,30 @@ public class PengramSettingsActivity extends UniversalFragment {
          * устройствах 336dp могли упереться в края и обрезать шляпу.
          */
         private int clampPenguinSize(int size) {
-            final int width = AndroidUtilities.displaySize.x;
+            return clampPenguinSize(size, AndroidUtilities.displaySize.x);
+        }
+
+        /** Все величины здесь в px: LayoutHelper повторно умножал готовые px на density. */
+        private int clampPenguinSize(int size, int measuredWidth) {
+            final int width = measuredWidth > 0 ? measuredWidth : AndroidUtilities.displaySize.x;
             final int height = AndroidUtilities.displaySize.y;
-            // по ширине — поля 48dp, по высоте — место под пузырь, версию и ссылки;
-            // иначе в горизонтальной ориентации шапка выше экрана и список её обрежет
-            final int maxWidth = width > 0 ? width - dp(48) : size;
-            final int maxHeight = height > 0 ? height - dp(240) : size;
-            final int max = Math.max(dp(96), Math.min(maxWidth, maxHeight));
-            return Math.max(dp(96), Math.min(size, max));
+            final int maxWidth = width > 0 ? Math.max(1, width - getPaddingLeft() - getPaddingRight()) : size;
+            final int maxHeight = height > 0 ? Math.max(1, height - dp(240)) : size;
+            // Нижняя граница не может быть больше доступного места, в том числе в split-screen.
+            final int max = Math.min(maxWidth, maxHeight);
+            return Math.min(Math.max(dp(96), size), max);
+        }
+
+        /** Вызывается и из measure: только меняем существующие параметры, без выделений. */
+        private void updatePenguinSize(int width) {
+            final int size = clampPenguinSize(
+                    dp(BASE_SIZE_DP * requestedPenguinPercent / 100f), width);
+            final android.view.ViewGroup.LayoutParams params = penguinContainer.getLayoutParams();
+            if (params != null && (params.width != size || params.height != size)) {
+                params.width = size;
+                params.height = size;
+                penguinContainer.forceLayout();
+            }
         }
 
         /** маленькая «таблетка» со значком и подписью */
@@ -7226,27 +7235,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 // ползунок размера относится к большому превью в разделе «Пингвин»
                 return;
             }
-            final int size = clampPenguinSize(
-                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
-            if (fallbackLogo != null) {
-                fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
-                        Math.round(size * 0.55f), Math.round(size * 0.55f), Gravity.CENTER));
-            }
-            if (penguinView != null) {
-                final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
-                if (lp != null && (lp.width != size || lp.height != size)) {
-                    lp.width = size;
-                    lp.height = size;
-                    penguinView.setLayoutParams(lp);
-                }
-            }
-            final android.view.ViewGroup.LayoutParams containerLp = penguinContainer.getLayoutParams();
-            if (containerLp != null && (containerLp.width != size || containerLp.height != size)) {
-                containerLp.width = size;
-                containerLp.height = size;
-                penguinContainer.setLayoutParams(containerLp);
-                requestLayout();
-            }
+            requestedPenguinPercent = PengramConfig.getPenguinSize();
+            updatePenguinSize(getMeasuredWidth());
+            requestLayout();
+            invalidate();
         }
 
         /** играет ли сейчас музыка (именно играет, а не стоит на паузе) */
@@ -7348,28 +7340,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         return "Pengram " + org.telegram.messenger.PengramVersion.shortLine();
     }
 
-    @SuppressWarnings("unused")
-    private static String getTelegramVersion() {
-        String version = org.telegram.messenger.BuildVars.BUILD_VERSION_STRING;
-        int code = 0;
-        try {
-            final android.content.pm.PackageInfo info = ApplicationLoader.applicationContext
-                    .getPackageManager()
-                    .getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
-            if (info != null) {
-                if (info.versionName != null) {
-                    version = info.versionName;
-                }
-                if (info.versionCode > 0) {
-                    code = info.versionCode;
-                }
-            }
-        } catch (Throwable ignore) {}
-        if (code > 0) {
-            return LocaleController.formatString(R.string.PengramHeaderVersion, version, code);
-        }
-        return LocaleController.formatString(R.string.PengramHeaderVersionShort, version);
-    }
 
     /**
      * Живое превью: так карточка профиля будет выглядеть с текущими настройками.
