@@ -77,6 +77,7 @@ import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.PengramAccountOrder;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
@@ -353,6 +354,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
         listView.adapter.setApplyBackground(false);
         listView.setSections();
+        // Pengram: долгое нажатие на строке аккаунта поднимает её и позволяет
+        // переставить. Остальные строки вне reorder-секции не тащатся.
+        listView.listenReorder(this::onAccountsReordered);
+        listView.allowReorder(true);
         listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight + additionNavigationBarHeight);
         listView.setClipToPadding(false);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -635,7 +640,41 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     private ArrayList<Integer> accountNumbers = new ArrayList<>();
+    /** id reorder-секции со строками аккаунтов; -1, когда блока нет */
+    private int accountsReorderSection = -1;
+
+    /**
+     * Пользователь перетащил строку аккаунта. В адаптере уже лежит новый
+     * порядок, остаётся спроецировать его на общий список аккаунтов: текущий
+     * аккаунт скрыт из этого блока и должен остаться на своём месте.
+     */
+    private void onAccountsReordered(int sectionId, ArrayList<UItem> items) {
+        if (sectionId == accountsReorderSection) {
+            saveAccountOrder(items);
+        }
+    }
+
+    /**
+     * Разобрать перетащенные строки аккаунтов и сохранить общий порядок.
+     * Общий для списка настроек и блока аккаунтов в профиле.
+     */
+    public static void saveAccountOrder(ArrayList<UItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        final ArrayList<Integer> order = new ArrayList<>(items.size());
+        for (UItem item : items) {
+            if (item != null && item.instanceOf(AccountCell.Factory.class)) {
+                order.add(item.intValue);
+            }
+        }
+        if (order.size() > 1) {
+            PengramAccountOrder.saveVisibleOrder(order);
+        }
+    }
+
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        accountsReorderSection = -1;
         if (searchItem.isSearchFieldVisible2()) {
             items.add(UItem.asSpace(ActionBar.getCurrentActionBarHeight()));
             search.fillItems(items);
@@ -660,16 +699,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        // Pengram: порядок, выставленный перетаскиванием в настройках.
+        PengramAccountOrder.sort(accountNumbers);
 
         final Set<String> suggestions = getMessagesController().pendingSuggestions;
         if (suggestions.contains("PREMIUM_GRACE")) {
@@ -713,9 +744,14 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         if (PengramConfig.getBool(PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS, false) && accountNumbers.size() > 0) {
             items.add(UItem.asHeader(getString(R.string.SettingsAccounts)));
+            // Pengram: строки аккаунтов — секция, которую можно тащить долгим
+            // нажатием. Секция ограничивает перетаскивание: заголовок, тень и
+            // остальные пункты настроек остаются на месте.
+            accountsReorderSection = adapter.reorderSectionStart();
             for (int i = 0; i < accountNumbers.size(); ++i) {
                 items.add(AccountCell.Factory.of(i, accountNumbers.get(i)));
             }
+            adapter.reorderSectionEnd();
             items.add(UItem.asShadow(null));
         }
 
@@ -982,6 +1018,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     private boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        if (item.instanceOf(AccountCell.Factory.class)) {
+            // Строку сейчас поднимет ItemTouchHelper: даём тот же отклик,
+            // что и у остальных перетаскиваемых списков. false — иначе
+            // долгое нажатие съест старт перетаскивания.
+            if (PengramConfig.isVibrationEnabled()) {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            }
+            return false;
+        }
         if (item.object instanceof TLRPC.TL_attachMenuBot) {
             TLRPC.TL_attachMenuBot attachMenuBot = (TLRPC.TL_attachMenuBot) item.object;
             BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, () -> listView.adapter.update(true));

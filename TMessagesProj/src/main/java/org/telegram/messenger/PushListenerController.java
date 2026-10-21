@@ -1824,11 +1824,19 @@ public class PushListenerController {
                                     }
                                     SharedConfig.pushStringStatus = "__FIREBASE_FAILED__";
                                     PushListenerController.sendRegistrationToServer(getPushType(), null);
+                                    // Токена нет — сервер не сможет нас разбудить.
+                                    // Включаем собственное пуш-соединение, иначе
+                                    // уведомления ждут открытия приложения.
+                                    PengramBackgroundService.onPushRegistrationResult(false);
                                     return;
                                 }
                                 String token = task.getResult();
                                 if (!TextUtils.isEmpty(token)) {
                                     PushListenerController.sendRegistrationToServer(getPushType(), token);
+                                    PengramBackgroundService.onPushRegistrationResult(true);
+                                } else {
+                                    SharedConfig.pushStringStatus = "__FIREBASE_FAILED__";
+                                    PengramBackgroundService.onPushRegistrationResult(false);
                                 }
                             });
                 } catch (Throwable e) {

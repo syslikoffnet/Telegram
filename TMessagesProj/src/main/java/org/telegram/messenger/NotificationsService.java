@@ -29,10 +29,13 @@ public class NotificationsService extends Service {
     private static final String CHANNEL_QUIET = "pengram_background_quiet";
     private static final String CHANNEL_NORMAL = "pengram_background";
     private boolean foregroundStarted;
+    /** защита от шторма перезапусков: живой сервис не должен будить сам себя */
+    private long startedAt;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        startedAt = android.os.SystemClock.elapsedRealtime();
         ApplicationLoader.postInitApplication();
     }
 
@@ -50,7 +53,9 @@ public class NotificationsService extends Service {
         try {
             // Every startForegroundService MUST call startForeground, including
             // Telegram's per-account keep-alive when Pengram mode is off.
-            final boolean quiet = PengramConfig.isBackgroundMode() && PengramConfig.isBackgroundSilent();
+            // Тихий канал — не только у явного «работать в фоне»: страховка
+            // вместо неработающего FCM тоже не должна мозолить глаза.
+            final boolean quiet = PengramConfig.isBackgroundSilent();
             final String channelId = quiet ? CHANNEL_QUIET : CHANNEL_NORMAL;
             if (Build.VERSION.SDK_INT >= 26) {
                 final NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -88,7 +93,13 @@ public class NotificationsService extends Service {
                     .setPriority(quiet ? NotificationCompat.PRIORITY_MIN : NotificationCompat.PRIORITY_LOW);
 
             final Notification notification = builder.build();
-            if (Build.VERSION.SDK_INT >= 29) {
+            if (Build.VERSION.SDK_INT >= 34) {
+                // dataSync с Android 15 живёт максимум 6 часов, а нам нужно
+                // держать соединение сутками: remoteMessaging — это ровно
+                // «передача сообщений», и лимита у него нет.
+                startForeground(PENGRAM_NOTIFICATION_ID, notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING);
+            } else if (Build.VERSION.SDK_INT >= 29) {
                 startForeground(PENGRAM_NOTIFICATION_ID, notification,
                         android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
             } else {
@@ -108,7 +119,10 @@ public class NotificationsService extends Service {
 
     public void onDestroy() {
         super.onDestroy();
-        if (foregroundStarted && ApplicationLoader.shouldStartNotificationService()) {
+        // Если сервис умер почти сразу, перезапуск по кругу ничего не даст —
+        // только разрядит батарею. Реальную гибель система устраивает позже.
+        final boolean livedLongEnough = android.os.SystemClock.elapsedRealtime() - startedAt > 5000;
+        if (foregroundStarted && livedLongEnough && ApplicationLoader.shouldStartNotificationService()) {
             Intent intent = new Intent("org.telegram.start");
             intent.setPackage(getPackageName());
             sendBroadcast(intent);

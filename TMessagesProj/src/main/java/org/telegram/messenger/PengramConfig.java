@@ -123,6 +123,13 @@ public class PengramConfig {
     public static final String KEY_HIDE_STORIES = "hideStories";
     /** показывать другие аккаунты отдельным блоком в главных настройках */
     public static final String KEY_SHOW_ACCOUNTS_SETTINGS = "showAccountsInSettings";
+    /**
+     * Пользовательский порядок аккаунтов: CSV слотов, например {@code "2,0,1"}.
+     *
+     * <p>Пустая строка — исторический порядок по времени входа. Пишется
+     * перетаскиванием строки в настройках, читается каждым списком аккаунтов.
+     */
+    public static final String KEY_ACCOUNT_ORDER = "accountOrder";
 
     /** убрать «хвостик» у пузырей сообщений */
     /** скрыть круглую кнопку «Написать» в списке чатов */

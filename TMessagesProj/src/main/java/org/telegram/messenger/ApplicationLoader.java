@@ -414,17 +414,15 @@ public class ApplicationLoader extends Application {
         NotificationCenter.sanitize();
     });
 
-    /** Keep-alive is separate from FCM delivery and is opt-in per account. */
+    /**
+     * Нужен ли foreground-сервис с пуш-соединением.
+     *
+     * <p>Кроме явной настройки и выбора пользователя в уведомлениях сервис
+     * поднимается автоматически, когда FCM не может выдать токен: иначе
+     * уведомления приходят только после открытия приложения.
+     */
     public static boolean shouldStartNotificationService() {
-        if (PengramConfig.isBackgroundMode()) return true;
-        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()
-                    && MessagesController.getNotificationsSettings(a).getBoolean("pushService",
-                        MessagesController.getMainSettings(a).getBoolean("keepAliveService", false))) {
-                return true;
-            }
-        }
-        return false;
+        return PengramBackgroundService.shouldKeepAlive();
     }
 
     public static void startPushService() {
@@ -463,6 +461,8 @@ public class ApplicationLoader extends Application {
                 }
                 SharedConfig.pushStringStatus = "__NO_GOOGLE_PLAY_SERVICES__";
                 PushListenerController.sendRegistrationToServer(getPushProvider().getPushType(), null);
+                // Play Services нет — пуши не придут никогда, нужен свой канал.
+                PengramBackgroundService.onPushRegistrationResult(false);
             }
         }, 1000);
     }

@@ -134,6 +134,7 @@ import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramBackgroundService;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
@@ -2038,6 +2039,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         MessagesController.getInstance(currentAccount).loadAppConfig();
         MessagesController.getInstance(currentAccount).loadWebBrowserConfig();
         MessagesController.getInstance(currentAccount).checkPeerColors(false);
+        // Pengram: до этого момента активных слотов не было, и сервис не
+        // поднимался. Без него первый же уход из приложения оставлял
+        // уведомления без соединения до следующего запуска.
+        PengramBackgroundService.onAccountAuthorized();
 
         if (res.future_auth_token != null) {
             AuthTokensHelper.saveLogInToken(res);

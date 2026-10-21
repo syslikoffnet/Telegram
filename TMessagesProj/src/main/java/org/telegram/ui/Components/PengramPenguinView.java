@@ -59,9 +59,14 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     private int program;
     private int aPosition, aNormal, aColor;
-    private int uMvp, uModel, uAlpha, uLight;
+    private int uMvp, uModel, uAlpha, uLight, uTime;
 
-    private Mesh bodyMesh, eyesMesh, wingLeftMesh, wingRightMesh, accessoryMesh;
+    /** отдельная программа мягкой контактной тени под лапками */
+    private int shadowProgram;
+    private int aShadowPosition;
+    private int uShadowMvp, uShadowAlpha;
+
+    private Mesh bodyMesh, eyesMesh, wingLeftMesh, wingRightMesh, accessoryMesh, shadowMesh;
 
     /** выбранный скин; перестраиваем сетку аксессуаров прямо в рендер-потоке */
     private volatile int skin;
@@ -85,6 +90,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private float time;
     private float blinkTimer = 2.5f;
     private float blink;                  // 0 — глаза открыты, 1 — закрыты
+    /** микродвижения взгляда: без них глазницы выглядят нарисованными */
+    private float eyeMoveTimer = 1.2f;
+    private float eyeX, eyeY, eyeTargetX, eyeTargetY;
 
     private volatile float flip;          // 0..1 — сальто назад
     private volatile boolean flipping;
@@ -469,6 +477,21 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         dt = Math.min(dt, 0.05f);
         time += dt;
 
+        // Взгляд живёт своей жизнью: раз в пару секунд зрачки смещаются на
+        // пару пикселей и плавно возвращаются. Неподвижные глаза — главный
+        // признак «нарисованной» игрушки.
+        if (!sleeping) {
+            eyeMoveTimer -= dt;
+            if (eyeMoveTimer <= 0) {
+                eyeMoveTimer = 1.4f + (float) Math.random() * 2.8f;
+                eyeTargetX = ((float) Math.random() - 0.5f) * 0.034f;
+                eyeTargetY = ((float) Math.random() - 0.5f) * 0.020f;
+            }
+            final float eyeK = Math.min(1f, dt * 11f);
+            eyeX += (eyeTargetX - eyeX) * eyeK;
+            eyeY += (eyeTargetY - eyeY) * eyeK;
+        }
+
         if (!dragging && !settled) {
             // затухающая пружина: пара перелётов туда-сюда и мягкая остановка
             final float stiffness = 46f;
@@ -660,6 +683,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
         GLES20.glUniform1f(uAlpha, 1f);
         GLES20.glUniform3f(uLight, 0.38f, 0.82f, 0.86f);
+        GLES20.glUniform1f(uTime, time);
+
+        // тень рисуем до тела: она лежит позади, но именно она «ставит»
+        // пингвина на землю и реагирует на прыжок
+        drawContactShadow(idleBob);
 
         drawMesh(bodyMesh);
         if (accessoryMesh != null) {
@@ -670,23 +698,22 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         drawWing(wingLeftMesh, -WING_PIVOT_X, wingAngle);
         drawWing(wingRightMesh, WING_PIVOT_X, -(wave > 0 ? wingAngle * 0.25f : wingAngle));
 
+        // глаза живут отдельной сеткой: их можно «прикрыть» при моргании и
+        // сдвинуть микродвижением взгляда
         System.arraycopy(baseModel, 0, model, 0, 16);
+        if (eyeX != 0 || eyeY != 0) {
+            Matrix.translateM(model, 0, eyeX, eyeY, 0);
+        }
+        if (blink > 0.01f) {
+            Matrix.translateM(model, 0, 0, 0.827f, 0);
+            Matrix.scaleM(model, 0, 1f, Math.max(0.08f, 1f - blink), 1f);
+            Matrix.translateM(model, 0, 0, -0.827f, 0);
+        }
         Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
         Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
         GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
-
-        // глаза живут отдельной сеткой, чтобы их можно было «прикрыть» при моргании
-        if (blink > 0.01f) {
-            Matrix.setIdentityM(tmp, 0);
-            Matrix.translateM(model, 0, 0, 0.827f, 0);
-            Matrix.scaleM(model, 0, 1f, Math.max(0.08f, 1f - blink), 1f);
-            Matrix.translateM(model, 0, 0, -0.827f, 0);
-            Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
-            Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
-            GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
-            GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
-        }
+        GLES20.glUniform1f(uAlpha, 1f);
         drawMesh(eyesMesh);
     }
 
@@ -708,6 +735,36 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         GLES20.glUniformMatrix4fv(uMvp, 1, false, mvp, 0);
         GLES20.glUniformMatrix4fv(uModel, 1, false, model, 0);
         drawMesh(mesh);
+    }
+
+    /**
+     * Мягкая контактная тень под лапками. В прыжке она расползается и
+     * бледнеет — по ней видно высоту, и пингвин перестаёт «висеть в воздухе».
+     */
+    private void drawContactShadow(float idleBob) {
+        if (shadowMesh == null || shadowProgram == 0) {
+            return;
+        }
+        final float lift = Math.min(jump * 0.7f, CAM_JUMP_LIMIT);
+        final float spread = 1f + lift * 1.6f;
+        final float fade = 0.46f * (1f - Math.min(0.55f, lift * 1.4f));
+
+        Matrix.setIdentityM(model, 0);
+        Matrix.translateM(model, 0, 0, CONTENT_BOTTOM + 0.12f + idleBob * 0.35f, -0.55f);
+        Matrix.scaleM(model, 0, 0.80f * spread, 0.095f * spread, 1f);
+        Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
+        Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
+
+        GLES20.glUseProgram(shadowProgram);
+        GLES20.glUniformMatrix4fv(uShadowMvp, 1, false, mvp, 0);
+        GLES20.glUniform1f(uShadowAlpha, fade);
+        GLES20.glDepthMask(false);
+        shadowMesh.buffer.position(0);
+        GLES20.glVertexAttribPointer(aShadowPosition, 3, GLES20.GL_FLOAT, false, 9 * 4, shadowMesh.buffer);
+        GLES20.glEnableVertexAttribArray(aShadowPosition);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, shadowMesh.count);
+        GLES20.glDepthMask(true);
+        GLES20.glUseProgram(program);
     }
 
     private void drawMesh(Mesh mesh) {
@@ -744,25 +801,69 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             "  gl_Position = uMvp * vec4(aPosition, 1.0);\n" +
             "}\n";
 
+    /**
+     * Свет «студии»: холодный верх, тёплый отскок от пола, мягкий ключевой
+     * источник и френель по краю. Плоская заливка делала пингвина наклейкой —
+     * теперь у чёрной спины и белого пуза разная матовость, а по силуэту
+     * скользит голубой контровой свет.
+     */
     private static final String FRAGMENT_SHADER =
             "precision mediump float;\n" +
             "uniform float uAlpha;\n" +
             "uniform vec3 uLight;\n" +
+            "uniform float uTime;\n" +
             "varying vec3 vNormal;\n" +
             "varying vec3 vColor;\n" +
             "varying vec3 vPos;\n" +
             "void main() {\n" +
             "  vec3 n = normalize(vNormal);\n" +
-            "  vec3 l = normalize(uLight);\n" +
-            "  vec3 v = normalize(vec3(0.0, 0.1, 1.0));\n" +
-            "  float diff = max(dot(n, l), 0.0);\n" +
-            "  float wrap = max(dot(n, normalize(vec3(-0.6, 0.2, 0.3))), 0.0) * 0.25;\n" +
-            "  float rim = pow(1.0 - max(dot(n, v), 0.0), 2.6) * 0.33;\n" +
-            "  float spec = pow(max(dot(reflect(-l, n), v), 0.0), 26.0) * 0.45;\n" +
-            "  vec3 color = vColor * (0.42 + 0.66 * diff + wrap);\n" +
-            "  color += vec3(0.45, 0.68, 1.0) * rim;\n" +
-            "  color += vec3(1.0) * spec;\n" +
-            "  gl_FragColor = vec4(clamp(color, 0.0, 1.0), uAlpha);\n" +
+            "  vec3 keyDir = normalize(uLight);\n" +
+            "  vec3 viewDir = normalize(vec3(0.0, 0.12, 1.0));\n" +
+            // полусферический ambient: небо сверху, тёплый отскок снизу
+            "  float hemi = n.y * 0.5 + 0.5;\n" +
+            "  vec3 sky = vec3(0.62, 0.74, 0.90);\n" +
+            "  vec3 ground = vec3(0.34, 0.30, 0.29);\n" +
+            "  vec3 ambient = mix(ground, sky, hemi);\n" +
+            // ключевой свет с широким переходом: перья рассеивают
+            "  float diff = clamp((dot(n, keyDir) + 0.30) / 1.30, 0.0, 1.0);\n" +
+            // тёплый отскок с противоположной стороны
+            "  float fill = clamp(dot(n, normalize(vec3(-0.78, -0.10, 0.52))) * 0.5 + 0.5, 0.0, 1.0);\n" +
+            // френель по краю силуэта
+            "  float fres = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 3.0);\n" +
+            // блик: белое пузо матовое, чёрная спина и клюв глянцевые
+            "  float lum = dot(vColor, vec3(0.299, 0.587, 0.114));\n" +
+            "  vec3 halfV = normalize(keyDir + viewDir);\n" +
+            "  float spec = pow(clamp(dot(n, halfV), 0.0, 1.0), mix(52.0, 14.0, lum));\n" +
+            // блик еле дышит, иначе поверхность выглядит отполированной до пластика
+            "  spec *= 0.85 + 0.15 * sin(uTime * 1.7);\n" +
+            "  vec3 color = vColor * (ambient * 0.55 + diff * 0.74 + fill * 0.10);\n" +
+            "  color += sky * fres * 0.55;\n" +
+            "  color += vec3(1.0, 0.97, 0.90) * spec * (0.26 + 0.24 * (1.0 - lum));\n" +
+            // микроворс перьев: почти незаметная рябь убирает «пластик»
+            "  float feather = sin(vPos.x * 46.0 + sin(vPos.z * 31.0)) * sin(vPos.y * 38.0 + 1.7);\n" +
+            "  color *= 1.0 + feather * 0.014;\n" +
+            "  color = pow(clamp(color, 0.0, 1.0), vec3(0.92));\n" +
+            "  gl_FragColor = vec4(color, uAlpha);\n" +
+            "}\n";
+
+    /** тень: плоский диск в XY, альфа гаснет к краю круга */
+    private static final String SHADOW_VERTEX_SHADER =
+            "uniform mat4 uMvp;\n" +
+            "attribute vec3 aPosition;\n" +
+            "varying vec2 vLocal;\n" +
+            "void main() {\n" +
+            "  vLocal = aPosition.xy;\n" +
+            "  gl_Position = uMvp * vec4(aPosition, 1.0);\n" +
+            "}\n";
+
+    private static final String SHADOW_FRAGMENT_SHADER =
+            "precision mediump float;\n" +
+            "uniform float uAlpha;\n" +
+            "varying vec2 vLocal;\n" +
+            "void main() {\n" +
+            "  float d = length(vLocal);\n" +
+            "  float a = (1.0 - smoothstep(0.10, 1.0, d)) * uAlpha;\n" +
+            "  gl_FragColor = vec4(0.02, 0.03, 0.05, a);\n" +
             "}\n";
 
     private int compile(int type, String source) {
@@ -793,6 +894,22 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         uModel = GLES20.glGetUniformLocation(program, "uModel");
         uAlpha = GLES20.glGetUniformLocation(program, "uAlpha");
         uLight = GLES20.glGetUniformLocation(program, "uLight");
+        uTime = GLES20.glGetUniformLocation(program, "uTime");
+
+        final int shadowVs = compile(GLES20.GL_VERTEX_SHADER, SHADOW_VERTEX_SHADER);
+        final int shadowFs = compile(GLES20.GL_FRAGMENT_SHADER, SHADOW_FRAGMENT_SHADER);
+        if (shadowVs == 0 || shadowFs == 0) {
+            // без тени пингвин всё равно рисуется — не роняем весь кадр
+            shadowProgram = 0;
+            return;
+        }
+        shadowProgram = GLES20.glCreateProgram();
+        GLES20.glAttachShader(shadowProgram, shadowVs);
+        GLES20.glAttachShader(shadowProgram, shadowFs);
+        GLES20.glLinkProgram(shadowProgram);
+        aShadowPosition = GLES20.glGetAttribLocation(shadowProgram, "aPosition");
+        uShadowMvp = GLES20.glGetUniformLocation(shadowProgram, "uMvp");
+        uShadowAlpha = GLES20.glGetUniformLocation(shadowProgram, "uAlpha");
     }
 
     // ---------------------------------------------------------------- geometry
@@ -891,6 +1008,19 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final ArrayList<Float> right = new ArrayList<>();
         addEllipsoid(right, WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 20, 14, (ux, uy, uz) -> BLACK);
         wingRightMesh = new Mesh(right);
+
+        // контактная тень: диск радиуса 1 в плоскости XY, гаснет к краю в шейдере
+        final ArrayList<Float> shadow = new ArrayList<>();
+        final float[] shadowNormal = {0f, 0f, 1f};
+        final int segments = 48;
+        for (int i = 0; i < segments; ++i) {
+            final double a0 = 2 * Math.PI * i / segments;
+            final double a1 = 2 * Math.PI * (i + 1) / segments;
+            addVertex(shadow, new float[]{0f, 0f, 0f}, shadowNormal, BLACK);
+            addVertex(shadow, new float[]{(float) Math.cos(a0), (float) Math.sin(a0), 0f}, shadowNormal, BLACK);
+            addVertex(shadow, new float[]{(float) Math.cos(a1), (float) Math.sin(a1), 0f}, shadowNormal, BLACK);
+        }
+        shadowMesh = new Mesh(shadow);
     }
 
     // ---------------------------------------------------------------- скины
