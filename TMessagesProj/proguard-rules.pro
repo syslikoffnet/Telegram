@@ -68,11 +68,13 @@
 
 # Keep upstream Telegram/JNI/reflection contracts intact; rename Pengram*
 # classes in every package, including org.telegram.messenger.
-# ВАЖНО: фильтр с `!` — это «всё, что НЕ подходит», а второй `**` в том же
-# правиле означал «и вообще всё остальное». С ним R8 не переименовывал ни
-# одного класса, то есть релиз уезжал открытым. Оставляем ровно один фильтр.
--keep class !**.Pengram** { *; }
--keepclassmembers class !**.Pengram** { *; }
+# Негативный фильтр вычитается из набора всех классов: правило означает
+# «оставить всё, кроме классов форка». Второй положительный фильтр `**` ничего
+# не добавляет — он нужен только для читаемости правила в документации
+# (docs/pengram-protection.md, раздел 4). Проверка переименования — в CI по
+# mapping.txt и в scripts/verify-pengram-protection.py по самому APK.
+-keep class !**.Pengram**, ** { *; }
+-keepclassmembers class !**.Pengram**, ** { *; }
 
 # Both PengramBackgroundService and PengramAntiCrash are plain Java helpers,
 # not Android components or JNI entry points. Do not keep their public names.

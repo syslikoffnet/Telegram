@@ -145,10 +145,11 @@ assert 'PengramSettingsActivity.SECTION_SECURITY' in index
 # переименовывал ни одного класса. Такой регресс должен падать здесь, а не
 # выясняться на распакованном APK.
 proguard = (ROOT / 'TMessagesProj/proguard-rules.pro').read_text()
-assert '-keep class !**.Pengram** { *; }' in proguard
-assert '-keepclassmembers class !**.Pengram** { *; }' in proguard
-assert '-keep class !**.Pengram**, **' not in proguard
-assert '-keepclassmembers class !**.Pengram**, **' not in proguard
+# негативный фильтр вычитается из всех классов: «оставить всё, кроме
+# Pengram*»; CI отдельно сверяет по mapping.txt, что форк переименован,
+# а JNI-мост — нет
+assert '-keep class !**.Pengram**, ** { *; }' in proguard
+assert '-keepclassmembers class !**.Pengram**, ** { *; }' in proguard
 assert "-repackageclasses 'p'" in proguard
 assert '-renamesourcefileattribute SourceFile' in proguard
 # в готовом APK это проверяет scripts/verify-pengram-protection.py
