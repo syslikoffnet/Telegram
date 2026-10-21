@@ -86,6 +86,11 @@ jobs:
           python3 scripts/test-pengram-bot-login.py
           python3 scripts/test-pengram-device-platform.py
           python3 scripts/test-pengram-mention-all.py
+          python3 scripts/test-pengram-mention-name.py
+          python3 scripts/test-pengram-penguin-header.py
+          python3 scripts/test-pengram-local-keep.py
+          python3 scripts/test-pengram-session-login.py
+          python3 scripts/test-pengram-signer-block.py
           python3 scripts/test-pengram-text-overflow.py
           python3 scripts/test-pengram-lyrics-header.py
           python3 scripts/test-pengram-protection.py

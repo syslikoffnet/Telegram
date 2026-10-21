@@ -47,7 +47,13 @@ assert 'CMAKE_${PENGRAM_LANG}_FLAGS_RELWITHDEBINFO' in cmake
 assert '-DANDROID ${PENGRAM_DEBUG_FLAG}' in cmake
 # собранный APK проверяется отдельно: отпечаток должен быть внутри .so
 verify = (ROOT / 'scripts/verify-pengram-protection.py').read_text()
-assert 'Signer #1 certificate SHA-256 digest' in verify
+# отпечаток берётся из блока подписи самого APK, а не из текста apksigner:
+# формат вывода утилиты меняется между build-tools и уже ломал CI
+assert 'APK Sig Block 42' in verify
+assert 'V2_SIGNATURE_ID = 0x7109871A' in verify
+assert 'V3_SIGNATURE_ID = 0xF05368C0' in verify
+assert 'hashlib.sha256(certificate).hexdigest()' in verify
+assert 'signer_sha256(args.apk, args.apksigner, required=False)' in verify
 assert 'libtmessages' in verify
 assert 'verify-pengram-protection.py' in (ROOT / '.github/workflows/build-android-arm64.yml').read_text()
 # в Java-исходниках отпечатка нет: его нельзя «поправить» в smali
