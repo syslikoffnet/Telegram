@@ -57,14 +57,23 @@ from pathlib import Path
 # Пути и состояние
 # ---------------------------------------------------------------------------
 
-ROOT = Path(__file__).resolve().parent.parent
-PROJECT_DIR = ROOT / "branding" / "community"
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
+
+# В репозитории картинки лежат в branding/community. Если скрипт скачали
+# одним файлом в произвольную папку — складываем их рядом с собой.
+_REPO_ASSETS = ROOT / "branding" / "community"
+PROJECT_DIR = _REPO_ASSETS if _REPO_ASSETS.is_dir() else SCRIPT_DIR / "pengram-community-assets"
 AVATAR_DIR = PROJECT_DIR / "avatars"
 
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
+
+# откуда докачивать аватарки, если скрипт скачали одним файлом
+REPO_SLUG = "syslikoffnet/Telegram"
+ASSETS_REF = "0063d6b29a25eb47851d58136a9130d7d7677ab5"
 
 
 # ---------------------------------------------------------------------------
@@ -324,15 +333,65 @@ def warn(message: str) -> None:
     print(f"      ⚠️  {message}", flush=True)
 
 
-def avatar_path(number: int) -> Path:
+def _download(url: str, headers: dict | None = None, timeout: int = 25) -> bytes:
+    import urllib.request
+
+    request = urllib.request.Request(url, headers={
+        "User-Agent": "pengram-community-script",
+        **(headers or {}),
+    })
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
+
+
+def download_avatar(number: int) -> Path | None:
+    """Тянет аватарку из репозитория, если её нет рядом со скриптом.
+
+    Скрипт можно скачать одним файлом — картинки он дозагрузит сам.
+    Сначала быстрый raw, потом API (у него другие лимиты и хосты).
+    """
+    path = AVATAR_DIR / f"{name_for(number)}.jpg"
+    urls = [
+        f"https://raw.githubusercontent.com/{REPO_SLUG}/{ASSETS_REF}/"
+        f"branding/community/avatars/{path.name}",
+        f"https://api.github.com/repos/{REPO_SLUG}/contents/"
+        f"branding/community/avatars/{path.name}?ref={ASSETS_REF}",
+    ]
+    for url in urls:
+        try:
+            payload = _download(
+                url, {"Accept": "application/vnd.github.raw"} if "api." in url else None)
+        except Exception:
+            continue
+        if len(payload) < 10_000:
+            continue  # пришёл текст ошибки, а не картинка
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        log("аватарка", f"скачана: {path.name}")
+        return path
+    return None
+
+
+def name_for(number: int) -> str:
     for value, name, _ in AVATAR_CHOICES:
         if value == number:
-            path = AVATAR_DIR / f"{name}.jpg"
-            if not path.exists():
-                raise Stop(f"Нет файла аватарки {path}. "
-                           f"Сначала сгенерируйте их: branding/community/avatars")
-            return path
+            return name
     raise Stop(f"Аватарки №{number} нет. Допустимо: 1–{len(AVATAR_CHOICES)}")
+
+
+def avatar_path(number: int, *, required: bool = True) -> Path | None:
+    """Локальный файл, иначе — скачанный, иначе None (если not required)."""
+    name = name_for(number)
+    path = AVATAR_DIR / f"{name}.jpg"
+    if path.exists():
+        return path
+    path = download_avatar(number)
+    if path is not None:
+        return path
+    if required:
+        raise Stop(f"Аватарка №{number} недоступна: нет локально и не скачалась. "
+                   f"Проверьте интернет или положите файл в {AVATAR_DIR}")
+    return None
 
 
 def load_state() -> dict:
@@ -397,8 +456,8 @@ def read_api_credentials() -> tuple[int, str]:
 # ---------------------------------------------------------------------------
 
 def print_plan(args) -> None:
-    channel_avatar = avatar_path(args.channel_avatar)
-    group_avatar = avatar_path(args.group_avatar)
+    channel_avatar = avatar_path(args.channel_avatar, required=False)
+    group_avatar = avatar_path(args.group_avatar, required=False)
 
     print()
     print("=" * 72)
@@ -407,7 +466,7 @@ def print_plan(args) -> None:
 
     print("\nКАНАЛ")
     print(f"  название:  {CHANNEL['title']}")
-    print(f"  аватарка:  {channel_avatar.name}")
+    print(f"  аватарка:  {channel_avatar.name if channel_avatar else 'недоступна (без фото)'}")
     print(f"  username:  {', '.join('@' + u for u in CHANNEL['usernames'])}"
           "  (первый свободный)")
     print("  описание:")
@@ -417,7 +476,7 @@ def print_plan(args) -> None:
 
     print("\nЧАТ (супергруппа-форум)")
     print(f"  название:  {GROUP['title']}")
-    print(f"  аватарка:  {group_avatar.name}")
+    print(f"  аватарка:  {group_avatar.name if group_avatar else 'недоступна (без фото)'}")
     print(f"  username:  {', '.join('@' + u for u in GROUP['usernames'])}"
           "  (первый свободный)")
     print(f"  темы:      {', '.join(t['title'] for t in TOPICS)}")
@@ -464,7 +523,8 @@ def print_avatars() -> None:
         path = AVATAR_DIR / f"{name}.jpg"
         mark = "✓" if path.exists() else "✗"
         print(f"  {mark} {number:>2}. {caption}  ({path.name})")
-    print("\nВыбор: --channel-avatar N и --group-avatar M")
+    print("\nЕсли файла нет рядом со скриптом, он скачается сам при первом запуске.")
+    print("Выбор: --channel-avatar N и --group-avatar M")
     print("Превью всех сразу: branding/community/avatars-preview.jpg\n")
 
 
@@ -626,11 +686,15 @@ async def apply_plan(args) -> None:
         await asyncio.sleep(STEP_PAUSE)
 
     if not state.get("channel_photo"):
-        log("канал", f"ставлю аватарку: {avatar_path(args.channel_avatar).name}")
-        await set_photo(client, channel, avatar_path(args.channel_avatar))
-        state["channel_photo"] = args.channel_avatar
-        save_state(state)
-        await asyncio.sleep(STEP_PAUSE)
+        photo = avatar_path(args.channel_avatar, required=False)
+        if photo is None:
+            warn("аватарка канала недоступна — канал останется без фото")
+        else:
+            log("канал", f"ставлю аватарку: {photo.name}")
+            await set_photo(client, channel, photo)
+            state["channel_photo"] = args.channel_avatar
+            save_state(state)
+            await asyncio.sleep(STEP_PAUSE)
 
     channel_username = await ensure_username(
         client, channel, CHANNEL["usernames"], label="канал",
@@ -669,11 +733,15 @@ async def apply_plan(args) -> None:
         await asyncio.sleep(STEP_PAUSE)
 
     if not state.get("group_photo"):
-        log("чат", f"ставлю аватарку: {avatar_path(args.group_avatar).name}")
-        await set_photo(client, group, avatar_path(args.group_avatar))
-        state["group_photo"] = args.group_avatar
-        save_state(state)
-        await asyncio.sleep(STEP_PAUSE)
+        photo = avatar_path(args.group_avatar, required=False)
+        if photo is None:
+            warn("аватарка чата недоступна — чат останется без фото")
+        else:
+            log("чат", f"ставлю аватарку: {photo.name}")
+            await set_photo(client, group, photo)
+            state["group_photo"] = args.group_avatar
+            save_state(state)
+            await asyncio.sleep(STEP_PAUSE)
 
     group_username = await ensure_username(
         client, group, GROUP["usernames"], label="чат",
@@ -882,8 +950,8 @@ def main() -> int:
             print_avatars()
             return 0
 
-        avatar_path(args.channel_avatar)
-        avatar_path(args.group_avatar)
+        name_for(args.channel_avatar)
+        name_for(args.group_avatar)
 
         if not args.apply:
             print_plan(args)

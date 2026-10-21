@@ -76,6 +76,14 @@ assert "FloodWaitError" in source
 assert "ChannelsTooMuchError" in source
 assert "подождите" in source.lower() or "через сутки" in source.lower()
 
+# --- аватарки: локально или докачиваются -----------------------------------
+assert "raw.githubusercontent.com" in source            # быстрый путь
+assert "api.github.com" in source                        # запасной путь
+assert "ASSETS_REF" in source and "REPO_SLUG" in source  # пин на коммит
+assert "urlopen" in source
+assert "required: bool = True" in source                 # без сети не падаем
+assert "канал останется без фото" in source
+
 # --- аватарки на месте -----------------------------------------------------
 avatars_dir = root / "branding" / "community" / "avatars"
 files = sorted(avatars_dir.glob("*.jpg"))
