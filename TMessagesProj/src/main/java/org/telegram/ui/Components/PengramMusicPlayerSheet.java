@@ -193,7 +193,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
         // ---------- верхняя строка ----------
         final FrameLayout topBar = new FrameLayout(context);
-        content.addView(topBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44));
+        content.addView(topBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        // В градиентном режиме под панелью нет изображения: линза там лишь
+        // пачкала бы фон. Захватываем только слой обложки, не кнопки/текст.
+        final PengramSurfaceGlass topBarGlass = new PengramSurfaceGlass(topBar, backgroundView, resourcesProvider,
+                () -> PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER
+                        && (backgroundView.blurred != null || backgroundView.unblurred != null));
 
         final ImageView closeButton = new ImageView(context);
         closeButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -286,6 +291,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             });
             topBar.addView(forwardButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 100, 0));
         }
+
+        org.telegram.messenger.PengramMD3.styleSheetHeader(topBar, resourcesProvider, topBarGlass);
 
         // ---------- обложка и текст песни ----------
         final LinearLayout centerLayout = new LinearLayout(context);
@@ -1104,6 +1111,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 }
             }
             gradient = null;
+            // Обложка может приехать после показа: вместе с линзой нужно
+            // обновить контраст значков, не дожидаясь следующей настройки.
+            PengramGlassSkin.notifyChanged();
             invalidate();
         }
 

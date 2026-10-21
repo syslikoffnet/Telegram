@@ -81,6 +81,9 @@ public class PengramHistoryActivity extends UniversalFragment {
             }
         });
         reload();
+        org.telegram.messenger.PengramMD3.watch(view, () -> {
+            if (listView != null && listView.adapter != null) listView.adapter.update(false);
+        });
         return view;
     }
 
@@ -118,9 +121,15 @@ public class PengramHistoryActivity extends UniversalFragment {
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         items.add(UItem.asHeader(getString(R.string.PengramHistoryFilter)));
-        items.add(UItem.asRadio(10, getString(R.string.PengramHistoryFilterAll)).setChecked(filter == PengramHistory.FILTER_ALL));
-        items.add(UItem.asRadio(11, getString(R.string.PengramHistoryFilterDeleted)).setChecked(filter == PengramHistory.FILTER_DELETED));
-        items.add(UItem.asRadio(12, getString(R.string.PengramHistoryFilterEdited)).setChecked(filter == PengramHistory.FILTER_EDITED));
+        final UItem all = UItem.asRadio(10, getString(R.string.PengramHistoryFilterAll)).setChecked(filter == PengramHistory.FILTER_ALL);
+        all.hideDivider = org.telegram.messenger.PengramMD3.hideDividers();
+        items.add(all);
+        final UItem deleted = UItem.asRadio(11, getString(R.string.PengramHistoryFilterDeleted)).setChecked(filter == PengramHistory.FILTER_DELETED);
+        deleted.hideDivider = org.telegram.messenger.PengramMD3.hideDividers();
+        items.add(deleted);
+        final UItem edited = UItem.asRadio(12, getString(R.string.PengramHistoryFilterEdited)).setChecked(filter == PengramHistory.FILTER_EDITED);
+        edited.hideDivider = org.telegram.messenger.PengramMD3.hideDividers();
+        items.add(edited);
         items.add(UItem.asShadow(null));
 
         if (entries.isEmpty()) {
@@ -193,7 +202,11 @@ public class PengramHistoryActivity extends UniversalFragment {
         public EntryView(Context context) {
             super(context);
             setOrientation(VERTICAL);
-            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            if (org.telegram.messenger.PengramMD3.settingsScreen()) {
+                final int inset = org.telegram.messenger.PengramMD3.rowInset();
+                setBackground(new android.graphics.drawable.InsetDrawable(Theme.createRoundRectDrawable(dp(12),
+                        org.telegram.messenger.PengramMD3.surface(getResourceProvider(), .05f)), inset, dp(2), inset, dp(2)));
+            } else setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
             setPadding(dp(21), dp(10), dp(21), dp(10));
 
             headerText = new TextView(context);

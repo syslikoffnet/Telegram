@@ -411,6 +411,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** строка, к которой нужно прокрутить сразу после открытия раздела */
     private final int highlightRes;
+    int[] pendingSearchDestination;
     private int searchFallbackRes;
     private boolean searchRevealGroups;
 
@@ -706,8 +707,10 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** текст в строке поиска; null — поиск закрыт */
     private String searchQuery;
-    /** поле поиска в шапке: нужно, чтобы подставить запрос из истории */
+    /** Штатный контейнер сохраняет закрытие поиска и обработку кнопки назад. */
     private ActionBarMenuItem searchItem;
+    private org.telegram.ui.Components.FragmentSearchField pengramSearchField;
+    private Boolean pengramSearchMd3;
     /** локализованный заголовок → его строковый ресурс: точный прыжок к строке */
     private java.util.HashMap<String, Integer> searchTitleRes;
     /** что сейчас показано в выдаче: разделы по номерам строк */
@@ -724,33 +727,96 @@ public class PengramSettingsActivity extends UniversalFragment {
                     @Override
                     public void onSearchExpand() {
                         searchQuery = "";
+                        pengramStyleSearch();
+                        if (pengramSearchField != null) {
+                            pengramSearchField.editText.setText("");
+                            if (org.telegram.messenger.PengramMD3.searchBar()) {
+                                pengramSearchField.post(() -> {
+                                    if (searchQuery == null) return;
+                                    pengramSearchField.editText.requestFocus();
+                                    AndroidUtilities.showKeyboard(pengramSearchField.editText);
+                                });
+                            }
+                        }
                         updateList();
                     }
 
                     @Override
                     public void onSearchCollapse() {
                         searchQuery = null;
+                        if (pengramSearchField != null) {
+                            pengramSearchField.editText.clearFocus();
+                            AndroidUtilities.hideKeyboard(pengramSearchField.editText);
+                        }
                         updateList();
                     }
 
                     @Override
                     public void onTextChanged(EditText editText) {
-                        searchQuery = editText.getText() == null ? "" : editText.getText().toString();
-                        updateList();
+                        if (!org.telegram.messenger.PengramMD3.searchBar() && searchQuery != null) {
+                            searchQuery = editText.getText() == null ? "" : editText.getText().toString();
+                            updateList();
+                        }
                     }
 
                     @Override
                     public void onSearchPressed(EditText editText) {
-                        // Enter — это осознанный запрос: сохраняем его в историю
-                        pengramRememberSearch();
+                        // Enter без перехода не является посещением настройки.
+                        AndroidUtilities.hideKeyboard(editText);
                     }
                 });
         searchItem.setSearchFieldHint(getString(R.string.Search));
         searchItem.setContentDescription(getString(R.string.Search));
+        pengramSearchField = new org.telegram.ui.Components.FragmentSearchField(context, getResourceProvider());
+        pengramSearchField.setHintText(getString(R.string.Search), false);
+        pengramSearchField.setCloseButtonOnClickListener(() -> {
+            if (pengramSearchField.editText.length() > 0) pengramSearchField.editText.setText("");
+            else actionBar.closeSearchField();
+        });
+        pengramSearchField.editText.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence text, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence text, int start, int before, int count) {
+                if (searchQuery != null && org.telegram.messenger.PengramMD3.searchBar()) {
+                    searchQuery = text.toString();
+                    updateList();
+                }
+            }
+            @Override public void afterTextChanged(android.text.Editable text) { }
+        });
+        pengramSearchField.editText.setOnEditorActionListener((text, action, event) -> {
+            AndroidUtilities.hideKeyboard(pengramSearchField.editText);
+            return true;
+        });
+        searchItem.getSearchContainer().addView(pengramSearchField,
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
+        pengramStyleSearch();
+        org.telegram.messenger.PengramMD3.watch(view, () -> {
+            pengramStyleSearch();
+            updateList();
+        });
         if (highlightRes != 0) {
             AndroidUtilities.runOnUIThread(() -> pengramJumpTo(highlightRes), 120);
         }
         return view;
+    }
+
+    private void pengramStyleSearch() {
+        if (searchItem == null || pengramSearchField == null) return;
+        final boolean md3 = org.telegram.messenger.PengramMD3.searchBar();
+        if (pengramSearchMd3 != null && pengramSearchMd3 != md3 && searchQuery != null) {
+            // Переключение оформления не должно очищать введённый текст или
+            // оставлять выдачу от запроса, которого уже не видно в поле.
+            final EditText field = md3 ? pengramSearchField.editText : searchItem.getSearchField();
+            field.setText(searchQuery);
+            field.setSelection(field.length());
+            field.requestFocus();
+        }
+        pengramSearchMd3 = md3;
+        pengramSearchField.updateColors();
+        pengramSearchField.setVisibility(md3 ? View.VISIBLE : View.GONE);
+        searchItem.getSearchField().setVisibility(md3 ? View.INVISIBLE : View.VISIBLE);
+        if (searchItem.getSearchClearButton() != null) searchItem.getSearchClearButton().setVisibility(
+                !md3 && searchItem.getSearchField().length() > 0 ? View.VISIBLE : View.INVISIBLE);
     }
 
     /** прокрутить список к строке с таким заголовком и подсветить её */
@@ -827,6 +893,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             return;
         }
+        // Историю обновляем только после нахождения реальной строки. При
+        // выключенном родителе сюда приходит fallback, а не скрытый потомок.
+        if (pendingSearchDestination != null) {
+            PengramSearchMetadata.rememberReached(pendingSearchDestination, stringRes);
+            pendingSearchDestination = null;
+        }
         final int found = position;
         if (listView.getLayoutManager() instanceof LinearLayoutManager) {
             ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(found, AndroidUtilities.dp(96));
@@ -861,13 +933,19 @@ public class PengramSettingsActivity extends UniversalFragment {
         searchResults.clear();
         final String query = searchQuery == null ? "" : searchQuery.trim();
         if (query.length() == 0) {
-            // Пустое поле — как в Telegram: недавние запросы и подсказка.
-            final ArrayList<String> history = PengramConfig.getSearchHistory();
+            final ArrayList<PengramConfig.SearchDestination> history = PengramConfig.getSearchDestinations();
             if (!history.isEmpty()) {
                 items.add(UItem.asHeader(getString(R.string.PengramSearchRecent)));
-                for (int i = 0; i < history.size(); i++) {
-                    items.add(UItem.asSettingsCell(BTN_SEARCH_HISTORY_BASE + i,
-                            R.drawable.msg_search, history.get(i)));
+                int index = 0;
+                for (PengramConfig.SearchDestination destination : history) {
+                    final int[] entry = PengramSearchMetadata.resolveDestination(destination);
+                    if (entry == null) continue;
+                    final UItem row = UItem.asSettingsCell(BTN_SEARCH_HISTORY_BASE + index++,
+                            sectionIcon(entry[1]), getString(entry[0]), PengramSearchMetadata.historyPath(entry));
+                    row.object = destination;
+                    row.adaptiveLayout = true;
+                    row.hideDivider = org.telegram.messenger.PengramMD3.settingsScreen();
+                    items.add(row);
                 }
                 items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_delete,
                         getString(R.string.PengramSearchHistoryClear)).red());
@@ -909,24 +987,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
-    /** запомнить текущий запрос в истории поиска */
-    private void pengramRememberSearch() {
-        final String query = searchQuery == null ? "" : searchQuery.trim();
-        if (query.length() >= 2) {
-            PengramConfig.addSearchHistory(query);
+    private void pengramOpenSearchDestination(int[] found) {
+        if (found == null) return;
+        if (found[1] == section && found[3] == 0) {
+            pendingSearchDestination = found;
+            actionBar.closeSearchField();
+            searchRevealGroups = true;
+            searchFallbackRes = found[2];
+            updateList();
+            AndroidUtilities.runOnUIThread(() -> pengramJumpTo(found[0]), 160);
+        } else {
+            PengramSearchMetadata.open(this, found, true);
         }
-    }
-
-    /** подставить запрос из истории в поле поиска */
-    private void pengramApplySearch(String query) {
-        if (query == null || searchItem == null) return;
-        final android.widget.EditText field = searchItem.getSearchField();
-        if (field != null) {
-            field.setText(query);
-            field.setSelection(field.length());
-        }
-        searchQuery = query;
-        updateList();
     }
 
     @Override
@@ -1048,7 +1120,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_APPEARANCE:
                 return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
                         "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
-                        "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
+                        "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*", PengramConfig.KEY_SETTINGS_SURFACE_GLASS};
             case SECTION_TYPING:
                 return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
             case SECTION_QUOTES:
@@ -1474,7 +1546,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             // версия читается при старте так же, как имя устройства
             requestDeviceRestart();
         }
-        if (PengramConfig.KEY_INPUT_GLASS.equals(key)
+        if (PengramConfig.KEY_SETTINGS_SURFACE_GLASS.equals(key)
+                || PengramConfig.KEY_INPUT_GLASS.equals(key)
                 || PengramConfig.KEY_HEADER_GLASS.equals(key)
                 || PengramConfig.KEY_CHAT_HEADER_GLASS.equals(key)
                 || PengramConfig.KEY_TAB_GLASS.equals(key)
@@ -1498,6 +1571,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     .postNotificationName(org.telegram.messenger.NotificationCenter.dialogsNeedReload, true);
         }
         if (key.startsWith("md3")) {
+            org.telegram.messenger.PengramMD3.notifyChanged();
+            pengramStyleSearch();
             if (key.startsWith("md3Monet")) {
                 org.telegram.messenger.PengramMonet.update(getContext());
             }
@@ -2858,6 +2933,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** после импорта/сброса: подтянуть всё, что кэшируется в других местах */
     private void afterSettingsReplaced(CharSequence text) {
+        org.telegram.messenger.PengramMD3.notifyChanged();
         try {
             getUserConfig().pengramApplyLocalPremiumStatus();
             PengramVoiceChanger.reset();
@@ -3479,10 +3555,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
+        items.add(checkInfo(PengramConfig.KEY_SETTINGS_SURFACE_GLASS, false,
+                getString(R.string.PengramSettingsSurfaceGlass), getString(R.string.PengramSettingsSurfaceGlassInfo)));
         items.add(check(PengramConfig.KEY_INPUT_GLASS, false, getString(R.string.PengramInputGlass)));
         items.add(check(PengramConfig.KEY_HEADER_GLASS, false, getString(R.string.PengramHeaderGlass)));
         items.add(check(PengramConfig.KEY_CHAT_HEADER_GLASS, true, getString(R.string.PengramChatHeaderGlass)));
-        if (PengramConfig.isTabBarLiquidGlass() || PengramConfig.isInputGlass()
+        if (PengramConfig.isSettingsSurfaceGlass() || PengramConfig.isTabBarLiquidGlass() || PengramConfig.isInputGlass()
                 || PengramConfig.isChatListHeaderGlass() || PengramConfig.isChatHeaderGlass()) {
             // Ползунки стекла раскрываются по требованию: включил эффект —
             // рядом появилась его тонкая настройка, выключил — не мешает.
@@ -4671,34 +4749,20 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_SEARCH_HISTORY_BASE && item.id < BTN_SEARCH_HISTORY_BASE + SEARCH_HISTORY_LIMIT) {
-            final ArrayList<String> history = PengramConfig.getSearchHistory();
-            final int index = item.id - BTN_SEARCH_HISTORY_BASE;
-            if (index >= 0 && index < history.size()) {
-                pengramApplySearch(history.get(index));
+            if (item.object instanceof PengramConfig.SearchDestination) {
+                pengramOpenSearchDestination(PengramSearchMetadata.resolveDestination(
+                        (PengramConfig.SearchDestination) item.object));
             }
             return;
         }
         if (item.id == BTN_SEARCH_HISTORY_CLEAR) {
-            PengramConfig.clearSearchHistory();
+            PengramConfig.clearSearchDestinations();
             updateList();
             return;
         }
         if (item.id >= BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE
                 && item.id - BTN_SEARCH_BASE < searchResults.size()) {
-            final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
-            pengramRememberSearch();
-            final int targetSection = found[1];
-            final int targetRes = found[0];
-            if (targetSection == section && (found.length < 4 || found[3] == 0)) {
-                // мы уже здесь — закрываем поиск и прыгаем к самой строке
-                actionBar.closeSearchField();
-                searchRevealGroups = true;
-                searchFallbackRes = found.length > 2 ? found[2] : 0;
-                updateList();
-                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
-            } else {
-                PengramSearchMetadata.open(this, found);
-            }
+            pengramOpenSearchDestination(searchResults.get(item.id - BTN_SEARCH_BASE));
             return;
         }
         if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {
@@ -5852,6 +5916,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onResume() {
         super.onResume();
+        pengramStyleSearch();
         if (headerView != null) {
             headerView.setPaused(false);
         }
@@ -5866,6 +5931,17 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        if (item.object instanceof PengramConfig.SearchDestination) {
+            final PengramConfig.SearchDestination destination = (PengramConfig.SearchDestination) item.object;
+            ItemOptions.makeOptions(this, view)
+                    .add(R.drawable.msg_delete, getString(R.string.PengramSearchHistoryRemove), () -> {
+                        PengramConfig.removeSearchDestination(destination.key);
+                        updateList();
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
+                                getString(R.string.PengramSearchHistoryRemoved)).show();
+                    }).show();
+            return true;
+        }
         // Долгое нажатие на строку модели — сразу ввод своего значения, без
         // пролистывания списка пресетов.
         if (item.id == BTN_DEVICE_MODEL) {

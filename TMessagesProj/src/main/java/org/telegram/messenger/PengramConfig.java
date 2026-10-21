@@ -418,6 +418,7 @@ public class PengramConfig {
                 else if (key.equals("hideMenuSettings")) hideMenuSettings = (Boolean) value;
                 boolCache.remove(key);
                 intCache.remove(key);
+                notifyAppearanceKey(key);
             }
             return true;
         }
@@ -536,12 +537,24 @@ public class PengramConfig {
         init();
         if (visualDraft == null || !visualKey(key)) intCache.put(key, value);
         putInt(key, value);
+        if (visualDraft == null || !visualKey(key)) notifyAppearanceKey(key);
+    }
+
+    private static void notifyAppearanceKey(String key) {
+        // Настройку меняет не только экран с галочкой: пресеты и редакторы
+        // должны будить те же поверхности после сохранения, но не в preview.
+        if (key.startsWith("md3") || key.startsWith("tabBarGlass") || KEY_TAB_GLASS.equals(key)
+                || KEY_INPUT_GLASS.equals(key) || KEY_HEADER_GLASS.equals(key)
+                || KEY_CHAT_HEADER_GLASS.equals(key) || KEY_SETTINGS_SURFACE_GLASS.equals(key)) {
+            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+        }
     }
 
     public static void setBool(String key, boolean value) {
         init();
         if (visualDraft == null || !visualKey(key)) boolCache.put(key, value);
         putBoolean(key, value);
+        if (visualDraft == null || !visualKey(key)) notifyAppearanceKey(key);
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
         }
@@ -1481,6 +1494,13 @@ public class PengramConfig {
         setBool(KEY_TAB_GLASS, value);
     }
 
+    public static final String KEY_SETTINGS_SURFACE_GLASS = "settingsSurfaceLiquidGlass";
+    public static boolean isSettingsSurfaceGlass() { return getBool(KEY_SETTINGS_SURFACE_GLASS, false); }
+    public static void setSettingsSurfaceGlass(boolean value) {
+        setBool(KEY_SETTINGS_SURFACE_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+
     public static final String KEY_INPUT_GLASS = "inputBarLiquidGlass";
     public static final String KEY_HEADER_GLASS = "chatListHeaderGlass";
     public static final String KEY_CHAT_HEADER_GLASS = "chatHeaderLiquidGlass";
@@ -2301,52 +2321,117 @@ public class PengramConfig {
         }
     }
 
-    // ------------------------------- история поиска -------------------------------
+    // ------------------------------- история переходов поиска -------------------------------
 
-    /** ключ: недавние запросы поиска по настройкам Pengram */
     private static final String KEY_SEARCH_HISTORY = "settingsSearchHistory";
+    private static final String KEY_SEARCH_DESTINATIONS = "settingsSearchDestinationsV1";
     private static final int SEARCH_HISTORY_MAX = 8;
 
-    /**
-     * Недавние запросы поиска по настройкам — как история поиска в Telegram.
-     * Храним строкой через \n: запросы короткие, отдельная таблица не нужна.
-     */
-    public static java.util.ArrayList<String> getSearchHistory() {
-        final java.util.ArrayList<String> result = new java.util.ArrayList<>();
-        final String saved = visualString(KEY_SEARCH_HISTORY);
-        if (saved == null || saved.isEmpty()) {
-            return result;
+    public static final class SearchDestination {
+        public final String key;
+        public final int section;
+        public final int kind;
+
+        public SearchDestination(String key, int section, int kind) {
+            this.key = key;
+            this.section = section;
+            this.kind = kind;
         }
-        for (String part : saved.split("\n")) {
-            final String value = part.trim();
-            if (!value.isEmpty() && !result.contains(value) && result.size() < SEARCH_HISTORY_MAX) {
-                result.add(value);
+    }
+
+    public static synchronized java.util.ArrayList<SearchDestination> getSearchDestinations() {
+        final SharedPreferences p = prefs();
+        if (p == null) return new java.util.ArrayList<>();
+        // getString бросает ClassCastException при ручной порче типа prefs.
+        // Наличие нового ключа — маркер миграции даже для битого значения.
+        if (!p.contains(KEY_SEARCH_DESTINATIONS)) migrateSearchDestinations(p);
+        final Object saved = p.getAll().get(KEY_SEARCH_DESTINATIONS);
+        final java.util.ArrayList<SearchDestination> result = new java.util.ArrayList<>();
+        if (!(saved instanceof String) || ((String) saved).length() > 32768) return result;
+        try {
+            final org.json.JSONArray rows = new org.json.JSONArray((String) saved);
+            for (int i = 0; i < rows.length() && result.size() < SEARCH_HISTORY_MAX; i++) {
+                final org.json.JSONObject row = rows.optJSONObject(i);
+                if (row == null || !(row.opt("key") instanceof String)
+                        || !(row.opt("section") instanceof Integer) || !(row.opt("kind") instanceof Integer)) continue;
+                final String key = row.optString("key", "").trim();
+                if (key.isEmpty() || key.length() > 128) continue;
+                final SearchDestination candidate = new SearchDestination(key, row.optInt("section"), row.optInt("kind"));
+                final int[] entry = org.telegram.ui.PengramSearchMetadata.resolveDestination(candidate);
+                if (entry == null || !org.telegram.ui.PengramSearchMetadata.canRemember(entry)) continue;
+                final SearchDestination valid = org.telegram.ui.PengramSearchMetadata.destination(entry);
+                if (valid != null && !containsDestination(result, valid.key)) result.add(valid);
             }
+        } catch (org.json.JSONException | RuntimeException ignored) {
+            // Не превращаем повреждённую историю в падение всего экрана настроек.
         }
         return result;
     }
 
-    public static void addSearchHistory(String query) {
-        final String value = query == null ? "" : query.trim().replace("\n", " ");
-        if (value.length() < 2 || value.length() > 80) {
-            return;
-        }
-        final java.util.ArrayList<String> history = getSearchHistory();
-        history.remove(value);
-        history.add(0, value);
-        while (history.size() > SEARCH_HISTORY_MAX) {
-            history.remove(history.size() - 1);
-        }
-        final StringBuilder sb = new StringBuilder();
-        for (String item : history) {
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(item);
-        }
-        putString(KEY_SEARCH_HISTORY, sb.toString());
+    private static boolean containsDestination(java.util.ArrayList<SearchDestination> rows, String key) {
+        for (SearchDestination row : rows) if (row.key.equals(key)) return true;
+        return false;
     }
 
-    public static void clearSearchHistory() {
-        putString(KEY_SEARCH_HISTORY, "");
+    private static String encodeSearchDestinations(java.util.ArrayList<SearchDestination> rows) {
+        final org.json.JSONArray json = new org.json.JSONArray();
+        for (SearchDestination row : rows) {
+            try {
+                final org.json.JSONObject value = new org.json.JSONObject();
+                value.put("key", row.key);
+                value.put("section", row.section);
+                value.put("kind", row.kind);
+                json.put(value);
+            } catch (org.json.JSONException ignored) {
+                // Неполную запись не пишем: при чтении она всё равно недоступна.
+            }
+        }
+        return json.toString();
+    }
+
+    private static void migrateSearchDestinations(SharedPreferences p) {
+        final java.util.ArrayList<SearchDestination> result = new java.util.ArrayList<>();
+        final Object legacy = p.getAll().get(KEY_SEARCH_HISTORY);
+        if (legacy instanceof String && ((String) legacy).length() <= 32768) {
+            for (String query : ((String) legacy).split("\n")) {
+                if (result.size() >= SEARCH_HISTORY_MAX) break;
+                final int[] entry = org.telegram.ui.PengramSearchMetadata.migrateLegacyQuery(query);
+                final SearchDestination row = entry == null ? null : org.telegram.ui.PengramSearchMetadata.destination(entry);
+                if (row != null && !containsDestination(result, row.key)) result.add(row);
+            }
+        }
+        // Маркер и удаление старых запросов пишем одной операцией: после сбоя
+        // процесса не должно быть повторной миграции уже очищенной истории.
+        p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(result))
+                .remove(KEY_SEARCH_HISTORY).apply();
+    }
+
+    public static synchronized void rememberSearchDestination(SearchDestination destination) {
+        if (destination == null || destination.key == null || destination.key.trim().isEmpty()) return;
+        final int[] entry = org.telegram.ui.PengramSearchMetadata.resolveDestination(destination);
+        if (entry == null || !org.telegram.ui.PengramSearchMetadata.canRemember(entry)) return;
+        final SearchDestination valid = org.telegram.ui.PengramSearchMetadata.destination(entry);
+        if (valid == null) return;
+        final java.util.ArrayList<SearchDestination> rows = getSearchDestinations();
+        for (int i = rows.size() - 1; i >= 0; i--) {
+            if (rows.get(i).key.equals(valid.key)) rows.remove(i);
+        }
+        rows.add(0, valid);
+        while (rows.size() > SEARCH_HISTORY_MAX) rows.remove(rows.size() - 1);
+        final SharedPreferences p = prefs();
+        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(rows)).apply();
+    }
+
+    public static synchronized void removeSearchDestination(String key) {
+        final java.util.ArrayList<SearchDestination> rows = getSearchDestinations();
+        for (int i = rows.size() - 1; i >= 0; i--) if (rows.get(i).key.equals(key)) rows.remove(i);
+        final SharedPreferences p = prefs();
+        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(rows)).apply();
+    }
+
+    public static synchronized void clearSearchDestinations() {
+        final SharedPreferences p = prefs();
+        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, "[]").remove(KEY_SEARCH_HISTORY).apply();
     }
 
     // ------------------------------- скины пингвина -------------------------------

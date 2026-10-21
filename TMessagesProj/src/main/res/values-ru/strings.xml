@@ -1057,7 +1057,7 @@
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
     <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
-    <string name="PengramSearchRecent">Недавние запросы</string>
+    <string name="PengramSearchRecent">Недавние переходы</string>
     <string name="PengramSearchParentOff">Настройка появится после включения «%1$s»</string>
     <string name="PengramSearchHistoryClear">Очистить историю поиска</string>
         <string name="PengramTracksViewList">Списком</string>
@@ -2058,4 +2058,13 @@
     <string name="PengramEditorSampleLine8">Спасибо за сообщение</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
     <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
+    <string name="PengramSearchHistoryRemove">Удалить из истории</string>
+    <string name="PengramSearchHistoryRemoved">Запись удалена из истории</string>
+    <string name="PengramSettingsSurfaceGlass">Стекло поверх обложек и списков</string>
+    <string name="PengramSettingsSurfaceGlassInfo">Линза в шапке плеера поверх обложки и на плавающей панели редактора меню. Использует общие параметры стекла. На однотонных фонах эффект не добавляется.</string>
+    <string name="PengramMenuDoneCount">Готово · Видимых пунктов: %1$d</string>
+    <string name="PengramInputGlass">Стекло строки ввода</string>
+    <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
+    <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
+    <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
 </resources>

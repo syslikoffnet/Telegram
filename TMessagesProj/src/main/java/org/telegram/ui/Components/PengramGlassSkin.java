@@ -45,6 +45,7 @@ public final class PengramGlassSkin {
 
     public static int signature(int surface) {
         int hash = PengramTabBarGlass.signature() * 31 + surface;
+        hash = hash * 31 + (PengramConfig.isSettingsSurfaceGlass() ? 1 : 0);
         hash = hash * 31 + (PengramConfig.isInputGlass() ? 1 : 0);
         hash = hash * 31 + (PengramConfig.isChatListHeaderGlass() ? 1 : 0);
         hash = hash * 31 + (PengramConfig.isChatHeaderGlass() ? 1 : 0);

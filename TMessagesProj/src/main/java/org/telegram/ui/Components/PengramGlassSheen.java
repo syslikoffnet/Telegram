@@ -29,6 +29,7 @@ public final class PengramGlassSheen {
     }
 
     public void draw(Canvas canvas, View view, Rect bounds) {
+        if (!org.telegram.messenger.SharedConfig.animationsEnabled()) return;
         if (!enabled || shader == null || !PengramConfig.isGlassSheenEnabled()
                 || PengramConfig.getGlassGlow() == 0 || bounds.isEmpty()) return;
         final float phase = (SystemClock.uptimeMillis() % 4000) / 4000f;

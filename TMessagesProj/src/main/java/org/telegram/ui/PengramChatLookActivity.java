@@ -32,6 +32,7 @@ import java.util.ArrayList;
  */
 public class PengramChatLookActivity extends BaseFragment {
 
+    int[] searchDestination;
     private final int highlightRes;
     public PengramChatLookActivity() { this(0); }
     public PengramChatLookActivity(int highlightRes) { this.highlightRes = highlightRes; }
@@ -127,6 +128,10 @@ public class PengramChatLookActivity extends BaseFragment {
         if (highlightRes == R.string.PengramAvatarPos || highlightRes == R.string.PengramDialogAvatars) {
             final TextView target = highlightRes == R.string.PengramAvatarPos ? avatarHeader : dialogHeader;
             scrollView.post(() -> {
+                if (getParentLayout() != null && searchDestination != null) {
+                    PengramSearchMetadata.rememberReached(searchDestination, highlightRes);
+                    searchDestination = null;
+                }
                 scrollView.smoothScrollTo(0, Math.max(0, target.getTop() - dp(72)));
                 target.setBackgroundColor(Theme.getColor(Theme.key_listSelector));
                 target.postDelayed(() -> target.setBackgroundColor(android.graphics.Color.TRANSPARENT), 2200);

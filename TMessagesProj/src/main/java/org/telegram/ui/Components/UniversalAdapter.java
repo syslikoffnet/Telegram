@@ -1103,6 +1103,18 @@ public class UniversalAdapter extends AdapterWithDiffUtils {
                 holder.itemView.setBackgroundColor(getThemedColor(key_background));
             }
         }
+        final UItem item = getItem(holder.getAdapterPosition());
+        if (item != null && item.object instanceof org.telegram.messenger.PengramConfig.SearchDestination) {
+            if (org.telegram.messenger.PengramMD3.settingsScreen()) {
+                final int inset = org.telegram.messenger.PengramMD3.rowInset();
+                holder.itemView.setBackground(new android.graphics.drawable.InsetDrawable(
+                        Theme.createRoundRectDrawable(org.telegram.messenger.AndroidUtilities.dp(12),
+                                org.telegram.messenger.PengramMD3.surface(resourcesProvider, .05f)),
+                        inset, org.telegram.messenger.AndroidUtilities.dp(2), inset, org.telegram.messenger.AndroidUtilities.dp(2)));
+            } else {
+                holder.itemView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            }
+        }
     }
 
     public void updateReorder(RecyclerView.ViewHolder holder, boolean allowReorder) {

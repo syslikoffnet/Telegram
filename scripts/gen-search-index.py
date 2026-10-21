@@ -16,6 +16,7 @@
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java")
@@ -163,8 +164,32 @@ def main():
         ("PengramProfileHistoryClearAvatars", "SECTION_HISTORY", "PengramProfileHistory", 2),
     ]
 
-    with open(os.path.join(ROOT, 'TMessagesProj/src/main/res/values/strings.xml'), encoding='utf-8') as f:
-        available = set(re.findall(r'<string name="([A-Za-z0-9_]+)"', f.read()))
+    resources = ET.parse(os.path.join(ROOT, 'TMessagesProj/src/main/res/values/strings.xml'))
+    available = {node.get('name') for node in resources.iter('string')}
+    indexed = [(name, sec, group, 0) for name, sec, group in entries]
+    indexed += [row for row in external if (row[0], row[1]) not in seen]
+    missing = [name for name, _, _, _ in indexed if name not in available]
+    if missing:
+        raise ValueError('Unknown string resources: ' + ', '.join(missing))
+    stable_keys = '\n'.join('            "%s",' % name for name, _, _, _ in indexed)
+    # Родитель может быть заголовком, которого нет в обычной выдаче. Его ключ
+    # тоже генерируем, чтобы fallback пережил перенумерацию ресурсов.
+    groups = sorted({(group, sec) for _, sec, group, kind in indexed
+                     if group and group in available and kind == 0})
+    group_body = '\n'.join('            {R.string.%s, PengramSettingsActivity.%s, 0, 0, 0},' % pair
+                           for pair in groups)
+    group_keys = '\n'.join('            "%s",' % name for name, _ in groups)
+    action_titles = set()
+    # Некоторые кнопки — редакторы значения, а не немедленные действия.
+    value_buttons = re.compile(r'UItem.asButton\(BTN_(?:MEDIA_FOLDER|MEDIA_PATTERN|AI_DEPTH|AI_AUTO_MASTER|AI_AUTO_CONTEXT_LIMIT|AI_AUTO_STYLE|AI_AUTO_QUIET|AI_AUTO_COOLDOWN|AI_AUTO_SPAM_COUNT|AI_AUTO_SPAM_PAUSE),')
+    for sec, raw in statements:
+        if ('UItem.asButton(' in raw and not value_buttons.search(raw)) or re.search(r'BTN_[A-Z_]*(?:CLEAR|RESET|BY_ID|RECREATE|_EXPORT|_IMPORT|_COPY)[A-Z_]*', raw):
+            title = RES_RE.search(raw)
+            if title:
+                action_titles.add((title.group(1), sec))
+    history_allowed = '\n'.join('            %s,' % str(
+        (name, sec) not in action_titles and not re.search(r'(Clear|Reset|Recreate|OpenById|ProfileHistoryOpen)', name)).lower()
+        for name, sec, _, _ in indexed)
 
     def description(name):
         for suffix in ('Info', 'Subtitle'):
@@ -201,8 +226,22 @@ public final class PengramSearchIndex {
     public static final int[][] ITEMS = {
 %s
     };
+
+    /** Имена ресурсов, а не их номера: эти ключи допустимо хранить в prefs. */
+    public static final String[] KEYS = {
+%s
+    };
+    public static final boolean[] HISTORY_ALLOWED = {
+%s
+    };
+    public static final int[][] GROUP_ITEMS = {
+%s
+    };
+    public static final String[] GROUP_KEYS = {
+%s
+    };
 }
-""" % body
+""" % (body, stable_keys, history_allowed, group_body, group_keys)
 
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(out)

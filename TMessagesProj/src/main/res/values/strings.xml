@@ -12061,7 +12061,7 @@
     <string name="PengramPenguinTipHold">Hold me and I will dance</string>
     <string name="PengramPenguinSleeping">Shh, I am asleep…</string>
     <string name="PengramSearchHint">Start typing a feature name — it will be found in any section.</string>
-    <string name="PengramSearchRecent">Recent searches</string>
+    <string name="PengramSearchRecent">Recently visited settings</string>
     <string name="PengramSearchParentOff">This setting appears after you turn on “%1$s”</string>
     <string name="PengramSearchHistoryClear">Clear search history</string>
         <string name="PengramTracksViewList">List</string>
@@ -13330,8 +13330,13 @@
     <string name="CreateManagedBotUsernameBotLimit">This bot already has a Premium username. Remove it before adding another.</string>
     <string name="CreateManagedBotUsernameSuffixMissing">The username must end in %1$s.</string>
     <string name="CreateManagedBotUsernameCheckFailed">Couldn\'t check this username. Please try again.</string>
-    <string name="PengramInputGlass">Стекло строки ввода</string>
-    <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
-    <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
-    <string name="PengramGlassSharedInfo">Параметры стекла общие для панели вкладок, строки ввода и шапок. На Android ниже 13 и при отключённом системном эффекте используется фон без преломления.</string>
+    <string name="PengramInputGlass">Input bar glass</string>
+    <string name="PengramHeaderGlass">Chat list header glass</string>
+    <string name="PengramChatHeaderGlass">Chat header glass</string>
+    <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>
+    <string name="PengramSearchHistoryRemove">Remove from history</string>
+    <string name="PengramSearchHistoryRemoved">Removed from history</string>
+    <string name="PengramSettingsSurfaceGlass">Glass over artwork and lists</string>
+    <string name="PengramSettingsSurfaceGlassInfo">Adds a lens to the player header over artwork and the floating menu editor bar. Uses the shared glass parameters. No glass is added over plain backgrounds.</string>
+    <string name="PengramMenuDoneCount">Done · Visible items: %1$d</string>
 </resources>
