@@ -73,5 +73,19 @@ assert 'previous.join(' in penguin
 assert 'releaseGLLocked();' in penguin
 assert 'onSurfaceTextureDestroyed' in penguin
 
+# --- 8. шрифт и радиус пузыря тоже переезжают без перезахода ----------------
+config = (root / 'TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java').read_text()
+look_signature = config.split('public static int chatLookSignature(', 1)[1].split('public static', 1)[0]
+assert 'SharedConfig.fontSize' in look_signature, 'смена размера шрифта не попадёт в отпечаток'
+assert 'SharedConfig.bubbleRadius' in look_signature, 'смена радиуса пузыря не попадёт в отпечаток'
+chat = (root / 'TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java').read_text()
+assert 'private void pengramResetMessageLayoutsIfNeeded()' in chat
+assert 'pengramResetMessageLayoutsIfNeeded();' in chat
+reset = chat.split('private void pengramResetMessageLayoutsIfNeeded()', 1)[1].split('\n    /**', 1)[0]
+assert 'if (metrics == pengramTextMetrics) {' in reset, 'разметка сбрасывается даже без смены метрик'
+assert 'messageObject.resetLayout();' in reset
+assert 'pengramTextMetrics = pengramTextMetricsNow();' in chat.split('if (first) {', 1)[1].split('}', 1)[0], \
+    'метрики не запоминаются при первом входе — первая смена метки пересоберёт весь чат'
+
 print('chat look: settings apply without re-entering the chat, dead switch wired, '
       'hero/preview/penguin render fixes in place: OK')

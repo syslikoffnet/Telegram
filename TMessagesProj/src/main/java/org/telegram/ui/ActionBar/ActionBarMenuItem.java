@@ -2600,6 +2600,13 @@ public class ActionBarMenuItem extends FrameLayout {
             }
         }
 
+        private void detach() {
+            if (view != null && view.getParent() instanceof ViewGroup) {
+                ((ViewGroup) view.getParent()).removeView(view);
+            }
+            view = null;
+        }
+
         public void setColors(int textColor, int iconColor) {
             if (this.textColor == null || this.iconColor == null || this.textColor != textColor || this.iconColor != iconColor) {
                 this.textColor = textColor;
@@ -2632,6 +2639,24 @@ public class ActionBarMenuItem extends FrameLayout {
     }
     public Item lazilyAddText(CharSequence text, int textSizeDp) {
         return putLazyItem(Item.asText(text, textSizeDp));
+    }
+
+    /**
+     * Убирает отложенный пункт: и из очереди вёрстки, и из уже собранного меню.
+     * Нужно экранам, которые пересобирают свои пункты на месте, не заставляя
+     * пользователя закрывать и заново открывать меню.
+     */
+    public void removeLazyItem(Item item) {
+        if (item == null) {
+            return;
+        }
+        if (lazyList != null) {
+            lazyList.remove(item);
+        }
+        if (lazyMap != null && lazyMap.get(item.id) == item) {
+            lazyMap.remove(item.id);
+        }
+        item.detach();
     }
 
     private Item putLazyItem(Item item) {

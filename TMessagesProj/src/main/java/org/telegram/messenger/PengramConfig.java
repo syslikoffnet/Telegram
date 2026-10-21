@@ -1036,6 +1036,11 @@ public class PengramConfig {
         v = v * 31 + (PengramLocalKeep.keepDeletedMessages() ? 1 : 0);
         v = v * 31 + (isDeletedReplyQuote() ? 1 : 0);
         v = v * 31 + (isDeletedReplySigned() ? 1 : 0);
+        // размер шрифта и радиус пузыря тоже вид сообщения: их меняют в «Оформлении»
+        // и в нашем редакторе, а открытый чат должен переехать сразу, а не после
+        // повторного входа
+        v = v * 31 + SharedConfig.fontSize;
+        v = v * 31 + SharedConfig.bubbleRadius;
         return v;
     }
 
@@ -1812,9 +1817,18 @@ public class PengramConfig {
     public static final int CHAT_ITEM_DELETE_MY_MESSAGES = 6;
     public static final int CHAT_ITEM_CHAT_MUSIC = 7;
 
-    private static final int[] CHAT_ITEMS_DEFAULT = new int[]{
+    /**
+     * Всё, что вообще можно расставить в «трёх точках» и в острове.
+     *
+     * <p>Раньше порядок сверялся только со старым списком по умолчанию, где не
+     * было музыки чата: пункт сохранялся в настройках, но при чтении отбрасывался
+     * — включить его было нельзя, а после любого перетаскивания он исчезал.
+     * {@link #CHAT_ITEM_PENGRAM} сюда не входит: это legacy-идентификатор без
+     * действия, ему нечего делать в редакторе меню.
+     */
+    private static final int[] CHAT_ITEMS_ALL = new int[]{
             CHAT_ITEM_VIEW_DELETED, CHAT_ITEM_TO_BEGINNING, CHAT_ITEM_COPY_ID, CHAT_ITEM_SAVED_MEDIA,
-            CHAT_ITEM_DELETE_MY_MESSAGES
+            CHAT_ITEM_DELETE_MY_MESSAGES, CHAT_ITEM_CHAT_MUSIC
     };
 
     /** где живёт пункт: в самом меню «три точки» или внутри острова Pengram */
@@ -1864,22 +1878,28 @@ public class PengramConfig {
             for (String part : saved.split(",")) {
                 try {
                     final int id = Integer.parseInt(part.trim());
-                    for (int known : CHAT_ITEMS_DEFAULT) {
-                        if (known == id && !result.contains(id)) {
-                            result.add(id);
-                            break;
-                        }
+                    if (knownChatItem(id) && !result.contains(id)) {
+                        result.add(id);
                     }
                 } catch (Throwable ignore) {
                 }
             }
         }
-        for (int known : CHAT_ITEMS_DEFAULT) {
+        for (int known : CHAT_ITEMS_ALL) {
             if (!result.contains(known)) {
                 result.add(known);
             }
         }
         return result;
+    }
+
+    private static boolean knownChatItem(int id) {
+        for (int known : CHAT_ITEMS_ALL) {
+            if (known == id) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void setChatItemsOrder(java.util.List<Integer> order) {
@@ -1888,14 +1908,21 @@ public class PengramConfig {
         }
         final StringBuilder sb = new StringBuilder();
         for (int a = 0; a < order.size(); ++a) {
-            if (a > 0) sb.append(',');
-            sb.append(order.get(a));
+            final int id = order.get(a);
+            if (!knownChatItem(id)) {
+                continue;
+            }
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id);
         }
         putString("chatItemsOrder", sb.toString());
     }
 
     public static boolean isChatItemHidden(int id) {
-        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID || id == CHAT_ITEM_SAVED_MEDIA);
+        // музыка чата — новый пункт: пока его не включили в редакторе меню,
+        // «три точки» выглядят как раньше
+        return getBool("chatItemHidden_" + id, id == CHAT_ITEM_COPY_ID
+                || id == CHAT_ITEM_SAVED_MEDIA || id == CHAT_ITEM_CHAT_MUSIC);
     }
 
     public static void setChatItemHidden(int id, boolean hidden) {
@@ -1904,12 +1931,39 @@ public class PengramConfig {
 
     public static int getHiddenChatItemsCount() {
         int count = 0;
-        for (int id : CHAT_ITEMS_DEFAULT) {
+        for (int id : CHAT_ITEMS_ALL) {
             if (isChatItemHidden(id)) {
                 count++;
             }
         }
         return count;
+    }
+
+    /**
+     * Отпечаток меню «три точки»: включено ли оно, где живут наши пункты, что
+     * скрыто, в каком они порядке и какие быстрые действия к ним добавлены.
+     * Всё это меняется в настройках, пока чат открыт, поэтому по изменению
+     * отпечатка меню пересобирается на месте — без перезахода в чат.
+     */
+    public static int chatMenuSignature() {
+        int hash = 17;
+        hash = hash * 31 + (isChatMenuEnabled() ? 1 : 0);
+        hash = hash * 31 + getChatMenuPosition();
+        for (int id : getChatItemsOrder()) {
+            hash = hash * 31 + id;
+            hash = hash * 31 + (isChatItemHidden(id) ? 1 : 0);
+            hash = hash * 31 + getChatItemPlacement(id);
+        }
+        final int quickCount = getQuickActionCount();
+        hash = hash * 31 + quickCount;
+        for (int a = 0; a < quickCount; ++a) {
+            hash = hash * 31 + getQuickActionType(a);
+            final String name = getQuickActionName(a);
+            hash = hash * 31 + (name == null ? 0 : name.hashCode());
+            final String value = getQuickActionValue(a);
+            hash = hash * 31 + (value == null ? 0 : value.hashCode());
+        }
+        return hash;
     }
 
     public static int getChatItemTitle(int id) {

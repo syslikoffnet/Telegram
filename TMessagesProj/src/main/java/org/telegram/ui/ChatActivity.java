@@ -1740,49 +1740,80 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             pengramMenuAdded = true;
-            final long dialogId = getDialogId();
-            boolean any = false;
-            final java.util.ArrayList<Integer> island = org.telegram.messenger.PengramConfig.getChatIslandItems();
-            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled()) {
-                final org.telegram.ui.Components.PengramChatMenuWrapper wrapper = new org.telegram.ui.Components.PengramChatMenuWrapper(
-                        getContext(),
-                        headerItem.getPopupLayout().getSwipeBack(),
-                        currentAccount,
-                        dialogId,
-                        island,
-                        themeDelegate,
-                        new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
-                            @Override
-                            public void dismiss() {
-                                if (headerItem != null) {
-                                    headerItem.toggleSubMenu();
-                                }
-                            }
+            pengramMenuSubItems.clear();
+            pengramMenuGap = null;
+            pengramMenuIslandItem = null;
+            pengramMenuWrapper = null;
+            // Остров показываем по настройке, а содержимое собираем лениво — при
+            // первом открытии меню. Иначе каждый чат на старте тянул бы счётчик
+            // удалённых. Включение/выключение меню при этом работает на месте:
+            // меняется только видимость уже созданного пункта.
+            pengramMenuIslandItem = headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null,
+                    LocaleController.getString(R.string.PengramMenuTitle), pengramCreateIslandView);
+            pengramMenuIslandItem.setVisibility(org.telegram.messenger.PengramConfig.isChatMenuEnabled() ? View.VISIBLE : View.GONE);
+            applyPengramChatMainItems();
+            // отпечаток запоминаем последним: если настройки поменяют во время сборки,
+            // следующий onResume увидит расхождение и пересоберёт меню
+            pengramMenuSignature = org.telegram.messenger.PengramConfig.chatMenuSignature();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
 
-                            @Override
-                            public void onItem(int itemId) {
-                                if (itemId <= -101 && itemId > -101 - org.telegram.messenger.PengramConfig.QUICK_ACTION_LIMIT) {
-                                    pengramRunQuickAction(-101 - itemId);
-                                } else {
-                                    pengramRunChatItem(itemId);
-                                }
-                            }
-                        });
-                headerItem.lazilyAddSwipeBackItem(R.drawable.msg_viewchats, null, LocaleController.getString(R.string.PengramMenuTitle), wrapper.windowLayout);
-                any = true;
+    /** заново раскладывает наши пункты в основном меню (в острове — свой набор) */
+    private void applyPengramChatMainItems() {
+        if (headerItem == null) {
+            return;
+        }
+        boolean any = false;
+        for (int id : org.telegram.messenger.PengramConfig.getChatMainItems()) {
+            final int actionId = pengramChatItemActionId(id);
+            if (actionId == 0) {
+                continue;
             }
-            for (int id : org.telegram.messenger.PengramConfig.getChatMainItems()) {
-                final int actionId = pengramChatItemActionId(id);
-                if (actionId == 0) {
-                    continue;
-                }
-                headerItem.lazilyAddSubItem(actionId, org.telegram.messenger.PengramConfig.getChatItemIcon(id),
-                        LocaleController.getString(org.telegram.messenger.PengramConfig.getChatItemTitle(id)));
-                any = true;
+            final org.telegram.ui.ActionBar.ActionBarMenuItem.Item item = headerItem.lazilyAddSubItem(actionId,
+                    org.telegram.messenger.PengramConfig.getChatItemIcon(id),
+                    LocaleController.getString(org.telegram.messenger.PengramConfig.getChatItemTitle(id)));
+            pengramMenuSubItems.add(item);
+            any = true;
+        }
+        if (any) {
+            pengramMenuGap = headerItem.lazilyAddColoredGap();
+        }
+    }
+
+    /**
+     * Pengram: настройки меню «три точки» поменяли, пока чат был открыт.
+     *
+     * <p>Попап живёт вместе с чатом, поэтому состав пунктов и содержимое
+     * островка пересобираются прямо здесь. Позиция блока (сверху/снизу от
+     * списка) — единственное, что нельзя переставить в уже собранном меню:
+     * она применяется при следующем открытии чата, и это единственное
+     * исключение из «мгновенно».
+     */
+    private void pengramCheckChatMenuSettings() {
+        if (headerItem == null || !pengramMenuAdded) {
+            return;
+        }
+        final int signature = org.telegram.messenger.PengramConfig.chatMenuSignature();
+        if (signature == pengramMenuSignature) {
+            return;
+        }
+        pengramMenuSignature = signature;
+        try {
+            for (org.telegram.ui.ActionBar.ActionBarMenuItem.Item item : pengramMenuSubItems) {
+                headerItem.removeLazyItem(item);
             }
-            if (any) {
-                headerItem.lazilyAddColoredGap();
+            pengramMenuSubItems.clear();
+            headerItem.removeLazyItem(pengramMenuGap);
+            pengramMenuGap = null;
+            if (pengramMenuIslandItem != null) {
+                pengramMenuIslandItem.setVisibility(org.telegram.messenger.PengramConfig.isChatMenuEnabled() ? View.VISIBLE : View.GONE);
             }
+            if (pengramMenuWrapper != null) {
+                pengramMenuWrapper.setItems(org.telegram.messenger.PengramConfig.getChatIslandItems());
+            }
+            applyPengramChatMainItems();
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -1893,6 +1924,45 @@ public class ChatActivity extends BaseFragment implements
 
     /** Pengram: наши пункты добавляем только один раз на одно создание меню */
     private boolean pengramMenuAdded;
+    private final java.util.ArrayList<org.telegram.ui.ActionBar.ActionBarMenuItem.Item> pengramMenuSubItems = new java.util.ArrayList<>();
+    private org.telegram.ui.ActionBar.ActionBarMenuItem.Item pengramMenuGap;
+    private org.telegram.ui.ActionBar.ActionBarMenuItem.Item pengramMenuIslandItem;
+    private org.telegram.ui.Components.PengramChatMenuWrapper pengramMenuWrapper;
+    /** отпечаток настроек меню на момент сборки, см. {@link #pengramCheckChatMenuSettings()} */
+    private int pengramMenuSignature;
+    /** клики по острову: пункты меню и быстрые действия */
+    private final org.telegram.ui.Components.PengramChatMenuWrapper.Callback pengramMenuCallback =
+            new org.telegram.ui.Components.PengramChatMenuWrapper.Callback() {
+                @Override
+                public void dismiss() {
+                    if (headerItem != null) {
+                        headerItem.toggleSubMenu();
+                    }
+                }
+
+                @Override
+                public void onItem(int itemId) {
+                    if (itemId <= -101 && itemId > -101 - org.telegram.messenger.PengramConfig.QUICK_ACTION_LIMIT) {
+                        pengramRunQuickAction(-101 - itemId);
+                    } else {
+                        pengramRunChatItem(itemId);
+                    }
+                }
+            };
+    /** содержимое острова собирается при первом открытии меню, а не при входе в чат */
+    private final Utilities.Callback0Return<View> pengramCreateIslandView = () -> {
+        final org.telegram.ui.Components.PengramChatMenuWrapper wrapper =
+                new org.telegram.ui.Components.PengramChatMenuWrapper(
+                        getContext(),
+                        headerItem != null ? headerItem.getPopupLayout().getSwipeBack() : null,
+                        currentAccount,
+                        getDialogId(),
+                        org.telegram.messenger.PengramConfig.getChatIslandItems(),
+                        themeDelegate,
+                        pengramMenuCallback);
+        pengramMenuWrapper = wrapper;
+        return wrapper.windowLayout;
+    };
 
     /** Pengram: «в начало» — прыжок к самому первому сообщению переписки */
     private void pengramJumpToBeginning() {
@@ -1970,6 +2040,39 @@ public class ChatActivity extends BaseFragment implements
         return org.telegram.messenger.PengramConfig.chatLookSignature(currentAccount);
     }
 
+    /** размер шрифта и радиус пузыря на момент последней пересборки */
+    private int pengramTextMetrics;
+
+    private int pengramTextMetricsNow() {
+        return SharedConfig.fontSize * 31 + SharedConfig.bubbleRadius;
+    }
+
+    /**
+     * Сбрасываем кэш разметки у загруженных сообщений: его считают с текущими
+     * кистями и радиусом пузыря. Только когда изменились сами метрики текста —
+     * на смену метки или хвоста такой пересборки не нужно.
+     */
+    private void pengramResetMessageLayoutsIfNeeded() {
+        final int metrics = pengramTextMetricsNow();
+        if (metrics == pengramTextMetrics) {
+            return;
+        }
+        pengramTextMetrics = metrics;
+        try {
+            if (messages == null) {
+                return;
+            }
+            for (int a = 0, n = messages.size(); a < n; ++a) {
+                final MessageObject messageObject = messages.get(a);
+                if (messageObject != null) {
+                    messageObject.resetLayout();
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     /** Pengram: настройки вида поменяли, пока чат был открыт — пересобираем сообщения сразу */
     private void pengramCheckMarksSettings() {
         final int signature = pengramMarksSignatureNow();
@@ -1979,6 +2082,9 @@ public class ChatActivity extends BaseFragment implements
         final boolean first = pengramMarksSignature == -1;
         pengramMarksSignature = signature;
         if (first) {
+            // запоминаем метрики текста, чтобы первая же смена метки не тянула
+            // за собой полную пересборку разметки всех сообщений
+            pengramTextMetrics = pengramTextMetricsNow();
             return;
         }
         // Часть настроек меняет не только цвет, но и геометрию пузыря
@@ -1986,6 +2092,9 @@ public class ChatActivity extends BaseFragment implements
         // нужен полный пересчёт строк, иначе остаются обрезки старой вёрстки.
         if (chatAdapter != null) {
             try {
+                // Размер шрифта и радиус пузыря живут в кэше разметки MessageObject:
+                // без сброса ячейка переиспользует старую разметку и остаётся прежней
+                pengramResetMessageLayoutsIfNeeded();
                 // notifyDataSetChanged(false) глушит аниматор списка — возвращаем
                 // его сразу, чтобы пересылка и удаление дальше анимировались
                 final boolean hadAnimator = chatListView != null && chatListView.getItemAnimator() != null;
@@ -5561,8 +5670,9 @@ public class ChatActivity extends BaseFragment implements
                 });
                 muteItemGap = headerItem.lazilyAddColoredGap();
             }
-            // Pengram: сразу после «Уведомлений» — так в меню получается 1. Уведомления, 2. Pengram
-            if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
+            // Pengram: сразу после «Уведомлений» — так в меню получается 1. Уведомления, 2. Pengram.
+            // Собираем всегда: включение меню в настройках применяется на месте, без перезахода.
+            if (org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_TOP) {
                 addPengramMenuItems();
             }
             if (currentChat != null) {
@@ -5694,7 +5804,7 @@ public class ChatActivity extends BaseFragment implements
             closeTopicItem = headerItem.lazilyAddSubItem(topic_close, R.drawable.msg_topic_close, LocaleController.getString(R.string.CloseTopic));
             closeTopicItem.setVisibility(currentChat != null && ChatObject.canManageTopic(currentAccount, currentChat, forumTopic) && forumTopic != null && !forumTopic.closed ? View.VISIBLE : View.GONE);
         }
-        if (org.telegram.messenger.PengramConfig.isChatMenuEnabled() && org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_BOTTOM) {
+        if (org.telegram.messenger.PengramConfig.getChatMenuPosition() == org.telegram.messenger.PengramConfig.MENU_POS_BOTTOM) {
             addPengramMenuItems();
         }
         menu.setVisibility(inMenuMode ? View.GONE : View.VISIBLE);
@@ -32347,6 +32457,7 @@ public class ChatActivity extends BaseFragment implements
         super.onResume();
         checkShowBlur(false);
         pengramCheckMarksSettings();
+        pengramCheckChatMenuSettings();
         pengramRefreshVisibleFades();
         pengramForwardCheck(false);
         activityResumeTime = System.currentTimeMillis();
