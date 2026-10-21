@@ -304,6 +304,67 @@ public final class PengramSessionFormats {
     }
 
     /**
+     * Авторизация аккаунта Desktop: блок dbiMtpAuthorization и вложенный
+     * QByteArray с ключами.
+     *
+     * <p>Первые восемь байт — тег формата: либо ~0 (широкий userId), либо
+     * старые 32-битные userId/dcId. Ключи идут после домашнего DC, и брать
+     * нужно именно ключ домашнего DC: остальные — медиа-DC и служебные.
+     */
+    private static Account readAuthorization(byte[] payload, int index) throws Failure {
+        final Reader stream = new Reader(payload);
+        if (stream.u32() != 0x4B) {
+            throw new Failure("unsupported_tdata");
+        }
+        final Reader auth = new Reader(stream.blob());
+        if (stream.remaining() != 0) {
+            throw new Failure("unsupported_tdata");
+        }
+        final long userId;
+        final int dcId;
+        final byte[] head = auth.read(8);
+        if (allFFBytes(head)) {
+            userId = auth.u64();
+            dcId = auth.i32();
+        } else {
+            userId = readIntBE(head, 0) & 0xFFFFFFFFL;
+            dcId = readIntBE(head, 4);
+        }
+        final int count = auth.i32();
+        if (count < 1 || count > 32) {
+            throw new Failure("invalid_file");
+        }
+        final HashMap<Integer, byte[]> keys = new HashMap<>();
+        for (int a = 0; a < count; ++a) {
+            final int keyDc = auth.i32();
+            final byte[] key = auth.read(256);
+            if (keys.put(keyDc, key) != null) {
+                throw new Failure("invalid_file");
+            }
+        }
+        // Ключи к уничтожению читаем и выбрасываем: они непригодны.
+        final int destroy = auth.i32();
+        if (destroy < 0 || destroy > 32) {
+            throw new Failure("invalid_file");
+        }
+        auth.read(destroy * 260);
+        if (auth.remaining() != 0) {
+            throw new Failure("invalid_file");
+        }
+        final byte[] authKey = keys.get(dcId);
+        if (authKey == null || userId == 0 || dcId < 1 || dcId > 5) {
+            throw new Failure("invalid_key");
+        }
+        final Account account = new Account();
+        account.kind = KIND_TDESKTOP;
+        account.dcId = dcId;
+        account.authKey = authKey;
+        account.userId = userId;
+        account.detail = "tdata #" + (index + 1);
+        return account;
+    }
+
+    /**
      * Файлы одного аккаунта. Desktop держит до трёх копий (`s` — актуальная,
      * `0`/`1` — прошлые), и какая из них читается, заранее не известно: после
      * смены пароля старые копии не расшифровываются. Поэтому пробуем все, а не

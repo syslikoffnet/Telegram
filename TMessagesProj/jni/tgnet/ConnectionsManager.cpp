@@ -3636,7 +3636,7 @@ bool ConnectionsManager::pengramCopyAuthKey(std::string *key, uint32_t *datacent
         uint32_t datacenterId = 0;
     };
     auto state = std::make_shared<State>();
-    scheduleTask([state] {
+    scheduleTask([this, state] {
         Datacenter *datacenter = getDatacenterWithId(DEFAULT_DATACENTER_ID);
         if (datacenter != nullptr) {
             ByteArray *authKey = datacenter->getAuthKey(ConnectionTypeGeneric, true, nullptr, 0);
