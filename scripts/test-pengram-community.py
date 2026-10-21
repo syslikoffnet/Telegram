@@ -67,7 +67,20 @@ for marker in (
 
 # --- темы и закрепы --------------------------------------------------------
 for topic in ("Баги", "Идеи", "Помощь", "Скриншоты", "Релизы", "Оффтоп"):
-    assert f'"title": "{topic}"' in source, topic
+    assert f'"key": "{topic}"' in source, topic
+
+# --- эмодзи и доотделка ----------------------------------------------------
+for emoji_title in ("🐞 Баги", "💡 Идеи", "🛠 Помощь", "📸 Скриншоты",
+                    "📦 Релизы", "🌿 Оффтоп"):
+    assert emoji_title in source, emoji_title
+
+assert "EditForumTopicRequest" in source          # старые темы переименовываются
+assert "has_photo(" in source                     # аватарка проверяется по факту
+assert "pinned_in_chat(" in source and "pinned_in_topic(" in source
+assert "GetFullChannelRequest" in source          # закреп канала проверяется
+assert "InputMessagesFilterPinned" in source      # закреп темы проверяется
+assert '"--repair"' in source
+assert "эмодзи на папке не поставился" in source  # Premium-фолбэк для папки
 assert "Настройки → Pengram → О программе" in source      # где взять отчёт
 assert "одно сообщение — одна проблема".lower() in source.lower()
 

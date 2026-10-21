@@ -245,7 +245,8 @@ GROUP_PINNED = (
 # Темы форума. color — палитра иконок Telegram, pinned — текст закрепа в теме.
 TOPICS = [
     {
-        "title": "Баги",
+        "key": "Баги",
+        "title": "🐞 Баги",
         "color": 0xFB6F5F,
         "pinned": (
             "Пишите по шаблону — так починю быстрее:\n\n"
@@ -258,7 +259,8 @@ TOPICS = [
         ),
     },
     {
-        "title": "Идеи",
+        "key": "Идеи",
+        "title": "💡 Идеи",
         "color": 0xFFD67E,
         "pinned": (
             "Опишите в трёх строках:\n\n"
@@ -269,7 +271,8 @@ TOPICS = [
         ),
     },
     {
-        "title": "Помощь",
+        "key": "Помощь",
+        "title": "🛠 Помощь",
         "color": 0x6FB9F0,
         "pinned": (
             "Установка, вход по номеру, tdata, .session, перенос с другого "
@@ -279,7 +282,8 @@ TOPICS = [
         ),
     },
     {
-        "title": "Скриншоты",
+        "key": "Скриншоты",
+        "title": "📸 Скриншоты",
         "color": 0x8EEE98,
         "pinned": (
             "Показывайте, как собрали интерфейс: тема, стекло, шрифт, пингвин.\n\n"
@@ -287,7 +291,8 @@ TOPICS = [
         ),
     },
     {
-        "title": "Релизы",
+        "key": "Релизы",
+        "title": "📦 Релизы",
         "color": 0xCB86DB,
         "pinned": (
             "Каждая новая версия — пост в канале. Здесь можно обсудить, "
@@ -296,7 +301,8 @@ TOPICS = [
         ),
     },
     {
-        "title": "Оффтоп",
+        "key": "Оффтоп",
+        "title": "🌿 Оффтоп",
         "color": 0xFF93B2,
         "pinned": "Всё, что не про Pengram. Без политики и спама.",
     },
@@ -543,6 +549,62 @@ def peer(entity):
     return InputPeerChannel(entity.id, entity.access_hash)
 
 
+def input_channel(entity):
+    """InputChannel там, где Telegram требует именно его (getFullChannel)."""
+    from telethon.tl.types import InputChannel
+
+    if isinstance(entity, InputChannel):
+        return entity
+    return InputChannel(entity.id, entity.access_hash)
+
+
+def _filter_title(item) -> str:
+    title = getattr(item, "title", "")
+    return getattr(title, "text", title) or ""
+
+
+def has_photo(entity) -> bool:
+    """У сущности реально есть аватарка (а не пустышка)."""
+    photo = getattr(entity, "photo", None)
+    if photo is None:
+        return False
+    return type(photo).__name__ != "PhotoEmpty"
+
+
+def topic_key(title: str) -> str | None:
+    """«🐞 Баги» -> «Баги»: сравниваем темы без учёта эмодзи."""
+    if not title:
+        return None
+    for topic in TOPICS:
+        if topic["key"] in title:
+            return topic["key"]
+    return None
+
+
+async def pinned_in_topic(client, group, topic_id: int):
+    from telethon.tl.functions.messages import SearchRequest
+    from telethon.tl.types import InputMessagesFilterPinned
+
+    try:
+        found = await client(SearchRequest(
+            peer=peer(group), q="", filter=InputMessagesFilterPinned(),
+            min_date=None, max_date=None, offset_id=0, add_offset=0,
+            limit=1, max_id=0, min_id=0, hash=0, top_msg_id=topic_id))
+        return bool(found.messages)
+    except Exception:
+        return None
+
+
+async def pinned_in_chat(client, entity):
+    from telethon.tl.functions.channels import GetFullChannelRequest
+
+    try:
+        result = await client(GetFullChannelRequest(input_channel(entity)))
+        return bool(getattr(result.full_chat, "pinned_msg_id", None))
+    except Exception:
+        return None
+
+
 async def resolve_saved(client, state: dict, id_key: str, hash_key: str,
                         title: str, megagroup: bool):
     """Находит канал/чат, созданный в прошлый раз.
@@ -785,7 +847,7 @@ async def apply_plan(args) -> None:
         save_state(state)
         await asyncio.sleep(STEP_PAUSE)
 
-    if not state.get("channel_photo"):
+    if not has_photo(channel):
         photo = avatar_path(args.channel_avatar, required=False)
         if photo is None:
             warn("аватарка канала недоступна — канал останется без фото")
@@ -795,6 +857,12 @@ async def apply_plan(args) -> None:
             state["channel_photo"] = args.channel_avatar
             save_state(state)
             await asyncio.sleep(STEP_PAUSE)
+            channel = await client.get_entity(peer(channel)) or channel
+            if has_photo(channel):
+                log("канал", "аватарка на месте")
+            else:
+                warn("аватарка канала не появилась — попробуйте позже или "
+                     "поставьте вручную")
 
     channel_username = await ensure_username(
         client, channel, CHANNEL["usernames"], label="канал",
@@ -830,7 +898,7 @@ async def apply_plan(args) -> None:
                  f"Включите вручную: управление чатом → «Темы».")
         await asyncio.sleep(STEP_PAUSE)
 
-    if not state.get("group_photo"):
+    if not has_photo(group):
         photo = avatar_path(args.group_avatar, required=False)
         if photo is None:
             warn("аватарка чата недоступна — чат останется без фото")
@@ -840,6 +908,12 @@ async def apply_plan(args) -> None:
             state["group_photo"] = args.group_avatar
             save_state(state)
             await asyncio.sleep(STEP_PAUSE)
+            group = await client.get_entity(peer(group)) or group
+            if has_photo(group):
+                log("чат", "аватарка на месте")
+            else:
+                warn("аватарка чата не появилась — попробуйте позже или "
+                     "поставьте вручную")
 
     group_username = await ensure_username(
         client, group, GROUP["usernames"], label="чат",
@@ -883,103 +957,178 @@ async def apply_plan(args) -> None:
         published[post["key"]] = message.id
         save_state(state)
         log("пост", f"{post['text'].splitlines()[0]}")
-        if post["pinned"]:
-            await pin_safe(client, channel, message)
-            log("пост", "закреплён")
+        await asyncio.sleep(STEP_PAUSE)
+
+    # закреп канала проверяем по факту: после падений он мог не встать
+    channel_pinned = await pinned_in_chat(client, channel)
+    if channel_pinned is True:
+        log("канал", "закреп на месте")
+    elif channel_pinned is None and state.get("channel_pin_done"):
+        log("канал", "закреп уже ставили (проверить сейчас не вышло)")
+    else:
+        pinned_key = next((p["key"] for p in CHANNEL_POSTS if p["pinned"]), None)
+        message_id = published.get(pinned_key) if pinned_key else None
+        try:
+            if message_id:
+                await client.pin_message(channel, message_id, notify=False)
+                state["channel_pin_done"] = True
+                save_state(state)
+            else:
+                raise RuntimeError("нет id поста")
+            log("канал", "закреплён первый пост")
+        except Exception as error:
+            warn(f"закрепить пост в канале не удалось: {error}")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- закреп в общей теме чата ----------------------------------------
-    if not state.get("group_pinned"):
+    general_pinned = await pinned_in_chat(client, group)
+    if general_pinned is True:
+        log("чат", "закреп в общей теме на месте")
+    elif general_pinned is None and state.get("general_pin_done"):
+        log("чат", "закреп уже ставили (проверить сейчас не вышло)")
+    else:
         message = await post_safe(client, group, format_text(GROUP_PINNED, usernames))
         await pin_safe(client, group, message)
         state["group_pinned"] = message.id
+        state["general_pin_done"] = True
         save_state(state)
         log("чат", "правила закреплены в общей теме")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- темы -------------------------------------------------------------
+    # Смотрим, что реально есть в чате: темы могли создать раньше без эмодзи.
+    from telethon.tl.functions.messages import CreateForumTopicRequest, EditForumTopicRequest
+
     topics_state = state.setdefault("topics", {})
-    if len(topics_state) < len(TOPICS):
-        log("темы", "создаю темы форума")
-        for topic in TOPICS:
-            if topic["title"] in topics_state:
-                continue
+    existing = {}
+    try:
+        result = await client(GetForumTopicsRequest(
+            peer=peer(group), offset_date=None, offset_id=0,
+            offset_topic=0, limit=100))
+        for item in result.topics:
+            key = topic_key(getattr(item, "title", "") or "")
+            if key and key not in existing:
+                existing[key] = item
+    except RPCError as error:
+        warn(f"список тем не получен: {error}")
+
+    for topic in TOPICS:
+        key = topic["key"]
+        item = existing.get(key)
+        if item is None:
+            log("темы", f"создаю «{topic['title']}»")
             try:
-                from telethon.tl.functions.messages import CreateForumTopicRequest
                 await client(CreateForumTopicRequest(
                     peer=peer(group),
                     title=topic["title"],
                     icon_color=topic["color"],
                     random_id=random.getrandbits(63),
                 ))
-                log("темы", f"+ {topic['title']}")
             except RPCError as error:
                 warn(f"тема «{topic['title']}» не создалась: {error}")
             await asyncio.sleep(STEP_PAUSE)
+            continue
 
-        # id тем узнаём запросом: так надёжнее, чем разбирать Updates
-        try:
-            result = await client(GetForumTopicsRequest(
-                peer=peer(group), offset_date=None, offset_id=0,
-                offset_topic=0, limit=100))
-            for item in result.topics:
-                title = getattr(item, "title", None)
-                if title and title in [t["title"] for t in TOPICS]:
-                    topics_state[title] = item.id
-            save_state(state)
-        except RPCError as error:
-            warn(f"список тем не получен: {error}")
+        topics_state[key] = item.id
+        if getattr(item, "title", "") != topic["title"]:
+            try:
+                await client(EditForumTopicRequest(
+                    peer=peer(group), topic_id=item.id, title=topic["title"]))
+                log("темы", f"переименовал в «{topic['title']}»")
+            except RPCError as error:
+                warn(f"тему «{key}» не переименовать: {error}")
+            await asyncio.sleep(STEP_PAUSE)
+        else:
+            log("темы", f"«{topic['title']}» уже есть")
+    save_state(state)
+
+    # после создания/переименования перечитываем id тем
+    try:
+        result = await client(GetForumTopicsRequest(
+            peer=peer(group), offset_date=None, offset_id=0,
+            offset_topic=0, limit=100))
+        for item in result.topics:
+            key = topic_key(getattr(item, "title", "") or "")
+            if key:
+                topics_state[key] = item.id
+        save_state(state)
+    except RPCError:
+        pass
 
     # --- закрепы в темах ---------------------------------------------------
     pinned_state = state.setdefault("topic_pinned", {})
     for topic in TOPICS:
-        topic_id = topics_state.get(topic["title"])
-        if not topic_id or topic["title"] in pinned_state:
+        key = topic["key"]
+        topic_id = topics_state.get(key)
+        if not topic_id:
+            continue
+        topic_pinned = await pinned_in_topic(client, group, topic_id)
+        if topic_pinned is True or (topic_pinned is None and key in pinned_state):
+            log("закреп", f"тема «{topic['title']}» уже с закрепом")
             continue
         message = await post_safe(
             client, group, topic["pinned"],
             reply_to=InputReplyToMessage(reply_to_msg_id=topic_id))
         await pin_safe(client, group, message)
-        pinned_state[topic["title"]] = message.id
+        pinned_state[key] = message.id
         save_state(state)
         log("закреп", f"тема «{topic['title']}»")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- папка в клиенте ---------------------------------------------------
-    # id папки выбираем свободный: чужие папки перезаписывать нельзя.
-    if not state.get("folder_done"):
-        try:
-            from telethon.tl.functions.messages import GetDialogFiltersRequest
-            folder_id = state.get("folder_id")
-            if not folder_id:
-                used = set()
-                try:
-                    existing = await client(GetDialogFiltersRequest())
-                    for item in getattr(existing, "filters", []) or []:
-                        if isinstance(item, DialogFilter):
-                            used.add(item.id)
-                except RPCError as error:
-                    warn(f"список папок не получен ({error}), беру свободный id")
-                folder_id = next(i for i in range(2, 20) if i not in used)
+    # Ищем свою папку по названию: чужие папки не трогаем.
+    from telethon.tl.functions.messages import GetDialogFiltersRequest
+
+    folder_id = state.get("folder_id")
+    try:
+        filters = await client(GetDialogFiltersRequest())
+        for item in getattr(filters, "filters", []) or []:
+            if isinstance(item, DialogFilter) and _filter_title(item) == FOLDER["title"]:
+                folder_id = item.id
                 state["folder_id"] = folder_id
                 save_state(state)
+                break
+    except RPCError as error:
+        warn(f"список папок не получен ({error})")
 
+    if folder_id is None:
+        used = set()
+        try:
+            for item in getattr(await client(GetDialogFiltersRequest()), "filters", []) or []:
+                if isinstance(item, DialogFilter):
+                    used.add(item.id)
+        except RPCError:
+            pass
+        folder_id = next((i for i in range(2, 20) if i not in used), 2)
+        state["folder_id"] = folder_id
+        save_state(state)
+
+    def build_filter(with_emoticon: bool):
+        return DialogFilter(
+            id=folder_id,
+            title=TextWithEntities(FOLDER["title"], []),
+            pinned_peers=[],
+            include_peers=[peer(channel), peer(group)],
+            exclude_peers=[],
+            emoticon=FOLDER["emoticon"] if with_emoticon else None,
+        )
+
+    try:
+        try:
             await client(UpdateDialogFilterRequest(
-                id=folder_id,
-                filter=DialogFilter(
-                    id=folder_id,
-                    title=TextWithEntities(FOLDER["title"], []),
-                    pinned_peers=[],
-                    include_peers=[peer(channel), peer(group)],
-                    exclude_peers=[],
-                    emoticon=FOLDER["emoticon"],
-                )))
-            state["folder_done"] = True
-            save_state(state)
-            log("папка", f"«{FOLDER['title']}» создана (канал + чат)")
+                id=folder_id, filter=build_filter(True)))
         except RPCError as error:
-            warn(f"папка не создалась: {error}")
-        await asyncio.sleep(STEP_PAUSE)
+            # эмодзи на папке — возможность Premium; без него папка всё равно нужна
+            warn(f"эмодзи на папке не поставился ({error}) — создаю без него")
+            await client(UpdateDialogFilterRequest(
+                id=folder_id, filter=build_filter(False)))
+            state["folder_no_emoji"] = True
+        state["folder_done"] = True
+        save_state(state)
+        log("папка", f"«{FOLDER['title']}» готова (канал + чат)")
+    except RPCError as error:
+        warn(f"папка не создалась: {error}")
+    await asyncio.sleep(STEP_PAUSE)
 
     # --- ссылки -----------------------------------------------------------
     links = {}
@@ -1017,6 +1166,18 @@ async def apply_plan(args) -> None:
         print("  Когда освободите публичный канал, повторите:")
         print("     python3 pengram-community.py --apply --retry-usernames")
     print()
+    missing = []
+    if not has_photo(channel):
+        missing.append("аватарка канала")
+    if not has_photo(group):
+        missing.append("аватарка чата")
+    if not channel_username:
+        missing.append("публичный @адрес канала")
+    if not group_username:
+        missing.append("публичный @адрес чата")
+    if missing:
+        print("  Не встало: " + ", ".join(missing))
+        print("  Повторить: python3 pengram-community.py --repair")
     print("  Дальше: зайдите в чат и проверьте темы, затем раздайте invite-ссылку.")
     print(f"  Состояние: {STATE_PATH}")
     print()
@@ -1045,6 +1206,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="свой username для чата (без @)")
     parser.add_argument("--show-texts", action="store_true",
                         help="в просмотре показать все тексты целиком")
+    parser.add_argument("--repair", action="store_true",
+                        help="пройтись по уже созданному и доставить всё, "
+                             "что не встало: аватарки, темы, закрепы, папку")
     parser.add_argument("--retry-usernames", action="store_true",
                         help="снова попробовать поставить публичный @адрес "
                              "(если в прошлый раз Telegram не дал)")
@@ -1062,6 +1226,9 @@ def main() -> int:
 
         name_for(args.channel_avatar)
         name_for(args.group_avatar)
+
+        if args.repair:
+            args.apply = True
 
         if args.retry_usernames:
             state = load_state()
