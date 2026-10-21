@@ -69,7 +69,7 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
-BUILD_TAG = "community 2026-10-21.8"
+BUILD_TAG = "community 2026-10-21.9"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
@@ -127,7 +127,7 @@ COMMENTS = {
     "pinned": (
         "Здесь появляются комментарии к постам канала.\n\n"
         "Нажмите «Комментировать» под любым постом — сообщение придёт сюда.\n"
-        "Обычное общение, баги и идеи — в основном чате: @{group}"
+        "Обычное общение, баги и идеи — в основном чате: {group}"
     ),
 }
 
@@ -155,7 +155,7 @@ CHANNEL_POSTS = [
             "и изменённое остаётся), свобода (скриншоты, обход запрета пересылки, "
             "одноразовые не сгорают), жидкое стекло, свои шрифты, эффекты голоса, "
             "тексты песен, AI-автоответы.\n\n"
-            "Общение и поддержка — в чате: @{group}\n"
+            "Общение и поддержка — в чате: {group}\n"
             "Баги и идеи — туда же, в нужную тему.\n\n"
             "Пока бета: всё может меняться, но ваши чаты и аккаунты — нет. "
             "Спасибо, что вы здесь."
@@ -188,7 +188,7 @@ CHANNEL_POSTS = [
             "по tdata и .session, выгрузка сессии.\n\n"
             "🧰 Ещё — экспорт чата в HTML, копирование фото, бэкап настроек, "
             "статистика набора, @all с лимитом, работа в фоне.\n\n"
-            "Всё бесплатно, без подписки. Баги и пожелания — в чате: @{group}"
+            "Всё бесплатно, без подписки. Баги и пожелания — в чате: {group}"
         ),
     },
     {
@@ -235,7 +235,7 @@ CHANNEL_POSTS = [
             "последние месяцы, в одну нормальную точку входа: тут будут файлы, "
             "а не «скачай где-то там».\n\n"
             "Если вы здесь — вы из первых. Пишите, что не работает и чего не "
-            "хватает: сейчас самое время ломать и предлагать. Чат: @{group}"
+            "хватает: сейчас самое время ломать и предлагать. Чат: {group}"
         ),
     },
 ]
@@ -261,65 +261,99 @@ GROUP_PINNED = (
 TOPICS = [
     {
         "key": "Баги",
-        "title": "🐞 Баги",
+        "title": "Баги",
+        "emoji": "🐞",
+        "icons": ("🐞", "🪲", "⚠️", "❗️", "🚨"),
         "color": 0xFB6F5F,
         "pinned": (
-            "Пишите по шаблону — так починю быстрее:\n\n"
-            "1. Что делал\n"
-            "2. Что случилось\n"
-            "3. Чего ожидал\n"
-            "4. Как часто\n\n"
-            "Плюс отчёт: Настройки → Pengram → О программе → «Скопировать всё». "
-            "Скриншот или видео — очень помогает."
+            "Тема для поломок. Одно сообщение — одна проблема.\n\n"
+            "Шаблон, по которому починю быстрее всего:\n\n"
+            "1. Версия: «Настройки → Pengram → О программе» (например, beta 9).\n"
+            "2. Что делал: «открыл чат → нажал на стикер → выбрал „без звука“».\n"
+            "3. Что случилось: «вылет», «белый экран», «кнопка не нажимается».\n"
+            "4. Чего ждал: как должно было быть.\n"
+            "5. Как часто: всегда или через раз.\n\n"
+            "И приложите отчёт: «Настройки → Pengram → О программе → "
+            "Скопировать всё». Скриншот или видео — по возможности.\n\n"
+            "Если баг уже описали — плюсните сообщение, а не заводите новое."
         ),
     },
     {
         "key": "Идеи",
-        "title": "💡 Идеи",
+        "title": "Идеи",
+        "emoji": "💡",
+        "icons": ("💡", "✨", "⭐️", "🌟", "🔥"),
         "color": 0xFFD67E,
         "pinned": (
-            "Опишите в трёх строках:\n\n"
-            "— что хочу;\n"
-            "— зачем это нужно;\n"
-            "— как представляю (где кнопка, как выглядит).\n\n"
-            "Чем конкретнее — тем больше шансов, что появится."
+            "Чего не хватает — сюда. Хорошая идея выглядит так:\n\n"
+            "1. Что хочу: «своя папка в настройках уведомлений».\n"
+            "2. Зачем: какую задачу это решает.\n"
+            "3. Как представляю: где кнопка, что открывается, как выглядит.\n"
+            "4. Насколько важно: «мешает каждый день» или «приятный бонус».\n\n"
+            "Одна идея — одно сообщение: так её удобно обсуждать и отмечать.\n"
+            "Чем конкретнее описание, тем больше шансов, что появится в релизе."
         ),
     },
     {
         "key": "Помощь",
-        "title": "🛠 Помощь",
+        "title": "Помощь",
+        "emoji": "🛠",
+        "icons": ("🛠", "❓", "💬", "🧭", "🔧"),
         "color": 0x6FB9F0,
         "pinned": (
             "Установка, вход по номеру, tdata, .session, перенос с другого "
-            "клиента — спрашивайте здесь.\n\n"
-            "Если что-то не входит: приложите отчёт из «О программе» и "
-            "напишите, на каком шаге остановились."
+            "клиента — спрашивайте здесь, поможем.\n\n"
+            "Чтобы не гадать, напишите сразу:\n\n"
+            "1. Что ставите: APK из канала или собрали сами.\n"
+            "2. На чём: телефон, версия Android.\n"
+            "3. На каком шаге остановились и что видно на экране.\n"
+            "4. Отчёт: «Настройки → Pengram → О программе → Скопировать всё».\n\n"
+            "Пароли и коды из Telegram не присылайте никому — даже админам."
         ),
     },
     {
         "key": "Скриншоты",
-        "title": "📸 Скриншоты",
+        "title": "Скриншоты",
+        "emoji": "📸",
+        "icons": ("📸", "🖼", "📷", "🎨", "🌅"),
         "color": 0x8EEE98,
         "pinned": (
-            "Показывайте, как собрали интерфейс: тема, стекло, шрифт, пингвин.\n\n"
-            "Идеи оформления отсюда часто доходят до релиза."
+            "Покажите, как выглядит Pengram у вас: тема, стекло, шрифт, "
+            "плитки, пингвин.\n\n"
+            "Оформление отсюда часто доходит до релиза — это лучший способ "
+            "повлиять на внешний вид без кода.\n\n"
+            "Пара просьб: не светите чужие переписки и номера телефонов, "
+            "и подпишите, какая тема включена."
         ),
     },
     {
         "key": "Релизы",
-        "title": "📦 Релизы",
+        "title": "Релизы",
+        "emoji": "📦",
+        "icons": ("📦", "🚀", "⬇️", "📥", "🎁"),
         "color": 0xCB86DB,
         "pinned": (
-            "Каждая новая версия — пост в канале. Здесь можно обсудить, "
-            "что зашло, а что сломали.\n\n"
-            "Пожалуйста, указывайте версию из «О программе»."
+            "Обсуждение версий: что зашло, что сломалось, что откатить.\n\n"
+            "Пишите так:\n\n"
+            "1. Версия из «Настройки → Pengram → О программе».\n"
+            "2. Что понравилось / что не так.\n"
+            "3. Ставили поверх старой или с нуля.\n\n"
+            "Сами APK — в канале, файлом к посту о релизе. Здесь только "
+            "разговоры: так легче найти нужное.\n\n"
+            "Нашли баг — не сюда, а в «Баги»: там шаблон и его точно увидят."
         ),
     },
     {
         "key": "Оффтоп",
-        "title": "🌿 Оффтоп",
+        "title": "Оффтоп",
+        "emoji": "🌿",
+        "icons": ("🌿", "🍃", "🎲", "☕️", "🎈"),
         "color": 0xFF93B2,
-        "pinned": "Всё, что не про Pengram. Без политики и спама.",
+        "pinned": (
+            "Всё, что не про Pengram: музыка, техника, жизнь.\n\n"
+            "Без политики, спама, рекламы и чужих APK.\n"
+            "Уважайте друг друга — и здесь тоже действуют правила чата."
+        ),
     },
 ]
 
@@ -471,9 +505,10 @@ def format_text(template: str, usernames: dict) -> str:
     """
     channel = usernames.get("channel")
     group = usernames.get("group")
-    return (template
+    text = (template
             .replace("{channel}", f"@{channel}" if channel else f"«{CHANNEL['title']}»")
             .replace("{group}", f"@{group}" if group else f"«{GROUP['title']}»"))
+    return text.replace("@@", "@")
 
 
 def read_api_credentials() -> tuple[int, str]:
@@ -535,8 +570,13 @@ def print_plan(args) -> None:
     print(f"  аватарка:  {group_avatar.name if group_avatar else 'недоступна (без фото)'}")
     print(f"  username:  {', '.join('@' + u for u in GROUP['usernames'])}"
           "  (первый свободный)")
-    print(f"  темы:      {', '.join(t['title'] for t in TOPICS)}")
+    print("  темы (значок + имя):")
+    for topic in TOPICS:
+        print(f"      {topic['emoji']}  {topic['title']}")
     print(f"  добавлять участников: {'только админы' if GROUP['invite_admins_only'] else 'все'}")
+
+    print("\nАВТОУДАЛЕНИЕ")
+    print("  выключено в канале, чате и группе комментариев")
 
     print("\nПОСТЫ КАНАЛА")
     for post in CHANNEL_POSTS:
@@ -641,6 +681,124 @@ def topic_key(title: str) -> str | None:
         if topic["key"] in title:
             return topic["key"]
     return None
+
+
+def normalize_emoji(text: str) -> str:
+    """Убирает селекторы начертания: «🛠️» и «🛠» — один и тот же значок."""
+    return (text or "").replace("\ufe0f", "").replace("\ufe0e", "").strip()
+
+
+async def fetch_topic_icons(client) -> dict:
+    """Значки, которые Telegram разрешает темам: эмодзи → id документа.
+
+    Свои картинки темам ставить нельзя, а вот значок из набора
+    inputStickerSetEmojiDefaultTopicIcons — можно, и не нужно Premium.
+    Хардкодить id нельзя: набор меняется, поэтому тянем его при запуске.
+    """
+    try:
+        from telethon.tl.functions.messages import GetStickerSetRequest
+        from telethon.tl.types import InputStickerSetEmojiDefaultTopicIcons
+    except Exception:
+        return {}
+
+    try:
+        result = await client(GetStickerSetRequest(
+            stickerset=InputStickerSetEmojiDefaultTopicIcons(), hash=0))
+    except Exception as error:
+        warn(f"набор значков для тем не получен ({error}) — оставлю эмодзи "
+             f"в названии темы")
+        return {}
+
+    icons = {}
+    for document in getattr(result, "documents", []) or []:
+        for attribute in getattr(document, "attributes", []) or []:
+            alt = getattr(attribute, "alt", None)
+            if alt and getattr(document, "id", None):
+                icons.setdefault(normalize_emoji(alt), document.id)
+    if not icons:
+        warn("набор значков для тем пуст — оставлю эмодзи в названии темы")
+    return icons
+
+
+def pick_icon(icons: dict, candidates) -> int | None:
+    for emoji in candidates:
+        found = icons.get(normalize_emoji(emoji))
+        if found:
+            return found
+    return None
+
+
+def topic_title(topic: dict, icon_id) -> str:
+    """С значком — чистое имя, без него — эмодзи в названии.
+
+    Так тема всегда узнаваема: либо красивая иконка, либо эмодзи рядом
+    с именем, если набор значков недоступен.
+    """
+    if icon_id:
+        return topic["title"]
+    return f"{topic.get('emoji', '')} {topic['title']}".strip()
+
+
+async def set_ttl_off(client, entity) -> bool | None:
+    """Выключает автоудаление сообщений в чате. True/False — получилось ли."""
+    from telethon.tl.functions.messages import SetHistoryTTLRequest
+
+    try:
+        await client(SetHistoryTTLRequest(peer=peer(entity), period=0))
+        return True
+    except Exception as error:
+        warn(f"автоудаление не выключить ({error})")
+        return None
+
+
+async def chat_ttl(client, entity):
+    """Текущий таймер автоудаления в секундах. None — не проверить."""
+    from telethon.tl.functions.channels import GetFullChannelRequest
+
+    try:
+        result = await client(GetFullChannelRequest(input_channel(entity)))
+        return getattr(result.full_chat, "ttl_period", 0) or 0
+    except Exception:
+        return None
+
+
+def is_file_message(message) -> bool:
+    """Сообщение с файлом или фото (а не просто текст с превью ссылки)."""
+    media = getattr(message, "media", None)
+    if media is None:
+        return False
+    return type(media).__name__ not in ("MessageMediaWebPage",
+                                        "MessageMediaEmpty", "MessageMediaGame")
+
+
+async def delete_all_messages(client, entity, keep_ids=()) -> int:
+    """Удаляет текстовые сообщения, кроме перечисленных id.
+
+    Нужно для --reset: снести старые тексты и разложить заново.
+    Корни тем не трогаем — иначе Telegram удалит саму тему.
+    Сообщения с файлами и фото остаются: в канале так живут APK и картинки,
+    и терять их при пересборке текстов нельзя.
+    """
+    keep = {int(i) for i in keep_ids if i}
+    removed = 0
+    batch = []
+    try:
+        async for message in client.iter_messages(entity, limit=None):
+            if message.id in keep or is_file_message(message):
+                continue
+            batch.append(message.id)
+            if len(batch) >= 100:
+                await client.delete_messages(entity, batch)
+                removed += len(batch)
+                batch = []
+                await asyncio.sleep(STEP_PAUSE)
+        if batch:
+            await client.delete_messages(entity, batch)
+            removed += len(batch)
+    except Exception as error:
+        warn(f"удалилось не всё: {error}")
+        problem("очистка", error)
+    return removed
 
 
 async def pinned_in_topic(client, group, topic_id: int):
@@ -1028,6 +1186,17 @@ async def show_status() -> None:
         line("чат", group)
         line("комменты", comments)
 
+        for label, entity in (("канал", channel), ("чат", group),
+                              ("комменты", comments)):
+            if entity is None:
+                continue
+            ttl = await chat_ttl(client, entity)
+            if ttl is None:
+                print(f"  автоудаление в {label}е: не проверить")
+            else:
+                print(f"  автоудаление в {label}е: "
+                      f"{'ВЫКЛЮЧЕНО' if ttl == 0 else f'включено ({ttl} с)'}")
+
         if channel is not None:
             pinned = await pinned_in_chat(client, channel)
             print(f"  закреп канала: {'да' if pinned else 'НЕТ' if pinned is False else 'не проверить'}")
@@ -1047,11 +1216,14 @@ async def show_status() -> None:
                 for topic in TOPICS:
                     item = by_key.get(topic["key"])
                     if item is None:
-                        print(f"    • {topic['title']}: НЕТ")
+                        print(f"    • {topic['emoji']} {topic['title']}: НЕТ")
                         continue
                     pinned = await pinned_in_topic(client, group, item.id)
-                    mark = "закреп есть" if pinned else "закрепа нет" if pinned is False else "закреп не проверить"
-                    print(f"    • {getattr(item, 'title', '?')} · {mark}")
+                    mark = ("закреп есть" if pinned else "закрепа нет"
+                            if pinned is False else "закреп не проверить")
+                    icon = getattr(item, "icon_emoji_id", None)
+                    icon_mark = "значок есть" if icon else "значка нет"
+                    print(f"    • {getattr(item, 'title', '?')} · {icon_mark} · {mark}")
             except Exception as error:
                 print(f"    список тем не получен: {error}")
 
@@ -1343,6 +1515,52 @@ async def apply_plan(args) -> None:
                 problem("правила комментариев", "не удалось закрепить")
         await asyncio.sleep(STEP_PAUSE)
 
+    # --- автоудаление выключаем везде --------------------------------------
+    # Таймер автоудаления живёт в самом чате: если он включён, посты и
+    # закрепы со временем исчезнут. Ставим 0 у канала, чата и комментариев.
+    for label, entity in (("канал", channel), ("чат", group), ("комментарии", comments)):
+        if entity is None:
+            continue
+        current = await chat_ttl(client, entity)
+        if current == 0:
+            log(label, "автоудаление выключено")
+            continue
+        if await set_ttl_off(client, entity):
+            was = f"было {current} с" if current else "проверить не вышло"
+            log(label, f"автоудаление выключено ({was})")
+        else:
+            problem(f"автоудаление в {label}е", "не удалось выключить")
+        await asyncio.sleep(STEP_PAUSE)
+
+    # --- полная пересборка текстов (--reset) -------------------------------
+    if getattr(args, "reset", False):
+        import contextlib
+
+        keep = set()
+        try:
+            result = await client(GetForumTopicsRequest(
+                peer=peer(group), offset_date=None, offset_id=0,
+                offset_topic=0, limit=100))
+            keep = {item.id for item in result.topics}
+        except Exception:
+            keep = set(state.get("topics", {}).values())
+        log("очистка", "удаляю старые сообщения: канал")
+        first = await delete_all_messages(client, channel)
+        log("очистка", "удаляю старые сообщения: чат (темы остаются)")
+        second = await delete_all_messages(client, group, keep)
+        third = 0
+        if comments is not None:
+            log("очистка", "удаляю старые сообщения: комментарии")
+            third = await delete_all_messages(client, comments)
+        log("очистка", f"удалено: {first + second + third}")
+        for key in ("posts", "topic_pinned", "topic_pin_fails"):
+            state.pop(key, None)
+        for key in ("group_pinned", "general_pin_done", "channel_pin_done",
+                    "comments_pinned", "comments_pin_done"):
+            state.pop(key, None)
+        save_state(state)
+        await asyncio.sleep(STEP_PAUSE)
+
     # --- посты канала -----------------------------------------------------
     published = state.setdefault("posts", {})
     for post in CHANNEL_POSTS:
@@ -1405,9 +1623,12 @@ async def apply_plan(args) -> None:
         await asyncio.sleep(STEP_PAUSE)
 
     # --- темы -------------------------------------------------------------
-    # Смотрим, что реально есть в чате: темы могли создать раньше без эмодзи.
-    from telethon.tl.functions.messages import CreateForumTopicRequest, EditForumTopicRequest
+    # Смотрим, что реально есть в чате: темы могли создать раньше, с другим
+    # названием или без значка. Ничего не пересоздаём — правим на месте.
+    from telethon.tl.functions.messages import (CreateForumTopicRequest,
+                                                EditForumTopicRequest)
 
+    icons = await fetch_topic_icons(client)
     topics_state = state.setdefault("topics", {})
     existing = {}
     try:
@@ -1424,31 +1645,66 @@ async def apply_plan(args) -> None:
     for topic in TOPICS:
         key = topic["key"]
         item = existing.get(key)
+        icon_id = pick_icon(icons, topic.get("icons", ()))
+        title = topic_title(topic, icon_id)
+
         if item is None:
-            log("темы", f"создаю «{topic['title']}»")
+            log("темы", f"создаю «{title}»")
+            request = dict(peer=peer(group), title=title,
+                           icon_color=topic["color"],
+                           random_id=random.getrandbits(63))
+            if icon_id:
+                request["icon_emoji_id"] = icon_id
             try:
-                await client(CreateForumTopicRequest(
-                    peer=peer(group),
-                    title=topic["title"],
-                    icon_color=topic["color"],
-                    random_id=random.getrandbits(63),
-                ))
-            except RPCError as error:
-                warn(f"тема «{topic['title']}» не создалась: {error}")
+                await client(CreateForumTopicRequest(**request))
+            except TypeError:
+                request.pop("icon_emoji_id", None)
+                request["title"] = topic_title(topic, None)
+                await client(CreateForumTopicRequest(**request))
+            except Exception as error:
+                warn(f"тема «{title}» не создалась: {error}")
+                problem(f"тема «{title}»", error)
             await asyncio.sleep(STEP_PAUSE)
             continue
 
         topics_state[key] = item.id
-        if getattr(item, "title", "") != topic["title"]:
-            try:
-                await client(EditForumTopicRequest(
-                    peer=peer(group), topic_id=item.id, title=topic["title"]))
-                log("темы", f"переименовал в «{topic['title']}»")
-            except RPCError as error:
-                warn(f"тему «{key}» не переименовать: {error}")
-            await asyncio.sleep(STEP_PAUSE)
-        else:
-            log("темы", f"«{topic['title']}» уже есть")
+        current_title = getattr(item, "title", "") or ""
+        current_icon = getattr(item, "icon_emoji_id", None)
+        need_title = current_title != title
+        need_icon = bool(icon_id) and current_icon != icon_id
+
+        if not need_title and not need_icon:
+            log("темы", f"«{title}» уже как надо")
+            continue
+
+        edits = dict(peer=peer(group), topic_id=item.id)
+        if need_title:
+            edits["title"] = title
+        if need_icon:
+            edits["icon_emoji_id"] = icon_id
+        try:
+            await client(EditForumTopicRequest(**edits))
+            if need_icon:
+                log("темы", f"«{title}» — поставил значок")
+            else:
+                log("темы", f"переименовал в «{title}»")
+        except TypeError:
+            # старый Telethon без поддержки значков
+            if need_title:
+                try:
+                    await client(EditForumTopicRequest(
+                        peer=peer(group), topic_id=item.id, title=title))
+                    log("темы", f"переименовал в «{title}»")
+                except Exception as error:
+                    warn(f"тему «{key}» не переименовать: {error}")
+            if need_icon:
+                warn("эта версия Telethon не умеет значки тем — обновите: "
+                     "pip install -U telethon")
+                problem(f"значок темы «{title}»", "нужен свежий Telethon")
+        except Exception as error:
+            warn(f"тему «{key}» не поправить: {error}")
+            problem(f"тема «{title}»", error)
+        await asyncio.sleep(STEP_PAUSE)
     save_state(state)
 
     # после создания/переименования перечитываем id тем
@@ -1676,6 +1932,10 @@ def build_parser() -> argparse.ArgumentParser:
                              "не меняет): аватарки, закрепы, темы, папка, ссылки")
     parser.add_argument("--show-texts", action="store_true",
                         help="в просмотре показать все тексты целиком")
+    parser.add_argument("--reset", action="store_true",
+                        help="удалить все сообщения в канале, чате и "
+                             "комментариях и разложить тексты заново "
+                             "(темы и аватарки остаются)")
     parser.add_argument("--repair", action="store_true",
                         help="пройтись по уже созданному и доставить всё, "
                              "что не встало: аватарки, темы, закрепы, папку")
@@ -1706,7 +1966,7 @@ def main() -> int:
         name_for(args.group_avatar)
         name_for(args.comments_avatar)
 
-        if args.repair:
+        if args.repair or args.reset:
             args.apply = True
 
         if args.retry_usernames:

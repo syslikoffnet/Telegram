@@ -69,12 +69,29 @@ for marker in (
 for topic in ("Баги", "Идеи", "Помощь", "Скриншоты", "Релизы", "Оффтоп"):
     assert f'"key": "{topic}"' in source, topic
 
-# --- эмодзи и доотделка ----------------------------------------------------
-for emoji_title in ("🐞 Баги", "💡 Идеи", "🛠 Помощь", "📸 Скриншоты",
-                    "📦 Релизы", "🌿 Оффтоп"):
-    assert emoji_title in source, emoji_title
+# --- значки тем и доотделка ------------------------------------------------
+# Значок темы — это custom emoji из набора Telegram, а не картинка.
+assert "InputStickerSetEmojiDefaultTopicIcons" in source
+assert "GetStickerSetRequest" in source
+assert "icon_emoji_id" in source
+assert "normalize_emoji" in source              # «🛠️» и «🛠» — одно и то же
+assert "pick_icon" in source and "topic_title" in source
+for topic in ("Баги", "Идеи", "Помощь", "Скриншоты", "Релизы", "Оффтоп"):
+    assert f'"title": "{topic}"' in source, topic
+    assert f'"key": "{topic}"' in source, topic
 
-assert "EditForumTopicRequest" in source          # старые темы переименовываются
+# --- автоудаление выключено везде ------------------------------------------
+assert "SetHistoryTTLRequest" in source and "set_ttl_off" in source
+assert "chat_ttl" in source                      # проверяем, что было включено
+
+# --- полная пересборка текстов ---------------------------------------------
+assert '"--reset"' in source
+assert "delete_all_messages" in source
+assert "iter_messages" in source
+assert "is_file_message" in source               # APK и фото не удаляем
+assert "иначе Telegram удалит саму тему" in source  # сами темы не сносим
+
+assert "EditForumTopicRequest" in source          # старые темы правятся на месте
 assert "SendMessageRequest" in source             # topic_id через top_msg_id
 assert "top_msg_id=topic_id" in source
 assert "FORUM_ENABLED" in source                  # форум к каналу не привязать
@@ -132,6 +149,10 @@ assert "Запуск прервался" in source            # общий пе�
 assert "async def start_client" in source      # понятные ошибки входа
 assert 'parser.add_argument("--status"' in source
 assert "os.replace(tmp, STATE_PATH)" in source  # состояние пишется атомарно
+
+# --- тексты без опечаток ---------------------------------------------------
+assert '.replace("@@", "@")' in source           # «@@имя» не появится
+assert '"title": "Баги"' in source and '"title": "🐞 Баги"' not in source
 
 print("community setup: dry-run by default, forum topics, pinned texts, "
       "10 avatars, secrets kept out: OK")
