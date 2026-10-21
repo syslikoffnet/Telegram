@@ -3574,6 +3574,24 @@ void ConnectionsManager::authorizedOnMovingDatacenter() {
     });
 }
 
+void ConnectionsManager::importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId) {
+    // Всё, что трогает datacenters/currentDatacenterId, живёт на сетевом потоке.
+    scheduleTask([&, datacenterId, authKey, authKeyId] {
+        if (datacenterId < 1 || datacenterId > 5 || authKey.size() != 256 || authKeyId == 0) {
+            return;
+        }
+        initDatacenters();
+        Datacenter *datacenter = getDatacenterWithId(datacenterId);
+        if (datacenter == nullptr) {
+            return;
+        }
+        datacenter->setPermanentAuthKey((const uint8_t *) authKey.data(), (uint32_t) authKey.size(), authKeyId);
+        currentDatacenterId = datacenterId;
+        saveConfig();
+        updateDcSettings(datacenterId, false, false);
+    });
+}
+
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {
     scheduleTask([&, datacenterId, ipAddress, port] {
         Datacenter *datacenter = getDatacenterWithId(datacenterId);

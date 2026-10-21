@@ -52,6 +52,12 @@ public:
     bool isHandshakingAny();
     bool isHandshaking(bool media);
     bool isHandshaking(HandshakeType type);
+    /**
+     * Pengram: подставить постоянный ключ авторизации, полученный из файла
+     * сессии (Telethon/Pyrogram/tdata). Ключ уже привязан к своему DC, поэтому
+     * достаточно положить его на место — handshake не нужен.
+     */
+    void setPermanentAuthKey(const uint8_t *bytes, uint32_t length, int64_t keyId);
     bool hasAuthKey(ConnectionType connectionTyoe, int32_t allowPendingKey);
     bool hasPermanentAuthKey();
     int64_t getPermanentAuthKeyId();

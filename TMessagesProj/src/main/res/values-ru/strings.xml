@@ -833,6 +833,27 @@
     <string name="PengramSecurityNativeGuardValue">в libtmessages, строки закодированы</string>
     <string name="PengramSecurityMTHint">MT Manager в разделе «Защита» показывает имя известного упаковщика (Legu, Bangcle, DexGuard…), а не уровень защиты. У обычного APK упаковщика нет — поэтому там и написано «защита не обнаружена». С версии 2.26.2 MT сам называет это «не обнаружено», а не «не защищено». Всё перечисленное выше работает без упаковщика.</string>
 
+    <string name="PengramSessionLogin">Войти по файлу сессии</string>
+    <string name="PengramSessionChoose">Каким аккаунтом войти</string>
+    <string name="PengramSessionModeTitle">Как войти</string>
+    <string name="PengramSessionModeInfo">Безопасно: приложение просит у Telegram одноразовый токен входа, а сессия из файла его подтверждает. Дальше идёт обычный вход, старый ключ нигде не дублируется — сессию не выкинет как копию.</string>
+    <string name="PengramSessionModeInstantInfo">Мгновенно: ключ из файла сразу переносится на это устройство. Быстрее и не нужен второй участник, но тот же ключ остаётся в исходном клиенте: если он ещё жив, Telegram может посчитать это дубликатом и завершить одну из сессий.</string>
+    <string name="PengramSessionModeSafe">Безопасно</string>
+    <string name="PengramSessionModeInstant">Мгновенно</string>
+    <string name="PengramSessionErrBroken">Файл не читается: он повреждён, это не сессия или его сделал неподдерживаемый клиент</string>
+    <string name="PengramSessionErrInvalidKey">В файле нет корректного ключа авторизации на 256 байт</string>
+    <string name="PengramSessionErrTest">Тестовые серверы не поддерживаются</string>
+    <string name="PengramSessionErrBot">Сессию бота нельзя использовать для входа в приложение</string>
+    <string name="PengramSessionErrMultiple">В файле больше одной строки сессии — нужен файл с одним аккаунтом</string>
+    <string name="PengramSessionErrPassword">Этот tdata закрыт паролем, а такой вариант не поддерживается</string>
+    <string name="PengramSessionErrRevoked">Сессия уже недействительна: её завершили или Telegram не знает этот ключ</string>
+    <string name="PengramSessionErrDuplicated">Telegram видит этот ключ в двух местах и завершил сессию как дубликат. Восстановите её в исходном клиенте или войдите безопасным режимом</string>
+    <string name="PengramSessionErrBanned">Аккаунт деактивирован или заблокирован</string>
+    <string name="PengramSessionErrFlood">Telegram просит подождать перед следующей попыткой</string>
+    <string name="PengramSessionErrApi">Telegram отклонил данные приложения для этого входа</string>
+    <string name="PengramSessionErrNoSlot">Нет свободного слота аккаунта для временного подключения</string>
+    <string name="PengramSessionErrTimeout">Telegram не успел завершить вход — попробуйте ещё раз</string>
+    <string name="PengramSessionErrNetwork">Ошибка сети при входе</string>
     <string name="PengramLocalKeepHeader">Локальная копия</string>
     <string name="PengramLocalKeep">Хранить чаты и историю на устройстве</string>
     <string name="PengramLocalKeepInfo">Если вас убрали из группы или чат стал недоступен, он остаётся в списке и открывается только на чтение — со всем, что уже было скачано. Удалённые на сервере сообщения остаются в переписке, а отозванная сессия больше не выкидывает из аккаунта: он продолжает работать офлайн как локальная копия. Ничего никуда не отправляется.</string>

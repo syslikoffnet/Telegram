@@ -1163,6 +1163,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_PICK_SESSION) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                pengramHandleSessionPicked(data.getData());
+            }
+            return;
+        }
         LoginActivityRegisterView registerView = (LoginActivityRegisterView) views[VIEW_REGISTER];
         if (registerView != null) {
             registerView.imageUpdater.onActivityResult(requestCode, resultCode, data);
@@ -1698,6 +1704,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     private boolean pengramBotLoginRunning;
 
+    /** Pengram: выбор файла сессии (.session, tdata.zip, строковая сессия) */
+    private static final int REQUEST_PICK_SESSION = 10513;
+    /** разбор идёт в фоне; диалог прогресса один на всю операцию */
+    private AlertDialog pengramSessionProgress;
+
     private void pengramLoginWithBotToken(String token) {
         if (pengramBotLoginRunning) {
             return;
@@ -1738,6 +1749,250 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(
                     R.raw.error, LocaleController.formatString(R.string.PengramBotLoginError, reason)).show();
         }), ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagFailOnServerErrors);
+    }
+
+    /**
+     * Pengram: вход по файлу сессии.
+     *
+     * Человек выбирает .session (Telethon/Pyrogram), архив tdata или строку
+     * сессии. Файл разбирается локально, никуда не отправляется и не меняет
+     * исходную базу — после разбора предлагается режим входа.
+     */
+    private void pengramShowSessionLogin() {
+        if (getParentActivity() == null || getParentActivity().isFinishing()) {
+            return;
+        }
+        try {
+            final Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("*/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_PICK_SESSION);
+        } catch (Throwable error) {
+            FileLog.e(error);
+            pengramSessionError("unsupported_file");
+        }
+    }
+
+    /** файл выбран: копируем во временное хранилище и разбираем в фоне */
+    private void pengramHandleSessionPicked(final android.net.Uri uri) {
+        if (uri == null) {
+            return;
+        }
+        pengramShowSessionProgress();
+        Utilities.globalQueue.postRunnable(() -> {
+            final ArrayList<org.telegram.messenger.PengramSessionFormats.Account> accounts = new ArrayList<>();
+            String failure = null;
+            java.io.File temp = null;
+            try {
+                temp = new java.io.File(ApplicationLoader.applicationContext.getCacheDir(),
+                        "pengram_session_import.tmp");
+                try (java.io.InputStream input = ApplicationLoader.applicationContext
+                        .getContentResolver().openInputStream(uri);
+                     java.io.OutputStream output = new java.io.FileOutputStream(temp)) {
+                    if (input == null) {
+                        throw new java.io.IOException("no stream");
+                    }
+                    final byte[] buffer = new byte[64 * 1024];
+                    long total = 0;
+                    int read;
+                    while ((read = input.read(buffer)) > 0) {
+                        total += read;
+                        if (total > org.telegram.messenger.PengramSessionFormats.MAX_INPUT) {
+                            throw new org.telegram.messenger.PengramSessionFormats.Failure("file_size");
+                        }
+                        output.write(buffer, 0, read);
+                    }
+                }
+                accounts.addAll(org.telegram.messenger.PengramSessionFormats.parse(temp));
+            } catch (org.telegram.messenger.PengramSessionFormats.Failure error) {
+                failure = error.code;
+            } catch (Throwable error) {
+                FileLog.e(error);
+                failure = "invalid_file";
+            } finally {
+                if (temp != null) {
+                    // в файле лежит ключ авторизации: на диске его быть не должно
+                    try {
+                        //noinspection ResultOfMethodCallIgnored
+                        temp.delete();
+                    } catch (Throwable ignore) {
+                    }
+                }
+            }
+            final String code = failure;
+            AndroidUtilities.runOnUIThread(() -> {
+                pengramHideSessionProgress();
+                if (getParentActivity() == null) {
+                    return;
+                }
+                if (code != null) {
+                    pengramSessionError(code);
+                    return;
+                }
+                if (accounts.isEmpty()) {
+                    pengramSessionError("unsupported_file");
+                    return;
+                }
+                pengramShowSessionChoice(accounts);
+            });
+        });
+    }
+
+    /** несколько аккаунтов в tdata — сначала выбираем, кем входить */
+    private void pengramShowSessionChoice(final ArrayList<org.telegram.messenger.PengramSessionFormats.Account> accounts) {
+        if (accounts.size() == 1) {
+            pengramShowSessionMode(accounts.get(0));
+            return;
+        }
+        final CharSequence[] names = new CharSequence[accounts.size()];
+        for (int a = 0; a < accounts.size(); ++a) {
+            names[a] = accounts.get(a).describe();
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramSessionChoose));
+        builder.setItems(names, (dialog, which) -> pengramShowSessionMode(accounts.get(which)));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /**
+     * Режим входа: безопасный (одноразовый токен, старый ключ не дублируется)
+     * или мгновенный (ключ переносится прямо сюда). По умолчанию — безопасный.
+     */
+    private void pengramShowSessionMode(final org.telegram.messenger.PengramSessionFormats.Account account) {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramSessionModeTitle));
+        builder.setMessage(getString(R.string.PengramSessionModeInfo) + "\n\n"
+                + getString(R.string.PengramSessionModeInstantInfo));
+        builder.setPositiveButton(getString(R.string.PengramSessionModeSafe), (dialog, which) ->
+                pengramStartSessionLogin(account, org.telegram.messenger.PengramSessionLogin.MODE_SAFE));
+        builder.setNeutralButton(getString(R.string.PengramSessionModeInstant), (dialog, which) ->
+                pengramStartSessionLogin(account, org.telegram.messenger.PengramSessionLogin.MODE_INSTANT));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void pengramStartSessionLogin(final org.telegram.messenger.PengramSessionFormats.Account account,
+                                          final String mode) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        pengramShowSessionProgress();
+        // Сессию из файла не «привязываем» к телефонной книге: это чужой
+        // аккаунт, и контакты ему не нужны.
+        syncContacts = false;
+        org.telegram.messenger.PengramSessionLogin.start(currentAccount, account, mode,
+                new org.telegram.messenger.PengramSessionLogin.Listener() {
+                    @Override
+                    public void onSuccess(TLRPC.TL_auth_authorization authorization) {
+                        AndroidUtilities.runOnUIThread(() -> {
+                            pengramHideSessionProgress();
+                            account.clear();
+                            if (getParentActivity() == null) {
+                                return;
+                            }
+                            onAuthSuccess(authorization);
+                        });
+                    }
+
+                    @Override
+                    public void onPasswordNeeded(TLRPC.TL_account_Password password) {
+                        AndroidUtilities.runOnUIThread(() -> pengramOpenSessionPassword(account, password));
+                    }
+
+                    private void pengramOpenSessionPassword(
+                            org.telegram.messenger.PengramSessionFormats.Account account,
+                            TLRPC.TL_account_Password password) {
+                        pengramHideSessionProgress();
+                        account.clear();
+                        if (getParentActivity() == null || password == null) {
+                            return;
+                        }
+                        final Bundle bundle = new Bundle();
+                        final SerializedData data = new SerializedData(password.getObjectSize());
+                        password.serializeToStream(data);
+                        bundle.putString("password", Utilities.bytesToHex(data.toByteArray()));
+                        bundle.putString("phoneFormated", "");
+                        bundle.putString("phoneHash", "");
+                        bundle.putString("code", "");
+                        setPage(VIEW_PASSWORD, true, bundle, false);
+                    }
+
+                    @Override
+                    public void onError(String code) {
+                        AndroidUtilities.runOnUIThread(() -> {
+                            pengramHideSessionProgress();
+                            account.clear();
+                            pengramSessionError(code);
+                        });
+                    }
+                });
+    }
+
+    private void pengramShowSessionProgress() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        pengramHideSessionProgress();
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+        pengramSessionProgress = progress;
+    }
+
+    private void pengramHideSessionProgress() {
+        final AlertDialog progress = pengramSessionProgress;
+        pengramSessionProgress = null;
+        if (progress != null) {
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
+    /** текст ошибки по коду: ни один ответ сервера не показываем как есть */
+    private void pengramSessionError(String code) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        int res = R.string.PengramSessionErrNetwork;
+        if ("invalid_key".equals(code)) {
+            res = R.string.PengramSessionErrInvalidKey;
+        } else if ("test_session".equals(code)) {
+            res = R.string.PengramSessionErrTest;
+        } else if ("bot_session".equals(code)) {
+            res = R.string.PengramSessionErrBot;
+        } else if ("ambiguous_session".equals(code)) {
+            res = R.string.PengramSessionErrMultiple;
+        } else if ("password_tdata".equals(code)) {
+            res = R.string.PengramSessionErrPassword;
+        } else if ("session_revoked".equals(code)) {
+            res = R.string.PengramSessionErrRevoked;
+        } else if ("key_duplicated".equals(code)) {
+            res = R.string.PengramSessionErrDuplicated;
+        } else if ("account_banned".equals(code)) {
+            res = R.string.PengramSessionErrBanned;
+        } else if ("flood_wait".equals(code)) {
+            res = R.string.PengramSessionErrFlood;
+        } else if ("api_rejected".equals(code)) {
+            res = R.string.PengramSessionErrApi;
+        } else if ("no_slot".equals(code)) {
+            res = R.string.PengramSessionErrNoSlot;
+        } else if ("login_timeout".equals(code) || "token_expired".equals(code)
+                || "unexpected_response".equals(code)) {
+            res = R.string.PengramSessionErrTimeout;
+        } else if ("unsupported_file".equals(code) || "unsupported_session".equals(code)
+                || "invalid_file".equals(code) || "file_size".equals(code)
+                || "checksum_failed".equals(code) || "decrypt_failed".equals(code)
+                || "incomplete_tdata".equals(code) || "tdata_not_found".equals(code)
+                || "multiple_tdata".equals(code) || "unsafe_archive".equals(code)
+                || "archive_limits".equals(code) || "unsupported_tdata".equals(code)) {
+            res = R.string.PengramSessionErrBroken;
+        }
+        BulletinFactory.of(slideViewsContainer, null)
+                .createSimpleBulletin(R.raw.error, getString(res)).show();
     }
 
     private void fakeSuccess() {
@@ -2226,6 +2481,20 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                         Theme.getColor(Theme.key_listSelector), 8, 8));
                 botLoginView.setOnClickListener(v -> pengramShowBotLoginDialog());
                 addView(botLoginView, LayoutHelper.createLinear(
+                        LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 2, 16, 0));
+
+                // Вход по файлу сессии — рядом с обычным входом: это такой же
+                // полноценный вход, просто другим способом.
+                final TextView sessionLoginView = new TextView(context);
+                sessionLoginView.setText(getString(R.string.PengramSessionLogin));
+                sessionLoginView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                sessionLoginView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+                sessionLoginView.setGravity(Gravity.CENTER);
+                sessionLoginView.setPadding(dp(12), dp(10), dp(12), dp(10));
+                sessionLoginView.setBackground(Theme.createRadSelectorDrawable(
+                        Theme.getColor(Theme.key_listSelector), 8, 8));
+                sessionLoginView.setOnClickListener(v -> pengramShowSessionLogin());
+                addView(sessionLoginView, LayoutHelper.createLinear(
                         LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 2, 16, 0));
             }
 

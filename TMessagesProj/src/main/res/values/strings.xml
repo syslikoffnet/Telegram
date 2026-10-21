@@ -11837,6 +11837,27 @@
     <string name="PengramSecurityNativeGuardValue">in libtmessages, strings encoded</string>
     <string name="PengramSecurityMTHint">MT Manager shows the name of a known packer (Legu, Bangcle, DexGuard…) in its “Protection” tab, not the level of protection. An ordinary APK has no packer — that is why it says “no protection detected”. Since v2.26.2 MT itself calls this “not detected”, not “unprotected”. Everything listed above works without a packer.</string>
 
+    <string name="PengramSessionLogin">Sign in with a session file</string>
+    <string name="PengramSessionChoose">Which account to sign in</string>
+    <string name="PengramSessionModeTitle">How to sign in</string>
+    <string name="PengramSessionModeInfo">Safe: the app asks Telegram for a one-time login token and the session from the file confirms it. A regular sign-in follows, and the old key is never duplicated — the session will not be dropped as a duplicate.</string>
+    <string name="PengramSessionModeInstantInfo">Instant: the key from the file moves straight to this device. Faster and needs no second participant, but the same key stays in the original client: if it is still alive, Telegram may treat this as a duplicate and end one of them.</string>
+    <string name="PengramSessionModeSafe">Safe</string>
+    <string name="PengramSessionModeInstant">Instant</string>
+    <string name="PengramSessionErrBroken">This file cannot be read: it is damaged, not a session, or made by an unsupported client</string>
+    <string name="PengramSessionErrInvalidKey">The file has no valid 256-byte auth key</string>
+    <string name="PengramSessionErrTest">Test servers are not supported</string>
+    <string name="PengramSessionErrBot">Bot sessions cannot be used to sign in to the app</string>
+    <string name="PengramSessionErrMultiple">The file has more than one session row — pick a single-account file</string>
+    <string name="PengramSessionErrPassword">This tdata is protected by a passcode, which is not supported</string>
+    <string name="PengramSessionErrRevoked">The session is no longer valid: it was revoked or the key is unknown to Telegram</string>
+    <string name="PengramSessionErrDuplicated">Telegram sees this key in two places and ended the session as a duplicate. Restore it in the original client or use safe mode</string>
+    <string name="PengramSessionErrBanned">This account is deactivated or banned</string>
+    <string name="PengramSessionErrFlood">Telegram is asking to wait before the next attempt</string>
+    <string name="PengramSessionErrApi">Telegram rejected the app credentials for this sign-in</string>
+    <string name="PengramSessionErrNoSlot">No free account slot for the temporary connection</string>
+    <string name="PengramSessionErrTimeout">Telegram did not finish the sign-in in time — try again</string>
+    <string name="PengramSessionErrNetwork">Network error while signing in</string>
     <string name="PengramLocalKeepHeader">Local copy</string>
     <string name="PengramLocalKeep">Keep chats and history on the device</string>
     <string name="PengramLocalKeepInfo">If you are removed from a group or a chat becomes unavailable, it stays in the list and opens read-only with everything already downloaded. Messages deleted on the server stay in the chat, and a revoked session no longer signs you out: the account keeps working offline as a local copy. Nothing is sent anywhere.</string>

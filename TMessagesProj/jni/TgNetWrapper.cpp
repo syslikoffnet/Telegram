@@ -252,6 +252,28 @@ jint getConnectionState(JNIEnv *env, jclass c, jint instanceNum) {
     return ConnectionsManager::getInstance(instanceNum).getConnectionState();
 }
 
+/**
+ * Pengram: ключ авторизации из файла сессии. keyId считает Java
+ * (младшие 64 бита SHA1 от ключа) — та же формула, что в handshake, и её можно
+ * проверить тестом, не поднимая сеть.
+ */
+void importAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId, jbyteArray key, jlong keyId) {
+    if (key == 0) {
+        return;
+    }
+    const jsize length = env->GetArrayLength(key);
+    if (length != 256) {
+        return;
+    }
+    jbyte *bytes = env->GetByteArrayElements(key, 0);
+    if (bytes != 0) {
+        std::string value((const char *) bytes, (size_t) length);
+        env->ReleaseByteArrayElements(key, bytes, JNI_ABORT);
+        ConnectionsManager::getInstance(instanceNum).importAuthorization(
+                (uint32_t) datacenterId, value, (int64_t) keyId);
+    }
+}
+
 void setUserId(JNIEnv *env, jclass c, jint instanceNum, int64_t id) {
     ConnectionsManager::getInstance(instanceNum).setUserId(id);
 }
@@ -640,6 +662,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_pengramDesyncFakeSupport", "()I", (void *) pengramDesyncFakeSupport},
         {"native_pengramSecurityFlags", "()I", (void *) pengramSecurityFlags},
         {"native_pengramSignatureTrusted", "([B)Z", (void *) pengramSignatureTrusted},
+        {"native_pengramImportAuthKey", "(II[BJ)V", (void *) importAuthKey},
 };
 
 

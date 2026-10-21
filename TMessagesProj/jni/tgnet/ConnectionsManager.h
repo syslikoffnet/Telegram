@@ -62,6 +62,8 @@ public:
     void cancelRequestsForGuid(int32_t guid);
     void bindRequestToGuid(int32_t requestToken, int32_t guid);
     void applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port);
+    /** Pengram: принять готовый ключ авторизации из файла сессии */
+    void importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId);
     void setDelegate(ConnectiosManagerDelegate *connectiosManagerDelegate);
     ConnectionState getConnectionState();
     void setUserId(int64_t userId);

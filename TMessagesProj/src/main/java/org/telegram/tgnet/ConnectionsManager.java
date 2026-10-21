@@ -637,6 +637,15 @@ public class ConnectionsManager extends BaseController {
         native_applyDatacenterAddress(currentAccount, datacenterId, ipAddress, port);
     }
 
+    /**
+     * Pengram: поставить готовый ключ авторизации из файла сессии. Ключ уже
+     * привязан к своему DC, поэтому handshake не нужен: следующий запрос уйдёт
+     * по нему сразу.
+     */
+    public void importAuthorization(int datacenterId, byte[] authKey, long authKeyId) {
+        native_pengramImportAuthKey(currentAccount, datacenterId, authKey, authKeyId);
+    }
+
     public int getConnectionState() {
         if (connectionState == ConnectionStateConnected && isUpdating) {
             return ConnectionStateUpdating;
@@ -1040,6 +1049,7 @@ public class ConnectionsManager extends BaseController {
     public static native void native_cancelRequestsForGuid(int currentAccount, int guid);
     public static native void native_bindRequestToGuid(int currentAccount, int requestToken, int guid);
     public static native void native_applyDatacenterAddress(int currentAccount, int datacenterId, String ipAddress, int port);
+    public static native void native_pengramImportAuthKey(int currentAccount, int datacenterId, byte[] authKey, long authKeyId);
     public static native int native_getConnectionState(int currentAccount);
     public static native void native_setUserId(int currentAccount, long id);
     public static native void native_init(int currentAccount, int version, int layer, int apiId, String deviceModel, String systemVersion, String appVersion, String langCode, String systemLangCode, String configPath, String logPath, String regId, String cFingerprint, String installer, String packageId, int timezoneOffset, long userId, boolean userPremium, boolean enablePushConnection, boolean hasNetwork, int networkType, int performanceClass);
