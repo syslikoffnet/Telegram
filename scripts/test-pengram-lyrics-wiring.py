@@ -17,7 +17,7 @@ assert 'updateTimeScale();' in view and 'stretchEnabled != PengramConfig.isLyric
 assert 'if (lyricsLength > 0) return lyricsLength;' in view
 assert 'PengramLyricsTiming.position(value, progressTime' in view
 assert 'PengramLyricsTiming.sample((long) (this.progress * durationMs)' in view
-assert 'if (smooth && durationMs > 0)' in view
+assert 'if ((smooth || tickerMode) && durationMs > 0)' in view
 assert 'boolean interpolate = previewMode || !timed || PengramConfig.isLyricsSmooth()' in view
 assert 'PengramLyricsTiming.seekFraction(time + PengramLyrics.getOffset(offsetKey), timeScale, durationMs)' in view
 assert 'PengramConfig.KEY_LYRICS_SMOOTH' in settings.split('if (!PengramConfig.isLyricsAuto())', 1)[1].split('items.add(UItem.asHeader(getString(R.string.PengramLyricsHeader)))', 1)[0]
