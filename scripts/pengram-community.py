@@ -69,7 +69,7 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
-BUILD_TAG = "community 2026-10-21.9"
+BUILD_TAG = "community 2026-10-21.10"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
@@ -771,6 +771,29 @@ def is_file_message(message) -> bool:
                                         "MessageMediaEmpty", "MessageMediaGame")
 
 
+async def default_ttl(client):
+    """Автоудаление «по умолчанию» для новых чатов аккаунта. None — не проверить."""
+    from telethon.tl.functions.messages import GetDefaultHistoryTTLRequest
+
+    try:
+        result = await client(GetDefaultHistoryTTLRequest())
+        return getattr(result, "period", 0) or 0
+    except Exception:
+        return None
+
+
+async def default_ttl_off(client) -> bool | None:
+    """Выключает автоудаление по умолчанию для новых чатов аккаунта."""
+    from telethon.tl.functions.messages import SetDefaultHistoryTTLRequest
+
+    try:
+        await client(SetDefaultHistoryTTLRequest(period=0))
+        return True
+    except Exception as error:
+        warn(f"автоудаление по умолчанию не выключить ({error})")
+        return None
+
+
 async def delete_all_messages(client, entity, keep_ids=()) -> int:
     """Удаляет текстовые сообщения, кроме перечисленных id.
 
@@ -1186,6 +1209,12 @@ async def show_status() -> None:
         line("чат", group)
         line("комменты", comments)
 
+        ttl_default = await default_ttl(client)
+        print("  автоудаление по умолчанию: "
+              + ("не проверить" if ttl_default is None
+                 else "ВЫКЛЮЧЕНО" if ttl_default == 0
+                 else f"включено ({ttl_default} с)"))
+
         for label, entity in (("канал", channel), ("чат", group),
                               ("комменты", comments)):
             if entity is None:
@@ -1531,6 +1560,17 @@ async def apply_plan(args) -> None:
         else:
             problem(f"автоудаление в {label}е", "не удалось выключить")
         await asyncio.sleep(STEP_PAUSE)
+
+    # автоудаление по умолчанию для новых чатов аккаунта
+    was_default = await default_ttl(client)
+    if was_default == 0:
+        log("аккаунт", "автоудаление по умолчанию выключено")
+    elif await default_ttl_off(client):
+        log("аккаунт", "автоудаление по умолчанию выключено "
+                       f"({'было ' + str(was_default) + ' с' if was_default else 'проверить не вышло'})")
+    else:
+        problem("автоудаление по умолчанию", "не удалось выключить")
+    await asyncio.sleep(STEP_PAUSE)
 
     # --- полная пересборка текстов (--reset) -------------------------------
     if getattr(args, "reset", False):

@@ -83,6 +83,7 @@ for topic in ("Баги", "Идеи", "Помощь", "Скриншоты", "Р�
 # --- автоудаление выключено везде ------------------------------------------
 assert "SetHistoryTTLRequest" in source and "set_ttl_off" in source
 assert "chat_ttl" in source                      # проверяем, что было включено
+assert "SetDefaultHistoryTTLRequest" in source   # и умолчание для новых чатов
 
 # --- полная пересборка текстов ---------------------------------------------
 assert '"--reset"' in source
