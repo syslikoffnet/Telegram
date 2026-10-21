@@ -69,7 +69,7 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
-BUILD_TAG = "community 2026-10-21.10"
+BUILD_TAG = "community 2026-10-21.11"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
@@ -130,6 +130,20 @@ COMMENTS = {
         "Обычное общение, баги и идеи — в основном чате: {group}"
     ),
 }
+
+# Подпись к посту с APK. {version} {name} {size} {sha} {group} подставляются сами.
+APK_CAPTION = (
+    "<b>Pengram {version}</b>\n\n"
+    "Файл: {name}\n"
+    "Размер: {size}\n"
+    "SHA-256: <code>{sha}</code>\n\n"
+    "Как поставить:\n"
+    "1. Скачайте файл (не открывайте из архиватора).\n"
+    "2. Разрешите установку из этого источника — это обычное поведение Android.\n"
+    "3. Ставьте поверх старой версии: подпись та же, чаты и настройки останутся.\n\n"
+    "Что нового — в посте выше. Баги и вопросы — {group}, тема «Баги».\n"
+    "Просьба: не выкладывайте APK в открытые чаты и на форумы."
+)
 
 # Папка в клиенте (dialog filter)
 FOLDER = {
@@ -1273,6 +1287,14 @@ async def show_status() -> None:
         except Exception as error:
             print(f"  папка: не проверить ({error})")
 
+        apk = state.get("apk")
+        if apk:
+            print(f"  APK: {apk.get('name')} · {apk.get('version')} · "
+                  f"{apk.get('sha256', '')[:12]}… · пост "
+                  f"#{apk.get('message_id')}")
+        else:
+            print("  APK: ещё не залит (--apk путь/к/файлу.apk)")
+
         links = state.get("links") or {}
         if links:
             print("  ссылки:")
@@ -1281,6 +1303,76 @@ async def show_status() -> None:
         print(f"  состояние: {STATE_PATH}")
     finally:
         await client.disconnect()
+
+
+def human_size(size: int) -> str:
+    for unit in ("Б", "КБ", "МБ", "ГБ"):
+        if size < 1024 or unit == "ГБ":
+            return f"{size:.0f} {unit}" if unit == "Б" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} ГБ"
+
+
+def sha256_of(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+async def send_apk(client, channel, path: Path, args, state, usernames) -> None:
+    """Заливает APK файлом в канал — это и есть публикация беты."""
+    from telethon.tl.types import DocumentAttributeFilename
+
+    if not path.exists() or not path.is_file():
+        warn(f"файла {path} нет")
+        problem("APK", "файл не найден")
+        return
+    size = path.stat().st_size
+    if size == 0:
+        warn(f"файл {path.name} пустой")
+        problem("APK", "пустой файл")
+        return
+    if size > 4 * 1024 ** 3:
+        warn("файл больше 4 ГБ — Telegram такой не примет")
+        problem("APK", "файл слишком большой")
+        return
+
+    version = getattr(args, "apk_version", None) or "бета"
+    log("апк", f"считаю SHA-256 и загружаю {path.name} ({human_size(size)})")
+    digest = sha256_of(path)
+    caption = (APK_CAPTION
+               .replace("{version}", version)
+               .replace("{name}", path.name)
+               .replace("{size}", human_size(size))
+               .replace("{sha}", digest))
+    caption = format_text(caption, usernames)
+
+    try:
+        message = await client.send_file(
+            channel, str(path),
+            caption=caption, parse_mode="html",
+            force_document=True, supports_streaming=False,
+            attributes=[DocumentAttributeFilename(file_name=path.name)])
+    except Exception as error:
+        warn(f"APK не загрузился: {error}")
+        problem("APK", error)
+        return
+
+    log("апк", f"готово: пост #{getattr(message, 'id', '?')}")
+    state["apk"] = {"name": path.name, "size": size, "sha256": digest,
+                    "message_id": getattr(message, "id", None),
+                    "version": version}
+    save_state(state)
+
+    if getattr(args, "apk_pin", False):
+        if await pin_safe(client, channel, getattr(message, "id", None)):
+            state["channel_pin_done"] = True
+            save_state(state)
+            log("апк", "закреплён в канале")
 
 
 async def apply_plan(args) -> None:
@@ -1635,6 +1727,10 @@ async def apply_plan(args) -> None:
             problem("закреп канала", "не удалось закрепить")
         await asyncio.sleep(STEP_PAUSE)
 
+    if getattr(args, "apk", None):
+        await send_apk(client, channel, Path(args.apk), args, state, usernames)
+        await asyncio.sleep(STEP_PAUSE)
+
     # --- закреп в общей теме чата ----------------------------------------
     general_pinned = await pinned_in_chat(client, group)
     if general_pinned is True:
@@ -1970,6 +2066,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", action="store_true",
                         help="показать, что реально стоит в Telegram (ничего "
                              "не меняет): аватарки, закрепы, темы, папка, ссылки")
+    parser.add_argument("--apk", default=None,
+                        help="залить APK в канал (путь к файлу) — это и есть "
+                             "публикация беты")
+    parser.add_argument("--apk-version", default=None,
+                        help="подпись версии под APK, например 1.0.0 beta 9")
+    parser.add_argument("--apk-pin", action="store_true",
+                        help="закрепить пост с APK в канале")
     parser.add_argument("--show-texts", action="store_true",
                         help="в просмотре показать все тексты целиком")
     parser.add_argument("--reset", action="store_true",
@@ -2006,6 +2109,10 @@ def main() -> int:
         name_for(args.group_avatar)
         name_for(args.comments_avatar)
 
+        if args.apk:
+            if not Path(args.apk).exists():
+                raise Stop(f"нет файла {args.apk}. Укажите путь к APK.")
+            args.apply = True
         if args.repair or args.reset:
             args.apply = True
 

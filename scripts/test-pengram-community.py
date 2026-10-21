@@ -151,6 +151,13 @@ assert "async def start_client" in source      # понятные ошибки �
 assert 'parser.add_argument("--status"' in source
 assert "os.replace(tmp, STATE_PATH)" in source  # состояние пишется атомарно
 
+# --- заливка APK в канал ---------------------------------------------------
+assert '"--apk"' in source and '"--apk-pin"' in source
+assert "async def send_apk" in source
+assert "sha256_of" in source and "APK_CAPTION" in source
+assert "force_document=True" in source            # файл, а не «фото/видео»
+assert "DocumentAttributeFilename" in source      # имя файла сохраняется
+
 # --- тексты без опечаток ---------------------------------------------------
 assert '.replace("@@", "@")' in source           # «@@имя» не появится
 assert '"title": "Баги"' in source and '"title": "🐞 Баги"' not in source
