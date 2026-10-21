@@ -69,7 +69,7 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
-BUILD_TAG = "community 2026-10-21.4"
+BUILD_TAG = "community 2026-10-21.5"
 
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
@@ -116,6 +116,19 @@ GROUP = {
     ],
     # только админы могут добавлять людей: спам-боты не затащат своих
     "invite_admins_only": True,
+}
+
+# Группа для комментариев к постам канала.
+# Telegram не разрешает привязать к каналу форум (ошибка FORUM_ENABLED),
+# поэтому комментарии живут в отдельной обычной супергруппе.
+COMMENTS = {
+    "title": "Pengram · Обсуждение",
+    "about": "Комментарии к постам канала Pengram. Общий чат — @pengram_chat.",
+    "pinned": (
+        "Здесь появляются комментарии к постам канала.\n\n"
+        "Нажмите «Комментировать» под любым постом — сообщение придёт сюда.\n"
+        "Обычное общение, баги и идеи — в основном чате: @{group}"
+    ),
 }
 
 # Папка в клиенте (dialog filter)
@@ -497,6 +510,10 @@ def print_plan(args) -> None:
         first = post["text"].split("\n")[0]
         print(f"  • {first} ({len(post['text'])} символов){pin}")
 
+    print("\nКОММЕНТАРИИ К ПОСТАМ")
+    print(f"  группа «{COMMENTS['title']}» (форум к каналу привязать нельзя)")
+    print(f"  аватарка:  номер {getattr(args, 'comments_avatar', 2)}")
+
     print("\nЗАКРЕПЫ В ЧАТЕ")
     print(f"  • общая тема: правила и навигация ({len(GROUP_PINNED)} символов)")
     for topic in TOPICS:
@@ -519,7 +536,7 @@ def print_plan(args) -> None:
             print(topic["pinned"])
 
     print("\nПОСЛЕ СОЗДАНИЯ")
-    print("  • канал и чат связываются: комментарии к постам идут в чат")
+    print("  • канал и чат связываются, комментарии идут в отдельную группу")
     print("  • печатаются invite-ссылки для раздачи тестерам")
     print()
     print("Запустить по-настоящему:  python3 scripts/pengram-community.py --apply")
@@ -615,15 +632,15 @@ async def resolve_saved(client, state: dict, id_key: str, hash_key: str,
     Просто get_entity(id) ненадёжен: без access_hash Telegram отвечает
     «could not find the input entity». Поэтому: access_hash из состояния →
     get_entity(id) → поиск среди своих диалогов по точному названию.
+    Поиск по названию спасает и тогда, когда файл состояния потерялся —
+    иначе скрипт создал бы второй канал.
     """
     from telethon.tl.types import InputChannel
 
     entity_id = state.get(id_key)
-    if not entity_id:
-        return None
 
-    access_hash = state.get(hash_key)
-    if access_hash:
+    access_hash = state.get(hash_key) if entity_id else None
+    if entity_id and access_hash:
         candidate = InputChannel(entity_id, access_hash)
         try:
             found = await client.get_entity(candidate)
@@ -634,14 +651,15 @@ async def resolve_saved(client, state: dict, id_key: str, hash_key: str,
         except Exception:
             pass
 
-    try:
-        found = await client.get_entity(entity_id)
-        if found is not None:
-            state[hash_key] = getattr(found, "access_hash", None)
-            save_state(state)
-            return found
-    except Exception:
-        pass
+    if entity_id:
+        try:
+            found = await client.get_entity(entity_id)
+            if found is not None:
+                state[hash_key] = getattr(found, "access_hash", None)
+                save_state(state)
+                return found
+        except Exception:
+            pass
 
     try:
         async for dialog in client.iter_dialogs(limit=200):
@@ -772,14 +790,30 @@ async def ensure_username(client, entity, candidates, *, label: str,
     return None
 
 
-async def post_safe(client, entity, text: str, *, reply_to=None, parse_mode="html"):
+async def post_safe(client, entity, text: str, *, topic_id=None):
+    """Публикует текст. topic_id — сообщение уходит внутрь темы форума.
+
+    Через client.send_message этого не сделать: он не умеет ставить
+    top_msg_id, без которого форум отправляет сообщение в общую тему
+    (а в старых версиях вообще падал на InputReplyToMessage).
+    """
     from telethon.errors import FloodWaitError
+    from telethon.tl.functions.messages import SendMessageRequest
+    from telethon.tl.types import InputReplyToMessage
 
     for attempt in range(4):
         try:
-            return await client.send_message(
-                entity, text, reply_to=reply_to, parse_mode=parse_mode,
-                link_preview=False)
+            reply_to = None
+            if topic_id:
+                reply_to = InputReplyToMessage(
+                    reply_to_msg_id=topic_id, top_msg_id=topic_id)
+            return await client(SendMessageRequest(
+                peer=peer(entity),
+                message=text,
+                random_id=random.getrandbits(63),
+                no_webpage=True,
+                reply_to=reply_to,
+            ))
         except FloodWaitError as error:
             wait = int(getattr(error, "seconds", 5)) + 2
             warn(f"Telegram просит подождать {wait} с (flood) — жду")
@@ -806,8 +840,7 @@ async def apply_plan(args) -> None:
                                                 ExportChatInviteRequest,
                                                 GetForumTopicsRequest,
                                                 UpdateDialogFilterRequest)
-    from telethon.tl.types import (ChatBannedRights, DialogFilter,
-                                   InputReplyToMessage, TextWithEntities)
+    from telethon.tl.types import ChatBannedRights, DialogFilter, TextWithEntities
 
     print(f"[сборка] {BUILD_TAG}", flush=True)
     api_id, api_hash = read_api_credentials()
@@ -940,15 +973,66 @@ async def apply_plan(args) -> None:
         await asyncio.sleep(STEP_PAUSE)
 
     # --- связка канал ↔ чат ----------------------------------------------
-    if not state.get("linked"):
+    # Telegram не даёт привязать к каналу форум (FORUM_ENABLED): комментарии
+    # могут жить только в обычной супергруппе. Тогда заводим её отдельно.
+    comments = await resolve_saved(client, state, "comments_id",
+                                   "comments_access_hash",
+                                   COMMENTS["title"], True)
+
+    if not state.get("linked") and state.get("comments_id") is None:
         log("связка", "комментарии к постам канала → в чат")
         try:
             await client(SetDiscussionGroupRequest(broadcast=channel, group=group))
             state["linked"] = True
             save_state(state)
+            log("связка", "готово")
         except RPCError as error:
-            warn(f"не получилось связать автоматически: {error}. "
-                 f"Вручную: канал → управление → «Обсуждение» → выбрать чат.")
+            if "FORUM_ENABLED" in str(error).upper():
+                log("связка", "форум привязать нельзя — создаю отдельную "
+                              "группу для комментариев")
+            else:
+                warn(f"связать автоматически не вышло: {error}")
+        await asyncio.sleep(STEP_PAUSE)
+
+    if not state.get("linked") and comments is None:
+        try:
+            comments = await create_entity(
+                client, title=COMMENTS["title"], about=COMMENTS["about"][:255],
+                megagroup=True)
+            state["comments_id"] = comments.id
+            state["comments_access_hash"] = getattr(comments, "access_hash", None)
+            save_state(state)
+            log("связка", f"создана группа «{COMMENTS['title']}»")
+            await asyncio.sleep(STEP_PAUSE)
+
+            photo = avatar_path(getattr(args, "comments_avatar", 2), required=False)
+            if photo is not None:
+                await set_photo(client, comments, photo)
+                log("связка", f"аватарка: {photo.name}")
+                await asyncio.sleep(STEP_PAUSE)
+        except RPCError as error:
+            warn(f"группу для комментариев создать не удалось: {error}")
+            comments = None
+
+    if not state.get("linked") and comments is not None:
+        try:
+            await client(SetDiscussionGroupRequest(
+                broadcast=channel, group=comments))
+            state["linked"] = True
+            save_state(state)
+            log("связка", "комментарии к постам идут в отдельную группу")
+        except RPCError as error:
+            warn(f"привязать комментарии не вышло: {error}. "
+                 f"Вручную: канал → управление → «Обсуждение».")
+        await asyncio.sleep(STEP_PAUSE)
+
+    if comments is not None and not state.get("comments_pin_done"):
+        message = await post_safe(
+            client, comments, format_text(COMMENTS["pinned"], usernames))
+        await pin_safe(client, comments, message)
+        state["comments_pin_done"] = True
+        save_state(state)
+        log("связка", "правила закреплены в группе комментариев")
         await asyncio.sleep(STEP_PAUSE)
 
     # --- посты канала -----------------------------------------------------
@@ -1071,8 +1155,7 @@ async def apply_plan(args) -> None:
             log("закреп", f"тема «{topic['title']}» уже с закрепом")
             continue
         message = await post_safe(
-            client, group, topic["pinned"],
-            reply_to=InputReplyToMessage(reply_to_msg_id=topic_id))
+            client, group, topic["pinned"], topic_id=topic_id)
         await pin_safe(client, group, message)
         pinned_state[key] = message.id
         save_state(state)
@@ -1136,7 +1219,10 @@ async def apply_plan(args) -> None:
 
     # --- ссылки -----------------------------------------------------------
     links = {}
-    for name, entity in (("channel", channel), ("group", group)):
+    targets = [("channel", channel), ("group", group)]
+    if comments is not None:
+        targets.append(("comments", comments))
+    for name, entity in targets:
         try:
             invite = await client(ExportChatInviteRequest(peer=peer(entity)))
             links[name] = invite.link
@@ -1207,6 +1293,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="номер аватарки канала (по умолчанию 1)")
     parser.add_argument("--group-avatar", type=int, default=3,
                         help="номер аватарки чата (по умолчанию 3)")
+    parser.add_argument("--comments-avatar", type=int, default=2,
+                        help="номер аватарки группы комментариев (по умолчанию 2)")
     parser.add_argument("--channel-username", default=None,
                         help="свой username для канала (без @)")
     parser.add_argument("--group-username", default=None,
@@ -1237,6 +1325,7 @@ def main() -> int:
 
         name_for(args.channel_avatar)
         name_for(args.group_avatar)
+        name_for(args.comments_avatar)
 
         if args.repair:
             args.apply = True

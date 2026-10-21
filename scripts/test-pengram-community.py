@@ -75,6 +75,11 @@ for emoji_title in ("🐞 Баги", "💡 Идеи", "🛠 Помощь", "📸
     assert emoji_title in source, emoji_title
 
 assert "EditForumTopicRequest" in source          # старые темы переименовываются
+assert "SendMessageRequest" in source             # topic_id через top_msg_id
+assert "top_msg_id=topic_id" in source
+assert "FORUM_ENABLED" in source                  # форум к каналу не привязать
+assert "COMMENTS" in source and "Обсуждение" in source
+assert "iter_dialogs" in source                   # поиск и без файла состояния
 assert "has_photo(" in source                     # аватарка проверяется по факту
 assert "pinned_in_chat(" in source and "pinned_in_topic(" in source
 assert "GetFullChannelRequest" in source          # закреп канала проверяется
