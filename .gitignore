@@ -30,3 +30,7 @@ api.properties
 # Python bytecode from the test scripts
 __pycache__/
 *.pyc
+
+# сессия и состояние скрипта сообщества (скрипт кладёт их в домашнюю папку,
+# но на всякий случай — если кто-то запустил с другим --session)
+.pengram-community*
