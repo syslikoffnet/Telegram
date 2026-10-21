@@ -2157,6 +2157,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
      * приходят вовсе, если экран чата закрыт), и без этого бегущая строка и
      * подсветка выглядели замершей картинкой.
      */
+    /** когда насос последний раз перепроверял текст (мс) */
+    private long pengramPumpCheckedAt;
+
     private final Runnable pengramTickerPump = new Runnable() {
         @Override
         public void run() {
@@ -2173,7 +2176,15 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             if (playing != null) {
                 pengramTicker.setProgress(playing.audioProgress);
                 if (!pengramTickerShown) {
-                    pengramCheckTicker(playing); // текст мог догрузиться позже
+                    // Поиск текста — не чаще раза в две секунды. Каждый вызов
+                    // поднимает токен, и ответ, который уже в пути, был бы
+                    // выброшен: с шагом 500 мс медленный запрос не доходил бы
+                    // никогда, а быстрый превращался бы в спам.
+                    final long now = System.currentTimeMillis();
+                    if (now - pengramPumpCheckedAt >= 2000) {
+                        pengramPumpCheckedAt = now;
+                        pengramCheckTicker(playing); // текст мог догрузиться позже
+                    }
                 }
             }
             AndroidUtilities.runOnUIThread(this, 500);

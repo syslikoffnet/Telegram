@@ -44,6 +44,10 @@ assert 'AndroidUtilities.runOnUIThread(this, 500);' in context
 assert 'private void pengramStartTickerPump()' in context
 assert 'private void pengramStopTickerPump()' in context
 assert 'pengramStartTickerPump();' in context
+# поиск текста из насоса — не чаще раза в 2 секунды: иначе каждый тик
+# поднимает токен и выбрасывает ответ, который ещё в пути
+assert 'now - pengramPumpCheckedAt >= 2000' in context
+assert 'pengramPumpCheckedAt = now;' in context
 assert 'pengramStopTickerPump();' in context
 
 # --- плеер: поиск текста не зависит от стиля с видимой панелью --------------

@@ -80,6 +80,8 @@ public final class PengramGuard {
         evaluate();
     }
 
+    /** полная переоценка, включая подпись (её значение могло измениться только при обновлении APK) */
+
     /**
      * Перепроверка, если данные устарели: корень настроек можно открывать
      * сколько угодно раз. Карту памяти читаем в фоне — на экране настроек
@@ -104,21 +106,12 @@ public final class PengramGuard {
         }
     }
 
-    private static void evaluate() {
-        int nativeFlags = 0;
-        try {
-            nativeFlags = ConnectionsManager.native_pengramSecurityFlags();
-        } catch (Throwable ignore) {
-            // нативная часть недоступна — остаются Java-проверки ниже
-        }
-        try {
-            if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
-                nativeFlags |= FLAG_DEBUGGER;
-            }
-        } catch (Throwable ignore) {
-        }
-        flags = nativeFlags;
-
+    /**
+     * Подпись — дешёвая проверка (PackageManager + SHA-256), её можно делать
+     * прямо на UI-потоке: именно она решает, показывать ли диалог «сборка
+     * изменена». Окружение (карта памяти на 4 МБ) — только в фоне.
+     */
+    private static synchronized void evaluateSignature() {
         final byte[] certificate = signingCertificate();
         fingerprint = certificate == null ? "" : Utilities.bytesToHex(Utilities.computeSHA256(certificate));
         if (certificate == null) {
@@ -132,6 +125,23 @@ public final class PengramGuard {
             }
             signatureState = trusted ? SIGNATURE_TRUSTED : SIGNATURE_MISMATCH;
         }
+    }
+
+    private static void evaluate() {
+        evaluateSignature();
+        int nativeFlags = 0;
+        try {
+            nativeFlags = ConnectionsManager.native_pengramSecurityFlags();
+        } catch (Throwable ignore) {
+            // нативная часть недоступна — остаются Java-проверки ниже
+        }
+        try {
+            if (Debug.isDebuggerConnected() || Debug.waitingForDebugger()) {
+                nativeFlags |= FLAG_DEBUGGER;
+            }
+        } catch (Throwable ignore) {
+        }
+        flags = nativeFlags;
         evaluatedAt = System.currentTimeMillis();
         evaluated = true;
     }
@@ -174,7 +184,11 @@ public final class PengramGuard {
     }
 
     public static int signatureState() {
-        refreshIfStale();
+        // Без refreshIfStale: подпись читается один раз и дёшево, а полная
+        // перепроверка окружения с чтением карты памяти здесь ни к чему.
+        if (!evaluated) {
+            evaluateSignature();
+        }
         return signatureState;
     }
 
