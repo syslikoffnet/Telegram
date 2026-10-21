@@ -93,4 +93,12 @@ for key in ('PengramQuoteAvatarSize', 'PengramQuoteAvatarGap', 'PengramQuoteAvat
     for lang in ('values', 'values-ru'):
         tree = ET.parse(ROOT / f'res/{lang}/strings.xml')
         assert tree.find(f'.//string[@name="{key}"]') is not None
+# A single copy used to leave "forwarding" in the header for fifteen minutes:
+# the queue cleared the wrong key (dialog 0) instead of the chat it was sending to.
+sender = ROOT / 'java/org/telegram/messenger/PengramCopySender.java'
+sender = sender.read_text()
+assert 'setBusy(dialogId, 0, 0, false);' in sender
+assert 'setBusy(0, 0, 0, false)' not in sender
+assert 'jobs.remove(dialogId)' in sender
+
 print('forwarding and quote geometry: OK')

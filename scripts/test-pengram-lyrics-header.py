@@ -19,8 +19,10 @@ pill = (java / 'org/telegram/ui/Components/ProfileMusicView.java').read_text()
 profile = (java / 'org/telegram/ui/ProfileActivity.java').read_text()
 
 # --- шапка: кадр запрашивается, пока играет, даже без плавности --------------
-assert '|| (tickerMode && playing && activeLine >= 0)' in view
+assert '|| (tickerMode && playing && !layouts.isEmpty())' in view
+assert 'final float wave = 0.5f - 0.5f * (float) Math.cos(phase * Math.PI * 2);' in view
 assert 'postInvalidateOnAnimation();' in view
+assert 'if ((smooth || tickerMode) && durationMs > 0) {' in view
 # экономия «подсветка не сдвинулась» в шапке не применяется
 assert 'if (moving && playing && !previewMode && !tickerMode && !animated(anim)' in view
 

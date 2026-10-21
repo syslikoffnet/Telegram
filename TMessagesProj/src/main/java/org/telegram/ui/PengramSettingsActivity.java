@@ -6951,28 +6951,27 @@ public class PengramSettingsActivity extends UniversalFragment {
          * в настройки занимала пол-экрана — здесь она ужата до карточки.
          */
         private void buildCompact(Context context) {
-            final int size = dp(88);
+            // Компактная шапка повторяет большую по композиции, только ниже:
+            // пингвин, заголовок, версия, реплика и ссылки идут по центру.
+            // Раньше пингвин стоял в левой колонке, а ссылки — отдельной
+            // строкой снизу, и шапка выглядела съехавшей влево.
+            final int size = dp(72);
             createPenguin(context, size);
+            addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));
 
-            final LinearLayout row = new LinearLayout(context);
-            row.setOrientation(HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_VERTICAL, 0, 0, dp(14), 0));
+            addView(createTitle(context, Gravity.CENTER),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                            Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+            addView(createSubtitle(context, Gravity.CENTER),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                            Gravity.CENTER_HORIZONTAL, 0, 2, 0, 0));
 
-            final LinearLayout column = new LinearLayout(context);
-            column.setOrientation(VERTICAL);
-            column.setGravity(Gravity.START);
-            column.addView(createTitle(context, Gravity.START),
-                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-            column.addView(createSubtitle(context, Gravity.START),
-                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
-            bubble = createBubble(context, Gravity.START);
-            column.addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
-            row.addView(column, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL));
-            addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            bubble = createBubble(context, Gravity.CENTER);
+            addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                    Gravity.CENTER_HORIZONTAL, 24, 6, 24, 0));
 
             addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,
-                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0));
+                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
         }
 
         private TextView createTitle(Context context, int gravity) {

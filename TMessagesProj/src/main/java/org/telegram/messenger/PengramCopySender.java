@@ -335,7 +335,10 @@ public final class PengramCopySender {
     private static void next(int account, ArrayList<MessageObject> queue, int index, long dialogId, boolean notify,
                              int[] counters, Result result) {
         if (index >= queue.size()) {
-            setBusy(0, 0, 0, false);
+            // Именно dialogId: ноль здесь оставлял запись чата в jobs, и статус
+            // «идёт пересылка» висел после одной же отправленной копии, пока
+            // его не снимет аварийный тайм-аут.
+            setBusy(dialogId, 0, 0, false);
             try {
                 if (result != null) result.onDone(counters[0], counters[1]);
             } catch (Throwable e) {

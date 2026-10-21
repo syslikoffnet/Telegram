@@ -26,11 +26,13 @@ assert 'headerViewCompact = new PengramHeaderView(getContext(), true);' in setti
 assert 'public PengramHeaderView(Context context, boolean compact)' in settings
 assert 'private void buildCompact(Context context)' in settings
 assert 'private void buildFull(Context context)' in settings
-assert 'final int size = dp(88);' in settings                # пингвин, а не точка
-assert 'row.setOrientation(HORIZONTAL);' in settings
-assert 'column.addView(createTitle(context, Gravity.START)' in settings
-assert 'column.addView(bubble' in settings
-assert 'addView(createLinks(context, 28)' in settings
+assert 'final int size = dp(72);' in settings                # пингвин, а не точка
+# компактная шапка — та же центрированная композиция, что и большая:
+# ни пингвин, ни ссылки не должны уезжать влево
+assert 'addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));' in settings
+assert 'column.addView(createTitle' not in settings
+assert 'addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,\n                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));' in settings
+assert 'bubble = createBubble(context, Gravity.CENTER);' in settings
 # ползунок размера по-прежнему относится к большому превью
 assert 'if (compact) {' in settings
 

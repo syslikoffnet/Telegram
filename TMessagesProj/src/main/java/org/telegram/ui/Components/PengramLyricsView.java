@@ -256,7 +256,7 @@ public class PengramLyricsView extends View {
         try {
             playing = !org.telegram.messenger.MediaController.getInstance().isMessagePaused();
         } catch (Throwable ignore) { }
-        if (smooth && durationMs > 0) {
+        if ((smooth || tickerMode) && durationMs > 0) {
             final org.telegram.messenger.MessageObject playingMessage =
                     org.telegram.messenger.MediaController.getInstance().getPlayingMessageObject();
             if (playingMessage != null && (boundMessageId == Integer.MIN_VALUE
@@ -533,6 +533,14 @@ public class PengramLyricsView extends View {
                 // строка не помещается: едем за поющимся словом, оставляя его слева по центру
                 final float at = Utilities.clamp(lineProgress(activeLine), 1f, 0f) * layout.getWidth();
                 tickerTargetX = Utilities.clamp(at - visible * 0.45f, over, 0);
+            } else if (over > 0) {
+                // Без таймкодов ехать за словом не за чем, но стоять на месте
+                // строка не должна: плавный проход туда-обратно. Иначе в списке
+                // чатов шапка выглядела замершей картинкой.
+                final float period = 11000f;
+                final float phase = (now % (long) period) / period;
+                final float wave = 0.5f - 0.5f * (float) Math.cos(phase * Math.PI * 2);
+                tickerTargetX = over * wave;
             } else {
                 tickerTargetX = 0;
             }
@@ -592,7 +600,10 @@ public class PengramLyricsView extends View {
         boolean moving = Math.abs(scrollY - targetScrollY) > 0.5f
                 || Math.abs(tickerScrollX - tickerTargetX) > 0.5f
                 || enterAnim < 1f || previewMode
-                || (tickerMode && playing && activeLine >= 0)
+                // В шапке кадр нужен всё время, пока играет трек и есть текст:
+                // подсветка, бегущая строка и анимации не должны зависеть от
+                // того, нашлись ли таймкоды и какая открыта вкладка.
+                || (tickerMode && playing && !layouts.isEmpty())
                 || (playing && interpolate && (timed || animated(anim)));
         // Экономию «подсветка не сдвинулась — кадр не нужен» в шапке не
         // применяем: там двигается ещё и бегущая строка.
