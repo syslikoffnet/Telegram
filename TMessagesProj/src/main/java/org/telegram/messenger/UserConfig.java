@@ -24,8 +24,10 @@ import java.util.Arrays;
 public class UserConfig extends BaseController {
 
     public static int selectedAccount;
-    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 3;
-    public final static int MAX_ACCOUNT_COUNT = 4;
+    // Pengram: 14 аккаунтов без Premium и 16 с ним. 16 — жёсткий предел,
+    // на него рассчитаны все массивы аккаунтов в приложении.
+    public final static int MAX_ACCOUNT_DEFAULT_COUNT = 14;
+    public final static int MAX_ACCOUNT_COUNT = 16;
 
     private final Object sync = new Object();
     private volatile boolean configLoaded;
@@ -122,7 +124,7 @@ public class UserConfig extends BaseController {
     }
 
     public static int getMaxAccountCount() {
-        return hasPremiumOnAccounts() ? 5 : 3;
+        return hasPremiumOnAccounts() ? MAX_ACCOUNT_COUNT : MAX_ACCOUNT_DEFAULT_COUNT;
     }
 
     public int getNewMessageId() {
@@ -252,6 +254,19 @@ public class UserConfig extends BaseController {
         }
     }
 
+    /**
+     * Pengram: аккаунт бота. Вход по токену BotFather выдаёт пользователя с
+     * флагом bot и без номера телефона, поэтому всё, что опирается на номер
+     * (телефонная книга, contacts.getContacts, импорт контактов), для такого
+     * аккаунта нужно пропускать: сервер отвечает на contacts.* ошибкой, и
+     * список контактов зависал бы в вечной загрузке.
+     */
+    public boolean isBotAccount() {
+        synchronized (sync) {
+            return currentUser != null && currentUser.bot;
+        }
+    }
+
     public TLRPC.User getCurrentUser() {
         synchronized (sync) {
             return currentUser;
@@ -264,6 +279,8 @@ public class UserConfig extends BaseController {
             currentUser = user;
             clientUserId = user.id;
             checkPremiumSelf(oldUser, user);
+            // An account added after app startup still needs its opt-in auto-reply observer.
+            AndroidUtilities.runOnUIThread(() -> PengramAIAutoReply.register(currentAccount));
         }
     }
 
@@ -459,6 +476,11 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        PengramAIAutoReply.clearAccount(currentAccount);
+        PengramProfileHistory.clearAccount(currentAccount);
+        PengramOriginalName.clearAccount(currentAccount);
+        PengramConfig.clearSpyProfile(currentAccount);
+        PengramHistory.clearAccount(currentAccount);
         getPreferences().edit().clear().apply();
 
         sharingMyLocationUntil = 0;
@@ -571,15 +593,60 @@ public class UserConfig extends BaseController {
         }
     }
 
+    /**
+     * Настоящий премиум аккаунта.
+     *
+     * Pengram: локальный «премиум» сюда намеренно не подмешивается. Этот метод
+     * спрашивают сотни мест в коде, и почти везде вопрос звучит как «можно ли
+     * выполнить действие», а не «рисовать ли звёздочку». Если соврать здесь,
+     * клиент начнёт отправлять на сервер запросы, которые тот отобьёт
+     * PREMIUM_ACCOUNT_REQUIRED, — и получатся зависшие сообщения и вечные
+     * спиннеры. Для звёздочки есть MessagesController.isPremiumUserForDisplay.
+     */
     public boolean isPremium() {
-        if (PengramConfig.isLocalPremium()) {
-            return true;
-        }
         TLRPC.User user = currentUser;
         if (user == null) {
             return false;
         }
         return user.premium;
+    }
+
+    /**
+     * Pengram: звёздочка локального премиума.
+     *
+     * Раньше этот метод писал user.premium = true прямо в объект пользователя и
+     * сохранял его на диск. Подделка после этого жила своей жизнью: переживала
+     * перезапуск, оставалась после выключения тумблера и выглядела для всего
+     * остального кода как настоящая подписка. Теперь флаг в объекте не трогаем
+     * вовсе — звёздочку рисует отдельная проверка при отрисовке, — а здесь
+     * только чиним то, что успели испортить прежние версии, и просим интерфейс
+     * перерисоваться.
+     */
+    public void pengramApplyLocalPremiumStatus() {
+        final TLRPC.User user = currentUser;
+        if (user == null) {
+            return;
+        }
+        boolean repaired = false;
+        if (PengramConfig.getBool("localPremiumStatusApplied", false)) {
+            // наследство старых сборок: снимаем подделку с сохранённого профиля
+            if (user.premium) {
+                user.premium = false;
+                saveConfig(true);
+                repaired = true;
+            }
+            final TLRPC.User cached = MessagesController.getInstance(currentAccount).getUser(user.id);
+            if (cached != null && cached != user && cached.premium) {
+                cached.premium = false;
+                repaired = true;
+            }
+            PengramConfig.setBool("localPremiumStatusApplied", false);
+        }
+        if (repaired) {
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
+        }
+        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
+        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS);
     }
 
     public Long getEmojiStatus() {

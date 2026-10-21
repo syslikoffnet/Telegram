@@ -597,6 +597,18 @@ public class ContactsController extends BaseController {
     }
 
     public void readContacts() {
+        if (getUserConfig().isBotAccount()) {
+            // Сервер не отдаёт ботам contacts.getContacts, а телефонной книги у
+            // такого аккаунта нет вовсе. Снимаем флаг загрузки и сообщаем, что
+            // контакты «загружены», иначе список контактов крутил бы спиннер.
+            synchronized (loadContactsSync) {
+                loadingContacts = false;
+            }
+            contactsLoaded = true;
+            contactsBookLoaded = true;
+            AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad));
+            return;
+        }
         synchronized (loadContactsSync) {
             if (loadingContacts) {
                 return;
@@ -1001,6 +1013,10 @@ public class ContactsController extends BaseController {
 
     protected void performSyncPhoneBook(final HashMap<String, Contact> contactHashMap, final boolean request, final boolean first, final boolean schedule, final boolean force, final boolean checkCount, final boolean canceled) {
         if (!first && !contactsBookLoaded) {
+            return;
+        }
+        if (getUserConfig().isBotAccount()) {
+            // contacts.importContacts боту запрещён, да и импортировать нечего.
             return;
         }
         Utilities.globalQueue.postRunnable(() -> {
@@ -1547,6 +1563,13 @@ public class ContactsController extends BaseController {
                         getUserConfig().saveConfig(false);
                     }
                     processLoadedContacts(res.contacts, res.users, 0);
+                } else {
+                    // Ошибка сервера (у ботов contacts.* запрещены) не должна
+                    // оставлять контакты в вечной загрузке.
+                    synchronized (loadContactsSync) {
+                        loadingContacts = false;
+                    }
+                    AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad));
                 }
             });
         }
@@ -2361,16 +2384,68 @@ public class ContactsController extends BaseController {
     }
 
     public void addContact(TLRPC.User user, TLRPC.TL_textWithEntities note, boolean exception) {
+        addContact(user, note, exception, false);
+    }
+
+    /**
+     * Pengram: вернуть контакт, который на мгновение убирали, чтобы увидеть
+     * настоящее имя. В отличие от обычного добавления здесь никогда не
+     * отправляется номер, не запрашивается доступ к номеру собеседника
+     * (add_phone_privacy_exception) и не трогается телефонная книга —
+     * иначе проверка имени создавала бы контакты и могла бы «поделиться»
+     * номером, чего пользователь как раз и не хочет.
+     */
+    public void pengramRestoreContact(TLRPC.User user, Utilities.Callback<Boolean> done) {
+        addContact(user, null, false, true, done);
+    }
+
+    /** тот же возврат, но с заметкой о человеке: карточка должна остаться прежней */
+    public void pengramRestoreContact(TLRPC.User user, TLRPC.TL_textWithEntities note,
+                                      Utilities.Callback<Boolean> done) {
+        addContact(user, note, false, true, done);
+    }
+
+    /** локально снять контакт: без сети, без телефонной книги и без уведомлений */
+    public void pengramMarkContactRemoved(TLRPC.User user) {
         if (user == null) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            user.contact = false;
+            final TLRPC.TL_contact contact = contactsDict.remove(user.id);
+            if (contact != null) {
+                contacts.remove(contact);
+                buildContactsSectionsArrays(false);
+            }
+        });
+    }
+
+    private void addContact(TLRPC.User user, TLRPC.TL_textWithEntities note, boolean exception, boolean silentRestore) {
+        addContact(user, note, exception, silentRestore, null);
+    }
+
+    private void addContact(TLRPC.User user, TLRPC.TL_textWithEntities note, boolean exception,
+                            boolean silentRestore, Utilities.Callback<Boolean> done) {
+        if (user == null) {
+            if (done != null) done.run(false);
             return;
         }
 
         final TLRPC.TL_contacts_addContact req = new TLRPC.TL_contacts_addContact();
         req.id = getMessagesController().getInputUser(user);
+        if (req.id == null) {
+            // без access_hash запрос не собрать; молча падать в сериализации нельзя
+            if (done != null) done.run(false);
+            return;
+        }
         req.first_name = user.first_name;
         req.last_name = user.last_name;
-        req.phone = user.phone;
-        req.add_phone_privacy_exception = exception;
+        req.phone = silentRestore ? "" : user.phone;
+        // Pengram: последний рубеж. Карточку контакта открывают из десятка мест —
+        // из чата, из профиля, из панели «добавить в контакты», — и достаточно
+        // одного пути, где флаг проскочит, чтобы номер уехал навсегда. Поэтому
+        // запрет проверяется здесь, в единственной точке отправки запроса.
+        req.add_phone_privacy_exception = !silentRestore && exception && !PengramConfig.isSharePhoneBlocked();
         if (req.phone == null) {
             req.phone = "";
         } else if (req.phone.length() > 0 && !req.phone.startsWith("+")) {
@@ -2382,6 +2457,7 @@ public class ContactsController extends BaseController {
         }
         getConnectionsManager().sendRequest(req, (response, error) -> {
             if (error != null) {
+                if (done != null) done.run(false);
                 return;
             }
             final TLRPC.Updates res = (TLRPC.Updates) response;
@@ -2399,14 +2475,16 @@ public class ContactsController extends BaseController {
                 if (u.id != user.id) {
                     continue;
                 }
-                Utilities.phoneBookQueue.postRunnable(() -> addContactToPhoneBook(u, true));
+                if (!silentRestore) {
+                    Utilities.phoneBookQueue.postRunnable(() -> addContactToPhoneBook(u, true));
+                }
                 final TLRPC.TL_contact newContact = new TLRPC.TL_contact();
                 newContact.user_id = u.id;
                 final ArrayList<TLRPC.TL_contact> arrayList = new ArrayList<>();
                 arrayList.add(newContact);
                 getMessagesStorage().putContacts(arrayList, false);
 
-                if (!TextUtils.isEmpty(u.phone)) {
+                if (!silentRestore && !TextUtils.isEmpty(u.phone)) {
                     final CharSequence name = formatName(u.first_name, u.last_name);
                     getMessagesStorage().applyPhoneBookUpdates(u.phone, "");
                     final Contact contact = contactsBookSPhones.get(u.phone);
@@ -2473,6 +2551,9 @@ public class ContactsController extends BaseController {
                     mergePhonebookAndTelegramContacts(phoneBookSectionsDict, phoneBookSectionsArray, phoneBookByShortPhones, false);
                 }
                 getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad);
+                if (done != null) {
+                    done.run(true);
+                }
             });
         }, ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagCanCompress);
     }

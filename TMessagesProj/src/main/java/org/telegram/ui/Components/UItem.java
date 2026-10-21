@@ -56,6 +56,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
     public long longValue;
     public Utilities.Callback<Integer> intCallback;
 
+    public boolean adaptiveLayout;
     public View.OnClickListener clickCallback;
     public View.OnClickListener clickCallback2;
     public Utilities.Callback<View> bind;
@@ -231,6 +232,14 @@ public class UItem extends AdapterWithDiffUtils.Item {
         return i;
     }
 
+    public static UItem asButtonLoadingValue(int id, CharSequence text) {
+        UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TEXT, false);
+        i.id = id;
+        i.text = text;
+        i.locked = true;
+        return i;
+    }
+
     public static UItem asButton(int id, int iconResId, CharSequence text) {
         UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TEXT, false);
         i.id = id;
@@ -325,6 +334,16 @@ public class UItem extends AdapterWithDiffUtils.Item {
     public static UItem asButtonCheck(int id, CharSequence text, CharSequence subtext) {
         UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TEXT_CHECK, false);
         i.id = id;
+        i.text = text;
+        i.subtext = subtext;
+        return i;
+    }
+
+    /** Pengram: переключатель с заголовком, подписью и иконкой слева. */
+    public static UItem asIconButtonCheck(int id, int iconResId, CharSequence text, CharSequence subtext) {
+        UItem i = new UItem(UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK, false);
+        i.id = id;
+        i.iconResId = iconResId;
         i.text = text;
         i.subtext = subtext;
         return i;

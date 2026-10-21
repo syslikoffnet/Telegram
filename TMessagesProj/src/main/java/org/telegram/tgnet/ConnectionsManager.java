@@ -86,6 +86,8 @@ public class ConnectionsManager extends BaseController {
     public final static int ConnectionTypeUpload = 4;
     public final static int ConnectionTypePush = 8;
     public final static int ConnectionTypeDownload2 = ConnectionTypeDownload | (1 << 16);
+    // Keep in sync with DOWNLOAD_CONNECTIONS_COUNT in tgnet/Defines.h.
+    public final static int DownloadConnectionsCount = 8;
 
     public final static int FileTypePhoto = 0x01000000;
     public final static int FileTypeVideo = 0x02000000;
@@ -103,6 +105,8 @@ public class ConnectionsManager extends BaseController {
     public final static int RequestFlagDoNotWaitFloodWait = 1024;
     public final static int RequestFlagListenAfterCancel = 2048;
     public final static int RequestFlagFailOnServerErrorsExceptFloodWait = 65536;
+    public final static int RequestFlagSmallDownload = 131072;
+    public final static int RequestFlagDownloadByteBudget = 262144;
 
     public final static int ConnectionStateConnecting = 1;
     public final static int ConnectionStateWaitingForNetwork = 2;
@@ -221,15 +225,23 @@ public class ConnectionsManager extends BaseController {
         try {
             systemLangCode = LocaleController.getSystemLocaleStringIso639().toLowerCase();
             langCode = LocaleController.getLocaleStringIso639().toLowerCase();
-            deviceModel = Build.MANUFACTURER + Build.MODEL;
+            // Pengram: пользователь может подменить имя устройства. Строка
+            // уходит в initConnection и видна в «Активных сеансах».
+            deviceModel = org.telegram.messenger.PengramDeviceName.resolveDeviceModel();
             PackageInfo pInfo = ApplicationLoader.applicationContext.getPackageManager().getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
-            appVersion = pInfo.versionName + " (" + pInfo.versionCode + ")";
+            // Версия приложения тоже часть «паспорта»: у Android это
+            // «11.4.2 (5230)», у десктопа — просто номер. Иначе подменённый Mac
+            // выдаёт себя строкой с номером сборки Android.
+            appVersion = org.telegram.messenger.PengramDeviceName.resolveAppVersion(
+                    pInfo.versionName + " (" + pInfo.versionCode + ")");
             if (BuildVars.DEBUG_PRIVATE_VERSION) {
                 appVersion += " pbeta";
             } else if (BuildVars.DEBUG_VERSION) {
                 appVersion += " beta";
             }
-            systemVersion = "SDK " + Build.VERSION.SDK_INT;
+            // Версия системы тоже подменяема: iPhone с «SDK 34» сразу выдаёт
+            // себя, поэтому строка идёт из того же раздела настроек.
+            systemVersion = org.telegram.messenger.PengramDeviceName.resolveSystemVersion();
         } catch (Exception e) {
             systemLangCode = "en";
             langCode = "";
@@ -266,6 +278,14 @@ public class ConnectionsManager extends BaseController {
             userPremium = getUserConfig().getCurrentUser().premium;
         }
         init(SharedConfig.buildVersion(), TLRPC.LAYER, BuildVars.APP_ID, deviceModel, systemVersion, appVersion, langCode, systemLangCode, configPath, FileLog.getNetworkLogPath(), pushString, fingerprint, timezoneOffset, getUserConfig().getClientUserId(), userPremium, enablePushConnection);
+        // Pengram: одна строка lang_pack в initConnection — и сервер помечает
+        // сеанс «android». Ставим платформу сразу после native_init, чтобы уже
+        // первый запрос ушёл с заявленным устройством.
+        try {
+            native_pengramSetPlatform(currentAccount, org.telegram.messenger.PengramDeviceName.resolveLangPack(),
+                    org.telegram.messenger.PengramDeviceName.isDesktopSpoof());
+        } catch (Throwable ignore) {
+        }
     }
 
     private String getRegId() {
@@ -473,7 +493,18 @@ public class ConnectionsManager extends BaseController {
                     FileLog.e(e);
                 }
             }, onQuickAck, onWriteToSocket);
-            native_sendRequest(currentAccount, buffer.address, flags, datacenterId, connectionType, immediate, requestToken);
+            int downloadSize = 0;
+            // Only FileLoadOperation opts in. Live call segments retain their existing scheduling.
+            if ((flags & RequestFlagDownloadByteBudget) != 0 && (connectionType & 0xffff) == ConnectionTypeDownload) {
+                if (object instanceof TLRPC.TL_upload_getFile) {
+                    downloadSize = ((TLRPC.TL_upload_getFile) object).limit;
+                } else if (object instanceof TLRPC.TL_upload_getWebFile) {
+                    downloadSize = ((TLRPC.TL_upload_getWebFile) object).limit;
+                } else if (object instanceof TLRPC.TL_upload_getCdnFile) {
+                    downloadSize = ((TLRPC.TL_upload_getCdnFile) object).limit;
+                }
+            }
+            native_sendRequest(currentAccount, buffer.address, flags, datacenterId, connectionType, immediate, requestToken, downloadSize);
         } catch (Exception e) {
             FileLog.e(e);
         }
@@ -604,6 +635,32 @@ public class ConnectionsManager extends BaseController {
 
     public void applyDatacenterAddress(int datacenterId, String ipAddress, int port) {
         native_applyDatacenterAddress(currentAccount, datacenterId, ipAddress, port);
+    }
+
+    /**
+     * Pengram: поставить готовый ключ авторизации из файла сессии. Ключ уже
+     * привязан к своему DC, поэтому handshake не нужен: следующий запрос уйдёт
+     * по нему сразу.
+     */
+    public void importAuthorization(int datacenterId, byte[] authKey, long authKeyId) {
+        native_pengramImportAuthKey(currentAccount, datacenterId, authKey, authKeyId);
+    }
+
+    /**
+     * Pengram: сделать DC домашним, не трогая авторизацию. Нужно для входа по
+     * login-token: токен создан на конкретном DC и импортируется только там.
+     */
+    public void selectHomeDatacenter(int datacenterId) {
+        native_pengramSelectHomeDatacenter(currentAccount, datacenterId);
+    }
+
+    /**
+     * Pengram: копия постоянного ключа аккаунта для экспорта сессии.
+     * Возвращает id DC или 0, если ключа ещё нет. Блокирующий вызов — только
+     * из фонового потока.
+     */
+    public int copyAuthKey(byte[] out) {
+        return native_pengramCopyAuthKey(currentAccount, out);
     }
 
     public int getConnectionState() {
@@ -788,15 +845,16 @@ public class ConnectionsManager extends BaseController {
         }
     }
 
+    @Keep
     public static void onUnparsedMessageReceived(long address, final int currentAccount, long messageId) {
         try {
             NativeByteBuffer buff = NativeByteBuffer.wrap(address);
             buff.setDataSourceType(TLDataSourceType.NETWORK);
             buff.reused = true;
             int constructor = buff.readInt32(true);
-            final TLObject message = TLClassStore.Instance().TLdeserialize(buff, constructor, true);
+            final TLRPC.Updates message = TLRPC.Updates.TLdeserialize(buff, constructor, true);
             FileLog.dumpUnparsedMessage(message, messageId, currentAccount);
-            if (message instanceof TLRPC.Updates) {
+            if (message != null) {
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("java received " + message);
                 }
@@ -831,6 +889,12 @@ public class ConnectionsManager extends BaseController {
         AndroidUtilities.runOnUIThread(() -> {
             AccountInstance accountInstance = AccountInstance.getInstance(currentAccount);
             if (accountInstance.getUserConfig().getClientUserId() != 0) {
+                // Pengram: локальная копия — сессия отозвана, но аккаунт, чаты и
+                // скачанные файлы остаются. Сеть выключаем, чтобы 401 не сыпался
+                // в интерфейс: дальше можно читать только кэш.
+                if (org.telegram.messenger.PengramLocalKeep.keepRevokedAccount(currentAccount)) {
+                    return;
+                }
                 accountInstance.getUserConfig().clearConfig();
                 accountInstance.getMessagesController().performLogout(0);
             }
@@ -996,17 +1060,26 @@ public class ConnectionsManager extends BaseController {
     public static native int native_getCurrentDatacenterId(int currentAccount);
     public static native long native_getCurrentAuthKeyId(int currentAccount);
     public static native int native_getTimeDifference(int currentAccount);
-    public static native void native_sendRequest(int currentAccount, long object, int flags, int datacenterId, int connectionType, boolean immediate, int requestToken);
+    public static native void native_sendRequest(int currentAccount, long object, int flags, int datacenterId, int connectionType, boolean immediate, int requestToken, int downloadSize);
     public static native void native_cancelRequest(int currentAccount, int token, boolean notifyServer);
     public static native void native_cleanUp(int currentAccount, boolean resetKeys);
     public static native void native_cancelRequestsForGuid(int currentAccount, int guid);
     public static native void native_bindRequestToGuid(int currentAccount, int requestToken, int guid);
     public static native void native_applyDatacenterAddress(int currentAccount, int datacenterId, String ipAddress, int port);
+    public static native void native_pengramImportAuthKey(int currentAccount, int datacenterId, byte[] authKey, long authKeyId);
+    public static native void native_pengramSelectHomeDatacenter(int currentAccount, int datacenterId);
+    public static native int native_pengramCopyAuthKey(int currentAccount, byte[] out);
     public static native int native_getConnectionState(int currentAccount);
     public static native void native_setUserId(int currentAccount, long id);
     public static native void native_init(int currentAccount, int version, int layer, int apiId, String deviceModel, String systemVersion, String appVersion, String langCode, String systemLangCode, String configPath, String logPath, String regId, String cFingerprint, String installer, String packageId, int timezoneOffset, long userId, boolean userPremium, boolean enablePushConnection, boolean hasNetwork, int networkType, int performanceClass);
     public static native void native_setProxySettings(int currentAccount, String address, int port, String username, String password, String secret);
     public static native void native_setLangCode(int currentAccount, String langCode);
+    /** Pengram: платформа (lang_pack) и отказ от android-параметров initConnection */
+    public static native void native_pengramSetPlatform(int currentAccount, String langPack, boolean desktopSpoof);
+    /** Pengram: отладчик/хуки/root — биты см. {@link org.telegram.messenger.PengramGuard} */
+    public static native int native_pengramSecurityFlags();
+    /** Pengram: сверка сертификата APK с отпечатком, зашитым в сборку */
+    public static native boolean native_pengramSignatureTrusted(byte[] certificate);
     public static native void native_setRegId(int currentAccount, String regId);
     public static native void native_setSystemLangCode(int currentAccount, String langCode);
     public static native void native_setJava(boolean useJavaByteBuffers);
@@ -1019,6 +1092,15 @@ public class ConnectionsManager extends BaseController {
     public static native void native_receivedIntegrityCheckClassic(int currentAccount, int requestToken, String nonce, String token);
     public static native void native_receivedCaptchaResult(int currentAccount, int[] requestTokens, String token);
     public static native boolean native_isGoodPrime(byte[] prime, int g);
+
+    // Pengram: десинхронизация первых пакетов соединения (обход DPI)
+    public static native void native_pengramSetDesync(boolean enabled, int firstPackets,
+                                                      int split1, int split2, int split3,
+                                                      boolean randomSplit, int delayMs,
+                                                      boolean oob, int oobChar, boolean noDelay,
+                                                      boolean fake, int fakeTtl);
+
+    public static native int native_pengramDesyncFakeSupport();
 
 
     public static boolean testNativeTlScheme(NativeByteBuffer buffer, INativeTlTest test) {
@@ -1049,6 +1131,17 @@ public class ConnectionsManager extends BaseController {
 
     @SuppressLint("NewApi")
     protected byte getIpStrategy() {
+        // Pengram: ручной выбор протокола. IPv6 у операторов часто фильтруют
+        // слабее, чем IPv4, поэтому возможность прибить стратегию гвоздями —
+        // полноценный инструмент обхода, а не косметика.
+        final int override = org.telegram.messenger.PengramNet.getIpStrategy();
+        if (override == org.telegram.messenger.PengramNet.IP_V4) {
+            return USE_IPV4_ONLY;
+        } else if (override == org.telegram.messenger.PengramNet.IP_V6) {
+            return USE_IPV6_ONLY;
+        } else if (override == org.telegram.messenger.PengramNet.IP_BOTH) {
+            return USE_IPV4_IPV6_RANDOM;
+        }
         if (Build.VERSION.SDK_INT < 19) {
             return USE_IPV4_ONLY;
         }

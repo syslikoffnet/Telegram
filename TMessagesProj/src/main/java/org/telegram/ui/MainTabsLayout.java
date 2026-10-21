@@ -4,9 +4,21 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.lerp;
 
 import android.annotation.SuppressLint;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RadialGradient;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -232,6 +244,20 @@ public class MainTabsLayout extends AnimatedLinearLayout {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         super.onLayout(changed, l, t, r, b);
         checkVisualWidth();
+        if (pengramGlass) {
+            // ширина вкладок меняется вместе с размером панели, поэтому пятно
+            // подсветки каждый раз подтягиваем к настоящему центру вкладки —
+            // но не мешаем анимации, пока она идёт
+            final View selected = findSelectedTab();
+            final boolean animating = glassGlowAnimator != null && glassGlowAnimator.isRunning();
+            if (selected != null && !animating) {
+                final float target = selected.getX() + selected.getWidth() / 2f;
+                if (glassGlowX <= 0f || Math.abs(target - glassGlowX) > 1f) {
+                    glassGlowX = target;
+                    invalidate();
+                }
+            }
+        }
     }
 
     @Override
@@ -280,6 +306,353 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         return null;
     }
 
+    // ---------------------------------------------------------- liquid glass
+
+    /** «жидкое стекло»: объём, блик и отклик на нажатие поверх размытия */
+    private boolean pengramGlass;
+    private View pengramGlassSelectedTab;
+
+    private float glassGlowX;
+    private float glassSheenT = -1f;
+    private boolean glassSheenForward = true;
+    private ValueAnimator glassSheenAnimator;
+    private ValueAnimator glassGlowAnimator;
+
+    private boolean glassPressDown;
+    private long glassPressStart;
+    private long glassPressRelease;
+    private float glassPressX, glassPressY;
+    /**
+     * Палец можно не только приложить, но и провести по стеклу. Из смещения
+     * считаем направление и скорость, чтобы блик тянулся за пальцем, а не
+     * стоял точкой на месте первого касания.
+     */
+    private float glassPressLastX, glassPressLastY;
+    private float glassDragDx, glassDragDy, glassDragSpeed;
+    private long glassLastMove;
+
+    private final Paint glassPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glassSheenPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint glassGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path glassPath = new Path();
+    private final RectF glassRect = new RectF();
+    private final Rect glassPadding = new Rect();
+    private final Matrix glassMatrix = new Matrix();
+    private LinearGradient glassAmbient;
+    private LinearGradient glassRim;
+    private LinearGradient glassSheen;
+    private RadialGradient glassGlow;
+    private float glassShaderSheenWidth;
+    private int glassShaderWidth, glassShaderHeight;
+    private boolean glassShaderDark;
+
+    public boolean isPengramGlass() {
+        return pengramGlass;
+    }
+
+    /** включено ли оформление; вызывается из MainTabsActivity по настройке */
+    public void setPengramGlass(boolean enabled) {
+        if (pengramGlass == enabled) {
+            return;
+        }
+        pengramGlass = enabled;
+        if (!enabled) {
+            glassSheenT = -1f;
+            glassPressDown = false;
+        } else {
+            final View selected = findSelectedTab();
+            pengramGlassSelectedTab = selected;
+            glassGlowX = selected == null ? getWidth() / 2f : selected.getX() + selected.getWidth() / 2f;
+        }
+        invalidate();
+    }
+
+    /**
+     * Подсветка следует за выбранной вкладкой, а при смене вкладки по полосе
+     * проезжает блик. Вызывается из MainTabsActivity.selectTab().
+     */
+    public void setPengramSelectedTab(@Nullable View tab, boolean animated) {
+        if (!pengramGlass) {
+            return;
+        }
+        if (tab == pengramGlassSelectedTab && tab != null) {
+            return;
+        }
+        pengramGlassSelectedTab = tab;
+        final float target = tab == null ? getWidth() / 2f : tab.getX() + tab.getWidth() / 2f;
+        if (!animated || Math.abs(target - glassGlowX) < 1f) {
+            glassGlowX = target;
+            invalidate();
+            return;
+        }
+        startGlassSheen(target > glassGlowX);
+        if (glassGlowAnimator != null) {
+            glassGlowAnimator.cancel();
+        }
+        glassGlowAnimator = ValueAnimator.ofFloat(glassGlowX, target);
+        glassGlowAnimator.setDuration(340);
+        glassGlowAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        glassGlowAnimator.addUpdateListener(a -> {
+            glassGlowX = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        glassGlowAnimator.start();
+    }
+
+    private void startGlassSheen(boolean forward) {
+        if (!org.telegram.messenger.PengramConfig.isGlassSheenEnabled()) {
+            glassSheenT = -1f;
+            return;
+        }
+        glassSheenForward = forward;
+        glassSheenT = 0f;
+        if (glassSheenAnimator != null) {
+            glassSheenAnimator.cancel();
+        }
+        glassSheenAnimator = ValueAnimator.ofFloat(0f, 1f);
+        glassSheenAnimator.setDuration(640);
+        glassSheenAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        glassSheenAnimator.addUpdateListener(a -> {
+            glassSheenT = (float) a.getAnimatedValue();
+            invalidate();
+        });
+        glassSheenAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                glassSheenT = -1f;
+                invalidate();
+            }
+        });
+        glassSheenAnimator.start();
+        invalidate();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        // аниматоры живут дольше вида при быстром пересоздании панели
+        if (glassSheenAnimator != null) {
+            glassSheenAnimator.cancel();
+            glassSheenAnimator = null;
+        }
+        if (glassGlowAnimator != null) {
+            glassGlowAnimator.cancel();
+            glassGlowAnimator = null;
+        }
+        glassSheenT = -1f;
+        glassPressDown = false;
+        glassPressRelease = 0;
+        glassDragSpeed = 0f;
+        glassDragDx = glassDragDy = 0f;
+        super.onDetachedFromWindow();
+    }
+
+    private float glassPressT() {
+        final long now = SystemClock.uptimeMillis();
+        if (glassPressDown) {
+            return Math.min(1f, (now - glassPressStart) / 150f);
+        }
+        if (glassPressRelease == 0) {
+            return 0f;
+        }
+        return Math.max(0f, 1f - (now - glassPressRelease) / 260f);
+    }
+
+    /** насколько сильно палец «тащит» стекло прямо сейчас (0 — покой) */
+    private float glassDragNow() {
+        if (glassDragSpeed <= 0.001f
+                || !org.telegram.messenger.PengramConfig.isGlassDragEnabled()) {
+            return 0f;
+        }
+        final long idle = SystemClock.uptimeMillis() - glassLastMove;
+        return glassDragSpeed * Math.max(0f, 1f - idle / 420f);
+    }
+
+    private void ensureGlassShaders(int w, int h) {
+        final boolean dark = Theme.isCurrentThemeDark();
+        if (glassShaderWidth == w && glassShaderHeight == h && glassShaderDark == dark) {
+            return;
+        }
+        glassShaderWidth = w;
+        glassShaderHeight = h;
+        glassShaderDark = dark;
+        final float sheenWidth = Math.max(1f, w * 0.42f);
+        glassShaderSheenWidth = sheenWidth;
+        // Свет и тень стекла зависят от темы: на светлой панели блик почти
+        // невидим, если рисовать его той же силой, что и на тёмной.
+        glassAmbient = new LinearGradient(0, 0, 0, h, dark ? new int[]{
+                Theme.multAlpha(0xffffffff, 0.12f),
+                Theme.multAlpha(0xffffffff, 0.02f),
+                Theme.multAlpha(0xff000000, 0.04f)
+        } : new int[]{
+                Theme.multAlpha(0xffffffff, 0.30f),
+                Theme.multAlpha(0xffffffff, 0.07f),
+                Theme.multAlpha(0xff000000, 0.03f)
+        }, new float[]{0f, 0.52f, 1f}, Shader.TileMode.CLAMP);
+        glassRim = new LinearGradient(0, 0, 0, h, dark ? new int[]{
+                Theme.multAlpha(0xffffffff, 0.34f),
+                Theme.multAlpha(0xffffffff, 0.08f),
+                Theme.multAlpha(0xffffffff, 0.03f)
+        } : new int[]{
+                Theme.multAlpha(0xffffffff, 0.85f),
+                Theme.multAlpha(0xff000000, 0.04f),
+                Theme.multAlpha(0xff000000, 0.06f)
+        }, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+        glassSheen = new LinearGradient(-sheenWidth / 2f, 0, sheenWidth / 2f, 0, new int[]{
+                Theme.multAlpha(0xffffffff, 0f),
+                Theme.multAlpha(0xffffffff, dark ? 0.16f : 0.26f),
+                Theme.multAlpha(0xffffffff, dark ? 0.02f : 0.05f),
+                Theme.multAlpha(0xffffffff, 0f)
+        }, new float[]{0f, 0.45f, 0.62f, 1f}, Shader.TileMode.CLAMP);
+        glassGlow = new RadialGradient(0, 0, 1f, new int[]{
+                Theme.multAlpha(0xffffffff, dark ? 0.20f : 0.34f),
+                Theme.multAlpha(0xffffffff, dark ? 0.06f : 0.10f),
+                Theme.multAlpha(0xffffffff, 0f)
+        }, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP);
+    }
+
+    /**
+     * Прямоугольник самого стекла. Фон панели рисуется с внутренним отступом,
+     * и полоса бликов обязана совпадать с ним, иначе поверх пилюли появляется
+     * светлый кант, висящий в воздухе.
+     */
+    private boolean glassGeometry() {
+        final int w = getWidth(), h = getHeight();
+        if (w <= 0 || h <= 0) {
+            return false;
+        }
+        ensureGlassShaders(w, h);
+        glassRect.set(0, 0, w, h);
+        final Drawable background = getBackground();
+        if (background != null) {
+            glassPadding.set(0, 0, 0, 0);
+            background.getPadding(glassPadding);
+            if (glassPadding.left + glassPadding.right < w
+                    && glassPadding.top + glassPadding.bottom < h) {
+                // RectF.inset с четырьмя аргументами есть не на всех API —
+                // считаем края сами, это ровно то же самое
+                glassRect.set(glassPadding.left, glassPadding.top,
+                        w - glassPadding.right, h - glassPadding.bottom);
+            }
+        }
+        glassPath.reset();
+        glassPath.addRoundRect(glassRect, glassRect.height() / 2f, glassRect.height() / 2f,
+                Path.Direction.CW);
+        return true;
+    }
+
+    private void drawGlassBack(Canvas canvas) {
+        if (!glassGeometry()) {
+            return;
+        }
+        final int w = getWidth(), h = getHeight();
+        final float radius = glassRect.height() / 2f;
+
+        final int save = canvas.save();
+        canvas.clipPath(glassPath);
+
+        // объём стекла: сверху светлее, к низу — лёгкая тень
+        glassPaint.setShader(glassAmbient);
+        glassPaint.setStyle(Paint.Style.FILL);
+        canvas.drawRect(glassRect, glassPaint);
+
+        // световое пятно под выбранной вкладкой: мягкий эллипс, а не полоса
+        // от самого верха — иначе стекло выглядит подсвеченным с одной стороны
+        final float pressT = glassPressT();
+        final float drag = glassDragNow();
+        final float dragAngle = (float) Math.toDegrees(Math.atan2(glassDragDy, glassDragDx));
+        // под пальцем стекло «тянется» к нему: подсветка вкладки плавно
+        // смещается и вытягивается по ходу жеста — это и есть «жидкость»
+        final float glowRadius = Math.max(1f, glassRect.width() * 0.17f);
+        // сила блика — пользовательская: 0 % гасит подсветку совсем, 150 %
+        // делает стекло «мокрым», но всё ещё читаемым
+        final float glowK = org.telegram.ui.Components.PengramTabBarGlass.glowScale();
+        final float pull = glassPressDown ? Math.max(pressT, 0.35f) : pressT;
+        final float glowCx = glassGlowX + (glassPressX - glassGlowX) * 0.45f * pull;
+        glassMatrix.reset();
+        glassMatrix.setScale(glowRadius * (1f + 0.40f * drag),
+                Math.max(1f, glassRect.height() * 0.75f) * (1f - 0.18f * drag));
+        if (drag > 0.01f) {
+            glassMatrix.postRotate(dragAngle);
+        }
+        glassMatrix.postTranslate(glowCx, glassRect.centerY());
+        glassGlow.setLocalMatrix(glassMatrix);
+        glassGlowPaint.setShader(glassGlow);
+        glassGlowPaint.setAlpha((int) (255 * Math.min(1f, (0.75f + 0.25f * pressT) * glowK)));
+        canvas.drawRect(glassRect, glassGlowPaint);
+
+        // отклик на касание: свет расходится из точки нажатия и вытягивается
+        // по направлению движения, если палец ведут
+        if (pressT > 0.01f) {
+            glassMatrix.reset();
+            final float pressRadius = AndroidUtilities.dp(42) * (0.6f + 0.4f * pressT);
+            glassMatrix.setScale(pressRadius * (1f + 0.60f * drag),
+                    pressRadius * (1f - 0.30f * drag));
+            if (drag > 0.01f) {
+                glassMatrix.postRotate(dragAngle);
+            }
+            glassMatrix.postTranslate(glassPressX, glassPressY);
+            glassGlow.setLocalMatrix(glassMatrix);
+            glassGlowPaint.setShader(glassGlow);
+            glassGlowPaint.setAlpha((int) (52 * pressT * (1f + 0.9f * drag) * glowK));
+            canvas.drawRect(glassRect, glassGlowPaint);
+
+            // яркая точка под самим пальцем: место, где стекло «схвачено»
+            if (pressT > 0.25f) {
+                glassMatrix.reset();
+                final float core = AndroidUtilities.dp(13) * (0.7f + 0.5f * pressT);
+                glassMatrix.setScale(core * (1f + 0.25f * drag), core * (1f - 0.2f * drag));
+                if (drag > 0.01f) {
+                    glassMatrix.postRotate(dragAngle);
+                }
+                glassMatrix.postTranslate(glassPressX, glassPressY);
+                glassGlow.setLocalMatrix(glassMatrix);
+                glassGlowPaint.setShader(glassGlow);
+                glassGlowPaint.setAlpha((int) (36 * pressT * glowK));
+                canvas.drawRect(glassRect, glassGlowPaint);
+            }
+        }
+
+        glassGlowPaint.setShader(null);
+        canvas.restoreToCount(save);
+
+        // тонкий кант по верхней кромке — стекло «толщиной» в 1dp
+        if (org.telegram.messenger.PengramConfig.isGlassRimEnabled()) {
+            glassPaint.setShader(glassRim);
+            glassPaint.setStyle(Paint.Style.STROKE);
+            glassPaint.setStrokeWidth(AndroidUtilities.dp(1));
+            glassRect.inset(AndroidUtilities.dp(0.5f), AndroidUtilities.dp(0.5f));
+            canvas.drawRoundRect(glassRect, radius - AndroidUtilities.dp(0.5f),
+                    radius - AndroidUtilities.dp(0.5f), glassPaint);
+            glassPaint.setStyle(Paint.Style.FILL);
+        }
+        glassPaint.setShader(null);
+    }
+
+    private void drawGlassSheen(Canvas canvas) {
+        if (glassSheenT < 0f || glassSheenT > 1f) {
+            return;
+        }
+        if (!glassGeometry()) {
+            return;
+        }
+        final int w = getWidth(), h = getHeight();
+        final float band = glassShaderSheenWidth;
+        final float from = glassSheenForward ? -band * 1.5f : w + band * 1.5f;
+        final float to = glassSheenForward ? w + band * 1.5f : -band * 1.5f;
+        final float x = from + (to - from) * glassSheenT;
+
+        glassMatrix.reset();
+        glassMatrix.setTranslate(x, glassRect.centerY());
+        glassMatrix.postSkew(-0.42f, 0, 0, glassRect.centerY());
+        glassSheen.setLocalMatrix(glassMatrix);
+
+        final int save = canvas.save();
+        canvas.clipPath(glassPath);
+        glassSheenPaint.setShader(glassSheen);
+        canvas.drawRect(glassRect, glassSheenPaint);
+        canvas.restoreToCount(save);
+    }
+
     private final Runnable restoreDrawSelector = () -> setSkipDrawSelector(false);
 
     private boolean drawCustomSelector;
@@ -309,6 +682,12 @@ public class MainTabsLayout extends AnimatedLinearLayout {
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
+        if (pengramGlass) {
+            drawGlassBack(canvas);
+            if (glassPressDown || glassPressT() > 0f || glassDragNow() > 0.01f) {
+                postInvalidateOnAnimation();
+            }
+        }
         if (drawCustomSelector) {
             final float x = animatedLongSelectedViewCenterX + animatedLongSelectedViewOffsetX;
             final float sWidth = getInterpolatedWidthByX(x, this);
@@ -321,6 +700,10 @@ public class MainTabsLayout extends AnimatedLinearLayout {
         }
 
         super.dispatchDraw(canvas);
+
+        if (pengramGlass) {
+            drawGlassSheen(canvas);
+        }
     }
 
 
@@ -605,6 +988,49 @@ public class MainTabsLayout extends AnimatedLinearLayout {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (pengramGlass) {
+            switch (ev.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    glassPressX = glassPressLastX = ev.getX();
+                    glassPressY = glassPressLastY = ev.getY();
+                    glassDragDx = glassDragDy = glassDragSpeed = 0f;
+                    glassLastMove = 0;
+                    glassPressDown = true;
+                    glassPressRelease = 0;
+                    glassPressStart = SystemClock.uptimeMillis();
+                    postInvalidateOnAnimation();
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (glassPressDown) {
+                        final float x = ev.getX(), y = ev.getY();
+                        final float dx = x - glassPressLastX, dy = y - glassPressLastY;
+                        final float step = (float) Math.hypot(dx, dy);
+                        if (step > 0.5f) {
+                            glassPressX = x;
+                            glassPressY = y;
+                            // сглаживаем направление: резкий рывок пальца не
+                            // должен превращать блик в мигающую полоску
+                            glassDragDx += (dx - glassDragDx) * 0.45f;
+                            glassDragDy += (dy - glassDragDy) * 0.45f;
+                            glassDragSpeed = Math.min(1f,
+                                    glassDragSpeed * 0.55f + Math.min(1f, step / 12f) * 0.45f);
+                            glassLastMove = SystemClock.uptimeMillis();
+                            glassPressLastX = x;
+                            glassPressLastY = y;
+                            postInvalidateOnAnimation();
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (glassPressDown) {
+                        glassPressDown = false;
+                        glassPressRelease = SystemClock.uptimeMillis();
+                        postInvalidateOnAnimation();
+                    }
+                    break;
+            }
+        }
         clickHelper.onTouchEvent(this, ev);
         return super.dispatchTouchEvent(ev);
     }

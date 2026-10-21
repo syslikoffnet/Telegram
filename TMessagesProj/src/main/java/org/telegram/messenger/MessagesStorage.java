@@ -240,6 +240,26 @@ public class MessagesStorage extends BaseController {
         return database;
     }
 
+    /** A read-only check before navigating to a preserved deletion. The archive alone
+     * does not imply that Telegram's own message cache still contains the message. */
+    public void hasLocalMessage(long dialogId, int messageId, Utilities.Callback<Boolean> callback) {
+        storageQueue.postRunnable(() -> {
+            boolean found = false;
+            SQLiteCursor cursor = null;
+            try {
+                cursor = database.queryFinalized("SELECT mid FROM messages_v2 WHERE uid = ? AND mid = ? LIMIT 1",
+                        dialogId, messageId);
+                found = cursor.next();
+            } catch (Exception e) {
+                FileLog.e(e);
+            } finally {
+                if (cursor != null) cursor.dispose();
+            }
+            final boolean result = found;
+            AndroidUtilities.runOnUIThread(() -> callback.run(result));
+        });
+    }
+
     public DispatchQueue getStorageQueue() {
         return storageQueue;
     }
@@ -14543,14 +14563,40 @@ public class MessagesStorage extends BaseController {
         return null;
     }
 
+    /** Full pre-edit snapshot, read on storageQueue before Telegram overwrites messages_v2. */
+    public TLRPC.Message pengramGetMessageSnapshot(int messageId, long dialogId) {
+        SQLiteCursor cursor = null;
+        try {
+            cursor = database.queryFinalized("SELECT data FROM messages_v2 WHERE mid = ? AND uid = ?", messageId, dialogId);
+            if (cursor.next()) {
+                NativeByteBuffer data = cursor.byteBufferValue(0);
+                if (data != null) {
+                    try {
+                        TLRPC.Message old = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (old != null) old.readAttachPath(data, getUserConfig().clientUserId);
+                        return old;
+                    } finally {
+                        data.reuse();
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        } finally {
+            if (cursor != null) cursor.dispose();
+        }
+        return null;
+    }
+
     /** Pengram: копирует медиа удалённого сообщения в выбранную папку */
     private void pengramSaveDeletedMedia(long dialogId, TLRPC.Message message) {
         try {
-            if (!PengramConfig.isSavingDeletedMedia() || message == null || message.media == null) {
+            if (!PengramConfig.isSavingDeletedMedia(currentAccount) || message == null || message.media == null) {
                 return;
             }
             final boolean isImage = message.media instanceof TLRPC.TL_messageMediaPhoto;
             boolean isVideo = false;
+            boolean isVoice = false;
             String mime = null;
             String ext = isImage ? "jpg" : null;
             TLRPC.Document doc = message.media.document;
@@ -14559,6 +14605,8 @@ public class MessagesStorage extends BaseController {
                 for (int i = 0; i < doc.attributes.size(); ++i) {
                     if (doc.attributes.get(i) instanceof TLRPC.TL_documentAttributeVideo) {
                         isVideo = true;
+                    } else if (doc.attributes.get(i) instanceof TLRPC.TL_documentAttributeAudio) {
+                        isVoice = ((TLRPC.TL_documentAttributeAudio) doc.attributes.get(i)).voice;
                     }
                 }
                 final String docName = FileLoader.getDocumentFileName(doc);
@@ -14576,7 +14624,14 @@ public class MessagesStorage extends BaseController {
                 return;
             }
             final String name = PengramHistory.buildFileName(PengramConfig.getMediaPattern(), dialogId, message.id, message.date, ext);
-            PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage);
+            if (isVoice) {
+                final java.io.File savedVoice = PengramHistory.savePrivateVoiceCopy(file, name);
+                if (savedVoice != null) {
+                    message.attachPath = savedVoice.getAbsolutePath();
+                }
+            } else {
+                PengramHistory.saveMediaCopy(file, name, mime, isVideo, isImage);
+            }
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -14595,41 +14650,73 @@ public class MessagesStorage extends BaseController {
         }
     }
 
-    /** Pengram: перед удалением сохраняем сообщения в собственную базу */
+    /**
+     * Pengram: перед удалением сохраняем сообщения в собственную базу.
+     * ВАЖНО: dialogId здесь может быть 0 (обычные чаты и группы), поэтому реальный uid
+     * всегда берём из самой таблицы — иначе удалёнки сохранялись бы только в каналах.
+     */
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
-        if (!PengramConfig.isSavingDeleted() || messages == null || messages.isEmpty()) {
-            return;
-        }
-        if (!PengramConfig.isSavingInBots() && pengramIsBotDialog(dialogId)) {
+        // Архив «слежки» пишем только по настройке, но метку «удалено» ставим
+        // всегда, когда сообщение остаётся в чате (локальная копия включена по
+        // умолчанию) — иначе удалённое сообщение выглядит обычным.
+        final boolean saveArchive = PengramConfig.isSavingDeleted(currentAccount);
+        final boolean keepVisible = PengramLocalKeep.keepDeletedMessages();
+        if ((!saveArchive && !keepVisible) || messages == null || messages.isEmpty()) {
             return;
         }
         SQLiteCursor cursor = null;
         try {
             final long selfId = getUserConfig().getClientUserId();
             final String ids = TextUtils.join(",", messages);
-            cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            if (dialogId != 0) {
+                cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s) AND uid = %d", ids, dialogId));
+            } else {
+                cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s)", ids));
+            }
+            final LongSparseArray<ArrayList<Integer>> marksByDialog = new LongSparseArray<>();
             while (cursor.next()) {
                 NativeByteBuffer data = cursor.byteBufferValue(0);
                 if (data == null) {
                     continue;
                 }
+                final long did = cursor.longValue(2);
                 try {
                     TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                     if (message != null) {
                         message.readAttachPath(data, selfId);
-                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : dialogId;
-                        if (message.out && !PengramConfig.isSavingOutgoing()) {
+                        if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
+                            continue; // «Избранное» — там ничего не пропадает
+                        }
+                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
+                        final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
+                        final boolean archived = saveArchive
+                                && !(!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did))
+                                && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave);
+                        if (archived) {
+                            final String text = PengramHistory.describe(message);
+                            // Сначала переносим голосовое во внутреннее постоянное хранилище и
+                            // обновляем attachPath, затем сериализуем сообщение в историю.
+                            pengramSaveDeletedMedia(did, message);
+                            PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
+                                    PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                        }
+                        if (!archived && !keepVisible) {
+                            // ни в архив, ни в чате не остаётся — метка не нужна
                             continue;
                         }
-                        final String text = PengramHistory.describe(message);
-                        if (!TextUtils.isEmpty(text)) {
-                            PengramHistory.save(currentAccount, dialogId, message.id, fromId, message.date, PengramHistory.ACTION_DELETED, text, null);
+                        ArrayList<Integer> marks = marksByDialog.get(did);
+                        if (marks == null) {
+                            marks = new ArrayList<>();
+                            marksByDialog.put(did, marks);
                         }
-                        pengramSaveDeletedMedia(dialogId, message);
+                        marks.add(message.id);
                     }
                 } finally {
                     data.reuse();
                 }
+            }
+            for (int a = 0; a < marksByDialog.size(); ++a) {
+                PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a), marksByDialog.valueAt(a));
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14712,6 +14799,11 @@ public class MessagesStorage extends BaseController {
                 long currentUser = getUserConfig().getClientUserId();
 
                 pengramSaveDeleted(dialogId, messages);
+
+                if (currentUser != dialogId && PengramHistory.keepInChat(currentAccount, messages)) {
+                    // Pengram: сообщение остаётся в базе и в чате, мы только помечаем его удалённым
+                    return dialogsIds;
+                }
 
                 ArrayList<Integer> unknownMessages = new ArrayList<>(messages);
                 ArrayList<Integer> unknownMessagesInTopics = new ArrayList<>(messages);

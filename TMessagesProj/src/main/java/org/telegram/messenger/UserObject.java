@@ -58,6 +58,8 @@ public class UserObject {
             return LocaleController.getString(R.string.HiddenName);
         }
         String name = AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(ContactsController.formatName(user.first_name, user.last_name)));
+        // Pengram: фильтр Zalgo работает и для имён — где бы имя ни рисовалось
+        name = PengramConfig.filterZalgo(name);
         return name.length() != 0 || TextUtils.isEmpty(user.phone) ? name : PhoneFormat.getInstance().format("+" + user.phone);
     }
 
@@ -113,9 +115,9 @@ public class UserObject {
         if (TextUtils.isEmpty(name)) {
             name = user.last_name;
         } else if (!allowShort && name.length() <= 2) {
-            return ContactsController.formatName(user.first_name, user.last_name);
+            return PengramConfig.filterZalgo(ContactsController.formatName(user.first_name, user.last_name));
         }
-        return !TextUtils.isEmpty(name) ? name : LocaleController.getString(R.string.HiddenName);
+        return !TextUtils.isEmpty(name) ? PengramConfig.filterZalgo(name) : LocaleController.getString(R.string.HiddenName);
     }
 
     public static String getForcedFirstName(TLRPC.User user) {

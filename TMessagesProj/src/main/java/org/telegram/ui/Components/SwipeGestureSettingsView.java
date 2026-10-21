@@ -108,7 +108,7 @@ public class SwipeGestureSettingsView extends FrameLayout {
             SharedConfig.updateChatListSwipeSetting(newVal);
             invalidate();
             try {
-                picker.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) picker.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignored) {}
         });
         picker.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);

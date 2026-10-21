@@ -123,6 +123,7 @@ import org.telegram.ui.Components.ScrimOptions;
 import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceBitmap;
 import org.telegram.ui.Components.blur3.utils.Blur3Utils;
+import org.telegram.ui.Wallet.WalletSendEnterAmount;
 import org.telegram.ui.recyclerview.LinearSmoothScrollerCustom;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager.widget.PagerAdapter;
@@ -587,6 +588,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int report = 24;
 
     private final static int edit_info = 30;
+    private final static int pengram_profile_history = 3030;
     private final static int logout = 31;
     private final static int search_button = 32;
     private final static int set_as_main = 33;
@@ -603,6 +605,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int delete_group = 45;
     private final static int enable_no_forwards = 46;
     private final static int disable_no_forwards = 47;
+    private final static int send_money = 48;
 
     private Rect rect = new Rect();
 
@@ -2766,6 +2769,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     openDiscussion();
                 } else if (id == gift_premium) {
                     onGiftPermiumClicked();
+                } else if (id == send_money) {
+                    presentFragment(new WalletSendEnterAmount(getMessagesController().getUser(userId)).setAllowOpenChat());
                 } else if (id == channel_stories) {
                     Bundle args = new Bundle();
                     args.putInt("type", MediaActivity.TYPE_ARCHIVED_CHANNEL_STORIES);
@@ -2814,6 +2819,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             BulletinFactory.createSaveToGalleryBulletin(ProfileActivity.this, isVideo, null).show();
                         });
                     }
+                } else if (id == pengram_profile_history) {
+                    boolean tracked = org.telegram.messenger.PengramProfileHistory.isTracked(currentAccount, userId);
+                    if (!tracked) {
+                        org.telegram.messenger.PengramProfileHistory.setTracked(currentAccount, userId, true);
+                        TLRPC.User observed = getMessagesController().getUser(userId);
+                        org.telegram.messenger.PengramProfileHistory.observeUser(currentAccount, observed, false);
+                    }
+                    presentFragment(new PengramProfileHistoryActivity(userId));
                 } else if (id == edit_info) {
                     presentFragment(new UserInfoActivity());
                 } else if (id == edit_color) {
@@ -3880,7 +3893,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     MediaController.getInstance().getPlaylist().clear();
                     MediaController.getInstance().getPlaylist().addAll(savedMusicList.list);
                     if (!sameList) MediaController.getInstance().playMessage(savedMusicList.list.get(0));
-                    showDialog(new AudioPlayerAlert(getContext(), getResourceProvider()));
+                    showDialog(org.telegram.ui.Components.PengramMusicPlayerSheet.create(getContext(), getResourceProvider()));
                 }
             });
 
@@ -4554,7 +4567,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == pengramRow) {
                 presentFragment(new PengramSettingsActivity());
             } else if (position == pengramHistoryRow) {
-                presentFragment(new PengramHistoryActivity(userId != 0 ? userId : -chatId));
+                PengramHistoryChatActivity archive = new PengramHistoryChatActivity(userId != 0 ? userId : -chatId, PengramHistoryChatActivity.MODE_ALL);
+                archive.setCurrentAccount(currentAccount);
+                presentFragment(archive);
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
             } else if (position == questionRow) {
@@ -5036,6 +5051,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         participant = visibleChatParticipants.get(position - membersStartRow);
                     }
                     return onMemberClick(participant, true, view);
+                } else if (position == idRow) {
+                    final long peerId = userId != 0 ? userId : chatId;
+                    if (peerId == 0) {
+                        return false;
+                    }
+                    try {
+                        AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
+                        BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                    return true;
                 } else if (position == birthdayRow) {
                     if (editRow(view, position)) return true;
                     if (userInfo == null) return false;
@@ -5577,6 +5604,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             nameTextView[a].setFocusable(a == 0);
+            // Pengram: жест по имени показывает вторую известную версию имени
+            if (a == 1) {
+                org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
+            }
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
@@ -7300,6 +7331,99 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     /** «Вы создали свой аккаунт примерно …» по тапу на календарик в строке ID */
+    /** Pengram: нужна ли отдельная строка «дата регистрации» */
+    private static boolean pengramRegRowNeeded() {
+        // правило живёт в одном месте — в настройках, чтобы профиль и превью
+        // в настройках не могли разойтись
+        return PengramConfig.isRegDateRowVisible();
+    }
+
+    /** чей id сейчас показываем — нужен, чтобы понимать точность оценки */
+    private static long pengramRegDateUserId;
+
+    /** Pengram: текст даты регистрации в выбранном формате */
+    private static String pengramRegDateText(long estimate) {
+        if (estimate <= 0) {
+            return "—";
+        }
+        final int style = PengramConfig.getRegDateStyle();
+        final String age = PengramRegDate.formatAge(estimate);
+        if (style == PengramConfig.REG_STYLE_AGE) {
+            return age == null ? "—" : age;
+        }
+        String date = style == PengramConfig.REG_STYLE_EXACT
+                ? PengramRegDate.formatDate(estimate)
+                : PengramRegDate.formatMonthYear(estimate);
+        if (style != PengramConfig.REG_STYLE_EXACT && pengramRegDateUserId != 0) {
+            // показываем месяц только там, где он действительно известен
+            final String smart = PengramRegDate.formatSmart(estimate, pengramRegDateUserId);
+            if (smart != null) {
+                date = smart;
+            }
+        }
+        if (date == null) {
+            date = "—";
+        }
+        String text = "\u2248 " + date;
+        if ((style == PengramConfig.REG_STYLE_DATE_AGE || style == PengramConfig.REG_STYLE_EXACT) && age != null) {
+            text = text + " \u2022 " + age;
+        }
+        return text;
+    }
+
+    /** Pengram: закэшированный ConstantState значка даты регистрации */
+    private Drawable.ConstantState pengramRegDateIconState;
+    private int pengramRegDateIconRes;
+    private int pengramRegDateIconColor;
+    private PorterDuffColorFilter pengramRegDateIconFilter;
+
+    /** Pengram: значок даты регистрации нужного вида */
+    private Drawable pengramRegDateDrawable(Context context) {
+        final int res = PengramConfig.getRegDateIconRes();
+        if (res == 0 || context == null) {
+            return null;
+        }
+        // Значок запрашивается на каждую привязку строки ID и строки даты.
+        // Разбор ресурса и цветовой фильтр кэшируем: меняются они только при
+        // смене темы или выбранного значка.
+        final int color = dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false);
+        if (pengramRegDateIconState == null || pengramRegDateIconRes != res || pengramRegDateIconColor != color) {
+            final Drawable source = ContextCompat.getDrawable(context, res);
+            if (source == null || source.getConstantState() == null) {
+                return null;
+            }
+            pengramRegDateIconState = source.getConstantState();
+            pengramRegDateIconRes = res;
+            pengramRegDateIconColor = color;
+            // SRC_IN, а не MULTIPLY: иначе чёрный силуэт пингвина на тёмной теме просто пропадал
+            pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);
+        }
+        final Drawable drawable = pengramRegDateIconState
+                .newDrawable(context.getResources(), context.getTheme()).mutate();
+        drawable.setColorFilter(pengramRegDateIconFilter);
+        return drawable;
+    }
+
+    /** Pengram: дописать дату регистрации к подписи под именем */
+    private CharSequence pengramWithRegDate(CharSequence status) {
+        if (userId == 0 || !PengramConfig.isRegDateInSubtitle()) {
+            return status;
+        }
+        final long estimate = PengramRegDate.estimate(userId);
+        if (estimate <= 0) {
+            return status;
+        }
+        pengramRegDateUserId = userId;
+        final String reg = pengramRegDateText(estimate);
+        if (TextUtils.isEmpty(reg) || "—".equals(reg)) {
+            return status;
+        }
+        if (TextUtils.isEmpty(status)) {
+            return reg;
+        }
+        return TextUtils.concat(status, " \u2022 ", reg);
+    }
+
     private void showRegDateInfo(long estimate) {
         if (getParentActivity() == null) {
             return;
@@ -7314,6 +7438,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (age != null && PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
             text = text + "\n\n" + LocaleController.formatString(R.string.PengramRegDateAge, age);
         }
+        if (PengramConfig.isRegTapText()) {
+            // без модального окна: тот же текст, только «выезжает» подсказкой снизу
+            try {
+                BulletinFactory.of(this)
+                        .createSimpleBulletin(R.raw.chats_infotip, LocaleController.getString(R.string.PengramRegDate), text.replace("\n\n", " \u2022 "))
+                        .setDuration(Bulletin.DURATION_PROLONG)
+                        .show();
+                return;
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
         new AlertDialog.Builder(getParentActivity(), resourcesProvider)
                 .setTitle(LocaleController.getString(R.string.PengramRegDate))
                 .setMessage(text)
@@ -7321,7 +7457,33 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 .show();
     }
 
+    /** ID в выбранном формате: как есть (Telegram API) или с минусом/-100 (Bot API) */
+    private String pengramFormatPeerId(long peerId) {
+        if (chatId != 0 && userId == 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+            return PengramConfig.formatId(peerId, true, chat != null && ChatObject.isChannel(chat));
+        }
+        return PengramConfig.formatId(peerId, false, false);
+    }
+
+    /** Pengram: внутренняя tg-ссылка на профиль по ID */
+    private String pengramPeerLink(long peerId) {
+        if (userId != 0) {
+            return "tg://user?id=" + peerId;
+        }
+        final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+        final String username = chat == null ? null : ChatObject.getPublicUsername(chat);
+        if (!TextUtils.isEmpty(username)) {
+            return "tg://resolve?domain=" + username;
+        }
+        return "tg://openmessage?chat_id=" + peerId;
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
+        if (position >= 0 && position == regDateRow && userId != 0) {
+            showRegDateInfo(PengramRegDate.estimate(userId));
+            return true;
+        }
         if (position == idRow) {
             final long peerId = userId != 0 ? userId : chatId;
             if (peerId == 0 || !PengramConfig.copyIdOnTap) {
@@ -7329,7 +7491,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
             try {
                 android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("label", String.valueOf(peerId)));
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("label", pengramFormatPeerId(peerId)));
                 BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
             } catch (Exception e) {
                 FileLog.e(e);
@@ -8562,7 +8724,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         avatarsViewPager.setVisibility(View.VISIBLE);
 
                         try {
-                            avatarContainer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) avatarContainer.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignore) {
                         }
                     }
@@ -8646,7 +8808,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         expandAnimator.start();
                         ignoreScrollOnFullExpand = false;
                         try {
-                            avatarContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) avatarContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignore) {
                         }
                     }
@@ -10675,6 +10837,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
+                if (pengramRegRowNeeded()) {
+                    regDateRow = rowCount++;
+                }
                 bioRow = rowCount++;
 
                 settingsSectionRow = rowCount++;
@@ -10771,7 +10936,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && PengramConfig.isIdSeparateRow()) {
                     idRow = rowCount++;
                 }
-                // дата регистрации теперь живёт в строке ID (иконка-календарик)
+                // значок живёт в строке ID, строка — по настройке «где показывать»
+                if (user != null && pengramRegRowNeeded()) {
+                    regDateRow = rowCount++;
+                }
                 if (user != null && PengramConfig.isHistoryRowVisible() && !UserObject.isUserSelf(user)) {
                     pengramHistoryRow = rowCount++;
                 }
@@ -11121,6 +11289,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 musicView.setMusicDocument(userInfo.saved_music);
             }
             musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);
+            // Pengram: высота шапки зависит от наличия песни. Пока песни не
+            // было, позиция считалась для 74dp и alpha подписи оставалась
+            // нулевой; когда full info приезжает позже, её нужно пересчитать,
+            // иначе название трека не появляется до первого скролла.
+            updateMusicPosition();
         }
     }
 
@@ -11294,7 +11467,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void updateMusicPosition() {
-        if (musicView == null || onlineTextView[1] == null) {
+        // onlineTextView[1] может отсутствовать (бот, скрытый статус), но это
+        // не повод вообще не позиционировать песню профиля: без этого вызова
+        // alpha остаётся нулевой и подпись трека не рисуется.
+        // actionBar проверяем отдельно: updateRowsIds может прийти раньше, чем
+        // шапка успела создаться.
+        if (musicView == null || actionBar == null) {
             return;
         }
         final int newTop = ActionBar.getCurrentActionBarHeight() + (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0);
@@ -11319,6 +11497,106 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private MessagesController.PeerColor peerColor;
 
+    /** показано ли сейчас «второе» имя вместо обычного */
+    private boolean pengramOriginalNameShown;
+
+    /**
+     * Жест по имени: показать, как человека видят остальные, и вернуть вашу
+     * запись обратно. Ни диалогов, ни ограничений на число проверок: экран
+     * сначала показывает то, что уже известно, и только потом, если запись
+     * устарела, тихо перечитывает публичную страницу профиля.
+     */
+    private void pengramToggleOriginalName() {
+        final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
+        if (user == null || nameTextView[1] == null) {
+            return;
+        }
+        if (pengramOriginalNameShown) {
+            pengramHideOriginalName();
+            return;
+        }
+        final int seq = ++pengramNameCheckSeq;
+        final int account = currentAccount;
+        // история профилей живёт в SQLite — ищем в фоне, чтобы не дёргать интерфейс
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final org.telegram.messenger.PengramOriginalName.Result cached =
+                    org.telegram.messenger.PengramOriginalName.other(account, user);
+            final boolean refresh = org.telegram.messenger.PengramOriginalName.canRefresh(account, user);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (seq != pengramNameCheckSeq || nameTextView[1] == null) {
+                    return;
+                }
+                if (cached != null) {
+                    pengramShowOriginalName(cached, seq);
+                } else if (!refresh) {
+                    // узнать неоткуда: у человека нет публичной страницы, а
+                    // других источников для этого профиля нет
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameNothing)).show();
+                } else {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameProbing)).show();
+                }
+            });
+            if (!refresh) {
+                // известно всё, что можно знать: повторный жест не стоит запроса
+                return;
+            }
+            org.telegram.messenger.PengramOriginalName.refresh(account, user, result ->
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (seq != pengramNameCheckSeq) {
+                            return;
+                        }
+                        if (result != null) {
+                            if (cached == null || !result.name.equalsIgnoreCase(cached.name)) {
+                                pengramShowOriginalName(result, seq);
+                            }
+                            return;
+                        }
+                        if (cached == null) {
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                                    getString(R.string.PengramOriginalNameNothing)).show();
+                        }
+                    }));
+        });
+    }
+
+    /** номер последнего жеста: ответы на устаревшие запросы не должны перебивать новые */
+    private int pengramNameCheckSeq;
+    private Runnable pengramOriginalNameHideRunnable;
+
+    private void pengramShowOriginalName(org.telegram.messenger.PengramOriginalName.Result other, int seq) {
+        if (nameTextView[1] == null || other == null) {
+            return;
+        }
+        pengramOriginalNameShown = true;
+        nameTextView[1].setText(other.name);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
+        if (pengramOriginalNameHideRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
+        }
+        pengramOriginalNameHideRunnable = () -> {
+            pengramOriginalNameHideRunnable = null;
+            if (seq == pengramNameCheckSeq) {
+                pengramHideOriginalName();
+            }
+        };
+        AndroidUtilities.runOnUIThread(pengramOriginalNameHideRunnable, 6000);
+    }
+
+    private void pengramHideOriginalName() {
+        if (pengramOriginalNameHideRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
+            pengramOriginalNameHideRunnable = null;
+        }
+        pengramNameCheckSeq++;
+        if (pengramOriginalNameShown) {
+            pengramOriginalNameShown = false;
+            updateProfileData(false);
+        }
+    }
+
     private void updateProfileData(boolean reload) {
         if (avatarContainer == null || nameTextView == null || getParentActivity() == null) {
             return;
@@ -11332,7 +11610,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
             onlineTextOverride = LocaleController.getString(R.string.Updating);
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
-            onlineTextOverride = LocaleController.getString(R.string.ConnectingToProxy);
+            onlineTextOverride = LocaleController.getString(org.telegram.messenger.PengramBypass.isTunnelActive()
+                    ? R.string.PengramBypassConnecting : R.string.ConnectingToProxy);
         } else {
             onlineTextOverride = null;
         }
@@ -11486,7 +11765,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView[a].setText(titleTextView.getText());
                     nameTextView[a].setRightDrawable(titleTextView.getRightDrawable());
                     nameTextView[a].setRightDrawable2(titleTextView.getRightDrawable2());
-                } else if (a == 0 && user.id != getUserConfig().getClientUserId() && !MessagesController.isSupportUser(user) && user.phone != null && user.phone.length() != 0 && getContactsController().contactsDict.get(user.id) == null &&
+                } else if (a == 0 && !PengramConfig.isHidingPhoneNumber() && user.id != getUserConfig().getClientUserId() && !MessagesController.isSupportUser(user) && user.phone != null && user.phone.length() != 0 && getContactsController().contactsDict.get(user.id) == null &&
                         (getContactsController().contactsDict.size() != 0 || !getContactsController().isLoadingContacts())) {
                     nameTextView[a].setText(PhoneFormat.getInstance().format("+" + user.phone));
                 } else {
@@ -11504,7 +11783,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         onlineTextView[a].setText(textView.getText());
                     }
                 } else {
-                    onlineTextView[a].setText(newString2);
+                    onlineTextView[a].setText(a == 1 ? pengramWithRegDate(newString2) : newString2);
                 }
                 onlineTextView[a].setDrawablePadding(dp(9));
                 onlineTextView[a].setRightDrawableInside(true);
@@ -11536,7 +11815,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, false, false, a));
                         nameTextViewRightDrawableContentDescription = LocaleController.getString(R.string.AccDescrPremium);
-                    } else if (getMessagesController().isPremiumUser(user)) {
+                    } else if (getMessagesController().isPremiumUserForDisplay(user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, false, false, a));
@@ -11557,7 +11836,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         rightIconIsStatus = true;
                         rightIconIsPremium = false;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(user.emoji_status, true, true, a));
-                    } else if (getMessagesController().isPremiumUser(user)) {
+                    } else if (getMessagesController().isPremiumUserForDisplay(user)) {
                         rightIconIsStatus = false;
                         rightIconIsPremium = true;
                         nameTextView[a].setRightDrawable(getEmojiStatusDrawable(null, true, true, a));
@@ -11575,12 +11854,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (a == 1 && (rightIconIsStatus || rightIconIsPremium)) {
                     nameTextView[a].setRightDrawableOutside(true);
                 }
-                if (user.self && getMessagesController().isPremiumUser(user)) {
+                if (user.self && getMessagesController().isPremiumUserForDisplay(user)) {
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         showStatusSelect();
                     });
                 }
-                if (!user.self && getMessagesController().isPremiumUser(user)) {
+                if (!user.self && getMessagesController().isPremiumUserForDisplay(user)) {
                     final SimpleTextView textView = nameTextView[a];
                     nameTextView[a].setRightDrawableOnClick(v -> {
                         if (user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible) {
@@ -12187,6 +12466,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 selfUser = true;
             } else {
+                if (org.telegram.messenger.PengramProfileHistory.enabled() && !user.bot && !user.deleted && user.id != 777000) {
+                    final boolean tracked = org.telegram.messenger.PengramProfileHistory.isTracked(currentAccount, user.id);
+                    otherItem.addSubItem(pengram_profile_history, R.drawable.msg_viewchats,
+                            getString(tracked ? R.string.PengramProfileHistoryOpen : R.string.PengramProfileHistoryTrack));
+                }
                 if (user.bot && user.bot_can_edit) {
                     editItemVisible = true;
                 }
@@ -12248,6 +12532,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         StarsController.getInstance(currentAccount).loadStarGifts();
                         otherItem.addSubItem(gift_premium, R.drawable.msg_gift_premium, LocaleController.getString(R.string.ProfileSendAGift));
                         giftAction = true;
+                    }
+                    if (getMessagesController().config.walletAvailable.get() && !MessagesController.isSupportUser(user) && !UserObject.isService(user.id)) {
+                        otherItem.addSubItem(send_money, R.drawable.ic_gram, LocaleController.getString(R.string.WalletSendMoney));
                     }
                     otherItem.addSubItem(start_secret_chat, R.drawable.msg_secret, LocaleController.getString(R.string.StartEncryptedChat));
                     otherItem.setSubItemShown(start_secret_chat, DialogObject.isEmpty(getMessagesController().isUserContactBlocked(userId)));
@@ -13524,6 +13811,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextDetailCell detailCell = (TextDetailCell) holder.itemView;
                     boolean containsQr = false;
                     boolean containsGift = false;
+                    boolean containsCalendar = false;
                     if (position == birthdayRow) {
                         TLRPC.UserFull userFull = getMessagesController().getUserFull(userId);
                         if (userFull != null && userFull.birthday != null) {
@@ -13572,16 +13860,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (label == null) {
                             label = "ID";
                         }
-                        detailCell.setTextAndValue(String.valueOf(peerId), label, regDateRow != -1);
+                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, regDateRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
                         // календарик с приблизительной датой регистрации — прямо в строке ID
-                        final long regEstimate = userId != 0 && PengramConfig.isRegDateVisible() ? PengramRegDate.estimate(userId) : 0;
+                        final long regEstimate = userId != 0 && PengramConfig.isRegDateIconVisible() ? PengramRegDate.estimate(userId) : 0;
                         if (regEstimate > 0) {
-                            Drawable calendarDrawable = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                            Drawable calendarDrawable = pengramRegDateDrawable(detailCell.getContext());
                             if (calendarDrawable != null) {
-                                calendarDrawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                                 detailCell.setImage(calendarDrawable, LocaleController.getString(R.string.PengramRegDate));
                                 detailCell.setImageClickListener(v -> showRegDateInfo(regEstimate));
+                                containsCalendar = true;
                             }
                         } else {
                             detailCell.setImage(null);
@@ -13589,30 +13877,27 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (position == regDateRow) {
                         final long estimate = PengramRegDate.estimate(userId);
-                        String text = PengramRegDate.formatMonthYear(estimate);
-                        if (text == null) {
-                            text = "—";
-                        }
-                        text = "\u2248 " + text;
-                        if (PengramConfig.getRegDateStyle() == PengramConfig.REG_STYLE_DATE_AGE) {
-                            final String age = PengramRegDate.formatAge(estimate);
-                            if (age != null) {
-                                text = text + " \u2022 " + age;
-                            }
-                        }
-                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), false);
+                        pengramRegDateUserId = userId;
+                        final String text = pengramRegDateText(estimate);
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
                         detailCell.setContentDescriptionValueFirst(true);
-                        Drawable calendar = ContextCompat.getDrawable(detailCell.getContext(), R.drawable.msg_calendar2);
+                        Drawable calendar = pengramRegDateDrawable(detailCell.getContext());
                         if (calendar != null) {
-                            calendar.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_switch2TrackChecked), false), PorterDuff.Mode.MULTIPLY));
                             detailCell.setImage(calendar, LocaleController.getString(R.string.PengramRegDate));
+                            detailCell.setImageClickListener(v -> showRegDateInfo(estimate));
+                            containsCalendar = true;
+                        } else {
+                            detailCell.setImage(null);
                             detailCell.setImageClickListener(null);
                         }
                     } else if (position == phoneRow) {
                         String text;
                         TLRPC.User user = getMessagesController().getUser(userId);
                         String phoneNumber;
-                        if (user != null && !TextUtils.isEmpty(vcardPhone)) {
+                        if (user != null && UserObject.isUserSelf(user) && PengramConfig.isHidingPhoneNumber()) {
+                            text = LocaleController.getString(R.string.PengramPhoneHidden);
+                            phoneNumber = null;
+                        } else if (user != null && !TextUtils.isEmpty(vcardPhone)) {
                             text = PhoneFormat.getInstance().format("+" + vcardPhone);
                             phoneNumber = vcardPhone;
                         } else if (user != null && !TextUtils.isEmpty(user.phone)) {
@@ -13766,7 +14051,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         drawable.setColorFilter(new PorterDuffColorFilter(dontApplyPeerColor(getThemedColor(Theme.key_actionBarDefaultIcon), false), PorterDuff.Mode.MULTIPLY));
                         detailCell.setImage(drawable, LocaleController.getString(R.string.GetQRCode));
                         detailCell.setImageClickListener(ProfileActivity.this::onTextDetailCellImageClicked);
-                    } else if (position != regDateRow) {
+                    } else if (!containsCalendar) {
                         detailCell.setImage(null);
                         detailCell.setImageClickListener(null);
                     }
@@ -13976,7 +14261,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PowerUsage), R.drawable.msg2_battery, true);
                     } else if (position == pengramHistoryRow) {
                         final long did = userId != 0 ? userId : -chatId;
-                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(PengramHistory.getCount(did)), R.drawable.msg_viewchats, false);
+                        // счётчик из кэша: COUNT(*) прямо в onBindViewHolder подлагивал при прокрутке профиля
+                        final int savedCount = PengramHistory.getCountCached(currentAccount, did, () -> {
+                            if (listAdapter != null && pengramHistoryRow >= 0) {
+                                listAdapter.notifyItemChanged(pengramHistoryRow);
+                            }
+                        });
+                        textCell.setTextAndValueAndIcon(LocaleController.getString(R.string.PengramHistoryOpen), String.valueOf(savedCount), R.drawable.msg_viewchats, false);
                     } else if (position == pengramRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.PengramSettings), R.drawable.msg2_devices, true);
                     } else if (position == questionRow) {
@@ -14106,7 +14397,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     if (position == infoSectionRow) {
                         final long did = getDialogId();
                         TLObject obj = getMessagesController().getUserOrChat(did);
-                        TL_bots.botVerification bot_verification = userInfo != null ? userInfo.bot_verification : chatInfo != null ? chatInfo.bot_verification : null;
+                        TL_bots.BotVerification bot_verification = userInfo != null ? userInfo.bot_verification : chatInfo != null ? chatInfo.bot_verification : null;
                         Long bot_manager_id = userInfo != null && TLObject.hasFlag(userInfo.flags2, TLObject.FLAG_25) ? userInfo.bot_manager_id : null;
                         if (botAppRow >= 0 || bot_verification != null || bot_manager_id != null) {
                             cell.setFixedSize(0);
@@ -14126,7 +14417,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 sb.append("x");
                                 sb.setSpan(new AnimatedEmojiSpan(bot_verification.icon, cell.getTextView().getPaint().getFontMetricsInt()), sb.length() - 1, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                 sb.append(" ");
-                                SpannableString description = new SpannableString(bot_verification.description);
+                                SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(bot_verification.description));
                                 try {
                                     AndroidUtilities.addLinksSafe(description, Linkify.WEB_URLS, false, false);
                                     URLSpan[] spans = description.getSpans(0, description.length(), URLSpan.class);
@@ -14307,7 +14598,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         private CharSequence appendInlineId(CharSequence value) {
-            if (PengramConfig.getIdStyle() != PengramConfig.ID_STYLE_INLINE) {
+            if (!PengramConfig.isIdVisible() || PengramConfig.getIdStyle() != PengramConfig.ID_STYLE_INLINE) {
                 return value;
             }
             final long peerId = userId != 0 ? userId : chatId;
@@ -14318,7 +14609,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (!TextUtils.isEmpty(value)) {
                 sb.append(value).append(" \u2022 ");
             }
-            sb.append("ID: ").append(String.valueOf(peerId));
+            sb.append("ID: ").append(pengramFormatPeerId(peerId));
             return sb;
         }
 
@@ -14427,7 +14718,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (notificationRow != -1) {
                 int position = holder.getAdapterPosition();
                 return position == notificationRow || position == numberRow || position == privacyRow ||
-                        position == languageRow || position == setUsernameRow || position == bioRow || position == idRow ||
+                        position == languageRow || position == setUsernameRow || position == bioRow || position == idRow || position == regDateRow ||
                         position == versionRow || position == dataRow || position == chatRow ||
                         position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                         position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
@@ -14545,6 +14836,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public static class SearchResult {
 
             public String searchTitle;
+            public int[] pengramEntry;
             public Runnable openRunnable;
             public String rowName;
             public String[] path;
@@ -14685,10 +14977,32 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             });
         }
 
+        /** Канонический экран для автоматически индексируемых строк Pengram. */
+        private static int pengramSearchSection(String name) {
+            if (name == null) return PengramSettingsActivity.SECTION_GENERAL;
+            if (name.contains("Ghost") || name.contains("Online") || name.contains("ReadDate")) return PengramSettingsActivity.SECTION_GHOST;
+            if (name.contains("History") || name.contains("Deleted") || name.contains("Edited") || name.contains("MediaFolder")) return PengramSettingsActivity.SECTION_HISTORY;
+            if (name.contains("MediaTime") || name.contains("Bubbles") || name.contains("HideTail")) return PengramSettingsActivity.SECTION_CHAT_MESSAGES;
+            if (name.contains("Dialogs") || name.contains("WriteButton") || name.contains("ThreeLines")
+                    || name.contains("HideArchive") || name.contains("Stories") || name.contains("Sender")) {
+                return PengramSettingsActivity.SECTION_CHAT_INTERFACE;
+            }
+            if (name.contains("InputAnim") || name.contains("DeleteEffect") || name.contains("Message")) return PengramSettingsActivity.SECTION_CHAT_MESSAGES;
+            if (name.contains("Menu") || name.contains("ChatClear") || name.contains("HideChat")) return PengramSettingsActivity.SECTION_CHAT_MENUS;
+            if (name.contains("Avatar") || name.contains("Gesture") || name.contains("Tab") || name.contains("Title")) return PengramSettingsActivity.SECTION_CHAT_INTERFACE;
+            if (name.contains("Quick") || name.contains("Forward") || name.contains("Action")) return PengramSettingsActivity.SECTION_CHAT_ACTIONS;
+            if (name.contains("Voice") || name.contains("Boost") || name.contains("Download")) return PengramSettingsActivity.SECTION_MEDIA;
+            if (name.contains("Phone") || name.contains("Reg") || name.contains("Id") || name.contains("Profile")) return PengramSettingsActivity.SECTION_PROFILE;
+            if (name.contains("Screenshot") || name.contains("Premium") || name.contains("Ads") || name.contains("Bypass")) return PengramSettingsActivity.SECTION_FREEDOM;
+            if (name.contains("Player") || name.contains("Lyrics")) return PengramSettingsActivity.SECTION_PLAYER;
+            if (name.contains("Color") || name.contains("Appearance") || name.contains("Theme")) return PengramSettingsActivity.SECTION_APPEARANCE;
+            return PengramSettingsActivity.SECTION_GENERAL;
+        }
+
         private static SearchResult[] onCreateSearchArray(final BaseFragment f) {
             final int currentAccount = f.getCurrentAccount();
             final Theme.ResourcesProvider resourcesProvider = f.getResourceProvider();
-            return new SearchResult[]{
+            final SearchResult[] builtIn = new SearchResult[]{
                     new SearchResult(9000, getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity())).withLink("tg://settings/pengram"),
                     new SearchResult(9001, getString(R.string.PengramSectionProfile), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE))),
                     new SearchResult(9002, getString(R.string.PengramSectionGhost), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
@@ -14697,6 +15011,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9005, getString(R.string.PengramSectionChats), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS))),
                     new SearchResult(9006, getString(R.string.PengramSectionMedia), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
                     new SearchResult(9007, getString(R.string.PengramSectionFreedom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_FREEDOM))),
+                    new SearchResult(9008, getString(R.string.PengramSectionGeneral), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
+                    new SearchResult(9009, getString(R.string.PengramSectionCustom), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CUSTOM))),
+                    new SearchResult(9080, getString(R.string.PengramSectionPlayer), getString(R.string.PengramSettings), R.drawable.settings_features, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PLAYER))),
+                    new SearchResult(9082, getString(R.string.PengramSubsectionActions), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_ACTIONS))),
+                    new SearchResult(9083, getString(R.string.PengramSubsectionMessages), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
+                    new SearchResult(9084, getString(R.string.PengramSubsectionInterface), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_INTERFACE))),
+                    new SearchResult(9085, getString(R.string.PengramSubsectionMenus), getString(R.string.PengramSectionChats), R.drawable.settings_chat, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MENUS))),
+                    new SearchResult(9086, getString(R.string.PengramInputAnimation), null, getString(R.string.PengramSettings), getString(R.string.PengramSubsectionMessages), R.drawable.msg_customize, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES))),
+                    new SearchResult(9087, getString(R.string.PengramShowAccountsSettings), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGeneral), R.drawable.settings_account, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GENERAL))),
                     new SearchResult(9010, getString(R.string.PengramGhostMode), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9011, getString(R.string.PengramGhostHideOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9012, getString(R.string.PengramGhostDontRead), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
@@ -14704,7 +15027,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(9014, getString(R.string.PengramSaveLastOnline), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionGhost), R.drawable.settings_privacy, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_GHOST))),
                     new SearchResult(9020, getString(R.string.PengramHistorySaveDeleted), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9021, getString(R.string.PengramHistorySaveEdited), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
-                    new SearchResult(9022, getString(R.string.PengramHistoryOpen), getString(R.string.PengramSettings), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramHistoryActivity(0))),
                     new SearchResult(9023, getString(R.string.PengramMediaSave), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9024, getString(R.string.PengramMediaFolder), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionHistory), R.drawable.msg_viewchats, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_HISTORY))),
                     new SearchResult(9030, getString(R.string.PengramVoiceHeader), null, getString(R.string.PengramSettings), getString(R.string.PengramSectionMedia), R.drawable.settings_data, () -> f.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_MEDIA))),
@@ -14976,6 +15298,44 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     new SearchResult(403, getString(R.string.TelegramFAQ), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.TelegramFaqUrl))).withLink("tg://settings/faq"),
                     new SearchResult(404, getString(R.string.PrivacyPolicy), getString(R.string.SettingsHelp), R.drawable.msg2_help, () -> Browser.openUrl(f.getParentActivity(), getString(R.string.PrivacyPolicyUrl))).withLink("tg://settings/privacy-policy"),
             };
+            // Индексируем все строки Pengram, в том числе новые настройки, которые разработчик
+            // добавит позже. Это не позволяет очередному пункту незаметно выпасть из поиска.
+            final ArrayList<SearchResult> all = new ArrayList<>();
+            final java.util.HashSet<String> knownTitles = new java.util.HashSet<>();
+            for (SearchResult result : builtIn) {
+                if (result != null) {
+                    all.add(result);
+                    if (result.searchTitle != null) knownTitles.add(result.searchTitle.toString());
+                }
+            }
+            int generatedId = 20000;
+            final java.util.HashSet<String> indexedKeys = new java.util.HashSet<>();
+            try {
+                // Индекс собран по самому экрану настроек (scripts/gen-search-index.py):
+                // в поиск попадают только сами функции — не заголовки разделов, не пояснения
+                // под ними и не варианты выбора. Раньше индексировались все строки подряд,
+                // и в выдачу лезло то, что настройкой не является.
+                for (int[] entry : PengramSearchIndex.ITEMS) {
+                    final String title = getString(entry[0]);
+                    if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR") || title.indexOf('%') >= 0
+                            || title.length() > 60 || !indexedKeys.add(entry[0] + ":" + entry[1])) continue;
+                    // Older hand-written Pengram results opened only the section;
+                    // replace leaf duplicates with indexed results that jump to a row.
+                    if (entry[1] == PengramSettingsActivity.SECTION_ROOT && knownTitles.contains(title)) continue;
+                    if (entry[1] != PengramSettingsActivity.SECTION_ROOT) {
+                        all.removeIf(result -> result.guid >= 9000 && result.guid < 10000
+                                && title.equals(result.searchTitle));
+                    }
+                    final SearchResult indexed = new SearchResult(generatedId++, title,
+                            PengramSearchMetadata.path(entry), R.drawable.settings_features,
+                            () -> PengramSearchMetadata.open(f, entry));
+                    indexed.pengramEntry = entry;
+                    all.add(indexed);
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            return all.toArray(new SearchResult[0]);
         }
 
         private static boolean isPremiumFeatureAvailable(int currentAccount, int feature) {
@@ -15076,6 +15436,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             switch (holder.getItemViewType()) {
                 case 0: {
                     SettingsSearchCell searchCell = (SettingsSearchCell) holder.itemView;
+                    searchCell.setPengramPath(null);
                     if (searchWas) {
                         if (position < searchResults.size()) {
                             SearchResult result = searchResults.get(position);
@@ -15087,6 +15448,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 icon = result.iconResId;
                             }
                             searchCell.setTextAndValueAndIcon(resultNames.get(position), result.path, icon, position < searchResults.size() - 1);
+                            if (result.pengramEntry != null) searchCell.setPengramPath(
+                                    PengramSearchMetadata.emphasizedPath(result.pengramEntry, lastSearchString));
                         } else {
                             position -= searchResults.size() + 1;
                             MessagesController.FaqSearchResult result = faqSearchResults.get(position);
@@ -15101,6 +15464,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             if (object instanceof SearchResult) {
                                 SearchResult result = (SearchResult) object;
                                 searchCell.setTextAndValue(result.searchTitle, result.path, false, position < recentSearches.size() - 1);
+                                if (result.pengramEntry != null) searchCell.setPengramPath(
+                                        PengramSearchMetadata.emphasizedPath(result.pengramEntry, ""));
                             } else if (object instanceof MessagesController.FaqSearchResult) {
                                 MessagesController.FaqSearchResult result = (MessagesController.FaqSearchResult) object;
                                 searchCell.setTextAndValue(result.title, result.path, true, position < recentSearches.size() - 1);
@@ -15272,9 +15637,18 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
 
+                final String[] pengramTerms = PengramSearchMetadata.queryTerms(text);
                 for (int a = 0; a < searchArray.length; a++) {
                     SearchResult result = searchArray[a];
                     if (result == null) {
+                        continue;
+                    }
+                    if (result.pengramEntry != null && PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)) {
+                        results.add(result);
+                        SpannableStringBuilder matchName = new SpannableStringBuilder(result.searchTitle);
+                        matchName.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                                0, matchName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                        names.add(matchName);
                         continue;
                     }
                     String title = " " + result.searchTitle.toLowerCase();
@@ -15721,11 +16095,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         createBirthdayEffect();
     }
 
+    /**
+     * Кнопка «написать» на профиле. Раньше фон собирался заново при каждом
+     * onBecomeFullyVisible: инфлейт XML-тени, StateListDrawable, CombinedDrawable
+     * и два PorterDuffColorFilter. На входе в профиль это давало заметный
+     * рывок кадра, хотя меняются только цвета. Держим готовый фон и
+     * пересобираем его лишь когда действительно поменялся цвет или стиль.
+     */
+    private Drawable writeButtonBg;
+    private int writeButtonBgColor1;
+    private int writeButtonBgColor2;
+    private int writeButtonBgIconColor;
+    private boolean writeButtonBgMd3;
+    private boolean writeButtonBgValid;
+
     private void writeButtonSetBackground() {
-        if (writeButton == null) return;
+        if (writeButton == null || fragmentView == null) return;
         try {
-            Drawable shadowDrawable = fragmentView.getContext().getResources().getDrawable(R.drawable.floating_shadow_profile).mutate();
-            shadowDrawable.setColorFilter(new PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.MULTIPLY));
             int color1 = getThemedColor(Theme.key_profile_actionBackground);
             int color2 = getThemedColor(Theme.key_profile_actionPressedBackground);
             int iconColor = getThemedColor(Theme.key_profile_actionIcon);
@@ -15734,10 +16120,32 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 color2 = applyPeerColor2(color2);
                 iconColor = Color.WHITE;
             }
-            CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable,
-                    Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), color1, color2),
-                    0, 0);
+            final boolean md3 = org.telegram.messenger.PengramMD3.fab();
+            if (writeButtonBgValid && writeButtonBg != null
+                    && writeButtonBgColor1 == color1 && writeButtonBgColor2 == color2
+                    && writeButtonBgIconColor == iconColor && writeButtonBgMd3 == md3) {
+                // цвета те же — просто возвращаем ранее собранный фон
+                if (writeButton.getBackground() != writeButtonBg) {
+                    writeButton.setBackground(writeButtonBg);
+                    writeButton.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
+                }
+                return;
+            }
+            Drawable shadowDrawable = fragmentView.getContext().getResources().getDrawable(R.drawable.floating_shadow_profile).mutate();
+            shadowDrawable.setColorFilter(new PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.MULTIPLY));
+            // Pengram: Material 3 — тот же скруглённый квадрат, что и у кнопки
+            // «написать» в списке чатов, вместо круга.
+            final Drawable fillDrawable = md3
+                    ? Theme.createSimpleSelectorRoundRectDrawable(org.telegram.messenger.PengramMD3.fabRadius(), color1, color2)
+                    : Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(56), color1, color2);
+            CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable, fillDrawable, 0, 0);
             combinedDrawable.setIconSize(AndroidUtilities.dp(56), AndroidUtilities.dp(56));
+            writeButtonBg = combinedDrawable;
+            writeButtonBgColor1 = color1;
+            writeButtonBgColor2 = color2;
+            writeButtonBgIconColor = iconColor;
+            writeButtonBgMd3 = md3;
+            writeButtonBgValid = true;
             writeButton.setBackground(combinedDrawable);
             writeButton.setColorFilter(new PorterDuffColorFilter(iconColor, PorterDuff.Mode.MULTIPLY));
         } catch (Exception e) {

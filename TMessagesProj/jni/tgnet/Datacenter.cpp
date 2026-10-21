@@ -1412,6 +1412,27 @@ Connection *Datacenter::getConnectionByType(uint32_t connectionType, bool create
     }
 }
 
+void Datacenter::setPermanentAuthKey(const uint8_t *bytes, uint32_t length, int64_t keyId) {
+    // Ключ из файла сессии: 256 байт и id = младшие 64 бита SHA1. Проверяем
+    // длину сами — иначе первый же запрос уйдёт с мусорным ключом и связь
+    // будет молча рваться.
+    if (bytes == nullptr || length != 256 || keyId == 0) {
+        return;
+    }
+    if (authKeyPerm != nullptr) {
+        delete authKeyPerm;
+        authKeyPerm = nullptr;
+    }
+    authKeyPerm = new ByteArray((uint8_t *) bytes, length);
+    authKeyPermId = keyId;
+    authorized = true;
+    // Старые сокеты подписаны старым ключом (или его отсутствием) — их надо
+    // закрыть, иначе первый запрос уйдёт в мёртвое соединение.
+    suspendConnections(false);
+    resetAddressAndPortNum();
+    lastInitVersion = 0;
+}
+
 void Datacenter::onHandshakeComplete(Handshake *handshake, int64_t keyId, ByteArray *authKey, int32_t timeDifference) {
     HandshakeType type = handshake->getType();
     for (auto iter = handshakes.begin(); iter != handshakes.end(); iter++) {

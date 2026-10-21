@@ -41,6 +41,7 @@ public class PengramHistoryActivity extends UniversalFragment {
     private final long dialogId;
     private int filter = PengramHistory.FILTER_ALL;
     private ArrayList<PengramHistory.Entry> entries = new ArrayList<>();
+    private final Runnable historyChanged = this::reload;
 
     public PengramHistoryActivity() {
         this(0);
@@ -49,6 +50,19 @@ public class PengramHistoryActivity extends UniversalFragment {
     public PengramHistoryActivity(long dialogId) {
         super();
         this.dialogId = dialogId;
+    }
+
+    @Override
+    public boolean onFragmentCreate() {
+        boolean created = super.onFragmentCreate();
+        if (created) PengramHistory.addChangeListener(historyChanged);
+        return created;
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        PengramHistory.removeChangeListener(historyChanged);
+        super.onFragmentDestroy();
     }
 
     @Override
@@ -76,8 +90,8 @@ public class PengramHistoryActivity extends UniversalFragment {
         builder.setTitle(getString(R.string.PengramHistoryClearTitle));
         builder.setMessage(getString(dialogId != 0 ? R.string.PengramHistoryClearChat : R.string.PengramHistoryClearAll));
         builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
-            PengramHistory.clear(dialogId);
-            reload();
+            PengramHistory.clear(currentAccount, dialogId);
+            // The change listener reloads after the queued SQLite deletion.
             BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, getString(R.string.PengramHistoryCleared)).show();
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
@@ -90,7 +104,7 @@ public class PengramHistoryActivity extends UniversalFragment {
     }
 
     private void reload() {
-        entries = PengramHistory.getEntries(dialogId, filter, 500);
+        entries = PengramHistory.getEntries(dialogId, filter, 500, null, 0, false, currentAccount);
         if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
@@ -139,9 +153,11 @@ public class PengramHistoryActivity extends UniversalFragment {
             final int index = item.id - 1000;
             if (index >= 0 && index < entries.size()) {
                 final PengramHistory.Entry entry = entries.get(index);
-                if (dialogId == 0 && entry.dialogId != 0) {
-                    presentFragment(new PengramHistoryActivity(entry.dialogId));
-                }
+                PengramHistoryChatActivity detail = entry.action == PengramHistory.ACTION_EDITED
+                        ? new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_EDITED, entry.messageId)
+                        : new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_DELETED);
+                detail.setCurrentAccount(currentAccount);
+                presentFragment(detail);
             }
         }
     }
@@ -158,8 +174,8 @@ public class PengramHistoryActivity extends UniversalFragment {
                             BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
                         })
                         .add(R.drawable.msg_delete, getString(R.string.Delete), true, () -> {
-                            PengramHistory.deleteEntry(entry.rowId);
-                            reload();
+                            PengramHistory.deleteEntry(currentAccount, entry.rowId);
+                            // Reload on the persisted change, not before the executor runs.
                         })
                         .show();
                 return true;

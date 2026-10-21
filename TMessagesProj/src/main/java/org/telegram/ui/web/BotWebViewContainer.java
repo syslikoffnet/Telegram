@@ -4060,7 +4060,7 @@ public abstract class BotWebViewContainer extends FrameLayout implements Notific
                                         request.setMimeType("image/*");
                                         request.setDescription(getString(R.string.WebDownloading));
                                         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                                        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                                        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Pengram/" + filename);
                                         DownloadManager downloadManager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
                                         if (downloadManager != null) {
                                             downloadManager.enqueue(request);
@@ -4994,7 +4994,7 @@ public abstract class BotWebViewContainer extends FrameLayout implements Notific
                                         request.setDescription(getString(R.string.WebDownloading));
                                         request.setTitle(filename);
                                         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                                        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                                        request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Pengram/" + filename);
                                         DownloadManager downloadManager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
                                         if (downloadManager != null) {
                                             downloadManager.enqueue(request);

@@ -525,6 +525,14 @@ public class Theme {
         public OverrideWallpaperInfo overrideWallpaper;
         public boolean isDefault;
 
+        /** Pengram: Material You создаёт служебный акцент из системной палитры */
+        public static ThemeAccent createPengramAccent(ThemeInfo parentTheme, int id) {
+            final ThemeAccent accent = new ThemeAccent();
+            accent.id = id;
+            accent.parentTheme = parentTheme;
+            return accent;
+        }
+
         ThemeAccent() {
 
         }
@@ -3421,6 +3429,10 @@ public class Theme {
     public static final int key_telegram_color = colorsCount++;
     public static final int key_telegram_color_text = colorsCount++;
 
+    public static final int key_wallet_comment = colorsCount++;
+    public static final int key_wallet_out_commentBorder = colorsCount++;
+    public static final int key_wallet_inputCurrency = colorsCount++;
+
     public static final String key_drawable_botInline = "drawableBotInline";
     public static final String key_drawable_botLink = "drawableBotLink";
     public static final String key_drawable_botWebView = "drawableBotWebView";
@@ -3711,7 +3723,9 @@ public class Theme {
         fallbackKeys.put(key_telegram_color, Theme.key_chat_messagePanelSend);
         fallbackKeys.put(key_telegram_color_text, Theme.key_windowBackgroundWhiteBlueText4);
 
-
+        fallbackKeys.put(key_wallet_comment, Theme.key_dialogBackgroundGray);
+        fallbackKeys.put(key_wallet_out_commentBorder, Theme.key_divider);
+        fallbackKeys.put(key_wallet_inputCurrency, Theme.key_color_green);
 
 
         // fallbackKeys.put(key_chat_msgIvButtonDefaultIn, );
@@ -5746,6 +5760,10 @@ public class Theme {
             FileLog.e(e);
         }
         BlurSettingsBottomSheet.onThemeApplyed();
+        // Pengram: Material You живёт поверх выбранной темы, поэтому переносим акцент и на новую
+        if (org.telegram.messenger.PengramMonet.isEnabled()) {
+            org.telegram.messenger.PengramMonet.update(ApplicationLoader.applicationContext);
+        }
         if (previousTheme == null && save && !switchingNightTheme) {
             MessagesController.getInstance(themeInfo.account).saveTheme(themeInfo, themeInfo.getAccent(false), nightTheme, false);
         }

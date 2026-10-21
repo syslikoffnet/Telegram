@@ -274,9 +274,22 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
     @Override
     public void updateColors() {
         final boolean isDark = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
-        bg = isSectionBackground ?
-            Theme.createRoundRectDrawableShadowed(dp(20), getThemedColor(Theme.key_windowBackgroundWhite)) :
-            Theme.createRoundRectDrawable(dp(20), isWhiteBackground ? getThemedColor(Theme.key_windowBackgroundWhite) : getThemedColor(Theme.key_windowBackgroundWhiteBlackText, isDark ? 0.07f : 0.05f));
+        // Pengram: строка поиска по канонам M3 — тональная поверхность и крупная подпись
+        final boolean md3 = org.telegram.messenger.PengramMD3.searchBar();
+        if (md3 && !isSectionBackground) {
+            final float radius = org.telegram.messenger.PengramMD3.searchBarRadius();
+            final int fill = isWhiteBackground
+                    ? getThemedColor(Theme.key_windowBackgroundWhite)
+                    : org.telegram.messenger.PengramMD3.searchBarColor(resourcesProvider, isDark);
+            bg = org.telegram.messenger.PengramMD3.searchBarShadow()
+                    ? Theme.createRoundRectDrawableShadowed((int) radius, fill)
+                    : Theme.createRoundRectDrawable((int) radius, fill);
+        } else {
+            bg = isSectionBackground ?
+                Theme.createRoundRectDrawableShadowed(dp(20), getThemedColor(Theme.key_windowBackgroundWhite)) :
+                Theme.createRoundRectDrawable(dp(20), isWhiteBackground ? getThemedColor(Theme.key_windowBackgroundWhite) : getThemedColor(Theme.key_windowBackgroundWhiteBlackText, isDark ? 0.07f : 0.05f));
+        }
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, md3 ? 16 : 15);
         searchIcon.setColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText, 0.6f), PorterDuff.Mode.MULTIPLY);
         closeIcon.setColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText, 0.6f), PorterDuff.Mode.MULTIPLY);
         closeIcon.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(17)));

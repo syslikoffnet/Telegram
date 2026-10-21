@@ -113,6 +113,8 @@ import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.ThemeActivity;
 import org.telegram.ui.TopicsFragment;
+import org.telegram.ui.Wallet.GramWallet;
+import org.telegram.ui.Wallet.GramWalletStorage;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
@@ -544,6 +546,7 @@ public class MessagesController extends BaseController implements NotificationCe
     public float animatedEmojisZoom;
     public boolean filtersEnabled;
     public boolean getfileExperimentalParams;
+    public volatile boolean downloadImprovementKillswitch;
     public boolean smsjobsStickyNotificationEnabled;
     public boolean collectDeviceStats;
     public boolean showFiltersTooltip;
@@ -924,6 +927,21 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public boolean isPremiumUser(TLRPC.User currentUser) {
         return currentUser != null && currentUser.premium && !isSupportUser(currentUser);
+    }
+
+    /**
+     * Pengram: нужно ли рисовать звёздочку рядом с именем.
+     *
+     * Отличается от isPremiumUser ровно одним: своему аккаунту звёздочку можно
+     * включить локально. Это только картинка — никаких прав она не даёт и в
+     * объект пользователя не записывается, поэтому ни сервер, ни собеседники
+     * о ней не знают.
+     */
+    public boolean isPremiumUserForDisplay(TLRPC.User user) {
+        if (user != null && PengramConfig.isPremiumStatusLocal() && user.id == getUserConfig().getClientUserId()) {
+            return true;
+        }
+        return isPremiumUser(user);
     }
 
     public boolean didPressTranscribeButtonEnough() {
@@ -1622,6 +1640,7 @@ public class MessagesController extends BaseController implements NotificationCe
         saveGifsWithStickers = mainPreferences.getBoolean("saveGifsWithStickers", false);
         filtersEnabled = mainPreferences.getBoolean("filtersEnabled", false);
         getfileExperimentalParams = mainPreferences.getBoolean("getfileExperimentalParams", false);
+        downloadImprovementKillswitch = mainPreferences.getBoolean("android_download_improvement_killswitch", false);
         smsjobsStickyNotificationEnabled = mainPreferences.getBoolean("smsjobsStickyNotificationEnabled", false);
         showFiltersTooltip = mainPreferences.getBoolean("showFiltersTooltip", false);
         autoarchiveAvailable = mainPreferences.getBoolean("autoarchiveAvailable", false);
@@ -2480,39 +2499,6 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
-    private boolean loggedDeviceStats;
-    public void logDeviceStats() {
-        if (collectDeviceStats && !loggedDeviceStats) {
-            ArrayList<File> storageDirs = AndroidUtilities.getRootDirs();
-            if (!storageDirs.isEmpty()) {
-                String dir = storageDirs.get(0).getAbsolutePath();
-                if (!TextUtils.isEmpty(SharedConfig.storageCacheDir)) {
-                    for (int a = 0, N = storageDirs.size(); a < N; a++) {
-                        String path = storageDirs.get(a).getAbsolutePath();
-                        if (path.startsWith(SharedConfig.storageCacheDir)) {
-                            dir = path;
-                            break;
-                        }
-                    }
-                }
-                final boolean value = dir.contains("/storage/emulated/");
-
-                TLRPC.TL_help_saveAppLog req = new TLRPC.TL_help_saveAppLog();
-                TLRPC.TL_inputAppEvent event = new TLRPC.TL_inputAppEvent();
-                event.time = getConnectionsManager().getCurrentTime();
-                event.type = "android_sdcard_exists";
-                TLRPC.TL_jsonBool bool = new TLRPC.TL_jsonBool();
-                bool.value = value;
-                event.data = bool;
-                event.peer = value ? 1 : 0;
-                req.events.add(event);
-
-                getConnectionsManager().sendRequest(req, (response, error) -> {});
-            }
-            loggedDeviceStats = true;
-        }
-    }
-
     public void selectDialogFilter(DialogFilter filter, int index) {
         if (selectedDialogFilter[index] == filter) {
             return;
@@ -2669,6 +2655,7 @@ public class MessagesController extends BaseController implements NotificationCe
         TLRPC.TL_jsonObject liteAppOptions = null;
         int transcribeAudioTrialWeeklyNumber = 0;
         int transcribeAudioTrialCooldownUntil = 0;
+        boolean downloadImprovementKillswitch = false;
 
         changed = config.apply(editor, object);
 
@@ -2960,6 +2947,12 @@ public class MessagesController extends BaseController implements NotificationCe
                             editor.putBoolean("getfileExperimentalParams", getfileExperimentalParams);
                             changed = true;
                         }
+                    }
+                    break;
+                }
+                case "android_download_improvement_killswitch": {
+                    if (value.value instanceof TLRPC.TL_jsonBool) {
+                        downloadImprovementKillswitch = ((TLRPC.TL_jsonBool) value.value).value;
                     }
                     break;
                 }
@@ -5027,6 +5020,12 @@ public class MessagesController extends BaseController implements NotificationCe
             }
             changed = true;
         }
+        // Publish once after parsing, including the default when the key is absent.
+        if (downloadImprovementKillswitch != this.downloadImprovementKillswitch) {
+            this.downloadImprovementKillswitch = downloadImprovementKillswitch;
+            editor.putBoolean("android_download_improvement_killswitch", downloadImprovementKillswitch);
+            changed = true;
+        }
         if (transcribeAudioTrialCooldownUntil != this.transcribeAudioTrialCooldownUntil) {
             this.transcribeAudioTrialCooldownUntil = transcribeAudioTrialCooldownUntil;
             editor.putInt("transcribeAudioTrialCooldownUntil", transcribeAudioTrialCooldownUntil);
@@ -5053,7 +5052,6 @@ public class MessagesController extends BaseController implements NotificationCe
                 getNotificationCenter().postNotificationName(NotificationCenter.storiesEnabledUpdate);
             });
         }
-        logDeviceStats();
     }
 
     public void updateTranscribeAudioTrialCurrentNumber(int num) {
@@ -6465,6 +6463,7 @@ public class MessagesController extends BaseController implements NotificationCe
         getColorPalette().cleanup();
         getTranslateController().cleanup();
         getSavedMessagesController().cleanup();
+        GramWallet.cleanup(currentAccount);
         if (storiesController != null) {
             storiesController.cleanup();
         }
@@ -6851,6 +6850,31 @@ public class MessagesController extends BaseController implements NotificationCe
         return exportedChats.get(chatId);
     }
 
+    /**
+     * Pengram: прогнать фильтр Zalgo по всем уже закэшированным именам и названиям —
+     * вызывается, когда переключатель включили на лету.
+     */
+    public void pengramApplyZalgoFilter() {
+        if (!PengramConfig.isZalgoFilter()) {
+            return;
+        }
+        try {
+            for (TLRPC.User user : users.values()) {
+                if (user != null) {
+                    user.first_name = PengramConfig.filterZalgo(user.first_name);
+                    user.last_name = PengramConfig.filterZalgo(user.last_name);
+                }
+            }
+            for (TLRPC.Chat chat : chats.values()) {
+                if (chat != null) {
+                    chat.title = PengramConfig.filterZalgo(chat.title);
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
     public boolean putUser(TLRPC.User user, boolean fromCache) {
         return putUser(user, fromCache, false);
     }
@@ -6859,8 +6883,17 @@ public class MessagesController extends BaseController implements NotificationCe
         if (user == null) {
             return false;
         }
+        // Pengram: фильтр zalgo применяем до того, как объект осядет в кэше.
+        // Локальный «премиум» сюда больше не лезет: испорченный объект попадал
+        // в кэш и на диск, и подделка переживала и перезапуск, и выключение.
+        if (PengramConfig.isZalgoFilter()) {
+            user.first_name = PengramConfig.filterZalgo(user.first_name);
+            user.last_name = PengramConfig.filterZalgo(user.last_name);
+        }
         fromCache = fromCache && user.id / 1000 != 333 && user.id != 777000;
         TLRPC.User oldUser = users.get(user.id);
+        // Pengram: запоминаем имя, пока оно ещё не подменено на ваше из контактов
+        PengramOriginalName.observe(currentAccount, user, oldUser, fromCache);
         if (oldUser == user && !force) {
             return false;
         }
@@ -6926,6 +6959,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 getUserNameResolver().update(oldUser, user);
                 if (oldUser != null && user.status != null && oldUser.status != null && user.status.expires != oldUser.status.expires) {
+                    TLRPC.User storedUser = users.get(user.id);
+                    PengramProfileHistory.observeUser(currentAccount, storedUser, fromCache);
+                    if (storedUser != user) PengramProfileHistory.observeAdditionalUsernames(currentAccount, user, fromCache);
                     return true;
                 }
             } else if (oldUser == null) {
@@ -6952,6 +6988,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 users.put(user.id, user);
             }
         }
+        TLRPC.User storedUser = users.get(user.id);
+        PengramProfileHistory.observeUser(currentAccount, storedUser != null ? storedUser : user, fromCache);
+        if (storedUser != null && storedUser != user) PengramProfileHistory.observeAdditionalUsernames(currentAccount, user, fromCache);
         return false;
     }
 
@@ -6993,6 +7032,9 @@ public class MessagesController extends BaseController implements NotificationCe
     public void putChat(final TLRPC.Chat chat, boolean fromCache) {
         if (chat == null) {
             return;
+        }
+        if (PengramConfig.isZalgoFilter()) {
+            chat.title = PengramConfig.filterZalgo(chat.title);
         }
         TLRPC.Chat oldChat = chats.get(chat.id);
         if (oldChat == chat) {
@@ -7833,6 +7875,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     fullUsers.put(user.id, userFull);
+                    PengramProfileHistory.observeBio(currentAccount, userFull.user, userFull.about, false);
                     getTranslateController().updateDialogFull(user.id);
                     StarsController.getInstance(currentAccount).invalidateProfileGifts(userFull);
                     loadingFullUsers.remove(user.id);
@@ -9323,6 +9366,14 @@ public class MessagesController extends BaseController implements NotificationCe
         if ((messages == null || messages.isEmpty()) && taskId == 0) {
             return;
         }
+        // Pengram: сервер принимает максимум 100 id за раз — режем длинные выделения на пачки
+        if (taskId == 0 && taskRequest == null && messages != null && messages.size() > 100) {
+            for (int off = 0; off < messages.size(); off += 100) {
+                final ArrayList<Integer> part = new ArrayList<>(messages.subList(off, Math.min(off + 100, messages.size())));
+                deleteMessages(part, off == 0 ? randoms : null, encryptedChat, dialogId, forAll, mode, cacheOnly, 0, null, topicId, movedToScheduled, movedToScheduledMessageId);
+            }
+            return;
+        }
         ArrayList<Integer> toSend = null;
         long channelId;
         if (taskId == 0) {
@@ -10517,6 +10568,34 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
+    /**
+     * Pengram: «автоофлайн» — сразу после нашей активности говорим серверу, что мы офлайн,
+     * чтобы собеседник не увидел всплывающий онлайн.
+     */
+    public void pengramSendOfflineStatus() {
+        if (!PengramConfig.isGhostAutoOffline() || !getUserConfig().isClientActivated()) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!PengramConfig.isGhostAutoOffline()) {
+                return;
+            }
+            if (statusRequest != 0) {
+                getConnectionsManager().cancelRequest(statusRequest, true);
+                statusRequest = 0;
+            }
+            statusSettingState = 2;
+            TL_account.updateStatus req = new TL_account.updateStatus();
+            req.offline = true;
+            statusRequest = getConnectionsManager().sendRequest(req, (response, error) -> {
+                if (error == null) {
+                    offlineSent = true;
+                }
+                statusRequest = 0;
+            });
+        }, 1500);
+    }
+
     public void updateTimerProc() {
         long currentTime = System.currentTimeMillis();
 
@@ -10860,6 +10939,23 @@ public class MessagesController extends BaseController implements NotificationCe
     private long lastCheckPromoInfoTime;
 
     private void checkPromoInfoInternal(boolean reset) {
+        if (PengramConfig.isHidingAds()) {
+            // Pengram: спонсорский канал прокси и любые промо-диалоги сверху списка.
+            // Ничего не спрашиваем у сервера и убираем то, что успело прийти раньше.
+            checkingPromoInfo = false;
+            if (checkingPromoInfoRequestId != 0) {
+                getConnectionsManager().cancelRequest(checkingPromoInfoRequestId, true);
+                checkingPromoInfoRequestId = 0;
+            }
+            nextPromoInfoCheckTime = getConnectionsManager().getCurrentTime() + 60 * 60;
+            if (promoDialogId != 0) {
+                promoDialogId = 0;
+                proxyDialogAddress = null;
+                getGlobalMainSettings().edit().putLong("proxy_dialog", 0).remove("proxyDialogAddress").putInt("nextPromoInfoCheckTime", nextPromoInfoCheckTime).commit();
+            }
+            AndroidUtilities.runOnUIThread(this::removePromoDialog);
+            return;
+        }
         if (reset && checkingPromoInfo) {
             checkingPromoInfo = false;
         }
@@ -11381,14 +11477,14 @@ public class MessagesController extends BaseController implements NotificationCe
     /** Pengram: сохраняем предыдущую версию отредактированного сообщения */
     private void pengramSaveEdited(TLRPC.Message message) {
         try {
-            if (message == null || !PengramConfig.isSavingEdited()) {
+            if (message == null || !PengramConfig.isSavingEdited(currentAccount)) {
                 return;
             }
-            if (message.out && !PengramConfig.isSavingOutgoing()) {
+            if (message.out && !PengramConfig.isSavingOutgoing(currentAccount)) {
                 return;
             }
             final long dialogId = MessageObject.getDialogId(message);
-            if (!PengramConfig.isSavingInBots() && getMessagesStorage().pengramIsBotDialog(dialogId)) {
+            if (!PengramConfig.isSavingInBots(currentAccount) && getMessagesStorage().pengramIsBotDialog(dialogId)) {
                 return;
             }
             final int messageId = message.id;
@@ -11396,18 +11492,28 @@ public class MessagesController extends BaseController implements NotificationCe
             final int date = message.date;
             final String newText = PengramHistory.describe(message);
             final int account = currentAccount;
+            final boolean out = message.out;
+            final byte[] data = PengramHistory.serialize(message);
             getMessagesStorage().getStorageQueue().postRunnable(() -> {
-                String oldText = null;
-                try {
-                    oldText = getMessagesStorage().pengramGetMessageText(messageId, dialogId);
-                } catch (Throwable ignore) {}
+                // Own edits optimistically replace the storage row before the server
+                // confirms them. Prefer the durable pre-edit snapshot in that case.
+                TLRPC.Message previous = PengramHistory.pendingEditSnapshot(account, dialogId, messageId);
+                if (previous == null) {
+                    previous = getMessagesStorage().pengramGetMessageSnapshot(messageId, dialogId);
+                }
+                String oldText = previous == null ? null : PengramHistory.describe(previous);
                 if (oldText == null) {
                     oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
                 }
-                if (oldText == null || android.text.TextUtils.equals(oldText, newText)) {
-                    return;
-                }
-                PengramHistory.save(account, dialogId, messageId, fromId, date, PengramHistory.ACTION_EDITED, newText, oldText);
+                final boolean changedMedia = PengramHistory.isEditedPhotoOrVideo(previous, message);
+                // Formatting-only and caption/media edits can leave the summary
+                // unchanged. Save the full revision; the archive deduplicates exact
+                // server updates instead of discarding meaningful same-text edits.
+                PengramHistory.save(account, dialogId, messageId, fromId, date,
+                        PengramHistory.ACTION_EDITED, newText, oldText, out, data, previous,
+                        changedMedia && PengramConfig.isSavingEditedMedia(account));
+                // The history executor saves first and deletes the pending copy second.
+                PengramHistory.clearPendingEdit(account, dialogId, messageId);
             });
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14065,12 +14171,16 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("checkLastDialogMessage for " + dialog.id + " current dialog not found");
                                 }
-                                getMessagesStorage().isDialogHasTopMessage(dialog.id, () -> deleteDialog(dialog.id, 3));
+                                getMessagesStorage().isDialogHasTopMessage(dialog.id, () -> {
+                                    if (!PengramLocalKeep.keepDialog()) {
+                                        deleteDialog(dialog.id, 3);
+                                    }
+                                });
                             } else {
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("checkLastDialogMessage for " + dialog.id + " current dialog top message " + currentDialog.top_message);
                                 }
-                                if (currentDialog.top_message == 0) {
+                                if (currentDialog.top_message == 0 && !PengramLocalKeep.keepDialog()) {
                                     deleteDialog(dialog.id, 3);
                                 }
                             }
@@ -14449,6 +14559,11 @@ public class MessagesController extends BaseController implements NotificationCe
         long dialogId = messageObject.getDialogId();
         getMessagesStorage().markMessagesContentAsRead(dialogId, arrayList, 0, 0);
         getNotificationCenter().postNotificationName(NotificationCenter.messagesReadContent, dialogId, arrayList);
+        if (PengramConfig.isNotSendingVoiceRead() && !messageObject.isOutOwner()
+                && (messageObject.isVoice() || messageObject.isRoundVideo())) {
+            // призрак: помечаем прослушанным только локально
+            return;
+        }
         if (messageObject.getId() < 0) {
             markMessageAsRead(messageObject.getDialogId(), messageObject.messageOwner.random_id, Integer.MIN_VALUE);
         } else {
@@ -16180,6 +16295,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void performLogout(int type) {
         if (type == 1) {
+            GramWalletStorage.wipeForUser(ApplicationLoader.applicationContext, currentAccount, getUserConfig().getClientUserId());
             unregistedPush();
             TLRPC.TL_auth_logOut req = new TLRPC.TL_auth_logOut();
             getConnectionsManager().sendRequest(req, (response, error) -> {
@@ -17900,8 +18016,45 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    private void processMessageIDUpdate(TL_update.TL_updateMessageID update) {
+        // Use the same persisted random_id lookup as getDifference, including after a restart.
+        getMessagesStorage().getStorageQueue().postRunnable(() -> {
+            long[] ids = getMessagesStorage().updateMessageStateAndId(
+                    update.random_id, 0, null, update.id, 0, false, -1, 0);
+            if (ids == null) return;
+            AndroidUtilities.runOnUIThread(() -> {
+                final int oldId = (int) ids[1];
+                getSendMessagesHelper().processSentMessage(oldId);
+                getSendMessagesHelper().removeFromSendingMessages(oldId, false);
+                getNotificationCenter().postNotificationName(NotificationCenter.messageReceivedByServer,
+                        oldId, update.id, null, ids[0], 0L, -1, false);
+                getNotificationCenter().postNotificationName(NotificationCenter.messageReceivedByServer2,
+                        oldId, update.id, null, ids[0], 0L, -1, false);
+            });
+        });
+    }
+
     // must be run from Utilities.stageQueue
     public void processUpdates(final TLRPC.Updates updates, boolean fromQueue) {
+        if (updates instanceof TLRPC.TL_updates || updates instanceof TLRPC.TL_updatesCombined) {
+            boolean hasMessageIdUpdates = false;
+            for (int i = 0; i < updates.updates.size(); i++) {
+                TLRPC.Update update = updates.updates.get(i);
+                if (update instanceof TL_update.TL_updateMessageID) {
+                    processMessageIDUpdate((TL_update.TL_updateMessageID) update);
+                    updates.updates.remove(i--);
+                    hasMessageIdUpdates = true;
+                }
+            }
+            if (hasMessageIdUpdates) {
+                // Like getDifference, remap local IDs before processing accompanying messages.
+                // Otherwise pts sorting delivers updateNewMessage first, and the later ID
+                // notification removes the local row instead of updating it in place.
+                getMessagesStorage().getStorageQueue().postRunnable(() ->
+                        Utilities.stageQueue.postRunnable(() -> processUpdates(updates, fromQueue)));
+                return;
+            }
+        }
         ArrayList<Long> needGetChannelsDiff = null;
         boolean needGetDiff = false;
         boolean needReceivedQueue = false;
@@ -18855,8 +19008,8 @@ public class MessagesController extends BaseController implements NotificationCe
                         interfaceUpdateMask |= UPDATE_MASK_STATUS;
                     }
                 }
-                if (PengramConfig.isSavingReadDate()) {
-                    PengramHistory.saveReadDate(dialogId, getConnectionsManager().getCurrentTime());
+                if (PengramConfig.isSavingReadDate(currentAccount)) {
+                    PengramHistory.saveReadDate(currentAccount, dialogId, getConnectionsManager().getCurrentTime());
                 }
                 Integer value = dialogs_read_outbox_max.get(dialogId);
                 if (value == null) {
@@ -18865,6 +19018,10 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogs_read_outbox_max.put(dialogId, Math.max(value, update.max_id));
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteMessages) {
                 TL_update.TL_updateDeleteMessages update = (TL_update.TL_updateDeleteMessages) baseUpdate;
+                // Pengram: даже когда включена локальная копия, удаление надо
+                // провести по всему пути — иначе сообщение остаётся в чате без
+                // метки «удалено» и без прозрачности. Решение «оставить или
+                // стереть» принимает хранилище, здесь мы только собираем id.
                 if (deletedMessages == null) {
                     deletedMessages = new LongSparseArray<>();
                 }
@@ -19390,6 +19547,8 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d(baseUpdate + " channelId = " + update.channel_id);
                 }
+                // Pengram: см. комментарий выше — локальная копия больше не
+                // выключает обработку удалений, она решает только их исход.
                 if (deletedMessages == null) {
                     deletedMessages = new LongSparseArray<>();
                 }
@@ -19541,7 +19700,17 @@ public class MessagesController extends BaseController implements NotificationCe
                 pengramSaveEdited(message);
 
                 ImageLoader.saveMessageThumbs(message);
-                AndroidUtilities.runOnUIThread(()-> getSendMessagesHelper().onMessageEdited(message));
+                AndroidUtilities.runOnUIThread(() -> {
+                    getSendMessagesHelper().onMessageEdited(message);
+                    if (!message.out && message.dialog_id == 777000
+                            && message.action instanceof TLRPC.TL_messageActionWalletTonConnectRequest) {
+                        TLRPC.TL_messageActionWalletTonConnectRequest request =
+                                (TLRPC.TL_messageActionWalletTonConnectRequest) message.action;
+                        if (request.accepted || request.declined) {
+                            GramWallet.getInstance(currentAccount).tonConnect.markProcessed(request.session_id, message.id);
+                        }
+                    }
+                });
 
                 boolean isDialogCreated = createdDialogIds.contains(message.dialog_id);
                 MessageObject obj = new MessageObject(currentAccount, message, usersDict, chatsDict, isDialogCreated, isDialogCreated);
@@ -19924,7 +20093,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 SharedPreferences.Editor editor = null;
                 for (int a = 0, size = updatesOnMainThreadFinal.size(); a < size; a++) {
                     TLRPC.Update baseUpdate = updatesOnMainThreadFinal.get(a);
-                    if (baseUpdate instanceof TL_update.TL_updatePrivacy) {
+                    if (baseUpdate instanceof TL_update.TL_updateMessageID) {
+                        processMessageIDUpdate((TL_update.TL_updateMessageID) baseUpdate);
+                    } else if (baseUpdate instanceof TL_update.TL_updatePrivacy) {
                         TL_update.TL_updatePrivacy update = (TL_update.TL_updatePrivacy) baseUpdate;
                         if (update.key instanceof TLRPC.TL_privacyKeyStatusTimestamp) {
                             getContactsController().setPrivacyRules(update.rules, ContactsController.PRIVACY_RULES_TYPE_LASTSEEN);
@@ -19960,11 +20131,11 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateUserStatus) {
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
-                        if (PengramConfig.isSavingLastOnline() && update.user_id != getUserConfig().getClientUserId()) {
+                        if (PengramConfig.isSavingLastOnline(currentAccount) && update.user_id != getUserConfig().getClientUserId()) {
                             if (update.status instanceof TLRPC.TL_userStatusOnline) {
-                                PengramHistory.saveLastOnline(update.user_id, getConnectionsManager().getCurrentTime());
+                                PengramHistory.saveLastOnline(currentAccount, update.user_id, getConnectionsManager().getCurrentTime());
                             } else if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
-                                PengramHistory.saveLastOnline(update.user_id, update.status.expires);
+                                PengramHistory.saveLastOnline(currentAccount, update.user_id, update.status.expires);
                             }
                         }
 
@@ -20302,7 +20473,11 @@ public class MessagesController extends BaseController implements NotificationCe
                             if (dialog == null && chat instanceof TLRPC.TL_channel && !chat.left) {
                                 Utilities.stageQueue.postRunnable(() -> getChannelDifference(update.channel_id, 1, 0, null));
                             } else if (ChatObject.isNotInChat(chat) && dialog != null && (promoDialog == null || promoDialog.id != dialog.id)) {
-                                deleteDialog(dialog.id, 0);
+                                // Pengram: локальная копия — чат остаётся в списке
+                                // и открывается только на чтение из кэша
+                                if (!PengramLocalKeep.keepDialog()) {
+                                    deleteDialog(dialog.id, 0);
+                                }
                             }
                             if (chat instanceof TLRPC.TL_channelForbidden || chat.kicked) {
                                 ChatObject.Call call = getGroupCall(chat.id, false);
@@ -20340,7 +20515,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 }
                             }
                             TLRPC.Dialog dialog = dialogs_dict.get(-chat.id);
-                            if (dialog != null) {
+                            if (dialog != null && !PengramLocalKeep.keepDialog()) {
                                 deleteDialog(dialog.id, 0);
                             }
                         }
@@ -20382,6 +20557,14 @@ public class MessagesController extends BaseController implements NotificationCe
                         getMediaDataController().loadSavedReactions(true);
                     } else if (baseUpdate instanceof TL_update.TL_updateSavedReactionTags) {
                         getSavedReactionTags(0, true);
+                    } else if (baseUpdate instanceof TL_update.TL_updateSentWalletTransaction) {
+                        GramWallet.getInstance(currentAccount).onUpdate((TL_update.TL_updateSentWalletTransaction) baseUpdate);
+                    } else if (baseUpdate instanceof TL_update.TL_updateWalletGaslessInfo) {
+                        GramWallet.getInstance(currentAccount).onUpdate((TL_update.TL_updateWalletGaslessInfo) baseUpdate);
+                    } else if (baseUpdate instanceof TL_update.TL_updateWalletState) {
+                        GramWallet.getInstance(currentAccount).onUpdate((TL_update.TL_updateWalletState) baseUpdate);
+                    } else if (baseUpdate instanceof TL_update.TL_updateWalletTonConnectSession) {
+                        GramWallet.getInstance(currentAccount).tonConnect.onSessionUpdate(((TL_update.TL_updateWalletTonConnectSession) baseUpdate).session);
                     } else if (baseUpdate instanceof TL_update.TL_updateFavedStickers) {
                         getMediaDataController().loadRecents(MediaDataController.TYPE_FAVE, false, false, true);
                     } else if (baseUpdate instanceof TL_update.TL_updateContactsReset) {
@@ -21622,6 +21805,9 @@ public class MessagesController extends BaseController implements NotificationCe
             topicsController.markAllReactionsAsRead(-dialogId, topicId);
         }
         getMessagesStorage().updateUnreadReactionsCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingReactionsRead()) {
+            return;
+        }
         TLRPC.TL_messages_readReactions req = new TLRPC.TL_messages_readReactions();
         req.peer = getInputPeer(dialogId);
 
@@ -21966,6 +22152,20 @@ public class MessagesController extends BaseController implements NotificationCe
         getMediaDataController().loadReplyMessagesForMessages(messages, dialogId, mode, 0, null, 0, null);
         if (mode == ChatActivity.MODE_QUICK_REPLIES) {
             QuickRepliesController.getInstance(currentAccount).checkLocalMessages(messages);
+        }
+        if (mode == ChatActivity.MODE_DEFAULT) {
+            ArrayList<MessageObject> gramMessages = null;
+            for (MessageObject message : messages) {
+                if (message.getId() > 0 && message.messageOwner.action instanceof TLRPC.TL_messageActionGramTransfer) {
+                    if (gramMessages == null) gramMessages = new ArrayList<>();
+                    gramMessages.add(message);
+                }
+            }
+            if (gramMessages != null) {
+                // updateMessageID may have already assigned this ID to a local service message.
+                // Refresh its action before normal new-message deduplication skips the existing ID.
+                getNotificationCenter().postNotificationName(NotificationCenter.replaceMessagesObjects, dialogId, gramMessages);
+            }
         }
         getNotificationCenter().postNotificationName(NotificationCenter.didReceiveNewMessages, dialogId, messages, scheduled, mode);
 

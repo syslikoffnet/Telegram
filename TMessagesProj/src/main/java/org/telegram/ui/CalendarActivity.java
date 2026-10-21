@@ -908,7 +908,7 @@ public class CalendarActivity extends BaseFragment implements NotificationCenter
 
                     if (periodDay != null) {
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                         } catch (Exception ignored) {}
 
                         Bundle bundle = new Bundle();

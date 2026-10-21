@@ -1142,7 +1142,7 @@ public class TwoStepVerificationActivity extends BaseFragment implements Notific
             return;
         }
         try {
-            field.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) field.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         if (clear) {
             field.setText("");

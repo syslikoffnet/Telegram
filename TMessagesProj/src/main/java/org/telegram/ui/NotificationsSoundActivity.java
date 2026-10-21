@@ -415,7 +415,7 @@ public class NotificationsSoundActivity extends BaseFragment implements ChatAtta
             if (view instanceof ToneCell) {
                 ToneCell cell = (ToneCell) view;
                 checkSelection(cell.tone);
-                cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             }
             return false;
         });

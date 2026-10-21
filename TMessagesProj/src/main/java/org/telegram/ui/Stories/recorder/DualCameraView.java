@@ -240,7 +240,7 @@ public class DualCameraView extends CameraView {
                     if (tapTime > 0) {
                         this.dualToggleShape();
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignored) {}
                     }
                 }, ViewConfiguration.getLongPressTimeout());

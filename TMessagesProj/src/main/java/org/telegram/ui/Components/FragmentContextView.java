@@ -67,6 +67,8 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.LocationController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramLyrics;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -129,6 +131,10 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private final CapsuleBlobDrawable capsuleBlobDrawable = new CapsuleBlobDrawable();
     private ImageView playButton;
     private PlayPauseDrawable playPauseDrawable;
+    private PengramLyricsView pengramTicker;   // Pengram: строка песни прямо в шапке
+    private PengramPlayerSwipe pengramSwipe;   // Pengram: смена трека свайпом по шапке
+    private String pengramLyricsKey;
+    private int pengramLyricsToken;
     private AudioPlayerAlert.ClippingTextViewSwitcher titleTextView;
     private AudioPlayerAlert.ClippingTextViewSwitcher subtitleTextView;
     private AnimatorSet animatorSet;
@@ -475,6 +481,38 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         };
         addView(subtitleTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 35, 10, 36 + (isSideMenued ? 64 : 0), 0));
 
+        // Pengram: та же строка, что звучит сейчас, с подсветкой слов
+        pengramTicker = new PengramLyricsView(context);
+        pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
+        pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
+        pengramTicker.setVisibility(GONE);
+        addView(pengramTicker, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 37, 0, 36 + (isSideMenued ? 64 : 0) + 44, 0));
+
+        // Pengram: свайп влево/вправо по свёрнутому плееру меняет трек
+        pengramSwipe = new PengramPlayerSwipe(this,
+                new View[]{playButton, titleTextView, subtitleTextView, pengramTicker},
+                new PengramPlayerSwipe.Callback() {
+                    @Override
+                    public boolean canSwipe() {
+                        if (currentStyle != STYLE_AUDIO_PLAYER || !PengramConfig.isPlayerSwipe()) {
+                            return false;
+                        }
+                        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                        return playing != null && playing.isMusic();
+                    }
+
+                    @Override
+                    public void next() {
+                        MediaController.getInstance().playNextMessage();
+                    }
+
+                    @Override
+                    public void previous() {
+                        MediaController.getInstance().playPreviousMessage();
+                    }
+                });
+        pengramSwipe.setColor(getThemedColor(Theme.key_inappPlayerPerformer));
+
         joinButtonFlicker = new CellFlickerDrawable();
         joinButtonFlicker.setProgress(1);
         joinButtonFlicker.repeatEnabled = false;
@@ -593,7 +631,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
 
                 AndroidUtilities.runOnUIThread(toggleMicRunnable, 90);
                 try {
-                    muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignore) {}
             };
 
@@ -630,7 +668,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                             if (VoIPService.getSharedInstance() != null) {
                                 VoIPService.getSharedInstance().setMicMute(true, true, false);
                                 try {
-                                    muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                 } catch (Exception ignore) {}
                             }
                             pressed = false;
@@ -689,7 +727,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             Theme.getFragmentContextViewWavesDrawable().updateState(true);
             capsuleBlobDrawable.updateState(true);
             try {
-                muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
         });
 
@@ -766,9 +804,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                     if (messageObject.isMusic()) {
                         final Activity activity = AndroidUtilities.findActivity(getContext());
                         if (activity instanceof LaunchActivity) {
-                            new AudioPlayerAlert(activity, resourcesProvider).show();
+                            PengramMusicPlayerSheet.create(activity, resourcesProvider).show();
                         } else if (AndroidUtilities.isContextSafe(LaunchActivity.instance)) {
-                            new AudioPlayerAlert(LaunchActivity.instance, resourcesProvider).show();
+                            PengramMusicPlayerSheet.create(LaunchActivity.instance, resourcesProvider).show();
                         }
                     } else {
                         long dialogId = 0;
@@ -1172,6 +1210,12 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
         currentStyle = style;
+        if (pengramSwipe != null) {
+            pengramSwipe.reset();   // Pengram: смена режима шапки — содержимое на место
+        }
+        if (style != STYLE_AUDIO_PLAYER) {
+            pengramHideTicker();   // Pengram: строка песни живёт только в музыкальной шапке
+        }
         frameLayout.setWillNotDraw(currentStyle != STYLE_INACTIVE_GROUP_CALL);
         if (style != STYLE_INACTIVE_GROUP_CALL) {
             notifyButtonEnabled = false;
@@ -1384,6 +1428,8 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        PengramLyrics.removeListener(pengramLyricsReady);
+        pengramStopTickerPump();
         if (animatorSet != null) {
             animatorSet.cancel();
             animatorSet = null;
@@ -1430,9 +1476,21 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
 
+    /** Pengram: текст нашёлся где-то ещё — проверяем, не наш ли это трек */
+    private final Runnable pengramLyricsReady = () -> {
+        if (pengramTicker == null || !isMusic || !PengramConfig.isHeaderLyrics()) {
+            return;
+        }
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            pengramCheckTicker(playing);
+        }
+    };
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        PengramLyrics.addListener(pengramLyricsReady);
         removeObservers();
 
         if (isLocation) {
@@ -1530,6 +1588,12 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             if (currentStyle == STYLE_CONNECTING_GROUP_CALL || currentStyle == STYLE_ACTIVE_GROUP_CALL || currentStyle == STYLE_INACTIVE_GROUP_CALL) {
                 checkCall(false);
             }
+            if (id == NotificationCenter.messagePlayingDidReset && pengramTicker != null) {
+                // Pengram: музыка кончилась — строка песни уходит, остаётся обычная шапка
+                pengramLyricsKey = null;
+                pengramTicker.clear();
+                pengramHideTicker();
+            }
             checkPlayer(false);
         } else if (id == NotificationCenter.didStartedCall || id == NotificationCenter.groupCallUpdated || id == NotificationCenter.groupCallVisibilityChanged) {
             checkCall(false);
@@ -1600,6 +1664,25 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         } else if (id == NotificationCenter.messagePlayingProgressDidChanged) {
             if (currentStyle == STYLE_AUDIO_PLAYER) {
                 invalidate();
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (pengramTicker != null && !PengramConfig.isHeaderLyrics()) {
+                    if (pengramTickerShown) {
+                        pengramHideTicker();
+                    }
+                } else if (pengramTicker != null && pengramTicker.getVisibility() == VISIBLE && playing != null) {
+                    pengramTicker.setProgress(playing.audioProgress);
+                } else if (playing != null && pengramTicker != null && PengramConfig.isHeaderLyrics()
+                        && !pengramTickerShown) {
+                    // Текст мог найтись, пока строка была скрыта (кэш, медленная
+                    // сеть, повтор после паузы) — показываем сами, без перезахода
+                    // в чат. Проверку притормаживаем: внутри request() уже есть и
+                    // кэш, и пауза после неудачного поиска.
+                    final long now = android.os.SystemClock.elapsedRealtime();
+                    if (now - pengramLyricsCheckTime > 1500) {
+                        pengramLyricsCheckTime = now;
+                        pengramCheckTicker(playing);
+                    }
+                }
             }
         }
     }
@@ -2008,8 +2091,217 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 TypefaceSpan span = new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer));
                 stringBuilder.setSpan(span, 0, messageObject.getMusicAuthor().length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 titleTextView.setText(stringBuilder, !create && wasVisible && isMusic);
+                pengramCheckTicker(messageObject);
+            } else if (pengramTicker != null && !pengramTickerShown && isMusic
+                    && PengramConfig.isHeaderLyrics()) {
+                // Тот же трек, но строки песни ещё нет: включили показ текста в
+                // шапке уже после старта трека, ответ пришёл позже или прошлый
+                // запрос упал. Повтор ничего не стоит: request() отдаёт кэш.
+                pengramCheckTicker(messageObject);
             }
         }
+    }
+
+    /** Pengram: строка песни в шапке — ищем текст и показываем ту строку, что звучит */
+    private void pengramCheckTicker(MessageObject messageObject) {
+        if (pengramTicker == null) {
+            return;
+        }
+        final String key = PengramLyrics.keyFor(messageObject);
+        if (key == null || !key.equals(pengramLyricsKey)) {
+            // другая песня — старый текст убираем сразу, чтобы он не бежал поверх новой
+            pengramLyricsKey = key;
+            pengramTicker.clear();
+            pengramHideTicker();
+        }
+        if (messageObject == null || !isMusic || !PengramConfig.isHeaderLyrics()) {
+            pengramHideTicker();
+            return;
+        }
+        pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
+        pengramTicker.setColors(getThemedColor(Theme.key_inappPlayerPerformer), getThemedColor(Theme.key_inappPlayerTitle));
+        pengramTicker.setOffsetKey(key);
+        pengramTicker.setTrackIdentity(messageObject);
+        final long duration = (long) (messageObject.getDuration() * 1000);
+        final int token = ++pengramLyricsToken;
+        PengramLyrics.request(messageObject, (resultKey, raw, state) -> {
+            // поздний ответ от прошлого трека молча выбрасываем
+            if (pengramTicker == null || token != pengramLyricsToken || !PengramConfig.isHeaderLyrics()
+                    || resultKey == null || !resultKey.equals(pengramLyricsKey)) {
+                return;
+            }
+            if (state == PengramLyrics.STATE_FOUND && !TextUtils.isEmpty(raw)) {
+                pengramTicker.setLyrics(raw, duration);
+                if (pengramTicker.isEmpty()) {
+                    pengramHideTicker();
+                    return;
+                }
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (playing != null) {
+                    pengramTicker.setProgress(playing.audioProgress);
+                }
+                pengramShowTicker();
+            } else if (state != PengramLyrics.STATE_LOADING) {
+                pengramHideTicker();
+            }
+        });
+    }
+
+    /** строка песни сейчас показана (или как раз выезжает) */
+    private boolean pengramTickerShown;
+
+    /**
+     * Насос шапки: пока в списке чатов играет музыка, раз в полсекунды
+     * подкидываем строке свежий прогресс и повторяем поиск текста, если он ещё
+     * не показан. В списке чатов события плеера приходят редко (а иногда не
+     * приходят вовсе, если экран чата закрыт), и без этого бегущая строка и
+     * подсветка выглядели замершей картинкой.
+     */
+    /** когда насос последний раз перепроверял текст (мс) */
+    private long pengramPumpCheckedAt;
+
+    private final Runnable pengramTickerPump = new Runnable() {
+        @Override
+        public void run() {
+            if (pengramTicker == null) {
+                return;
+            }
+            if (pengramTicker == null || !isMusic || currentStyle != STYLE_AUDIO_PLAYER
+                    || !PengramConfig.isHeaderLyrics()) {
+                return; // шапка другая — кадры больше не нужны
+            }
+            // Пауза не должна останавливать насос: после неё трек играет
+            // дальше, а сообщения плеера в списке чатов приходят редко.
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing != null) {
+                pengramTicker.setProgress(playing.audioProgress);
+                if (!pengramTickerShown) {
+                    // Поиск текста — не чаще раза в две секунды. Каждый вызов
+                    // поднимает токен, и ответ, который уже в пути, был бы
+                    // выброшен: с шагом 500 мс медленный запрос не доходил бы
+                    // никогда, а быстрый превращался бы в спам.
+                    final long now = System.currentTimeMillis();
+                    if (now - pengramPumpCheckedAt >= 2000) {
+                        pengramPumpCheckedAt = now;
+                        pengramCheckTicker(playing); // текст мог догрузиться позже
+                    }
+                }
+            }
+            AndroidUtilities.runOnUIThread(this, 500);
+        }
+    };
+
+    private void pengramStartTickerPump() {
+        AndroidUtilities.cancelRunOnUIThread(pengramTickerPump);
+        AndroidUtilities.runOnUIThread(pengramTickerPump, 500);
+    }
+
+    private void pengramStopTickerPump() {
+        AndroidUtilities.cancelRunOnUIThread(pengramTickerPump);
+    }
+
+    /** когда в последний раз перепроверяли, не нашёлся ли текст песни */
+    private long pengramLyricsCheckTime;
+
+    /**
+     * Pengram: плавный кроссфейд «название трека ⇄ строка песни».
+     *
+     * Альфа меняется только через PengramPlayerSwipe.setRestAlpha — тогда
+     * свайп, потянувший шапку во время смены, умножает затухание на
+     * актуальную базовую яркость каждой строки, а не воскрешает спрятанную
+     * поверх показанной (раньше они налезали друг на друга).
+     */
+    private android.animation.ValueAnimator pengramHeaderFade;
+
+    private void pengramFadeHeader(boolean tickerVisible, long duration, Runnable endAction) {
+        if (titleTextView == null || pengramTicker == null) {
+            if (endAction != null) {
+                endAction.run();
+            }
+            return;
+        }
+        final float titleFrom = pengramSwipe != null ? pengramSwipe.getRestAlpha(titleTextView) : titleTextView.getAlpha();
+        final float tickerFrom = pengramSwipe != null ? pengramSwipe.getRestAlpha(pengramTicker) : pengramTicker.getAlpha();
+        final float titleTo = tickerVisible ? 0f : 1f;
+        final float tickerTo = tickerVisible ? 1f : 0f;
+        if (pengramSwipe == null) {
+            titleTextView.setAlpha(titleTo);
+            pengramTicker.setAlpha(tickerTo);
+            if (endAction != null) {
+                endAction.run();
+            }
+            return;
+        }
+        if (pengramHeaderFade != null) {
+            pengramHeaderFade.cancel();
+        }
+        pengramHeaderFade = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        pengramHeaderFade.setDuration(duration);
+        final android.animation.ValueAnimator fade = pengramHeaderFade;
+        pengramHeaderFade.addUpdateListener(a -> {
+            final float t = (float) a.getAnimatedValue();
+            pengramSwipe.setRestAlpha(titleTextView, titleFrom + (titleTo - titleFrom) * t);
+            pengramSwipe.setRestAlpha(pengramTicker, tickerFrom + (tickerTo - tickerFrom) * t);
+        });
+        pengramHeaderFade.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (pengramHeaderFade == fade) {
+                    pengramHeaderFade = null;
+                }
+                if (endAction != null) {
+                    endAction.run();
+                }
+            }
+        });
+        pengramHeaderFade.start();
+    }
+
+    private void pengramShowTicker() {
+        if (pengramTicker == null || pengramTickerShown) {
+            return;
+        }
+        pengramTickerShown = true;
+        pengramStartTickerPump();
+        // быстрые переключения трека: прошлую анимацию обрываем, иначе строки
+        // догоняют друг друга и остаются висеть наложенными
+        pengramTicker.animate().cancel();
+        pengramTicker.setVisibility(VISIBLE);
+        pengramTicker.setTranslationY(dp(6));
+        pengramTicker.animate().translationY(0).setDuration(220).start();
+        pengramFadeHeader(true, 220, null);
+    }
+
+    private void pengramHideTicker() {
+        if (pengramTicker == null) {
+            if (titleTextView != null) {
+                if (pengramSwipe != null) {
+                    pengramSwipe.setRestAlpha(titleTextView, 1f);
+                } else {
+                    titleTextView.animate().cancel();
+                    titleTextView.setAlpha(1f);
+                }
+            }
+            return;
+        }
+        if (!pengramTickerShown && pengramTicker.getVisibility() != VISIBLE) {
+            if (titleTextView != null) {
+                if (pengramSwipe != null) {
+                    pengramSwipe.setRestAlpha(titleTextView, 1f);
+                } else {
+                    titleTextView.animate().cancel();
+                    titleTextView.setAlpha(1f);
+                }
+            }
+            return;
+        }
+        pengramTickerShown = false;
+        pengramTicker.animate().cancel();
+        pengramFadeHeader(false, 180, () -> {
+            if (!pengramTickerShown && pengramTicker != null) {
+                pengramTicker.setVisibility(GONE);
+            }
+        });
     }
 
     public void checkImport(boolean create) {
@@ -2636,9 +2928,28 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
     @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if (pengramSwipe != null && pengramSwipe.onIntercept(ev)) {
+            return true;
+        }
+        return super.onInterceptTouchEvent(ev);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        if (pengramSwipe != null && pengramSwipe.onTouch(ev)) {
+            return true;
+        }
+        return super.onTouchEvent(ev);
+    }
+
+    @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (frameLayout == null) {
             return;
+        }
+        if (pengramSwipe != null && currentStyle == STYLE_AUDIO_PLAYER) {
+            pengramSwipe.draw(canvas, getMeasuredWidth(), dp(36));
         }
         if (drawOverlay && getVisibility() != View.VISIBLE) {
             return;

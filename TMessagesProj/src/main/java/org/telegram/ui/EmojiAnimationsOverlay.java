@@ -261,7 +261,7 @@ public class EmojiAnimationsOverlay implements NotificationCenter.NotificationCe
             chatActivity.restartSticker(bestView);
             if (!EmojiData.hasEmojiSupportVibration(bestView.getMessageObject().getStickerEmoji()) && !bestView.getMessageObject().isPremiumSticker() && !bestView.getMessageObject().isAnimatedAnimatedEmoji()) {
                 try {
-                    bestView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) bestView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 } catch (Exception ignored) {}
             }
             showAnimationForCell(bestView, animation, false, true);
@@ -434,7 +434,7 @@ public class EmojiAnimationsOverlay implements NotificationCenter.NotificationCe
 
         if (userTapped && show && !EmojiData.hasEmojiSupportVibration(view.getMessageObject().getStickerEmoji()) && !view.getMessageObject().isPremiumSticker() && !view.getMessageObject().isAnimatedAnimatedEmoji()) {
             try {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             } catch (Exception ignored) {}
         }
         if (view.getMessageObject().isPremiumSticker() || view.getEffect() != null || (!userTapped && view.getMessageObject().isAnimatedEmojiStickerSingle())) {
@@ -754,7 +754,7 @@ public class EmojiAnimationsOverlay implements NotificationCenter.NotificationCe
                         public void onAnimationReady(ImageReceiver imageReceiver) {
                             if (sendTap && messageObject != null && messageObject.isAnimatedAnimatedEmoji() && imageReceiver.getLottieAnimation() != null && !imageReceiver.getLottieAnimation().hasVibrationPattern()) {
                                 try {
-                                    contentLayout.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) contentLayout.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                                 } catch (Exception ignored) {}
                             }
                         }

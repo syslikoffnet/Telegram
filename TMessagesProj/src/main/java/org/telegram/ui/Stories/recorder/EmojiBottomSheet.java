@@ -1419,7 +1419,7 @@ public class EmojiBottomSheet extends BottomSheet implements NotificationCenter.
 
     public void showPremiumBulletin(String text) {
         try {
-            container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         } catch (Exception ignored) {}
         BulletinFactory.of(container, resourcesProvider).createSimpleBulletin(
                 R.raw.star_premium_2,

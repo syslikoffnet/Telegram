@@ -397,7 +397,7 @@ public class RichEditText extends EditTextCaption {
         inlineButtonLongPressed = true;
         pressedInlineButton.setPressed(false);
         try {
-            performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
         } catch (Exception ignore) {}
         inlineButtonClickListener.onInlineButtonClick(this, pressedInlineButton, true);
     };

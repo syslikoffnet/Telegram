@@ -1330,7 +1330,7 @@ public class StoriesUtilities {
                         }
                         AndroidUtilities.runOnUIThread(longPressRunnable = () -> {
                             try {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                             } catch (Exception ignored) {}
                             if (buttonBounce != null) {
                                 buttonBounce.setPressed(false);

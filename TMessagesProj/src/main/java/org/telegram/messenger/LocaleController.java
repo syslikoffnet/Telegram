@@ -91,6 +91,9 @@ public class LocaleController {
                 }
             }
         }
+        if (PengramConfig.isTimeWithSeconds()) {
+            return getFormatterDayWithSeconds();
+        }
         return formatterDay;
     }
 
@@ -1466,7 +1469,8 @@ public class LocaleController {
     // deprecated: String key is no longer necessary
     @Deprecated
     public static String getString(String key, @StringRes int res) {
-        return getInstance().getStringInternal(key, res);
+        final String value = getInstance().getStringInternal(key, res);
+        return res == R.string.AppName ? PengramConfig.resolveAppTitle(value) : value;
     }
 
     // deprecated: String key is no longer necessary
@@ -2856,6 +2860,13 @@ public class LocaleController {
     }
 
     public static String formatShortNumber(int number, int[] rounded) {
+        if (PengramConfig.isNoRounding()) {
+            // Pengram: показываем число целиком, без 1,2K / 3,4M
+            if (rounded != null) {
+                rounded[0] = number;
+            }
+            return AndroidUtilities.formatCount(number);
+        }
         StringBuilder K = new StringBuilder();
         int lastDec = 0;
         int KCount = 0;

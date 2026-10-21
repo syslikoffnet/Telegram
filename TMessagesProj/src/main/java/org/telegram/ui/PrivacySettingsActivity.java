@@ -460,7 +460,7 @@ public class PrivacySettingsActivity extends BaseFragment implements Notificatio
                             Bulletin.make(PrivacySettingsActivity.this, layout, duration).show();
 
                             try {
-                                fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                             } catch (Exception ignored) {}
 
                             loadPasswordSettings();

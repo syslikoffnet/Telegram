@@ -1,4 +1,5 @@
 name: Build Pengram (Android arm64-v8a)
+run-name: "ARM64 APK #${{ github.run_number }} — ${{ github.event.head_commit.message || github.ref_name }}"
 
 # Собирает APK только под arm64-v8a (Poco X6 Pro и любой современный Android).
 # Запуск вручную: вкладка Actions -> этот workflow -> Run workflow.
@@ -19,9 +20,16 @@ on:
         default: arm64-v8a
         options:
           - arm64-v8a
+          - x86_64
           - armeabi-v7a,arm64-v8a
           - armeabi-v7a,arm64-v8a,x86,x86_64
   push:
+    branches:
+      - "arena/01a10249-telegram"
+      - "arena/01a105ae-telegram"
+      - "arena/01a10850-telegram"
+      - "arena/28564dc4-telegram"
+      - "arena/49b509a8-telegram"
     tags:
       - "build-*"
 
@@ -51,7 +59,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 1
+          fetch-depth: 20
+
+      - name: Build summary
+        run: |
+          {
+            echo "## Pengram ARM64 APK #${GITHUB_RUN_NUMBER}"
+            echo
+            echo "**Commit:** \`${GITHUB_SHA:0:7}\`"
+            echo "**Variant:** standalone · arm64-v8a"
+            echo
+            echo "### Последние изменения"
+            git log -5 --pretty='- %s (`%h`)'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Free disk space
         run: |
@@ -63,7 +83,7 @@ jobs:
           echo "=== after ==="; df -h /
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -151,18 +171,61 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_TYPE: ${{ secrets.KEYSTORE_TYPE }}
         run: |
+          ENC=TMessagesProj/config/pengram-release.keystore.enc
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > TMessagesProj/config/release.keystore
             {
               echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
-              echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
-              echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS:-pengram}"
+              echo "RELEASE_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+              echo "RELEASE_STORE_TYPE=${KEYSTORE_TYPE:-pkcs12}"
             } >> gradle.properties
-            echo "Используется пользовательский keystore"
+            echo "Используется пользовательский keystore из секрета KEYSTORE_BASE64"
+          elif [ -n "$KEYSTORE_PASSWORD" ] && [ -f "$ENC" ]; then
+            # Простой путь для телефона: сам ключ лежит в репозитории зашифрованным,
+            # в секретах достаточно одного пароля. Без пароля файл бесполезен.
+            if ! openssl enc -d -aes-256-cbc -pbkdf2 -iter 400000 -in "$ENC" \
+                 -out TMessagesProj/config/release.keystore -pass env:KEYSTORE_PASSWORD; then
+              echo "::error::Не удалось расшифровать $ENC — неверный секрет KEYSTORE_PASSWORD. См. docs/KEYSTORE.md"
+              exit 1
+            fi
+            {
+              echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_KEY_ALIAS=${KEY_ALIAS:-pengram}"
+              echo "RELEASE_KEY_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "RELEASE_STORE_TYPE=pkcs12"
+            } >> gradle.properties
+            echo "Используется собственный ключ Pengram (зашифрован в репозитории)"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            # Публичный релиз ключом из репозитория подписывать нельзя: этим ключом
+            # владеет кто угодно, кто видел исходники, и он сможет выпустить
+            # «обновление» поверх беты. Инструкция: docs/KEYSTORE.md
+            echo "::error::Релизный тег, а подписывать нечем: нет ни секрета KEYSTORE_PASSWORD (к зашифрованному ключу в репозитории), ни KEYSTORE_BASE64. Сгенерируйте свой ключ (scripts/new-keystore.sh) и добавьте секреты KEYSTORE_BASE64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD. Подробности: docs/KEYSTORE.md"
+            exit 1
           else
-            echo "Используется keystore из репозитория"
+            echo "::warning::Сборка подписана тестовым ключом из репозитория — ставить поверх неё релиз не получится. См. docs/KEYSTORE.md"
           fi
+
+      - name: Prepare API keys
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
+          SAFETYNET_KEY: ${{ secrets.SAFETYNET_KEY }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
+            echo "::error::Не заданы секреты APP_ID / APP_HASH. Settings -> Secrets and variables -> Actions -> New repository secret. Ключи берутся на https://my.telegram.org"
+            exit 1
+          fi
+          {
+            echo "APP_ID=$APP_ID"
+            echo "APP_HASH=$APP_HASH"
+            echo "SAFETYNET_KEY=$SAFETYNET_KEY"
+            echo "GOOGLE_AUTH_CLIENT_ID=$GOOGLE_AUTH_CLIENT_ID"
+          } > api.properties
+          echo "api.properties создан, значения не печатаются"
 
       - name: Build APK
         shell: bash
@@ -194,6 +257,65 @@ jobs:
           fi
           exit $STATUS
 
+      - name: Verify Pengram code is obfuscated
+        if: env.BUILD_TYPE == 'standalone'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Never publish mapping.txt: it reverses the R8 renaming. A compile
+          # success alone does not prove our broad Telegram keep rules are safe.
+          found=0
+          for class in \
+            org.telegram.messenger.PengramAIClient \
+            org.telegram.messenger.PengramAntiCrash \
+            org.telegram.messenger.PengramVoiceChanger \
+            org.telegram.messenger.PengramGuard \
+            org.telegram.ui.Components.PengramQuoteMaker; do
+            original="${class//./\\.}"
+            line=''
+            while IFS= read -r map; do
+              line=$(grep -m1 -E "^${original} -> " "$map" || true)
+              if [ -n "$line" ]; then break; fi
+            done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+            if [ -z "$line" ]; then
+              echo "::error::No R8 mapping for $class"
+              exit 1
+            fi
+            mapped="${line#* -> }"
+            mapped="${mapped%:}"
+            if [ "$mapped" = "$class" ]; then
+              echo "::error::$class was not renamed by R8"
+              exit 1
+            fi
+            # AGP may emit a library mapping before the app mapping; package
+            # relocation is best-effort, unlike class renaming, which we require.
+            if [[ "$mapped" != p.* ]]; then
+              echo "::warning::$class renamed but not relocated by this R8 stage"
+            fi
+            found=$((found + 1))
+          done
+          echo "$found fork classes renamed by R8; mapping stays on the runner."
+          # Unlike ordinary fork classes, WebRTC loads this JNI bridge by its
+          # literal Java name. Renaming it makes an audio call abort in native code.
+          bridge='org.telegram.messenger.AudioEffectBridge'
+          found_bridge=0
+          while IFS= read -r map; do
+            line=$(grep -m1 -F "${bridge} -> " "$map" || true)
+            if [ -n "$line" ]; then
+              mapped="${line#* -> }"
+              mapped="${mapped%:}"
+              if [ "$mapped" != "$bridge" ]; then
+                echo "::error::WebRTC JNI voice bridge was renamed by R8"
+                exit 1
+              fi
+              found_bridge=1
+            fi
+          done < <(find TMessagesProj/build/outputs/mapping TMessagesProj_AppStandalone/build/outputs/mapping -name mapping.txt -type f 2>/dev/null || true)
+          if [ "$found_bridge" -ne 1 ]; then
+            echo "::error::No R8 mapping for WebRTC JNI voice bridge"
+            exit 1
+          fi
+
       - name: ccache stats
         if: always()
         run: |
@@ -205,41 +327,81 @@ jobs:
           set -eux
           mkdir -p out
           find TMessagesProj_AppStandalone/build/outputs/apk -name "*.apk" -exec sh -c \
-            'cp "$1" "out/Pengram-${BUILD_TYPE}-${ABI%%,*}.apk"' _ {} \;
+            'cp "$1" "out/Pengram-${BUILD_TYPE}-${ABI%%,*}-run${GITHUB_RUN_NUMBER}.apk"' _ {} \;
+          # .idsig — подпись схемы v4: без него установка на Android 11+ просто
+          # проверит v2/v3, но с ним ставится быстрее и строже.
+          find TMessagesProj_AppStandalone/build/outputs/apk -name "*.idsig" -exec sh -c \
+            'cp "$1" "out/Pengram-${BUILD_TYPE}-${ABI%%,*}-run${GITHUB_RUN_NUMBER}.apk.idsig"' _ {} \; || true
           ls -lh out
+
+      # Отпечаток ключа печатаем в лог: так видно, что релиз подписан тем же ключом,
+      # что и прошлый, и обновление поверх встанет. Заодно проверяем, что включены
+      # все схемы подписи: без v2/v3 APK выглядит «неподписанным» для проверялок
+      # вроде MT Manager, а v3 ещё и позволяет менять ключ без потери обновлений.
+      - name: Verify signing schemes
+        run: |
+          set -euo pipefail
+          APK=$(ls out/*.apk | head -n 1)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs -v "$APK" | tee signing.txt
+          grep -i "SHA-256 digest" signing.txt
+          for scheme in v1 v2 v3; do
+            if ! grep -qi "Verified using ${scheme} scheme.*: true" signing.txt; then
+              echo "::error::APK is not signed with the ${scheme} scheme"
+              exit 1
+            fi
+          done
+          { echo "### Signing"; echo '```'; cat signing.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Pengram protection
+        if: env.BUILD_TYPE == 'standalone'
+        run: |
+          set -euo pipefail
+          APK=$(ls out/*.apk | head -n 1)
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          # Отпечаток из keystore должен оказаться внутри .so и совпасть с
+          # сертификатом подписи — иначе сверка подписи в рантайме выключена.
+          python3 scripts/verify-pengram-protection.py "$APK" --apksigner "$BUILD_TOOLS/apksigner"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pengram-${{ env.BUILD_TYPE }}-apk
-          path: out/*.apk
+          name: Pengram-ARM64-${{ env.BUILD_TYPE }}-run-${{ github.run_number }}
+          path: |
+            out/*.apk
+            out/*.idsig
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish failure log to repo
-        if: failure()
-        env:
-          LOG_BRANCH: arena/01a0f7dc-telegram
+      - name: Publish beta release
+        # тег build-* -> готовый релиз с APK, это и есть публикация беты
+        if: startsWith(github.ref, 'refs/tags/build-')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.apk
+            out/*.idsig
+          name: "Pengram ${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: true
+
+      - name: Report build errors
+        if: failure() && hashFiles('build.log') != ''
         run: |
-          set -eux
-          # печатаем ошибки компиляции прямо в аннотации запуска — их видно через API
-          grep -nE "error:|e: |^FAILURE|What went wrong|Execution failed" build.log | tail -n 40 | while IFS= read -r line; do
+          # 'e: ' also matches every C++ 'note: ' and tail hid the actual
+          # compiler failure behind dozens of macro-expansion notes.
+          grep -nE 'error:|^e: |^FAILURE|What went wrong|Execution failed|FAILED:' build.log | head -n 35 | while IFS= read -r line; do
             echo "::error::$line"
           done || true
 
-          mkdir -p ci-logs
-          tail -n 400 build.log > ci-logs/last-failure.log || echo "no build.log" > ci-logs/last-failure.log
-          grep -nE "error:|e: |warning: unchecked" build.log | tail -n 200 > ci-logs/last-errors.log || true
-
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git fetch origin "$LOG_BRANCH"
-          git stash -u || true
-          git checkout -B ci-log-tmp "origin/$LOG_BRANCH"
-          git stash pop || true
-          git add -f ci-logs/last-failure.log ci-logs/last-errors.log
-          git commit -m "ci: build failure log [skip ci]" || exit 0
-          git push origin "ci-log-tmp:$LOG_BRANCH"
+      - name: Upload build log on failure
+        if: failure() && hashFiles('build.log') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
 
       - name: Upload build reports on failure
         if: failure()

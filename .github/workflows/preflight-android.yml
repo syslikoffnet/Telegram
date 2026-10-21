@@ -1,0 +1,147 @@
+name: Android Java preflight
+on:
+  push:
+    branches:
+      - "arena/01a10249-telegram"
+      - "arena/01a105ae-telegram"
+      - "arena/01a10850-telegram"
+      - "arena/28564dc4-telegram"
+      - "arena/49b509a8-telegram"
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Configure Android SDK
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "sdk.dir=$SDK" > local.properties
+      - name: Prepare API keys
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
+          SAFETYNET_KEY: ${{ secrets.SAFETYNET_KEY }}
+          GOOGLE_AUTH_CLIENT_ID: ${{ secrets.GOOGLE_AUTH_CLIENT_ID }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$APP_HASH" ]; then
+            echo "::warning::Секреты APP_ID / APP_HASH не заданы — проверяем только компиляцию, APK из такой сборки войти в Telegram не сможет."
+            exit 0
+          fi
+          {
+            echo "APP_ID=$APP_ID"
+            echo "APP_HASH=$APP_HASH"
+            echo "SAFETYNET_KEY=$SAFETYNET_KEY"
+            echo "GOOGLE_AUTH_CLIENT_ID=$GOOGLE_AUTH_CLIENT_ID"
+          } > api.properties
+          echo "api.properties создан, значения не печатаются"
+
+      - name: Compile Java
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew :TMessagesProj:compileStandaloneJavaWithJavac --no-daemon --stacktrace \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee build.log
+
+      - name: Validate APK resource merge
+        # Java compilation alone does not flatten the app's standalone strings;
+        # an unescaped apostrophe previously passed preflight but broke the APK.
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew :TMessagesProj_AppStandalone:mergeAfatStandaloneResources --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx5g -XX:MaxMetaspaceSize=1g" 2>&1 | tee -a build.log
+
+      - name: Test microphone PCM
+        run: python3 scripts/test-voice-studio.py
+
+      - name: Test native crash decoding
+        run: python3 scripts/test-native-report.py
+
+      - name: Test artwork queue
+        run: python3 scripts/test-cover-cache.py
+
+      - name: Test Pengram visual editor and settings search
+        run: |
+          python3 scripts/test-pengram-visual-editor.py
+          python3 scripts/test-pengram-search-index.py
+          python3 scripts/test-pengram-history-search.py
+          python3 scripts/test-pengram-edited-media.py
+          python3 scripts/test-pengram-edit-chain.py
+          python3 scripts/test-pengram-send-style.py
+          python3 scripts/test-pengram-forward-quotes.py
+          python3 scripts/test-pengram-security-wiring.py
+          python3 scripts/test-pengram-lyrics-wiring.py
+          python3 scripts/test-pengram-player-wiring.py
+          python3 scripts/test-pengram-name-check.py
+          python3 scripts/test-pengram-bot-login.py
+          python3 scripts/test-pengram-device-platform.py
+          python3 scripts/test-pengram-mention-all.py
+          python3 scripts/test-pengram-mention-name.py
+          python3 scripts/test-pengram-penguin-header.py
+          python3 scripts/test-pengram-local-keep.py
+          python3 scripts/test-pengram-session-login.py
+          python3 scripts/test-pengram-signer-block.py
+          python3 scripts/test-pengram-text-overflow.py
+          python3 scripts/test-pengram-lyrics-header.py
+          python3 scripts/test-pengram-protection.py
+
+      - name: Test Pengram lyric timing
+        run: |
+          mkdir -p /tmp/pengram-lyrics-test
+          javac -d /tmp/pengram-lyrics-test \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramLyricsTiming.java \
+            scripts/PengramLyricsTimingTest.java
+          java -cp /tmp/pengram-lyrics-test PengramLyricsTimingTest
+
+      - name: Test Pengram security policy
+        run: |
+          mkdir -p /tmp/pengram-security-test
+          javac -d /tmp/pengram-security-test \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramAITransport.java \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramProfilePolicy.java \
+            TMessagesProj/src/main/java/org/telegram/messenger/PengramProxyPolicy.java \
+            scripts/PengramSecurityPolicyTest.java
+          java -cp /tmp/pengram-security-test PengramSecurityPolicyTest
+
+      - name: Identify reported editor resource IDs
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ids = {'0x7f0fe0cb', '0x7f0fe0de'}
+          hits = set()
+          for table in Path('TMessagesProj/build/intermediates').rglob('R.txt'):
+              for line in table.read_text(errors='replace').splitlines():
+                  for resource_id in ids:
+                      if resource_id in line.lower() and resource_id not in hits:
+                          print(f'::notice title=Editor crash resource::{resource_id} = {line.strip()}')
+                          hits.add(resource_id)
+          for resource_id in ids - hits:
+              print(f'::notice title=Editor crash resource::{resource_id} was not found in preflight R.txt')
+          PY
+
+      # Скачать логи job'а через API получается не всегда, поэтому ошибки компиляции
+      # дублируем аннотациями и артефактом — их видно и без доступа к сырому логу.
+      - name: Report compile errors
+        if: failure()
+        run: |
+          grep -nE "error:|^FAILURE|What went wrong|Execution failed" build.log | head -n 40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+
+      - name: Upload compile log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preflight-log
+          path: build.log
+          retention-days: 7

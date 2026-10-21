@@ -41,6 +41,7 @@ import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -202,7 +203,8 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
                         user.contact = true;
                         final TLRPC.TL_textWithEntities note = noteField.getTextWithEntities();
                         getMessagesController().putUser(user, false);
-                        getContactsController().addContact(user, note, needAddException && checkShare);
+                        getContactsController().addContact(user, note,
+                                needAddException && checkShare && !PengramConfig.isSharePhoneBlocked());
                         SharedPreferences preferences = MessagesController.getNotificationsSettings(currentAccount);
                         preferences.edit().putInt("dialog_bar_vis3" + user_id, 3).commit();
                         getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
@@ -513,7 +515,7 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
         actionBar.setAdaptiveBackground(listView);
 
         if (addContact && needAddException) {
-            checkShare = true;
+            checkShare = !PengramConfig.isSharePhoneBlocked() && PengramConfig.isSharePhoneDefault();
         }
         listView.adapter.update(false);
 
@@ -521,6 +523,7 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
     }
 
     private boolean checkShare = false;
+    private org.telegram.ui.Components.PengramSharePhoneBadge sharePhoneBadge;
 
     private boolean firstSet = true;
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
@@ -541,8 +544,24 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
         }
 
         if (addContact && needAddException) {
-            items.add(UItem.asCheck(2, getString(R.string.AddContactShareNumber)).setChecked(checkShare));
-            items.add(UItem.asShadow(formatString(R.string.AddContactShareNumberInfo, UserObject.getFirstName(user))));
+            if (PengramConfig.isSharePhoneBlocked()) {
+                // Pengram: галочки нет — вместо неё видно состояние, и промахнуться
+                // мимо неё по дороге к «Готово» больше нечем.
+                if (sharePhoneBadge == null && getContext() != null) {
+                    sharePhoneBadge = new org.telegram.ui.Components.PengramSharePhoneBadge(getContext());
+                    sharePhoneBadge.setOnClickListener(v ->
+                            presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_PROFILE,
+                                    R.string.PengramSharePhoneMode)));
+                }
+                if (sharePhoneBadge != null) {
+                    sharePhoneBadge.setUserName(UserObject.getFirstName(user));
+                    items.add(UItem.asCustom(sharePhoneBadge));
+                    items.add(UItem.asShadow(null));
+                }
+            } else {
+                items.add(UItem.asCheck(2, getString(R.string.AddContactShareNumber)).setChecked(checkShare));
+                items.add(UItem.asShadow(formatString(R.string.AddContactShareNumberInfo, UserObject.getFirstName(user))));
+            }
         }
 
         items.add(UItem.asCustom(noteField));

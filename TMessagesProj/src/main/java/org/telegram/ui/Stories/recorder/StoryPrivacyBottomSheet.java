@@ -359,7 +359,7 @@ public class StoryPrivacyBottomSheet extends BottomSheet implements Notification
 //                            AndroidUtilities.shakeViewSpring(view, shiftDp = -shiftDp);
 //                            BotWebViewVibrationEffect.APP_ERROR.vibrate();
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                             } catch (Throwable ignore) {}
                             new AlertDialog.Builder(getContext(), resourcesProvider)
                                 .setTitle(getString(R.string.GroupTooLarge))

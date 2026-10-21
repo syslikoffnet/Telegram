@@ -206,7 +206,7 @@ public class PremiumStickersPreviewRecycler extends RecyclerListView implements 
             oldSelectedView = sortedView.get(sortedView.size() - 1);
             if (haptic) {
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 } catch (Exception ignored) {}
             }
         }

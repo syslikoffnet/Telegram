@@ -92,6 +92,9 @@ class AudioDeviceBuffer {
   void StopPlayout();
   void StopRecording();
 
+  // Screen capture is not a microphone; keep its soundtrack unmodified.
+  void SetVoiceModMicrophoneInput(bool enabled) { voice_mod_microphone_input_ = enabled; }
+
   int32_t SetRecordingSampleRate(uint32_t fsHz);
   int32_t SetPlayoutSampleRate(uint32_t fsHz);
   uint32_t RecordingSampleRate() const;
@@ -120,6 +123,7 @@ class AudioDeviceBuffer {
   int32_t SetTypingStatus(bool typing_status);
 
  private:
+  bool voice_mod_microphone_input_ = true;
   // Starts/stops periodic logging of audio stats.
   void StartPeriodicLogging();
   void StopPeriodicLogging();

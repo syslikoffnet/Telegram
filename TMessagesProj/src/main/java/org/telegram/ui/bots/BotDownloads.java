@@ -211,7 +211,7 @@ public class BotDownloads {
             request.setTitle(UserObject.getUserName(bot));
             request.setDescription(TextUtils.isEmpty(file_name) ? "Downloading file..." : "Downloading " + file_name + "...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, file_name);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Pengram/" + file_name);
 
             id = downloadManager.enqueue(request);
         }

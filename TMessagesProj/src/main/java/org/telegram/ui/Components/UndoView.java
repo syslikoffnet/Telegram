@@ -1143,7 +1143,7 @@ public class UndoView extends FrameLayout {
             if (hapticDelay > 0) {
                 leftImageView.postDelayed(() -> {
                     try {
-                        leftImageView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) leftImageView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                     } catch (Exception ignored) {}
                 }, hapticDelay);
             }

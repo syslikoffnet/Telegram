@@ -1,0 +1,16 @@
+# Ключи приложения Pengram.
+#
+# Скопируйте этот файл в api.properties (он в .gitignore) и впишите свои значения.
+# api_id / api_hash берутся на https://my.telegram.org → API development tools.
+#
+# Вместо файла можно передать те же имена через -P... или переменные окружения,
+# например в CI:  APP_ID=12345 APP_HASH=abc... ./gradlew assembleAfatRelease
+
+APP_ID=
+APP_HASH=
+
+# Необязательно. SafetyNet-ключ (пусто — проверка отключается).
+SAFETYNET_KEY=
+
+# Необязательно. OAuth-клиент для входа через Google.
+GOOGLE_AUTH_CLIENT_ID=

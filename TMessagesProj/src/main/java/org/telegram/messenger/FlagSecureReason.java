@@ -64,7 +64,10 @@ public class FlagSecureReason {
             return;
         }
 
-        if (PengramConfig.screenshotsAllowed()) {
+        // «скриншоты везде» обходит только защиту контента от собеседника;
+        // если пользователь сам запретил съёмку экрана при код-пароле, это сильнее
+        final boolean passcodeForbids = SharedConfig.passcodeHash.length() > 0 && !SharedConfig.allowScreenCapture;
+        if (PengramConfig.screenshotsAllowed() && !passcodeForbids) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
             return;
         }

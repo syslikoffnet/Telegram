@@ -278,7 +278,7 @@ public abstract class TextSelectionHelper<Cell extends TextSelectionHelper.Selec
 
                 selectedView = newView;
                 try {
-                    textSelectionOverlay.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) textSelectionOverlay.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception ignored) {}
                 AndroidUtilities.cancelRunOnUIThread(showActionsRunnable);
                 AndroidUtilities.runOnUIThread(showActionsRunnable);

@@ -1279,9 +1279,6 @@ public class StoriesController {
     }
 
     public boolean markStoryAsRead(TL_stories.PeerStories userStories, TL_stories.StoryItem storyItem, boolean profile) {
-        if (org.telegram.messenger.PengramConfig.isNotSendingStoryViews()) {
-            return false;
-        }
         if (storyItem == null || userStories == null) {
             return false;
         }
@@ -1298,10 +1295,14 @@ public class StoriesController {
             if (!profile) {
                 storiesStorage.updateMaxReadId(dialogId, newReadId);
             }
-            TL_stories.TL_stories_readStories req = new TL_stories.TL_stories_readStories();
-            req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
-            req.max_id = storyItem.id;
-            ConnectionsManager.getInstance(currentAccount).sendRequest(req, null);
+            // Pengram: в режиме призрака кольцо гаснет локально, но серверу
+            // о просмотре не сообщаем — иначе смысл режима теряется
+            if (!org.telegram.messenger.PengramConfig.isNotSendingStoryViews()) {
+                TL_stories.TL_stories_readStories req = new TL_stories.TL_stories_readStories();
+                req.peer = MessagesController.getInstance(currentAccount).getInputPeer(dialogId);
+                req.max_id = storyItem.id;
+                ConnectionsManager.getInstance(currentAccount).sendRequest(req, null);
+            }
             NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.storiesReadUpdated);
             return true;
         }

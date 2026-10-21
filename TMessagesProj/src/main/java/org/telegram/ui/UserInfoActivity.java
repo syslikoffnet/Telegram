@@ -39,6 +39,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.PengramAccountOrder;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
@@ -257,6 +258,10 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
         super.createView(context);
         this.listView = super.listView;
         listView.setSections();
+        // Pengram: аккаунты в профиле переставляются так же, как в настройках,
+        // и пишут тот же общий порядок.
+        listView.listenReorder(this::onAccountsReordered);
+        listView.allowReorder(true);
         listView.setClipToPadding(false);
         actionBar.setAdaptiveBackground(listView);
         if (parentLayout != null && parentLayout.isRightLayout()) {
@@ -299,6 +304,15 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
     private static final int BUTTON_LOGOUT = 11;
 
     private final ArrayList<Integer> accountNumbers = new ArrayList<>();
+    /** id reorder-секции с другими аккаунтами; -1, когда блока нет */
+    private int accountsReorderSection = -1;
+
+    private void onAccountsReordered(int sectionId, ArrayList<UItem> items) {
+        if (sectionId == accountsReorderSection) {
+            SettingsActivity.saveAccountOrder(items);
+        }
+    }
+
     private void updateAccounts() {
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
@@ -306,16 +320,8 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        // Pengram: порядок, выставленный перетаскиванием в настройках.
+        PengramAccountOrder.sort(accountNumbers);
     }
 
     @Keep
@@ -357,7 +363,10 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
         items.add(UItem.asHeader(getString(R.string.EditAccountInfoHeader)));
         if (user != null) {
             numberRow = items.size();
-            items.add(SettingsActivity.SettingCell.Factory.of(INFO_PHONE, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_calls, PhoneFormat.getInstance().format("+" + user.phone), getString(R.string.TapToChangePhone)));
+            final String phoneText = org.telegram.messenger.PengramConfig.isHidingPhoneNumber()
+                    ? getString(R.string.PengramPhoneHidden)
+                    : PhoneFormat.getInstance().format("+" + user.phone);
+            items.add(SettingsActivity.SettingCell.Factory.of(INFO_PHONE, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_calls, phoneText, getString(R.string.TapToChangePhone)));
         }
         usernameRow = items.size();
         if (UserObject.getPublicUsername(user) != null) {
@@ -424,13 +433,16 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
             addAccountRow = items.size();
             items.add(InfoCell.Factory.of(BUTTON_ADD_ACCOUNT, R.drawable.outline_add_account, getString(R.string.AddAccount), null, 0).accent());
         }
+        accountsReorderSection = -1;
         if (!accountNumbers.isEmpty()) {
             if (!hasAddAccount) {
                 items.add(UItem.asHeader(getString(R.string.SettingsAccounts)));
             }
+            accountsReorderSection = adapter.reorderSectionStart();
             for (int i = 0; i < accountNumbers.size(); ++i) {
                 items.add(SettingsActivity.AccountCell.Factory.of(i, accountNumbers.get(i)));
             }
+            adapter.reorderSectionEnd();
             if (!UserConfig.hasPremiumOnAccounts()) {
                 final int moreAccounts = Math.max(0, UserConfig.getMaxAccountCount() - UserConfig.getActivatedAccountsCount());
                 items.add(UItem.asShadow(
@@ -556,6 +568,12 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
 
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        if (item.instanceOf(SettingsActivity.AccountCell.Factory.class)) {
+            // Перетаскивание начнёт ItemTouchHelper — только отклик.
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            }
+        }
         return false;
     }
 

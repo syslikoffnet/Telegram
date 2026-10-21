@@ -108,7 +108,7 @@ import org.telegram.messenger.BotForumHelper;
 import org.telegram.messenger.BotInlineKeyboard;
 import org.telegram.messenger.ChatMessageSharedResources;
 import org.telegram.messenger.ChatObject;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DocumentObject;
@@ -125,6 +125,8 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramAntiCrash;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -333,11 +335,40 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    /** Pengram: рисуем маленькую аватарку рядом с ником вместо столбика слева */
+    private boolean pengramInlineAvatar() {
+        if (currentMessageObject == null || currentMessageObject.isOutOwner() || currentMessageObject.isRepostPreview) {
+            return false;
+        }
+        if (!isChat && !currentMessageObject.forceAvatar) {
+            return false;
+        }
+        return org.telegram.messenger.PengramConfig.isInlineAvatar();
+    }
+
+    /** Pengram: аватарка после ника — сдвигаем её за текст имени */
+    private float pengramNameAvatarOffset() {
+        if (currentMessageObject != null && !currentMessageObject.isOutOwner()
+                && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME) {
+            return nameLayoutWidth + dp(6);
+        }
+        return 0;
+    }
+
+    /** Pengram: если аватарка после ника, имя двигать не нужно */
+    private float pengramNameAvatarShift() {
+        if (currentMessageObject != null && !currentMessageObject.isOutOwner()
+                && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME) {
+            return 0f;
+        }
+        return 1f;
+    }
+
     public void setAvatar(MessageObject messageObject) {
         if (messageObject == null) {
             return;
         }
-        if (isAvatarVisible) {
+        if (isAvatarVisible || pengramInlineAvatar()) {
             if (messageObject.customAvatarDrawable != null) {
                 avatarImage.setImageBitmap(messageObject.customAvatarDrawable);
             } else if (currentUser != null) {
@@ -687,6 +718,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
 
         default void didPressSponsoredInfo(ChatMessageCell cell, float x, float y) {
+        }
+
+        /** Pengram: нажатие на значок удалённого/изменённого сообщения у времени */
+        default void didPressPengramMark(ChatMessageCell cell) {
+
         }
 
         default void didPressTime(ChatMessageCell cell) {
@@ -4175,6 +4211,36 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    /* Pengram */
+    private static final float PENGRAM_MARK_SCALE = 0.95f;
+    public boolean pengramMarkDrawn;
+    private int pengramMarkWidth;
+    private boolean pengramMarkPressed;
+
+    private boolean checkPengramMarkMotionEvent(MotionEvent event) {
+        if (!pengramMarkDrawn || currentMessageObject == null || delegate == null) {
+            return false;
+        }
+        final int x = (int) getEventX(event);
+        final int y = (int) getEventY(event);
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (x >= drawTimeX - dp(4) && x <= drawTimeX + timeWidth + dp(4) && y >= drawTimeY - dp(6) && y <= drawTimeY + dp(22)) {
+                pengramMarkPressed = true;
+                return true;
+            }
+        } else if (event.getAction() == MotionEvent.ACTION_UP) {
+            if (pengramMarkPressed) {
+                pengramMarkPressed = false;
+                playSoundEffect(SoundEffectConstants.CLICK);
+                delegate.didPressPengramMark(this);
+                return true;
+            }
+        } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+            pengramMarkPressed = false;
+        }
+        return false;
+    }
+
     private boolean checkDateMotionEvent(MotionEvent event) {
         if (!currentMessageObject.isImportedForward()) {
             return false;
@@ -4238,7 +4304,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             if (Math.abs(currentMessageObject.audioProgress - p) > 0.9f) {
                 if (roundSeekbarOutAlpha == 0) {
                     try {
-                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                     } catch (Exception ignored) {}
                 }
                 roundSeekbarOutAlpha = 1f;
@@ -4985,6 +5051,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (!result) {
             result = checkDateMotionEvent(event);
+        }
+        if (!result) {
+            result = checkPengramMarkMotionEvent(event);
         }
         if (!result) {
             result = checkTextSelection(event);
@@ -6251,7 +6320,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         updateCurrentUserAndChat();
         TLRPC.FileLocation newPhoto = null;
 
-        if (isAvatarVisible) {
+        if (isAvatarVisible || pengramInlineAvatar()) {
             if (currentUser != null && currentUser.photo != null) {
                 newPhoto = currentUser.photo.photo_small;
             } else if (currentChat != null && currentChat.photo != null) {
@@ -6507,6 +6576,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (messageObjectToSet != null) {
             messageObjectToSet.animateComments = false;
             setMessageContent(messageObjectToSet, groupedMessagesToSet, bottomNearToSet, topNearToSet, firstInChatToSet, lastInChatListToSet);
+            pengramUpdateFade();
             messageObjectToSet = null;
             groupedMessagesToSet = null;
         }
@@ -6893,7 +6963,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             lastTime = -2;
             lastPostAuthor = messageObject.messageOwner.post_author;
             if (messageIdChanged || groupChanged) {
+                // The search highlight belongs to one concrete message id. A
+                // recycled cell must not keep it: a stale flag kept the next
+                // deleted bubble fully opaque (or blink the wrong row).
                 isHighlightedAnimated = false;
+                isHighlighted = false;
+                highlightProgress = 0;
                 wasTranscriptionOpen = false;
                 if (highlightedQuote) {
                     resetUrlPaths();
@@ -6916,6 +6991,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 drawPinnedTop = pinnedTop && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0);
                 drawPinnedBottom = pinnedBottom && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) != 0);
+            }
+            if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {
+                // Pengram: пузырь без «хвостика» — рисуем его как продолжение серии
+                drawPinnedBottom = true;
             }
 
             boolean wasPlayingRound = isPlayingRound;
@@ -6945,6 +7024,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             flipImage = false;
             isThreadPost = isThreadChat && messageObject.messageOwner.fwd_from != null && messageObject.messageOwner.fwd_from.channel_post != 0 && messageObject.messageOwner.reply_to == null;
             isAvatarVisible = needDrawAvatar() && (currentPosition == null || currentPosition.edge);
+            // Pengram: аватарки авторов в чате можно убрать совсем
+            final int pengramAvatarPos = org.telegram.messenger.PengramConfig.getGroupAvatarPos();
+            if (isAvatarVisible && !messageObject.isOutOwner() && !messageObject.isRepostPreview && !messageObject.forceAvatar
+                    && (pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_HIDE
+                        || pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_BEFORE_NAME
+                        || pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME)) {
+                isAvatarVisible = false;
+            }
             boolean drawAvatar = needDrawAvatar();
             if (messageObject.customAvatarDrawable != null || messageObject.forceAvatar || messageObject.messageOwner.guestchat_via_from != null) {
                 isAvatarVisible = true;
@@ -11545,7 +11632,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         int maxVote = 0;
         if (!animatePollAnswer && pollVoteInProgress && vibrateOnPollVote) {
             try {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignored) {}
         }
         animatePollAnswer = attachedToWindow && (pollVoteInProgress || pollUnvoteInProgress);
@@ -12578,6 +12665,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (getParent() != null) {
             ((View) getParent()).invalidate();
         }
+        if (currentMessageObject != null && (currentMessageObject.pengramDeleted
+                || currentMessageObject.pengramArchived)) {
+            // The search highlight is shown at full opacity; put the fade back
+            // as soon as the highlight goes away.
+            pengramUpdateFade();
+        }
     }
 
     @Override
@@ -13342,6 +13435,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                  boolean lastInChatList) {
         if (attachedToWindow && !frozen) {
             setMessageContent(messageObject, groupedMessages, bottomNear, topNear, firstInChat, lastInChatList);
+            pengramUpdateFade();
         } else {
             messageObjectToSet = messageObject;
             groupedMessagesToSet = groupedMessages;
@@ -13358,6 +13452,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (!frozen && messageObjectToSet != null && attachedToWindow) {
             messageObjectToSet.animateComments = false;
             setMessageContent(messageObjectToSet, groupedMessagesToSet, bottomNearToSet, topNearToSet, firstInChatToSet, lastInChatListToSet);
+            pengramUpdateFade();
             messageObjectToSet = null;
             groupedMessagesToSet = null;
         }
@@ -13672,8 +13767,36 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         super.requestLayout();
     }
 
+    /** антикраш: ячейку нельзя ни сверстать, ни нарисовать — рисуем плашку */
+    private boolean pengramBlockedStub;
+    private long pengramLastStubReport;
+
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (!PengramAntiCrash.isEnabled()) {
+            pengramMeasure(widthMeasureSpec, heightMeasureSpec);
+            return;
+        }
+        try {
+            pengramMeasure(widthMeasureSpec, heightMeasureSpec);
+        } catch (Throwable e) {
+            // сломанное сообщение заменяется системной плашкой, остальной чат цел
+            pengramBlockedStub = true;
+            pengramReportStub("cell measure", e);
+            setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(62));
+        }
+    }
+
+    private void pengramReportStub(String where, Throwable e) {
+        final long now = System.currentTimeMillis();
+        if (now - pengramLastStubReport > 10000) {
+            pengramLastStubReport = now;
+            PengramAntiCrash.report(where + ": " + e.getClass().getSimpleName());
+        }
+    }
+
+    private void pengramMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        pengramBlockedStub = false;
         if (currentMessageObject != null && (currentMessageObject.checkLayout() || lastHeight != AndroidUtilities.displaySize.y)) {
             inLayout = true;
             MessageObject messageObject = currentMessageObject;
@@ -13836,7 +13959,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
 
             if (isAvatarVisible) {
-                avatarImage.setImageCoords(dp(currentMessageObject.isRepostPreview ? 15 : 6), avatarImage.getImageY(), dp(currentMessageObject.isRepostPreview ? 36 : 42), dp(currentMessageObject.isRepostPreview ? 36 : 42));
+                final int pengramAvatarSize = dp(currentMessageObject.isRepostPreview ? 36 : 42);
+                int pengramAvatarX = dp(currentMessageObject.isRepostPreview ? 15 : 6);
+                // Pengram: аватарку автора можно поставить после сообщения, а не до него
+                if (!currentMessageObject.isRepostPreview
+                        && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_RIGHT) {
+                    pengramAvatarX = Math.max(pengramAvatarX, getMeasuredWidth() - pengramAvatarSize - dp(6));
+                }
+                avatarImage.setImageCoords(pengramAvatarX, avatarImage.getImageY(), pengramAvatarSize, pengramAvatarSize);
             }
 
             if (currentMessageObject.type == MessageObject.TYPE_EXTENDED_MEDIA_PREVIEW && currentUnlockString != null) {
@@ -16923,6 +17053,31 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     canvas.restore();
                 }
             }
+            // Pengram: последняя страховка от символов, вылезающих из пузыря.
+            // Включается только там, где блок реально шире отведённого места,
+            // поэтому на обычных сообщениях ничего не меняется.
+            // maxRight теперь считается для всех блоков (раньше — только для
+            // цитат), иначе страховка не срабатывала ни на одном обычном
+            // сообщении. Для RTL блок дополнительно сверяем ширину разметки:
+            // у право-лево-строк правая граница строки не показывает вылет влево.
+            boolean pengramOverflow = false;
+            for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
+                MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
+                if (b == null) {
+                    continue;
+                }
+                if (b.maxRight > maxWidth + 1
+                        || (b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
+                    pengramOverflow = true;
+                    break;
+                }
+            }
+            int pengramClipRestore = Integer.MIN_VALUE;
+            if (pengramOverflow) {
+                pengramClipRestore = canvas.save();
+                canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4), -getMeasuredHeight(),
+                        right + dp(4), getMeasuredHeight() * 2f);
+            }
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum; a++) {
                 if (a >= textLayoutBlocks.size()) {
                     break;
@@ -16955,7 +17110,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         canvas.scale(s, s, AndroidUtilities.rectTmp.centerX(), AndroidUtilities.rectTmp.centerY());
                     }
 
-                    quoteLine.drawBackground(canvas, AndroidUtilities.rectTmp, 5, 5, 5, alpha);
+                    // The quote card follows the bubble: square bubbles keep
+                    // crisp corners, fully rounded ones get a soft 10dp cap.
+                    final float quoteRad = Math.max(6f, Math.min(10f, SharedConfig.bubbleRadius * 0.7f));
+                    quoteLine.drawBackground(canvas, AndroidUtilities.rectTmp, 5, quoteRad, quoteRad, alpha);
                     quoteLine.drawLine(canvas, AndroidUtilities.rectTmp, alpha);
 
                     if (quoteDrawable == null) {
@@ -17108,6 +17266,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     canvas.restore();
                 }
                 canvas.restoreToCount(saveCount);
+            }
+            if (pengramClipRestore != Integer.MIN_VALUE) {
+                canvas.restoreToCount(pengramClipRestore);
             }
             if (needRestoreColor) {
                 Theme.chat_msgTextPaint.setAlpha(oldAlpha);
@@ -18467,6 +18628,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             timeString = LocaleController.formatSmallDateChat(currentMessageObject.realDate) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (currentMessageObject.realDate) * 1000);
         } else if (currentMessageObject.isRepostPreview) {
             timeString = LocaleController.formatSmallDateChat(messageObject.messageOwner.date) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
+        } else if (edited && org.telegram.messenger.PengramConfig.shouldHideEditedLabel()) {
+            // Pengram: надпись «изменено» убрана, остаётся только метка
+            timeString = LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         } else if (edited) {
             if (AppGlobalConfig.getInstance(currentAccount).messagePrimaryEditedDate.get()) {
                 int editDate = currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date;
@@ -18500,6 +18664,24 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else {
             currentTimeString = timeString;
         }
+        pengramMarkDrawn = false;
+        pengramMarkWidth = 0;
+        int pengramMarkRes = 0;
+        if (currentMessageObject.pengramDeleted || currentMessageObject.pengramArchived) {
+            pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();
+        } else if (edited) {
+            pengramMarkRes = org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
+        }
+        if (pengramMarkRes != 0) {
+            final android.text.SpannableStringBuilder markBuilder = new android.text.SpannableStringBuilder("\u200B");
+            markBuilder.setSpan(
+                    new org.telegram.ui.Components.PengramMarkSpan(getContext(), pengramMarkRes, PENGRAM_MARK_SCALE, 0f),
+                    0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+            currentTimeString = TextUtils.concat(markBuilder, " ", currentTimeString);
+            pengramMarkDrawn = true;
+            pengramMarkWidth = org.telegram.ui.Components.PengramMarkSpan.widthFor(Theme.chat_timePaint, PENGRAM_MARK_SCALE);
+        }
         if (currentMessageObject.isStakedDice()) {
             currentTimeString = TextUtils.concat("💎", StarsIntroActivity.formatTON(currentMessageObject.getStakedDiceAmount()), "  ", currentTimeString);
             currentTimeString = StarsIntroActivity.replaceDiamond(currentTimeString, 0.55f, null, 0, dp(-.33f), 1.05f);
@@ -18530,6 +18712,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
         timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        if (pengramMarkDrawn) {
+            // measureText не умеет считать значок-спан, добавляем его ширину руками
+            timeTextWidth += pengramMarkWidth;
+            timeWidth += pengramMarkWidth;
+        }
         if (currentMessageObject.scheduled && currentMessageObject.messageOwner.date == 0x7FFFFFFE || currentMessageObject.notime) {
             timeWidth -= dp(8);
         }
@@ -18838,7 +19025,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         boolean viaGuestBot = messageObject.messageOwner.guestchat_via_from != null;
         if (!hasPsaHint && (needAuthorName || viaBot || viaGuestBot)) {
             drawNameLayout = true;
-            drawNameAvatar = !messageObject.isOutOwner() && (isForum || isMonoForum) && isSideMenuEnabled && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
+            drawNameAvatar = !messageObject.isOutOwner() && ((isForum || isMonoForum) && isSideMenuEnabled || pengramInlineAvatar()) && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
             nameWidth = getMaxNameWidth();
             if (nameWidth < 0) {
                 nameWidth = dp(100);
@@ -20131,7 +20318,29 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     @SuppressLint("WrongCall")
     @Override
     protected void onDraw(Canvas canvas) {
-        drawInternal(canvas);
+        if (!PengramAntiCrash.isEnabled()) {
+            drawInternal(canvas);
+            return;
+        }
+        if (pengramBlockedStub) {
+            PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());
+            return;
+        }
+        // отрисовка может упасть посреди save() — счётчик холста возвращаем сами,
+        // иначе поедут все соседние сообщения
+        final int restoreTo = canvas.save();
+        try {
+            drawInternal(canvas);
+        } catch (Throwable e) {
+            pengramBlockedStub = true;
+            pengramReportStub("cell draw", e);
+            PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());
+        } finally {
+            try {
+                canvas.restoreToCount(restoreTo);
+            } catch (Throwable ignore) {
+            }
+        }
     }
     public void drawInternal(Canvas canvas) {
         if (currentMessageObject == null) {
@@ -20191,6 +20400,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     resetUrlPaths();
                 }
                 highlightedQuote = false;
+                // The bubble was drawn opaque for the blink; return the deleted
+                // fade now instead of waiting for the next recycle.
+                if (currentMessageObject != null && (currentMessageObject.pengramDeleted
+                        || currentMessageObject.pengramArchived)) {
+                    pengramUpdateFade();
+                }
             }
             invalidate();
             if (getParent() != null) {
@@ -21317,7 +21532,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } else {
                 avatarAlpha = drawNameAvatar ? 1.0f : 0.0f;
             }
-            nx += dp(32.33f) * avatarAlpha;
+            nx += dp(32.33f) * avatarAlpha * pengramNameAvatarShift();
             final float avatarY = ny;
             if (adminLayout == null) {
                 ny += dp(5) * avatarAlpha;
@@ -21920,6 +22135,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawBackground(Canvas canvas, int left, int top, int right, int bottom, boolean pinnedTop, boolean pinnedBottom, boolean selected, int keyboardHeight) {
+        // Pengram: сюда приходит общий фон группы (музыка и файлы пачкой, альбомы),
+        // и он рисуется в обход drawPinnedBottom — иначе у таких сообщений
+        // «хвостик» оставался, даже когда его попросили убрать
+        if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {
+            pinnedBottom = true;
+        }
         if (currentMessageObject != null && currentMessageObject.isOutOwner()) {
             if (!mediaBackground && !pinnedBottom) {
                 currentBackgroundDrawable = (MessageDrawable) getThemedDrawable(selected ? Theme.key_drawable_msgOutSelected : Theme.key_drawable_msgOut);
@@ -22135,7 +22356,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarAlpha = drawNameAvatar ? 1.0f : 0.0f;
             }
             if (avatarAlpha > 0.0f) {
-                float avatarX = nx;
+                float avatarX = nx + pengramNameAvatarOffset();
                 if (currentNameBotVerificationId != 0) {
                     avatarX -= dp(20);
                 }
@@ -22154,7 +22375,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 avatarImage.setAlpha(wasAlpha);
                 avatarImage.setVisible(wasVisible, false);
             }
-            nx += dp(32.33f) * avatarAlpha;
+            nx += dp(32.33f) * avatarAlpha * pengramNameAvatarShift();
             if (adminLayout == null) {
                 ny += dp(5) * avatarAlpha;
             } else {
@@ -23865,8 +24086,42 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return mediaBackground && (captionLayout == null || captionAbove) && (reactionsLayoutInBubble.isEmpty || reactionsLayoutInBubble.isSmall || currentMessageObject != null && (currentMessageObject.isAnyKindOfSticker() || currentMessageObject.isRoundVideo())) || currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_PAID_MEDIA/* || isMedia && drawCommentButton && !isRepliesChat*/;
     }
 
+    /**
+     * Pengram: плашка времени (и статус рядом с ней) лежит прямо поверх стикера/медиа и закрывает картинку.
+     * Пользователь может выключить её целиком — отдельно для стикеров, кружков и остальных медиа.
+     */
+    public boolean isPengramTimeHidden() {
+        final MessageObject msg = currentMessageObject;
+        if (msg == null) {
+            return false;
+        }
+        final int mode = PengramConfig.getMediaTimeMode();
+        if (mode == PengramConfig.MEDIA_TIME_DEFAULT) {
+            return false;
+        }
+        // пока сообщение не ушло, часики и крестик ошибки важнее красоты
+        if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {
+            return false;
+        }
+        // в плашке времени живёт метка «удалено»/«изменено» — без неё удалённый стикер
+        // ничем не отличается от обычного, поэтому такие сообщения не трогаем
+        if (pengramMarkDrawn || msg.pengramDeleted || msg.pengramArchived) {
+            return false;
+        }
+        if (msg.isRoundVideo()) {
+            return PengramConfig.isMediaTimeRoundHidden();
+        }
+        if (msg.isAnyKindOfSticker()) {
+            return true;
+        }
+        return mode == PengramConfig.MEDIA_TIME_HIDE_MEDIA && shouldDrawTimeOnMedia();
+    }
+
     public void drawTime(Canvas canvas, float alpha, boolean fromParent) {
         if (!drawFromPinchToZoom && delegate != null && delegate.getPinchToZoomHelper() != null && delegate.getPinchToZoomHelper().isInOverlayModeFor(this) && shouldDrawTimeOnMedia()) {
+            return;
+        }
+        if (isPengramTimeHidden()) {
             return;
         }
         if (currentMessageObject != null && currentMessageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
@@ -23944,6 +24199,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private void drawTimeInternal(Canvas canvas, float alpha, boolean fromParent, float timeX, StaticLayout timeLayout, float timeWidth, boolean drawSelectionBackground) {
         if ((!drawTime || groupPhotoInvisible) && shouldDrawTimeOnMedia() || timeLayout == null || (currentMessageObject.deleted && currentPosition != null) || currentMessageObject.type == MessageObject.TYPE_PHONE_CALL) {
+            return;
+        }
+        if (isPengramTimeHidden()) {
             return;
         }
         if (currentMessageObject.type == MessageObject.TYPE_ROUND_VIDEO) {
@@ -28034,8 +28292,41 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return super.getAlpha();
     }
 
+    /** Pengram: прозрачность удалённого сообщения (его нельзя «засветлить» анимациями) */
+    public static final float PENGRAM_DELETED_ALPHA = 0.55f;
+
+    private boolean pengramFaded() {
+        // A search hit is highlighted in full opacity: the standard blink would
+        // otherwise be almost invisible on a 55%-transparent deleted bubble.
+        final MessageObject message = currentMessageObject;
+        if (message == null || !(message.pengramDeleted || message.pengramArchived)) {
+            return false;
+        }
+        if (!org.telegram.messenger.PengramConfig.isFadingDeleted()) {
+            return false;
+        }
+        // The blink itself has to be readable: brighten the bubble while the
+        // standard search highlight runs, then fade it back.
+        return !isHighlighted && highlightProgress <= 0;
+    }
+
+    /**
+     * Pengram: держим удалённые сообщения полупрозрачными при любом раскладе —
+     * ячейки переиспользуются и аниматор списка любит сбрасывать alpha в 1.
+     */
+    public void pengramUpdateFade() {
+        final float target = pengramFaded() ? PENGRAM_DELETED_ALPHA : 1f;
+        if (Math.abs(getAlpha() - target) > 0.001f) {
+            // анимации списка не трогаем — setAlpha сам ограничит значение сверху
+            setAlpha(target);
+        }
+    }
+
     @Override
     public void setAlpha(float alpha) {
+        if (pengramFaded()) {
+            alpha = Math.min(alpha, PENGRAM_DELETED_ALPHA);
+        }
         if ((alpha == 1f) != (getAlpha() == 1)) {
             invalidate();
         }

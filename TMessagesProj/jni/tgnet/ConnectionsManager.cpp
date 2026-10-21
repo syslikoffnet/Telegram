@@ -17,9 +17,12 @@
 #include <openssl/rand.h>
 #include <zlib.h>
 #include <memory>
+#include <mutex>
+#include <condition_variable>
 #include <string>
 #include <cinttypes>
 #include "ConnectionsManager.h"
+#include "DownloadRequestBudget.h"
 #include "FileLog.h"
 #include "EventObject.h"
 #include "MTProtoScheme.h"
@@ -135,25 +138,43 @@ ConnectionsManager::~ConnectionsManager() {
     pthread_mutex_destroy(&mutex);
 }
 
-ConnectionsManager& ConnectionsManager::getInstance(int32_t instanceNum) {
-    switch (instanceNum) {
-        case 0:
-            static ConnectionsManager instance0(0);
-            return instance0;
-        case 1:
-            static ConnectionsManager instance1(1);
-            return instance1;
-        case 2:
-            static ConnectionsManager instance2(2);
-            return instance2;
-        case 3:
-            static ConnectionsManager instance3(3);
-            return instance3;
-        case 4:
-        default:
-            static ConnectionsManager instance4(4);
-            return instance4;
+// Pengram: экземпляры создаются лениво и только для реально используемых аккаунтов.
+// Раньше здесь было пять жёстко прошитых статических объектов, и любой аккаунт с
+// номером больше четвёртого молча попадал в чужой — а индексация jniEnv[] выходила
+// за границы массива и роняла приложение на старте.
+static ConnectionsManager *connectionsManagerInstances[MAX_ACCOUNT_COUNT] = {};
+static pthread_mutex_t connectionsManagerInstancesMutex = PTHREAD_MUTEX_INITIALIZER;
+static void (*connectionsManagerCreatedCallback)(int32_t) = nullptr;
+
+void ConnectionsManager::setInstanceCreatedCallback(void (*callback)(int32_t)) {
+    connectionsManagerCreatedCallback = callback;
+}
+
+bool ConnectionsManager::hasInstance(int32_t instanceNum) {
+    if (instanceNum < 0 || instanceNum >= MAX_ACCOUNT_COUNT) {
+        return false;
     }
+    return connectionsManagerInstances[instanceNum] != nullptr;
+}
+
+ConnectionsManager& ConnectionsManager::getInstance(int32_t instanceNum) {
+    if (instanceNum < 0 || instanceNum >= MAX_ACCOUNT_COUNT) {
+        instanceNum = 0;
+    }
+    ConnectionsManager *manager = connectionsManagerInstances[instanceNum];
+    if (manager == nullptr) {
+        pthread_mutex_lock(&connectionsManagerInstancesMutex);
+        manager = connectionsManagerInstances[instanceNum];
+        if (manager == nullptr) {
+            manager = new ConnectionsManager(instanceNum);
+            connectionsManagerInstances[instanceNum] = manager;
+            if (connectionsManagerCreatedCallback != nullptr) {
+                connectionsManagerCreatedCallback(instanceNum);
+            }
+        }
+        pthread_mutex_unlock(&connectionsManagerInstancesMutex);
+    }
+    return *manager;
 }
 
 int ConnectionsManager::callEvents(int64_t now) {
@@ -807,7 +828,8 @@ void ConnectionsManager::onConnectionConnected(Connection *connection) {
             if (networkPaused && lastPauseTime != 0) {
                 lastPauseTime = getCurrentTimeMonotonicMillis();
             }
-            processRequestQueue(connection->getConnectionType(), datacenter->getDatacenterId());
+            processRequestQueue(connectionType, datacenter->getDatacenterId(),
+                                connectionType == ConnectionTypeDownload ? connection : nullptr);
         }
     }
 }
@@ -1110,7 +1132,10 @@ void ConnectionsManager::processServerResponse(TLObject *message, int64_t messag
             for (auto & runningRequest : runningRequests) {
                 Request *request = runningRequest.get();
                 Datacenter *requestDatacenter = getDatacenterWithId(request->datacenterId);
-                if (request->messageId < response->first_msg_id && request->connectionType & connection->getConnectionType() && requestDatacenter != nullptr && requestDatacenter->getDatacenterId() == datacenter->getDatacenterId()) {
+                // A new download session says nothing about requests on sibling sockets.
+                bool sameDownloadConnection = connection->getConnectionType() != ConnectionTypeDownload ||
+                                              (request->connectionType >> 16) == connection->getConnectionNum();
+                if (sameDownloadConnection && request->messageId < response->first_msg_id && request->connectionType & connection->getConnectionType() && requestDatacenter != nullptr && requestDatacenter->getDatacenterId() == datacenter->getDatacenterId()) {
                     if (LOGS_ENABLED) DEBUG_D("clear request %p - %s", request->rawRequest, typeid(*request->rawRequest).name());
                     request->clear(true);
                 }
@@ -2436,7 +2461,12 @@ inline void addMessageToDatacenter(uint32_t datacenterId, NetworkMessage *networ
 #define MAX_DOWNLOAD_REQUESTS 16 * 2
 #define MAX_UPLOAD_REQUESTS 10 * 3
 
-void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t dc) {
+static uint32_t getDownloadSize(Request *request) {
+    auto apiRequest = dynamic_cast<TL_api_request *>(request->rawRequest);
+    return apiRequest != nullptr ? apiRequest->downloadSize : 0;
+}
+
+void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t dc, Connection *connectedDownload) {
     genericMessagesToDatacenters.clear();
     genericMediaMessagesToDatacenters.clear();
     tempMessagesToDatacenters.clear();
@@ -2575,7 +2605,10 @@ void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t 
 
         uint32_t requestConnectionType = request->connectionType & 0x0000ffff;
 
-        bool forceThisRequest = (connectionTypes & requestConnectionType) && requestDatacenter->getDatacenterId() == dc;
+        // Opening one download socket must not resend requests on its siblings.
+        // Salt/session recovery calls without a socket still apply to the whole DC.
+        bool forceThisRequest = (connectionTypes & requestConnectionType) && requestDatacenter->getDatacenterId() == dc &&
+                                (connectedDownload == nullptr || connection == connectedDownload);
 
         if (typeInfo == typeid(TL_get_future_salts)) {
             if (request->messageId != 0) {
@@ -2691,6 +2724,16 @@ void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t 
             }
         }
         iter++;
+    }
+
+    // Snapshot after retries/migrations, which can remove or requeue requests.
+    // No persistent reservations to leak on cancellation or DC changes.
+    DownloadRequestBudget downloadBudget(currentUserPremium);
+    for (const auto &request : runningRequests) {
+        if (!request->cancelled && (request->connectionType & 0xffff) == ConnectionTypeDownload) {
+            uint32_t datacenterId = request->datacenterId == DEFAULT_DATACENTER_ID ? currentDatacenterId : request->datacenterId;
+            downloadBudget.account(datacenterId, (request->requestFlags & RequestFlagSmallDownload) != 0, getDownloadSize(request.get()));
+        }
     }
 
     Connection *genericConnection = nullptr;
@@ -2819,7 +2862,9 @@ void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t 
 
         Connection *connection = requestDatacenter->getConnectionByType(request->connectionType, true, canUseUnboundKey);
 
-        if (request->connectionType & ConnectionTypeGeneric && connection->getConnectionToken() == 0) {
+        // Keep budgeted chunks queued until the socket is ready. Otherwise they
+        // are buffered here and then sent again by onConnectionConnected.
+        if (((request->connectionType & ConnectionTypeGeneric) || getDownloadSize(request) != 0) && connection->getConnectionToken() == 0) {
             iter++;
             continue;
         }
@@ -2850,6 +2895,15 @@ void ConnectionsManager::processRequestQueue(uint32_t connectionTypes, uint32_t 
                         DEBUG_D("skip queue, token = %d: download type: network unavailable", request->requestToken);
                     continue;
                 }
+                uint32_t bytes = getDownloadSize(request);
+                if (bytes != 0) {
+                    if (!downloadBudget.acquire(datacenterId, (request->requestFlags & RequestFlagSmallDownload) != 0, bytes)) {
+                        iter++;
+                        continue;
+                    }
+                    break;
+                }
+                // Non-opted-in requests retain the original count-based scheduling.
                 int max;
                 if (request->isCancelRequest()) {
                     max = MAX_DOWNLOAD_REQUESTS_CANCELS;
@@ -3144,7 +3198,10 @@ std::unique_ptr<TLObject> ConnectionsManager::wrapInLayer(TLObject *object, Data
             request->api_id = currentApiId;
             request->app_version = currentAppVersion;
             request->lang_code = currentLangCode;
-            request->lang_pack = "android";
+            // Pengram: платформа подменяема вместе с моделью/версией. Именно по
+            // lang_pack сервер помечает сеанс как «android», поэтому при подмене
+            // на iPhone/Mac/Windows отсюда уходит соответствующая строка.
+            request->lang_pack = currentLangPack.empty() ? "android" : currentLangPack;
             request->system_lang_code = currentSystemLangCode;
 
 
@@ -3160,40 +3217,48 @@ std::unique_ptr<TLObject> ConnectionsManager::wrapInLayer(TLObject *object, Data
                 objectValue->key = "device_token";
                 objectValue->value = std::unique_ptr<JSONValue>(jsonString);
             }
-            if (!certFingerprint.empty()) {
+            // Android-отпечатки (сертификат сборки, установщик, имя пакета,
+            // класс производительности) при подмене на другое устройство не
+            // отправляем: именно они и выдают «это Android, да ещё и сторонний».
+            // device_token оставляем — он нужен серверу для пушей аккаунта.
+            if (!pengramDesktopSpoof) {
+                if (!certFingerprint.empty()) {
+                    auto objectValue = new TL_jsonObjectValue();
+                    jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
+
+                    auto jsonString = new TL_jsonString();
+                    jsonString->value = certFingerprint;
+                    objectValue->key = "data";
+                    objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+                }
+
                 auto objectValue = new TL_jsonObjectValue();
                 jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-
                 auto jsonString = new TL_jsonString();
-                jsonString->value = certFingerprint;
-                objectValue->key = "data";
+                jsonString->value = installer;
+                objectValue->key = "installer";
+                objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+
+                objectValue = new TL_jsonObjectValue();
+                jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
+                jsonString = new TL_jsonString();
+                jsonString->value = package;
+                objectValue->key = "package_id";
                 objectValue->value = std::unique_ptr<JSONValue>(jsonString);
             }
 
-            auto objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-            auto jsonString = new TL_jsonString();
-            jsonString->value = installer;
-            objectValue->key = "installer";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+            {
+                auto objectValue = new TL_jsonObjectValue();
+                jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
 
-            objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-            jsonString = new TL_jsonString();
-            jsonString->value = package;
-            objectValue->key = "package_id";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonString);
+                auto jsonNumber = new TL_jsonNumber();
+                jsonNumber->value = currentDeviceTimezone;
+                objectValue->key = "tz_offset";
+                objectValue->value = std::unique_ptr<JSONValue>(jsonNumber);
+            }
 
-            objectValue = new TL_jsonObjectValue();
-            jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
-
-            auto jsonNumber = new TL_jsonNumber();
-            jsonNumber->value = currentDeviceTimezone;
-            objectValue->key = "tz_offset";
-            objectValue->value = std::unique_ptr<JSONValue>(jsonNumber);
-
-            if (currentPerformanceClass != -1) {
-                objectValue = new TL_jsonObjectValue();
+            if (!pengramDesktopSpoof && currentPerformanceClass != -1) {
+                auto objectValue = new TL_jsonObjectValue();
                 jsonObject->value.push_back(std::unique_ptr<TL_jsonObjectValue>(objectValue));
 
                 auto jsonNumber = new TL_jsonNumber();
@@ -3511,6 +3576,109 @@ void ConnectionsManager::authorizedOnMovingDatacenter() {
     });
 }
 
+void ConnectionsManager::importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId) {
+    // Всё, что трогает datacenters/currentDatacenterId, живёт на сетевом потоке.
+    scheduleTask([&, datacenterId, authKey, authKeyId] {
+        if (datacenterId < 1 || datacenterId > 5 || authKey.size() != 256 || authKeyId == 0) {
+            return;
+        }
+        initDatacenters();
+        Datacenter *datacenter = getDatacenterWithId(datacenterId);
+        if (datacenter == nullptr) {
+            return;
+        }
+        datacenter->setPermanentAuthKey((const uint8_t *) authKey.data(), (uint32_t) authKey.size(), authKeyId);
+        currentDatacenterId = datacenterId;
+        saveConfig();
+        updateDcSettings(datacenterId, false, false);
+    });
+}
+
+void ConnectionsManager::pengramSelectHomeDatacenter(uint32_t datacenterId) {
+    // Вход по login-token: сервер выдаёт токен на конкретном DC, и импортировать
+    // его надо там же. Домашний DC меняем только вместе с ключом — иначе аккаунт
+    // окажется на одном DC, а ключ на другом.
+    scheduleTask([&, datacenterId] {
+        if (datacenterId < 1 || datacenterId > 5 || currentDatacenterId == datacenterId) {
+            return;
+        }
+        initDatacenters();
+        Datacenter *datacenter = getDatacenterWithId(datacenterId);
+        if (datacenter == nullptr) {
+            return;
+        }
+        currentDatacenterId = datacenterId;
+        saveConfig();
+        // На этом DC мог остаться ключ от прошлой, неудавшейся попытки входа:
+        // для login-token он не годится, и запрос ушёл бы с мёртвым ключом.
+        if (datacenter->hasAuthKey(ConnectionTypeGeneric, 0)) {
+            datacenter->clearAuthKey(HandshakeTypeAll);
+        }
+        // Ключа на новом DC ещё нет — поднимаем рукопожатие сразу, чтобы
+        // поставленный в очередь importLoginToken ушёл без ожидания таймера.
+        if (!datacenter->hasAuthKey(ConnectionTypeGeneric, 0) && !datacenter->isHandshakingAny()) {
+            datacenter->clearServerSalts(false);
+            datacenter->clearServerSalts(true);
+            datacenter->beginHandshake(HandshakeTypeAll, true);
+        }
+        processRequestQueue(0, 0);
+    });
+}
+
+bool ConnectionsManager::pengramCopyAuthKey(std::string *key, uint32_t *datacenterId) {
+    // Ключ читается только на сетевом потоке. Заходим туда задачей и ждём
+    // результат с тайм-аутом: экспорт вызывается из фонового потока.
+    struct State {
+        std::mutex mutex;
+        std::condition_variable condition;
+        bool done = false;
+        std::string key;
+        uint32_t datacenterId = 0;
+    };
+    auto state = std::make_shared<State>();
+    scheduleTask([this, state] {
+        Datacenter *datacenter = getDatacenterWithId(DEFAULT_DATACENTER_ID);
+        if (datacenter != nullptr) {
+            ByteArray *authKey = datacenter->getAuthKey(ConnectionTypeGeneric, true, nullptr, 0);
+            if (authKey != nullptr && authKey->length == 256) {
+                state->key.assign((const char *) authKey->bytes, (size_t) authKey->length);
+                state->datacenterId = datacenter->getDatacenterId();
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->done = true;
+        }
+        state->condition.notify_all();
+    });
+
+    bool result = false;
+    {
+        std::unique_lock<std::mutex> lock(state->mutex);
+        state->condition.wait_for(lock, std::chrono::seconds(3), [state] {
+            return state->done;
+        });
+        if (state->done && state->key.size() == 256) {
+            if (key != nullptr) {
+                *key = state->key;
+            }
+            if (datacenterId != nullptr) {
+                *datacenterId = state->datacenterId;
+            }
+            result = true;
+        }
+    }
+    if (!state->key.empty()) {
+        // ключ не должен остаться в куче после экспорта
+        volatile char *raw = &state->key[0];
+        for (size_t i = 0; i < state->key.size(); ++i) {
+            raw[i] = 0;
+        }
+        state->key.clear();
+    }
+    return result;
+}
+
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {
     scheduleTask([&, datacenterId, ipAddress, port] {
         Datacenter *datacenter = getDatacenterWithId(datacenterId);
@@ -3742,6 +3910,22 @@ void ConnectionsManager::setProxySettings(std::string address, uint16_t port, st
             }
             processRequestQueue(0, 0);
         }
+    });
+}
+
+void ConnectionsManager::pengramSetPlatform(std::string langPack, bool desktopSpoof) {
+    scheduleTask([&, langPack, desktopSpoof] {
+        if (currentLangPack == langPack && pengramDesktopSpoof == desktopSpoof) {
+            return;
+        }
+        currentLangPack = langPack;
+        pengramDesktopSpoof = desktopSpoof;
+        // Следующий запрос должен уйти с новым initConnection, иначе сервер
+        // увидит старое значение до перезапуска приложения.
+        for (auto & datacenter : datacenters) {
+            datacenter.second->resetInitVersion();
+        }
+        saveConfig();
     });
 }
 

@@ -881,6 +881,8 @@ public class FilterTabsView extends FrameLayout {
     };
 
     private float animationValue;
+    /** последний цвет «таблетки», выставленный темой или анимацией переключения */
+    private int selectorColor;
     private final Property<FilterTabsView, Float> COLORS = new AnimationProperties.FloatProperty<FilterTabsView>("animationValue") {
         @Override
         public void setValue(FilterTabsView object, float value) {
@@ -888,7 +890,7 @@ public class FilterTabsView extends FrameLayout {
 
             int color1 = Theme.getColor(tabLineColorKey, resourcesProvider);
             int color2 = Theme.getColor(aTabLineColorKey, resourcesProvider);
-            selectorDrawable.setColor(ColorUtils.blendARGB(color1, color2, value));
+            selectorDrawable.setColor(selectorColor = ColorUtils.blendARGB(color1, color2, value));
 
             listView.invalidateViews();
             listView.invalidate();
@@ -915,7 +917,7 @@ public class FilterTabsView extends FrameLayout {
         selectorDrawable = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, null);
         float rad = AndroidUtilities.dpf2(14);
         selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, rad, rad, rad, rad});
-        selectorDrawable.setColor(Theme.getColor(tabLineColorKey, resourcesProvider));
+        selectorDrawable.setColor(selectorColor = Theme.getColor(tabLineColorKey, resourcesProvider));
 
         setHorizontalScrollBarEnabled(false);
         listView = new RecyclerListView(context) {
@@ -1318,7 +1320,7 @@ public class FilterTabsView extends FrameLayout {
         backgroundColorKey = background;
         activeTextColorKey = active;
         unactiveTextColorKey = unactive;
-        selectorDrawable.setColor(Theme.getColor(tabLineColorKey, resourcesProvider));
+        selectorDrawable.setColor(selectorColor = Theme.getColor(tabLineColorKey, resourcesProvider));
         listView.setSelectorDrawableColor(Theme.getColor(selector, resourcesProvider));
 
         listView.invalidateViews();
@@ -1508,7 +1510,13 @@ public class FilterTabsView extends FrameLayout {
 
             final int y = height / 2 - dp(14);
             selectorDrawable.setBounds((int) (indicatorX - dp(TAB_INTERNAL_PADDING) - add), y, (int) (indicatorX + indicatorWidth + dp(TAB_INTERNAL_PADDING) + add), y + dp(28));
-            selectorDrawable.setAlpha(31);
+            // Pengram: в Material 3 выбранная вкладка — тональная «таблетка»
+            // во всю непрозрачность, а не еле заметная подсветка линии.
+            final boolean md3Pill = org.telegram.messenger.PengramMD3.tonalRows();
+            selectorDrawable.setColor(md3Pill
+                    ? org.telegram.messenger.PengramMD3.selectedContainer(resourcesProvider)
+                    : selectorColor);
+            selectorDrawable.setAlpha(md3Pill ? (int) (255 * listView.getAlpha()) : 31);
             selectorDrawable.draw(canvas);
             canvas.restore();
         }
@@ -2018,7 +2026,7 @@ public class FilterTabsView extends FrameLayout {
                 if (tabView.currentTab.id == id) {
                     tabView.shakeLockIcon(1, 0);
                     try {
-                        tabView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) tabView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                     } catch (Exception ignore) {}
                     break;
                 }

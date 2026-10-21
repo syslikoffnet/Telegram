@@ -97,7 +97,7 @@ public class RoundVideoRecorder extends FrameLayout {
                 invalidate();
 
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 } catch (Exception ignore) {}
 
                 AndroidUtilities.runOnUIThread(stopRunnable, MAX_DURATION);

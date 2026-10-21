@@ -214,6 +214,10 @@ public class ApplicationLoader extends Application {
 
                     boolean isSlow = isConnectionSlow();
                     for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                        // не поднимаем сетевой стек для пустых слотов на каждое событие сети
+                        if (!UserConfig.isValidAccount(a)) {
+                            continue;
+                        }
                         ConnectionsManager.getInstance(a).checkConnection();
                         FileLoader.getInstance(a).onNetworkChanged(isSlow);
                     }
@@ -247,8 +251,15 @@ public class ApplicationLoader extends Application {
         PengramConfig.init();
         SharedConfig.loadConfig();
         SharedPrefsHelper.init(applicationContext);
+        // Pengram: слотов под аккаунты много, но на старте поднимаем только занятые.
+        // Пустой слот не создаёт ни MessagesController, ни сетевой менеджер —
+        // это и память, и дескрипторы, и время запуска.
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();
+            final boolean slotUsed = a == 0 || UserConfig.getInstance(a).isClientActivated();
+            if (!slotUsed) {
+                continue;
+            }
             MessagesController.getInstance(a);
             if (a == 0) {
                 SharedConfig.pushStringStatus = "__FIREBASE_GENERATING_SINCE_" + ConnectionsManager.getInstance(a).getCurrentTime() + "__";
@@ -261,6 +272,9 @@ public class ApplicationLoader extends Application {
                 SendMessagesHelper.getInstance(a).checkUnsentMessages();
             }
         }
+        // Observer only: by default it cannot send until master and each chat
+        // are explicitly enabled in AI settings.
+        PengramAIAutoReply.registerAll();
 
         ApplicationLoader app = (ApplicationLoader) ApplicationLoader.applicationContext;
         app.initPushServices();
@@ -270,6 +284,9 @@ public class ApplicationLoader extends Application {
 
         MediaController.getInstance();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
+            if (a != 0 && !UserConfig.getInstance(a).isClientActivated()) {
+                continue;
+            }
             ContactsController.getInstance(a).checkAppAccount();
             DownloadController.getInstance(a);
         }
@@ -278,6 +295,20 @@ public class ApplicationLoader extends Application {
 
     public ApplicationLoader() {
         super();
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            PengramCovers.clear();
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        PengramCovers.clear();
     }
 
     @Override
@@ -324,6 +355,10 @@ public class ApplicationLoader extends Application {
             applicationContext = getApplicationContext();
         }
 
+        // Pengram: перехват падений ставим как можно раньше — отчёт о вылете
+        // должен собраться даже если упадёт сама инициализация приложения
+        PengramCrashReport.install();
+
         NativeLoader.initNativeLibs(ApplicationLoader.applicationContext);
 
         try {
@@ -331,6 +366,11 @@ public class ApplicationLoader extends Application {
         } catch (UnsatisfiedLinkError error) {
             throw new RuntimeException("can't load native libraries " +  Build.CPU_ABI + " lookup folder " + NativeLoader.getAbiFolder());
         }
+        // Pengram: состояние защиты сборки (подпись, отладчик, хуки). Нативная
+        // часть уже загружена, опрос идёт в фоне и на старт не влияет.
+        PengramGuard.install();
+        // выгрузки сессий содержат ключ: не даём им переживать перезапуск
+        Utilities.globalQueue.postRunnable(PengramSessionExport::wipeStale);
         new ForegroundDetector(this) {
             @Override
             public void onActivityStarted(Activity activity) {
@@ -352,6 +392,15 @@ public class ApplicationLoader extends Application {
         applicationHandler = new Handler(applicationContext.getMainLooper());
 
         AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
+        AndroidUtilities.runOnUIThread(PengramBackgroundService::onApplicationStart, 2000);
+        // Включённый обход должен восстановить соединение сразу после запуска, а не через 6 секунд.
+        AndroidUtilities.runOnUIThread(PengramBypass::start, 500);
+        AndroidUtilities.runOnUIThread(PengramHistory::autoCleanup, 4000);
+        // Pengram: разовое уплотнение журнала после обновления — позже автоочистки,
+        // чтобы не ужимать записи, которые она всё равно удалит
+        AndroidUtilities.runOnUIThread(PengramHistory::compactIfNeeded, 9000);
+        // Pengram: стратегия обхода DPI должна уехать в нативный слой до первых коннектов
+        PengramNet.apply();
 
         LauncherIconController.tryFixLauncherIconIfNeeded();
         ProxyRotationController.init();
@@ -365,19 +414,24 @@ public class ApplicationLoader extends Application {
         NotificationCenter.sanitize();
     });
 
-    public static void startPushService() {
-        SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
-        boolean enabled;
-        if (preferences.contains("pushService")) {
-            enabled = preferences.getBoolean("pushService", true);
-        } else {
-            enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);
-        }
-        if (enabled) {
-            try {
-                applicationContext.startService(new Intent(applicationContext, NotificationsService.class));
-            } catch (Throwable ignore) {
+    /**
+     * Нужен ли foreground-сервис с пуш-соединением.
+     *
+     * <p>Кроме явной настройки и выбора пользователя в уведомлениях сервис
+     * поднимается автоматически, когда FCM не может выдать токен: иначе
+     * уведомления приходят только после открытия приложения.
+     */
+    public static boolean shouldStartNotificationService() {
+        return PengramBackgroundService.shouldKeepAlive();
+    }
 
+    public static void startPushService() {
+        if (shouldStartNotificationService()) {
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(applicationContext,
+                        new Intent(applicationContext, NotificationsService.class));
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
@@ -407,6 +461,8 @@ public class ApplicationLoader extends Application {
                 }
                 SharedConfig.pushStringStatus = "__NO_GOOGLE_PLAY_SERVICES__";
                 PushListenerController.sendRegistrationToServer(getPushProvider().getPushType(), null);
+                // Play Services нет — пуши не придут никогда, нужен свой канал.
+                PengramBackgroundService.onPushRegistrationResult(false);
             }
         }, 1000);
     }

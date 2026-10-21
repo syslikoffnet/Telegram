@@ -2416,6 +2416,7 @@ public class ActionBarMenuItem extends FrameLayout {
         public CharSequence text;
         public boolean dismiss, needCheck;
         public View viewToSwipeBack;
+        private Utilities.Callback0Return<View> swipeBackViewFactory;
         public int textSizeDp;
 
         private View view;
@@ -2512,6 +2513,10 @@ public class ActionBarMenuItem extends FrameLayout {
                 layoutParams.width = LayoutHelper.MATCH_PARENT;
                 layoutParams.height = AndroidUtilities.dp(48);
                 cell.setLayoutParams(layoutParams);
+                if (swipeBackViewFactory != null) {
+                    viewToSwipeBack = swipeBackViewFactory.run();
+                    swipeBackViewFactory = null;
+                }
                 int swipeBackIndex = parent.popupLayout.addViewToSwipeBack(viewToSwipeBack);
                 cell.openSwipeBackLayout = () -> {
                     if (parent.popupLayout.getSwipeBack() != null) {
@@ -2595,6 +2600,13 @@ public class ActionBarMenuItem extends FrameLayout {
             }
         }
 
+        private void detach() {
+            if (view != null && view.getParent() instanceof ViewGroup) {
+                ((ViewGroup) view.getParent()).removeView(view);
+            }
+            view = null;
+        }
+
         public void setColors(int textColor, int iconColor) {
             if (this.textColor == null || this.iconColor == null || this.textColor != textColor || this.iconColor != iconColor) {
                 this.textColor = textColor;
@@ -2607,6 +2619,11 @@ public class ActionBarMenuItem extends FrameLayout {
     }
     public Item lazilyAddSwipeBackItem(int icon, Drawable iconDrawable, String text, View viewToSwipeBack) {
         return putLazyItem(Item.asSwipeBackItem(icon, iconDrawable, text, viewToSwipeBack));
+    }
+    public Item lazilyAddSwipeBackItem(int icon, Drawable iconDrawable, String text, Utilities.Callback0Return<View> viewFactory) {
+        Item item = Item.asSwipeBackItem(icon, iconDrawable, text, null);
+        item.swipeBackViewFactory = viewFactory;
+        return putLazyItem(item);
     }
     public Item lazilyAddSubItem(int id, int icon, CharSequence text) {
         return lazilyAddSubItem(id, icon, null, text, true, false);
@@ -2622,6 +2639,24 @@ public class ActionBarMenuItem extends FrameLayout {
     }
     public Item lazilyAddText(CharSequence text, int textSizeDp) {
         return putLazyItem(Item.asText(text, textSizeDp));
+    }
+
+    /**
+     * Убирает отложенный пункт: и из очереди вёрстки, и из уже собранного меню.
+     * Нужно экранам, которые пересобирают свои пункты на месте, не заставляя
+     * пользователя закрывать и заново открывать меню.
+     */
+    public void removeLazyItem(Item item) {
+        if (item == null) {
+            return;
+        }
+        if (lazyList != null) {
+            lazyList.remove(item);
+        }
+        if (lazyMap != null && lazyMap.get(item.id) == item) {
+            lazyMap.remove(item.id);
+        }
+        item.detach();
     }
 
     private Item putLazyItem(Item item) {

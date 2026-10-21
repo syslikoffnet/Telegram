@@ -1063,7 +1063,7 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
             }
             toggleSelection(view);
             try {
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             } catch (Exception ignored) {}
             return true;
         });
@@ -1196,7 +1196,7 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
                             canShowHiddenArchive = canShowInternal;
                             if (pullViewState == ARCHIVE_ITEM_STATE_HIDDEN) {
                                 try {
-                                    recyclerListView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) recyclerListView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                 } catch (Exception ignored) {}
                                 if (pullForegroundDrawable != null) {
                                     pullForegroundDrawable.colorize(canShowInternal);
@@ -1855,7 +1855,7 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
                                 if (!canShowHiddenArchive) {
                                     canShowHiddenArchive = true;
                                     try {
-                                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                     } catch (Exception ignored) {}
                                     if (pullForegroundDrawable != null) {
                                         pullForegroundDrawable.colorize(true);
@@ -1951,7 +1951,7 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
 
     private boolean showChatPreview(DialogCell cell) {
         try {
-            cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
         } catch (Exception ignored) {}
         final ActionBarPopupWindow.ActionBarPopupWindowLayout[] previewMenu = new ActionBarPopupWindow.ActionBarPopupWindowLayout[1];
         int flags = ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_USE_SWIPEBACK;

@@ -120,6 +120,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramAccountOrder;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
@@ -216,6 +217,7 @@ import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stars.StarsIntroActivity;
 import org.telegram.ui.Stories.StealthModeAlert;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
+import org.telegram.ui.Wallet.WalletActivity;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
@@ -288,9 +290,29 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private static final boolean TMP_DISABLE_TOPICS_TWO_COLUMNS = false;
 
-    public static final int MAIN_TABS_HEIGHT = 56;
-    public static final int MAIN_TABS_MARGIN = 8;
-    public static final int MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+    // Pengram: размеры нижней панели настраиваются (см. PengramConfig.getTabBarScale)
+    public static final int MAIN_TABS_HEIGHT_DEFAULT = 56;
+    public static final int MAIN_TABS_MARGIN_DEFAULT = 8;
+    public static int MAIN_TABS_HEIGHT = MAIN_TABS_HEIGHT_DEFAULT;
+    public static int MAIN_TABS_MARGIN = MAIN_TABS_MARGIN_DEFAULT;
+    public static int MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+
+    /** Pengram: пересчитать размеры нижней панели по настройке */
+    public static void pengramApplyTabsSize() {
+        float k = 1f;
+        try {
+            k = org.telegram.messenger.PengramConfig.getTabBarScale();
+        } catch (Throwable ignore) {
+        }
+        k = Math.max(0.8f, Math.min(1.3f, k));
+        MAIN_TABS_HEIGHT = Math.round(MAIN_TABS_HEIGHT_DEFAULT * k);
+        MAIN_TABS_MARGIN = Math.round(MAIN_TABS_MARGIN_DEFAULT * Math.max(0.75f, Math.min(1.2f, k)));
+        MAIN_TABS_HEIGHT_WITH_MARGINS = MAIN_TABS_HEIGHT + MAIN_TABS_MARGIN * 2;
+    }
+
+    static {
+        pengramApplyTabsSize();
+    }
     public static final int FILTER_TABS_HEIGHT = 36;
     public static final int SEARCH_TABS_HEIGHT = 36 + 7 + 7;
     public static final int SEARCH_FIELD_HEIGHT = 48;
@@ -2264,7 +2286,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 if (!canShowHiddenArchive) {
                                     canShowHiddenArchive = true;
                                     try {
-                                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                     } catch (Exception ignored) {}
                                     if (parentPage.pullForegroundDrawable != null) {
                                         parentPage.pullForegroundDrawable.colorize(true);
@@ -3028,7 +3050,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 showSelectStatusDialog();
             });
             SelectAnimatedEmojiDialog.preload(currentAccount);
-        } else if (user != null && MessagesController.getInstance(currentAccount).isPremiumUser(user)) {
+        } else if (user != null && MessagesController.getInstance(currentAccount).isPremiumUserForDisplay(user)) {
             if (premiumStar == null) {
                 premiumStar = getContext().getResources().getDrawable(R.drawable.msg_premium_liststar).mutate();
                 premiumStar = new AnimatedEmojiDrawable.WrapSizeDrawable(premiumStar, dp(18), dp(18)) {
@@ -3188,6 +3210,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void setTitleOverlayText(String title, int titleId, Runnable action) {
         super.setTitleOverlayText(title, titleId, action);
+        if (title == null) {
+            // Pengram: когда «Соединение…» уходит, возвращаем свой заголовок, а не «Telegram».
+            // Сразу — чтобы не было кадра с логотипом, и ещё раз после анимации подмены заголовка.
+            pengramUpdateTitle();
+            AndroidUtilities.runOnUIThread(this::pengramUpdateTitle, 50);
+            AndroidUtilities.runOnUIThread(this::pengramUpdateTitle, 350);
+        }
         if (actionBar != null && selectAnimatedEmojiDialog != null && selectAnimatedEmojiDialog.getContentView() instanceof SelectAnimatedEmojiDialog) {
             SimpleTextView textView = actionBar.getTitleTextView();
             ((SelectAnimatedEmojiDialog) selectAnimatedEmojiDialog.getContentView()).setScrimDrawable(textView != null && textView.getRightDrawable() == statusDrawable ? statusDrawable : null, textView);
@@ -3515,13 +3544,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 logoDrawable = context.getResources().getDrawable(R.drawable.telegram_logo_2).mutate();
                 logoDrawable.setBounds(0, dp(2), logoDrawable.getIntrinsicWidth(), dp(2) + logoDrawable.getIntrinsicHeight());
                 logoDrawable.setColorFilter(getThemedColor(Theme.key_telegram_color_dialogsLogo), PorterDuff.Mode.MULTIPLY);
-                SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
-                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                actionBar.setTitle(ssb, statusDrawable);
+                final CharSequence pengramTitle = pengramTitleText();
+                if (pengramTitle != null) {
+                    actionBar.setTitle(pengramTitle, statusDrawable);
+                } else {
+                    SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+                    ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    actionBar.setTitle(ssb, statusDrawable);
+                }
                 updateStatus(UserConfig.getInstance(currentAccount).getCurrentUser(), false);
             }
             if (folderId == 0) {
                 actionBar.setSupportsHolidayImage(true);
+                actionBar.setPengramCenterTitle(!onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT);
             }
         }
         //if (!onlySelect || initialDialogsType == DIALOGS_TYPE_FORWARD) {
@@ -3556,7 +3591,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 protected void onDefaultTabMoved() {
                     if (!getMessagesController().premiumFeaturesBlocked()) {
                         try {
-                            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                         } catch (Exception ignore) {}
                         topBulletin = BulletinFactory.of(DialogsActivity.this).createSimpleBulletin(R.raw.filter_reorder, AndroidUtilities.replaceTags(LocaleController.formatString(R.string.LimitReachedReorderFolder, LocaleController.getString(R.string.FilterAllChats))), LocaleController.getString(R.string.PremiumMore), Bulletin.DURATION_PROLONG, () -> {
                             showDialog(new PremiumFeatureBottomSheet(DialogsActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_ADVANCED_CHAT_MANAGEMENT, true));
@@ -4063,6 +4098,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             viewPage.addView(viewPage.progressView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
 
             viewPage.listView = new DialogsRecyclerView(context, viewPage);
+            // при скролле холдеры выезжают и заезжают сотнями — дефолтного
+            // кэша в две штуки не хватает, и каждый ряд пересоздаётся заново
+            viewPage.listView.setItemViewCacheSize(10);
             viewPage.listView.addEdgeEffectListener(() -> viewPage.listView.postOnAnimation(this::blur3_InvalidateBlur));
             viewPage.scroller = new RecyclerListViewScroller(viewPage.listView);
             viewPage.listView.setAllowStopHeaveOperations(true);
@@ -4293,7 +4331,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 canShowHiddenArchive = canShowInternal;
                                 if (viewPage.archivePullViewState == ARCHIVE_ITEM_STATE_HIDDEN) {
                                     try {
-                                        viewPage.listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) viewPage.listView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                     } catch (Exception ignored) {}
                                     if (viewPage.pullForegroundDrawable != null) {
                                         viewPage.pullForegroundDrawable.colorize(canShowInternal);
@@ -5177,7 +5215,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     return;
                 }
                 try {
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 } catch (Exception ignored) {}
                 if (dialogId == UserConfig.getInstance(currentAccount).getClientUserId()) {
                     if (!storiesEnabled) {
@@ -7018,8 +7056,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
+        pengramUpdateTitle();
+        updateFloatingButtonVisibility(false);
         if (dialogStoriesCell != null) {
             dialogStoriesCell.onResume();
+            updateStoriesVisibility(false);
         }
         if (rightSlidingDialogContainer != null) {
             rightSlidingDialogContainer.onResume();
@@ -8411,7 +8452,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void onArchiveLongPress(View view) {
         try {
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         BottomSheet.Builder builder = new BottomSheet.Builder(getParentActivity());
         final boolean hasUnread = getMessagesStorage().getArchiveUnreadCount() != 0;
@@ -8844,7 +8885,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void updateFloatingButtonVisibility(boolean animated) {
-        final boolean isVisible = !(onlySelect && initialDialogsType != 10 || folderId != 0 || communityId != 0 || inPreviewMode || (searching && !onlySelect) || floatingButtonHidden);
+        final boolean isVisible = !(onlySelect && initialDialogsType != 10 || folderId != 0 || communityId != 0 || inPreviewMode || (searching && !onlySelect) || floatingButtonHidden)
+                && !(org.telegram.messenger.PengramConfig.isHidingWriteButton() && !onlySelect);
 
         if (floatingButton3 != null) {
             floatingButton3.setButtonVisible(isVisible, animated);
@@ -8984,7 +9026,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             if (isOpen && afterSignup) {
                 try {
-                    fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {}
                 if (getParentActivity() instanceof LaunchActivity) {
                     ((LaunchActivity) getParentActivity()).getFireworksOverlay().start();
@@ -10677,6 +10719,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (currentConnectionState != state) {
                 currentConnectionState = state;
                 updateProxyButton(true, false);
+                pengramUpdateTitle();   // Pengram: заголовок не должен сползать обратно на «Telegram»
             }
         } else if (id == NotificationCenter.onDownloadingFilesChanged) {
             updateProxyButton(true, false);
@@ -10987,15 +11030,30 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ArrayList<TLRPC.Dialog> botShareDialogs;
 
     @NonNull
+    private ArrayList<TLRPC.Dialog> pengramVisibleDialogs(int account, ArrayList<TLRPC.Dialog> source) {
+        if (source == null || source.isEmpty()) return source;
+        ArrayList<TLRPC.Dialog> visible = null;
+        for (int i = 0; i < source.size(); i++) {
+            if (org.telegram.messenger.PengramProfileCloud.isHiddenDialog(account, source.get(i).id)) {
+                if (visible == null) visible = new ArrayList<>(source);
+                visible.remove(source.get(i));
+            }
+        }
+        return visible == null ? source : visible;
+    }
+
     public ArrayList<TLRPC.Dialog> getDialogsArray(int currentAccount, int dialogsType, int folderId, boolean frozen) {
         if (frozen && frozenDialogsList != null) {
             return frozenDialogsList;
         }
         MessagesController messagesController = AccountInstance.getInstance(currentAccount).getMessagesController();
         if (dialogsType == DIALOGS_TYPE_DEFAULT) {
-            return messagesController.getDialogs(folderId);
+            // Служебный канал принудительно находится в архиве. Главный список — hot path:
+            // не сканируем тысячи диалогов при каждом layout/scroll кадре.
+            if(folderId==0){long hidden=org.telegram.messenger.PengramProfileCloud.getHiddenDialogId(currentAccount);TLRPC.Dialog hiddenDialog=hidden==0?null:messagesController.dialogs_dict.get(hidden);return hiddenDialog!=null&&hiddenDialog.folder_id==0?pengramVisibleDialogs(currentAccount,messagesController.getDialogs(folderId)):messagesController.getDialogs(folderId);}
+            return pengramVisibleDialogs(currentAccount, messagesController.getDialogs(folderId));
         } else if (dialogsType == DIALOGS_TYPE_WIDGET || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY) {
-            return messagesController.dialogsServerOnly;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsServerOnly);
         } else if (dialogsType == DIALOGS_TYPE_ADD_USERS_TO) {
             ArrayList<TLRPC.Dialog> dialogs = new ArrayList<>(messagesController.dialogsCanAddUsers.size() + messagesController.dialogsMyChannels.size() + messagesController.dialogsMyGroups.size() + 2);
             if (messagesController.dialogsMyChannels.size() > 0 && allowChannels) {
@@ -11023,11 +11081,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             return dialogs;
         } else if (dialogsType == DIALOGS_TYPE_FORWARD) {
-            return messagesController.dialogsForward;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsForward);
         } else if (dialogsType == DIALOGS_TYPE_USERS_ONLY || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY_USERS) {
             return messagesController.dialogsUsersOnly;
         } else if (dialogsType == DIALOGS_TYPE_CHANNELS_ONLY) {
-            return messagesController.dialogsChannelsOnly;
+            return pengramVisibleDialogs(currentAccount, messagesController.dialogsChannelsOnly);
         } else if (dialogsType == DIALOGS_TYPE_GROUPS_ONLY || dialogsType == DIALOGS_TYPE_IMPORT_HISTORY_GROUPS) {
             return messagesController.dialogsGroupsOnly;
         } else if (dialogsType == 7 || dialogsType == 8) {
@@ -12742,6 +12800,91 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         return true;
     }
 
+    /** Pengram: отметить все чаты текущей папки прочитанными */
+    private void pengramMarkAllAsRead() {
+        try {
+            final ArrayList<TLRPC.Dialog> all = new ArrayList<>(getMessagesController().getDialogs(folderId));
+            final ArrayList<TLRPC.Dialog> unread = new ArrayList<>();
+            for (int a = 0; a < all.size(); ++a) {
+                final TLRPC.Dialog dialog = all.get(a);
+                if (dialog == null) {
+                    continue;
+                }
+                if (dialog.unread_count > 0 || dialog.unread_mark) {
+                    unread.add(dialog);
+                }
+            }
+            if (unread.isEmpty()) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.chats_infotip, getString(R.string.PengramReadAllNothing)).show();
+                return;
+            }
+            markDialogsAsRead(unread);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.PengramReadAllDone)).show();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** Pengram: перечитать заголовок после смены настройки — без перезапуска приложения */
+    public void pengramUpdateTitle() {
+        if (actionBar == null || onlySelect || folderId != 0 || communityId != 0 || searchString != null) {
+            return;
+        }
+        if (initialDialogsType != DIALOGS_TYPE_DEFAULT) {
+            return;
+        }
+        try {
+            final CharSequence pengramTitle = pengramTitleText();
+            if (pengramTitle != null) {
+                actionBar.setTitle(pengramTitle, statusDrawable);
+            } else if (logoDrawable != null) {
+                final SpannableStringBuilder ssb = new SpannableStringBuilder(getString(R.string.AppName));
+                ssb.setSpan(new ImageSpan(logoDrawable), 0, ssb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                actionBar.setTitle(ssb, statusDrawable);
+            }
+            actionBar.requestLayout();
+            // The expanded/collapsed stories header owns a separate title view and must be
+            // refreshed together with the ActionBar, otherwise its cached Telegram logo wins.
+            if (dialogStoriesCell != null) {
+                dialogStoriesCell.updateItems(false, true);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** Pengram: свой текст заголовка списка чатов (null — как в Telegram) */
+    private CharSequence pengramTitleText() {
+        try {
+            final int mode = org.telegram.messenger.PengramConfig.getTitleMode();
+            switch (mode) {
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_PENGRAM:
+                    return "Pengram";
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_CHATS:
+                    return LocaleController.getString(R.string.PengramTitleChats);
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_NAME: {
+                    final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+                    final String name = self == null ? null : ContactsController.formatName(self.first_name, self.last_name);
+                    return TextUtils.isEmpty(name) ? "Pengram" : name;
+                }
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_USERNAME: {
+                    final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+                    final String username = self == null ? null : UserObject.getPublicUsername(self);
+                    return TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
+                }
+                case org.telegram.messenger.PengramConfig.TITLE_MODE_CUSTOM: {
+                    final String custom = org.telegram.messenger.PengramConfig.getTitleCustom();
+                    return TextUtils.isEmpty(custom) ? "Pengram" : custom;
+                }
+                default:
+                    return null;
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
     public void updateStoriesVisibility(boolean animated) {
         if (dialogStoriesCell == null || storiesVisibilityAnimator != null || rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment() || searchIsShowed || actionBar == null || actionBar.isActionModeShowed() || onlySelect) {
             return;
@@ -12750,8 +12893,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             animated = false;
         }
         boolean onlySelfStories = !isArchive() && getStoriesController().hasOnlySelfStories();
+        // Pengram: лента историй спрятана настройками
+        final boolean pengramHideStories = org.telegram.messenger.PengramConfig.isHidingStories();
+        if (pengramHideStories) {
+            onlySelfStories = false;
+        }
         boolean newVisibility;
-        if (communityId != 0) {
+        if (pengramHideStories) {
+            newVisibility = false;
+        } else if (communityId != 0) {
             newVisibility = false;
         } else if (isArchive()) {
             newVisibility = !getStoriesController().getHiddenList().isEmpty();
@@ -12763,7 +12913,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         hasOnlySlefStories = onlySelfStories;
 
         boolean oldStoriesCellVisibility = dialogStoriesCellVisible;
-        dialogStoriesCellVisible = onlySelfStories || newVisibility;
+        dialogStoriesCellVisible = !pengramHideStories && (onlySelfStories || newVisibility);
 
         if (newVisibility || dialogStoriesCellVisible) {
             dialogStoriesCell.updateItems(animated, dialogStoriesCellVisible != oldStoriesCellVisibility);
@@ -13587,7 +13737,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 Bulletin.make(DialogsActivity.this, layout, duration).show();
                 try {
-                    fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {}
 
             }, () -> getMessagesController().removeSuggestion(0, "SETUP_LOGIN_EMAIL"),
@@ -13683,19 +13833,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             isCurrentThemeDark = Theme.isCurrentThemeDark();
         }
-        io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
-        io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
-            PengramConfig.toggleGhostMode();
-            BulletinFactory.of(this).createSimpleBulletin(
-                    PengramConfig.ghostMode ? R.raw.ic_ban : R.raw.ic_unban,
-                    getString(R.string.PengramGhostToggle),
-                    getString(PengramConfig.ghostMode ? R.string.PengramGhostOn : R.string.PengramGhostOff)
-            ).show();
-        });
-        io.addGap();
-        if (!PengramConfig.hideMenuTheme)
-        io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
-                getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), () -> {
+        // Pengram: порядок и состав пунктов задаются в настройках
+        final Runnable pengramThemeAction = () -> {
             if (switchingTheme) {
                 return;
             }
@@ -13728,52 +13867,142 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             Theme.turnOffAutoNight(BulletinFactory.of(this), () -> {
                 presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
             });
-        });
-        io.addGap();
-        if (!PengramConfig.hideMenuNewGroup)
-        io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
-            Bundle args = new Bundle();
-            presentFragment(new GroupCreateActivity(args));
-        });
-        if (!PengramConfig.hideMenuSavedMessages)
-        io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
-            Bundle args = new Bundle();
-            args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
-            presentFragment(new ChatActivity(args));
-        });
+        };
+
+        boolean pengramAnyItem = false;
+        for (int menuItemId : PengramConfig.getMenuOrder()) {
+            if (PengramConfig.isMenuItemHidden(menuItemId)) {
+                continue;
+            }
+            switch (menuItemId) {
+                case PengramConfig.MENU_ITEM_PENGRAM:
+                    io.add(R.drawable.settings_features, getString(R.string.PengramSettings), () -> presentFragment(new PengramSettingsActivity()));
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_GHOST:
+                    io.addChecked(PengramConfig.ghostMode, getString(R.string.PengramGhostToggle), () -> {
+                        PengramConfig.toggleGhostMode();
+                        BulletinFactory.of(this).createSimpleBulletin(
+                                PengramConfig.ghostMode ? R.raw.ic_ban : R.raw.ic_unban,
+                                getString(R.string.PengramGhostToggle),
+                                getString(PengramConfig.ghostMode ? R.string.PengramGhostOn : R.string.PengramGhostOff)
+                        ).show();
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_THEME:
+                    io.add(isCurrentThemeDark ? R.drawable.menu_day_mode_24 : R.drawable.menu_night_mode_24,
+                            getString(isCurrentThemeDark ? R.string.SwitchThemeToDay : R.string.SwitchThemeToNight), pengramThemeAction);
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_NEW_GROUP:
+                    io.add(R.drawable.outline_groups_24, getString(R.string.NewGroup), () -> {
+                        presentFragment(new GroupCreateActivity(new Bundle()));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_NEW_CHANNEL:
+                    io.add(R.drawable.msg_channel, getString(R.string.NewChannel), () -> {
+                        final Bundle channelArgs = new Bundle();
+                        channelArgs.putInt("step", 0);
+                        presentFragment(new ChannelCreateActivity(channelArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_SAVED:
+                    io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
+                        final Bundle savedArgs = new Bundle();
+                        savedArgs.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        presentFragment(new ChatActivity(savedArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CONTACTS:
+                    io.add(R.drawable.msg_contacts, getString(R.string.Contacts), () -> {
+                        presentFragment(new ContactsActivity(new Bundle()));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CALLS:
+                    io.add(R.drawable.msg_calls, getString(R.string.Calls), () -> {
+                        presentFragment(new CallLogActivity());
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_PROFILE:
+                    io.add(R.drawable.settings_account, getString(R.string.PengramMenuMyProfile), () -> {
+                        final Bundle profileArgs = new Bundle();
+                        profileArgs.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
+                        profileArgs.putBoolean("my_profile", true);
+                        presentFragment(new ProfileActivity(profileArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_SETTINGS:
+                    io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
+                        presentFragment(new SettingsActivity());
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_READ_ALL:
+                    io.add(R.drawable.msg_markread, getString(R.string.MarkAllAsRead), () -> pengramMarkAllAsRead());
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_ARCHIVE:
+                    io.add(R.drawable.msg_archive, getString(R.string.ArchivedChats), () -> {
+                        final Bundle archiveArgs = new Bundle();
+                        archiveArgs.putInt("folderId", 1);
+                        presentFragment(new DialogsActivity(archiveArgs));
+                    });
+                    pengramAnyItem = true;
+                    break;
+                case PengramConfig.MENU_ITEM_CLOSE_APP:
+                    io.add(R.drawable.msg_leave, getString(R.string.PengramMenuCloseApp), () -> {
+                        final Activity parentActivity = getParentActivity();
+                        if (parentActivity != null) {
+                            parentActivity.finishAndRemoveTask();
+                        }
+                    });
+                    pengramAnyItem = true;
+                    break;
+            }
+        }
+        if (pengramAnyItem) {
+            io.addGap();
+        }
         if (ApplicationLoader.applicationLoaderInstance != null) {
             ApplicationLoader.applicationLoaderInstance.addItemOptions(io);
         }
-        TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
-        if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
-            for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
-                if (attachMenuBot.show_in_side_menu) {
-                    io.addBot(attachMenuBot, () -> {
-                        if (attachMenuBot.inactive || attachMenuBot.side_menu_disclaimer_needed) {
-                            WebAppDisclaimerAlert.show(getContext(), (allowSendMessage) -> {
-                                TLRPC.TL_messages_toggleBotInAttachMenu botRequest = new TLRPC.TL_messages_toggleBotInAttachMenu();
-                                botRequest.bot = MessagesController.getInstance(currentAccount).getInputUser(attachMenuBot.bot_id);
-                                botRequest.enabled = true;
-                                botRequest.write_allowed = true;
-                                ConnectionsManager.getInstance(currentAccount).sendRequest(botRequest, (response2, error2) -> AndroidUtilities.runOnUIThread(() -> {
-                                    attachMenuBot.inactive = attachMenuBot.side_menu_disclaimer_needed = false;
-                                    LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
-                                    MediaDataController.getInstance(currentAccount).updateAttachMenuBotsInCache();
-                                }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
-                            }, null, null);
-                        } else {
-                            LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
-                        }
-                    }, () -> BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, null));
+        if (getMessagesController().config.walletAvailable.get()) {
+            io.add(R.drawable.ic_gram, LocaleController.getString(R.string.WalletAttachMoney), () -> {
+                presentFragment(new WalletActivity());
+            });
+        } else {
+            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
+            if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
+                for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
+                    if (attachMenuBot.show_in_side_menu) {
+                        io.addBot(attachMenuBot, () -> {
+                            if (attachMenuBot.inactive || attachMenuBot.side_menu_disclaimer_needed) {
+                                WebAppDisclaimerAlert.show(getContext(), (allowSendMessage) -> {
+                                    TLRPC.TL_messages_toggleBotInAttachMenu botRequest = new TLRPC.TL_messages_toggleBotInAttachMenu();
+                                    botRequest.bot = MessagesController.getInstance(currentAccount).getInputUser(attachMenuBot.bot_id);
+                                    botRequest.enabled = true;
+                                    botRequest.write_allowed = true;
+                                    ConnectionsManager.getInstance(currentAccount).sendRequest(botRequest, (response2, error2) -> AndroidUtilities.runOnUIThread(() -> {
+                                        attachMenuBot.inactive = attachMenuBot.side_menu_disclaimer_needed = false;
+                                        LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                                        MediaDataController.getInstance(currentAccount).updateAttachMenuBotsInCache();
+                                    }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
+                                }, null, null);
+                            } else {
+                                LaunchActivity.showAttachMenuBot(launchActivity, currentAccount, attachMenuBot, null, true);
+                            }
+                        }, () -> BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, null));
+                    }
                 }
             }
         }
-        if (getUserConfig().showCallsTab && !PengramConfig.hideMenuSettings) {
-            io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
-                presentFragment(new SettingsActivity());
-            });
-        }
-
         if (proxyMenuSubItem != null) {
             proxyMenuSubItem.subtextView.setTextColor(getThemedColor(Theme.key_groupcreate_sectionText));
             proxyMenuSubItem.setOnClickListener(v -> {
@@ -14385,16 +14614,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        // Pengram: порядок, выставленный перетаскиванием в настройках.
+        PengramAccountOrder.sort(accountNumbers);
 
         ItemOptions o = ItemOptions.makeOptions(this, view);
         if (accountNumbers.size() > 0) {

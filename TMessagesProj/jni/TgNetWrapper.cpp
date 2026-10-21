@@ -3,6 +3,8 @@
 #include "tgnet/BuffersStorage.h"
 #include "tgnet/NativeByteBuffer.h"
 #include "tgnet/ConnectionsManager.h"
+#include "tgnet/PengramDesync.h"
+#include "tgnet/PengramGuard.h"
 #include "tgnet/MTProtoScheme.h"
 #include "tgnet/ConnectionSocket.h"
 #include "tgnet/FileLog.h"
@@ -106,9 +108,10 @@ jint getTimeDifference(JNIEnv *env, jclass c, jint instanceNum) {
     return ConnectionsManager::getInstance(instanceNum).getTimeDifference();
 }
 
-void sendRequest(JNIEnv *env, jclass c, jint instanceNum, jlong object, jint flags, jint datacenterId, jint connectionType, jboolean immediate, jint token) {
+void sendRequest(JNIEnv *env, jclass c, jint instanceNum, jlong object, jint flags, jint datacenterId, jint connectionType, jboolean immediate, jint token, jint downloadSize) {
     TL_api_request *request = new TL_api_request();
     request->request = (NativeByteBuffer *) (intptr_t) object;
+    request->downloadSize = downloadSize > 0 ? (uint32_t) downloadSize : 0;
     ConnectionsManager::getInstance(instanceNum).sendRequest(request, ([instanceNum, token](TLObject *response, TL_error *error, int32_t networkType, int64_t responseTime, int64_t msgId, int32_t dcId) {
         TL_api_response *resp = (TL_api_response *) response;
         jlong ptr = 0;
@@ -247,6 +250,58 @@ void setProxySettings(JNIEnv *env, jclass c, jint instanceNum, jstring address, 
 
 jint getConnectionState(JNIEnv *env, jclass c, jint instanceNum) {
     return ConnectionsManager::getInstance(instanceNum).getConnectionState();
+}
+
+/**
+ * Pengram: ключ авторизации из файла сессии. keyId считает Java
+ * (младшие 64 бита SHA1 от ключа) — та же формула, что в handshake, и её можно
+ * проверить тестом, не поднимая сеть.
+ */
+void importAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId, jbyteArray key, jlong keyId) {
+    if (key == 0) {
+        return;
+    }
+    const jsize length = env->GetArrayLength(key);
+    if (length != 256) {
+        return;
+    }
+    jbyte *bytes = env->GetByteArrayElements(key, 0);
+    if (bytes != 0) {
+        std::string value((const char *) bytes, (size_t) length);
+        env->ReleaseByteArrayElements(key, bytes, JNI_ABORT);
+        ConnectionsManager::getInstance(instanceNum).importAuthorization(
+                (uint32_t) datacenterId, value, (int64_t) keyId);
+    }
+}
+
+/**
+ * Pengram: копия постоянного ключа в Java-массив (экспорт сессии).
+ * Возвращает id DC или 0, если ключа нет. Вызывается из фонового потока:
+ * внутри ждём сетевой поток, на UI это делать нельзя.
+ */
+jint copyAuthKey(JNIEnv *env, jclass c, jint instanceNum, jbyteArray out) {
+    if (out == 0 || env->GetArrayLength(out) < 256) {
+        return 0;
+    }
+    std::string key;
+    uint32_t datacenterId = 0;
+    if (!ConnectionsManager::getInstance(instanceNum).pengramCopyAuthKey(&key, &datacenterId)) {
+        return 0;
+    }
+    jbyte *bytes = env->GetByteArrayElements(out, 0);
+    if (bytes != 0) {
+        memcpy(bytes, key.data(), 256);
+        env->ReleaseByteArrayElements(out, bytes, 0);
+    }
+    volatile char *raw = &key[0];
+    for (size_t i = 0; i < key.size(); ++i) {
+        raw[i] = 0;
+    }
+    return (jint) datacenterId;
+}
+
+void selectHomeDatacenter(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
+    ConnectionsManager::getInstance(instanceNum).pengramSelectHomeDatacenter((uint32_t) datacenterId);
 }
 
 void setUserId(JNIEnv *env, jclass c, jint instanceNum, int64_t id) {
@@ -444,6 +499,17 @@ void setLangCode(JNIEnv *env, jclass c, jint instanceNum, jstring langCode) {
     }
 }
 
+void pengramSetPlatform(JNIEnv *env, jclass c, jint instanceNum, jstring langPack, jboolean desktopSpoof) {
+    const char *langPackStr = langPack != 0 ? env->GetStringUTFChars(langPack, 0) : 0;
+    std::string value = langPackStr != 0 ? std::string(langPackStr) : std::string();
+    if (ConnectionsManager::hasInstance(instanceNum)) {
+        ConnectionsManager::getInstance(instanceNum).pengramSetPlatform(value, desktopSpoof == JNI_TRUE);
+    }
+    if (langPackStr != 0) {
+        env->ReleaseStringUTFChars(langPack, langPackStr);
+    }
+}
+
 void setRegId(JNIEnv *env, jclass c, jint instanceNum, jstring regId) {
     const char *regIdStr = env->GetStringUTFChars(regId, 0);
 
@@ -514,14 +580,75 @@ void init(JNIEnv *env, jclass c, jint instanceNum, jint version, jint layer, jin
     }
 }
 
+static void onConnectionsManagerCreated(int32_t instanceNum) {
+    ConnectionsManager::getInstance(instanceNum).setDelegate(new Delegate());
+}
+
+/** Pengram: параметры десинхронизации первых пакетов приходят из настроек приложения */
+void pengramSetDesync(JNIEnv *env, jclass c, jboolean enabled, jint firstPackets,
+                      jint split1, jint split2, jint split3, jboolean randomSplit,
+                      jint delayMs, jboolean oob, jint oobChar, jboolean noDelay,
+                      jboolean fake, jint fakeTtl) {
+    PengramDesync::Params params;
+    params.enabled = enabled;
+    params.firstPackets = firstPackets;
+    params.split1 = split1;
+    params.split2 = split2;
+    params.split3 = split3;
+    params.randomSplit = randomSplit;
+    params.delayMs = delayMs;
+    params.oob = oob;
+    params.oobChar = oobChar;
+    params.noDelay = noDelay;
+    params.fake = fake;
+    params.fakeTtl = fakeTtl;
+    PengramDesync::set(params);
+}
+
+/** 0 — не пробовали, 1 — фейковые сегменты работают, -1 — нет прав (нужен root) */
+jint pengramDesyncFakeSupport(JNIEnv *env, jclass c) {
+    return PengramDesync::fakeSupport();
+}
+
 void setJava(JNIEnv *env, jclass c, jboolean useJavaByteBuffers) {
     ConnectionsManager::useJavaVM(java, useJavaByteBuffers);
+    // Делегат ставится в момент создания экземпляра: поднимать все аккаунты сразу
+    // не нужно — пустые слоты не тратят ни памяти, ни файловых дескрипторов.
+    ConnectionsManager::setInstanceCreatedCallback(onConnectionsManagerCreated);
     for (int a = 0; a < MAX_ACCOUNT_COUNT; a++) {
-        ConnectionsManager::getInstance(a).setDelegate(new Delegate());
+        if (ConnectionsManager::hasInstance(a)) {
+            ConnectionsManager::getInstance(a).setDelegate(new Delegate());
+        }
     }
 }
 
 static const char *ConnectionsManagerClassPathName = "org/telegram/tgnet/ConnectionsManager";
+/**
+ * Pengram: окружение сборки — отладчик, хуки, root.
+ * Считается в нативной части, чтобы проверку нельзя было вырезать правкой DEX.
+ */
+jint pengramSecurityFlags(JNIEnv *env, jclass c) {
+    return (jint) pengram::securityFlags();
+}
+
+/**
+ * Pengram: сверка сертификата установленного APK с отпечатком, зашитым в .so.
+ * Отпечаток передаёт сборка (PENGRAM_CERT_SHA256_BYTES), в DEX его нет.
+ */
+jboolean pengramSignatureTrusted(JNIEnv *env, jclass c, jbyteArray certificate) {
+    if (certificate == 0) {
+        return JNI_FALSE;
+    }
+    const jsize length = env->GetArrayLength(certificate);
+    jbyte *bytes = env->GetByteArrayElements(certificate, 0);
+    bool trusted = false;
+    if (bytes != 0) {
+        trusted = pengram::signatureTrusted((const uint8_t *) bytes, (size_t) length);
+        env->ReleaseByteArrayElements(certificate, bytes, JNI_ABORT);
+    }
+    return trusted ? JNI_TRUE : JNI_FALSE;
+}
+
 static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_getCurrentTimeMillis", "(I)J", (void *) getCurrentTimeMillis},
         {"native_getCurrentTime", "(I)I", (void *) getCurrentTime},
@@ -530,7 +657,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_getCurrentAuthKeyId", "(I)J", (void *) getCurrentAuthKeyId},
         {"native_isTestBackend", "(I)I", (void *) isTestBackend},
         {"native_getTimeDifference", "(I)I", (void *) getTimeDifference},
-        {"native_sendRequest", "(IJIIIZI)V", (void *) sendRequest},
+        {"native_sendRequest", "(IJIIIZII)V", (void *) sendRequest},
         {"native_cancelRequest", "(IIZ)V", (void *) cancelRequest},
         {"native_cleanUp", "(IZ)V", (void *) cleanUp},
         {"native_cancelRequestsForGuid", "(II)V", (void *) cancelRequestsForGuid},
@@ -541,6 +668,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_setUserId", "(IJ)V", (void *) setUserId},
         {"native_init", "(IIIILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IJZZZII)V", (void *) init},
         {"native_setLangCode", "(ILjava/lang/String;)V", (void *) setLangCode},
+        {"native_pengramSetPlatform", "(ILjava/lang/String;Z)V", (void *) pengramSetPlatform},
         {"native_setRegId", "(ILjava/lang/String;)V", (void *) setRegId},
         {"native_setSystemLangCode", "(ILjava/lang/String;)V", (void *) setSystemLangCode},
         {"native_switchBackend", "(IZ)V", (void *) switchBackend},
@@ -560,6 +688,13 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_receivedIntegrityCheckClassic", "(IILjava/lang/String;Ljava/lang/String;)V", (void *) receivedIntegrityCheckClassic},
         {"native_receivedCaptchaResult", "(I[ILjava/lang/String;)V", (void *) receivedCaptchaResult},
         {"native_isGoodPrime", "([BI)Z", (void *) isGoodPrime},
+        {"native_pengramSetDesync", "(ZIIIIZIZIZZI)V", (void *) pengramSetDesync},
+        {"native_pengramDesyncFakeSupport", "()I", (void *) pengramDesyncFakeSupport},
+        {"native_pengramSecurityFlags", "()I", (void *) pengramSecurityFlags},
+        {"native_pengramSignatureTrusted", "([B)Z", (void *) pengramSignatureTrusted},
+        {"native_pengramImportAuthKey", "(II[BJ)V", (void *) importAuthKey},
+        {"native_pengramSelectHomeDatacenter", "(II)V", (void *) selectHomeDatacenter},
+        {"native_pengramCopyAuthKey", "(I[B)I", (void *) copyAuthKey},
 };
 
 

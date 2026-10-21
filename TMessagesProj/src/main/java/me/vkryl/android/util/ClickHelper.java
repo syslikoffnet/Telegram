@@ -147,7 +147,7 @@ public class ClickHelper {
     if (delegate.ignoreHapticFeedbackSettings(x, y)) {
       ViewUtils.hapticVibrate(view, true, delegate.forceEnableVibration());
     } else {
-      view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+      if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
     }
     flags |= FLAG_IN_LONG_PRESS;
     flags &= ~FLAG_AWAITING_CUSTOM_LONG_PRESS;

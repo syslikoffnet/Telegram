@@ -101,8 +101,10 @@ import org.telegram.ui.PhotoViewer;
 import org.telegram.ui.Stars.StarsController;
 import org.telegram.ui.Stars.StarsIntroActivity;
 import org.telegram.ui.Stories.StoriesController;
+import org.telegram.ui.Wallet.GramWallet;
 import org.telegram.ui.community.CommunityUtils;
 import org.telegram.ui.web.BotWebViewContainer;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -223,6 +225,13 @@ public class MessageObject {
     public int dateKeyInt;
     public String monthKey;
     public boolean deleted;
+    /** Pengram: сообщение удалено собеседником, но оставлено локально */
+    public boolean pengramDeleted;
+    /** Pengram: снимок из архива удалёнок — удалён по определению, даже если
+     * метка ещё не подгружена в кэш (иначе такой пузырь «светлеет») */
+    public boolean pengramArchived;
+    /** Pengram: к какому архивному id относится снимок (для навигации поиска) */
+    public long pengramArchiveRowId;
     public boolean deletedByThanos;
     public float audioProgress;
     public float forceSeekTo = -1;
@@ -4952,6 +4961,24 @@ public class MessageObject {
                     } else {
                         messageText = formatString(isChannel ? R.string.BoostingGiveawayJustStarted : R.string.BoostingGiveawayJustStartedGroup, chat != null ? chat.title : "");
                     }
+                } else if (messageOwner.action instanceof TLRPC.TL_messageActionWalletTonConnectRequest) {
+                    final TLRPC.TL_messageActionWalletTonConnectRequest request = (TLRPC.TL_messageActionWalletTonConnectRequest) messageOwner.action;
+                    if (!TextUtils.isEmpty(request.dapp_name)) {
+                        messageText = formatString(
+                              request.declined ? R.string.WalletTonConnectRequestAppDeclined
+                            : request.accepted ? R.string.WalletTonConnectRequestAppProcessed
+                            : request.expires <= ConnectionsManager.getInstance(currentAccount).getCurrentTime()
+                            ? R.string.WalletTonConnectRequestAppExpired : R.string.WalletTonConnectRequestAppPending,
+                            request.dapp_name
+                        );
+                    } else {
+                        messageText = getString(
+                              request.declined ? R.string.WalletTonConnectRequestDeclined
+                            : request.accepted ? R.string.WalletTonConnectRequestProcessed
+                            : request.expires <= ConnectionsManager.getInstance(currentAccount).getCurrentTime()
+                            ? R.string.WalletTonConnectRequestExpired : R.string.WalletTonConnectRequestPending
+                        );
+                    }
                 } else if (messageOwner.action instanceof TLRPC.TL_messageActionBoostApply) {
                     TLRPC.Chat chat = messageOwner.peer_id != null && messageOwner.peer_id.channel_id != 0 ? getChat(chats, sChats, messageOwner.peer_id.channel_id) : null;
                     boolean isChannel = ChatObject.isChannelAndNotMegaGroup(chat);
@@ -5921,6 +5948,23 @@ public class MessageObject {
                     } else {
                         messageText = isOut() ? getString(R.string.SharingOfferEnableHeaderShortYou) : replaceTags(formatString(R.string.SharingOfferEnableHeaderShortOther, userName));
                     }
+                } else if (messageOwner.action instanceof TLRPC.TL_messageActionGramTransfer) {
+                    final TLRPC.TL_messageActionGramTransfer action = (TLRPC.TL_messageActionGramTransfer) messageOwner.action;
+                    final TLRPC.User user = getUser(users, sUsers, DialogObject.getPeerDialogId(messageOwner.peer_id));
+                    if (isOut()) {
+                        messageText = replaceWithLink(AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionSentGrams, GramWallet.formatGramsWithUnit(action.amount))), "un1", user);
+                    } else if (UserObject.isService(DialogObject.getPeerDialogId(messageOwner.peer_id))) {
+                        messageText = AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionReceivedGramsSomeone, GramWallet.formatGramsWithUnit(action.amount)));
+                    } else {
+                        messageText = replaceWithLink(AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionReceivedGrams, GramWallet.formatGramsWithUnit(action.amount))), "un1", fromObject);
+                    }
+                    if (isOut()) {
+                        messageTextShort = AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionSentGramsShort, GramWallet.formatGramsWithUnit(action.amount)));
+                    } else if (UserObject.isService(DialogObject.getPeerDialogId(messageOwner.peer_id))) {
+                        messageTextShort = AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionReceivedGramsSomeone, GramWallet.formatGramsWithUnit(action.amount)));
+                    } else {
+                        messageTextShort = AndroidUtilities.replaceTags(LocaleController.formatString(R.string.WalletActionReceivedGrams, GramWallet.formatGramsWithUnit(action.amount)).replace("un1", "").trim());
+                    }
                 }
             }
         } else {
@@ -6073,6 +6117,11 @@ public class MessageObject {
                     messageText = messageOwner.message;
                 }
             }
+        }
+
+        if (PengramConfig.isZalgoFilter() && messageText != null) {
+            // длину не меняем, иначе поедут entity
+            messageText = PengramConfig.filterZalgoKeepLength(messageText.toString());
         }
 
         if (messageText == null) {
@@ -7264,13 +7313,16 @@ public class MessageObject {
     }
 
     public static CharSequence replaceWithLink(CharSequence source, String param, TLObject object) {
+        return replaceWithLink(source, param, object, false);
+    }
+    public static CharSequence replaceWithLink(CharSequence source, String param, TLObject object, boolean makeShort) {
         int start = TextUtils.indexOf(source, param);
         if (start >= 0) {
             CharSequence name;
             String id;
             TLObject spanObject = null;
             if (object instanceof TLRPC.User) {
-                name = UserObject.getUserName((TLRPC.User) object).replace('\n', ' ');
+                name = makeShort ? UserObject.getForcedFirstName((TLRPC.User) object).replace('\n', ' ') : UserObject.getUserName((TLRPC.User) object).replace('\n', ' ');
                 id = "" + ((TLRPC.User) object).id;
             } else if (object instanceof TLRPC.Chat) {
                 name = ((TLRPC.Chat) object).title.replace('\n', ' ');
@@ -7628,6 +7680,10 @@ public class MessageObject {
         } else {
             captionSummarized = false;
             captionTranslated = false;
+        }
+        if (PengramConfig.isZalgoFilter() && !TextUtils.isEmpty(text)) {
+            // Pengram: подписи чистим так же, как и тексты — длину не меняем, иначе поедут entity
+            text = PengramConfig.filterZalgoKeepLength(text.toString());
         }
         if (!isMediaEmpty() && !(getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) && !TextUtils.isEmpty(text)) {
             caption = Emoji.replaceEmoji(text, Theme.chat_msgTextPaint.getFontMetricsInt(), false);
@@ -8289,6 +8345,9 @@ public class MessageObject {
                 if (linksCount >= MediaDataController.MAX_LINKS_COUNT) continue;
                 linksCount++;
                 spannable.setSpan(new FormattedDateSpan(url, run, (TLRPC.TL_messageEntityFormattedDate) run.urlEntity), run.start, run.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } else if (run.urlEntity instanceof TLRPC.TL_messageEntityTonAddress) {
+                hasUrls = true;
+                spannable.setSpan(new URLSpanNoUnderline("tonaddress:" + url, run), run.start, run.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else if (run.urlEntity instanceof TLRPC.TL_messageEntityBankCard) {
                 hasUrls = true;
                 spannable.setSpan(new URLSpanNoUnderline("card:" + url, run), run.start, run.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -8580,6 +8639,109 @@ public class MessageObject {
         return addEntitiesToText(messageText, useManualParse);
     }
 
+    /**
+     * Pengram: ширина пузыря под строку, которая не влезла.
+     *
+     * Раньше ширина жёстко обрезалась по лимиту, а текст рисовался настоящей
+     * длины — отсюда буквы и значки, торчащие наружу. Теперь пузырю разрешено
+     * чуть подрасти (не больше 18dp и 12% лимита), чего хватает на огрехи
+     * измерения ширины: эмодзи, спаны, межбуквенные интервалы.
+     */
+    private static int pengramFitWidth(int maxWidth, int linesMaxWidth) {
+        if (linesMaxWidth <= maxWidth) {
+            return linesMaxWidth;
+        }
+        final int extra = Math.min(AndroidUtilities.dp(32), (int) (maxWidth * 0.2f));
+        return Math.min(linesMaxWidth, maxWidth + Math.max(0, extra));
+    }
+
+    /** есть ли строки, которые не влезли в заданную ширину */
+    private static boolean pengramLinesWider(Layout layout, int width) {
+        if (layout == null) {
+            return false;
+        }
+        for (int l = 0; l < layout.getLineCount(); ++l) {
+            if (layout.getLineRight(l) > width + 0.5f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Pengram: вставляет мягкие переносы (U+200B) внутрь слов, которые шире строки.
+     * Спаны при этом едут вместе с текстом, поэтому ссылка остаётся ссылкой —
+     * просто переносится на следующую строку вместо того, чтобы торчать из пузыря.
+     */
+    private static float pengramWidthOf(CharSequence text, int start, int end, TextPaint paint) {
+        try {
+            return Layout.getDesiredWidth(text, start, end, paint);
+        } catch (Throwable e) {
+            return paint.measureText(text, start, end);
+        }
+    }
+
+    private static CharSequence pengramSoftWrap(CharSequence text, TextPaint paint, int width) {
+        if (text == null || width <= 0 || text.length() == 0 || text.length() > 10000) {
+            return text;
+        }
+        try {
+            SpannableStringBuilder sb = null;
+            int inserted = 0;
+            int i = 0;
+            while (i < (sb != null ? sb.length() : text.length()) && inserted < 128) {
+                final CharSequence current = sb != null ? sb : text;
+                int start = i;
+                while (start < current.length() && Character.isWhitespace(current.charAt(start))) {
+                    start++;
+                }
+                int end = start;
+                while (end < current.length() && !Character.isWhitespace(current.charAt(end))) {
+                    end++;
+                }
+                if (end <= start) {
+                    i = start + 1;
+                    continue;
+                }
+                // ширину меряем с учётом спанов (моноширинный код, другой кегль),
+                // иначе длинная ссылка внутри такого спана кажется уже, чем рисуется
+                if (pengramWidthOf(current, start, end, paint) <= width) {
+                    i = end;
+                    continue;
+                }
+                if (sb == null) {
+                    sb = new SpannableStringBuilder(text);
+                }
+                int chunk = start;
+                while (chunk < end && inserted < 128) {
+                    int fit = paint.breakText(sb, chunk, end, true, width, null);
+                    if (fit <= 0) {
+                        break;
+                    }
+                    int next = chunk + fit;
+                    if (next >= end) {
+                        break;
+                    }
+                    // не разрываем суррогатную пару (эмодзи и редкие символы)
+                    if (Character.isHighSurrogate(sb.charAt(next - 1))) {
+                        next++;
+                        if (next >= end) {
+                            break;
+                        }
+                    }
+                    sb.insert(next, "\u200B");
+                    inserted++;
+                    end++;
+                    chunk = next + 1;
+                }
+                i = end;
+            }
+            return sb != null ? sb : text;
+        } catch (Throwable e) {
+            return text;
+        }
+    }
+
     public static StaticLayout makeStaticLayout(CharSequence text_, TextPaint paint, int width, float lineSpacingMult, float lineSpacingAdd, boolean dontIncludePad) {
         return makeStaticLayout(text_, paint, width, lineSpacingMult, lineSpacingAdd, dontIncludePad, Layout.Alignment.ALIGN_NORMAL);
     }
@@ -8604,14 +8766,7 @@ public class MessageObject {
             }
             StaticLayout layout = builder.build();
 
-            boolean realWidthLarger = false;
-            for (int l = 0; l < layout.getLineCount(); ++l) {
-                if (layout.getLineRight(l) > width) {
-                    realWidthLarger = true;
-                    break;
-                }
-            }
-            if (realWidthLarger) {
+            if (pengramLinesWider(layout, width)) {
                 builder = StaticLayout.Builder.obtain(text, 0, text.length(), paint, width)
                                 .setLineSpacing(lineSpacingAdd, lineSpacingMult)
                                 .setBreakStrategy(StaticLayout.BREAK_STRATEGY_SIMPLE)
@@ -8624,6 +8779,33 @@ public class MessageObject {
                     builder.setUseLineSpacingFromFallbacks(false);
                 }
                 layout = builder.build();
+            }
+
+            // Pengram: длинная ссылка (или любое слово без пробелов) иногда не
+            // переносится ни одной из стратегий и вылезает за края пузыря —
+            // ширина сообщения считается по ограничению, а текст рисуется шире.
+            // Расставляем в таком слове невидимые места переноса и верстаем заново.
+            // Иногда одного захода мало: ширина символов, посчитанная краской, чуть
+            // меньше реальной (спаны, эмодзи, letter spacing), и слово всё равно
+            // вылезает. Тогда рубим с запасом — 6 и 14 процентов.
+            final float[] targets = {1f, 0.94f, 0.86f, 0.76f, 0.64f};
+            for (int attempt = 0; attempt < targets.length && pengramLinesWider(layout, width); ++attempt) {
+                final int target = (int) (width * targets[attempt]);
+                final CharSequence soft = pengramSoftWrap(text, paint, Math.max(1, target));
+                if (soft != text) {
+                    builder = StaticLayout.Builder.obtain(soft, 0, soft.length(), paint, width)
+                                    .setLineSpacing(lineSpacingAdd, lineSpacingMult)
+                                    .setBreakStrategy(StaticLayout.BREAK_STRATEGY_SIMPLE)
+                                    .setHyphenationFrequency(StaticLayout.HYPHENATION_FREQUENCY_NONE)
+                                    .setAlignment(alignment);
+                    if (dontIncludePad) {
+                        builder.setIncludePad(false);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        builder.setUseLineSpacingFromFallbacks(false);
+                    }
+                    layout = builder.build();
+                }
             }
 
             return layout;
@@ -8642,20 +8824,59 @@ public class MessageObject {
         return messageOwner.rich_message;
     }
 
+    /**
+     * Pengram: вёрстка текста сообщения целиком под ловушкой.
+     *
+     * <p>Сообщения, собранные ради падения, прилетают с сетевого потока и
+     * убивают приложение ещё до показа чата. Любой отказ здесь должен стоить
+     * максимум одного кривого сообщения, а не всего клиента.
+     */
     public void generateLayout(TLRPC.User fromUser) {
+        if (!PengramAntiCrash.isEnabled()) {
+            pengramGenerateLayout(fromUser);
+            return;
+        }
+        try {
+            pengramGenerateLayout(fromUser);
+        } catch (Throwable e) {
+            PengramAntiCrash.report("message layout: " + e.getClass().getSimpleName());
+            if (textLayoutBlocks == null) {
+                textLayoutBlocks = new ArrayList<>();
+            }
+        }
+    }
+
+    private void pengramGenerateLayout(TLRPC.User fromUser) {
         if (type == TYPE_ARTICLE) {
             final int maxWidth = getMaxMessageTextWidth();
             if (richLayout == null || messageOwner != null && richLayout.needsUpdate(getDisplayRichMessage(), maxWidth)) {
                 final RichMessageLayout old = richLayout;
-                richLayout = new RichMessageLayout(this, maxWidth, old);
-                if (old != null && old.view != null) {
-                    old.detach(old.view);
+                RichMessageLayout created = null;
+                if (PengramAntiCrash.isEnabled()) {
+                    // последний рубеж: если вёрстка всё-таки упала, остаётся
+                    // прежний вариант сообщения, а не падение клиента
+                    try {
+                        created = new RichMessageLayout(this, maxWidth, old);
+                    } catch (Throwable e) {
+                        PengramAntiCrash.report("rich layout: " + e.getClass().getSimpleName());
+                    }
+                } else {
+                    created = new RichMessageLayout(this, maxWidth, old);
+                }
+                if (created != null) {
+                    richLayout = created;
+                    if (old != null && old.view != null) {
+                        old.detach(old.view);
+                    }
                 }
             }
             return;
         }
         if (type != TYPE_TEXT && type != TYPE_EMOJIS && type != TYPE_STORY_MENTION || messageOwner.peer_id == null || TextUtils.isEmpty(messageText) && !isBotPendingDraft) {
             return;
+        }
+        if (PengramAntiCrash.isEnabled()) {
+            PengramAntiCrash.sanitizeEntities(messageOwner);
         }
         boolean hasUrls = applyEntities();
         boolean noforwards = messageOwner != null && messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions();
@@ -8983,14 +9204,14 @@ public class MessageObject {
 
             linesMaxWidthWithLeft = lastLineWidthWithLeft = (int) Math.ceil(linesMaxWidth + Math.max(0, lastLeft));
 
-            if (block.quote) {
-                block.maxRight = 0;
-                for (int n = 0; n < currentBlockLinesCount; n++) {
-                    try {
-                        block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
-                    } catch (Exception ignore) {
-                        block.maxRight = textWidth;
-                    }
+            // Pengram: правая граница блока нужна не только цитатам —
+            // по ней страховка при отрисовке ловит текст, вылезший из пузыря.
+            block.maxRight = 0;
+            for (int n = 0; n < currentBlockLinesCount; n++) {
+                try {
+                    block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
+                } catch (Exception ignore) {
+                    block.maxRight = textWidth;
                 }
             }
 
@@ -9063,7 +9284,7 @@ public class MessageObject {
                     block.directionFlags |= TextLayoutBlock.FLAG_NOT_RTL;
                 }
 
-                textWidth = Math.max(textWidth, Math.min(maxWidth, linesMaxWidth));
+                textWidth = Math.max(textWidth, pengramFitWidth(maxWidth, linesMaxWidth));
             }
             if (block.languageLayout != null) {
                 textWidth = (int) Math.max(textWidth, Math.min(block.languageLayout.getCurrentWidth() + dp(15), block.textLayout == null ? 0 : block.textLayout.getWidth()));
@@ -9432,14 +9653,14 @@ public class MessageObject {
 
                 linesMaxWidthWithLeft = lastLineWidthWithLeft = (int) Math.ceil(linesMaxWidth + Math.max(0, lastLeft));
 
-                if (block.quote) {
-                    block.maxRight = 0;
-                    for (int n = 0; n < currentBlockLinesCount; n++) {
-                        try {
-                            block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
-                        } catch (Exception ignore) {
-                            block.maxRight = textWidth;
-                        }
+                // Pengram: правая граница блока нужна не только цитатам —
+                // по ней страховка при отрисовке ловит текст, вылезший из пузыря.
+                block.maxRight = 0;
+                for (int n = 0; n < currentBlockLinesCount; n++) {
+                    try {
+                        block.maxRight = Math.max(block.maxRight, block.textLayout.getLineRight(n));
+                    } catch (Exception ignore) {
+                        block.maxRight = textWidth;
                     }
                 }
 
@@ -9514,7 +9735,7 @@ public class MessageObject {
                         block.directionFlags |= TextLayoutBlock.FLAG_NOT_RTL;
                     }
 
-                    textWidth = Math.max(textWidth, Math.min(width, linesMaxWidth));
+                    textWidth = Math.max(textWidth, pengramFitWidth(width, linesMaxWidth));
                 }
                 if (block.languageLayout != null) {
                     textWidth = (int) Math.max(textWidth, Math.min(block.languageLayout.getCurrentWidth() + dp(15), block.textLayout == null ? 0 : block.textLayout.getWidth()));
@@ -11315,6 +11536,10 @@ public class MessageObject {
                             title = getString(R.string.AudioUnknownTitle);
                         }
                     }
+                    // Pengram: «Пошлая Молли — Нимфоманка» показываем как название без имени
+                    if (TextUtils.isEmpty(attribute.performer)) {
+                        title = PengramMusicMeta.titleFrom(title);
+                    }
                     return title;
                 } else if (attribute instanceof TLRPC.TL_documentAttributeVideo) {
                     if (attribute.round_message) {
@@ -11347,6 +11572,9 @@ public class MessageObject {
                     if (TextUtils.isEmpty(title) && unknown) {
                         title = getString(R.string.AudioUnknownTitle);
                     }
+                }
+                if (TextUtils.isEmpty(attribute.performer)) {
+                    title = PengramMusicMeta.titleFrom(title);
                 }
                 return title;
             }
@@ -11441,6 +11669,10 @@ public class MessageObject {
                         isVoice = true;
                     } else {
                         String performer = attribute.performer;
+                        if (TextUtils.isEmpty(performer)) {
+                            // Pengram: имя часто написано прямо в названии трека
+                            performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));
+                        }
                         if (TextUtils.isEmpty(performer) && unknown) {
                             performer = getString(R.string.AudioUnknownArtist);
                         }
@@ -11495,6 +11727,9 @@ public class MessageObject {
                 if (attribute instanceof TLRPC.TL_documentAttributeAudio) {
                     if (!attribute.voice) {
                         String performer = attribute.performer;
+                        if (TextUtils.isEmpty(performer)) {
+                            performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));
+                        }
                         if (TextUtils.isEmpty(performer) && unknown) {
                             performer = getString(R.string.AudioUnknownArtist);
                         }
@@ -11504,6 +11739,15 @@ public class MessageObject {
             }
         }
         return getString(R.string.AudioUnknownArtist);
+    }
+
+    /** строка, в которой может прятаться имя исполнителя: тег названия или имя файла */
+    private static String pengramRawAudioTitle(TLRPC.Document document, TLRPC.DocumentAttribute attribute) {
+        String title = attribute == null ? null : attribute.title;
+        if (TextUtils.isEmpty(title)) {
+            title = FileLoader.getDocumentFileName(document);
+        }
+        return title;
     }
 
     public TLRPC.InputStickerSet getInputStickerSet() {
@@ -11602,7 +11846,13 @@ public class MessageObject {
         if (isQuickReply()) return false;
         if (type == TYPE_GIFT_STARS || type == TYPE_GIFT_THEME_UPDATE || type == TYPE_SUGGEST_BIRTHDAY || type == TYPE_GIFT_OFFER || type == TYPE_SHARING_OFFER || type == TYPE_COMMUNITY_CHANGED) return false;
         if (PengramConfig.isBypassingForwardRestrictions()) {
-            return !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored();
+            // Одноразовые медиа (ttl_seconds) с обходом пересылать можно:
+            // SendMessagesHelper перехватит их и отправит копией с диска.
+            // Запрещены лишь секретные объекты и превью, размытые не по ttl.
+            final TLRPC.MessageMedia media = getMedia(messageOwner);
+            final boolean onceMedia = media != null && media.ttl_seconds != 0;
+            return !(messageOwner instanceof TLRPC.TL_message_secret) && (!needDrawBluredPreview() || onceMedia)
+                    && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored();
         }
         return !(messageOwner instanceof TLRPC.TL_message_secret) && !needDrawBluredPreview() && !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored() && !messageOwner.noforwards;
     }
@@ -13060,7 +13310,7 @@ public class MessageObject {
         if (messageOwner.entities == null) return false;
         for (int i = 0; i < messageOwner.entities.size(); ++i) {
             final TLRPC.MessageEntity e = messageOwner.entities.get(i);
-            if (e instanceof TLRPC.TL_messageEntityPhone || e instanceof TLRPC.TL_messageEntityBankCard)
+            if (e instanceof TLRPC.TL_messageEntityPhone || e instanceof TLRPC.TL_messageEntityBankCard || e instanceof TLRPC.TL_messageEntityTonAddress)
                 return true;
         }
         return false;

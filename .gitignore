@@ -14,3 +14,23 @@ TMessagesProj_AppHockeyApp/afat/
 TMessagesProj_AppStandalone/afat/
 TMessagesProj_AppHuawei/afat/
 TMessagesProj/jni/ffmpeg/build_android
+
+# локальный превью-рендер пингвина (не часть сборки)
+pengram-penguin-preview.png
+
+# локальный превью-рендер иконок приложения (не часть сборки)
+pengram-icons-preview.png
+.pengram-chk/
+
+# ключи приложения (api_id/api_hash) — только локально
+api.properties
+*.keystore
+*.keystore.base64
+
+# Python bytecode from the test scripts
+__pycache__/
+*.pyc
+
+# сессия и состояние скрипта сообщества (скрипт кладёт их в домашнюю папку,
+# но на всякий случай — если кто-то запустил с другим --session)
+.pengram-community*

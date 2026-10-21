@@ -91,7 +91,7 @@ public class BoostDialogs {
                     AndroidUtilities.replaceCharSequence("%1$s", subTitleWithLink, replaceTags("**" + formattedDate + "**"))
             ).show();
             try {
-                containerLayout.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) containerLayout.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
         } else {
             BoostDialogs.showToastError(containerLayout.getContext(), error);
@@ -310,7 +310,7 @@ public class BoostDialogs {
         });
         final NumberPicker.OnValueChangeListener onValueChangeListener = (picker, oldVal, newVal) -> {
             try {
-                container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             if (picker.getTag() != null && (picker.getTag().equals("DAY"))) {
                 if (picker.getValue() == picker.getMinValue()) {

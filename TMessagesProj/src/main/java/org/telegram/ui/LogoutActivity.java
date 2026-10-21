@@ -8,6 +8,8 @@
 
 package org.telegram.ui;
 
+import static org.telegram.messenger.LocaleController.formatString;
+import static org.telegram.messenger.LocaleController.getString;
 import static org.telegram.ui.Components.Premium.LimitReachedBottomSheet.TYPE_ACCOUNTS;
 
 import android.animation.AnimatorSet;
@@ -27,6 +29,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DownloadController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
@@ -44,6 +47,8 @@ import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Wallet.GramWallet;
+import org.telegram.ui.Wallet.GramWalletStorage;
 
 import java.util.ArrayList;
 
@@ -59,6 +64,8 @@ public class LogoutActivity extends BaseFragment {
     private int cacheRow;
     private int phoneRow;
     private int supportRow;
+    /** Pengram: выгрузка сессии — только если включена в настройках Pengram */
+    private int sessionExportRow;
     private int alternativeSectionRow;
     private int logoutRow;
     private int logoutSectionRow;
@@ -67,7 +74,18 @@ public class LogoutActivity extends BaseFragment {
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
+        rebuildRows();
+        return true;
+    }
 
+    /**
+     * Номера строк зависят от того, какие из них есть: «Добавить аккаунт» нет
+     * при заполненных слотах, «Пароль» — когда код-пароль уже стоит, а
+     * «Выгрузить сессию» — пока выгрузка не включена в настройках Pengram.
+     * Поэтому список собирается в одном месте и пересобирается, если состав
+     * мог измениться.
+     */
+    private void rebuildRows() {
         rowCount = 0;
         alternativeHeaderRow = rowCount++;
         if (UserConfig.getActivatedAccountsCount() < UserConfig.MAX_ACCOUNT_COUNT) {
@@ -83,17 +101,20 @@ public class LogoutActivity extends BaseFragment {
         cacheRow = rowCount++;
         phoneRow = rowCount++;
         supportRow = rowCount++;
+        if (PengramConfig.isSessionExportEnabled()) {
+            sessionExportRow = rowCount++;
+        } else {
+            sessionExportRow = -1;
+        }
         alternativeSectionRow = rowCount++;
         logoutRow = rowCount++;
         logoutSectionRow = rowCount++;
-
-        return true;
     }
 
     @Override
     public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setTitle(LocaleController.getString(R.string.LogOutTitle));
+        actionBar.setTitle(getString(R.string.LogOutTitle));
         if (parentLayout != null && parentLayout.isLayersLayout()) {
             actionBar.setOccupyStatusBar(false);
         }
@@ -145,13 +166,17 @@ public class LogoutActivity extends BaseFragment {
                 presentFragment(new CacheControlActivity());
             } else if (position == phoneRow) {
                 presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANGE_PHONE_NUMBER));
+            } else if (position == sessionExportRow) {
+                // Перепакованную сборку и выключенную настройку проверяет сам
+                // экран выгрузки: здесь только переход.
+                org.telegram.messenger.PengramSessionExport.show(LogoutActivity.this, currentAccount);
             } else if (position == supportRow) {
                 showDialog(AlertsCreator.createSupportAlert(LogoutActivity.this, null));
             } else if (position == logoutRow) {
                 if (getParentActivity() == null) {
                     return;
                 }
-                showDialog(makeLogOutDialog(getParentActivity(), currentAccount));
+                showLogOutDialog();
             }
         });
         listView.setSections();
@@ -160,18 +185,37 @@ public class LogoutActivity extends BaseFragment {
         return fragmentView;
     }
 
-    public static AlertDialog makeLogOutDialog(Context context, int currentAccount) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setMessage(LocaleController.getString(R.string.AreYouSureLogout));
-        builder.setTitle(LocaleController.getString(R.string.LogOut));
-        builder.setPositiveButton(LocaleController.getString(R.string.LogOut), (dialogInterface, i) -> MessagesController.getInstance(currentAccount).performLogout(1));
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        AlertDialog alertDialog = builder.create();
-        TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);
-        if (button != null) {
-            button.setTextColor(Theme.getColor(Theme.key_text_RedBold));
-        }
-        return alertDialog;
+    public void showLogOutDialog() {
+        final AlertDialog progressDialog = new AlertDialog(getContext(), AlertDialog.ALERT_TYPE_SPINNER);
+        progressDialog.showDelayed(500);
+        GramWallet.ensureLocalWalletBalances(currentAccount, () -> {
+            progressDialog.dismiss();
+            long localGramBalance = 0L;
+            if (MessagesController.getInstance(currentAccount).config.walletAvailable.get()) {
+                final GramWallet wallet = GramWallet.getInstance(currentAccount);
+                if (wallet.getBalance() > 0 && !wallet.isBackupEnabled() && !wallet.cantAccessWallet()) {
+                    localGramBalance += wallet.getBalance();
+                }
+                for (GramWallet.PreviousWallet w : wallet.getPreviousWallets()) {
+                    if (!w.outdated && !w.loading && w.balance > 0) {
+                        localGramBalance += w.balance;
+                    }
+                }
+            }
+            showLogOutDialog(localGramBalance);
+        });
+    }
+
+    public void showLogOutDialog(long grams) {
+        new AlertDialog.Builder(getContext())
+            .setTitle(getString(R.string.LogOut))
+            .setMessage(AndroidUtilities.replaceTags(grams > 0 ? formatString(R.string.AreYouSureLogoutGrams, GramWallet.formatGramsWithUnit(grams)) : getString(R.string.AreYouSureLogout)))
+            .setPositiveButton(getString(R.string.LogOut), (dialogInterface, i) -> {
+                MessagesController.getInstance(currentAccount).performLogout(1);
+            })
+            .setNegativeButton(getString(R.string.Cancel), null)
+            .makeRed(DialogInterface.BUTTON_POSITIVE)
+            .show();
     }
 
     @Override
@@ -182,8 +226,16 @@ public class LogoutActivity extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (listAdapter != null) {
-            listAdapter.notifyDataSetChanged();
+        // Настройку могли переключить, пока экран лежал в бэкстеке. Сравниваем
+        // только состав, а не всё подряд: rebuildRows() сбрасывает rowCount,
+        // и лишний вызов на каждом возврате дёргал бы адаптер зря.
+        final boolean hadExportRow = sessionExportRow >= 0;
+        final boolean wantExportRow = PengramConfig.isSessionExportEnabled();
+        if (hadExportRow != wantExportRow) {
+            rebuildRows();
+            if (listAdapter != null) {
+                listAdapter.notifyDataSetChanged();
+            }
         }
     }
 
@@ -206,22 +258,25 @@ public class LogoutActivity extends BaseFragment {
                 case 0: {
                     HeaderCell view = (HeaderCell) holder.itemView;
                     if (position == alternativeHeaderRow) {
-                        view.setText(LocaleController.getString(R.string.AlternativeOptions));
+                        view.setText(getString(R.string.AlternativeOptions));
                     }
                     break;
                 }
                 case 1: {
                     TextDetailSettingsCell view = (TextDetailSettingsCell) holder.itemView;
                     if (position == addAccountRow) {
-                        view.setTextAndValueAndIcon(LocaleController.getString(R.string.AddAnotherAccount), LocaleController.getString(R.string.AddAnotherAccountInfo), R.drawable.msg_contact_add, true);
+                        view.setTextAndValueAndIcon(getString(R.string.AddAnotherAccount), getString(R.string.AddAnotherAccountInfo), R.drawable.msg_contact_add, true);
                     } else if (position == passcodeRow) {
-                        view.setTextAndValueAndIcon(LocaleController.getString(R.string.SetPasscode), LocaleController.getString(R.string.SetPasscodeInfo), R.drawable.msg_permissions, true);
+                        view.setTextAndValueAndIcon(getString(R.string.SetPasscode), getString(R.string.SetPasscodeInfo), R.drawable.msg_permissions, true);
                     } else if (position == cacheRow) {
-                        view.setTextAndValueAndIcon(LocaleController.getString(R.string.ClearCache), LocaleController.getString(R.string.ClearCacheInfo), R.drawable.msg_clearcache, true);
+                        view.setTextAndValueAndIcon(getString(R.string.ClearCache), getString(R.string.ClearCacheInfo), R.drawable.msg_clearcache, true);
                     } else if (position == phoneRow) {
-                        view.setTextAndValueAndIcon(LocaleController.getString(R.string.ChangePhoneNumber), LocaleController.getString(R.string.ChangePhoneNumberInfo), R.drawable.msg_newphone, true);
+                        view.setTextAndValueAndIcon(getString(R.string.ChangePhoneNumber), getString(R.string.ChangePhoneNumberInfo), R.drawable.msg_newphone, true);
                     } else if (position == supportRow) {
-                        view.setTextAndValueAndIcon(LocaleController.getString(R.string.ContactSupport), LocaleController.getString(R.string.ContactSupportInfo), R.drawable.msg_help, false);
+                        view.setTextAndValueAndIcon(getString(R.string.ContactSupport), getString(R.string.ContactSupportInfo), R.drawable.msg_help, false);
+                    } else if (position == sessionExportRow) {
+                        view.setTextAndValueAndIcon(getString(R.string.PengramSessionExportRow),
+                                getString(R.string.PengramSessionExportRowInfo), R.drawable.msg_share, true);
                     }
                     break;
                 }
@@ -229,14 +284,14 @@ public class LogoutActivity extends BaseFragment {
                     TextSettingsCell view = (TextSettingsCell) holder.itemView;
                     if (position == logoutRow) {
                         view.setTextColor(Theme.getColor(Theme.key_text_RedRegular));
-                        view.setText(LocaleController.getString(R.string.LogOutTitle), false);
+                        view.setText(getString(R.string.LogOutTitle), false);
                     }
                     break;
                 }
                 case 4: {
                     TextInfoPrivacyCell view = (TextInfoPrivacyCell) holder.itemView;
                     if (position == logoutSectionRow) {
-                        view.setText(LocaleController.getString(R.string.LogOutInfo));
+                        view.setText(getString(R.string.LogOutInfo));
                     }
                     break;
                 }
@@ -246,7 +301,8 @@ public class LogoutActivity extends BaseFragment {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             int position = holder.getAdapterPosition();
-            return position == addAccountRow || position == passcodeRow || position == cacheRow || position == phoneRow || position == supportRow || position == logoutRow;
+            return position == addAccountRow || position == passcodeRow || position == cacheRow || position == phoneRow
+                    || position == sessionExportRow || position == supportRow || position == logoutRow;
         }
 
         @Override
@@ -289,7 +345,8 @@ public class LogoutActivity extends BaseFragment {
         public int getItemViewType(int position) {
             if (position == alternativeHeaderRow) {
                 return 0;
-            } else if (position == addAccountRow || position == passcodeRow || position == cacheRow || position == phoneRow || position == supportRow) {
+            } else if (position == addAccountRow || position == passcodeRow || position == cacheRow || position == phoneRow
+                    || position == sessionExportRow || position == supportRow) {
                 return 1;
             } else if (position == alternativeSectionRow) {
                 return 2;

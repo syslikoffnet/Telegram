@@ -51,7 +51,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AiTonesController;
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
@@ -241,7 +241,7 @@ public class AIEditorAlert extends BottomSheetWithRecyclerListView implements No
                                         bulletinFactory.createSimpleBulletin(R.raw.forward, AndroidUtilities.replaceTags(LocaleController.formatPluralString("AIEditorStyleSharedToManyChats", dids.size(), dids.size()))).hideAfterBottomSheet(false).show();
                                     }
                                     try {
-                                        bulletinContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) bulletinContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                                     } catch (Exception ignored) {}
                                 }
                             }

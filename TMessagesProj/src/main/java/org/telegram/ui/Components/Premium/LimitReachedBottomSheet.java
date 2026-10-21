@@ -505,7 +505,7 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
             recyclerListView.getOnItemClickListener().onItemClick(view, position);
             if (type != TYPE_BOOSTS_FOR_USERS) {
                 try {
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 } catch (Exception ignored) {}
             }
             return false;
@@ -827,7 +827,7 @@ public class LimitReachedBottomSheet extends BottomSheetWithRecyclerListView imp
         updateButton();
         fireworksOverlay.start();
         try {
-            fireworksOverlay.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fireworksOverlay.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         } catch (Exception ignored) {}
         headerView.boostCounterView.setCount(canApplyBoost.boostCount, true);
         recyclerListView.smoothScrollToPosition(0);

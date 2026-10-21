@@ -4,8 +4,33 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CXX_FLAGS "-DANDROID -g")
-set(CMAKE_C_FLAGS "-w -std=c11 -DANDROID -D_LARGEFILE_SOURCE=1 -g -Wno-error=implicit-function-declaration")
+# --- отладочная информация -------------------------------------------------
+# В релизной .so не должно быть DWARF: он раздувает библиотеку, хранит пути
+# исходников и даёт IDA/Ghidra готовые имена функций и структуры. AGP собирает
+# non-debuggable варианты как RelWithDebInfo, а его флаги по умолчанию содержат
+# -g, поэтому -g снимается здесь, а не только strip'ом при упаковке.
+# Отладочная сборка (CMAKE_BUILD_TYPE=Debug) остаётся с символами.
+if (NOT DEFINED PENGRAM_DEBUG_INFO)
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(PENGRAM_DEBUG_INFO ON)
+    else()
+        set(PENGRAM_DEBUG_INFO OFF)
+    endif()
+endif()
+
+set(PENGRAM_DEBUG_FLAG "")
+if (NOT PENGRAM_DEBUG_INFO)
+    set(PENGRAM_DEBUG_FLAG "")
+    foreach (PENGRAM_LANG C CXX)
+        string(REGEX REPLACE "(^| )-g( |$)" "\\1"
+                CMAKE_${PENGRAM_LANG}_FLAGS_RELWITHDEBINFO "${CMAKE_${PENGRAM_LANG}_FLAGS_RELWITHDEBINFO}")
+        string(REGEX REPLACE "(^| )-g( |$)" "\\1"
+                CMAKE_${PENGRAM_LANG}_FLAGS_RELEASE "${CMAKE_${PENGRAM_LANG}_FLAGS_RELEASE}")
+    endforeach ()
+endif()
+
+set(CMAKE_CXX_FLAGS "-DANDROID ${PENGRAM_DEBUG_FLAG}")
+set(CMAKE_C_FLAGS "-w -std=c11 -DANDROID -D_LARGEFILE_SOURCE=1 ${PENGRAM_DEBUG_FLAG} -Wno-error=implicit-function-declaration")
 set(CMAKE_ASM_FLAGS "${CFLAGS} -x assembler-with-cpp")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections -fvisibility=hidden -flto=full")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections -fvisibility=hidden -fvisibility-inlines-hidden -flto=full")
@@ -98,6 +123,9 @@ set_target_properties(tde2e PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}
 add_library(tdutils STATIC IMPORTED)
 set_target_properties(tdutils PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libtdutils.a)
 
+add_library(prisma STATIC IMPORTED)
+set_target_properties(prisma PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libprisma.a)
+
 #tgnet
 add_library(tgnet STATIC
         openssl/aes_ige.c
@@ -110,6 +138,8 @@ add_library(tgnet STATIC
         tgnet/ConnectionsManager.cpp
         tgnet/TLSHello.cpp
         tgnet/ConnectionSocket.cpp
+        tgnet/PengramDesync.cpp
+        tgnet/PengramGuard.cpp
         tgnet/Datacenter.cpp
         tgnet/EventObject.cpp
         tgnet/FileLog.cpp
@@ -123,6 +153,16 @@ add_library(tgnet STATIC
         tgnet/Config.cpp)
 target_compile_options(tgnet PUBLIC
         -Wall -frtti -finline-functions -ffast-math -Oz)
+
+# --- Pengram: отпечаток сертификата сборки -----------------------------------
+# Передаётся байтами (0x1a,0x2b,...), а не hex-строкой: в .so не остаётся
+# читаемого отпечатка, а в DEX его нет вовсе — его передаёт Gradle из того же
+# keystore, которым подписывается APK. Пустое значение (сборка без ключа)
+# выключает проверку, но не ломает компиляцию.
+if(NOT DEFINED PENGRAM_CERT_SHA256_BYTES OR PENGRAM_CERT_SHA256_BYTES STREQUAL "")
+    set(PENGRAM_CERT_SHA256_BYTES "0")
+endif()
+target_compile_definitions(tgnet PRIVATE PENGRAM_CERT_SHA256_BYTES=${PENGRAM_CERT_SHA256_BYTES})
 set_target_properties(tgnet PROPERTIES
         ANDROID_ARM_MODE arm)
 target_compile_definitions(tgnet PUBLIC
@@ -137,6 +177,30 @@ target_link_libraries(tgnet
 add_library(tlottie STATIC IMPORTED)
 set_target_properties(tlottie PROPERTIES
         IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/libtlottie.a)
+
+# Wallet Engine: matching Rust archive and generated UniFFI C++20 wrapper.
+set(WALLET_ENGINE_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/prebuild/include/wallet-engine)
+add_library(wallet_engine STATIC IMPORTED)
+set_target_properties(wallet_engine PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/prebuild/lib/${ANDROID_ABI}/libwallet_engine.a)
+
+add_library(wallet_engine_cpp STATIC
+        ${WALLET_ENGINE_INCLUDE_DIR}/wallet_engine.cpp
+        ${WALLET_ENGINE_INCLUDE_DIR}/gram_wallet.cpp)
+# Keep C++20 local: existing JNI sources include Breakpad's C++17-only headers.
+# Any new source that includes wallet_engine.hpp must also opt into C++20.
+target_compile_features(wallet_engine_cpp PRIVATE cxx_std_20)
+# Keep unused bindings discardable even when voip resets CMAKE_CXX_FLAGS below.
+target_compile_options(wallet_engine_cpp PRIVATE -ffunction-sections -fdata-sections)
+target_include_directories(wallet_engine_cpp PUBLIC ${WALLET_ENGINE_INCLUDE_DIR})
+target_link_libraries(wallet_engine_cpp PUBLIC wallet_engine dl m)
+
+# Compile the JNI bridge as C++20 without changing the legacy JNI sources.
+# An object library keeps its JNI entry points in the existing tmessages .so.
+add_library(wallet_engine_jni OBJECT wallet/WalletEngineBridge.cpp wallet/GramWalletAdapter.cpp)
+target_compile_features(wallet_engine_jni PRIVATE cxx_std_20)
+set_target_properties(wallet_engine_jni PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(wallet_engine_jni PRIVATE wallet_engine_cpp)
 
 #sqlite
 add_library(sqlite STATIC
@@ -204,6 +268,20 @@ add_library(${NATIVE_LIB} SHARED
         tests.cpp
 )
 
+# Compile JNI directly into the shared library so archive extraction cannot drop its exports.
+set(PRISMA_BRIDGE_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/prisma/bridge/PrismaEngine.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/prisma/bridge/PrismaJni.cpp")
+target_sources(${NATIVE_LIB} PRIVATE ${PRISMA_BRIDGE_SOURCES})
+target_include_directories(${NATIVE_LIB} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/prisma/bridge"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/boost-regex/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libprisma/libprisma")
+set_property(SOURCE ${PRISMA_BRIDGE_SOURCES} APPEND PROPERTY
+        COMPILE_OPTIONS -fexceptions -frtti)
+set_property(SOURCE ${PRISMA_BRIDGE_SOURCES} APPEND PROPERTY
+        COMPILE_DEFINITIONS BOOST_REGEX_STANDALONE)
+
 target_compile_options(${NATIVE_LIB} PUBLIC
         -ffast-math -Oz -funroll-loops -ffast-math -fno-strict-aliasing -fno-math-errno)
 
@@ -255,7 +333,10 @@ target_link_libraries(${NATIVE_LIB}
         wasm
         tgcalls_tp
         tgnet
+        prisma
         tlottie
+        wallet_engine_jni
+        wallet_engine_cpp
         sqlite
         swscale
         avformat

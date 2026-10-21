@@ -948,6 +948,9 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
         return new ArrayList<>(seen.values());
     }
 
+    /** последний запрос-ID, по которому мы ждём ответ сервера (Pengram) */
+    private String pengramIdQuery;
+
     public void searchUsernameOrHashtag(CharSequence charSequence, int position, ArrayList<MessageObject> messageObjects, boolean usernameOnly, boolean forSearch) {
         final String text = charSequence == null ? "" : charSequence.toString();
         TLRPC.Chat currentChat = chat;
@@ -1357,7 +1360,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                     if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
                             !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
                             !TextUtils.isEmpty(lastName) && lastName.toLowerCase().startsWith(usernameString) ||
-                            hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString)) {
+                            hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString) ||
+                            org.telegram.messenger.PengramConfig.idMatches(id, usernameString)) {
                         newResult.add(object);
                         newMap.put(id, object);
                     }
@@ -1391,7 +1395,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                         if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
                                 !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
                                 !TextUtils.isEmpty(lastName) && lastName.toLowerCase().startsWith(usernameString) ||
-                                hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString)) {
+                                hasSpace && ContactsController.formatName(firstName, lastName).toLowerCase().startsWith(usernameString) ||
+                                org.telegram.messenger.PengramConfig.idMatches(id, usernameString)) {
                             newResult.add(object);
                             newMap.put(id, object);
                         }
@@ -1409,7 +1414,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                         object = chat1;
                         id = chat1.id;
                         if (!TextUtils.isEmpty(username) && username.toLowerCase().startsWith(usernameString) ||
-                                !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString)){
+                                !TextUtils.isEmpty(firstName) && firstName.toLowerCase().startsWith(usernameString) ||
+                                org.telegram.messenger.PengramConfig.idMatches(id, usernameString)){
                             newResult.add(object);
                             newMap.put(id, object);
                         }
@@ -1449,6 +1455,28 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                     return 0;
                 }
             });
+            // Pengram: ID — такой же адрес, как юзернейм. Если в чате/диалогах по нему ничего не нашлось,
+            // достаём пира (из памяти или с сервера) и ставим его первым — так работает поиск «от кого» по ID.
+            if (forSearch && org.telegram.messenger.PengramPeerId.looksLikeId(usernameString)) {
+                final long idDialog = org.telegram.messenger.PengramPeerId.parseDialogId(usernameString);
+                if (idDialog != 0 && newMap.indexOfKey(idDialog) < 0) {
+                    final TLObject cachedPeer = org.telegram.messenger.PengramPeerId.cached(currentAccount, idDialog);
+                    if (cachedPeer != null) {
+                        newResult.add(0, cachedPeer);
+                        newMap.put(idDialog, cachedPeer);
+                    } else {
+                        pengramIdQuery = usernameString;
+                        org.telegram.messenger.PengramPeerId.resolve(currentAccount, idDialog, peer -> {
+                            if (peer == null || !TextUtils.equals(pengramIdQuery, usernameString) || newMap.indexOfKey(idDialog) >= 0) {
+                                return;
+                            }
+                            newResult.add(0, peer);
+                            newMap.put(idDialog, peer);
+                            showUsersResult(newResult, newMap, true);
+                        });
+                    }
+                }
+            }
             searchResultHashtags = null;
             stickers = null;
             quickReplies = null;

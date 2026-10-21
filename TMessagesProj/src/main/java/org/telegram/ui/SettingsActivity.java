@@ -5,6 +5,8 @@ import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.messenger.AndroidUtilities.replaceSingleTag;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
+import static org.telegram.ui.PremiumPreviewFragment.applyNewSpan;
+import static org.telegram.ui.PremiumPreviewFragment.applyNewSpanTimed;
 import static org.telegram.ui.Stars.StarGiftSheet.replaceUnderstood;
 
 import android.animation.Animator;
@@ -75,6 +77,8 @@ import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.PengramAccountOrder;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
@@ -82,6 +86,9 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SharedPrefsHelper;
+import org.telegram.ui.Cells.TextCell;
+import org.telegram.ui.Wallet.GramWallet;
+import org.telegram.ui.Wallet.WalletActivity;
 import org.telegram.utils.settings.SharedSettings;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
@@ -347,6 +354,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
         listView.adapter.setApplyBackground(false);
         listView.setSections();
+        // Pengram: долгое нажатие на строке аккаунта поднимает её и позволяет
+        // переставить. Остальные строки вне reorder-секции не тащатся.
+        listView.listenReorder(this::onAccountsReordered);
+        listView.allowReorder(true);
         listView.setPadding(0, AndroidUtilities.statusBarHeight + dp(12), 0, AndroidUtilities.navigationBarHeight + additionNavigationBarHeight);
         listView.setClipToPadding(false);
         listView.addOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -496,6 +507,15 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        // Pengram: порядок разделов мог измениться в менеджере
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
 
@@ -532,15 +552,20 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         avatarView.setForUserOrChat(user, avatarDrawable);
         titleView.setText(UserObject.getUserName(user));
         final StringBuilder sb = new StringBuilder();
+        final boolean bot = user != null && user.bot;
+        final String username = UserObject.getPublicUsername(user);
         if (user != null) {
-            if (org.telegram.messenger.PengramConfig.isHidingPhoneNumber()) {
+            if (bot) {
+                // У аккаунта бота нет номера телефона: вместо него — @username,
+                // иначе в подписи оказалось бы «+null».
+                sb.append(username != null ? "@" + username : LocaleController.getString(R.string.PengramBotAccount));
+            } else if (org.telegram.messenger.PengramConfig.isHidingPhoneNumber()) {
                 sb.append(LocaleController.getString(R.string.PengramPhoneHidden));
             } else {
                 sb.append(PhoneFormat.getInstance().format("+" + user.phone));
             }
         }
-        final String username = UserObject.getPublicUsername(user);
-        if (username != null) {
+        if (username != null && !bot) {
             sb.append(" • @").append(username);
         }
         subtitleView.setText(sb);
@@ -615,7 +640,41 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     private ArrayList<Integer> accountNumbers = new ArrayList<>();
+    /** id reorder-секции со строками аккаунтов; -1, когда блока нет */
+    private int accountsReorderSection = -1;
+
+    /**
+     * Пользователь перетащил строку аккаунта. В адаптере уже лежит новый
+     * порядок, остаётся спроецировать его на общий список аккаунтов: текущий
+     * аккаунт скрыт из этого блока и должен остаться на своём месте.
+     */
+    private void onAccountsReordered(int sectionId, ArrayList<UItem> items) {
+        if (sectionId == accountsReorderSection) {
+            saveAccountOrder(items);
+        }
+    }
+
+    /**
+     * Разобрать перетащенные строки аккаунтов и сохранить общий порядок.
+     * Общий для списка настроек и блока аккаунтов в профиле.
+     */
+    public static void saveAccountOrder(ArrayList<UItem> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        final ArrayList<Integer> order = new ArrayList<>(items.size());
+        for (UItem item : items) {
+            if (item != null && item.instanceOf(AccountCell.Factory.class)) {
+                order.add(item.intValue);
+            }
+        }
+        if (order.size() > 1) {
+            PengramAccountOrder.saveVisibleOrder(order);
+        }
+    }
+
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        accountsReorderSection = -1;
         if (searchItem.isSearchFieldVisible2()) {
             items.add(UItem.asSpace(ActionBar.getCurrentActionBarHeight()));
             search.fillItems(items);
@@ -624,22 +683,24 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         items.add(UItem.asCustomShadow(topView, 200 - 12));
 
+        // Pengram: отдельная плашка над всеми остальными пунктами
+        final boolean pengramCard = PengramConfig.isPengramCardOnTop() && !PengramConfig.isSettingsItemHidden(PengramConfig.SETTINGS_ITEM_PENGRAM);
+        if (pengramCard) {
+            final UItem pengramItem = pengramSettingRow(PengramConfig.SETTINGS_ITEM_PENGRAM);
+            if (pengramItem != null) {
+                items.add(pengramItem);
+                items.add(UItem.asShadow(null));
+            }
+        }
+
         accountNumbers.clear();
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             if (UserConfig.getInstance(a).isClientActivated() && currentAccount != a) {
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        // Pengram: порядок, выставленный перетаскиванием в настройках.
+        PengramAccountOrder.sort(accountNumbers);
 
         final Set<String> suggestions = getMessagesController().pendingSuggestions;
         if (suggestions.contains("PREMIUM_GRACE")) {
@@ -681,28 +742,49 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             items.add(UItem.asShadow(null));
         }
 
-        if (accountNumbers.size() > 0) {
+        if (PengramConfig.getBool(PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS, false) && accountNumbers.size() > 0) {
             items.add(UItem.asHeader(getString(R.string.SettingsAccounts)));
+            // Pengram: строки аккаунтов — секция, которую можно тащить долгим
+            // нажатием. Секция ограничивает перетаскивание: заголовок, тень и
+            // остальные пункты настроек остаются на месте.
+            accountsReorderSection = adapter.reorderSectionStart();
             for (int i = 0; i < accountNumbers.size(); ++i) {
                 items.add(AccountCell.Factory.of(i, accountNumbers.get(i)));
             }
+            adapter.reorderSectionEnd();
             items.add(UItem.asShadow(null));
         }
 
-        items.add(SettingCell.Factory.of(777, IconBackgroundColors.GREEN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_features, LocaleController.getString(R.string.PengramSettings), LocaleController.getString(R.string.PengramSettingsInfo)));
-        items.add(UItem.asShadow(null));
+        final boolean walletAbove = getConnectionsManager().getCurrentTime() - 1791538462 < 4 * 7 * 24 * 60 * 60;
+        if (walletAbove && getMessagesController().config.walletAvailable.get()) {
+            final GramWallet wallet = GramWallet.getInstance(currentAccount);
+            items.add(SettingCell.Factory.of(25, 0, 0, Theme.isCurrentThemeDark() ? R.drawable.settings_wallet_dark : R.drawable.settings_wallet, TextCell.applyNewSpanTimed(getString(R.string.WalletAttachMoney), 1790679020), null, wallet.getBalance() > 0 ? GramWallet.formatGrams(wallet.getBalance()) : null));
+            items.add(UItem.asShadow(null));
+        }
 
-        items.add(SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo)));
-        items.add(SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo)));
-        items.add(SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo)));
-        items.add(SettingCell.Factory.of(5, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), getString(R.string.SettingsNotificationsInfo)));
-        items.add(SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.top, IconBackgroundColors.BLUE_DEEP.bottom, R.drawable.settings_data, getString(R.string.SettingsData), getString(R.string.SettingsDataInfo)));
-        items.add(SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom, R.drawable.settings_folders, getString(R.string.SettingsFolders), getString(R.string.SettingsFoldersInfo)));
-        items.add(SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo)));
-        items.add(SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo)));
-        items.add(SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName()));
-
-        items.add(UItem.asShadow(null));
+        // Pengram: порядок и видимость разделов настраиваются пользователем
+        boolean anySettingRow = false;
+        for (int pengramId : PengramConfig.getSettingsOrder()) {
+            if (PengramConfig.isSettingsItemHidden(pengramId)) {
+                continue;
+            }
+            if (pengramCard && pengramId == PengramConfig.SETTINGS_ITEM_PENGRAM) {
+                continue;
+            }
+            final UItem settingItem = pengramSettingRow(pengramId);
+            if (settingItem != null) {
+                items.add(settingItem);
+                anySettingRow = true;
+            }
+        }
+        if (anySettingRow) {
+            items.add(UItem.asShadow(null));
+        }
+        if (!walletAbove && getMessagesController().config.walletAvailable.get()) {
+            final GramWallet wallet = GramWallet.getInstance(currentAccount);
+            items.add(SettingCell.Factory.of(25, 0, 0, Theme.isCurrentThemeDark() ? R.drawable.settings_wallet_dark : R.drawable.settings_wallet, TextCell.applyNewSpanTimed(getString(R.string.WalletAttachMoney), 1790679020), null, wallet.getBalance() > 0 ? GramWallet.formatGrams(wallet.getBalance()) : null));
+            items.add(UItem.asShadow(null));
+        }
 
         if (!getMessagesController().premiumFeaturesBlocked()) {
             items.add(SettingCell.Factory.of(11, 0xFFB659FF, 0xFF617CFF, R.drawable.settings_premium, getString(R.string.TelegramPremium)));
@@ -714,21 +796,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
         StarsController.getInstance(currentAccount, true).getBalance();
         if (ApplicationLoader.isBetaBuild() || ApplicationLoader.isStandaloneBuild() || ApplicationLoader.isHuaweiStoreBuild() || (StarsController.getInstance(currentAccount, true).balanceAvailable() && (StarsController.getInstance(currentAccount, true).hasTransactions() || StarsController.getInstance(currentAccount, true).getBalance().positive()))) {
-            StarsController c = StarsController.getTonInstance(currentAccount);
-            long balance = c.getBalance().amount;
-            items.add(SettingCell.Factory.of(13, 0xFF1BA4ED, 0xFF1488E1, R.drawable.settings_gram_24, getString(R.string.MyTON), null, c.balanceAvailable() && balance > 0 ? StarsIntroActivity.formatStarsAmount(c.getBalance(), 0.85f, ' ') : ""));
-        }
-
-        TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
-        if (menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
-            for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
-                final long WALLET_BOT_ID = 1985737506L;
-                if (attachMenuBot.show_in_side_menu && attachMenuBot.bot_id == WALLET_BOT_ID) {
-                    UItem item = SettingCell.Factory.ofBot(attachMenuBot, 0xFF1BA4ED, 0xFF1488E1, R.drawable.settings_wallet);
-                    item.object = attachMenuBot;
-                    items.add(item);
-                }
-            }
+            final StarsController c = StarsController.getTonInstance(currentAccount);
+            final long balance = c.getBalance().amount;
+            items.add(SettingCell.Factory.of(13, 0xFF1BA4ED, 0xFF1488E1, R.drawable.filled_gram_earnings, getString(R.string.GramEarnings), null, c.balanceAvailable() && balance > 0 ? StarsIntroActivity.formatStarsAmount(c.getBalance(), 0.85f, ' ') : ""));
         }
 
         if (!getMessagesController().premiumFeaturesBlocked()) {
@@ -761,6 +831,50 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
 
         items.add(UItem.asCustomShadow(versionView));
+    }
+
+    /** Pengram: id строки настроек → id пункта Pengram (0, если строка не настраивается) */
+    private int pengramSettingsItemId(int rowId) {
+        switch (rowId) {
+            case 777: return PengramConfig.SETTINGS_ITEM_PENGRAM;
+            case 1: return PengramConfig.SETTINGS_ITEM_ACCOUNT;
+            case 2: return PengramConfig.SETTINGS_ITEM_CHAT;
+            case 3: return PengramConfig.SETTINGS_ITEM_PRIVACY;
+            case 5: return PengramConfig.SETTINGS_ITEM_NOTIFICATIONS;
+            case 6: return PengramConfig.SETTINGS_ITEM_DATA;
+            case 7: return PengramConfig.SETTINGS_ITEM_FOLDERS;
+            case 8: return PengramConfig.SETTINGS_ITEM_DEVICES;
+            case 9: return PengramConfig.SETTINGS_ITEM_POWER;
+            case 10: return PengramConfig.SETTINGS_ITEM_LANGUAGE;
+        }
+        return 0;
+    }
+
+    /** Pengram: строка раздела настроек по идентификатору Pengram */
+    private UItem pengramSettingRow(int pengramId) {
+        switch (pengramId) {
+            case PengramConfig.SETTINGS_ITEM_PENGRAM:
+                return SettingCell.Factory.of(777, IconBackgroundColors.GREEN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_features, getString(R.string.PengramSettings), getString(R.string.PengramSettingsInfo));
+            case PengramConfig.SETTINGS_ITEM_ACCOUNT:
+                return SettingCell.Factory.of(1, IconBackgroundColors.BLUE.top, IconBackgroundColors.BLUE.bottom, R.drawable.settings_account, getString(R.string.SettingsAccount), getString(R.string.SettingsAccountInfo));
+            case PengramConfig.SETTINGS_ITEM_CHAT:
+                return SettingCell.Factory.of(2, IconBackgroundColors.ORANGE.top, IconBackgroundColors.ORANGE.bottom, R.drawable.settings_chat, getString(R.string.SettingsChat), getString(R.string.SettingsChatInfo));
+            case PengramConfig.SETTINGS_ITEM_PRIVACY:
+                return SettingCell.Factory.of(3, IconBackgroundColors.GREEN.top, IconBackgroundColors.GREEN.bottom, R.drawable.settings_privacy, getString(R.string.SettingsPrivacySecurity), getString(R.string.SettingsPrivacySecurityInfo));
+            case PengramConfig.SETTINGS_ITEM_NOTIFICATIONS:
+                return SettingCell.Factory.of(5, IconBackgroundColors.RED.top, IconBackgroundColors.RED.bottom, R.drawable.settings_sounds, getString(R.string.SettingsNotifications), getString(R.string.SettingsNotificationsInfo));
+            case PengramConfig.SETTINGS_ITEM_DATA:
+                return SettingCell.Factory.of(6, IconBackgroundColors.BLUE_DEEP.top, IconBackgroundColors.BLUE_DEEP.bottom, R.drawable.settings_data, getString(R.string.SettingsData), getString(R.string.SettingsDataInfo));
+            case PengramConfig.SETTINGS_ITEM_FOLDERS:
+                return SettingCell.Factory.of(7, IconBackgroundColors.BLUE_ALT.top, IconBackgroundColors.BLUE_ALT.bottom, R.drawable.settings_folders, getString(R.string.SettingsFolders), getString(R.string.SettingsFoldersInfo));
+            case PengramConfig.SETTINGS_ITEM_DEVICES:
+                return SettingCell.Factory.of(8, IconBackgroundColors.CYAN.top, IconBackgroundColors.CYAN.bottom, R.drawable.settings_devices, getString(R.string.SettingsDevices), getString(R.string.SettingsDevicesInfo));
+            case PengramConfig.SETTINGS_ITEM_POWER:
+                return SettingCell.Factory.of(9, IconBackgroundColors.ORANGE_DEEP.top, IconBackgroundColors.ORANGE_DEEP.bottom, R.drawable.settings_power, getString(R.string.SettingsPowerSaving), getString(R.string.SettingsPowerSavingInfo));
+            case PengramConfig.SETTINGS_ITEM_LANGUAGE:
+                return SettingCell.Factory.of(10, IconBackgroundColors.PURPLE.top, IconBackgroundColors.PURPLE.bottom, R.drawable.settings_language, getString(R.string.SettingsLanguage), LocaleController.getCurrentLanguageName());
+        }
+        return null;
     }
 
     private void presentSettingFragment(BaseFragment fragment) {
@@ -859,6 +973,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             case 13:
                 presentSettingFragment(new TONIntroActivity());
                 break;
+            case 25:
+                presentSettingFragment(new WalletActivity());
+                break;
             case 15:
                 presentSettingFragment(new PremiumPreviewFragment(PremiumPreviewFragment.FEATURES_BUSINESS, "settings"));
                 break;
@@ -901,9 +1018,30 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     private boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        if (item.instanceOf(AccountCell.Factory.class)) {
+            // Строку сейчас поднимет ItemTouchHelper: даём тот же отклик,
+            // что и у остальных перетаскиваемых списков. false — иначе
+            // долгое нажатие съест старт перетаскивания.
+            if (PengramConfig.isVibrationEnabled()) {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            }
+            return false;
+        }
         if (item.object instanceof TLRPC.TL_attachMenuBot) {
             TLRPC.TL_attachMenuBot attachMenuBot = (TLRPC.TL_attachMenuBot) item.object;
             BotWebViewSheet.deleteBot(currentAccount, attachMenuBot.bot_id, () -> listView.adapter.update(true));
+            return true;
+        }
+
+        if (item.instanceOf(SettingCell.Factory.class) && pengramSettingsItemId(item.id) != 0) {
+            ItemOptions.makeOptions(this, view)
+                .add(R.drawable.msg_viewchats, getString(R.string.PengramSettingsItemsTitle), () -> presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS)))
+                .add(R.drawable.msg_clear, getString(R.string.PengramSettingsItemsHide), () -> {
+                    PengramConfig.setSettingsItemHidden(pengramSettingsItemId(item.id), true);
+                    listView.adapter.update(true);
+                })
+                .setScrimViewBackground(listView.getClipBackground(view))
+                .show();
             return true;
         }
 
@@ -1155,6 +1293,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         private final TextView subtitleView;
         private final TextView valueView;
         private final boolean mini;
+        private boolean hasBackground = true;
 
         public SettingCell(Context context, Theme.ResourcesProvider resourcesProvider) {
             this(context, resourcesProvider, false);
@@ -1204,7 +1343,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, resourcesProvider));
             valueView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, resourcesProvider));
-            iconBackground.setDrawBorder(resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark());
+            iconBackground.setDrawBorder(hasBackground && (resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark()));
         }
 
         private boolean twoLines;
@@ -1215,6 +1354,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             CharSequence subtitle,
             CharSequence value
         ) {
+            hasBackground = iconColorTop != 0 || iconColorBottom != 0;
             iconLayout.setVisibility(icon != 0 ? View.VISIBLE : View.GONE);
             titleView.setTranslationX(icon == 0 ? dp(2) : 0);
             subtitleView.setTranslationX(icon == 0 ? dp(2) : 0);
@@ -1225,6 +1365,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             subtitleView.setVisibility((twoLines = !TextUtils.isEmpty(subtitle)) ? View.VISIBLE : View.GONE);
             subtitleView.setText(subtitle);
             setValue(value);
+            updateColors();
         }
 
         public void setValue(CharSequence value) {

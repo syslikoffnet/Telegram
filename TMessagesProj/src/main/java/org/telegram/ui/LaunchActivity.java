@@ -232,6 +232,9 @@ import org.telegram.ui.Stories.recorder.StoryEntry;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 import org.telegram.ui.Stories.LiveStoryPipOverlay;
 import org.telegram.ui.TON.TONIntroActivity;
+import org.telegram.ui.Wallet.GramWalletStorageAuth;
+import org.telegram.ui.Wallet.WalletActivity;
+import org.telegram.ui.Wallet.WalletSendSelectSender;
 import org.telegram.ui.bots.BotWebViewAttachedSheet;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
@@ -407,6 +410,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
         instance = this;
         ApplicationLoader.postInitApplication();
+        // Pengram: Material You — системная палитра подставляется в тему до первой отрисовки
+        org.telegram.messenger.PengramMonet.update(this);
         AndroidUtilities.checkDisplaySize(this, getResources().getConfiguration());
         currentAccount = UserConfig.selectedAccount;
         registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -458,6 +463,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         frameLayout.setClipToPadding(false);
         frameLayout.setClipChildren(false);
         setContentView(frameLayout);
+        // Проверка имени могла не успеть вернуть контакт (сеть, падение) —
+        // возвращаем такие контакты при первом удобном случае.
+        AndroidUtilities.runOnUIThread(() -> {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                try {
+                    if (UserConfig.getInstance(a).isClientActivated()) {
+                        org.telegram.messenger.PengramOriginalName.restorePending(a);
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        }, 2500);
         rootAnimatedInsetsListener = new WindowAnimatedInsetsProvider(frameLayout);
         pipActivityController.addPipListener(new IPipActivityListener() {
             final ActivityVisibilityController activityVisibilityController = createActivityVisibilityController(false);
@@ -1479,6 +1496,13 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 rightActionBarLayout.getView().setVisibility(View.VISIBLE);
             }
             NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.passcodeDismissed, view);
+            if (org.telegram.messenger.PengramCrashReport.hasPending()) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(this);
+                    }
+                }, 350);
+            }
             try {
                 NotificationsController.getInstance(UserConfig.selectedAccount).showNotifications();
             } catch (Exception e) {
@@ -1498,6 +1522,21 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     public boolean allowShowFingerprintDialog(PasscodeView passcodeView) {
         return overlayPasscodeViews.isEmpty() && this.passcodeDialog != null ? passcodeView == this.passcodeDialog.passcodeView : overlayPasscodeViews.get(overlayPasscodeViews.size() - 1) == passcodeView;
+    }
+
+    /** .pen, пришедший снаружи: распознаём по имени и предлагаем применить */
+    private boolean pengramHandleBackupIntent(Uri data) {
+        if (data == null) {
+            return false;
+        }
+        try {
+            if (!org.telegram.ui.Components.PengramBackupOpener.looksLikePenUri(data)) {
+                return false;
+            }
+            return org.telegram.ui.Components.PengramBackupOpener.tryOpen(this, null, data);
+        } catch (Throwable ignore) {
+            return false;
+        }
     }
 
     private boolean handleIntent(Intent intent, boolean isNew, boolean restore, boolean fromPassword) {
@@ -1883,6 +1922,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     }
                 } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
                     Uri data = intent.getData();
+
+                    // Pengram: файл настроек .pen, открытый извне (файловый менеджер,
+                    // «Открыть с помощью»), применяется прямо здесь
+                    if (pengramHandleBackupIntent(data)) {
+                        return true;
+                    }
 
                     final LinkManager linkManager = new LinkManager(this, intentAccount[0], progress, openedTelegram);
                     if (linkManager.handle(data)) {
@@ -3068,7 +3113,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             } else if (showPlayer) {
                 if (!actionBarLayout.getFragmentStack().isEmpty()) {
                     BaseFragment fragment = actionBarLayout.getFragmentStack().get(0);
-                    fragment.showDialog(new AudioPlayerAlert(this, null));
+                    fragment.showDialog(org.telegram.ui.Components.PengramMusicPlayerSheet.create(this, null));
                 }
                 pushOpened = false;
             } else if (showLocations) {
@@ -3358,7 +3403,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             if (fragment != null) {
                 Bulletin.make(fragment, layout, duration).show();
                 try {
-                    fragment.fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragment.fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {}
             }
         });
@@ -6638,6 +6683,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+        if (GramWalletStorageAuth.onActivityResult(this, requestCode, resultCode)) return;
         if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
                 VoIPService service = VoIPService.getSharedInstance();
@@ -6792,6 +6838,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     @Override
     protected void onStop() {
         super.onStop();
+        GramWalletStorageAuth.onActivityStopped(this);
         isStarted = false;
         pipActivityHandler.onStop();
         Browser.unbindCustomTabsService(this);
@@ -6852,6 +6899,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
     @Override
     protected void onDestroy() {
+        GramWalletStorageAuth.onActivityDestroyed(this);
         isActive = false;
         activeInstanceCount--;
         unregisterReceiver(batteryReceiver);
@@ -6986,6 +7034,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         checkFreeDiscSpace(0);
         MediaController.checkGallery();
         onPasscodeResume();
+        // Recover native audio/JNI exits (Java's uncaught handler cannot see
+        // SIGABRT/SIGSEGV) before checking for a pending report.
+        org.telegram.messenger.PengramCrashReport.install();
+        org.telegram.messenger.PengramCrashReport.recoverNativeCrashIfAny();
+        if (org.telegram.messenger.PengramCrashReport.hasPending()
+                && (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE)) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    org.telegram.ui.Components.PengramCrashDialogs.showPendingIfNeeded(LaunchActivity.this);
+                }
+            }, 900);
+        }
         if (passcodeDialog == null || passcodeDialog.passcodeView.getVisibility() != View.VISIBLE) {
             actionBarLayout.onResume();
             if (AndroidUtilities.isTablet()) {
@@ -7677,6 +7737,9 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 ForumUtilities.switchAllFragmentsInStackToForum(chatId, actionBarLayout);
             }
         } else if (id == NotificationCenter.tlSchemeParseException) {
+            if (BuildConfig.DEBUG_PRIVATE_VERSION) {
+                return;
+            }
             if (tlErrorAlertDialog == null) {
                 final TLParseException error = (TLParseException) args[0];
 
@@ -8212,14 +8275,24 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             title = "Updating";
             titleId = R.string.Updating;
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
-            title = "ConnectingToProxyWithDots";
-            titleId = R.string.ConnectingToProxyWithDots;
+            if (org.telegram.messenger.PengramBypass.isTunnelActive()) {
+                // идёт не «подключение к прокси», а переподключение обхода
+                title = "PengramBypassConnectingDots";
+                titleId = R.string.PengramBypassConnectingDots;
+            } else {
+                title = "ConnectingToProxyWithDots";
+                titleId = R.string.ConnectingToProxyWithDots;
+            }
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting) {
             title = "Connecting";
             titleId = R.string.Connecting;
         }
         if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting || currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
             action = () -> {
+                if (org.telegram.messenger.PengramBypass.isTunnelActive()) {
+                    presentFragment(new PengramBypassActivity());
+                    return;
+                }
                 BaseFragment lastFragment = null;
                 if (AndroidUtilities.isTablet()) {
                     if (!layerFragmentsStack.isEmpty()) {

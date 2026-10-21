@@ -16,9 +16,9 @@
 package org.telegram.messenger.audioinfo.mp3;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 
 import org.telegram.messenger.audioinfo.AudioInfo;
+import org.telegram.messenger.audioinfo.CoverDecode;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -127,28 +127,17 @@ public class ID3v2Info extends AudioInfo {
 		switch (frame.getFrameHeader().getFrameId()) {
 			case "PIC":
 			case "APIC": // cover: prefer TYPE_COVER_FRONT, then TYPE_OTHER, then anything else
+                if (frame.getRemainingLength() > CoverDecode.MAX_COMPRESSED_BYTES) break;
 				if (cover == null || coverPictureType != AttachedPicture.TYPE_COVER_FRONT) {
 					AttachedPicture picture = parseAttachedPictureFrame(frame);
 					if (cover == null || picture.type == AttachedPicture.TYPE_COVER_FRONT || picture.type == AttachedPicture.TYPE_OTHER) {
 						try {
 							byte[] bytes = picture.imageData;
-                            BitmapFactory.Options opts = new BitmapFactory.Options();
-                            opts.inJustDecodeBounds = true;
-                            opts.inSampleSize = 1;
-                            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
-                            if (opts.outWidth > 800 || opts.outHeight > 800) {
-                                int size = Math.max(opts.outWidth, opts.outHeight);
-                                while (size > 800) {
-                                    opts.inSampleSize *= 2;
-                                    size /= 2;
-                                }
-                            }
-                            opts.inJustDecodeBounds = false;
-                            cover = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
+                            cover = CoverDecode.decode(bytes);
                             if (cover != null) {
                                 float scale = Math.max(cover.getWidth(), cover.getHeight()) / 120.0f;
-                                if (scale > 0) {
-                                    smallCover = Bitmap.createScaledBitmap(cover, (int) (cover.getWidth() / scale), (int) (cover.getHeight() / scale), true);
+                                if (scale > 1f) {
+                                    smallCover = Bitmap.createScaledBitmap(cover, Math.max(1, (int) (cover.getWidth() / scale)), Math.max(1, (int) (cover.getHeight() / scale)), true);
                                 } else {
                                     smallCover = cover;
                                 }

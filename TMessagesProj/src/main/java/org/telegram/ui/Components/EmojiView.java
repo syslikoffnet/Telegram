@@ -2635,7 +2635,7 @@ public class EmojiView extends FrameLayout implements
                     if (!backspaceOnce) {
                         if (delegate != null && delegate.onBackspace()) {
                             try {
-                                backspaceButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) backspaceButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             } catch (Exception ignore) {}
                         }
                     }
@@ -3058,7 +3058,7 @@ public class EmojiView extends FrameLayout implements
                             emojiTouchedView.setImageDrawable(Emoji.getEmojiBigDrawable(code), emojiTouchedView.isRecent);
                             sendEmoji(emojiTouchedView, null);
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                             } catch (Exception ignore) {}
 
                             Emoji.saveEmojiColors();
@@ -3604,13 +3604,13 @@ public class EmojiView extends FrameLayout implements
                             ImageViewEmoji viewEmoji = (ImageViewEmoji) view;
                             sendEmoji(viewEmoji, null);
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                             } catch (Exception ignore) {}
                         } else if (view instanceof EmojiPackExpand) {
                             EmojiPackExpand button = (EmojiPackExpand) view;
                             emojiAdapter.expand(position, button);
                             try {
-                                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                             } catch (Exception ignore) {}
                         } else if (view != null) {
                             view.callOnClick();
@@ -5567,7 +5567,7 @@ public class EmojiView extends FrameLayout implements
             }
             if (delegate != null && delegate.onBackspace()) {
                 try {
-                    backspaceButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) backspaceButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 } catch (Exception ignore) {}
             }
             backspaceOnce = true;

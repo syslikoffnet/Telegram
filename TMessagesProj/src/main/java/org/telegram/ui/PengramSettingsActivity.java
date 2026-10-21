@@ -4,6 +4,7 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.os.Bundle;
 import android.graphics.Typeface;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
@@ -11,32 +12,61 @@ import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.text.TextPaint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.EditText;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.ChatObject;
+import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.PengramAntiCrash;
+import org.telegram.messenger.LiteMode;
+import org.telegram.messenger.MediaController;
+import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramLyrics;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.PengramHistory;
+import org.telegram.messenger.PengramTextStyle;
 import org.telegram.messenger.PengramVoiceChanger;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.ActionBarMenu;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
+import org.telegram.ui.Cells.TextCheckCell2;
+import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.IconBackgroundColors;
+import org.telegram.ui.Components.ItemOptions;
+import org.telegram.ui.Components.SwipeGestureSettingsView;
+import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Cells.TextDetailCell;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.PengramMessageIslandView;
+import org.telegram.ui.Components.PengramPenguinView;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
 import org.telegram.ui.Components.UniversalFragment;
@@ -60,6 +90,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_ID_ROW_DC = 202;
     private static final int BTN_ID_INLINE = 203;
     private static final int BTN_ID_COPY = 210;
+    private static final int BTN_ID_FORMAT_PICK = 211;
+    private static final int BTN_ID_PLACEMENT_PICK = 212;
 
     private static final int BTN_REG_OFF = 300;
     private static final int BTN_REG_DATE = 301;
@@ -67,10 +99,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private static final int BTN_HIST_DELETED = 400;
     private static final int BTN_HIST_EDITED = 401;
+    private static final int BTN_HIST_EDITED_MEDIA = 408;
     private static final int BTN_HIST_OUTGOING = 402;
     private static final int BTN_HIST_PROFILE = 403;
     private static final int BTN_HIST_OPEN = 404;
     private static final int BTN_HIST_CLEAR = 405;
+    private static final int BTN_PROFILE_HISTORY = 406;
 
     private static final int BTN_MEDIA_SAVE = 450;
     private static final int BTN_MEDIA_FOLDER = 451;
@@ -82,13 +116,37 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_KEEP_ONCE = 503;
     private static final int BTN_ADS = 510;
     private static final int BTN_LOCAL_PREMIUM = 520;
-    private static final int BTN_FONT_DEFAULT = 530;
-    private static final int BTN_FONT_SYSTEM = 531;
-    private static final int BTN_FONT_SERIF = 532;
-    private static final int BTN_FONT_MONO = 533;
+    private static final int BTN_FONT_PICK = 530;
+    private static final int BTN_SHARE_PHONE_MODE = 535;
+    private static final int BTN_EMPTY_COVER = 536;
+    private static final int BTN_PLAYER_ACCENT = 537;
+    private static final int BTN_PLAYER_BEAT = 538;
     private static final int BTN_CHAT_MENU = 540;
     private static final int BTN_CHAT_MENU_TOP = 541;
     private static final int BTN_CHAT_MENU_BOTTOM = 542;
+    private static final int BTN_SENDER_AVATAR_POSITION = 547;
+    private static final int BTN_INPUT_ANIMATION = 548;
+    private static final int BTN_INPUT_ANIMATION_SPEED = 549;
+    private static final int BTN_INPUT_ANIMATION_INTENSITY = 550;
+    private static final int BTN_TYPING_DELETE_STYLE = 552;
+    private static final int BTN_TYPING_STATS_CLEAR = 553;
+    private static final int BTN_NOTIFICATION_ICON = 554;
+    private static final int[] notificationIconNames = {
+            R.string.PengramNotifyPlane, R.string.PengramNotifyPenguin,
+            R.string.PengramNotifyBubble, R.string.PengramNotifyBell, R.string.PengramNotifyStar
+    };
+    private static final int BTN_QUICK_ADD = 543;
+    private static final int BTN_QUICK_ACTION_BASE = 560;
+
+    private static final int BTN_ID_FORMAT_HIDE = 220;
+    private static final int BTN_ID_FORMAT_TELEGRAM = 221;
+    private static final int BTN_ID_FORMAT_BOT = 222;
+
+    private static final int BTN_LINK_CHANNEL = 1500;
+    private static final int BTN_LINK_AUTHOR = 1501;
+
+    public static final String LINK_CHANNEL = "mishadox";
+    public static final String LINK_AUTHOR = "handsgod";
 
     public static final int SECTION_ROOT = 0;
     public static final int SECTION_PROFILE = 1;
@@ -98,6 +156,19 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_CHATS = 5;
     public static final int SECTION_FREEDOM = 6;
     public static final int SECTION_MEDIA = 7;
+    public static final int SECTION_GENERAL = 8;
+    public static final int SECTION_CUSTOM = 9;
+    public static final int SECTION_PENGUIN = 10;
+    public static final int SECTION_PLAYER = 11;
+    public static final int SECTION_CHAT_ACTIONS = 12;
+    public static final int SECTION_CHAT_MESSAGES = 13;
+    public static final int SECTION_CHAT_INTERFACE = 14;
+    public static final int SECTION_CHAT_MENUS = 15;
+    public static final int SECTION_ABOUT = 16;
+    public static final int SECTION_AI = 17;
+    public static final int SECTION_LYRICS = 18;
+    public static final int SECTION_TYPING = 19;
+    public static final int SECTION_QUOTES = 20;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -106,11 +177,58 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SECTION_CHATS = 1005;
     private static final int BTN_SECTION_FREEDOM = 1006;
     private static final int BTN_SECTION_MEDIA = 1007;
+    private static final int BTN_SECTION_GENERAL = 1008;
+    private static final int BTN_SECTION_CUSTOM = 1009;
+    private static final int BTN_SECTION_PLAYER = 1011;
+    private static final int BTN_SECTION_CHAT_ACTIONS = 1012;
+    private static final int BTN_SECTION_CHAT_MESSAGES = 1013;
+    private static final int BTN_SECTION_CHAT_INTERFACE = 1014;
+    private static final int BTN_SECTION_CHAT_MENUS = 1015;
+    private static final int BTN_SECTION_AI = 1016;
+    private static final int BTN_SECTION_LYRICS = 1017;
+
+    // AI: сервисы, роли и поведение ответа
+    private static final int BTN_ORIGINAL_NAME = 1710;
+    private static final int BTN_MONET_STRENGTH = 1720;
+    private static final int BTN_AI_ADD_SERVICE = 1700;
+    private static final int BTN_AI_ADD_ROLE = 1701;
+    private static final int BTN_AI_STREAM = 1702;
+    private static final int BTN_AI_ONLY_ANSWER = 1703;
+    private static final int BTN_AI_AS_QUOTE = 1704;
+    private static final int BTN_AI_HISTORY = 1705;
+    private static final int BTN_AI_DEPTH = 1706;
+    private static final int BTN_AI_RESET = 1707;
+    private static final int BTN_AI_EDIT_SERVICE = 1708;
+    private static final int BTN_AI_EDIT_ROLE = 1709;
+    private static final int BTN_AI_SERVICES_EXPAND = 1744;
+    private static final int BTN_AI_ROLES_EXPAND = 1745;
+    private static final int BTN_AI_MANUAL_INFO = 1746;
+    private static final int BTN_AI_AUTO_MASTER = 1731;
+    private static final int BTN_AI_AUTO_STYLE = 1732;
+    private static final int BTN_AI_AUTO_ADD = 1733;
+    private static final int BTN_AI_AUTO_QUIET = 1734;
+    private static final int BTN_AI_AUTO_COOLDOWN = 1735;
+    private static final int BTN_AI_AUTO_REFRESH = 1736;
+    private static final int BTN_AI_AUTO_JUMP = 1737;
+    private static final int BTN_AI_AUTO_CONTEXT = 1738;
+    private static final int BTN_AI_AUTO_SPAM_COUNT = 1739;
+    private static final int BTN_AI_AUTO_SPAM_PAUSE = 1740;
+    private static final int BTN_AI_AUTO_CONTEXT_LIMIT = 1741;
+    private static final int BTN_AI_AUTO_ADVANCED = 1742;
+    private static final int BTN_AI_AUTO_INFO = 1743;
+    private static final int BTN_AI_AUTO_RULE_BASE = 9700;
+    /** строки сервисов и ролей: к базе прибавляется номер в списке */
+    private static final int BTN_AI_SERVICE_BASE = 9000;
+    private static final int BTN_AI_ROLE_BASE = 9500;
 
     private static final int BTN_BOOST_OFF = 1300;
     private static final int BTN_BOOST_FAST = 1301;
     private static final int BTN_BOOST_EXTREME = 1302;
     private static final int BTN_VOICE_BASE = 1310; // + режим
+    private static final int BTN_VOICE_GAIN_PRESET = 1330;
+    private static final int BTN_VOICE_GAIN_MAXIMUM = 1333;
+    private static final int BTN_VOICE_PROFILE_COPY = 1331;
+    private static final int BTN_VOICE_PROFILE_IMPORT = 1332;
 
     private static final int BTN_HIDE_PHONE = 1100;
     private static final int BTN_SAVE_IN_BOTS = 1101;
@@ -131,6 +249,136 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_HIDE_CHAT_REPORT = 1215;
     private static final int BTN_HIDE_CHAT_CALL = 1216;
     private static final int BTN_HIDE_CHAT_AUTODELETE = 1217;
+    private static final int BTN_HIDE_CHAT_SHARE_NUMBER = 1218;
+
+    private static final int BTN_DELETED_MARK = 1400;
+    private static final int BTN_OPEN_DELETED_CHAT = 1401;
+    private static final int BTN_OPEN_EDITED_CHAT = 1402;
+    private static final int BTN_EDITED_MARK = 1403;
+    private static final int BTN_KEEP_DAYS = 1404;
+    private static final int BTN_OPEN_BY_ID = 1405;
+    private static final int BTN_CFG_EXPORT = 1406;
+    private static final int BTN_CFG_IMPORT = 1407;
+    private static final int BTN_CFG_RESET = 1408;
+    private static final int BTN_SEND_STYLE = 1409;
+    private static final int BTN_REG_STYLE_PICK = 1410;
+    private static final int BTN_REG_PLACE = 1411;
+    private static final int BTN_REG_ICON = 1412;
+    private static final int BTN_PARTICLE_MODE = 1460;
+    private static final int BTN_TITLE_MODE = 1413;
+    private static final int BTN_TITLE_CUSTOM = 1414;
+    private static final int BTN_TABBAR_SIZE = 1415;
+    private static final int BTN_MENU_ITEMS = 1416;
+    private static final int BTN_SETTINGS_ITEMS = 1417;
+    private static final int BTN_FONT_SIZE = 1419;
+    private static final int BTN_BUBBLE_RADIUS = 1420;
+    private static final int BTN_SWIPE_ACTION = 1421;
+    private static final int BTN_CHAT_ITEMS = 1418;
+    private static final int BTN_PENGUIN_SKIN = 1422;
+    private static final int BTN_FIND_BY_ID = 1423;
+    private static final int BTN_SELECTION_LIMIT = 1424;
+    private static final int BTN_AVATAR_POS = 1425;
+    private static final int BTN_LYRICS_ANIM = 1426;
+    private static final int BTN_LYRICS_ALIGN = 1427;
+    private static final int BTN_PLAYER_BG = 1428;
+    private static final int BTN_COVER_SHAPE = 1429;
+    private static final int BTN_LYRICS_CLEAR = 1430;
+    private static final int BTN_PLAYER_STYLE = 1431;
+    private static final int BTN_TRACK_FORWARD_MODE = 1446;
+    private static final int BTN_TRACK_CARD_FORMAT = 1447;
+    private static final int BTN_QUICK_TILES = 1450;
+    private static final int BTN_TABLET_MODE = 1451;
+    private static final int BTN_SPY_ACCOUNT = 1452;
+    private static final int BTN_SPY_PROFILE = 1453;
+    private static final int BTN_CHAT_LOOK = 1432;
+    private static final int BTN_CONSTRUCTOR = 1433;
+    private static final int BTN_VISUAL_EDITOR = 1502;
+    private static final int BTN_HEADER_LYRICS_ANIM = 1434;
+    private static final int BTN_LYRICS_SOURCE = 1435;
+
+    // время поверх медиа (стикеры / кружки / фото)
+    private static final int BTN_MEDIA_TIME_DEFAULT = 1440;
+    private static final int BTN_MEDIA_TIME_STICKERS = 1441;
+    private static final int BTN_MEDIA_TIME_MEDIA = 1442;
+    /** экран выбора анимации удаления */
+    private static final int BTN_DELETE_EFFECT = 1490;
+    /** экран обхода блокировок */
+    private static final int BTN_BYPASS = 1491;
+    private static final int BTN_ANTICRASH_STATS = 1492;
+    private static final int BTN_ANTICRASH_LOG = 1493;
+    private static final int BTN_CRASH_REPORTS = 1494;
+    private static final int BTN_CRASH_AUTOCOPY = 1495;
+    private static final int BTN_SECTION_ABOUT = 1496;
+    private static final int BTN_ABOUT_COPY = 1497;
+    private static final int BTN_RESET_SECTION = 1498;
+    private static final int BTN_RESET_ALL = 1499;
+    private static final int BTN_HIST_MAX = 407;
+    /** строки выбора скина пингвина: BTN_SKIN_BASE + номер скина */
+    private static final int BTN_SKIN_BASE = 1600;
+    private static final int BTN_SEARCH = 1447;
+    /** строки результатов поиска: BTN_SEARCH_BASE + номер в списке найденного */
+    private static final int BTN_SEARCH_BASE = 7000;
+    /** недавние запросы в поиске по настройкам — как история поиска в Telegram */
+    private static final int BTN_SEARCH_HISTORY_BASE = 7400;
+    private static final int BTN_SEARCH_HISTORY_CLEAR = 7500;
+    private static final int SEARCH_HISTORY_LIMIT = 8;
+    private static final int BTN_PENGUIN_FLIP = 1443;
+    private static final int BTN_PENGUIN_DANCE = 1444;
+    private static final int BTN_PENGUIN_STRAIGHTEN = 1445;
+    /** переключатели «чужих» настроек Telegram и LiteMode */
+    private static final int BTN_EXTRA_BASE = 4000;
+    private static final int BTN_GENERIC_BASE = 2000;
+
+    /** раскрывающиеся блоки: id кнопки «Показать ещё» = BTN_COLLAPSE_BASE + группа */
+    private static final int BTN_COLLAPSE_BASE = 3000;
+    private static final int BTN_SECTION_TYPING = 1018;
+    private static final int BTN_SECTION_QUOTES = 1019;
+    private static final int BTN_QUOTE_STYLE = 1020;
+    private static final int BTN_QUOTE_BACKGROUND = 1021;
+    private static final int BTN_QUOTE_COLOR = 1022;
+    private static final int BTN_QUOTE_SCALE = 1023;
+    private static final int BTN_QUOTE_FAKE_NAME = 1024;
+    private static final int BTN_QUOTE_WATERMARK_TEXT = 1025;
+    private static final int BTN_QUOTE_WATERMARK_POS = 1026;
+    private static final int BTN_QUOTE_LOGO = 1027;
+    private static final int BTN_QUOTE_LOGO_CLEAR = 1028;
+    private static final int BTN_QUOTE_ACTION_MODE = 1029;
+    private static final int BTN_QUOTE_RESET_APPEARANCE = 1030;
+    private static final int BTN_MESSAGE_ISLAND_ITEMS = 1031;
+    private static final int BTN_MESSAGE_ISLAND_POSITION = 1032;
+    private static final int BTN_MESSAGE_ISLAND_TINT = 1033;
+    /** подмена имени устройства: выбор модели, случайная, «применить» */
+    private static final int BTN_DEVICE_MODEL = 1034;
+    private static final int BTN_DEVICE_RANDOM = 1035;
+    private static final int BTN_DEVICE_APPLY = 1036;
+    private static final int BTN_DEVICE_VERSION = 1037;
+    private static final int BTN_MENTION_ALL_MODE = 1038;
+    private static final int BTN_MENTION_ALL_LIMIT = 1039;
+    private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
+    private static final int BTN_MENTION_ALL_STYLE = 1050;
+    private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
+    private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
+    private static final int GROUP_VOICE = 1;
+    private static final int GROUP_MENU_MAIN = 2;
+    private static final int GROUP_MENU_CHAT = 3;
+    private static final int GROUP_HISTORY_MEDIA = 4;
+    private static final int GROUP_EFFECTS = 5;
+    private static final int GROUP_MD3 = 6;
+    private static final int GROUP_MONET = 7;
+    private static final int GROUP_SNOW = 8;
+    private static final int GROUP_TEXT = 9;
+    private static final int GROUP_SPY_ADVANCED = 10;
+    private static final int GROUP_PROFILE_ID = 11;
+    private static final int GROUP_GLASS = 12;
+
+    /** ключ состояния раскрытого блока (состояние переживает выход с экрана) */
+    private static String expandedKey(int group) {
+        return "uiExpandedGroup_" + group;
+    }
+
+    private final java.util.HashMap<String, Integer> boolIds = new java.util.HashMap<>();
+    private final ArrayList<String> boolKeys = new ArrayList<>();
+    private final ArrayList<Boolean> boolDefaults = new ArrayList<>();
 
     private final int section;
 
@@ -139,61 +387,2609 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     public PengramSettingsActivity(int section) {
+        this(section, 0);
+    }
+
+    /**
+     * Pengram: открыть раздел и показать в нём конкретную настройку.
+     *
+     * Так работает переход из поиска: человек нашёл функцию — и попадает прямо
+     * к ней, где бы она ни лежала, а строка на пару секунд подсвечивается,
+     * чтобы её не пришлось выискивать глазами.
+     */
+    public PengramSettingsActivity(int section, int highlightRes) {
+        this(section, highlightRes, 0);
+    }
+
+    public PengramSettingsActivity(int section, int highlightRes, int groupRes) {
         super();
         this.section = section;
+        this.highlightRes = highlightRes;
+        this.searchFallbackRes = groupRes;
+        this.searchRevealGroups = highlightRes != 0;
     }
+
+    /** строка, к которой нужно прокрутить сразу после открытия раздела */
+    private final int highlightRes;
+    private int searchFallbackRes;
+    private boolean searchRevealGroups;
 
     private static final int[] MEDIA_LIMITS = new int[]{0, 1024, 2048, 4096, 8192, 16384, 32768, 65536};
 
+    private PengramHeaderView headerView;
+    /** шапка корня: тот же пингвин, но компактной карточкой */
+    private PengramHeaderView headerViewCompact;
+    /** UI-only disclosure state. Reopening the section always starts compact. */
+    private boolean ghostExpanded;
+    /** -1 edits the shared defaults, otherwise edits an account override. */
+    private int spySelectedAccount = -1;
+    private final java.util.HashSet<Integer> temporaryExpanded = new java.util.HashSet<>();
     private ProfilePreviewView previewView;
     private VoicePreviewView voicePreview;
+    private org.telegram.ui.Components.PengramVoicePickerView voicePicker;
+    private org.telegram.ui.Components.PengramMessagePreviewView previewMessages;
+    private FrameLayout islandPreviewRow;
+    private PengramMessageIslandView islandPreview;
+    private boolean islandPreviewMd3;
+    private boolean islandPreviewCompact;
+    private boolean islandPreviewLabels;
+    private org.telegram.ui.Cells.AppIconsSelectorCell appIconsCell;
 
     @Override
     protected CharSequence getTitle() {
+        return sectionTitle(section);
+    }
+
+    /**
+     * Ряд быстрых плиток над разделами.
+     *
+     * <p>По умолчанию его нет вовсе: четыре разноцветных квадрата на главном экране
+     * выглядели случайным набором. Теперь пользователь сам собирает ряд в
+     * «Внешний вид → Плитки на главном» — показываем только то, что он выбрал,
+     * в постоянном порядке. Долгое нажатие по ряду открывает тот же выбор.
+     */
+    private org.telegram.ui.Components.PengramQuickToggles quickTogglesView;
+
+    private CharSequence quickTileName(int tile) {
+        switch (tile) {
+            case PengramConfig.QUICK_TILE_DELETED: return getString(R.string.PengramQuickSpy);
+            case PengramConfig.QUICK_TILE_ADS: return getString(R.string.PengramQuickAds);
+            case PengramConfig.QUICK_TILE_PREMIUM: return getString(R.string.PengramQuickPremium);
+            case PengramConfig.QUICK_TILE_GHOST:
+            default: return getString(R.string.PengramQuickGhost);
+        }
+    }
+
+    private org.telegram.ui.Components.PengramQuickToggles quickToggles() {
+        final Runnable refresh = () -> {
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        };
+        if (quickTogglesView == null) {
+            quickTogglesView = new org.telegram.ui.Components.PengramQuickToggles(getContext());
+            quickTogglesView.setOnLongClickListener(v -> {
+                showQuickTilesPicker();
+                return true;
+            });
+        }
+        quickTogglesView.clear();
+        for (int tile = 0; tile < PengramConfig.QUICK_TILE_COUNT; ++tile) {
+            if (!PengramConfig.isQuickTileOn(tile)) {
+                continue;
+            }
+            switch (tile) {
+                case PengramConfig.QUICK_TILE_GHOST:
+                    quickTogglesView.add(R.drawable.msg_secret, quickTileName(tile),
+                            IconBackgroundColors.GREEN.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.ghostMode; }
+                                @Override public void toggle() { PengramConfig.toggleGhostMode(); }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_DELETED:
+                    quickTogglesView.add(R.drawable.msg_viewchats, quickTileName(tile),
+                            IconBackgroundColors.RED.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                // читаем через геттер, а не поле: у аккаунта может
+                                // быть собственный профиль настроек, и поле помнит
+                                // только общее значение
+                                @Override public boolean isOn() { return PengramConfig.isSavingDeleted(currentAccount); }
+                                @Override public void toggle() {
+                                    if (PengramConfig.hasSpyProfile(currentAccount)) {
+                                        PengramConfig.setSpyOption(currentAccount, "saveDeleted",
+                                                !PengramConfig.isSavingDeleted(currentAccount));
+                                    } else {
+                                        PengramConfig.toggleSaveDeleted();
+                                    }
+                                    // удалённые сообщения и прозрачность читаются открытыми
+                                    // чатами — обновляем их сразу, без перезахода
+                                    org.telegram.messenger.PengramHistory.notifyMarksChanged();
+                                }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_ADS:
+                    quickTogglesView.add(R.drawable.msg_block, quickTileName(tile),
+                            IconBackgroundColors.ORANGE.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.hideAds; }
+                                @Override public void toggle() { PengramConfig.toggleHideAds(); }
+                            }, refresh);
+                    break;
+                case PengramConfig.QUICK_TILE_PREMIUM:
+                    quickTogglesView.add(R.drawable.msg_premium_liststar, quickTileName(tile),
+                            IconBackgroundColors.PURPLE.bottom,
+                            new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
+                                @Override public boolean isOn() { return PengramConfig.localPremium; }
+                                @Override public void toggle() { PengramConfig.toggleLocalPremium(); }
+                            }, refresh);
+                    break;
+            }
+        }
+        quickTogglesView.update();
+        return quickTogglesView;
+    }
+
+    /** подпись строки «Плитки на главном»: сколько выбрано */
+    private CharSequence quickTilesValue() {
+        final int count = PengramConfig.getQuickTilesCount();
+        return count == 0 ? getString(R.string.PengramQuickTilesNone)
+                : LocaleController.formatString(R.string.PengramQuickTilesCount, count, PengramConfig.QUICK_TILE_COUNT);
+    }
+
+    /** выбор плиток: несколько галочек в одном листе, применяем по кнопке */
+    private void showQuickTilesPicker() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramQuickTiles), true);
+
+        final LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        final boolean[] checks = new boolean[PengramConfig.QUICK_TILE_COUNT];
+        for (int a = 0; a < PengramConfig.QUICK_TILE_COUNT; ++a) {
+            final int index = a;
+            checks[a] = PengramConfig.isQuickTileOn(a);
+            final org.telegram.ui.Cells.CheckBoxCell cell =
+                    new org.telegram.ui.Cells.CheckBoxCell(context, 1, getResourceProvider());
+            cell.setBackground(Theme.getSelectorDrawable(false));
+            cell.setText(quickTileName(a), "", checks[a], false);
+            cell.setPadding(dp(LocaleController.isRTL ? 16 : 8), 0, dp(LocaleController.isRTL ? 8 : 16), 0);
+            cell.setOnClickListener(v -> {
+                // применяем сразу: список под листом перестраивается на глазах,
+                // и видно, как ряд появляется или исчезает
+                checks[index] = !checks[index];
+                ((org.telegram.ui.Cells.CheckBoxCell) v).setChecked(checks[index], true);
+                PengramConfig.setQuickTileOn(index, checks[index]);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+            linearLayout.addView(cell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        builder.setCustomView(linearLayout);
+        showDialog(builder.create());
+    }
+
+    /** карточка-шапка раздела: цветной значок, название и зачем сюда заходить */
+    private org.telegram.ui.Components.PengramSectionHero heroView;
+
+    private void addSectionHero(ArrayList<UItem> items) {
+        // в разделах, которые и так открываются большим превью или шапкой с пингвином,
+        // вторая крупная карточка подряд только мешает
+        if (section == SECTION_ROOT || section == SECTION_PENGUIN
+                || section == SECTION_PROFILE || section == SECTION_CUSTOM
+                || section == SECTION_AI) {
+            return;
+        }
+        final int info = sectionInfo(section);
+        if (info == 0 || getContext() == null) {
+            return;
+        }
+        if (heroView == null) {
+            final IconBackgroundColors colors = sectionColors(section);
+            heroView = new org.telegram.ui.Components.PengramSectionHero(getContext(),
+                    sectionIcon(section), sectionTitle(section), getString(info), colors.top, colors.bottom);
+        }
+        items.add(UItem.asCustom(heroView));
+        items.add(UItem.asShadow(null));
+    }
+
+    /** цвет раздела — тот же, что у его строки в корне настроек */
+    public static IconBackgroundColors sectionColors(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return IconBackgroundColors.GRAY;
+            case SECTION_PROFILE: return IconBackgroundColors.BLUE;
+            case SECTION_APPEARANCE: return IconBackgroundColors.PURPLE;
+            case SECTION_CUSTOM: return IconBackgroundColors.ORANGE;
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS:
+            case SECTION_TYPING:
+            case SECTION_QUOTES: return IconBackgroundColors.BLUE_ALT;
+            case SECTION_GHOST: return IconBackgroundColors.GREEN;
+            case SECTION_HISTORY: return IconBackgroundColors.RED;
+            case SECTION_MEDIA: return IconBackgroundColors.BLUE_DEEP;
+            case SECTION_PLAYER: return IconBackgroundColors.ORANGE_DEEP;
+            case SECTION_PENGUIN: return IconBackgroundColors.BLUE_LIGHT;
+            case SECTION_FREEDOM: return IconBackgroundColors.CYAN;
+            case SECTION_ABOUT: return IconBackgroundColors.BLUE_LIGHT;
+            case SECTION_AI: return IconBackgroundColors.PURPLE;
+            case SECTION_LYRICS: return IconBackgroundColors.ORANGE;
+            default: return IconBackgroundColors.GRAY;
+        }
+    }
+
+    /** одна строка о том, что умеет раздел */
+    public static int sectionInfo(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return R.string.PengramHeroGeneral;
+            case SECTION_PROFILE: return R.string.PengramHeroProfile;
+            case SECTION_APPEARANCE: return R.string.PengramHeroAppearance;
+            case SECTION_CUSTOM: return R.string.PengramHeroCustom;
+            case SECTION_CHATS: return R.string.PengramHeroChats;
+            case SECTION_CHAT_ACTIONS: return R.string.PengramHeroChatActions;
+            case SECTION_CHAT_MESSAGES: return R.string.PengramHeroChatMessages;
+            case SECTION_CHAT_INTERFACE: return R.string.PengramHeroChatInterface;
+            case SECTION_CHAT_MENUS: return R.string.PengramHeroChatMenus;
+            case SECTION_GHOST: return R.string.PengramHeroGhost;
+            case SECTION_HISTORY: return R.string.PengramHeroSpy;
+            case SECTION_MEDIA: return R.string.PengramHeroMedia;
+            case SECTION_PLAYER: return R.string.PengramHeroPlayer;
+            case SECTION_PENGUIN: return R.string.PengramHeroPenguin;
+            case SECTION_FREEDOM: return R.string.PengramHeroFreedom;
+            case SECTION_ABOUT: return R.string.PengramHeroAbout;
+            case SECTION_AI: return R.string.PengramHeroAI;
+            case SECTION_LYRICS: return R.string.PengramHeroLyrics;
+            default: return 0;
+        }
+    }
+
+    /** иконка раздела — та же, что на главном экране настроек */
+    public static int sectionIcon(int section) {
+        switch (section) {
+            case SECTION_GENERAL: return R.drawable.msg_settings;
+            case SECTION_PROFILE: return R.drawable.settings_account;
+            case SECTION_APPEARANCE: return R.drawable.msg_theme;
+            case SECTION_CUSTOM: return R.drawable.msg_customize;
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS: return R.drawable.settings_chat;
+            case SECTION_TYPING: return R.drawable.msg_customize;
+            case SECTION_QUOTES: return R.drawable.msg_copy;
+            case SECTION_GHOST: return R.drawable.msg_secret;
+            case SECTION_HISTORY: return R.drawable.msg_viewchats;
+            case SECTION_MEDIA: return R.drawable.settings_data;
+            case SECTION_PLAYER: return R.drawable.msg_played;
+            case SECTION_PENGUIN: return R.drawable.pengram_penguin_glyph;
+            case SECTION_FREEDOM: return R.drawable.settings_features;
+            case SECTION_ABOUT: return R.drawable.msg_info;
+            case SECTION_AI: return R.drawable.msg_bot;
+            case SECTION_LYRICS: return R.drawable.msg_msgbubble3;
+            default: return R.drawable.msg_settings;
+        }
+    }
+
+    /** название раздела настроек — одно на все экраны и на поиск */
+    public static CharSequence sectionTitle(int section) {
         switch (section) {
             case SECTION_PROFILE: return getString(R.string.PengramSectionProfile);
             case SECTION_GHOST: return getString(R.string.PengramSectionGhost);
-            case SECTION_HISTORY: return getString(R.string.PengramSectionHistory);
+            case SECTION_HISTORY: return getString(R.string.PengramSectionSpy);
             case SECTION_APPEARANCE: return getString(R.string.PengramSectionAppearance);
             case SECTION_CHATS: return getString(R.string.PengramSectionChats);
+            case SECTION_CHAT_ACTIONS: return getString(R.string.PengramSubsectionActions);
+            case SECTION_CHAT_MESSAGES: return getString(R.string.PengramSubsectionMessages);
+            case SECTION_TYPING: return getString(R.string.PengramTypingSection);
+            case SECTION_QUOTES: return getString(R.string.PengramQuoteSection);
+            case SECTION_CHAT_INTERFACE: return getString(R.string.PengramSubsectionInterface);
+            case SECTION_CHAT_MENUS: return getString(R.string.PengramSubsectionMenus);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
             case SECTION_MEDIA: return getString(R.string.PengramSectionMedia);
+            case SECTION_GENERAL: return getString(R.string.PengramSectionGeneral);
+            case SECTION_CUSTOM: return getString(R.string.PengramSectionCustom);
+            case SECTION_PENGUIN: return getString(R.string.PengramSectionPenguin);
+            case SECTION_PLAYER: return getString(R.string.PengramSectionPlayer);
+            case SECTION_ABOUT: return getString(R.string.PengramAbout);
+            case SECTION_AI: return getString(R.string.PengramSectionAI);
+            case SECTION_LYRICS: return getString(R.string.PengramLyricsSection);
             default: return getString(R.string.PengramSettings);
         }
+    }
+
+    /** текст в строке поиска; null — поиск закрыт */
+    private String searchQuery;
+    /** поле поиска в шапке: нужно, чтобы подставить запрос из истории */
+    private ActionBarMenuItem searchItem;
+    /** локализованный заголовок → его строковый ресурс: точный прыжок к строке */
+    private java.util.HashMap<String, Integer> searchTitleRes;
+    /** что сейчас показано в выдаче: разделы по номерам строк */
+    private final ArrayList<int[]> searchResults = new ArrayList<>();
+
+    @Override
+    public View createView(Context context) {
+        final View view = super.createView(context);
+        // Поиск прямо внутри настроек Pengram: не нужно помнить, в каком разделе лежит функция.
+        final ActionBarMenu menu = actionBar.createMenu();
+        searchItem = menu.addItem(BTN_SEARCH, R.drawable.outline_header_search)
+                .setIsSearchField(true)
+                .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+                    @Override
+                    public void onSearchExpand() {
+                        searchQuery = "";
+                        updateList();
+                    }
+
+                    @Override
+                    public void onSearchCollapse() {
+                        searchQuery = null;
+                        updateList();
+                    }
+
+                    @Override
+                    public void onTextChanged(EditText editText) {
+                        searchQuery = editText.getText() == null ? "" : editText.getText().toString();
+                        updateList();
+                    }
+
+                    @Override
+                    public void onSearchPressed(EditText editText) {
+                        // Enter — это осознанный запрос: сохраняем его в историю
+                        pengramRememberSearch();
+                    }
+                });
+        searchItem.setSearchFieldHint(getString(R.string.Search));
+        searchItem.setContentDescription(getString(R.string.Search));
+        if (highlightRes != 0) {
+            AndroidUtilities.runOnUIThread(() -> pengramJumpTo(highlightRes), 120);
+        }
+        return view;
+    }
+
+    /** прокрутить список к строке с таким заголовком и подсветить её */
+    private void pengramJumpTo(int stringRes) {
+        pengramJumpTo(stringRes, 0);
+    }
+
+    /**
+     * tries — сколько раз уже ждали, пока список наполнится. Сразу после
+     * открытия раздела адаптер бывает пустым, и переход «в никуда» как раз
+     * выглядел как «открылось не то, что выбрал».
+     */
+    private void pengramJumpTo(int stringRes, int tries) {
+        if (stringRes == 0) {
+            return;
+        }
+        if (listView == null || listView.adapter == null) {
+            if (tries < 12) {
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(stringRes, tries + 1), 60);
+            }
+            return;
+        }
+        final CharSequence target = getString(stringRes);
+        if (TextUtils.isEmpty(target)) {
+            return;
+        }
+        int position = -1;
+        for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+            final UItem item = listView.adapter.getItem(i);
+            if (item != null && item.object instanceof Integer && (Integer) item.object == stringRes) {
+                position = i;
+                break;
+            }
+        }
+        if (position < 0) {
+            // Запасной путь — по тексту: только кликабельные строки, а не заголовки.
+            for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+                final UItem item = listView.adapter.getItem(i);
+                if (item != null && item.id != 0 && item.text != null && TextUtils.equals(target, item.text)) {
+                    position = i;
+                    break;
+                }
+            }
+        }
+        if (position < 0) {
+            // Совсем безымянные строки (слайдеры) ищутся по заголовку группы:
+            // подсветить сам слайдер нечем, но экран уже прокручен к нему.
+            for (int i = 0; i < listView.adapter.getItemCount(); ++i) {
+                final UItem item = listView.adapter.getItem(i);
+                if (item != null && item.text != null && TextUtils.equals(target, item.text)) {
+                    position = i;
+                    break;
+                }
+            }
+        }
+        if (position < 0) {
+            // Раздел мог ещё не построить строки — ждём и пробуем снова.
+            if (tries < 12 && listView.adapter.getItemCount() < 3) {
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(stringRes, tries + 1), 60);
+                return;
+            }
+            // Строки нет, потому что она появляется только после включения
+            // раздела. Показываем его заголовок и честно объясняем, почему.
+            if (searchFallbackRes != 0 && searchFallbackRes != stringRes) {
+                final int fallback = searchFallbackRes;
+                searchFallbackRes = 0;
+                try {
+                    org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            org.telegram.messenger.LocaleController.formatString(
+                                    R.string.PengramSearchParentOff, getString(fallback))).show();
+                } catch (Throwable ignore) {
+                }
+                pengramJumpTo(fallback, tries);
+            }
+            return;
+        }
+        final int found = position;
+        if (listView.getLayoutManager() instanceof LinearLayoutManager) {
+            ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(found, AndroidUtilities.dp(96));
+        }
+        // подсветка включается после прокрутки — иначе ячейки ещё нет на экране
+        AndroidUtilities.runOnUIThread(() -> {
+            if (listView != null) {
+                listView.highlightRow(() -> found, 2000);
+            }
+        }, 180);
+    }
+
+    @Override
+    public boolean onBackPressed(boolean invoked) {
+        if (searchQuery != null && actionBar != null && actionBar.isSearchFieldVisible()) {
+            if (invoked) {
+                actionBar.closeSearchField();
+            }
+            return false;
+        }
+        return super.onBackPressed(invoked);
+    }
+
+    private void updateList() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    /** выдача поиска по всем разделам сразу */
+    private void fillSearch(ArrayList<UItem> items) {
+        searchResults.clear();
+        final String query = searchQuery == null ? "" : searchQuery.trim();
+        if (query.length() == 0) {
+            // Пустое поле — как в Telegram: недавние запросы и подсказка.
+            final ArrayList<String> history = PengramConfig.getSearchHistory();
+            if (!history.isEmpty()) {
+                items.add(UItem.asHeader(getString(R.string.PengramSearchRecent)));
+                for (int i = 0; i < history.size(); i++) {
+                    items.add(UItem.asSettingsCell(BTN_SEARCH_HISTORY_BASE + i,
+                            R.drawable.msg_search, history.get(i)));
+                }
+                items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_delete,
+                        getString(R.string.PengramSearchHistoryClear)).red());
+            }
+            items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
+            return;
+        }
+        final String[] terms = PengramSearchMetadata.queryTerms(query);
+        final ArrayList<int[]> matched = new ArrayList<>();
+        final ArrayList<Integer> scores = new ArrayList<>();
+        for (int[] entry : PengramSearchIndex.ITEMS) {
+            final String title = getString(entry[0]);
+            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) continue;
+            final int score = PengramSearchMetadata.relevance(entry, terms);
+            if (score <= 0) continue;
+            matched.add(entry);
+            scores.add(score);
+        }
+        // Более точные совпадения — выше: заголовок важнее синонимов и описания.
+        final ArrayList<Integer> order = new ArrayList<>();
+        for (int i = 0; i < matched.size(); i++) order.add(i);
+        java.util.Collections.sort(order, (a, b) -> {
+            final int byScore = Integer.compare(scores.get(b), scores.get(a));
+            return byScore != 0 ? byScore : Integer.compare(a, b);
+        });
+        for (int index : order) {
+            final int[] entry = matched.get(index);
+            final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
+                    sectionIcon(entry[1]), getString(entry[0]), PengramSearchMetadata.emphasizedPath(entry, query));
+            result.adaptiveLayout = true; // keep the COMPLETE path legible on narrow screens
+            result.object = entry[0];
+            items.add(result);
+            searchResults.add(entry);
+        }
+        if (searchResults.isEmpty()) {
+            items.add(UItem.asShadow(getString(R.string.NoResult)));
+        } else {
+            items.add(UItem.asShadow(null));
+        }
+    }
+
+    /** запомнить текущий запрос в истории поиска */
+    private void pengramRememberSearch() {
+        final String query = searchQuery == null ? "" : searchQuery.trim();
+        if (query.length() >= 2) {
+            PengramConfig.addSearchHistory(query);
+        }
+    }
+
+    /** подставить запрос из истории в поле поиска */
+    private void pengramApplySearch(String query) {
+        if (query == null || searchItem == null) return;
+        final android.widget.EditText field = searchItem.getSearchField();
+        if (field != null) {
+            field.setText(query);
+            field.setSelection(field.length());
+        }
+        searchQuery = query;
+        updateList();
     }
 
     @Override
     protected void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         PengramConfig.init();
+        if (searchQuery != null) {
+            fillSearch(items);
+            return;
+        }
+        addSectionHero(items);
         switch (section) {
             case SECTION_PROFILE: fillProfile(items); break;
             case SECTION_GHOST: fillGhost(items); break;
             case SECTION_HISTORY: fillHistory(items); break;
             case SECTION_APPEARANCE: fillAppearance(items); break;
             case SECTION_CHATS: fillChats(items); break;
+            case SECTION_CHAT_ACTIONS: fillChatActions(items); break;
+            case SECTION_CHAT_MESSAGES: fillChatMessages(items); break;
+            case SECTION_TYPING: fillTyping(items); break;
+            case SECTION_QUOTES: fillQuotes(items); break;
+            case SECTION_CHAT_INTERFACE: fillChatInterface(items); break;
+            case SECTION_CHAT_MENUS: fillChatMenus(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
             case SECTION_MEDIA: fillMedia(items); break;
+            case SECTION_GENERAL: fillGeneral(items); break;
+            case SECTION_CUSTOM: fillCustom(items, adapter); break;
+            case SECTION_PENGUIN: fillPenguin(items); break;
+            case SECTION_PLAYER: fillPlayer(items); break;
+            case SECTION_ABOUT: fillAbout(items); break;
+            case SECTION_AI: fillAI(items); break;
+            case SECTION_LYRICS: fillLyrics(items); break;
             default: fillRoot(items); break;
+        }
+        addResetRow(items);
+        compactSectionDescriptions(items);
+        for (UItem item : items) {
+            if (item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_SETTINGS
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_CHECKRIPPLE) {
+                item.adaptiveLayout = true;
+            }
+        }
+        pengramTagRows(items);
+    }
+
+    /**
+     * Привязать строки списка к ресурсам их заголовков. Переход из поиска тогда
+     * находит ровно ту строку, которую выбрали, даже если такой же текст есть
+     * в другом месте экрана.
+     */
+    private void pengramTagRows(ArrayList<UItem> items) {
+        if (searchTitleRes == null) {
+            searchTitleRes = new java.util.HashMap<>();
+            for (int[] entry : PengramSearchIndex.ITEMS) {
+                if (entry.length == 0) continue;
+                final String title = getString(entry[0]);
+                if (!TextUtils.isEmpty(title) && !title.startsWith("LOC_ERR")
+                        && !searchTitleRes.containsKey(title)) {
+                    searchTitleRes.put(title, entry[0]);
+                }
+            }
+        }
+        for (UItem item : items) {
+            if (item == null || item.id == 0 || item.object != null || TextUtils.isEmpty(item.text)) {
+                continue;
+            }
+            final Integer res = searchTitleRes.get(item.text.toString());
+            if (res != null) {
+                item.object = res;
+            }
         }
     }
 
-    private void fillRoot(ArrayList<UItem> items) {
-        if (previewView == null) {
-            previewView = new ProfilePreviewView(getContext());
+    /** Compact long explanations without adding another button or an extra dialog. */
+    private static String shortDescription(String text, int max) {
+        if (text.length() <= max) return text;
+        int end = text.lastIndexOf(' ', max);
+        if (end < max / 2) end = max;
+        return text.substring(0, end).trim() + "…";
+    }
+
+    private void compactSectionDescriptions(ArrayList<UItem> items) {
+        if (section == SECTION_ROOT || section == SECTION_ABOUT || section == SECTION_AI) return;
+        for (int i = 0; i < items.size(); i++) {
+            UItem item = items.get(i);
+            if ((item.viewType == UniversalAdapter.VIEW_TYPE_TEXT_CHECK
+                    || item.viewType == UniversalAdapter.VIEW_TYPE_ICON_TEXT_CHECK)
+                    && !TextUtils.isEmpty(item.subtext) && item.subtext.length() > 48) {
+                item.subtext = shortDescription(item.subtext.toString(), 40);
+            }
+            if (item.viewType == UniversalAdapter.VIEW_TYPE_SHADOW
+                    && !TextUtils.isEmpty(item.text) && item.text.length() > 150) {
+                items.set(i, UItem.asShadow(null));
+            }
         }
-        previewView.update();
-        items.add(UItem.asCustom(previewView));
-        items.add(UItem.asShadow(getString(R.string.PengramIdPreviewInfo)));
+    }
 
+    // ------------------------------------------------------------ сброс настроек
 
-        items.add(UItem.asButton(BTN_SECTION_PROFILE, R.drawable.settings_account, getString(R.string.PengramSectionProfile)));
-        items.add(UItem.asButton(BTN_SECTION_GHOST, R.drawable.settings_privacy, getString(R.string.PengramSectionGhost)));
-        items.add(UItem.asButton(BTN_SECTION_HISTORY, R.drawable.msg_viewchats, getString(R.string.PengramSectionHistory)));
-        items.add(UItem.asButton(BTN_SECTION_APPEARANCE, R.drawable.settings_features, getString(R.string.PengramSectionAppearance)));
-        items.add(UItem.asButton(BTN_SECTION_CHATS, R.drawable.settings_chat, getString(R.string.PengramSectionChats)));
-        items.add(UItem.asButton(BTN_SECTION_MEDIA, R.drawable.settings_data, getString(R.string.PengramSectionMedia)));
-        items.add(UItem.asButton(BTN_SECTION_FREEDOM, R.drawable.settings_devices, getString(R.string.PengramSectionFreedom)));
+    /**
+     * Ключи, которые относятся к разделу. Звёздочка на конце — префикс.
+     * Таблица нужна кнопке «сбросить раздел»: она удаляет ровно эти ключи,
+     * а всё остальное (другие разделы, состояние экранов) не трогает.
+     */
+    private static String[] sectionKeys(int section) {
+        switch (section) {
+            case SECTION_PROFILE:
+                return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber", "originalName",
+                        "hideSharePhoneOption", "sharePhoneDefault", "sharePhoneMode", "historyRowInProfile",
+                        "groupAvatarPos", "coverShape", "showAccountsInSettings"};
+            case SECTION_GHOST:
+                return new String[]{"ghost*", "dontSend*", "hideOnline"};
+            case SECTION_HISTORY:
+                return new String[]{"save*", "history*", "keepDeletedInChat", "fadeDeleted", "markEdited",
+                        "deletedMark", "editedMark", "forceDeleteForAll", "resend*", "keepOnceMedia",
+                        "mediaFolder", "mediaPattern", "mediaMaxSizeMb", "mediaToGallery"};
+            case SECTION_APPEARANCE:
+                return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "hideBubbleTail",
+                        "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
+                        "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
+            case SECTION_TYPING:
+                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
+            case SECTION_QUOTES:
+                return new String[]{"quote*"};
+            case SECTION_CHATS:
+            case SECTION_CHAT_ACTIONS:
+            case SECTION_CHAT_MESSAGES:
+            case SECTION_CHAT_INTERFACE:
+            case SECTION_CHAT_MENUS:
+                return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
+                        "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji",
+                        "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
+                        "forward*", "trackForward*"};
+            case SECTION_FREEDOM:
+                return new String[]{"allowForwards", "allowScreenshots", "noScreenshotNotify", "hideAds",
+                        "localPremium*", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle", "antiCrash*"};
+            case SECTION_MEDIA:
+                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "trackForward*"};
+            case SECTION_GENERAL:
+                return new String[]{"noNumberRounding", "timeWithSeconds", "inAppVibration", "zalgoFilter",
+                        "quickAction*"};
+            case SECTION_CUSTOM:
+                return new String[]{"deletedMark", "editedMark", "deleteEffect*", "markEdited",
+                        "fadeDeleted", "keepDeletedInChat"};
+            case SECTION_PENGUIN:
+                return new String[]{"penguin*"};
+            case SECTION_PLAYER:
+                return new String[]{"player*", "newPlayer", "coverShape", "trackForward*", "musicForward*", "musicSmartArtist"};
+            case SECTION_LYRICS:
+                return new String[]{"lyrics*", "headerLyrics*"};
+            default:
+                return null;
+        }
+    }
+
+    /** красная кнопка внизу раздела: вернуть этот раздел к заводским значениям */
+    private void addResetRow(ArrayList<UItem> items) {
+        if (searchQuery != null || section == SECTION_ROOT || section == SECTION_ABOUT) {
+            return;
+        }
+        if (sectionKeys(section) == null) {
+            return;
+        }
+        items.add(UItem.asButton(BTN_RESET_SECTION, R.drawable.msg_reset, getString(R.string.PengramResetSection)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramResetSectionInfo)));
+    }
+
+    /** экран «О программе»: всё, что нужно приложить к баг-репорту */
+    private void fillAbout(ArrayList<UItem> items) {
+        aboutRowIndex = 0;
+        aboutValues.clear();
+        items.add(UItem.asHeader(getString(R.string.PengramAboutBuildHeader)));
+        items.add(aboutRow(R.string.PengramAboutVersion, org.telegram.messenger.PengramVersion.shortLine()));
+        items.add(aboutRow(R.string.PengramAboutBase, org.telegram.messenger.PengramVersion.telegramVersion()));
+        items.add(aboutRow(R.string.PengramAboutPackage, org.telegram.messenger.PengramVersion.packageName()));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAboutDeviceHeader)));
+        items.add(aboutRow(R.string.PengramAboutDevice, org.telegram.messenger.PengramVersion.device()));
+        items.add(aboutRow(R.string.PengramAboutSystem, org.telegram.messenger.PengramVersion.androidVersion()));
+        items.add(aboutRow(R.string.PengramAboutAbi, org.telegram.messenger.PengramVersion.abi()));
+        items.add(UItem.asButton(BTN_ABOUT_COPY, R.drawable.msg_copy, getString(R.string.PengramAboutCopy)));
+        items.add(UItem.asShadow(getString(R.string.PengramAboutCopyInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramResetHeader)));
+        items.add(UItem.asButton(BTN_RESET_ALL, R.drawable.msg_reset, getString(R.string.PengramResetAll)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramResetAllInfo)));
+    }
+
+    /** строки «О программе»: id раздаём по порядку, значение помним для копирования */
+    private static final int BTN_ABOUT_ROW_BASE = 8000;
+    private final android.util.SparseArray<CharSequence> aboutValues = new android.util.SparseArray<>();
+    private int aboutRowIndex;
+
+    /** строка «название — значение», по тапу значение уходит в буфер */
+    private UItem aboutRow(int titleRes, CharSequence value) {
+        final int id = BTN_ABOUT_ROW_BASE + aboutRowIndex++;
+        aboutValues.put(id, value);
+        return UItem.asButton(id, getString(titleRes), value);
+    }
+
+    /** читалка состояния для переключателей чужих настроек */
+    private interface BoolGetter {
+        boolean get();
+    }
+
+    private final android.util.SparseArray<BoolGetter> extraGetters = new android.util.SparseArray<>();
+    private final android.util.SparseArray<Runnable> extraToggles = new android.util.SparseArray<>();
+
+    /** переключатель настройки Telegram (не Pengram) */
+    private UItem tgCheck(int id, CharSequence text, BoolGetter getter, Runnable toggle) {
+        extraGetters.put(id, getter);
+        extraToggles.put(id, toggle);
+        return UItem.asCheck(id, text).setChecked(getter.get());
+    }
+
+    /** переключатель настройки Telegram с подписью */
+    private UItem tgCheckInfo(int id, CharSequence text, CharSequence subtext, BoolGetter getter, Runnable toggle) {
+        extraGetters.put(id, getter);
+        extraToggles.put(id, toggle);
+        return UItem.asButtonCheck(id, text, subtext).setChecked(getter.get());
+    }
+
+    /** переключатель флага «экономии» LiteMode */
+    private UItem liteCheck(int id, int flag, CharSequence text) {
+        return tgCheck(id, text, () -> LiteMode.isEnabled(flag), () -> LiteMode.toggleFlag(flag));
+    }
+
+    /** системные эмодзи вместо телеграмных */
+    private void toggleSystemEmoji() {
+        SharedConfig.useSystemEmoji = !SharedConfig.useSystemEmoji;
+        try {
+            ApplicationLoader.applicationContext
+                    .getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
+                    .edit().putBoolean("useSystemEmoji", SharedConfig.useSystemEmoji).apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** плавные анимации интерфейса */
+    private void toggleInterfaceAnimations() {
+        final boolean enabled = SharedConfig.animationsEnabled();
+        SharedConfig.setAnimationsEnabled(!enabled);
+        try {
+            MessagesController.getGlobalMainSettings().edit().putBoolean("view_animations", !enabled).apply();
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** применить размер шрифта сообщений */
+    private void applyFontSize(int size) {
+        SharedConfig.fontSize = size;
+        SharedConfig.fontSizeIsDefault = false;
+        try {
+            ApplicationLoader.applicationContext
+                    .getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
+                    .edit().putInt("fons_size", size).commit();
+            Theme.createCommonMessageResources();
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** применить радиус углов пузырей */
+    private void applyBubbleRadius(int radius) {
+        SharedConfig.bubbleRadius = radius;
+        try {
+            MessagesController.getGlobalMainSettings().edit().putInt("bubbleRadius", radius).commit();
+            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /** название действия свайпа в списке чатов */
+    private CharSequence swipeActionName(int action) {
+        switch (action) {
+            case SwipeGestureSettingsView.SWIPE_GESTURE_PIN: return getString(R.string.SwipeSettingsPin);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_READ: return getString(R.string.SwipeSettingsRead);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_MUTE: return getString(R.string.SwipeSettingsMute);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_DELETE: return getString(R.string.SwipeSettingsDelete);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS: return getString(R.string.SwipeSettingsFolders);
+            case SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE:
+            default: return getString(R.string.SwipeSettingsArchive);
+        }
+    }
+
+    private int crashKindTitle(int kind) {
+        switch (kind) {
+            case PengramAntiCrash.KIND_TABLE: return R.string.PengramCrashKindTable;
+            case PengramAntiCrash.KIND_LAYOUT: return R.string.PengramCrashKindLayout;
+            case PengramAntiCrash.KIND_ENTITIES: return R.string.PengramCrashKindEntities;
+            case PengramAntiCrash.KIND_MESSAGE: return R.string.PengramCrashKindMessage;
+            case PengramAntiCrash.KIND_DRAW: return R.string.PengramCrashKindDraw;
+            default: return R.string.PengramCrashKindOther;
+        }
+    }
+
+    private int crashKindIcon(int kind) {
+        switch (kind) {
+            case PengramAntiCrash.KIND_TABLE: return R.drawable.msg_block;
+            case PengramAntiCrash.KIND_LAYOUT: return R.drawable.msg_policy;
+            case PengramAntiCrash.KIND_ENTITIES: return R.drawable.msg_language;
+            case PengramAntiCrash.KIND_MESSAGE: return R.drawable.msg_secret;
+            case PengramAntiCrash.KIND_DRAW: return R.drawable.msg_info;
+            default: return R.drawable.msg_retry;
+        }
+    }
+
+    /** журнал атак: кто когда пытался уронить клиент и чем именно */
+    private void showAntiCrashLog() {
+        final int count = PengramAntiCrash.journalSize();
+        if (count == 0) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramAntiCrashLogEmpty)).show();
+            return;
+        }
+        final android.content.Context context = getContext();
+        final LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        final int padH = AndroidUtilities.dp(20);
+        final int padV = AndroidUtilities.dp(10);
+        final int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
+        final int textColor = Theme.getColor(Theme.key_windowBackgroundWhiteBlackText);
+        final int subColor = Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2);
+        final java.text.SimpleDateFormat fmt =
+                new java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale.getDefault());
+        // свежие сверху
+        for (int a = count - 1; a >= 0; --a) {
+            final String entry = PengramAntiCrash.journalEntry(a);
+            if (entry == null) {
+                continue;
+            }
+            final int tab = entry.indexOf('\t');
+            final String reason = tab >= 0 ? entry.substring(tab + 1) : entry;
+            long when = 0;
+            if (tab > 0) {
+                try {
+                    when = Long.parseLong(entry.substring(0, tab));
+                } catch (Throwable ignore) {
+                }
+            }
+            final int kind = PengramAntiCrash.kindOf(reason);
+
+            final LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(padH, padV, padH, padV);
+            final ImageView icon = new ImageView(context);
+            icon.setImageResource(crashKindIcon(kind));
+            icon.setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
+            row.addView(icon, LayoutHelper.createLinear(22, 22));
+            final LinearLayout texts = new LinearLayout(context);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            final TextView title = new TextView(context);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            title.setTypeface(AndroidUtilities.bold());
+            title.setTextColor(textColor);
+            title.setText(getString(crashKindTitle(kind)));
+            texts.addView(title);
+            final TextView sub = new TextView(context);
+            sub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            sub.setTextColor(subColor);
+            sub.setSingleLine(true);
+            sub.setEllipsize(TextUtils.TruncateAt.END);
+            sub.setText((when > 0 ? fmt.format(new java.util.Date(when)) + "  ·  " : "") + reason);
+            texts.addView(sub);
+            row.addView(texts, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL, 14, 0, 0, 0));
+            list.addView(row);
+        }
+        final ScrollView scroll = new ScrollView(context);
+        scroll.addView(list, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        new AlertDialog.Builder(context)
+                .setTitle(getString(R.string.PengramAntiCrashLog))
+                .setView(scroll)
+                .setNegativeButton(getString(R.string.PengramAntiCrashLogClear), (dialog, which) -> {
+                    PengramAntiCrash.clearJournal();
+                    listView.adapter.update(true);
+                })
+                .setPositiveButton(getString(R.string.Close), null)
+                .show();
+    }
+
+    /** чекбокс, завязанный на ключ в PengramConfig — чтобы не плодить константы */
+    /** «12» или «12 · Последняя: table measure» — коротко о работе антикраша */
+    private String antiCrashStats() {
+        final int total = PengramAntiCrash.totalBlocked();
+        final String last = PengramAntiCrash.lastReason();
+        if (last == null) {
+            return String.valueOf(total);
+        }
+        // В значении строки показываем тип последней атаки, а не её техническое
+        // описание: оно бывает длиной в абзац и разъезжалось по экрану.
+        // Подробности с текстом причины остались в «Журнале атак».
+        final String kind = getString(crashKindTitle(PengramAntiCrash.kindOf(last)));
+        return total + " · " + LocaleController.formatString(R.string.PengramAntiCrashLast, kind);
+    }
+
+    private UItem check(String key, boolean def, CharSequence text) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        return UItem.asCheck(id, text).setChecked(PengramConfig.getBool(key, def));
+    }
+
+    /** свитч с подписью — родная ячейка NotificationsCheckCell; иконка подбирается по ключу */
+    private UItem checkInfo(String key, boolean def, CharSequence text, CharSequence subtext) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        final boolean value = PengramConfig.getBool(key, def);
+        final int icon = iconForKey(key);
+        if (icon != 0) {
+            return UItem.asIconButtonCheck(id, icon, text, subtext).setChecked(value);
+        }
+        return UItem.asButtonCheck(id, text, subtext).setChecked(value);
+    }
+
+    /** свитч с подписью и явной иконкой слева */
+    private UItem checkIcon(String key, boolean def, int icon, CharSequence text, CharSequence subtext) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        return UItem.asIconButtonCheck(id, icon, text, subtext).setChecked(PengramConfig.getBool(key, def));
+    }
+
+    /**
+     * Иконка для переключателя с подписью. Без неё строки с заголовком и описанием
+     * выглядят одинаковыми «кирпичами», а глазу нужна зацепка, чтобы находить нужный пункт.
+     */
+    private static int iconForKey(String key) {
+        if (key == null) {
+            return 0;
+        }
+        switch (key) {
+            case PengramConfig.KEY_NO_ROUNDING: return R.drawable.msg_views;
+            case PengramConfig.KEY_TIME_SECONDS: return R.drawable.msg_contacts_time;
+            case PengramConfig.KEY_VIBRATION: return R.drawable.msg_tone_on;
+            case PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS: return R.drawable.msg_contacts;
+            case PengramConfig.KEY_ZALGO: return R.drawable.msg_text_outlined;
+            case PengramConfig.KEY_REG_TAP_TEXT: return R.drawable.msg_calendar2;
+            case PengramConfig.KEY_GHOST_STORIES_WARN: return R.drawable.msg_media;
+            case PengramConfig.KEY_GHOST_SEND_DELAY: return R.drawable.msg_recent;
+            case PengramConfig.KEY_FORCE_SNOW: return R.drawable.msg_theme;
+            case PengramConfig.KEY_PENGUIN_TIPS: return R.drawable.msg_info;
+            case PengramConfig.KEY_PENGUIN_AUTO_SKIN: return R.drawable.msg_customize;
+            case PengramConfig.KEY_TRACK_FORWARD_BUTTON: return R.drawable.msg_forward;
+            case PengramConfig.KEY_TRACK_FORWARD_CAPTION: return R.drawable.msg_edit;
+            case PengramConfig.KEY_LYRICS_AUTO: return R.drawable.msg_download;
+            case PengramConfig.KEY_LYRICS_STRETCH: return R.drawable.msg_select;
+            case PengramConfig.KEY_LYRICS_SMOOTH: return R.drawable.msg_speed;
+            case PengramConfig.KEY_HEADER_LYRICS: return R.drawable.msg_played;
+            case PengramConfig.KEY_HEADER_LYRICS_MARQUEE: return R.drawable.msg_reorder;
+            case PengramConfig.KEY_FORWARD_LOCK: return R.drawable.msg_mini_lock3;
+            case PengramConfig.KEY_KEEP_FORMATTING: return R.drawable.msg_copy;
+            case PengramConfig.KEY_HIDE_TAIL: return R.drawable.msg_msgbubble3;
+            case PengramConfig.KEY_HIDE_EDITED_LABEL: return R.drawable.msg_edit;
+            case PengramConfig.KEY_FORCE_DELETE_FOR_ALL: return R.drawable.msg_delete;
+            case PengramConfig.KEY_HIDE_STORIES: return R.drawable.msg_media;
+            case PengramConfig.KEY_DIALOG_SENDER_AVATARS: return R.drawable.msg_openprofile;
+            case PengramConfig.KEY_PENGRAM_CARD: return R.drawable.msg_settings;
+            case org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED: return R.drawable.msg_info;
+            case PengramConfig.KEY_GLASS_SHEEN: return R.drawable.msg_theme;
+            case PengramConfig.KEY_GLASS_DRAG: return R.drawable.msg_reorder;
+            case PengramConfig.KEY_GLASS_RIM: return R.drawable.msg_customize;
+            default: return 0;
+        }
+    }
+
+    /** круглая галочка внутри раскрывающегося блока */
+    private UItem subCheck(String key, boolean def, CharSequence text) {
+        Integer id = boolIds.get(key);
+        if (id == null) {
+            id = BTN_GENERIC_BASE + boolKeys.size();
+            boolIds.put(key, id);
+            boolKeys.add(key);
+            boolDefaults.add(def);
+        }
+        return UItem.asRoundCheckbox(id, text).setChecked(PengramConfig.getBool(key, def)).setPad(1);
+    }
+
+    private int boolId(String key) {
+        Integer id = boolIds.get(key);
+        return id == null ? -1 : id;
+    }
+
+    /** раскрыт ли блок */
+    private boolean expanded(int group) {
+        if (searchRevealGroups) return true;
+        if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
+                || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED
+                || group == GROUP_PROFILE_ID) {
+            return temporaryExpanded.contains(group);
+        }
+        return PengramConfig.getBool(expandedKey(group), false);
+    }
+
+    /** строка-переключатель «Показать ещё ▾» / «Свернуть ▴» под блоком */
+    private UItem moreButton(int group, CharSequence moreText) {
+        final boolean open = expanded(group);
+        return UItem.asShadowCollapseButton(BTN_COLLAPSE_BASE + group, open ? getString(R.string.PengramShowLess) : moreText)
+                .setCollapsed(!open)
+                .accent();
+    }
+
+    private UItem moreButton(int group) {
+        return moreButton(group, getString(R.string.PengramShowMore));
+    }
+
+    private boolean onGenericClick(UItem item, View view) {
+        final int index = item.id - BTN_GENERIC_BASE;
+        if (index < 0 || index >= boolKeys.size()) {
+            return false;
+        }
+        final String key = boolKeys.get(index);
+        final boolean value = PengramConfig.toggle(key, boolDefaults.get(index));
+        if (view instanceof TextCheckCell) {
+            ((TextCheckCell) view).setChecked(value);
+        } else if (view instanceof org.telegram.ui.Cells.CheckBoxCell) {
+            ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(value, true);
+        } else if (view instanceof org.telegram.ui.Cells.NotificationsCheckCell) {
+            ((org.telegram.ui.Cells.NotificationsCheckCell) view).setChecked(value);
+        }
+        // короткая тактильная отдача: переключение должно ощущаться, а не только выглядеть
+        AndroidUtilities.vibrateCursor(view);
+        // слой Material 3 меняет отрисовку чужих экранов — просим их перерисоваться
+        if (org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED.equals(key)) {
+            // версия читается при старте так же, как имя устройства
+            requestDeviceRestart();
+        }
+        if (PengramConfig.KEY_TAB_GLASS.equals(key)) {
+            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+        } else if (PengramConfig.KEY_GLASS_SHEEN.equals(key)
+                || PengramConfig.KEY_GLASS_DRAG.equals(key)
+                || PengramConfig.KEY_GLASS_RIM.equals(key)) {
+            // блики и кант живут в слое панели — перерисовываем её сразу,
+            // без пересборки фона (она нужна только ползункам)
+            org.telegram.ui.MainTabsActivity.refreshPengramGlassOverlayOnly();
+        }
+        if (org.telegram.messenger.PengramLocalKeep.KEY_ENABLED.equals(key)) {
+            // локальная копия меняет судьбу удалённых сообщений — открытые чаты
+            // должны перекраситься сразу, без перезахода
+            org.telegram.messenger.PengramHistory.notifyMarksChanged();
+            org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                    .postNotificationName(org.telegram.messenger.NotificationCenter.dialogsNeedReload, true);
+        }
+        if (key.startsWith("md3")) {
+            if (key.startsWith("md3Monet")) {
+                org.telegram.messenger.PengramMonet.update(getContext());
+            }
+            AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                    .postNotificationName(org.telegram.messenger.NotificationCenter.reloadInterface));
+        }
+        // список перестраиваем всегда и с анимацией: зависимые пункты
+        // должны выезжать/сворачиваться прямо при переключении
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+        if (previewMessages != null) {
+            previewMessages.update();
+        }
+        if (md3Preview != null) {
+            md3Preview.update();
+        }
+        return true;
+    }
+
+    private CharSequence monetStrengthName() {
+        switch (org.telegram.messenger.PengramMonet.strength()) {
+            case 0: return getString(R.string.PengramMonetStrengthCalm);
+            case 2: return getString(R.string.PengramMonetStrengthVivid);
+            default: return getString(R.string.PengramMonetStrengthNormal);
+        }
+    }
+
+    /** выбор насыщенности системной палитры */
+    private void showMonetStrengthPicker() {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramMonetStrengthCalm),
+                getString(R.string.PengramMonetStrengthNormal),
+                getString(R.string.PengramMonetStrengthVivid)
+        };
+        showChoicePicker(getString(R.string.PengramMonetStrength), options,
+                org.telegram.messenger.PengramMonet.strength(), value -> {
+                    PengramConfig.setIntValue(org.telegram.messenger.PengramMonet.KEY_STRENGTH, value);
+                    org.telegram.messenger.PengramMonet.update(getContext());
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                    org.telegram.messenger.NotificationCenter.getGlobalInstance()
+                            .postNotificationName(org.telegram.messenger.NotificationCenter.reloadInterface);
+                });
+    }
+
+    /** «Вкл» / «Выкл» справа в строке раздела */
+    private CharSequence onOff(boolean value) {
+        return getString(value ? R.string.PengramValueOn : R.string.PengramValueOff);
+    }
+
+    /**
+     * Состояние раздела «Текст песни».
+     *
+     * Раньше здесь висело «выкл» у всех, кто выключил автоподбор и настроил
+     * источник руками, — хотя текст при этом прекрасно показывался. Теперь
+     * строка отвечает на тот вопрос, который человек и задаёт: показывает ли
+     * выбранное оформление плеера текст вообще, а уж как он ищется — уточнение.
+     */
+    private CharSequence lyricsSectionValue() {
+        if (!PengramConfig.isNewPlayer()
+                || !PengramConfig.playerStyleHasLyrics(PengramConfig.getPlayerStyle())) {
+            return onOff(false);
+        }
+        return getString(R.string.PengramValueOn) + " \u00b7 " + getString(PengramConfig.isLyricsAuto()
+                ? R.string.PengramLyricsModeAuto : R.string.PengramLyricsModeManual);
+    }
+
+    /** палитра «своего» цвета: без пипеток и HEX — двенадцать приятных оттенков */
+    private static final int[] PLAYER_PALETTE = {
+            0xFF5FD0A0, 0xFF4FC3F7, 0xFF7E8CF7, 0xFFB388FF,
+            0xFFFF8AB4, 0xFFFF6E6E, 0xFFFF9F43, 0xFFFFD166,
+            0xFF9CCC65, 0xFF26C6DA, 0xFFBCAAA4, 0xFFE0E0E0
+    };
+
+    /** значение строки «Цвет плеера»: название режима и сам цвет кружком */
+    private CharSequence playerAccentValue() {
+        final int mode = PengramConfig.getPlayerAccentMode();
+        final String name = getString(PengramConfig.getPlayerAccentName(mode));
+        if (mode != PengramConfig.PLAYER_ACCENT_CUSTOM) {
+            return name;
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("\u25CF  ");
+        sb.setSpan(new android.text.style.ForegroundColorSpan(PengramConfig.getPlayerAccentColor()),
+                0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.append(name);
+        return sb;
+    }
+
+    private void showPlayerAccentPicker() {
+        final boolean monetSupported = android.os.Build.VERSION.SDK_INT >= 31;
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramPlayerAccentCover),
+                getString(R.string.PengramPlayerAccentTheme),
+                monetSupported
+                        ? getString(R.string.PengramPlayerAccentMonet)
+                        : getString(R.string.PengramPlayerAccentMonet) + " \u00b7 " + getString(R.string.PengramMonetUnsupportedShort),
+                getString(R.string.PengramPlayerAccentCustom)
+        };
+        showChoicePicker(getString(R.string.PengramPlayerAccent), options,
+                PengramConfig.getPlayerAccentMode(), value -> {
+                    if (value == PengramConfig.PLAYER_ACCENT_MONET && !monetSupported) {
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                                getString(R.string.PengramMonetUnsupported)).show();
+                        return;
+                    }
+                    PengramConfig.setPlayerAccentMode(value);
+                    if (value == PengramConfig.PLAYER_ACCENT_CUSTOM) {
+                        showPlayerColorPicker();
+                        return;
+                    }
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
+    }
+
+    /** выбор оттенка: каждый пункт нарисован своим цветом, чтобы выбирать глазами */
+    private void showPlayerColorPicker() {
+        final CharSequence[] names = new CharSequence[PLAYER_PALETTE.length];
+        int selected = 0;
+        for (int a = 0; a < PLAYER_PALETTE.length; a++) {
+            final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("\u25CF   ");
+            sb.setSpan(new android.text.style.ForegroundColorSpan(PLAYER_PALETTE[a]),
+                    0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            sb.append(String.format(java.util.Locale.US, "#%06X", PLAYER_PALETTE[a] & 0xFFFFFF));
+            names[a] = sb;
+            if (PLAYER_PALETTE[a] == PengramConfig.getPlayerAccentColor()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramPlayerAccentCustom), names, selected, value -> {
+            PengramConfig.setPlayerAccentColor(PLAYER_PALETTE[value]);
+            PengramConfig.setPlayerAccentMode(PengramConfig.PLAYER_ACCENT_CUSTOM);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    private CharSequence sharePhoneModeName(int mode) {
+        switch (mode) {
+            case PengramConfig.SHARE_PHONE_ASK: return getString(R.string.PengramSharePhoneAsk);
+            case PengramConfig.SHARE_PHONE_ALWAYS: return getString(R.string.PengramSharePhoneAlways);
+            default: return getString(R.string.PengramSharePhoneNever);
+        }
+    }
+
+    private void showSharePhonePicker() {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramSharePhoneNever),
+                getString(R.string.PengramSharePhoneAsk),
+                getString(R.string.PengramSharePhoneAlways)
+        };
+        showChoicePicker(getString(R.string.PengramSharePhoneMode), options,
+                PengramConfig.getSharePhoneMode(), value -> {
+                    PengramConfig.setSharePhoneMode(value);
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
+    }
+
+    private CharSequence fontName(int font) {
+        return org.telegram.messenger.PengramFonts.name(font);
+    }
+
+    /**
+     * Выбор шрифта списком.
+     *
+     * Показываем только те семейства, которые на этом телефоне действительно
+     * отличаются: системы без «casual» или «condensed» молча подменяют их
+     * обычным sans-serif, и пункт-обманка раздражал бы больше, чем его
+     * отсутствие.
+     */
+    private void showFontPicker() {
+        final int[] fonts = org.telegram.messenger.PengramFonts.available();
+        final CharSequence[] names = new CharSequence[fonts.length];
+        int selected = 0;
+        for (int a = 0; a < fonts.length; a++) {
+            final android.text.SpannableString name =
+                    new android.text.SpannableString(org.telegram.messenger.PengramFonts.name(fonts[a]));
+            final android.graphics.Typeface typeface = org.telegram.messenger.PengramFonts.typeface(fonts[a]);
+            if (typeface != null) {
+                name.setSpan(new org.telegram.ui.Components.TypefaceSpan(typeface), 0, name.length(),
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            names[a] = name;
+            if (fonts[a] == PengramConfig.appFont) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramFont), names, selected, value -> {
+            PengramConfig.setAppFont(fonts[value]);
+            if (fontPreview != null) {
+                fontPreview.update();
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    /** Сколько пунктов интерфейса сейчас скрыто */
+    private CharSequence hiddenCountValue() {
+        int count = 0;
+        final String[] keys = new String[] {
+                PengramConfig.KEY_TAB_CONTACTS, PengramConfig.KEY_TAB_CALLS, PengramConfig.KEY_TAB_SETTINGS,
+                PengramConfig.KEY_TAB_PROFILE, PengramConfig.KEY_MENU_PENGRAM, PengramConfig.KEY_MENU_GHOST
+        };
+        for (int a = 0; a < keys.length; ++a) {
+            if (PengramConfig.getBool(keys[a], false)) {
+                count++;
+            }
+        }
+        final boolean[] flags = new boolean[] {
+                PengramConfig.hideMenuNewGroup, PengramConfig.hideMenuSavedMessages, PengramConfig.hideMenuSettings, PengramConfig.hideMenuTheme,
+                PengramConfig.hideChatSearch, PengramConfig.hideChatTranslate, PengramConfig.hideChatClearHistory, PengramConfig.hideChatWallpaper,
+                PengramConfig.hideChatShortcut, PengramConfig.hideChatReport, PengramConfig.hideChatCall, PengramConfig.hideChatAutoDelete,
+                PengramConfig.hideChatShareMyNumber
+        };
+        for (int a = 0; a < flags.length; ++a) {
+            if (flags[a]) {
+                count++;
+            }
+        }
+        return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
+    }
+
+    /** перерисовать список настроек (вызывается, когда дочитались фоновые счётчики) */
+    private void refreshList() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    /** «Вкл · 128» — сколько всего сохранено */
+    private CharSequence spySectionValue() {
+        final boolean on = PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited();
+        if (!on) {
+            return onOff(false);
+        }
+        // счётчик берём из кэша: SELECT COUNT(*) на UI-потоке подвешивал открытие настроек
+        final int count = PengramHistory.getCountCached(-1, 0, this::refreshList);
+        return count > 0 ? (getString(R.string.PengramValueOn) + " \u00b7 " + count) : onOff(true);
+    }
+
+    /** Коротко о скорости и голосе */
+    private CharSequence mediaSectionValue() {
+        final int voice = PengramConfig.getVoiceChangerMode();
+        if (voice != PengramVoiceChanger.MODE_OFF) {
+            return PengramVoiceChanger.getModeName(voice);
+        }
+        switch (PengramConfig.getSpeedBoost()) {
+            case PengramConfig.BOOST_FAST: return getString(R.string.PengramBoostFast);
+            case PengramConfig.BOOST_EXTREME: return getString(R.string.PengramBoostExtreme);
+            default: return "";
+        }
+    }
+
+    private CharSequence markName(int mark) {
+        final String text;
+        switch (mark) {
+            case PengramConfig.MARK_TRASH: text = getString(R.string.PengramMarkTrash); break;
+            case PengramConfig.MARK_CROSS: text = getString(R.string.PengramMarkCross); break;
+            case PengramConfig.MARK_EYE: text = getString(R.string.PengramMarkEye); break;
+            case PengramConfig.MARK_FIRE: text = getString(R.string.PengramMarkFire); break;
+            default: return getString(R.string.PengramMarkNone);
+        }
+        return withMarkIcon(text, PengramConfig.getMarkIcon(mark));
+    }
+
+    private CharSequence editedMarkName(int mark) {
+        final String text;
+        switch (mark) {
+            case PengramConfig.MARK_EDIT_PENCIL: text = getString(R.string.PengramMarkPencil); break;
+            case PengramConfig.MARK_EDIT_CLOCK: text = getString(R.string.PengramMarkClock); break;
+            case PengramConfig.MARK_EDIT_DOT: text = getString(R.string.PengramMarkDot); break;
+            default: return getString(R.string.PengramMarkNone);
+        }
+        return withMarkIcon(text, PengramConfig.getEditedMarkIcon(mark));
+    }
+
+    /** дорисовываем к названию сам значок — чтобы выбор был наглядным */
+    private CharSequence withMarkIcon(CharSequence text, int icon) {
+        final Context context = getContext();
+        if (icon == 0 || context == null) {
+            return text;
+        }
+        final android.text.SpannableStringBuilder builder = new android.text.SpannableStringBuilder(text);
+        builder.append("  \u200B");
+        builder.setSpan(
+                new org.telegram.ui.Components.PengramMarkSpan(context, icon, 1.05f, 0f),
+                builder.length() - 1, builder.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        return builder;
+    }
+
+    /** красивое меню выбора значка — как родное телеграмовское */
+    private void showMarkPicker(boolean edited) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(edited ? R.string.PengramEditedMarkTitle : R.string.PengramDeletedMarkTitle), true);
+
+        final LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.VERTICAL);
+        final int count = edited ? 4 : 5;
+        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[count];
+        for (int a = 0; a < cells.length; ++a) {
+            final int mark = a;
+            cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
+            cells[a].setPadding(dp(4), 0, dp(4), 0);
+            cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
+            cells[a].setTextAndValue(edited ? editedMarkName(mark) : markName(mark),
+                    (edited ? PengramConfig.getEditedMark() : PengramConfig.getDeletedMark()) == mark);
+            cells[a].setBackground(Theme.getSelectorDrawable(false));
+            cells[a].setOnClickListener(v -> {
+                if (edited) {
+                    PengramConfig.setEditedMark(mark);
+                    if (mark != PengramConfig.MARK_EDIT_NONE && !PengramConfig.isMarkingEdited()) {
+                        PengramConfig.setBool(PengramConfig.KEY_MARK_EDITED, true);
+                    }
+                } else {
+                    PengramConfig.setDeletedMark(mark);
+                }
+                for (int b = 0; b < cells.length; ++b) {
+                    cells[b].setChecked(b == mark, true);
+                }
+                if (previewMessages != null) {
+                    previewMessages.update();
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    try {
+                        if (visibleDialog != null) {
+                            visibleDialog.dismiss();
+                        }
+                    } catch (Throwable ignore) {}
+                }, 180);
+            });
+            linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 50));
+        }
+        builder.setCustomView(linearLayout);
+        showDialog(builder.create());
+    }
+
+    /** «Кнопка скрыта» / «Кнопка видна» — чтобы было сразу понятно, что делает галочка */
+    /** название формата даты регистрации */
+    private CharSequence regStyleName(int style) {
+        switch (style) {
+            case PengramConfig.REG_STYLE_DATE: return getString(R.string.PengramRegStyleDate);
+            case PengramConfig.REG_STYLE_DATE_AGE: return getString(R.string.PengramRegStyleDateAge);
+            case PengramConfig.REG_STYLE_AGE: return getString(R.string.PengramRegStyleAge);
+            case PengramConfig.REG_STYLE_EXACT: return getString(R.string.PengramRegStyleExact);
+            default: return getString(R.string.PengramRegStyleOff);
+        }
+    }
+
+    /** где показывать дату регистрации */
+    private CharSequence regPlaceName(int place) {
+        switch (place) {
+            case PengramConfig.REG_PLACE_ICON: return getString(R.string.PengramRegPlaceIcon);
+            case PengramConfig.REG_PLACE_SUBTITLE: return getString(R.string.PengramRegPlaceSubtitle);
+            case PengramConfig.REG_PLACE_ROW: return getString(R.string.PengramRegPlaceRow);
+            default: return getString(R.string.PengramRegPlaceBoth);
+        }
+    }
+
+    /** какой значок у даты регистрации */
+    private CharSequence regIconName(int icon) {
+        switch (icon) {
+            case PengramConfig.REG_ICON_CLOCK: return getString(R.string.PengramRegIconClock);
+            case PengramConfig.REG_ICON_CAKE: return getString(R.string.PengramRegIconCake);
+            case PengramConfig.REG_ICON_STAR: return getString(R.string.PengramRegIconStar);
+            case PengramConfig.REG_ICON_INFO: return getString(R.string.PengramRegIconInfo);
+            case PengramConfig.REG_ICON_PENGUIN: return getString(R.string.PengramRegIconPenguin);
+            case PengramConfig.REG_ICON_NONE: return getString(R.string.PengramRegIconNone);
+            default: return getString(R.string.PengramRegIconCalendar);
+        }
+    }
+
+    /** название режима заголовка */
+    private CharSequence titleModeName(int mode) {
+        switch (mode) {
+            case PengramConfig.TITLE_MODE_PENGRAM: return "Pengram";
+            case PengramConfig.TITLE_MODE_CHATS: return getString(R.string.PengramTitleChats);
+            case PengramConfig.TITLE_MODE_NAME: return getString(R.string.PengramTitleModeName);
+            case PengramConfig.TITLE_MODE_USERNAME: return getString(R.string.PengramTitleModeUsername);
+            case PengramConfig.TITLE_MODE_CUSTOM: return getString(R.string.PengramTitleModeCustom);
+            default: return getString(R.string.PengramTitleModeDefault);
+        }
+    }
+
+    /** свой текст заголовка */
+    private void showTitleCustomDialog() {
+        showTextDialog(getString(R.string.PengramTitleCustom), PengramConfig.getTitleCustom(), "Pengram", value -> {
+            PengramConfig.setTitleCustom(value == null ? "" : value.trim());
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    /** название лимита размера папки */
+    private CharSequence mediaLimitName(int limitMb) {
+        if (limitMb <= 0) {
+            return getString(R.string.PengramMediaLimitOff);
+        }
+        return (limitMb / 1024) + " GB";
+    }
+
+    /** заголовок строки фильтра — ровный, без «поломанного» текста */
+    private CharSequence zalgoTitle() {
+        return getString(R.string.PengramZalgo);
+    }
+
+    /** а вот в подписи слово «Zalgo» показываем именно зальго — чтобы было видно, о чём речь */
+    private CharSequence zalgoInfo() {
+        return PengramConfig.zalgoWord(getString(R.string.PengramZalgoInfo), "Zalgo");
+    }
+
+    /** сколько наших кнопок в меню чата скрыто */
+    private CharSequence hiddenChatItemsValue() {
+        final int count = PengramConfig.getHiddenChatItemsCount();
+        return count <= 0 ? "" : LocaleController.formatPluralString("PengramHiddenItems", count);
+    }
+
+    /** сколько разделов настроек скрыто */
+    private CharSequence hiddenSettingsValue() {
+        final int hidden = PengramConfig.getHiddenSettingsItemsCount();
+        if (hidden <= 0) {
+            return getString(R.string.PengramMenuItemsAll);
+        }
+        return LocaleController.formatString(R.string.PengramMenuItemsHidden, hidden);
+    }
+
+    /** сколько пунктов меню скрыто */
+    private CharSequence hiddenMenuValue() {
+        final int hidden = PengramConfig.getHiddenMenuItemsCount();
+        if (hidden <= 0) {
+            return getString(R.string.PengramMenuItemsAll);
+        }
+        return LocaleController.formatString(R.string.PengramMenuItemsHidden, hidden);
+    }
+
+    private CharSequence tabStateText(String key) {
+        return getString(PengramConfig.getBool(key, false) ? R.string.PengramTabHidden : R.string.PengramTabVisible);
+    }
+
+    /** живой пример выбранного стиля отправки */
+    private CharSequence sendStyleInfo() {
+        final int style = PengramConfig.getSendTextStyle();
+        if (style == PengramConfig.SEND_STYLE_OFF) {
+            return getString(R.string.PengramSendStyleInfo);
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(getString(R.string.PengramSendStyleExample));
+        sb.append(" ");
+        sb.append(styledSample(style));
+        return sb;
+    }
+
+    /** образец текста, оформленный выбранным стилем */
+    private CharSequence styledSample(int style) {
+        final String sample = getString(R.string.PengramSendStyleSample);
+        if (style == PengramConfig.SEND_STYLE_WIDE) {
+            return org.telegram.messenger.PengramTextStyle.toWide(sample);
+        }
+        final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(sample);
+        final int len = sb.length();
+        switch (style) {
+            case PengramConfig.SEND_STYLE_BOLD:
+                sb.setSpan(new org.telegram.ui.Components.TypefaceSpan(AndroidUtilities.bold()), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_ITALIC:
+                sb.setSpan(new android.text.style.StyleSpan(Typeface.ITALIC), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_MONO:
+                sb.setSpan(new org.telegram.ui.Components.TypefaceSpan(Typeface.MONOSPACE), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_STRIKE:
+                sb.setSpan(new android.text.style.StrikethroughSpan(), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_UNDERLINE:
+                sb.setSpan(new android.text.style.UnderlineSpan(), 0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_SPOILER:
+                sb.setSpan(new android.text.style.BackgroundColorSpan(Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()), .35f)),
+                        0, len, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                break;
+            case PengramConfig.SEND_STYLE_QUOTE:
+                sb.insert(0, "\u258E ");
+                break;
+        }
+        return sb;
+    }
+
+    /** выбор автостиля отправляемого текста — с наглядными образцами */
+    private void showSendStylePicker() {
+        final int[] styles = org.telegram.messenger.PengramTextStyle.ALL_STYLES;
+        final CharSequence[] options = new CharSequence[styles.length];
+        int selected = 0;
+        for (int a = 0; a < styles.length; ++a) {
+            final int style = styles[a];
+            if (style == PengramConfig.getSendTextStyle()) {
+                selected = a;
+            }
+            final CharSequence name = getString(org.telegram.messenger.PengramTextStyle.getNameRes(style));
+            if (style == PengramConfig.SEND_STYLE_OFF) {
+                options[a] = name;
+            } else {
+                final android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(name);
+                sb.append("   ");
+                sb.append(styledSample(style));
+                options[a] = sb;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramSendStyle), options, selected, index -> {
+            PengramConfig.setSendTextStyle(styles[index]);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    /** Pengram: мгновенно применяем скрытие вкладок к главному экрану */
+    private org.telegram.ui.Components.PengramTabsMockView tabsMockView;
+    private org.telegram.ui.Components.PengramTypingPreviewView typingPreview;
+    private org.telegram.ui.Components.PengramFontPreviewView fontPreview;
+    private org.telegram.ui.Components.PengramMD3PreviewView md3Preview;
+
+    private void applyTabsNow() {
+        try {
+            if (getParentLayout() == null) {
+                return;
+            }
+            final java.util.List<org.telegram.ui.ActionBar.BaseFragment> stack = getParentLayout().getFragmentStack();
+            for (int a = 0; a < stack.size(); ++a) {
+                final org.telegram.ui.ActionBar.BaseFragment fragment = stack.get(a);
+                if (fragment instanceof MainTabsActivity) {
+                    ((MainTabsActivity) fragment).checkPengramTabsVisibility();
+                }
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    /** Pengram: размер панели поменялся — пересобираем экран целиком */
+    private void applyTabsSizeNow() {
+        try {
+            DialogsActivity.pengramApplyTabsSize();
+            if (getParentLayout() == null) {
+                return;
+            }
+            final java.util.List<org.telegram.ui.ActionBar.BaseFragment> stack = getParentLayout().getFragmentStack();
+            for (int a = 0; a < stack.size(); ++a) {
+                final org.telegram.ui.ActionBar.BaseFragment fragment = stack.get(a);
+                if (fragment instanceof MainTabsActivity) {
+                    ((MainTabsActivity) fragment).pengramRebuildTabs();
+                }
+            }
+        } catch (Throwable ignore) {}
+    }
+
+    private void fillRoot(ArrayList<UItem> items) {
+        if (headerViewCompact == null) {
+            headerViewCompact = new PengramHeaderView(getContext(), true);
+        }
+        // asFullyCustom, а не asCustom: custom-строка получает MATCH_PARENT по
+        // высоте и растягивается на весь список, а шапка должна обнимать себя
+        items.add(UItem.asFullyCustom(headerViewCompact));
+        items.add(UItem.asShadow(null));
+
+        if (getContext() != null && PengramConfig.getQuickTilesCount() > 0) {
+            items.add(UItem.asCustom(quickToggles()));
+            items.add(UItem.asShadow(null));
+        }
+
+        // Разделы разложены по смыслу: сначала то, что видно глазу, потом приватность,
+        // потом чаты, потом медиа. Пояснений под группами нет намеренно — заголовка
+        // и подписи у строки достаточно, а лишние абзацы делали экран длинным.
+        items.add(UItem.asHeader(getString(R.string.PengramGroupLook)));
+        items.add(sectionRow(BTN_SECTION_APPEARANCE, IconBackgroundColors.PURPLE, R.drawable.msg_theme,
+                getString(R.string.PengramSectionAppearance), fontName(PengramConfig.appFont)));
+        items.add(sectionRow(BTN_SECTION_CUSTOM, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
+                getString(R.string.PengramSectionCustom), markName(PengramConfig.getDeletedMark())));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupPrivacy)));
+        items.add(sectionRow(BTN_SECTION_GHOST, IconBackgroundColors.GREEN, R.drawable.msg_secret,
+                getString(R.string.PengramSectionGhost), onOff(PengramConfig.ghostMode)));
+        items.add(sectionRow(BTN_SECTION_HISTORY, IconBackgroundColors.RED, R.drawable.msg_viewchats,
+                getString(R.string.PengramSectionSpy), spySectionValue()));
+        items.add(sectionRow(BTN_SECTION_PROFILE, IconBackgroundColors.BLUE, R.drawable.settings_account,
+                getString(R.string.PengramSectionProfile), null));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupChats)));
+        items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat,
+                getString(R.string.PengramSectionChats), hiddenCountValue()));
+        items.add(sectionRow(BTN_SECTION_AI, IconBackgroundColors.PURPLE, R.drawable.msg_bot,
+                getString(R.string.PengramSectionAI), aiSectionValue()));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupMedia)));
+        items.add(sectionRow(BTN_SECTION_PLAYER, IconBackgroundColors.ORANGE_DEEP, R.drawable.msg_played,
+                getString(R.string.PengramSectionPlayer), playerSectionValue()));
+        items.add(sectionRow(BTN_SECTION_MEDIA, IconBackgroundColors.BLUE_DEEP, R.drawable.settings_data,
+                getString(R.string.PengramSectionMedia), mediaSectionValue()));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGroupExtra)));
+        items.add(sectionRow(BTN_SECTION_FREEDOM, IconBackgroundColors.CYAN, R.drawable.settings_features,
+                getString(R.string.PengramSectionFreedom), null));
+        items.add(sectionRow(BTN_SECTION_GENERAL, IconBackgroundColors.GRAY, R.drawable.msg_settings,
+                getString(R.string.PengramSectionGeneral), null));
+        items.add(sectionRow(BTN_VISUAL_EDITOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_customize,
+                getString(R.string.PengramEditor), getString(R.string.PengramEditorPreviewEntry)));
+        items.add(sectionRow(BTN_SECTION_ABOUT, IconBackgroundColors.BLUE_LIGHT, R.drawable.msg_info,
+                getString(R.string.PengramAbout), org.telegram.messenger.PengramVersion.shortLine()));
         items.add(UItem.asShadow(getString(R.string.PengramSectionsInfo)));
+
+    }
+
+    /** строка раздела с цветной иконкой */
+    private UItem sectionRow(int id, IconBackgroundColors colors, int icon, CharSequence title, CharSequence value) {
+        // Pengram: в Material 3 иконка раздела — ровный тональный кружок без градиента
+        if (org.telegram.messenger.PengramMD3.settingsScreen()) {
+            final int container = org.telegram.messenger.PengramMD3.surface(getResourceProvider(), 0.75f);
+            return SettingsActivity.SettingCell.Factory.of(id, container, container, icon, title, null, value);
+        }
+        return SettingsActivity.SettingCell.Factory.of(id, colors.top, colors.bottom, icon, title, null, value);
+    }
+
+    /** Основное — мелочи, которые влияют на весь клиент */
+    private void fillGeneral(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramGeneralHeader)));
+        items.add(checkInfo(PengramConfig.KEY_NO_ROUNDING, false, getString(R.string.PengramNoRounding), getString(R.string.PengramNoRoundingInfo)));
+        items.add(checkInfo(PengramConfig.KEY_TIME_SECONDS, false, getString(R.string.PengramTimeSeconds), getString(R.string.PengramTimeSecondsInfo)));
+        items.add(checkInfo(PengramConfig.KEY_VIBRATION, true, getString(R.string.PengramVibration), getString(R.string.PengramVibrationInfo)));
+        items.add(checkInfo(PengramConfig.KEY_SHOW_ACCOUNTS_SETTINGS, false, getString(R.string.PengramShowAccountsSettings), getString(R.string.PengramShowAccountsSettingsInfo)));
+        items.add(checkInfo(PengramConfig.KEY_ZALGO, false, zalgoTitle(), zalgoInfo()));
+        items.add(UItem.asShadow(getString(R.string.PengramGeneralInfo)));
+
+        // Имя устройства: сервер видит его в «Активных сеансах». Строка
+        // уходит в initConnection, поэтому после смены нужен перезапуск —
+        // для нового входа это происходит само собой.
+        items.add(UItem.asHeader(getString(R.string.PengramDeviceHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_ENABLED, false,
+                getString(R.string.PengramDeviceSpoof), getString(R.string.PengramDeviceSpoofInfo)));
+        if (org.telegram.messenger.PengramDeviceName.isEnabled()) {
+            // Иконка строки — не безликий «девайс», а именно то устройство,
+            // которое мы заявляем: Mac, Windows, iPhone, Android.
+            items.add(UItem.asSettingsCell(BTN_DEVICE_MODEL,
+                    org.telegram.messenger.PengramDeviceName.iconRes(),
+                    getString(R.string.PengramDeviceModel),
+                    org.telegram.messenger.PengramDeviceName.serverIdentity()));
+            items.add(UItem.asSettingsCell(BTN_DEVICE_VERSION, R.drawable.msg_info,
+                    getString(R.string.PengramDeviceVersion),
+                    org.telegram.messenger.PengramDeviceName.resolveSystemVersion()));
+            // бейдж сразу под обеими строками: видно, что именно увидят в сеансах
+            items.add(UItem.asShadow(org.telegram.messenger.LocaleController.formatString(
+                    R.string.PengramDeviceBadge,
+                    org.telegram.messenger.PengramDeviceName.badgeSummary())));
+            items.add(checkInfo(org.telegram.messenger.PengramDeviceName.KEY_VERSION_ENABLED, true,
+                    getString(R.string.PengramDeviceVersionSpoof), getString(R.string.PengramDeviceVersionInfo)));
+            items.add(UItem.asButton(BTN_DEVICE_RANDOM, R.drawable.msg_reset, getString(R.string.PengramDeviceRandom)));
+            items.add(UItem.asButton(BTN_DEVICE_APPLY, R.drawable.msg_retry, getString(R.string.PengramDeviceApply)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramDeviceInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSystemHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 30, getString(R.string.DirectShare), () -> SharedConfig.directShare, SharedConfig::toggleDirectShare));
+        items.add(tgCheck(BTN_EXTRA_BASE + 31, getString(R.string.PengramSortContacts), () -> SharedConfig.sortContactsByName, SharedConfig::toggleSortContactsByName));
+        items.add(tgCheck(BTN_EXTRA_BASE + 32, getString(R.string.PengramStickerOrder), () -> SharedConfig.updateStickersOrderOnSend, SharedConfig::toggleUpdateStickersOrderOnSend));
+        items.add(UItem.asShadow(getString(R.string.PengramSystemInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramToolsHeader)));
+        items.add(UItem.asButton(BTN_OPEN_BY_ID, R.drawable.msg_search, getString(R.string.PengramOpenById)));
+        items.add(UItem.asShadow(getString(R.string.PengramIdSearchInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramBackupHeader)));
+        items.add(check(PengramConfig.KEY_EXPORT_CHAT, false, getString(R.string.PengramExportChatSetting)));
+        items.add(UItem.asSettingsCell(BTN_CFG_EXPORT, R.drawable.msg_shareout, getString(R.string.PengramBackupExport),
+                LocaleController.formatString(R.string.PengramBackupCount, org.telegram.messenger.PengramBackup.countTransferable())));
+        items.add(UItem.asSettingsCell(BTN_CFG_IMPORT, R.drawable.msg_download, getString(R.string.PengramBackupImport), null));
+        items.add(UItem.asButton(BTN_CFG_RESET, R.drawable.msg_delete, getString(R.string.PengramBackupReset)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramBackupInfoFile)));
+
+        // Выгрузка сессии — не настройка, а действие с полным доступом к
+        // аккаунту, поэтому самой строки здесь нет: переключатель только
+        // разрешает её в экране выхода, рядом с «Выйти из аккаунта».
+        items.add(UItem.asHeader(getString(R.string.PengramLogoutHeader)));
+        items.add(check(PengramConfig.KEY_SESSION_EXPORT, false, getString(R.string.PengramSessionExportSetting)));
+        items.add(UItem.asShadow(getString(R.string.PengramSessionExportSettingInfo)));
+    }
+
+    /** подпись к лимиту записей журнала */
+    private CharSequence historyMaxName(int limit) {
+        return limit <= 0 ? getString(R.string.PengramHistoryMaxUnlimited)
+                : LocaleController.formatString(R.string.PengramHistoryMaxValue, limit);
+    }
+
+    /** переодеть оба пингвина: шапку корня и большое превью раздела */
+    private void applyPenguinSkinToHeaders() {
+        if (headerView != null) {
+            headerView.applySkin();
+        }
+        if (headerViewCompact != null) {
+            headerViewCompact.applySkin();
+        }
+    }
+
+    /** после сброса настроек перерисовываем всё, до чего дотягиваемся */
+    private void rebuildAfterReset() {
+        applyPenguinSkinToHeaders();
+        NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+        // общий хвост с импортом бэкапа: перезапуск сервисов, премиум-статус, бюллетень
+        afterSettingsReplaced(getString(R.string.PengramResetDone));
+    }
+
+    /** короткая статистика под блоком хранилища */
+    private CharSequence historyStatsText() {
+        // размеры считаются в фоне, экран рисуется сразу и обновится сам
+        final PengramHistory.Stats stats = PengramHistory.getStatsCached(this::refreshList);
+        final StringBuilder sb = new StringBuilder();
+        sb.append(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(stats.databaseSize)));
+        if (stats.mediaCount > 0) {
+            sb.append('\n');
+            sb.append(LocaleController.formatString(R.string.PengramHistoryMediaStats, stats.mediaCount,
+                    AndroidUtilities.formatFileSize(stats.mediaSize)));
+        }
+        return sb.toString();
+    }
+
+    /** срок хранения сохранённых сообщений */
+    private CharSequence keepDaysName(int days) {
+        switch (days) {
+            case 7: return getString(R.string.PengramKeepDays7);
+            case 30: return getString(R.string.PengramKeepDays30);
+            case 90: return getString(R.string.PengramKeepDays90);
+            case 365: return getString(R.string.PengramKeepDays365);
+            default: return getString(R.string.PengramKeepDaysForever);
+        }
+    }
+
+    private static final int[] KEEP_DAYS = new int[]{0, 7, 30, 90, 365};
+
+    /** универсальный выбор одного значения из списка — как родные диалоги Telegram */
+    /** список моделей: реальная, популярные и «своё» */
+    private void showDeviceModelPicker() {
+        final String[] values = org.telegram.messenger.PengramDeviceName.PRESETS;
+        final CharSequence[] options = new CharSequence[values.length + 1];
+        final CharSequence[] subtitles = new CharSequence[values.length + 1];
+        for (int a = 0; a < values.length; ++a) {
+            options[a] = getString(org.telegram.messenger.PengramDeviceName.presetNameRes(a));
+            // подпись = бейдж: тип устройства и версия, которые уйдут серверу
+            final String model = a == org.telegram.messenger.PengramDeviceName.PRESET_REAL
+                    ? org.telegram.messenger.PengramDeviceName.realDeviceModel() : values[a];
+            final int kind = org.telegram.messenger.PengramDeviceName.kindOf(model);
+            final String version = a == org.telegram.messenger.PengramDeviceName.PRESET_REAL
+                    ? org.telegram.messenger.PengramDeviceName.realSystemVersion()
+                    : org.telegram.messenger.PengramDeviceName.defaultVersionFor(kind);
+            subtitles[a] = getString(org.telegram.messenger.PengramDeviceName.labelResForKind(kind))
+                    + " \u00b7 " + version;
+        }
+        options[values.length] = getString(R.string.PengramDeviceCustom);
+        subtitles[values.length] = null;
+        final int current = org.telegram.messenger.PengramDeviceName.findPresetIndex();
+        final int selected = current < 0 ? values.length : current;
+        showChoicePicker(getString(R.string.PengramDeviceModel), options, subtitles, selected, value -> {
+            if (value < values.length) {
+                org.telegram.messenger.PengramDeviceName.setValue(values[value]);
+                if (value == org.telegram.messenger.PengramDeviceName.PRESET_REAL) {
+                    org.telegram.messenger.PengramDeviceName.setEnabled(false);
+                }
+                refreshRows();
+                requestDeviceRestart();
+            } else {
+                showDeviceCustomDialog();
+            }
+        });
+    }
+
+    /**
+     * Своё имя устройства: любая строка, а не только пресеты. Открывается и
+     * последней строкой списка моделей, и долгим нажатием на саму строку.
+     */
+    private void showDeviceCustomDialog() {
+        showTextDialog(getString(R.string.PengramDeviceCustomTitle),
+                org.telegram.messenger.PengramDeviceName.getValue(),
+                getString(R.string.PengramDeviceCustomHint),
+                text -> {
+                    final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
+                    if (clean.length() == 0) {
+                        return;
+                    }
+                    org.telegram.messenger.PengramDeviceName.setValue(clean);
+                    org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                    refreshRows();
+                    requestDeviceRestart();
+                });
+    }
+
+    /**
+     * Версия системы. Список зависит от заявленного устройства: у iPhone не
+     * бывает «SDK 34», а у Windows — «iOS 18». Плюс две крайние строки:
+     * честная версия и своя.
+     */
+    private void showDeviceVersionPicker() {
+        final int kind = org.telegram.messenger.PengramDeviceName.kind();
+        final String[] versions = org.telegram.messenger.PengramDeviceName.versionsFor(kind);
+        final CharSequence[] options = new CharSequence[versions.length + 2];
+        for (int a = 0; a < versions.length; ++a) {
+            options[a] = versions[a];
+        }
+        options[versions.length] = getString(R.string.PengramDeviceVersionReal);
+        options[versions.length + 1] = getString(R.string.PengramDeviceCustom);
+        final String current = org.telegram.messenger.PengramDeviceName.getVersionValue();
+        int selected = versions.length;
+        for (int a = 0; a < versions.length; ++a) {
+            if (versions[a].equalsIgnoreCase(current)) {
+                selected = a;
+                break;
+            }
+        }
+        if (!org.telegram.messenger.PengramDeviceName.isVersionSpoofEnabled()) {
+            selected = versions.length;
+        }
+        showChoicePicker(getString(R.string.PengramDeviceVersion), options, selected, value -> {
+            if (value < versions.length) {
+                org.telegram.messenger.PengramDeviceName.setVersionValue(versions[value]);
+                org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(true);
+                refreshRows();
+                requestDeviceRestart();
+            } else if (value == versions.length) {
+                org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(false);
+                refreshRows();
+                requestDeviceRestart();
+            } else {
+                showTextDialog(getString(R.string.PengramDeviceVersionCustomTitle),
+                        org.telegram.messenger.PengramDeviceName.getVersionValue(),
+                        getString(R.string.PengramDeviceVersionCustomHint),
+                        text -> {
+                            final String clean = org.telegram.messenger.PengramDeviceName.sanitize(text);
+                            if (clean.length() == 0) {
+                                return;
+                            }
+                            org.telegram.messenger.PengramDeviceName.setVersionValue(clean);
+                            org.telegram.messenger.PengramDeviceName.setVersionSpoofEnabled(true);
+                            refreshRows();
+                            requestDeviceRestart();
+                        });
+            }
+        });
+    }
+
+    /** потолок упоминаний: жёсткий лимит, поэтому только 25/50/100 */
+    private void showMentionAllLimitPicker() {
+        final int[] limits = org.telegram.messenger.PengramMentionAll.LIMITS;
+        final CharSequence[] options = new CharSequence[limits.length];
+        int selected = 0;
+        for (int a = 0; a < limits.length; ++a) {
+            options[a] = LocaleController.formatString(R.string.PengramMentionAllPeople, limits[a]);
+            if (limits[a] == org.telegram.messenger.PengramMentionAll.limit()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramMentionAllLimit), options, selected, value -> {
+            org.telegram.messenger.PengramMentionAll.setLimit(limits[value]);
+            refreshRows();
+        });
+    }
+
+    private CharSequence[] mentionAllCooldownNames() {
+        final int[] values = org.telegram.messenger.PengramMentionAll.COOLDOWNS;
+        final CharSequence[] names = new CharSequence[values.length];
+        for (int a = 0; a < values.length; ++a) {
+            names[a] = LocaleController.formatString(R.string.PengramMentionAllMinutes, values[a]);
+        }
+        return names;
+    }
+
+    private int mentionAllCooldownIndex() {
+        final int[] values = org.telegram.messenger.PengramMentionAll.COOLDOWNS;
+        for (int a = 0; a < values.length; ++a) {
+            if (values[a] == org.telegram.messenger.PengramMentionAll.cooldownMinutes()) {
+                return a;
+            }
+        }
+        return 1;
+    }
+
+    /** имя устройства читается при старте приложения — предлагаем перезапуск */
+    private void requestDeviceRestart() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(context, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramDeviceRestartTitle));
+        builder.setMessage(getString(R.string.PengramDeviceRestartInfo));
+        builder.setPositiveButton(getString(R.string.PengramDeviceRestartButton), (d, w) ->
+                org.telegram.messenger.PengramDeviceName.restartApp(
+                        org.telegram.messenger.ApplicationLoader.applicationContext));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** перестроить список строк: значения в подписях могли измениться */
+    private void refreshRows() {
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    private void showChoicePicker(CharSequence title, CharSequence[] options, int selected, Utilities.Callback<Integer> onSelected) {
+        showChoicePicker(title, options, null, selected, onSelected);
+    }
+
+    /**
+     * Тот же выбор, но с подписью под каждой строкой — она и служит бейджем
+     * устройства («iPhone · iOS 18.4»), чтобы тип заявленного девайса был
+     * виден прямо в списке, а не угадывался по названию модели.
+     */
+    private void showChoicePicker(CharSequence title, CharSequence[] options, CharSequence[] subtitles,
+                                  int selected, Utilities.Callback<Integer> onSelected) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(title, true);
+
+        // Прокручиваемый список: длинные перечни (модели устройства, версии)
+        // раньше обрезались по нижней границе шторки — до «Своего» было не добраться.
+        final org.telegram.ui.Components.PengramSheetList sheetList =
+                new org.telegram.ui.Components.PengramSheetList(context);
+        final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[options.length];
+        for (int a = 0; a < options.length; ++a) {
+            final int index = a;
+            cells[a] = new org.telegram.ui.Cells.RadioColorCell(context, getResourceProvider());
+            cells[a].setPadding(dp(4), 0, dp(4), 0);
+            cells[a].setCheckColor(Theme.getColor(Theme.key_radioBackground, getResourceProvider()), Theme.getColor(Theme.key_dialogRadioBackgroundChecked, getResourceProvider()));
+            if (subtitles != null && a < subtitles.length && subtitles[a] != null) {
+                cells[a].setTextAndText2AndValue(options[a], subtitles[a], selected == a);
+            } else {
+                cells[a].setTextAndValue(options[a], selected == a);
+            }
+            cells[a].setBackground(Theme.getSelectorDrawable(false));
+            cells[a].setOnClickListener(v -> {
+                for (int b = 0; b < cells.length; ++b) {
+                    cells[b].setChecked(b == index, true);
+                }
+                // Закрываем именно этот picker до callback. Иначе callback успевает открыть
+                // следующий диалог, а отложенный dismiss закрывает уже его.
+                try {
+                    if (visibleDialog != null) {
+                        visibleDialog.dismiss();
+                    }
+                } catch (Throwable ignore) {}
+                onSelected.run(index);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+            // высоту строки считает сама ячейка: у неё бывает вторая строка
+            // (бейдж устройства), и фиксированные 50dp её обрезали
+            sheetList.addRow(cells[a], 0);
+        }
+        builder.setCustomView(sheetList);
+        showDialog(builder.create());
+    }
+
+    private void showKeepDaysPicker() {
+        final CharSequence[] options = new CharSequence[KEEP_DAYS.length];
+        int selected = 0;
+        for (int a = 0; a < KEEP_DAYS.length; ++a) {
+            options[a] = keepDaysName(KEEP_DAYS[a]);
+            if (KEEP_DAYS[a] == PengramConfig.getHistoryKeepDays()) {
+                selected = a;
+            }
+        }
+        showChoicePicker(getString(R.string.PengramKeepDaysTitle), options, selected, index -> {
+            PengramConfig.setHistoryKeepDays(KEEP_DAYS[index]);
+            PengramHistory.autoCleanup();
+        });
+    }
+
+    // ------------------------------------------------- резервная копия настроек
+
+    /** Что сделать с настройками: отправить себе, сохранить файлом или скопировать текстом */
+    private void exportSettings() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramBackupExport), true);
+        builder.setItems(new CharSequence[]{
+                getString(R.string.PengramBackupToSaved),
+                getString(R.string.PengramBackupToFile),
+                getString(R.string.PengramBackupToClipboard)
+        }, new int[]{R.drawable.msg_saved, R.drawable.msg_shareout, R.drawable.msg_copy}, (dialog, which) -> {
+            if (which == 2) {
+                exportAsText();
+            } else {
+                askPassword(true, password -> packAndDeliver(password, which == 0));
+            }
+        });
+        builder.show();
+    }
+
+    private void exportAsText() {
+        final String json = PengramConfig.exportToJson();
+        if (json == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            return;
+        }
+        AndroidUtilities.addToClipboard(json);
+        BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramBackupCopied)).show();
+    }
+
+    /** собрать .pen и либо отправить в Избранное, либо отдать системе «поделиться» */
+    private void packAndDeliver(String password, boolean toSaved) {
+        final byte[] data = org.telegram.messenger.PengramBackup.pack(password);
+        final java.io.File file = org.telegram.messenger.PengramBackup.writeToCache(data);
+        if (file == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            return;
+        }
+        if (toSaved) {
+            final long selfId = getUserConfig().getClientUserId();
+            org.telegram.messenger.SendMessagesHelper.prepareSendingDocument(getAccountInstance(),
+                    file.getAbsolutePath(), file.getAbsolutePath(), null,
+                    getString(R.string.PengramBackupCaption), "application/octet-stream",
+                    selfId, null, null, null, null, null, true, 0, null, null, false);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.saved_messages,
+                    getString(R.string.PengramBackupSentToSaved)).show();
+            return;
+        }
+        try {
+            final android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            intent.setType("application/octet-stream");
+            intent.putExtra(android.content.Intent.EXTRA_STREAM,
+                    androidx.core.content.FileProvider.getUriForFile(getParentActivity(),
+                            ApplicationLoader.getApplicationId() + ".provider", file));
+            intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getParentActivity().startActivityForResult(android.content.Intent.createChooser(intent,
+                    getString(R.string.PengramBackupToFile)), 500);
+        } catch (Throwable e) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+        }
+    }
+
+    /** Импорт: файл .pen или текст из буфера */
+    private void importSettings() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final org.telegram.ui.ActionBar.BottomSheet.Builder builder =
+                new org.telegram.ui.ActionBar.BottomSheet.Builder(context, false, getResourceProvider());
+        builder.setTitle(getString(R.string.PengramBackupImport), true);
+        builder.setItems(new CharSequence[]{
+                getString(R.string.PengramBackupFromFile),
+                getString(R.string.PengramBackupFromClipboard)
+        }, new int[]{R.drawable.msg_download, R.drawable.msg_copy}, (dialog, which) -> {
+            if (which == 0) {
+                pickBackupFile();
+            } else {
+                importFromClipboard();
+            }
+        });
+        builder.show();
+    }
+
+    private static final int REQUEST_PICK_BACKUP = 4711;
+
+    /** системный выбор файла — так .pen открывается откуда угодно, хоть из Избранного */
+    private void pickBackupFile() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        try {
+            final android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_GET_CONTENT);
+            intent.setType("*/*");
+            intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+            startActivityForResult(android.content.Intent.createChooser(intent,
+                    getString(R.string.PengramBackupFromFile)), REQUEST_PICK_BACKUP);
+        } catch (Throwable e) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PICK_VOICE_PROFILE) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                final android.net.Uri uri = data.getData();
+                Utilities.globalQueue.postRunnable(() -> {
+                    org.telegram.messenger.PengramVoiceProfile profile = null;
+                    try (java.io.InputStream input = ApplicationLoader.applicationContext
+                            .getContentResolver().openInputStream(uri)) {
+                        if (input == null) throw new java.io.IOException("Profile unavailable");
+                        byte[] chunk = new byte[1024];
+                        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+                        int n;
+                        while ((n = input.read(chunk)) != -1) {
+                            if (bytes.size() + n > 8192) throw new java.io.IOException("Profile too large");
+                            bytes.write(chunk, 0, n);
+                        }
+                        String json = new String(bytes.toByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+                        profile = org.telegram.messenger.PengramVoiceProfile.parse(json.replace("\uFEFF", "").trim());
+                    } catch (Throwable error) {
+                        FileLog.e(error);
+                    }
+                    final org.telegram.messenger.PengramVoiceProfile ready = profile;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (getContext() == null) return;
+                        if (ready == null) {
+                            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                            return;
+                        }
+                        ready.apply();
+                        if (voicePreview != null) voicePreview.update();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.contact_check,
+                                getString(R.string.PengramVoiceProfileImported)).show();
+                    });
+                });
+            }
+            return;
+        }
+        if (requestCode == REQUEST_PICK_QUOTE_LOGO) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                final android.net.Uri uri = data.getData();
+                Utilities.globalQueue.postRunnable(() -> {
+                    boolean saved = false;
+                    final java.io.File temp = new java.io.File(ApplicationLoader.applicationContext.getCacheDir(),
+                            "pengram-quote-logo-in-" + System.nanoTime());
+                    try (java.io.InputStream input = ApplicationLoader.applicationContext.getContentResolver().openInputStream(uri);
+                         java.io.FileOutputStream out = new java.io.FileOutputStream(temp)) {
+                        if (input == null) throw new java.io.IOException("Image unavailable");
+                        byte[] buffer = new byte[16384];
+                        long total = 0;
+                        int n;
+                        while ((n = input.read(buffer)) != -1) {
+                            total += n;
+                            if (total > 4 * 1024 * 1024) throw new java.io.IOException("Image too large");
+                            out.write(buffer, 0, n);
+                        }
+                        android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+                        options.inJustDecodeBounds = true;
+                        android.graphics.BitmapFactory.decodeFile(temp.getAbsolutePath(), options);
+                        if (options.outWidth < 1 || options.outHeight < 1 || options.outWidth > 8192 || options.outHeight > 8192)
+                            throw new java.io.IOException("Unsupported image");
+                        options.inJustDecodeBounds = false;
+                        options.inSampleSize = 1;
+                        while (options.outWidth / options.inSampleSize > 512 || options.outHeight / options.inSampleSize > 512)
+                            options.inSampleSize *= 2;
+                        android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(temp.getAbsolutePath(), options);
+                        if (bitmap == null) throw new java.io.IOException("Image decode failed");
+                        final java.io.File logo = org.telegram.ui.Components.PengramQuoteMaker.logoFile(ApplicationLoader.applicationContext);
+                        final java.io.File replacement = new java.io.File(logo.getParentFile(),
+                                logo.getName() + "." + System.nanoTime() + ".tmp");
+                        try {
+                            try (java.io.FileOutputStream logoOut = new java.io.FileOutputStream(replacement)) {
+                                if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, logoOut))
+                                    throw new java.io.IOException("Image save failed");
+                            }
+                            // Rename on the same filesystem replaces the old logo atomically.
+                            if (!replacement.renameTo(logo)) throw new java.io.IOException("Image replace failed");
+                            saved = true;
+                        } finally {
+                            bitmap.recycle();
+                            replacement.delete();
+                        }
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                    } finally {
+                        temp.delete();
+                    }
+                    final boolean success = saved;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!success) BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteLogoError)).show();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    });
+                });
+            }
+            return;
+        }
+        if (requestCode != REQUEST_PICK_BACKUP || data == null || data.getData() == null) {
+            return;
+        }
+        byte[] bytes = null;
+        try {
+            final java.io.InputStream stream = ApplicationLoader.applicationContext.getContentResolver().openInputStream(data.getData());
+            if (stream != null) {
+                final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                final byte[] buffer = new byte[8192];
+                int read;
+                while ((read = stream.read(buffer)) > 0 && out.size() < 8 * 1024 * 1024) {
+                    out.write(buffer, 0, read);
+                }
+                stream.close();
+                bytes = out.toByteArray();
+            }
+        } catch (Throwable ignore) {
+        }
+        applyPickedBackup(bytes);
+    }
+
+    private void applyPickedBackup(byte[] bytes) {
+        if (bytes == null || !org.telegram.messenger.PengramBackup.looksLikeBackup(bytes)) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupNotPen)).show();
+            return;
+        }
+        if (org.telegram.messenger.PengramBackup.needsPassword(bytes)) {
+            askPassword(false, password -> applyBackup(bytes, password));
+        } else {
+            applyBackup(bytes, null);
+        }
+    }
+
+    private void applyBackup(byte[] data, String password) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        // ключ считается сотнями тысяч итераций — на UI-потоке это заморозка
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+        org.telegram.messenger.PengramBackup.unpackAsync(data, password, json -> {
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+            applyBackupJson(json);
+        });
+    }
+
+    private void applyBackupJson(String json) {
+        if (json == null) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupWrongPassword)).show();
+            return;
+        }
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupImport));
+        builder.setMessage(getString(R.string.PengramBackupImportConfirm));
+        builder.setPositiveButton(getString(R.string.PengramBackupApply), (d, w) -> {
+            if (org.telegram.messenger.PengramBackup.apply(json)) {
+                afterSettingsReplaced(getString(R.string.PengramBackupImported));
+            } else {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void importFromClipboard() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        String clip = null;
+        try {
+            final android.content.ClipboardManager cm = (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null && cm.getPrimaryClip() != null && cm.getPrimaryClip().getItemCount() > 0) {
+                final CharSequence text = cm.getPrimaryClip().getItemAt(0).coerceToText(context);
+                clip = text == null ? null : text.toString();
+            }
+        } catch (Throwable ignore) {}
+        if (clip == null || !clip.contains("pengram")) {
+            BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupNothing)).show();
+            return;
+        }
+        final String json = clip;
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupImport));
+        builder.setMessage(getString(R.string.PengramBackupImportConfirm));
+        builder.setPositiveButton(getString(R.string.PengramBackupApply), (d, w) -> {
+            if (PengramConfig.importFromJson(json)) {
+                afterSettingsReplaced(getString(R.string.PengramBackupImported));
+            } else {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramBackupFailed)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** один и тот же диалог пароля на экспорт и импорт */
+    private void askPassword(boolean creating, Utilities.Callback<String> whenDone) {
+        final Context context = getContext();
+        if (context == null || getParentActivity() == null) {
+            return;
+        }
+        final EditTextBoldCursor field = new EditTextBoldCursor(context);
+        field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint));
+        field.setHint(getString(creating ? R.string.PengramBackupPasswordHint : R.string.PengramBackupPasswordEnter));
+        field.setBackground(null);
+        field.setSingleLine(true);
+        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack));
+        field.setCursorWidth(1.5f);
+
+        final android.widget.LinearLayout layout = new android.widget.LinearLayout(context);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44, 22, 4, 22, 0));
+
+        final TextView hint = new TextView(context);
+        hint.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 13);
+        hint.setTextColor(Theme.getColor(Theme.key_dialogTextGray2));
+        hint.setText(getString(creating ? R.string.PengramBackupPasswordInfo : R.string.PengramBackupPasswordInfoOpen));
+        layout.addView(hint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 22, 10, 22, 4));
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupPasswordTitle));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(creating ? R.string.PengramBackupSave : R.string.PengramBackupApply), (d, w) ->
+                whenDone.run(field.getText() == null ? "" : field.getText().toString()));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void resetSettings() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBackupReset));
+        builder.setMessage(getString(R.string.PengramBackupResetConfirm));
+        builder.setPositiveButton(getString(R.string.Reset), (d, w) -> {
+            PengramConfig.resetAll();
+            afterSettingsReplaced(getString(R.string.PengramBackupResetDone));
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** после импорта/сброса: подтянуть всё, что кэшируется в других местах */
+    private void afterSettingsReplaced(CharSequence text) {
+        try {
+            getUserConfig().pengramApplyLocalPremiumStatus();
+            PengramVoiceChanger.reset();
+            org.telegram.messenger.PengramBackgroundService.update(getContext());
+        } catch (Throwable ignore) {}
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.done, text).show();
+    }
+
+    // ------------------------------------------------- быстрый переход по ID / @имени
+
+    private void showOpenByIdDialog() {
+        showTextDialog(getString(R.string.PengramOpenById), "", getString(R.string.PengramOpenByIdHint), getString(R.string.Open), this::openByQuery);
+    }
+
+    private void openByQuery(String query) {
+        if (query == null) {
+            return;
+        }
+        String q = query.trim();
+        if (q.isEmpty()) {
+            return;
+        }
+        final int slash = q.lastIndexOf('/');
+        if (q.startsWith("http") && slash >= 0) {
+            q = q.substring(slash + 1);
+        }
+        if (q.startsWith("@")) {
+            q = q.substring(1);
+        }
+        long id = 0;
+        try {
+            id = Long.parseLong(q);
+        } catch (Exception ignore) {}
+        if (id == 0) {
+            getMessagesController().openByUserName(q, this, 0);
+            return;
+        }
+        final long raw = id;
+        final long chatId = raw < 0 ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw) : raw;
+        final long userId = raw > 0 ? raw : 0;
+        if (userId != 0 && getMessagesController().getUser(userId) != null) {
+            showPeerActions(userId);
+            return;
+        }
+        if (getMessagesController().getChat(chatId) != null) {
+            showPeerActions(-chatId);
+            return;
+        }
+        final org.telegram.messenger.MessagesStorage storage = getMessagesStorage();
+        storage.getStorageQueue().postRunnable(() -> {
+            // уже внутри очереди хранилища, поэтому читаем напрямую (без *Sync, иначе дедлок)
+            final TLRPC.User user = userId != 0 ? storage.getUser(userId) : null;
+            final TLRPC.Chat chat = user == null ? storage.getChat(chatId) : null;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (user != null) {
+                    getMessagesController().putUser(user, true);
+                    showPeerActions(user.id);
+                } else if (chat != null) {
+                    getMessagesController().putChat(chat, true);
+                    showPeerActions(-chat.id);
+                } else {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramOpenByIdNotFound)).show();
+                }
+            });
+        });
+    }
+
+    /** нашли человека или чат по ID — спрашиваем, куда идти: в переписку или в профиль */
+    private void showPeerActions(long dialogId) {
+        if (getParentActivity() == null) {
+            presentFragment(ChatActivity.of(dialogId));
+            return;
+        }
+        CharSequence name = null;
+        if (dialogId > 0) {
+            final TLRPC.User user = getMessagesController().getUser(dialogId);
+            if (user != null) {
+                name = UserObject.getUserName(user);
+            }
+        } else {
+            final TLRPC.Chat chat = getMessagesController().getChat(-dialogId);
+            if (chat != null) {
+                name = chat.title;
+            }
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+        builder.setTitle(TextUtils.isEmpty(name) ? getString(R.string.PengramOpenById) : name);
+        builder.setMessage(PengramConfig.formatId(Math.abs(dialogId), dialogId < 0, false));
+        builder.setPositiveButton(getString(R.string.PengramOpenChat), (d, w) -> presentFragment(ChatActivity.of(dialogId)));
+        builder.setNegativeButton(getString(R.string.PengramOpenProfile), (d, w) -> {
+            final Bundle args = new Bundle();
+            if (dialogId > 0) {
+                args.putLong("user_id", dialogId);
+            } else {
+                args.putLong("chat_id", -dialogId);
+            }
+            presentFragment(new ProfileActivity(args));
+        });
+        showDialog(builder.create());
+    }
+
+    /** Кастомизация — как выглядят сообщения */
+    private void fillCustom(ArrayList<UItem> items, UniversalAdapter adapter) {
+        if (previewMessages == null) {
+            previewMessages = new org.telegram.ui.Components.PengramMessagePreviewView(getContext(), getResourceProvider());
+        }
+        previewMessages.update();
+        items.add(UItem.asCustom(previewMessages));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeletedLookHeader)));
+        items.add(UItem.asSettingsCell(BTN_DELETED_MARK, R.drawable.msg_delete, getString(R.string.PengramDeletedMark), markName(PengramConfig.getDeletedMark())));
+        items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
+        items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
+        items.add(check(PengramConfig.KEY_MARK_EDITED, false, getString(R.string.PengramMarkEditedOption)));
+        items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeleteEffectHeader)));
+        items.add(UItem.asSettingsCell(BTN_DELETE_EFFECT, R.drawable.msg_delete,
+                getString(R.string.PengramDeleteEffect),
+                getString(PengramConfig.getDeleteEffectName(PengramConfig.getDeleteEffect()))));
+        if (PengramConfig.getDeleteEffect() != PengramConfig.DELETE_EFFECT_NONE) {
+            items.add(check(PengramConfig.KEY_DELETE_EFFECT_INCOMING, true, getString(R.string.PengramDeleteEffectIncoming)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramDeleteEffectIncomingInfo)));
+    }
+
+    /** ID для примеров в настройках — свой, если он уже известен */
+    private long sampleId() {
+        try {
+            final TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
+            if (user != null && user.id > 0) {
+                return user.id;
+            }
+        } catch (Throwable ignore) {
+        }
+        return 1234567890L;
     }
 
     private void fillProfile(ArrayList<UItem> items) {
@@ -204,44 +3000,204 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(previewView));
         items.add(UItem.asShadow(getString(R.string.PengramIdPreviewInfo)));
 
+        // Two compact selectors replace the default wall of seven radio rows.
+        // Expanded choices remain available (and searchable) for precise examples.
         items.add(UItem.asHeader(getString(R.string.PengramIdHeader)));
-        items.add(UItem.asRadio(BTN_ID_OFF, getString(R.string.PengramIdStyleOff)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
-        items.add(UItem.asRadio(BTN_ID_ROW, getString(R.string.PengramIdStyleRow)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
-        items.add(UItem.asRadio(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
-        items.add(UItem.asRadio(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline)).setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
-        if (PengramConfig.idStyle != PengramConfig.ID_STYLE_OFF) {
-            items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap));
+        final int format = PengramConfig.getIdFormat();
+        items.add(UItem.asSettingsCell(BTN_ID_FORMAT_PICK, R.drawable.msg_info,
+                getString(R.string.PengramIdFormatPicker), getString(format == PengramConfig.ID_FORMAT_HIDE
+                        ? R.string.PengramIdFormatHide : format == PengramConfig.ID_FORMAT_BOT
+                        ? R.string.PengramIdFormatBot : R.string.PengramIdFormatTelegram)));
+        if (format != PengramConfig.ID_FORMAT_HIDE) {
+            final int style = PengramConfig.getIdStyle();
+            final int styleName = style == PengramConfig.ID_STYLE_ROW ? R.string.PengramIdStyleRow
+                    : style == PengramConfig.ID_STYLE_ROW_DC ? R.string.PengramIdStyleRowDc
+                    : style == PengramConfig.ID_STYLE_INLINE ? R.string.PengramIdStyleInline
+                    : R.string.PengramIdStyleOff;
+            items.add(UItem.asSettingsCell(BTN_ID_PLACEMENT_PICK, R.drawable.msg_openprofile,
+                    getString(R.string.PengramIdPlacementPicker), getString(styleName)));
+            if (style != PengramConfig.ID_STYLE_OFF) {
+                items.add(UItem.asCheck(BTN_ID_COPY, getString(R.string.PengramIdCopyOnTap)).setChecked(PengramConfig.copyIdOnTap));
+            }
+        }
+        items.add(moreButton(GROUP_PROFILE_ID, getString(R.string.PengramProfileIdMore)));
+        if (expanded(GROUP_PROFILE_ID)) {
+            final long selfId = sampleId();
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_HIDE, getString(R.string.PengramIdFormatHide), getString(R.string.PengramIdFormatHideInfo))
+                    .setChecked(format == PengramConfig.ID_FORMAT_HIDE));
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_TELEGRAM, getString(R.string.PengramIdFormatTelegram), String.valueOf(selfId))
+                    .setChecked(format == PengramConfig.ID_FORMAT_TELEGRAM));
+            // For a user, Bot API and Telegram API IDs are identical. -100 is
+            // only the prefix for supergroups/channels, never for a user ID.
+            items.add(UItem.asRadio2(BTN_ID_FORMAT_BOT, getString(R.string.PengramIdFormatBot), String.valueOf(selfId))
+                    .setChecked(format == PengramConfig.ID_FORMAT_BOT));
+            if (format != PengramConfig.ID_FORMAT_HIDE) {
+                items.add(UItem.asHeader(getString(R.string.PengramIdStyleHeader)));
+                items.add(UItem.asRadio2(BTN_ID_OFF, getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleOffInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_OFF));
+                items.add(UItem.asRadio2(BTN_ID_ROW, getString(R.string.PengramIdStyleRow), getString(R.string.PengramIdStyleRowInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW));
+                items.add(UItem.asRadio2(BTN_ID_ROW_DC, getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleRowDcInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_ROW_DC));
+                items.add(UItem.asRadio2(BTN_ID_INLINE, getString(R.string.PengramIdStyleInline), getString(R.string.PengramIdStyleInlineInfo))
+                        .setChecked(PengramConfig.idStyle == PengramConfig.ID_STYLE_INLINE));
+            }
         }
         items.add(UItem.asShadow(null));
 
+        items.add(UItem.asHeader(getString(R.string.PengramOriginalNameHeader)));
+        items.add(UItem.asSettingsCell(BTN_ORIGINAL_NAME, R.drawable.msg_contacts,
+                getString(R.string.PengramOriginalName), originalNameModeName()));
+        items.add(UItem.asShadow(getString(R.string.PengramOriginalNameInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramRegHeader)));
-        items.add(UItem.asRadio(BTN_REG_OFF, getString(R.string.PengramRegStyleOff)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_OFF));
-        items.add(UItem.asRadio(BTN_REG_DATE, getString(R.string.PengramRegStyleDate)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE));
-        items.add(UItem.asRadio(BTN_REG_DATE_AGE, getString(R.string.PengramRegStyleDateAge)).setChecked(PengramConfig.regDateStyle == PengramConfig.REG_STYLE_DATE_AGE));
+        items.add(UItem.asSettingsCell(BTN_REG_STYLE_PICK, R.drawable.msg_calendar2, getString(R.string.PengramRegStyle), regStyleName(PengramConfig.getRegDateStyle())));
+        if (PengramConfig.isRegDateVisible()) {
+            items.add(UItem.asSettingsCell(BTN_REG_PLACE, R.drawable.msg_customize, getString(R.string.PengramRegPlace), regPlaceName(PengramConfig.getRegDatePlace())));
+            if (PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE) {
+                items.add(UItem.asSettingsCell(BTN_REG_ICON, PengramConfig.getRegDateIconRes() == 0 ? R.drawable.msg_info : PengramConfig.getRegDateIconRes(),
+                        getString(R.string.PengramRegIcon), regIconName(PengramConfig.getRegDateIcon())));
+                items.add(checkInfo(PengramConfig.KEY_REG_TAP_TEXT, true, getString(R.string.PengramRegTapText), getString(R.string.PengramRegTapTextInfo)));
+            }
+        }
         items.add(UItem.asShadow(getString(R.string.PengramRegInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramPrivacyHeader)));
         items.add(UItem.asCheck(BTN_HIDE_PHONE, getString(R.string.PengramHidePhone)).setChecked(PengramConfig.hidePhoneNumber));
+        // Две галочки про один и тот же номер («прятать опцию» и «включать заранее»)
+        // заменены одним выбором из трёх состояний: так понятнее, что произойдёт.
+        items.add(UItem.asSettingsCell(BTN_SHARE_PHONE_MODE, R.drawable.msg_secret,
+                getString(R.string.PengramSharePhoneMode), sharePhoneModeName(PengramConfig.getSharePhoneMode())));
+        items.add(UItem.asShadow(getString(R.string.PengramSharePhoneModeInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramHidePhoneInfo)));
     }
 
+    private String spyAccountName(int account) {
+        if (account < 0) return getString(R.string.PengramSpyAllAccounts);
+        TLRPC.User user = org.telegram.messenger.UserConfig.getInstance(account).getCurrentUser();
+        return user == null ? getString(R.string.PengramSpyAccountNumber) + " " + (account + 1)
+                : UserObject.getUserName(user);
+    }
+
+    private void showSpyAccountPicker() {
+        ArrayList<Integer> accounts = new ArrayList<>();
+        ArrayList<CharSequence> labels = new ArrayList<>();
+        accounts.add(-1);
+        labels.add(getString(R.string.PengramSpyAllAccounts));
+        for (int account = 0; account < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; account++) {
+            if (org.telegram.messenger.UserConfig.getInstance(account).isClientActivated()) {
+                accounts.add(account);
+                labels.add(spyAccountName(account));
+            }
+        }
+        int selected = accounts.indexOf(spySelectedAccount);
+        showChoicePicker(getString(R.string.PengramSpyAccount), labels.toArray(new CharSequence[0]),
+                Math.max(0, selected), value -> spySelectedAccount = accounts.get(value));
+    }
+
     private void fillHistory(ArrayList<UItem> items) {
+        if (spySelectedAccount >= 0 && !org.telegram.messenger.UserConfig.getInstance(spySelectedAccount).isClientActivated()) {
+            spySelectedAccount = -1;
+        }
+        items.add(UItem.asSettingsCell(BTN_SPY_ACCOUNT, R.drawable.msg_contacts,
+                getString(R.string.PengramSpyAccount), spyAccountName(spySelectedAccount)));
+        if (spySelectedAccount >= 0) {
+            final int account = spySelectedAccount;
+            final boolean own = PengramConfig.hasSpyProfile(account);
+            items.add(UItem.asCheck(BTN_SPY_PROFILE, getString(R.string.PengramSpyOwnSettings)).setChecked(own));
+            if (!own) {
+                items.add(UItem.asShadow(getString(R.string.PengramSpyInherits)));
+                return;
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
+            items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted))
+                    .setChecked(PengramConfig.isSavingDeleted(account)));
+            items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited))
+                    .setChecked(PengramConfig.isSavingEdited(account)));
+            if (PengramConfig.isSavingEdited(account)) {
+                items.add(UItem.asCheck(BTN_HIST_EDITED_MEDIA, getString(R.string.PengramHistorySaveEditedMedia))
+                        .setChecked(PengramConfig.getSpyOption(account, "saveEditedMedia")));
+                items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
+            }
+            if (PengramConfig.isSavingDeleted(account) || PengramConfig.isSavingEdited(account)) {
+                items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
+                        .setChecked(PengramConfig.isSavingOutgoing(account)));
+                items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots))
+                        .setChecked(PengramConfig.isSavingInBots(account)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
+            items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate))
+                    .setChecked(PengramConfig.isSavingReadDate(account)));
+            items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline))
+                    .setChecked(PengramConfig.isSavingLastOnline(account)));
+            items.add(UItem.asShadow(getString(R.string.PengramSpyScopeInfo)));
+            return;
+        }
+
         items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
         items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
+        if (PengramConfig.saveEdited) {
+            items.add(UItem.asCheck(BTN_HIST_EDITED_MEDIA, getString(R.string.PengramHistorySaveEditedMedia))
+                    .setChecked(PengramConfig.saveEditedMedia));
+            items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
+        }
+        items.add(UItem.asHeader(getString(R.string.PengramHistoryOpenMethod)));
+        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MARK, true, getString(R.string.PengramHistoryOpenPencil)));
+        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MENU, false, getString(R.string.PengramHistoryOpenLongPress)));
         final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
         if (saving) {
-            items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing)).setChecked(PengramConfig.saveOutgoing));
+            items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
+                    .setChecked(PengramConfig.isSavingOutgoing()));
+            items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_SHOW, true, getString(R.string.PengramSaveForMyselfOption)));
+            items.add(check(PengramConfig.KEY_SAVE_FOR_MYSELF_DEFAULT, false, getString(R.string.PengramSaveForMyselfDefault)));
             items.add(UItem.asCheck(BTN_SAVE_IN_BOTS, getString(R.string.PengramSaveInBots)).setChecked(PengramConfig.saveInBots));
-            items.add(UItem.asCheck(BTN_HIST_PROFILE, getString(R.string.PengramHistoryShowInProfile)).setChecked(PengramConfig.historyRowInProfile));
         }
         items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo2)));
+        items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
+        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
+        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
+        items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
+
+        // --- локальная копия --------------------------------------------------
+        // Telegram стирает данные, как только сервер сказал «удалено» или
+        // «сессия отозвана». Здесь это можно выключить.
+        items.add(UItem.asHeader(getString(R.string.PengramLocalKeepHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramLocalKeep.KEY_ENABLED, true,
+                getString(R.string.PengramLocalKeep), getString(R.string.PengramLocalKeepInfo)));
+
+        items.add(moreButton(GROUP_SPY_ADVANCED, getString(R.string.PengramSpyMore)));
+        if (expanded(GROUP_SPY_ADVANCED)) fillHistoryAdvanced(items);
+    }
+
+    private void fillHistoryAdvanced(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramProfileHistory)));
+        items.add(UItem.asSettingsCell(BTN_PROFILE_HISTORY, R.drawable.msg_contacts,
+                getString(R.string.PengramProfileHistory),
+                onOff(org.telegram.messenger.PengramProfileHistory.enabled())));
+        items.add(UItem.asShadow(getString(R.string.PengramProfileHistoryDisabledInfo)));
+
+        if (PengramConfig.saveDeleted) {
+            items.add(UItem.asHeader(getString(R.string.PengramInChatHeader)));
+            items.add(check(PengramConfig.KEY_KEEP_DELETED, true, getString(R.string.PengramKeepDeleted)));
+            if (PengramConfig.isKeepingDeletedInChat()) {
+                // отвечать на удалённое можно только там, где оно осталось видимым
+                items.add(check(PengramConfig.KEY_DELETED_REPLY_QUOTE, true, getString(R.string.PengramDeletedReplyQuote)));
+                if (PengramConfig.isDeletedReplyQuote()) {
+                    items.add(check(PengramConfig.KEY_DELETED_REPLY_SIGN, true, getString(R.string.PengramDeletedReplySign)));
+                }
+            }
+            items.add(UItem.asShadow(getString(PengramConfig.isDeletedReplyQuote()
+                    ? R.string.PengramDeletedReplyInfo
+                    : R.string.PengramKeepDeletedInfo)));
+        }
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryStorage)));
-        items.add(UItem.asButton(BTN_HIST_OPEN, R.drawable.msg_viewchats, getString(R.string.PengramHistoryOpen),
-                String.valueOf(PengramHistory.getCount(0))));
+        items.add(UItem.asSettingsCell(BTN_KEEP_DAYS, R.drawable.msg_autodelete, getString(R.string.PengramKeepDays), keepDaysName(PengramConfig.getHistoryKeepDays())));
+        items.add(UItem.asSettingsCell(BTN_HIST_MAX, R.drawable.msg_limit_links, getString(R.string.PengramHistoryMax),
+                historyMaxName(PengramConfig.getHistoryMaxEntries())));
         items.add(UItem.asButton(BTN_HIST_CLEAR, R.drawable.msg_delete, getString(R.string.PengramHistoryClearButton)).red());
-        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramHistorySize, AndroidUtilities.formatFileSize(PengramHistory.getDatabaseSize()))));
+        items.add(UItem.asShadow(historyStatsText()));
 
         if (PengramConfig.saveDeleted) {
             items.add(UItem.asHeader(getString(R.string.PengramMediaHeader)));
@@ -249,23 +3205,18 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (PengramConfig.saveDeletedMedia) {
                 items.add(UItem.asButton(BTN_MEDIA_FOLDER, getString(R.string.PengramMediaFolder), PengramConfig.getMediaFolder()));
                 items.add(UItem.asButton(BTN_MEDIA_PATTERN, getString(R.string.PengramMediaPattern), PengramConfig.getMediaPattern()));
-                items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
+                items.add(check(PengramConfig.KEY_MEDIA_GALLERY, false, getString(R.string.PengramMediaGallery)));
+                if (expanded(GROUP_HISTORY_MEDIA)) {
+                    items.add(UItem.asShadow(getString(PengramConfig.isMediaToGallery()
+                            ? R.string.PengramMediaInfo : R.string.PengramMediaGalleryInfo)));
 
-                items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
-                int chosen = 0;
-                final String[] titles = new String[MEDIA_LIMITS.length];
-                for (int i = 0; i < MEDIA_LIMITS.length; ++i) {
-                    if (MEDIA_LIMITS[i] == PengramConfig.getMediaMaxSizeMb()) {
-                        chosen = i;
-                    }
-                    titles[i] = MEDIA_LIMITS[i] == 0 ? getString(R.string.PengramMediaLimitOff) : (MEDIA_LIMITS[i] / 1024) + " GB";
+                    items.add(UItem.asHeader(getString(R.string.PengramMediaLimitHeader)));
+                    items.add(UItem.asSettingsCell(BTN_MEDIA_LIMIT, R.drawable.msg_download, getString(R.string.PengramMediaLimitValue), mediaLimitName(PengramConfig.getMediaMaxSizeMb())));
+                    items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
                 }
-                items.add(UItem.asSlideView(titles, chosen, index -> {
-                    PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[index]);
-                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
-                }));
-                items.add(UItem.asButton(BTN_MEDIA_CLEAR, R.drawable.msg_delete, getString(R.string.PengramMediaClear)).red());
-                items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo, AndroidUtilities.formatFileSize(PengramHistory.getSavedMediaSize()))));
+                items.add(moreButton(GROUP_HISTORY_MEDIA));
+                items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramMediaLimitInfo,
+                            AndroidUtilities.formatFileSize(PengramHistory.getStatsCached(this::refreshList).mediaSize))));
             } else {
                 items.add(UItem.asShadow(getString(R.string.PengramMediaInfo)));
             }
@@ -273,23 +3224,70 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillGhost(ArrayList<UItem> items) {
-        items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
-        items.add(UItem.asCheck(BTN_GHOST, getString(R.string.PengramGhostMode)).setChecked(PengramConfig.ghostMode));
-        if (PengramConfig.ghostMode) {
-            items.add(UItem.asCheck(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline));
-            items.add(UItem.asCheck(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead));
-            items.add(UItem.asCheck(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping));
-            items.add(UItem.asCheck(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews));
-        }
-        items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)));
+        final boolean autoOffline = PengramConfig.getBool(PengramConfig.KEY_GHOST_AUTO_OFFLINE, true);
+        final boolean voiceRead = PengramConfig.getBool(PengramConfig.KEY_GHOST_DONT_SEND_VOICE_READ, true);
+        final boolean reactions = PengramConfig.getBool(PengramConfig.KEY_GHOST_DONT_SEND_REACTIONS, false);
+        final int enabled = (PengramConfig.dontSendRead ? 1 : 0)
+                + (PengramConfig.dontSendStoryViews ? 1 : 0)
+                + (PengramConfig.hideOnline ? 1 : 0)
+                + (PengramConfig.dontSendTyping ? 1 : 0)
+                + (autoOffline ? 1 : 0)
+                + (voiceRead ? 1 : 0)
+                + (reactions ? 1 : 0);
 
-        items.add(UItem.asHeader(getString(R.string.PengramTrackHeader)));
-        items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
-        items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
-        items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramGhostHeader)));
+        items.add(
+            UItem.asExpandableSwitch(BTN_GHOST, getString(R.string.PengramGhostMode), enabled + "/7")
+                .setChecked(PengramConfig.ghostMode)
+                .setCollapsed(!ghostExpanded)
+                .setClickCallback(v -> {
+                    PengramConfig.toggleGhostMode();
+                    AndroidUtilities.vibrateCursor(v);
+                    if (v instanceof TextCheckCell2) {
+                        ((TextCheckCell2) v).setChecked(PengramConfig.ghostMode);
+                    }
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                })
+        );
+        if (ghostExpanded) {
+            items.add(UItem.asRoundCheckbox(BTN_DONT_READ, getString(R.string.PengramGhostDontRead)).setChecked(PengramConfig.dontSendRead).setPad(1));
+            items.add(UItem.asRoundCheckbox(BTN_DONT_STORY, getString(R.string.PengramGhostDontStory)).setChecked(PengramConfig.dontSendStoryViews).setPad(1));
+            items.add(UItem.asRoundCheckbox(BTN_HIDE_ONLINE, getString(R.string.PengramGhostHideOnline)).setChecked(PengramConfig.hideOnline).setPad(1));
+            items.add(UItem.asRoundCheckbox(BTN_DONT_TYPE, getString(R.string.PengramGhostDontType)).setChecked(PengramConfig.dontSendTyping).setPad(1));
+            items.add(subCheck(PengramConfig.KEY_GHOST_AUTO_OFFLINE, true, getString(R.string.PengramGhostAutoOffline)));
+            items.add(subCheck(PengramConfig.KEY_GHOST_DONT_SEND_VOICE_READ, true, getString(R.string.PengramGhostDontSendVoiceRead)));
+            items.add(subCheck(PengramConfig.KEY_GHOST_DONT_SEND_REACTIONS, false, getString(R.string.PengramGhostDontSendReactions)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramGhostInfo)
+                + "\n\n" + getString(R.string.PengramGhostWhatHeader) + ": "
+                + getString(R.string.PengramGhostWhatInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramGhostExtraHeader)));
+        items.add(check(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn)));
+        items.add(checkInfo(PengramConfig.KEY_GHOST_SEND_DELAY, false, getString(R.string.PengramGhostSendDelay), getString(R.string.PengramGhostSendDelayInfo)));
+        items.add(UItem.asShadow(null));
+
+    }
+
+    /** короткое состояние обхода для строки настроек */
+    private CharSequence bypassStateName() {
+        switch (org.telegram.messenger.PengramBypass.getStatus()) {
+            case org.telegram.messenger.PengramBypass.STATUS_PROXY: return getString(R.string.PengramBypassStateProxy);
+            case org.telegram.messenger.PengramBypass.STATUS_SEARCHING: return getString(R.string.PengramBypassStateSearching);
+            case org.telegram.messenger.PengramBypass.STATUS_FAILED: return getString(R.string.PengramBypassStateFailed);
+            case org.telegram.messenger.PengramBypass.STATUS_DIRECT: return getString(R.string.PengramBypassStateDirect);
+            default: return getString(R.string.PengramBypassStateOff);
+        }
     }
 
     private void fillFreedom(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramBypass)));
+        items.add(UItem.asSettingsCell(BTN_BYPASS, R.drawable.msg_language,
+                getString(R.string.PengramBypass), bypassStateName()));
+        items.add(UItem.asShadow(getString(R.string.PengramBypassInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramFreedomHeader)));
         items.add(UItem.asCheck(BTN_SCREENSHOTS, getString(R.string.PengramAllowScreenshots)).setChecked(PengramConfig.allowScreenshots));
         if (PengramConfig.allowScreenshots) {
@@ -299,29 +3297,268 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_KEEP_ONCE, getString(R.string.PengramKeepOnce)).setChecked(PengramConfig.keepOnceMedia));
         items.add(UItem.asShadow(getString(R.string.PengramFreedomInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramAntiCrashHeader)));
+        items.add(check(PengramConfig.KEY_ANTICRASH, true, getString(R.string.PengramAntiCrash)));
+        if (PengramConfig.isAntiCrash()) {
+            items.add(check(PengramConfig.KEY_ANTICRASH_MARK, true, getString(R.string.PengramAntiCrashMark)));
+            items.add(check(PengramConfig.KEY_ANTICRASH_JOURNAL, false, getString(R.string.PengramAntiCrashJournalEnabled)));
+            items.add(UItem.asSettingsCell(BTN_ANTICRASH_STATS, R.drawable.msg_policy,
+                    getString(R.string.PengramAntiCrashStats), antiCrashStats()));
+            if (PengramConfig.isAntiCrashJournalEnabled()) {
+                items.add(UItem.asSettingsCell(BTN_ANTICRASH_LOG, R.drawable.msg_secret,
+                        getString(R.string.PengramAntiCrashLog), String.valueOf(PengramAntiCrash.journalSize())));
+            }
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramAntiCrashInfo)));
+
+        // отчёт о вылете: причина уходит в буфер обмена прямо в момент падения
+        items.add(UItem.asHeader(getString(R.string.PengramCrashReports)));
+        items.add(UItem.asCheck(BTN_CRASH_AUTOCOPY, getString(R.string.PengramCrashAutoCopy))
+                .setChecked(org.telegram.messenger.PengramCrashReport.isCopyEnabled()));
+        items.add(UItem.asSettingsCell(BTN_CRASH_REPORTS, R.drawable.msg_report,
+                getString(R.string.PengramCrashReports),
+                org.telegram.ui.Components.PengramCrashDialogs.summary()));
+        items.add(UItem.asShadow(LocaleController.formatString(R.string.PengramCrashReportsInfo,
+                String.valueOf(org.telegram.messenger.PengramCrashReport.LIMIT))));
+
         items.add(UItem.asHeader(getString(R.string.PengramAdsHeader)));
         items.add(UItem.asCheck(BTN_ADS, getString(R.string.PengramHideAds)).setChecked(PengramConfig.hideAds));
         items.add(UItem.asShadow(getString(R.string.PengramAdsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramPremiumHeader)));
         items.add(UItem.asCheck(BTN_LOCAL_PREMIUM, getString(R.string.PengramLocalPremium)).setChecked(PengramConfig.localPremium));
+        if (PengramConfig.localPremium) {
+            items.add(check(PengramConfig.KEY_PREMIUM_STATUS, true, getString(R.string.PengramLocalPremiumStatus)));
+        }
         items.add(UItem.asShadow(getString(R.string.PengramPremiumInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramBackgroundHeader)));
+        int iconStyle = Math.max(0, Math.min(4, PengramConfig.getIntCached(
+                org.telegram.messenger.PengramNotificationIcon.KEY, 0)));
+        items.add(UItem.asSettingsCell(BTN_NOTIFICATION_ICON,
+                org.telegram.messenger.PengramNotificationIcon.drawable(),
+                getString(R.string.PengramNotificationIcon), getString(notificationIconNames[iconStyle])));
+        items.add(check(PengramConfig.KEY_BACKGROUND_MODE, false, getString(R.string.PengramBackgroundMode)));
+        if (PengramConfig.isBackgroundMode()) {
+            items.add(check(PengramConfig.KEY_BACKGROUND_SILENT, true, getString(R.string.PengramBackgroundSilent)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramBackgroundInfo)));
     }
 
     private void fillAppearance(ArrayList<UItem> items) {
+        if (appIconsCell == null && getContext() != null) {
+            appIconsCell = new org.telegram.ui.Cells.AppIconsSelectorCell(getContext(), this, currentAccount);
+        }
+        if (appIconsCell != null) {
+            items.add(UItem.asHeader(getString(R.string.AppIcon)));
+            items.add(UItem.asCustom(appIconsCell, 104));
+            items.add(UItem.asShadow(getString(R.string.PengramAppIconInfo)));
+        }
+
+        items.add(UItem.asHeader(getString(R.string.PengramMD3Header)));
+        if (md3Preview == null && getContext() != null) {
+            md3Preview = new org.telegram.ui.Components.PengramMD3PreviewView(getContext(), getResourceProvider());
+        }
+        if (md3Preview != null) {
+            md3Preview.update();
+            items.add(UItem.asCustom(md3Preview));
+        }
+        items.add(checkInfo(org.telegram.messenger.PengramMD3.KEY_ENABLED, false,
+                getString(R.string.PengramMD3), getString(R.string.PengramMD3Subtitle)));
+        // подробности прячем за «Настроить» — включённый режим не должен вываливать десяток строк
+        if (org.telegram.messenger.PengramMD3.isEnabled()) {
+            if (expanded(GROUP_MD3)) {
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true, getString(R.string.PengramMD3Dialogs)));
+                if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_DIALOGS, true)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_TONAL_UNREAD, true, getString(R.string.PengramMD3Tonal)));
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_NO_DIVIDERS, true, getString(R.string.PengramMD3NoDividers)));
+                }
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true, getString(R.string.PengramMD3SearchBar)));
+                if (PengramConfig.getBool(org.telegram.messenger.PengramMD3.KEY_SEARCH_BAR, true)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SEARCH_SHADOW, false, getString(R.string.PengramMD3SearchShadow)));
+                }
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SHEETS, true, getString(R.string.PengramMD3Sheets)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_ALERTS, true, getString(R.string.PengramMD3Alerts)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_MENUS, true, getString(R.string.PengramMD3Menus)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SETTINGS, true, getString(R.string.PengramMD3Settings)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
+            }
+            items.add(moreButton(GROUP_MD3, getString(R.string.PengramMD3Tune)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMD3Info)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramMonetHeader)));
+        if (org.telegram.messenger.PengramMonet.isSupported()) {
+            items.add(checkInfo(org.telegram.messenger.PengramMonet.KEY_ENABLED, false,
+                    getString(R.string.PengramMonet), getString(R.string.PengramMonetSubtitle)));
+            if (org.telegram.messenger.PengramMonet.isEnabled()) {
+                if (expanded(GROUP_MONET)) {
+                    items.add(subCheck(org.telegram.messenger.PengramMonet.KEY_MESSAGES, true,
+                            getString(R.string.PengramMonetMessages)));
+                    items.add(UItem.asSettingsCell(BTN_MONET_STRENGTH, R.drawable.msg_colors,
+                            getString(R.string.PengramMonetStrength), monetStrengthName()));
+                }
+                items.add(moreButton(GROUP_MONET, getString(R.string.PengramShowMore)));
+            }
+            items.add(UItem.asShadow(getString(R.string.PengramMonetInfo)));
+        } else {
+            items.add(UItem.asShadow(getString(R.string.PengramMonetUnsupported)));
+        }
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuickTilesHeader)));
+        items.add(UItem.asSettingsCell(BTN_QUICK_TILES, R.drawable.msg_customize,
+                getString(R.string.PengramQuickTiles), quickTilesValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramQuickTilesInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramAppearanceHeader)));
-        items.add(UItem.asRadio(BTN_FONT_DEFAULT, getString(R.string.PengramFontDefault)).setChecked(PengramConfig.appFont == PengramConfig.FONT_DEFAULT));
-        items.add(UItem.asRadio(BTN_FONT_SYSTEM, getString(R.string.PengramFontSystem)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SYSTEM));
-        items.add(UItem.asRadio(BTN_FONT_SERIF, getString(R.string.PengramFontSerif)).setChecked(PengramConfig.appFont == PengramConfig.FONT_SERIF));
-        items.add(UItem.asRadio(BTN_FONT_MONO, getString(R.string.PengramFontMono)).setChecked(PengramConfig.appFont == PengramConfig.FONT_MONOSPACE));
+        if (fontPreview == null && getContext() != null) {
+            fontPreview = new org.telegram.ui.Components.PengramFontPreviewView(getContext());
+            fontPreview.setOnChanged(() -> {
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        if (fontPreview != null) {
+            fontPreview.update();
+            items.add(UItem.asCustom(fontPreview));
+        }
+        // Одна строка вместо столбика радиокнопок: шрифтов стало больше, а
+        // места они занимать стали меньше — выбор живёт в списке, превью выше
+        // показывает результат сразу.
+        items.add(UItem.asSettingsCell(BTN_FONT_PICK, R.drawable.msg_customize,
+                getString(R.string.PengramFont), fontName(PengramConfig.appFont)));
+        // Preserve the older specialized constructor, but the root screen has
+        // only one prominent editor entry: the unified interactive preview.
+        items.add(sectionRow(BTN_CONSTRUCTOR, IconBackgroundColors.BLUE_DEEP, R.drawable.msg_photo_settings,
+                getString(R.string.PengramConstructor), getString(R.string.PengramConstructorValue)));
         items.add(UItem.asShadow(null));
-        items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
-        if (PengramConfig.chatMenuEnabled) {
-            items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP));
-            items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
+
+        items.add(UItem.asHeader(getString(R.string.PengramTitleHeader)));
+        items.add(UItem.asSettingsCell(BTN_TITLE_MODE, R.drawable.msg_edit, getString(R.string.PengramTitleText), titleModeName(PengramConfig.getTitleMode())));
+        if (PengramConfig.getTitleMode() == PengramConfig.TITLE_MODE_CUSTOM) {
+            items.add(UItem.asSettingsCell(BTN_TITLE_CUSTOM, R.drawable.msg_customize, getString(R.string.PengramTitleCustom),
+                    PengramConfig.getTitleCustom().isEmpty() ? "Pengram" : PengramConfig.getTitleCustom()));
+        }
+        items.add(check(PengramConfig.KEY_TITLE_CENTER, false, getString(R.string.PengramTitleCenter)));
+        items.add(checkInfo(PengramConfig.KEY_FORCE_SNOW, false, getString(R.string.PengramSnow), getString(R.string.PengramSnowInfo)));
+        if (PengramConfig.isForcedSnow()) {
+            items.add(moreButton(GROUP_SNOW, getString(R.string.PengramShowMore)));
+            if (expanded(GROUP_SNOW)) {
+                items.add(UItem.asSettingsCell(BTN_PARTICLE_MODE, R.drawable.msg_theme,
+                        getString(R.string.PengramParticleType), particleNames()[PengramConfig.getParticleMode()]));
+                if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SUNWHEEL) {
+                    items.add(UItem.asShadow(getString(R.string.PengramParticleSunwheelInfo)));
+                } else if (PengramConfig.getParticleMode() == PengramConfig.PARTICLE_SOLAR_CROSS) {
+                    items.add(UItem.asShadow(getString(R.string.PengramParticleSolarCrossInfo)));
+                }
+                items.add(UItem.asHeader(getString(R.string.PengramParticleCount)));
+                items.add(UItem.asIntSlideView(1, 20, PengramConfig.getParticleCount(), 300,
+                        value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_COUNT, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleOpacity)));
+                items.add(UItem.asIntSlideView(1, 10, PengramConfig.getParticleAlpha(), 100,
+                        value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ALPHA, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleSpeed)));
+                items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleSpeed() * 10), 30,
+                        value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_SPEED, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramParticleRotation)));
+                items.add(UItem.asIntSlideView(1, 2, Math.round(PengramConfig.getParticleRotation() * 10), 30,
+                        value -> String.format(java.util.Locale.ROOT, "%.1f×", value / 10f),
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_ROTATION, value)));
+            }
+        }
+
+        items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
+        items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
+        items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
+        if (PengramConfig.isTabBarLiquidGlass()) {
+            // Ползунки стекла раскрываются по требованию: включил эффект —
+            // рядом появилась его тонкая настройка, выключил — не мешает.
+            items.add(moreButton(GROUP_GLASS, getString(R.string.PengramGlassMore)));
+            if (expanded(GROUP_GLASS)) {
+                items.add(UItem.asHeader(getString(R.string.PengramGlassOpacity)));
+                items.add(UItem.asIntSlideView(1, 20, PengramConfig.getGlassOpacity(), 90,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassOpacity(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassThickness)));
+                items.add(UItem.asIntSlideView(1, 4, PengramConfig.getGlassThicknessDp(), 30,
+                        value -> value + " dp",
+                        value -> {
+                            PengramConfig.setGlassThicknessDp(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassIntensity)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getGlassIntensity(), 150,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassIntensity(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(UItem.asHeader(getString(R.string.PengramGlassGlow)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getGlassGlow(), 150,
+                        value -> value + "%",
+                        value -> {
+                            PengramConfig.setGlassGlow(value);
+                            org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                        }));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_SHEEN, true,
+                        getString(R.string.PengramGlassSheen), getString(R.string.PengramGlassSheenInfo)));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_DRAG, true,
+                        getString(R.string.PengramGlassDrag), getString(R.string.PengramGlassDragInfo)));
+                items.add(checkInfo(PengramConfig.KEY_GLASS_RIM, true,
+                        getString(R.string.PengramGlassRim), getString(R.string.PengramGlassRimInfo)));
+            }
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo) + "\n\n"
+                + getString(R.string.PengramTabBarGlassInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
+        items.add(moreButton(GROUP_TEXT, getString(R.string.PengramShowMore)));
+        if (expanded(GROUP_TEXT)) {
+            items.add(UItem.asSettingsCell(BTN_FONT_SIZE, R.drawable.msg_customize, getString(R.string.TextSizeHeader), String.valueOf(SharedConfig.fontSize)));
+            items.add(UItem.asSettingsCell(BTN_BUBBLE_RADIUS, R.drawable.msg_message, getString(R.string.BubbleRadius), String.valueOf(SharedConfig.bubbleRadius)));
+            items.add(tgCheck(BTN_EXTRA_BASE + 1, getString(R.string.LargeEmoji), () -> SharedConfig.allowBigEmoji, SharedConfig::toggleBigEmoji));
+            items.add(tgCheck(BTN_EXTRA_BASE + 2, getString(R.string.PengramSystemEmoji), () -> SharedConfig.useSystemEmoji, this::toggleSystemEmoji));
+            items.add(tgCheck(BTN_EXTRA_BASE + 3, getString(R.string.LoopAnimatedStickers), SharedConfig::loopStickers, SharedConfig::toggleLoopStickers));
         }
         items.add(UItem.asShadow(null));
+
+        // Secondary visual effects stay available without taking up the default screen.
+        items.add(UItem.asHeader(getString(R.string.PengramEffectsHeader)));
+        items.add(moreButton(GROUP_EFFECTS, getString(R.string.PengramShowMore)));
+        if (expanded(GROUP_EFFECTS)) {
+            items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
+            items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
+            items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 15, LiteMode.FLAG_PARTICLES, getString(R.string.LiteOptionsParticles)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 16, LiteMode.FLAG_CALLS_ANIMATIONS, getString(R.string.LiteOptionsCalls)));
+            items.add(liteCheck(BTN_EXTRA_BASE + 17, LiteMode.FLAG_CHAT_BACKGROUND, getString(R.string.PengramChatBackgroundAnim)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramEffectsInfo)));
+
+        // Всё, что про список чатов, собрано в «Чаты и кнопки → Интерфейс».
+        // Здесь остаётся только то, что меняет приложение целиком.
+        items.add(UItem.asHeader(getString(R.string.PengramInterfaceHeader)));
+        items.add(UItem.asSettingsCell(BTN_TABLET_MODE, R.drawable.msg_customize,
+                getString(R.string.PengramTabletMode), getString(new int[]{
+                        R.string.PengramTabletAuto, R.string.PengramTabletOff, R.string.PengramTabletOn
+                }[SharedConfig.getTabletMode()])));
+        items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
+    }
+
+    private String voiceGainPresetName(int preset) {
+        final int[] names = {R.string.PengramVoiceGainOff, R.string.PengramVoiceGainClear,
+                R.string.PengramVoiceGainLoud, R.string.PengramVoiceGainBattle,
+                R.string.PengramVoiceGainCustom, R.string.PengramVoiceGainOverload};
+        return preset == PengramConfig.VOICE_GAIN_OFF ? getString(names[preset])
+                : LocaleController.formatString(names[preset], PengramConfig.getVoiceGainDbForPreset(preset));
     }
 
     private void fillMedia(ArrayList<UItem> items) {
@@ -338,14 +3575,31 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         voicePreview.update();
         items.add(UItem.asCustom(voicePreview));
-        items.add(UItem.asShadow(null));
+        items.add(UItem.asShadow(getString(PengramVoiceChanger.isBypassedForPerformance()
+                ? mode == PengramVoiceChanger.MODE_ANONYMOUS
+                    ? R.string.PengramVoiceAnonymousMuted : R.string.PengramVoicePerformancePaused
+                : R.string.PengramVoicePreviewVisualOnly)));
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceHeader)));
-        for (int m = PengramVoiceChanger.MODE_OFF; m <= PengramVoiceChanger.MODE_CUSTOM; ++m) {
-            items.add(UItem.asRadio2(BTN_VOICE_BASE + m, PengramVoiceChanger.getModeName(m), voiceModeDescription(m)).setChecked(mode == m));
+        // Вместо простыни радио-кнопок — сетка карточек: все режимы видно сразу.
+        if (voicePicker == null) {
+            voicePicker = new org.telegram.ui.Components.PengramVoicePickerView(getContext(), getResourceProvider());
+            voicePicker.setOnModeSelected(selectedMode -> {
+                if (voicePreview != null) {
+                    voicePreview.update();
+                }
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        voicePicker.update();
+        items.add(UItem.asCustom(voicePicker));
+        final CharSequence currentVoiceDescription = mode == PengramVoiceChanger.MODE_CUSTOM ? null : voiceModeDescription(mode);
+        if (!TextUtils.isEmpty(currentVoiceDescription)) {
+            items.add(UItem.asShadow(currentVoiceDescription));
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
-            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramVoicePitch)));
             items.add(UItem.asIntSlideView(
                     1,
@@ -360,46 +3614,994 @@ public class PengramSettingsActivity extends UniversalFragment {
                     }
             ));
         }
-        items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceFormant)));
+            items.add(UItem.asIntSlideView(1, -6, PengramConfig.getVoiceFormant(), 6,
+                    value -> "" + value, value -> {
+                        PengramConfig.setIntValue(PengramConfig.KEY_VOICE_FORMANT, value);
+                        PengramVoiceChanger.reset();
+                    }));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceEcho)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceEcho(), 5,
+                    value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_ECHO, value)));
+        }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioDrive)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioDrive(), 6,
+                    value -> String.valueOf(value), value ->
+                            PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_DRIVE, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioRobot)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioRobot(), 6,
+                    value -> String.valueOf(value), value ->
+                            PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_ROBOT, value)));
+        }
+        if (mode == PengramVoiceChanger.MODE_CUSTOM || mode == PengramVoiceChanger.MODE_ASSISTANT
+                || mode == PengramVoiceChanger.MODE_ARMOR) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceStudioMix)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceStudioMix(), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_STUDIO_MIX, value)));
+        }
+        items.add(UItem.asButton(BTN_VOICE_PROFILE_COPY, R.drawable.msg_copy,
+                getString(R.string.PengramVoiceProfileCopy)));
+        items.add(UItem.asButton(BTN_VOICE_PROFILE_IMPORT, R.drawable.msg_download,
+                getString(R.string.PengramVoiceProfileImport)));
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceProfileInfo)));
+        if (mode == PengramVoiceChanger.MODE_ANONYMOUS) {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceAnonymousInfo)));
+        } else {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceInfo)));
+        }
+
+        if (mode == PengramVoiceChanger.MODE_TROLLING) {
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceTrollingGainBypass)));
+        } else {
+            // Independent manual gain and intentional distortion. The dedicated
+            // speech-leveling mode does not stack these controls on top of itself.
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceGainHeader)));
+            final int gainPreset = PengramConfig.getVoiceGainPreset();
+            items.add(UItem.asSettingsCell(BTN_VOICE_GAIN_PRESET, R.drawable.msg_customize,
+                    getString(R.string.PengramVoiceGainPreset), voiceGainPresetName(gainPreset)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDb(), PengramConfig.VOICE_GAIN_MAX_DB,
+                    value -> value > 0 ? "+" + value + " dB" : "0 dB",
+                    PengramConfig::setVoiceGainDb));
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceOverdrive)));
+            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGainDrive(), 100,
+                    value -> value + "%", PengramConfig::setVoiceGainDrive));
+            items.add(UItem.asButton(BTN_VOICE_GAIN_MAXIMUM, R.drawable.msg_customize,
+                    getString(R.string.PengramVoiceGainMaximum)));
+            items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
+        }
+
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
+        items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
+        items.add(check(PengramConfig.KEY_VOICE_ROUND, false, getString(R.string.PengramVoiceRound)));
+        items.add(check(PengramConfig.KEY_VOICE_CALLS, false, getString(R.string.PengramVoiceCalls)));
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceSourcesInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceGate)));
+        items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGate(), 3,
+                value -> "" + value, value -> PengramConfig.setIntValue(PengramConfig.KEY_VOICE_GATE, value)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramStreamHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 40, getString(R.string.EnableStreaming), () -> SharedConfig.streamMedia, SharedConfig::toggleStreamMedia));
+        items.add(tgCheck(BTN_EXTRA_BASE + 41, getString(R.string.PengramStreamAllVideo), () -> SharedConfig.streamAllVideo, SharedConfig::toggleStreamAllVideo));
+        items.add(tgCheck(BTN_EXTRA_BASE + 42, getString(R.string.PengramStreamMkv), () -> SharedConfig.streamMkv, SharedConfig::toggleStreamMkv));
+        items.add(tgCheck(BTN_EXTRA_BASE + 43, getString(R.string.PengramSaveStream), () -> SharedConfig.saveStreamMedia, SharedConfig::toggleSaveStreamMedia));
+        items.add(UItem.asShadow(getString(R.string.PengramStreamInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAutoplayHeader)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 44, LiteMode.FLAG_AUTOPLAY_GIFS, getString(R.string.LiteOptionsAutoplayGifs)));
+        items.add(liteCheck(BTN_EXTRA_BASE + 45, LiteMode.FLAG_AUTOPLAY_VIDEOS, getString(R.string.LiteOptionsAutoplayVideo)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 46, getString(R.string.NextMediaTap), () -> SharedConfig.nextMediaTap, SharedConfig::toggleNextMediaTap));
+        items.add(tgCheck(BTN_EXTRA_BASE + 47, getString(R.string.PengramSortFilesByName), () -> SharedConfig.sortFilesByName, SharedConfig::toggleSortFilesByName));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramCameraHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 50, getString(R.string.PengramInAppCamera), () -> SharedConfig.inappCamera, SharedConfig::toggleInappCamera));
+        items.add(tgCheck(BTN_EXTRA_BASE + 51, getString(R.string.PengramBigCameraRound), () -> SharedConfig.bigCameraForRound, SharedConfig::toggleRoundCamera));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAudioHeader)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 60, getString(R.string.RaiseToSpeak), () -> SharedConfig.raiseToSpeak, SharedConfig::toggleRaiseToSpeak));
+        items.add(tgCheck(BTN_EXTRA_BASE + 61, getString(R.string.RaiseToListen), () -> SharedConfig.raiseToListen, SharedConfig::toggleRaiseToListen));
+        items.add(tgCheck(BTN_EXTRA_BASE + 62, getString(R.string.PengramPauseOnRecord), () -> SharedConfig.pauseMusicOnRecord, SharedConfig::togglePauseMusicOnRecord));
+        items.add(tgCheck(BTN_EXTRA_BASE + 63, getString(R.string.PengramNoiseSuppression), () -> SharedConfig.noiseSupression, SharedConfig::toggleNoiseSupression));
+        items.add(tgCheck(BTN_EXTRA_BASE + 64, getString(R.string.PengramVoiceEffectsOff), () -> SharedConfig.disableVoiceAudioEffects, SharedConfig::toggleDisableVoiceAudioEffects));
+        items.add(UItem.asShadow(getString(R.string.PengramAudioInfo)));
+
+    }
+
+    /** эффекты, которые всегда видны в свёрнутом списке */
+    private static boolean isPrimaryVoiceMode(int mode) {
+        return mode == PengramVoiceChanger.MODE_OFF
+                || mode == PengramVoiceChanger.MODE_ANONYMOUS
+                || mode == PengramVoiceChanger.MODE_TROLLING
+                || mode == PengramVoiceChanger.MODE_FEMALE
+                || mode == PengramVoiceChanger.MODE_MALE
+                || mode == PengramVoiceChanger.MODE_CHILD;
+    }
+
+    private CharSequence[] particleNames() {
+        return new CharSequence[]{getString(R.string.PengramParticleSnow), getString(R.string.PengramParticleSakura),
+                getString(R.string.PengramParticleMatrix), getString(R.string.PengramParticleRain),
+                getString(R.string.PengramParticleLeaves), getString(R.string.PengramParticleSunwheel),
+                getString(R.string.PengramParticleSolarCross)};
     }
 
     private CharSequence voiceModeDescription(int mode) {
-        if (mode == PengramVoiceChanger.MODE_OFF) {
-            return getString(R.string.PengramVoiceOffValue);
-        }
-        if (mode == PengramVoiceChanger.MODE_ROBOT) {
-            return getString(R.string.PengramVoiceRobotValue);
+        switch (mode) {
+            case PengramVoiceChanger.MODE_OFF: return getString(R.string.PengramVoiceOffValue);
+            case PengramVoiceChanger.MODE_ROBOT: return getString(R.string.PengramVoiceRobotValue);
+            case PengramVoiceChanger.MODE_ANONYMOUS: return getString(R.string.PengramVoiceAnonymousValue);
+            case PengramVoiceChanger.MODE_ALIEN: return getString(R.string.PengramVoiceAlienValue);
+            case PengramVoiceChanger.MODE_RADIO: return getString(R.string.PengramVoiceRadioValue);
+            case PengramVoiceChanger.MODE_PHONE: return getString(R.string.PengramVoicePhoneValue);
+            case PengramVoiceChanger.MODE_ASSISTANT: return getString(R.string.PengramVoiceAssistantInfo);
+            case PengramVoiceChanger.MODE_ARMOR: return getString(R.string.PengramVoiceArmorInfo);
+            case PengramVoiceChanger.MODE_TROLLING: return getString(R.string.PengramVoiceTrollingInfo);
+            case PengramVoiceChanger.MODE_CAVE: return getString(R.string.PengramVoiceCaveValue);
+            case PengramVoiceChanger.MODE_UNDERWATER: return getString(R.string.PengramVoiceUnderwaterValue);
+            case PengramVoiceChanger.MODE_WHISPER: return getString(R.string.PengramVoiceWhisperValue);
+            case PengramVoiceChanger.MODE_DEMON: return getString(R.string.PengramVoiceDemonValue);
         }
         if (mode == PengramVoiceChanger.MODE_CUSTOM) {
             final int st = PengramConfig.getVoiceChangerPitch();
             return (st > 0 ? "+" + st : String.valueOf(st)) + " st";
         }
-        final int saved = PengramConfig.getVoiceChangerMode();
-        PengramConfig.voiceChangerMode = mode;
-        final float factor = PengramVoiceChanger.getPitchFactor();
-        PengramConfig.voiceChangerMode = saved;
+        final float factor = PengramVoiceChanger.getPitchFactor(mode);
         final int semitones = Math.round((float) (12.0 * Math.log(factor) / Math.log(2.0)));
         return String.format(java.util.Locale.US, "%s%d st  \u00b7  \u00d7%.2f", semitones > 0 ? "+" : "", semitones, factor);
     }
 
-    private void fillChats(ArrayList<UItem> items) {
-        items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_NEW_GROUP, getString(R.string.PengramHideMenuNewGroup)).setChecked(PengramConfig.hideMenuNewGroup));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_SAVED, getString(R.string.PengramHideMenuSaved)).setChecked(PengramConfig.hideMenuSavedMessages));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_SETTINGS, getString(R.string.PengramHideMenuSettings)).setChecked(PengramConfig.hideMenuSettings));
-        items.add(UItem.asCheck(BTN_HIDE_MENU_THEME, getString(R.string.PengramHideMenuTheme)).setChecked(PengramConfig.hideMenuTheme));
-        items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
+    private CharSequence playerSectionValue() {
+        return getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()));
+    }
 
+    /** Пингвин — скины, жесты и всё, что с ним связано */
+    private void fillPenguin(ArrayList<UItem> items) {
+        if (headerView == null) {
+            headerView = new PengramHeaderView(getContext());
+        }
+        // asFullyCustom, а не asCustom: custom-строка получает MATCH_PARENT по
+        // высоте и растягивается на весь список, а шапка должна обнимать себя
+        items.add(UItem.asFullyCustom(headerView));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramSkinsHeader)));
+        final int skin = PengramConfig.getPenguinSkin();
+        for (int a = 0; a < PengramConfig.SKIN_COUNT; ++a) {
+            items.add(UItem.asRadio2(BTN_SKIN_BASE + a,
+                    getString(PengramConfig.getPenguinSkinName(a)),
+                    getString(skinDescription(a))).setChecked(skin == a));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramSkinsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinHeader)));
+        items.add(checkInfo(PengramConfig.KEY_PENGUIN_TIPS, true,
+                getString(R.string.PengramPenguinTips), getString(R.string.PengramPenguinTipsInfo)));
+        items.add(check(PengramConfig.KEY_PENGUIN_DANCE_MUSIC, true, getString(R.string.PengramPenguinDanceMusic)));
+        items.add(check(PengramConfig.KEY_PENGUIN_SLEEP_GHOST, true, getString(R.string.PengramPenguinSleepGhost)));
+        items.add(checkInfo(PengramConfig.KEY_PENGUIN_AUTO_SKIN, true,
+                getString(R.string.PengramPenguinAutoSkin), getString(R.string.PengramPenguinAutoSkinInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinSize)));
+        items.add(UItem.asIntSlideView(
+                1,
+                70, PengramConfig.getPenguinSize(), 150,
+                value -> value + "%",
+                value -> {
+                    PengramConfig.setPenguinSize(value);
+                    // шапка масштабируется на лету — видно, что именно меняется
+                    if (headerView != null) {
+                        headerView.applySize();
+                    }
+                }
+        ));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPenguinActionsHeader)));
+        items.add(UItem.asButton(BTN_PENGUIN_FLIP, R.drawable.msg_reset, getString(R.string.PengramPenguinFlip)));
+        items.add(UItem.asButton(BTN_PENGUIN_DANCE, R.drawable.msg_played, getString(R.string.PengramPenguinDance)));
+        items.add(UItem.asButton(BTN_PENGUIN_STRAIGHTEN, R.drawable.msg_photo_rotate, getString(R.string.PengramPenguinStraighten)));
+        items.add(UItem.asShadow(getString(R.string.PengramPenguinGesturesInfo)));
+    }
+
+    private int skinDescription(int skin) {
+        switch (skin) {
+            case PengramConfig.SKIN_SANTA: return R.string.PengramSkinSantaInfo;
+            case PengramConfig.SKIN_SCARF: return R.string.PengramSkinScarfInfo;
+            case PengramConfig.SKIN_CAP: return R.string.PengramSkinCapInfo;
+            case PengramConfig.SKIN_GLASSES: return R.string.PengramSkinGlassesInfo;
+            case PengramConfig.SKIN_CROWN: return R.string.PengramSkinCrownInfo;
+            case PengramConfig.SKIN_HEADPHONES: return R.string.PengramSkinHeadphonesInfo;
+            case PengramConfig.SKIN_BOWTIE: return R.string.PengramSkinBowtieInfo;
+            case PengramConfig.SKIN_WIZARD: return R.string.PengramSkinWizardInfo;
+            default: return R.string.PengramSkinNoneInfo;
+        }
+    }
+
+    private org.telegram.ui.Components.PengramPlayerMockView playerMock;
+    private org.telegram.ui.Components.PengramSwipePreview swipePreview;
+
+    /** Плеер — Spotify-режим и текст песни */
+    private void fillPlayer(ArrayList<UItem> items) {
+        // живая миниатюра плеера: по нажатию перебирает оформления прямо на месте
+        if (playerMock == null && getContext() != null) {
+            playerMock = new org.telegram.ui.Components.PengramPlayerMockView(getContext(), PengramConfig.getPlayerStyle());
+            playerMock.setAccent(Theme.getColor(Theme.key_featuredStickers_addButton));
+            playerMock.setOnClickListener(v -> {
+                final int next = (PengramConfig.getPlayerStyle() + 1) % PengramConfig.PLAYER_STYLE_COUNT;
+                PengramConfig.setPlayerStyle(next);
+                playerMock.setStyle(next);
+                AndroidUtilities.vibrateCursor(v);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        if (playerMock != null) {
+            playerMock.setStyle(PengramConfig.getPlayerStyle());
+            items.add(UItem.asCustom(playerMock, 150));
+            items.add(UItem.asShadow(getString(R.string.PengramPlayerPreviewInfo)));
+        }
+
+        items.add(UItem.asHeader(getString(R.string.PengramPlayerHeader)));
+        items.add(UItem.asSettingsCell(BTN_PLAYER_STYLE, R.drawable.msg_played, getString(R.string.PengramPlayerLook), getString(PengramConfig.getPlayerStyleName(PengramConfig.getPlayerStyle()))));
+        if (PengramConfig.isNewPlayer()) {
+            items.add(UItem.asSettingsCell(BTN_PLAYER_BG, R.drawable.msg_theme, getString(R.string.PengramPlayerBg), getString(PengramConfig.getPlayerBgName(PengramConfig.getPlayerBg()))));
+            items.add(UItem.asSettingsCell(BTN_PLAYER_ACCENT, R.drawable.msg_palette,
+                    getString(R.string.PengramPlayerAccent), playerAccentValue()));
+            items.add(UItem.asSettingsCell(BTN_COVER_SHAPE, R.drawable.msg_photos, getString(R.string.PengramCoverShape), getString(PengramConfig.getCoverShapeName(PengramConfig.getCoverShape()))));
+            items.add(check(PengramConfig.KEY_PLAYER_BLUR, true, getString(R.string.PengramPlayerBlur)));
+            // что показывать, когда у трека нет картинки
+            items.add(UItem.asSettingsCell(BTN_EMPTY_COVER, R.drawable.pengram_penguin_glyph,
+                    getString(R.string.PengramEmptyCover),
+                    getString(PengramConfig.getEmptyCoverName(PengramConfig.getEmptyCoverMode()))));
+            if (PengramConfig.isEmptyCoverPenguin()) {
+                items.add(checkInfo(PengramConfig.KEY_PENGUIN_DANCE, true,
+                        getString(R.string.PengramPlayerPenguinDance), getString(R.string.PengramPlayerPenguinDanceInfo)));
+            }
+        }
+        if (PengramConfig.isNewPlayer()) {
+            items.add(UItem.asShadow(PengramConfig.isEmptyCoverPenguin()
+                    ? getString(R.string.PengramEmptyCoverInfo)
+                    : getString(R.string.PengramPlayerAccentInfo)));
+            // как сильно плеер отзывается на музыку
+            items.add(UItem.asSettingsCell(BTN_PLAYER_BEAT, R.drawable.msg_tone_on,
+                    getString(R.string.PengramPlayerBeat),
+                    getString(PengramConfig.getPlayerBeatName(PengramConfig.getPlayerBeatMode()))));
+            items.add(UItem.asShadow(getString(R.string.PengramPlayerBeatInfo)));
+        } else {
+            items.add(UItem.asShadow(null));
+        }
+
+        // Свайп по свёрнутому плееру: листать треки прямо из шапки
+        items.add(UItem.asHeader(getString(R.string.PengramPlayerSwipeHeader)));
+        items.add(check(PengramConfig.KEY_PLAYER_SWIPE, true, getString(R.string.PengramPlayerSwipe)));
+        if (swipePreview == null) {
+            swipePreview = new org.telegram.ui.Components.PengramSwipePreview(getContext());
+        }
+        swipePreview.setEnabledPreview(PengramConfig.isPlayerSwipe());
+        items.add(UItem.asCustom(swipePreview, 104));
+        items.add(UItem.asShadow(getString(R.string.PengramPlayerSwipeInfo)));
+
+        // Пересылка трека: манера выбирается заранее, кнопка потом не задаёт лишних вопросов
+        items.add(UItem.asHeader(getString(R.string.PengramTrackForwardHeader)));
+        items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_BUTTON, true,
+                getString(R.string.PengramTrackForwardButton), getString(R.string.PengramTrackForwardButtonInfo)));
+        items.add(checkInfo(PengramConfig.KEY_MUSIC_FORWARD_CLEAN, true,
+                getString(R.string.PengramMusicForwardClean), getString(R.string.PengramMusicForwardCleanInfo)));
+        if (!PengramConfig.isMusicForwardClean()) {
+            // манера и подпись имеют смысл только когда трек пересылается «как есть»
+            items.add(UItem.asSettingsCell(BTN_TRACK_FORWARD_MODE, R.drawable.msg_forward,
+                    getString(R.string.PengramTrackForwardMode),
+                    org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.getTrackForwardMode())));
+            items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_CAPTION, false,
+                    getString(R.string.PengramTrackForwardCaption), getString(R.string.PengramTrackForwardCaptionInfo)));
+        }
+        items.add(UItem.asShadow(org.telegram.ui.Components.PengramTrackForward.buttonHint()));
+        items.add(UItem.asHeader(getString(R.string.PengramTrackCardSettings)));
+        items.add(UItem.asSettingsCell(BTN_TRACK_CARD_FORMAT, R.drawable.msg_share,
+                getString(R.string.PengramTrackCardFormat),
+                getString(PengramConfig.getTrackCardFormat() == PengramConfig.TRACK_CARD_IMAGE
+                        ? R.string.PengramTrackCardImage : R.string.PengramTrackCardText)));
+        items.add(checkInfo(PengramConfig.KEY_TRACK_CARD_LINK, true,
+                getString(R.string.PengramTrackCardLink), getString(R.string.PengramTrackCardLinkInfo)));
+        if (PengramConfig.getTrackCardFormat() == PengramConfig.TRACK_CARD_IMAGE) {
+            items.add(check(PengramConfig.KEY_TRACK_CARD_BRAND, true, getString(R.string.PengramTrackCardBrand)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramTrackCardInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramMusicMetaHeader)));
+        items.add(checkInfo(PengramConfig.KEY_MUSIC_SMART_ARTIST, true,
+                getString(R.string.PengramMusicSmartArtist), getString(R.string.PengramMusicSmartArtistInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(sectionRow(BTN_SECTION_LYRICS, IconBackgroundColors.ORANGE, R.drawable.msg_msgbubble3,
+                getString(R.string.PengramLyricsSection), lyricsSectionValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramLyricsSectionInfo)));
+
+    }
+
+    /** Текст песни: отдельный экран — в плеере этих строк было больше, чем всего остального */
+    private void fillLyrics(ArrayList<UItem> items) {
+        if (!PengramConfig.isNewPlayer()) {
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsNeedsNewPlayer)));
+            return;
+        }
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsSyncHeader)));
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_AUTO, true,
+                    getString(R.string.PengramLyricsAuto), getString(R.string.PengramLyricsAutoInfo)));
+            if (!PengramConfig.isLyricsAuto()) {
+                // ручной режим: тут всё то же самое, но руками
+                items.add(UItem.asSettingsCell(BTN_LYRICS_SOURCE, R.drawable.msg_download,
+                        getString(R.string.PengramLyricsSourceHeader),
+                        getString(PengramConfig.getLyricsSourceName(PengramConfig.getLyricsSourceRaw()))));
+                items.add(UItem.asShadow(getString(PengramConfig.getLyricsSourceInfo(PengramConfig.getLyricsSourceRaw()))));
+                items.add(UItem.asHeader(getString(R.string.PengramLyricsOffset)));
+                items.add(UItem.asIntSlideView(1, 0,
+                        Math.max(0, Math.min(40, Math.round(PengramConfig.getLyricsOffset() / 100f) + 20)), 40,
+                        value -> String.format(java.util.Locale.US, "%+.1f c", (value - 20) * 0.1f),
+                        value -> PengramConfig.setLyricsOffset((value - 20) * 100)));
+                items.add(UItem.asShadow(getString(R.string.PengramLyricsOffsetInfo)));
+            } else {
+                items.add(UItem.asShadow(getString(R.string.PengramLyricsAutoDetails)));
+            }
+            // Source selection can be automatic without overriding either of
+            // these independent, default-on playback/visual choices.
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_STRETCH, true,
+                    getString(R.string.PengramLyricsStretch), getString(R.string.PengramLyricsStretchInfo)));
+            items.add(checkInfo(PengramConfig.KEY_LYRICS_SMOOTH, true,
+                    getString(R.string.PengramLyricsSmooth), getString(R.string.PengramLyricsSmoothInfo)));
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsHeader)));
+            items.add(UItem.asSettingsCell(BTN_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramLyricsAnim), getString(PengramConfig.getLyricsAnimName(PengramConfig.getLyricsAnim()))));
+            items.add(UItem.asSettingsCell(BTN_LYRICS_ALIGN, R.drawable.msg_message, getString(R.string.PengramLyricsAlign), getString(PengramConfig.getLyricsAlignName(PengramConfig.getLyricsAlign()))));
+            items.add(check(PengramConfig.KEY_LYRICS_BOLD, true, getString(R.string.PengramLyricsBold)));
+            items.add(check(PengramConfig.KEY_LYRICS_SHADOW, true, getString(R.string.PengramLyricsShadow)));
+            items.add(check(PengramConfig.KEY_LYRICS_AUTOSCROLL, true, getString(R.string.PengramLyricsAutoScroll)));
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsAnimInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsSize)));
+            items.add(UItem.asIntSlideView(1, 14, PengramConfig.getLyricsSize(), 40,
+                    value -> value + " dp",
+                    value -> PengramConfig.setLyricsSize(value)));
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsDim)));
+            items.add(UItem.asIntSlideView(1, 5, PengramConfig.getLyricsDim(), 100,
+                    value -> value + "%",
+                    value -> PengramConfig.setLyricsDim(value)));
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsDimInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLyricsSpeed)));
+            items.add(UItem.asIntSlideView(1, 25, PengramConfig.getLyricsSpeed(), 300,
+                    value -> value + "%",
+                    value -> PengramConfig.setLyricsSpeed(value)));
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asHeader(getString(R.string.PengramHeaderLyrics)));
+            items.add(checkInfo(PengramConfig.KEY_HEADER_LYRICS, true, getString(R.string.PengramHeaderLyricsOn), getString(R.string.PengramHeaderLyricsInfo)));
+            if (PengramConfig.isHeaderLyrics()) {
+                items.add(UItem.asSettingsCell(BTN_HEADER_LYRICS_ANIM, R.drawable.msg_customize, getString(R.string.PengramHeaderLyricsAnim),
+                        PengramConfig.getHeaderLyricsAnim() < 0
+                                ? getString(R.string.PengramHeaderLyricsAnimSame)
+                                : getString(PengramConfig.getLyricsAnimName(PengramConfig.getHeaderLyricsAnim()))));
+                items.add(checkInfo(PengramConfig.KEY_HEADER_LYRICS_MARQUEE, true, getString(R.string.PengramHeaderLyricsMarquee), getString(R.string.PengramHeaderLyricsMarqueeInfo)));
+                items.add(check(PengramConfig.KEY_HEADER_LYRICS_WORDS, true, getString(R.string.PengramHeaderLyricsWords)));
+                items.add(check(PengramConfig.KEY_HEADER_LYRICS_BOLD, false, getString(R.string.PengramHeaderLyricsBold)));
+                items.add(UItem.asShadow(null));
+
+                items.add(UItem.asHeader(getString(R.string.PengramHeaderLyricsSize)));
+                items.add(UItem.asIntSlideView(1, 11, PengramConfig.getHeaderLyricsSize(), 20,
+                        value -> value + " dp",
+                        value -> PengramConfig.setHeaderLyricsSize(value)));
+                items.add(UItem.asShadow(null));
+
+                items.add(UItem.asHeader(getString(R.string.PengramHeaderLyricsSpeedTitle)));
+                items.add(UItem.asIntSlideView(1, 40, PengramConfig.getHeaderLyricsSpeed(), 250,
+                        value -> value + "%",
+                        value -> PengramConfig.setHeaderLyricsSpeed(value)));
+                items.add(UItem.asShadow(getString(R.string.PengramHeaderLyricsSpeedInfo)));
+            }
+            items.add(UItem.asShadow(null));
+
+            items.add(UItem.asButton(BTN_LYRICS_CLEAR, R.drawable.msg_delete, LocaleController.formatString(R.string.PengramLyricsClear, org.telegram.messenger.PengramLyrics.savedCount())).red());
+            items.add(UItem.asShadow(getString(R.string.PengramLyricsClearInfo)));
+    }
+
+    private void fillChats(ArrayList<UItem> items) {
+        // у каждого подраздела своя подпись — видно состояние, не заходя внутрь
+        items.add(sectionRow(BTN_SECTION_CHAT_ACTIONS, IconBackgroundColors.ORANGE, R.drawable.msg_customize,
+                getString(R.string.PengramSubsectionActions), String.valueOf(PengramConfig.getQuickActionCount())));
+        items.add(sectionRow(BTN_SECTION_CHAT_MESSAGES, IconBackgroundColors.BLUE, R.drawable.msg_message,
+                getString(R.string.PengramSubsectionMessages), ""));
+        items.add(sectionRow(BTN_SECTION_TYPING, IconBackgroundColors.GREEN, R.drawable.msg_customize,
+                getString(R.string.PengramTypingSection), inputAnimationName()));
+        items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
+                getString(R.string.PengramQuoteSection), ""));
+        items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
+                getString(R.string.PengramSubsectionInterface), hiddenCountValue()));
+        items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
+                getString(R.string.PengramSubsectionMenus), hiddenChatItemsValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramChatsHubInfo)));
+    }
+
+    private void fillChatActions(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramQuickActions)));
+        final int quickCount = PengramConfig.getQuickActionCount();
+        for (int i = 0; i < quickCount; i++) {
+            final String type = getString(PengramConfig.getQuickActionType(i) == PengramConfig.QUICK_ACTION_FORWARD
+                    ? R.string.PengramQuickTypeForward : R.string.PengramQuickTypeText);
+            items.add(UItem.asSettingsCell(BTN_QUICK_ACTION_BASE + i,
+                    PengramConfig.getQuickActionType(i) == PengramConfig.QUICK_ACTION_FORWARD ? R.drawable.msg_forward : R.drawable.msg_message,
+                    PengramConfig.getQuickActionName(i), type));
+        }
+        if (quickCount < PengramConfig.QUICK_ACTION_LIMIT) {
+            items.add(UItem.asButton(BTN_QUICK_ADD, R.drawable.msg_add, getString(R.string.PengramQuickAdd)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuickActionsInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
+        // Базовые пункты отправки удалёнки и отправка без чужой подписи всегда включены.
+        // Пользователю остаются только действительно значимые варианты поведения.
+        items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
+        items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
+        items.add(checkInfo(PengramConfig.KEY_COPY_SIGN_AUTHOR, false,
+                getString(R.string.PengramCopySignAuthor), getString(R.string.PengramCopySignAuthorInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramResendAlwaysOnInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramForwardHeader)));
+        items.add(checkInfo(PengramConfig.KEY_FORWARD_LOCK, true, getString(R.string.PengramForwardLock), getString(R.string.PengramForwardLockInfo)));
+        if (PengramConfig.isForwardLockEnabled()) items.add(check(PengramConfig.KEY_FORWARD_DONE_ALERT, true, getString(R.string.PengramForwardDoneAlert)));
+        items.add(UItem.asShadow(getString(R.string.PengramForwardInfo)));
+    }
+
+    private void fillChatMessages(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramMessagesHeader)));
+        items.add(UItem.asSettingsCell(BTN_CHAT_LOOK, R.drawable.msg_openprofile, getString(R.string.PengramChatLook), getString(PengramConfig.getGroupAvatarPosName(PengramConfig.getGroupAvatarPos()))));
+        items.add(checkInfo(PengramConfig.KEY_KEEP_FORMATTING, true, getString(R.string.PengramKeepFormatting), getString(R.string.PengramKeepFormattingInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramChatLookInfo)));
+
+        // --- вид пузырей (переехало сюда из «Оформления»: это про сообщения, а не про тему) ---
+        items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
+        items.add(UItem.asShadow(null));
+
+        // --- время, которое лежит поверх стикера/медиа ---
+        fillMediaTime(items);
+        items.add(UItem.asHeader(getString(R.string.PengramSelectionLimit)));
+        items.add(UItem.asSlideView(selectionLimitNames(), selectionLimitIndex(), value -> PengramConfig.setSelectionLimit(PengramConfig.SELECTION_LIMITS[Math.max(0, Math.min(PengramConfig.SELECTION_LIMITS.length - 1, value))])));
+        items.add(UItem.asShadow(getString(R.string.PengramSelectionLimitInfo)));
+        items.add(checkInfo(PengramConfig.KEY_FORCE_DELETE_FOR_ALL, true, getString(R.string.PengramForceDeleteForAll), getString(R.string.PengramForceDeleteForAllInfo)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
+        items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
+        items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
+        items.add(check("messageMenuResendHere", false, getString(R.string.PengramResendHere)));
+        items.add(check("messageMenuAskAI", false, getString(R.string.PengramAIMenu)));
+        items.add(check("messageMenuResendTo", false, getString(R.string.PengramResendTo)));
+        items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
+
+        // --- островок действий: короткая полоса быстрых кнопок внутри того же меню ---
+        items.add(UItem.asHeader(getString(R.string.PengramMessageIsland)));
+        items.add(check(PengramConfig.KEY_MESSAGE_ISLAND, false,
+                getString(R.string.PengramMessageIslandEnable)));
+        if (PengramConfig.isMessageIslandEnabled()) {
+            // Живой предпросмотр: подсветка/размер/подписи меняются на месте,
+            // не нужно открывать меню в чате, чтобы понять результат.
+            items.add(UItem.asCustom(islandPreviewRow()));
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_ITEMS, R.drawable.msg_edit,
+                    getString(R.string.PengramMessageIslandButtons),
+                    PengramConfig.getMessageIslandItemsCount() + " / " + PengramConfig.MESSAGE_ISLAND_LIMIT));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LABELS, true,
+                    getString(R.string.PengramMessageIslandLabels)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_COMPACT, false,
+                    getString(R.string.PengramMessageIslandCompact)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_LINK_TRASH, true,
+                    getString(R.string.PengramMessageIslandLinkTrash)));
+            items.add(check(PengramConfig.KEY_MESSAGE_ISLAND_HAPTIC, true,
+                    getString(R.string.PengramMessageIslandHaptic)));
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_POSITION, R.drawable.msg_photo_settings,
+                    getString(R.string.PengramMessageIslandPosition), messageIslandPositionValue()));
+            items.add(UItem.asSettingsCell(BTN_MESSAGE_ISLAND_TINT, R.drawable.msg_theme,
+                    getString(R.string.PengramMessageIslandTint), messageIslandTintValue()));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMessageIslandInfo)));
+
+        // --- упоминания -------------------------------------------------------
+        // Долгое нажатие в списке «@…» вставляет имя из контакта: ник человека
+        // не раскрывается, а люди без юзернейма упоминаются полным именем.
+        items.add(UItem.asHeader(getString(R.string.PengramMentionsHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramMentionName.KEY_ENABLED, true,
+                getString(R.string.PengramMentionName), getString(R.string.PengramMentionNameInfo)));
+
+        // --- массовое упоминание в группах -----------------------------------
+        // По умолчанию выключено и живёт только в группах: это самый быстрый
+        // способ получить спам-блокировку, поэтому лимит жёсткий, а пауза
+        // между использованиями настраивается.
+        items.add(UItem.asHeader(getString(R.string.PengramMentionAllHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramMentionAll.KEY_ENABLED, false,
+                getString(R.string.PengramMentionAll), getString(R.string.PengramMentionAllInfo)));
+        if (org.telegram.messenger.PengramMentionAll.isEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_MODE, R.drawable.settings_group,
+                    getString(R.string.PengramMentionAllMode), mentionAllModeValue()));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_LIMIT, R.drawable.msg_mention,
+                    getString(R.string.PengramMentionAllLimit),
+                    LocaleController.formatString(R.string.PengramMentionAllPeople,
+                            org.telegram.messenger.PengramMentionAll.limit())));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_COOLDOWN, R.drawable.msg_info,
+                    getString(R.string.PengramMentionAllCooldown),
+                    LocaleController.formatString(R.string.PengramMentionAllMinutes,
+                            org.telegram.messenger.PengramMentionAll.cooldownMinutes())));
+            items.add(UItem.asSettingsCell(BTN_MENTION_ALL_STYLE, R.drawable.msg_mention,
+                    getString(R.string.PengramMentionAllStyle), mentionAllStyleValue()));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramMentionAllShadow)));
+    }
+
+    /** «как выглядит упоминание» одной строкой */
+    private CharSequence mentionAllStyleValue() {
+        switch (org.telegram.messenger.PengramMentionAll.style()) {
+            case org.telegram.messenger.PengramMentionAll.STYLE_USERNAMES:
+                return getString(R.string.PengramMentionAllStyleUsernames);
+            case org.telegram.messenger.PengramMentionAll.STYLE_HIDDEN:
+                return getString(R.string.PengramMentionAllStyleHidden);
+            default:
+                return getString(R.string.PengramMentionAllStyleFull);
+        }
+    }
+
+    /** «кого упоминать» одной строкой */
+    private CharSequence mentionAllModeValue() {
+        return getString(org.telegram.messenger.PengramMentionAll.mode()
+                == org.telegram.messenger.PengramMentionAll.MODE_ADMINS
+                ? R.string.PengramMentionAllAdmins : R.string.PengramMentionAllEveryone);
+    }
+
+    private CharSequence messageIslandPositionValue() {
+        return getString(PengramConfig.getMessageIslandPosition()
+                == PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM
+                ? R.string.PengramMessageIslandPositionBottom
+                : R.string.PengramMessageIslandPositionTop);
+    }
+
+    private CharSequence messageIslandTintValue() {
+        switch (PengramConfig.getMessageIslandTint()) {
+            case PengramConfig.MESSAGE_ISLAND_TINT_PLAIN:
+                return getString(R.string.PengramMessageIslandTintPlain);
+            case PengramConfig.MESSAGE_ISLAND_TINT_ACCENT:
+                return getString(R.string.PengramMessageIslandTintAccent);
+            case PengramConfig.MESSAGE_ISLAND_TINT_SOFT:
+            default:
+                return getString(R.string.PengramMessageIslandTintSoft);
+        }
+    }
+
+    /**
+     * Полоса островка в списке настроек. Сам островок пересоздаётся только при
+     * смене размеров/подписей — они читаются в конструкторе, — а набор кнопок и
+     * цвета обновляются каждый раз.
+     */
+    private View islandPreviewRow() {
+        if (islandPreviewRow == null) {
+            islandPreviewRow = new FrameLayout(getContext());
+            islandPreviewRow.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+            islandPreviewRow.setOnClickListener(v ->
+                    presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE)));
+        }
+        final boolean compact = PengramConfig.isMessageIslandCompact();
+        final boolean labels = PengramConfig.isMessageIslandLabels();
+        final boolean md3 = PengramConfig.isMessageIslandMd3();
+        if (islandPreview == null || compact != islandPreviewCompact || labels != islandPreviewLabels
+                || md3 != islandPreviewMd3) {
+            if (islandPreview != null) {
+                islandPreviewRow.removeView(islandPreview);
+            }
+            islandPreview = new PengramMessageIslandView(getContext(), getResourceProvider());
+            islandPreview.setPreview(true);
+            islandPreviewCompact = compact;
+            islandPreviewLabels = labels;
+            islandPreviewMd3 = md3;
+            islandPreviewRow.addView(islandPreview, LayoutHelper.createFrame(
+                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 12, 0, 12));
+        }
+        islandPreview.setActions(PengramConfig.getMessageIslandItems());
+        return islandPreviewRow;
+    }
+
+    private void fillQuotes(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteBehavior)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_ACTION_MODE, R.drawable.msg_send,
+                getString(R.string.PengramQuoteTapAction), getString(
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, 0) == 1
+                                ? R.string.PengramQuoteTapSend : R.string.PengramQuoteTapPreview)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramQuotePrivacyHeader)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true,
+                getString(R.string.PengramQuoteNames), getString(R.string.PengramQuoteNamesInfo)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME, true)) {
+            items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true,
+                    getString(R.string.PengramQuoteAvatar), getString(R.string.PengramQuoteAvatarInfo)));
+            if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR, true)) {
+                items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_ROUNDED, false,
+                        getString(R.string.PengramQuoteAvatarRounded)));
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteAvatarSize)));
+                items.add(UItem.asIntSlideView(1, 22, Math.max(22, Math.min(42,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, 28))), 42,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteAvatarGap)));
+                items.add(UItem.asIntSlideView(1, 4, Math.max(4, Math.min(20,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, 9))), 20,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, value)));
+            }
+            items.add(UItem.asSettingsCell(BTN_QUOTE_FAKE_NAME, R.drawable.msg_edit,
+                    getString(R.string.PengramQuoteFakeName),
+                    TextUtils.isEmpty(PengramConfig.getQuoteFakeName()) ? getString(R.string.PengramQuoteOriginalName)
+                            : PengramConfig.getQuoteFakeName()));
+        }
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_ANON_MENTIONS, false,
+                getString(R.string.PengramQuoteAnonMentions), getString(R.string.PengramQuoteAnonMentionsInfo)));
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_TIME, true,
+                getString(R.string.PengramQuoteTimes)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_MEDIA, true,
+                getString(R.string.PengramQuoteMedia), getString(R.string.PengramQuoteMediaInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramQuotePrivacyInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteBackgroundHeader)));
+        items.add(UItem.asButton(BTN_QUOTE_RESET_APPEARANCE, R.drawable.msg_theme,
+                getString(R.string.PengramQuoteResetAppearance)));
+        final int bg = Math.max(0, Math.min(2, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_BACKGROUND, R.drawable.msg_theme,
+                getString(R.string.PengramQuoteBackground),
+                getContext().getResources().getStringArray(R.array.pengram_quote_backgrounds)[bg]));
+        if (bg == 2) {
+            int color = PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, 0xffeef3ff);
+            items.add(UItem.asSettingsCell(BTN_QUOTE_COLOR, R.drawable.msg_palette,
+                    getString(R.string.PengramQuoteBackgroundColor), String.format(java.util.Locale.US, "#%06X", color & 0xffffff)));
+        }
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_STICKER_TRANSPARENT, true,
+                getString(R.string.PengramQuoteStickerTransparent)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteStyleHeader)));
+        final boolean quoteThemeStyle = PengramConfig.getBool(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
+        final int style = Math.max(0, Math.min(3, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, 0)));
+        final String[] styles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);
+        items.add(UItem.asSettingsCell(BTN_QUOTE_STYLE, R.drawable.msg_palette,
+                getString(R.string.PengramQuoteAccent), styles[quoteThemeStyle ? 0 : style + 1]));
+        if (!quoteThemeStyle) {
+            items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false,
+                    getString(R.string.PengramQuoteDark)));
+        }
+        final int scale = Math.max(0, Math.min(2, PengramConfig.getIntCached(
+                org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, 0)));
+        items.add(UItem.asSettingsCell(BTN_QUOTE_SCALE, R.drawable.msg_photo_settings,
+                getString(R.string.PengramQuoteScale), new String[]{"1×", "1.5×", "2×"}[scale]));
+        items.add(UItem.asHeader(getString(R.string.PengramQuotePadding)));
+        items.add(UItem.asIntSlideView(1, 0, Math.max(0, Math.min(72,
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, 24))), 72,
+                value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, value)));
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteRadius)));
+        items.add(UItem.asIntSlideView(1, 0, Math.max(0, Math.min(64,
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, 28))), 64,
+                value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, value)));
+        items.add(checkInfo(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG, false,
+                getString(R.string.PengramQuoteJpeg), getString(R.string.PengramQuoteJpegInfo)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG, false)) {
+            items.add(UItem.asHeader(getString(R.string.PengramQuoteQuality)));
+            items.add(UItem.asIntSlideView(1, 40, Math.max(40, Math.min(100,
+                            PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG_QUALITY, 92))), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG_QUALITY, value)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuoteSizeInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramQuoteWatermarkHeader)));
+        items.add(check(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK, false,
+                getString(R.string.PengramQuoteWatermark)));
+        if (PengramConfig.getBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK, false)) {
+            items.add(UItem.asSettingsCell(BTN_QUOTE_WATERMARK_TEXT, R.drawable.msg_edit,
+                    getString(R.string.PengramQuoteWatermarkText), PengramConfig.getQuoteWatermarkText()));
+            int position = Math.max(0, Math.min(5, PengramConfig.getIntCached(
+                    org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, 0)));
+            items.add(UItem.asSettingsCell(BTN_QUOTE_WATERMARK_POS, R.drawable.msg_openprofile,
+                    getString(R.string.PengramQuoteWatermarkPosition),
+                    getContext().getResources().getStringArray(R.array.pengram_quote_positions)[position]));
+            final java.io.File logo = org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext());
+            items.add(UItem.asSettingsCell(BTN_QUOTE_LOGO, R.drawable.msg_photo_settings,
+                    getString(R.string.PengramQuoteLogo), logo.isFile() ? getString(R.string.PengramQuoteLogoChosen)
+                            : getString(R.string.PengramQuoteLogoNotChosen)));
+            if (logo.isFile()) {
+                items.add(UItem.asButton(BTN_QUOTE_LOGO_CLEAR, R.drawable.msg_delete,
+                        getString(R.string.PengramQuoteLogoClear)).red());
+                items.add(UItem.asHeader(getString(R.string.PengramQuoteLogoSize)));
+                items.add(UItem.asIntSlideView(1, 16, Math.max(16, Math.min(128,
+                                PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_LOGO_SIZE, 48))), 128,
+                        value -> value + " px", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_LOGO_SIZE, value)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramQuoteWatermarkOpacity)));
+            items.add(UItem.asIntSlideView(1, 10, Math.max(10, Math.min(100,
+                            PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_OPACITY, 72))), 100,
+                    value -> value + "%", value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_OPACITY, value)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramQuoteWatermarkInfo)));
+    }
+
+    private void showQuoteTextDialog(CharSequence title, String current, boolean color,
+                                     Utilities.Callback<String> onSave) {
+        if (getContext() == null) return;
+        EditTextBoldCursor input = new EditTextBoldCursor(getContext());
+        input.setText(current);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
+        input.setSingleLine(true);
+        input.setSelectAllOnFocus(true);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(color ? 9 : 80)});
+        android.widget.FrameLayout container = new android.widget.FrameLayout(getContext());
+        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        container.addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48));
+        showDialog(new AlertDialog.Builder(getContext(), getResourceProvider())
+                .setTitle(title).setView(container)
+                .setPositiveButton(getString(R.string.Save), (dialog, which) -> {
+                    onSave.run(input.getText().toString().trim());
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                })
+                .setNegativeButton(getString(R.string.Cancel), null).create());
+    }
+
+    private void fillTyping(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
+        items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit, getString(R.string.PengramSendStyle),
+                getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
+        if (PengramConfig.getSendTextStyle() != PengramConfig.SEND_STYLE_OFF) {
+            items.add(checkInfo(PengramConfig.KEY_SEND_STYLE_LARGE_EMOJI, true,
+                    getString(R.string.PengramSendStyleLargeEmoji), getString(R.string.PengramSendStyleLargeEmojiInfo)));
+            items.add(check(PengramConfig.KEY_SEND_STYLE_CAPTIONS, true, getString(R.string.PengramSendStyleCaptions)));
+        }
+        items.add(UItem.asShadow(sendStyleInfo()));
+
+        items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
+        if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
+        if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }
+        items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION, R.drawable.msg_customize,
+                getString(R.string.PengramInputAnimation), inputAnimationName()));
+        if (PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE) {
+            items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_SPEED, getString(R.string.PengramInputAnimationSpeed), inputAnimationSpeedName()));
+            items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_INTENSITY, getString(R.string.PengramInputAnimationIntensity), inputAnimationIntensityName()));
+            items.add(check(PengramConfig.KEY_INPUT_ANIMATION_HAPTIC, false, getString(R.string.PengramInputAnimationHaptic)));
+            items.add(check(PengramConfig.KEY_TYPING_BLUR, true, getString(R.string.PengramTypingBlur)));
+            if (PengramConfig.isTypingBlur()) {
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingBlurRadius(), 30,
+                        value -> getString(R.string.PengramTypingBlurRadius) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_BLUR_RADIUS, value)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTypingBehaviorHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_IGNORE_SPACES, true, getString(R.string.PengramTypingIgnoreSpaces)));
+            items.add(check(PengramConfig.KEY_TYPING_ALL_LINES, false, getString(R.string.PengramTypingAllLines)));
+            items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_DELETE, true, getString(R.string.PengramTypingDelete)));
+            if (PengramConfig.isTypingDeleteAnim()) {
+                items.add(UItem.asSettingsCell(BTN_TYPING_DELETE_STYLE, getString(R.string.PengramTypingDeleteStyle), typingDeleteStyleName()));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteCount(), 12,
+                        value -> getString(R.string.PengramTypingDeleteCount) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_COUNT, value)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpeed(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSpeed) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPEED, value)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpread(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSpread) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPREAD, value)));
+                items.add(UItem.asIntSlideView(1, 10, PengramConfig.getTypingDeleteSize(), 120,
+                        value -> getString(R.string.PengramTypingDeleteSize) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SIZE, value)));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
+            items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
+            if (PengramConfig.isTypingCursorSmooth()) {
+                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
+                        value -> getString(R.string.PengramTypingCursorSpeed) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_SPEED, value)));
+                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
+                        value -> getString(R.string.PengramTypingCursorWidth) + ": " + value,
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
+                items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
+                if (PengramConfig.isTypingCursorLiquid()) {
+                    items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
+                            value -> getString(R.string.PengramTypingCursorStretch) + ": " + value,
+                            value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
+                }
+                items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));
+            }
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
+        items.add(UItem.asHeader(getString(R.string.PengramTypingStatsTitle)));
+        items.add(checkInfo(org.telegram.messenger.PengramTypingStats.KEY_ENABLED, false,
+                getString(R.string.PengramTypingStatsEnable), getString(R.string.PengramTypingStatsPrivacy)));
+        if (org.telegram.messenger.PengramTypingStats.enabled()) {
+            items.add(check(org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true,
+                    getString(R.string.PengramTypingStatsBadge)));
+            items.add(UItem.asSettingsCell(BTN_TYPING_STATS_CLEAR, getString(R.string.PengramTypingStatsClear),
+                    org.telegram.messenger.PengramTypingStats.summary(currentAccount)));
+            items.add(UItem.asShadow(getString(R.string.PengramTypingStatsLegend)));
+        }
+    }
+
+    /**
+     * Плашка времени поверх стикеров, кружков и медиа.
+     * Три понятных режима + уточнения, которые появляются, только когда время вообще прячется.
+     */
+    private void fillMediaTime(ArrayList<UItem> items) {
+        final int mode = PengramConfig.getMediaTimeMode();
+        items.add(UItem.asHeader(getString(R.string.PengramMediaTimeHeader)));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_DEFAULT, getString(R.string.PengramMediaTimeDefault), getString(R.string.PengramMediaTimeDefaultInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_DEFAULT));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_STICKERS, getString(R.string.PengramMediaTimeStickers), getString(R.string.PengramMediaTimeStickersInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_HIDE_STICKERS));
+        items.add(UItem.asRadio2(BTN_MEDIA_TIME_MEDIA, getString(R.string.PengramMediaTimeMedia), getString(R.string.PengramMediaTimeMediaInfo))
+                .setChecked(mode == PengramConfig.MEDIA_TIME_HIDE_MEDIA));
+        if (mode == PengramConfig.MEDIA_TIME_DEFAULT) {
+            items.add(UItem.asShadow(getString(R.string.PengramMediaTimeInfo)));
+            return;
+        }
+        items.add(UItem.asShadow(null));
+        items.add(subCheck(PengramConfig.KEY_MEDIA_TIME_ROUND, false, getString(R.string.PengramMediaTimeRound)));
+        items.add(subCheck(PengramConfig.KEY_MEDIA_TIME_SENDING, true, getString(R.string.PengramMediaTimeSending)));
+        items.add(UItem.asShadow(getString(R.string.PengramMediaTimeHiddenInfo)));
+    }
+
+    private void fillChatInterface(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramTabsHeader)));
+        if (tabsMockView == null && getContext() != null) { tabsMockView = new org.telegram.ui.Components.PengramTabsMockView(getContext()); tabsMockView.setOnChanged(this::applyTabsNow); }
+        if (tabsMockView != null) { tabsMockView.sync(); items.add(UItem.asCustom(tabsMockView, 140)); }
+        items.add(UItem.asShadow(getString(R.string.PengramTabsInfo2)));
+        items.add(UItem.asHeader(getString(R.string.PengramDialogsHeader)));
+        // переехало из «Оформления»: это настройки именно списка чатов
+        items.add(check(PengramConfig.KEY_HIDE_WRITE_BUTTON, false, getString(R.string.PengramHideWriteButton)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 20, getString(R.string.PengramThreeLines), () -> SharedConfig.useThreeLinesLayout, () -> SharedConfig.setUseThreeLinesLayout(!SharedConfig.useThreeLinesLayout)));
+        items.add(tgCheck(BTN_EXTRA_BASE + 21, getString(R.string.PengramHideArchive), () -> SharedConfig.archiveHidden, SharedConfig::toggleArchiveHidden));
+        items.add(checkInfo(PengramConfig.KEY_HIDE_STORIES, false, getString(R.string.PengramHideStories), getString(R.string.PengramHideStoriesInfo)));
+        items.add(checkInfo(PengramConfig.KEY_DIALOG_SENDER_AVATARS, false, getString(R.string.PengramSenderAvatars), getString(R.string.PengramSenderAvatarsInfo)));
+        if (PengramConfig.isDialogSenderAvatars()) {
+            // Длинное выбранное значение выводим отдельной строкой: на узких экранах
+            // title/value в TextSettingsCell визуально склеивались и перекрывались.
+            items.add(UItem.asSettingsCell(BTN_SENDER_AVATAR_POSITION, R.drawable.msg_customize,
+                    getString(R.string.PengramSenderAvatarPosition)));
+            items.add(UItem.asShadow(senderAvatarPositionName()));
+        } else {
+            items.add(UItem.asShadow(null));
+        }
+        items.add(UItem.asHeader(getString(R.string.PengramGesturesHeader)));
+        items.add(UItem.asSettingsCell(BTN_SWIPE_ACTION, R.drawable.msg_archive, getString(R.string.PengramSwipeAction), swipeActionName(SharedConfig.getChatSwipeAction(currentAccount))));
+        items.add(UItem.asShadow(null));
+    }
+
+    private void fillChatMenus(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramChatMenu)));
+        items.add(UItem.asCheck(BTN_CHAT_MENU, getString(R.string.PengramChatMenu)).setChecked(PengramConfig.chatMenuEnabled));
+        if (PengramConfig.chatMenuEnabled) {
+            items.add(UItem.asRadio(BTN_CHAT_MENU_TOP, getString(R.string.PengramChatMenuTop)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_TOP));
+            items.add(UItem.asRadio(BTN_CHAT_MENU_BOTTOM, getString(R.string.PengramChatMenuBottom)).setChecked(PengramConfig.chatMenuPosition == PengramConfig.MENU_POS_BOTTOM));
+        }
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
+        items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
+        items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
+        items.add(UItem.asSettingsCell(BTN_CHAT_ITEMS, R.drawable.msg_message, getString(R.string.PengramChatItemsTitle), hiddenChatItemsValue()));
+        items.add(checkInfo(PengramConfig.KEY_PENGRAM_CARD, true, getString(R.string.PengramCardOnTop), getString(R.string.PengramCardOnTopInfo)));
+        items.add(UItem.asShadow(getString(R.string.PengramHideMenuInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramHideChatHeader)));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_SEARCH, getString(R.string.PengramHideChatSearch)).setChecked(PengramConfig.hideChatSearch));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_TRANSLATE, getString(R.string.PengramHideChatTranslate)).setChecked(PengramConfig.hideChatTranslate));
         items.add(UItem.asCheck(BTN_HIDE_CHAT_CLEAR, getString(R.string.PengramHideChatClear)).setChecked(PengramConfig.hideChatClearHistory));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_WALLPAPER, getString(R.string.PengramHideChatWallpaper)).setChecked(PengramConfig.hideChatWallpaper));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_SHORTCUT, getString(R.string.PengramHideChatShortcut)).setChecked(PengramConfig.hideChatShortcut));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_REPORT, getString(R.string.PengramHideChatReport)).setChecked(PengramConfig.hideChatReport));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_CALL, getString(R.string.PengramHideChatCall)).setChecked(PengramConfig.hideChatCall));
-        items.add(UItem.asCheck(BTN_HIDE_CHAT_AUTODELETE, getString(R.string.PengramHideChatAutoDelete)).setChecked(PengramConfig.hideChatAutoDelete));
+        if (expanded(GROUP_MENU_CHAT)) {
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_WALLPAPER, getString(R.string.PengramHideChatWallpaper)).setChecked(PengramConfig.hideChatWallpaper));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_SHORTCUT, getString(R.string.PengramHideChatShortcut)).setChecked(PengramConfig.hideChatShortcut));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_REPORT, getString(R.string.PengramHideChatReport)).setChecked(PengramConfig.hideChatReport));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_CALL, getString(R.string.PengramHideChatCall)).setChecked(PengramConfig.hideChatCall));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_AUTODELETE, getString(R.string.PengramHideChatAutoDelete)).setChecked(PengramConfig.hideChatAutoDelete));
+            items.add(UItem.asCheck(BTN_HIDE_CHAT_SHARE_NUMBER, getString(R.string.PengramHideChatShareNumber)).setChecked(PengramConfig.hideChatShareMyNumber));
+        }
+        items.add(moreButton(GROUP_MENU_CHAT));
         items.add(UItem.asShadow(getString(R.string.PengramHideChatInfo)));
+    }
+
+    private void editQuickAction(final int index, final boolean isNew) {
+        final CharSequence[] options = new CharSequence[]{
+                getString(R.string.PengramQuickTypeText),
+                getString(R.string.PengramQuickTypeForward),
+                getString(R.string.Delete)
+        };
+        final int selected = PengramConfig.getQuickActionType(index) == PengramConfig.QUICK_ACTION_FORWARD ? 1 : 0;
+        showChoicePicker(getString(R.string.PengramQuickActionType), options, selected, choice -> {
+            if (choice == 2) {
+                if (!isNew) {
+                    PengramConfig.removeQuickAction(index);
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                }
+                return;
+            }
+            final int type = choice == 1 ? PengramConfig.QUICK_ACTION_FORWARD : PengramConfig.QUICK_ACTION_TEXT;
+            showTextDialog(getString(R.string.PengramQuickActionName), PengramConfig.getQuickActionName(index),
+                    getString(R.string.PengramQuickDefaultName), name -> showTextDialog(
+                            getString(type == PengramConfig.QUICK_ACTION_FORWARD ? R.string.PengramQuickActionLink : R.string.PengramQuickActionText),
+                            PengramConfig.getQuickActionValue(index), "", value -> {
+                                if (type == PengramConfig.QUICK_ACTION_FORWARD && !PengramConfig.isValidQuickUrl(value)) {
+                                    new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName))
+                                            .setMessage(getString(R.string.PengramQuickInvalidUrl)).setPositiveButton(getString(R.string.OK), null).show();
+                                    return;
+                                }
+                                if (type == PengramConfig.QUICK_ACTION_TEXT && (value == null || value.isEmpty())) {
+                                    new AlertDialog.Builder(getContext()).setTitle(getString(R.string.AppName))
+                                            .setMessage(getString(R.string.PengramQuickEmptyText)).setPositiveButton(getString(R.string.OK), null).show();
+                                    return;
+                                }
+                                PengramConfig.setQuickAction(index, name, value, type);
+                                if (isNew) {
+                                    PengramConfig.setQuickActionCount(index + 1);
+                                }
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            }));
+        });
+    }
+
+    private CharSequence quickUrlPreview(String value) {
+        if (value == null) return "";
+        String text = value.replaceFirst("(?i)^https?://", "");
+        if (text.length() <= 26) return text;
+        final int slash = text.lastIndexOf('/');
+        final String tail = slash >= 0 ? text.substring(slash) : "";
+        return text.substring(0, Math.min(18, text.length())) + "…" + tail;
+    }
+
+    private CharSequence inputAnimationName() {
+        final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
+                R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
+        return getString(names[PengramConfig.getInputAnimation()]);
+    }
+
+    private CharSequence inputAnimationSpeedName() {
+        return getString(new int[]{R.string.PengramInputSpeedFast, R.string.PengramInputSpeedNormal, R.string.PengramInputSpeedSmooth}[PengramConfig.getInputAnimationSpeed()]);
+    }
+
+    private CharSequence inputAnimationIntensityName() {
+        return getString(new int[]{R.string.PengramInputIntensitySoft, R.string.PengramInputIntensityMedium, R.string.PengramInputIntensityStrong}[PengramConfig.getInputAnimationIntensity() - 1]);
+    }
+
+    private CharSequence typingDeleteStyleName() {
+        final int[] names = {R.string.PengramTypingParticleDust, R.string.PengramTypingParticleSparks,
+                R.string.PengramTypingParticleSnow, R.string.PengramTypingParticlePetals, R.string.PengramTypingParticleLetters};
+        return getString(names[PengramConfig.getTypingDeleteStyle()]);
+    }
+
+    private CharSequence senderAvatarPositionName() {
+        switch (PengramConfig.getDialogSenderAvatarPosition()) {
+            case PengramConfig.SENDER_AVATAR_BOTTOM: return getString(R.string.PengramSenderAvatarBottom);
+            case PengramConfig.SENDER_AVATAR_TOP: return getString(R.string.PengramSenderAvatarTop);
+            case PengramConfig.SENDER_AVATAR_BEFORE_NAME: return getString(R.string.PengramSenderAvatarBeforeName);
+            case PengramConfig.SENDER_AVATAR_AFTER_NAME: return getString(R.string.PengramSenderAvatarAfterName);
+            default: return getString(R.string.PengramSenderAvatarInline);
+        }
+    }
+
+    private String[] selectionLimitNames() {
+        final String[] result = new String[PengramConfig.SELECTION_LIMITS.length];
+        for (int a = 0; a < result.length; ++a) {
+            result[a] = String.valueOf(PengramConfig.SELECTION_LIMITS[a]);
+        }
+        return result;
+    }
+
+    private int selectionLimitIndex() {
+        final int current = PengramConfig.getSelectionLimit();
+        for (int a = 0; a < PengramConfig.SELECTION_LIMITS.length; ++a) {
+            if (PengramConfig.SELECTION_LIMITS[a] == current) {
+                return a;
+            }
+        }
+        return 0;
     }
 
     private void toggleHideFlag(int id, View view) {
@@ -417,6 +4619,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIDE_CHAT_REPORT: value = PengramConfig.toggleBoolean("hideChatReport"); break;
             case BTN_HIDE_CHAT_CALL: value = PengramConfig.toggleBoolean("hideChatCall"); break;
             case BTN_HIDE_CHAT_AUTODELETE: value = PengramConfig.toggleBoolean("hideChatAutoDelete"); break;
+            case BTN_HIDE_CHAT_SHARE_NUMBER: value = PengramConfig.toggleBoolean("hideChatShareMyNumber"); break;
             default: return;
         }
         if (view instanceof TextCheckCell) {
@@ -424,10 +4627,538 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
+    private void openHistoryChat(int mode) {
+        PengramHistoryChatActivity archive = new PengramHistoryChatActivity(0, mode);
+        archive.setCurrentAccount(currentAccount);
+        presentFragment(archive);
+    }
+
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
         boolean updateAll = false;
+        // «О программе»: тап по любой строке кладёт её значение в буфер
+        if (item.id >= BTN_ABOUT_ROW_BASE && aboutValues.indexOfKey(item.id) >= 0) {
+            final CharSequence value = aboutValues.get(item.id);
+            if (!TextUtils.isEmpty(value)) {
+                AndroidUtilities.addToClipboard(value.toString());
+                BulletinFactory.of(this).createCopyBulletin(getString(R.string.TextCopied)).show();
+            }
+            return;
+        }
+        // выбор скина пингвина — применяется мгновенно, прямо на превью сверху
+        if (item.id >= BTN_SKIN_BASE && item.id < BTN_SKIN_BASE + PengramConfig.SKIN_COUNT) {
+            PengramConfig.setPenguinSkin(item.id - BTN_SKIN_BASE);
+            applyPenguinSkinToHeaders();
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_SEARCH_HISTORY_BASE && item.id < BTN_SEARCH_HISTORY_BASE + SEARCH_HISTORY_LIMIT) {
+            final ArrayList<String> history = PengramConfig.getSearchHistory();
+            final int index = item.id - BTN_SEARCH_HISTORY_BASE;
+            if (index >= 0 && index < history.size()) {
+                pengramApplySearch(history.get(index));
+            }
+            return;
+        }
+        if (item.id == BTN_SEARCH_HISTORY_CLEAR) {
+            PengramConfig.clearSearchHistory();
+            updateList();
+            return;
+        }
+        if (item.id >= BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE
+                && item.id - BTN_SEARCH_BASE < searchResults.size()) {
+            final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
+            pengramRememberSearch();
+            final int targetSection = found[1];
+            final int targetRes = found[0];
+            if (targetSection == section && (found.length < 4 || found[3] == 0)) {
+                // мы уже здесь — закрываем поиск и прыгаем к самой строке
+                actionBar.closeSearchField();
+                searchRevealGroups = true;
+                searchFallbackRes = found.length > 2 ? found[2] : 0;
+                updateList();
+                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
+            } else {
+                PengramSearchMetadata.open(this, found);
+            }
+            return;
+        }
+        if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {
+            if (headerView != null) {
+                headerView.doAction(item.id);
+            }
+            return;
+        }
+        if (onAIClick(item)) {
+            return;
+        }
+        final Runnable extraToggle = extraToggles.get(item.id);
+        if (extraToggle != null) {
+            extraToggle.run();
+            final BoolGetter getter = extraGetters.get(item.id);
+            if (view instanceof TextCheckCell && getter != null) {
+                ((TextCheckCell) view).setChecked(getter.get());
+            } else if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            if (PengramConfig.isVibrationEnabled() && view != null) {
+                try {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP, android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                } catch (Throwable ignore) {
+                }
+            }
+            return;
+        }
+        if (item.id >= BTN_COLLAPSE_BASE && item.id < BTN_COLLAPSE_BASE + 100) {
+            searchRevealGroups = false;
+            final int group = item.id - BTN_COLLAPSE_BASE;
+            if (group == GROUP_MD3 || group == GROUP_MONET || group == GROUP_SNOW
+                    || group == GROUP_TEXT || group == GROUP_EFFECTS || group == GROUP_SPY_ADVANCED
+                    || group == GROUP_PROFILE_ID) {
+                if (!temporaryExpanded.add(group)) temporaryExpanded.remove(group);
+            } else {
+                PengramConfig.setBool(expandedKey(group), !expanded(group));
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_GENERIC_BASE && onGenericClick(item, view)) {
+            if (item.id == boolId(PengramConfig.KEY_TAB_CONTACTS) || item.id == boolId(PengramConfig.KEY_TAB_CALLS)
+                    || item.id == boolId(PengramConfig.KEY_TAB_SETTINGS) || item.id == boolId(PengramConfig.KEY_TAB_PROFILE)) {
+                applyTabsNow();
+            }
+            if (item.id == boolId(PengramConfig.KEY_PREMIUM_STATUS)) {
+                getUserConfig().pengramApplyLocalPremiumStatus();
+            }
+            if (item.id == boolId(PengramConfig.KEY_ZALGO)) {
+                // чистим уже загруженные имена и названия, иначе эффект был бы виден только после перезапуска
+                getMessagesController().pengramApplyZalgoFilter();
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME);
+                // описание самой настройки тоже подчиняется фильтру: включено — ровный текст,
+                // выключено — слово «Zalgo» снова написано зальго-символами
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
+            if (item.id == boolId(PengramConfig.KEY_HIDE_SHARE_PHONE_OPTION) || item.id == boolId(PengramConfig.KEY_ANTICRASH_JOURNAL) || item.id == boolId(PengramConfig.KEY_DIALOG_SENDER_AVATARS)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                if (item.id == boolId(PengramConfig.KEY_DIALOG_SENDER_AVATARS)) {
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                }
+            }
+            if (item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_NAME)
+                    || item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_JPEG)
+                    || item.id == boolId(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
+            if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
+                org.telegram.messenger.PengramBackgroundService.update(getContext());
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            } else if (item.id == boolId(PengramConfig.KEY_KEEP_DELETED)
+                    || item.id == boolId(PengramConfig.KEY_DELETED_REPLY_QUOTE)
+                    || item.id == boolId(PengramConfig.KEY_FADE_DELETED)
+                    || item.id == boolId(PengramConfig.KEY_MARK_EDITED)) {
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_VOICE_BASE && item.id <= BTN_VOICE_BASE + PengramVoiceChanger.MODE_TROLLING) {
+            PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
+            PengramVoiceChanger.reset();
+            if (voicePreview != null) {
+                voicePreview.update();
+            }
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            return;
+        }
+        if (item.id >= BTN_QUICK_ACTION_BASE && item.id < BTN_QUICK_ACTION_BASE + PengramConfig.QUICK_ACTION_LIMIT) {
+            editQuickAction(item.id - BTN_QUICK_ACTION_BASE, false);
+            return;
+        }
         switch (item.id) {
+            case BTN_VOICE_GAIN_MAXIMUM: {
+                PengramConfig.setVoiceGainPreset(PengramConfig.VOICE_GAIN_OVERLOAD);
+                PengramConfig.setVoiceGainDb(PengramConfig.VOICE_GAIN_MAX_DB);
+                PengramConfig.setVoiceGainDrive(100);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
+            }
+            case BTN_VOICE_GAIN_PRESET: {
+                final CharSequence[] presets = new CharSequence[PengramConfig.VOICE_GAIN_OVERLOAD + 1];
+                for (int i = 0; i < presets.length; ++i) presets[i] = voiceGainPresetName(i);
+                showChoicePicker(getString(R.string.PengramVoiceGainPreset), presets,
+                        PengramConfig.getVoiceGainPreset(), PengramConfig::setVoiceGainPreset);
+                return;
+            }
+            case BTN_VOICE_PROFILE_COPY: {
+                try {
+                    AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVoiceProfile.current().toJson());
+                    BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramVoiceProfileCopied)).show();
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                }
+                return;
+            }
+            case BTN_VOICE_PROFILE_IMPORT: {
+                try {
+                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("*/*");
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(intent, REQUEST_PICK_VOICE_PROFILE);
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramVoiceProfileInvalid)).show();
+                }
+                return;
+            }
+            case BTN_INPUT_ANIMATION: {
+                final CharSequence[] options = new CharSequence[PengramConfig.INPUT_ANIM_COUNT];
+                final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
+                        R.string.PengramInputAnimSlide, R.string.PengramInputAnimRise, R.string.PengramInputAnimBounce, R.string.PengramInputAnimShake};
+                for (int i = 0; i < options.length; i++) options[i] = getString(names[i]);
+                showChoicePicker(getString(R.string.PengramInputAnimation), options, PengramConfig.getInputAnimation(), value -> {
+                    PengramConfig.setInputAnimation(value);
+                    if (typingPreview != null) typingPreview.update();
+                });
+                return;
+            }
+            case BTN_INPUT_ANIMATION_SPEED: {
+                final CharSequence[] options = {getString(R.string.PengramInputSpeedFast), getString(R.string.PengramInputSpeedNormal), getString(R.string.PengramInputSpeedSmooth)};
+                showChoicePicker(getString(R.string.PengramInputAnimationSpeed), options, PengramConfig.getInputAnimationSpeed(), value -> {
+                    PengramConfig.setInputAnimationSpeed(value);
+                    if (typingPreview != null) typingPreview.update();
+                });
+                return;
+            }
+            case BTN_INPUT_ANIMATION_INTENSITY: {
+                final CharSequence[] options = {getString(R.string.PengramInputIntensitySoft), getString(R.string.PengramInputIntensityMedium), getString(R.string.PengramInputIntensityStrong)};
+                showChoicePicker(getString(R.string.PengramInputAnimationIntensity), options, PengramConfig.getInputAnimationIntensity() - 1, value -> {
+                    PengramConfig.setInputAnimationIntensity(value + 1);
+                    if (typingPreview != null) typingPreview.update();
+                });
+                return;
+            }
+            case BTN_TYPING_DELETE_STYLE: {
+                final CharSequence[] options = {getString(R.string.PengramTypingParticleDust), getString(R.string.PengramTypingParticleSparks),
+                        getString(R.string.PengramTypingParticleSnow), getString(R.string.PengramTypingParticlePetals), getString(R.string.PengramTypingParticleLetters)};
+                showChoicePicker(getString(R.string.PengramTypingDeleteStyle), options, PengramConfig.getTypingDeleteStyle(), value -> {
+                    PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_STYLE, value);
+                    if (typingPreview != null) typingPreview.update();
+                });
+                return;
+            }
+            case BTN_QUICK_ADD: {
+                final int index = PengramConfig.getQuickActionCount();
+                if (index < PengramConfig.QUICK_ACTION_LIMIT) {
+                    // Не создаём пустую кнопку заранее: отмена любого диалога оставляет список неизменным.
+                    editQuickAction(index, true);
+                }
+                return;
+            }
+            case BTN_SENDER_AVATAR_POSITION: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramSenderAvatarInline),
+                        getString(R.string.PengramSenderAvatarBottom),
+                        getString(R.string.PengramSenderAvatarTop),
+                        getString(R.string.PengramSenderAvatarBeforeName),
+                        getString(R.string.PengramSenderAvatarAfterName)
+                };
+                showChoicePicker(getString(R.string.PengramSenderAvatarPosition), options,
+                        PengramConfig.getDialogSenderAvatarPosition(), value -> {
+                            PengramConfig.setDialogSenderAvatarPosition(value);
+                            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
+                        });
+                return;
+            }
+            case BTN_DELETED_MARK:
+                showMarkPicker(false);
+                return;
+            case BTN_EDITED_MARK:
+                showMarkPicker(true);
+                return;
+            case BTN_KEEP_DAYS:
+                showKeepDaysPicker();
+                return;
+            case BTN_SEND_STYLE:
+                showSendStylePicker();
+                return;
+            case BTN_REG_STYLE_PICK: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegStyleOff),
+                        getString(R.string.PengramRegStyleDate),
+                        getString(R.string.PengramRegStyleDateAge),
+                        getString(R.string.PengramRegStyleAge),
+                        getString(R.string.PengramRegStyleExact)
+                };
+                showChoicePicker(getString(R.string.PengramRegStyle), options, PengramConfig.getRegDateStyle(), value -> {
+                    PengramConfig.setRegDateStyle(value);
+                });
+                return;
+            }
+            case BTN_REG_PLACE: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegPlaceRow),
+                        getString(R.string.PengramRegPlaceIcon),
+                        getString(R.string.PengramRegPlaceBoth),
+                        getString(R.string.PengramRegPlaceSubtitle)
+                };
+                showChoicePicker(getString(R.string.PengramRegPlace), options, PengramConfig.getRegDatePlace(), value -> {
+                    PengramConfig.setRegDatePlace(value);
+                });
+                return;
+            }
+            case BTN_REG_ICON: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramRegIconCalendar),
+                        getString(R.string.PengramRegIconClock),
+                        getString(R.string.PengramRegIconCake),
+                        getString(R.string.PengramRegIconStar),
+                        getString(R.string.PengramRegIconInfo),
+                        getString(R.string.PengramRegIconPenguin),
+                        getString(R.string.PengramRegIconNone)
+                };
+                showChoicePicker(getString(R.string.PengramRegIcon), options, PengramConfig.getRegDateIcon(), value -> {
+                    PengramConfig.setRegDateIcon(value);
+                });
+                return;
+            }
+            case BTN_QUICK_TILES:
+                showQuickTilesPicker();
+                return;
+            case BTN_MONET_STRENGTH:
+                showMonetStrengthPicker();
+                return;
+            case BTN_PARTICLE_MODE: {
+                showChoicePicker(getString(R.string.PengramParticleType), particleNames(),
+                        PengramConfig.getParticleMode(), value -> {
+                            PengramConfig.setIntValue(PengramConfig.KEY_PARTICLE_MODE, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            }
+            case BTN_TITLE_MODE: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramTitleModeDefault),
+                        "Pengram",
+                        getString(R.string.PengramTitleChats),
+                        getString(R.string.PengramTitleModeName),
+                        getString(R.string.PengramTitleModeUsername),
+                        getString(R.string.PengramTitleModeCustom)
+                };
+                showChoicePicker(getString(R.string.PengramTitleText), options, PengramConfig.getTitleMode(), value -> {
+                    PengramConfig.setTitleMode(value);
+                    if (value == PengramConfig.TITLE_MODE_CUSTOM && PengramConfig.getTitleCustom().isEmpty()) {
+                        AndroidUtilities.runOnUIThread(this::showTitleCustomDialog, 220);
+                    }
+                });
+                return;
+            }
+            case BTN_TITLE_CUSTOM:
+                showTitleCustomDialog();
+                return;
+            case BTN_TABBAR_SIZE: {
+                final int[] sizes = new int[]{80, 90, 100, 110, 120, 130};
+                final CharSequence[] options = new CharSequence[sizes.length];
+                int selected = 2;
+                for (int a = 0; a < sizes.length; ++a) {
+                    options[a] = sizes[a] + "%" + (sizes[a] == 100 ? " \u2014 " + getString(R.string.PengramTabBarDefault) : "");
+                    if (sizes[a] == PengramConfig.getTabBarSize()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramTabBarSize), options, selected, value -> {
+                    PengramConfig.setTabBarSize(sizes[value]);
+                    applyTabsSizeNow();
+                });
+                return;
+            }
+            case BTN_MENU_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU));
+                return;
+            case BTN_FONT_SIZE: {
+                final int[] sizes = new int[]{12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28, 30};
+                final CharSequence[] options = new CharSequence[sizes.length];
+                int selected = 4;
+                for (int a = 0; a < sizes.length; ++a) {
+                    options[a] = String.valueOf(sizes[a]);
+                    if (sizes[a] == SharedConfig.fontSize) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.TextSizeHeader), options, selected, value -> applyFontSize(sizes[value]));
+                return;
+            }
+            case BTN_BUBBLE_RADIUS: {
+                final int[] radii = new int[]{0, 2, 4, 6, 8, 10, 12, 14, 15, 16, 17};
+                final CharSequence[] options = new CharSequence[radii.length];
+                int selected = radii.length - 1;
+                for (int a = 0; a < radii.length; ++a) {
+                    options[a] = String.valueOf(radii[a]);
+                    if (radii[a] == SharedConfig.bubbleRadius) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.BubbleRadius), options, selected, value -> applyBubbleRadius(radii[value]));
+                return;
+            }
+            case BTN_SWIPE_ACTION: {
+                final int[] actions = new int[]{
+                        SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_READ,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_PIN,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_MUTE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_DELETE,
+                        SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS
+                };
+                final CharSequence[] options = new CharSequence[actions.length];
+                int selected = 0;
+                final int current = SharedConfig.getChatSwipeAction(currentAccount);
+                for (int a = 0; a < actions.length; ++a) {
+                    options[a] = swipeActionName(actions[a]);
+                    if (actions[a] == current) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramSwipeAction), options, selected, value -> {
+                    SharedConfig.updateChatListSwipeSetting(actions[value]);
+                });
+                return;
+            }
+            case BTN_SETTINGS_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_SETTINGS));
+                return;
+            case BTN_CHAT_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_CHAT));
+                return;
+            case BTN_DEVICE_MODEL:
+                showDeviceModelPicker();
+                return;
+            case BTN_DEVICE_VERSION:
+                showDeviceVersionPicker();
+                return;
+            case BTN_MENTION_ALL_MODE:
+                showChoicePicker(getString(R.string.PengramMentionAllMode), new CharSequence[]{
+                                getString(R.string.PengramMentionAllEveryone),
+                                getString(R.string.PengramMentionAllAdmins)},
+                        org.telegram.messenger.PengramMentionAll.mode(), value -> {
+                            org.telegram.messenger.PengramMentionAll.setMode(value);
+                            // список участников зависит от режима — старый кэш не годится
+                            org.telegram.messenger.PengramMentionAll.resetCache();
+                            refreshRows();
+                        });
+                return;
+            case BTN_MENTION_ALL_LIMIT:
+                showMentionAllLimitPicker();
+                return;
+            case BTN_MENTION_ALL_STYLE:
+                showChoicePicker(getString(R.string.PengramMentionAllStyle), new CharSequence[]{
+                                getString(R.string.PengramMentionAllStyleFull),
+                                getString(R.string.PengramMentionAllStyleUsernames),
+                                getString(R.string.PengramMentionAllStyleHidden)},
+                        org.telegram.messenger.PengramMentionAll.style(),
+                        value -> {
+                            org.telegram.messenger.PengramMentionAll.setStyle(value);
+                            refreshRows();
+                        });
+                return;
+            case BTN_MENTION_ALL_COOLDOWN:
+                showChoicePicker(getString(R.string.PengramMentionAllCooldown),
+                        mentionAllCooldownNames(),
+                        mentionAllCooldownIndex(),
+                        value -> {
+                            org.telegram.messenger.PengramMentionAll.setCooldownMinutes(
+                                    org.telegram.messenger.PengramMentionAll.COOLDOWNS[value]);
+                            refreshRows();
+                        });
+                return;
+            case BTN_DEVICE_RANDOM:
+                org.telegram.messenger.PengramDeviceName.setValue(org.telegram.messenger.PengramDeviceName.randomPreset());
+                org.telegram.messenger.PengramDeviceName.setEnabled(true);
+                refreshRows();
+                requestDeviceRestart();
+                return;
+            case BTN_DEVICE_APPLY:
+                requestDeviceRestart();
+                return;
+            case BTN_MESSAGE_ISLAND_ITEMS:
+                presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MESSAGE));
+                return;
+            case BTN_MESSAGE_ISLAND_POSITION:
+                showChoicePicker(getString(R.string.PengramMessageIslandPosition), new CharSequence[]{
+                                getString(R.string.PengramMessageIslandPositionTop),
+                                getString(R.string.PengramMessageIslandPositionBottom)},
+                        PengramConfig.getMessageIslandPosition() == PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM ? 1 : 0,
+                        value -> {
+                            PengramConfig.setMessageIslandPosition(value == 1
+                                    ? PengramConfig.MESSAGE_ISLAND_POSITION_BOTTOM
+                                    : PengramConfig.MESSAGE_ISLAND_POSITION_TOP);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_MESSAGE_ISLAND_TINT:
+                showChoicePicker(getString(R.string.PengramMessageIslandTint), new CharSequence[]{
+                                getString(R.string.PengramMessageIslandTintPlain),
+                                getString(R.string.PengramMessageIslandTintSoft),
+                                getString(R.string.PengramMessageIslandTintAccent)},
+                        PengramConfig.getMessageIslandTint(),
+                        value -> {
+                            PengramConfig.setMessageIslandTint(value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_PENGUIN_SKIN: {
+                final CharSequence[] options = new CharSequence[PengramConfig.SKIN_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getPenguinSkinName(a));
+                }
+                showChoicePicker(getString(R.string.PengramPenguinSkin), options, PengramConfig.getPenguinSkin(), value -> {
+                    PengramConfig.setPenguinSkin(value);
+                    applyPenguinSkinToHeaders();
+                });
+                return;
+            }
+            case BTN_MEDIA_LIMIT: {
+                int selected = 0;
+                final CharSequence[] options = new CharSequence[MEDIA_LIMITS.length];
+                for (int a = 0; a < MEDIA_LIMITS.length; ++a) {
+                    options[a] = mediaLimitName(MEDIA_LIMITS[a]);
+                    if (MEDIA_LIMITS[a] == PengramConfig.getMediaMaxSizeMb()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramMediaLimitHeader), options, selected, value -> {
+                    PengramConfig.setMediaMaxSizeMb(MEDIA_LIMITS[value]);
+                });
+                return;
+            }
+            case BTN_PROFILE_HISTORY:
+                presentFragment(new PengramProfileHistorySettingsActivity());
+                return;
+            case BTN_OPEN_BY_ID:
+                showOpenByIdDialog();
+                return;
+            case BTN_CFG_EXPORT:
+                exportSettings();
+                return;
+            case BTN_CFG_IMPORT:
+                importSettings();
+                return;
+            case BTN_CFG_RESET:
+                resetSettings();
+                return;
+            case BTN_OPEN_DELETED_CHAT:
+                openHistoryChat(PengramHistoryChatActivity.MODE_DELETED);
+                return;
+            case BTN_OPEN_EDITED_CHAT:
+                openHistoryChat(PengramHistoryChatActivity.MODE_EDITED);
+                return;
             case BTN_SECTION_PROFILE:
                 presentFragment(new PengramSettingsActivity(SECTION_PROFILE));
                 return;
@@ -443,12 +5174,378 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_CHATS:
                 presentFragment(new PengramSettingsActivity(SECTION_CHATS));
                 return;
+            case BTN_SECTION_CHAT_ACTIONS:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_ACTIONS));
+                return;
+            case BTN_SECTION_CHAT_MESSAGES:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_MESSAGES));
+                return;
+            case BTN_SECTION_QUOTES:
+                presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
+                return;
+            case BTN_QUOTE_RESET_APPEARANCE:
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_DARK, false);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_PADDING, 24);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_RADIUS, 28);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_SIZE, 28);
+                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_GAP, 9);
+                PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_AVATAR_ROUNDED, false);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
+            case BTN_QUOTE_ACTION_MODE:
+                showChoicePicker(getString(R.string.PengramQuoteTapAction), new CharSequence[]{
+                        getString(R.string.PengramQuoteTapPreview), getString(R.string.PengramQuoteTapSend)
+                }, PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, 0),
+                        value -> PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_ACTION_MODE, value));
+                return;
+            case BTN_QUOTE_STYLE:
+                final String[] quoteStyles = getContext().getResources().getStringArray(R.array.pengram_quote_styles);
+                new AlertDialog.Builder(getContext(), getResourceProvider())
+                        .setTitle(getString(R.string.PengramQuoteAccent))
+                        .setItems(quoteStyles, (dialog, which) -> {
+                            PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, which == 0);
+                            if (which > 0) PengramConfig.setIntValue(
+                                    org.telegram.ui.Components.PengramQuoteMaker.KEY_STYLE, which - 1);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        }).show();
+                return;
+            case BTN_QUOTE_BACKGROUND:
+                showChoicePicker(getString(R.string.PengramQuoteBackground),
+                        getContext().getResources().getStringArray(R.array.pengram_quote_backgrounds),
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_QUOTE_COLOR:
+                showQuoteTextDialog(getString(R.string.PengramQuoteBackgroundColor),
+                        String.format(java.util.Locale.US, "#%06X", PengramConfig.getIntCached(
+                                org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, 0xffeef3ff) & 0xffffff),
+                        true, value -> {
+                            try {
+                                int color = android.graphics.Color.parseColor(value);
+                                PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND_COLOR, color);
+                            } catch (IllegalArgumentException e) {
+                                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteInvalidColor)).show();
+                            }
+                        });
+                return;
+            case BTN_QUOTE_SCALE:
+                showChoicePicker(getString(R.string.PengramQuoteScale), new CharSequence[]{"1×", "1.5×", "2×"},
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_SCALE, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_QUOTE_FAKE_NAME:
+                showQuoteTextDialog(getString(R.string.PengramQuoteFakeName), PengramConfig.getQuoteFakeName(),
+                        false, PengramConfig::setQuoteFakeName);
+                return;
+            case BTN_QUOTE_WATERMARK_TEXT:
+                showQuoteTextDialog(getString(R.string.PengramQuoteWatermarkText), PengramConfig.getQuoteWatermarkText(),
+                        false, PengramConfig::setQuoteWatermarkText);
+                return;
+            case BTN_QUOTE_LOGO:
+                try {
+                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                    intent.setType("image/*");
+                    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                    intent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivityForResult(intent, REQUEST_PICK_QUOTE_LOGO);
+                } catch (Throwable e) {
+                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramQuoteLogoError)).show();
+                }
+                return;
+            case BTN_QUOTE_LOGO_CLEAR:
+                org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return;
+            case BTN_QUOTE_WATERMARK_POS:
+                showChoicePicker(getString(R.string.PengramQuoteWatermarkPosition),
+                        getContext().getResources().getStringArray(R.array.pengram_quote_positions),
+                        PengramConfig.getIntCached(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, 0), value -> {
+                            PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_WATERMARK_POSITION, value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            case BTN_SECTION_TYPING:
+                presentFragment(new PengramSettingsActivity(SECTION_TYPING));
+                return;
+            case BTN_SECTION_CHAT_INTERFACE:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_INTERFACE));
+                return;
+            case BTN_SECTION_CHAT_MENUS:
+                presentFragment(new PengramSettingsActivity(SECTION_CHAT_MENUS));
+                return;
             case BTN_SECTION_FREEDOM:
                 presentFragment(new PengramSettingsActivity(SECTION_FREEDOM));
                 return;
             case BTN_SECTION_MEDIA:
                 presentFragment(new PengramSettingsActivity(SECTION_MEDIA));
                 return;
+            case BTN_SECTION_GENERAL:
+                presentFragment(new PengramSettingsActivity(SECTION_GENERAL));
+                return;
+            case BTN_SECTION_CUSTOM:
+                presentFragment(new PengramSettingsActivity(SECTION_CUSTOM));
+                return;
+            case BTN_SECTION_ABOUT:
+                presentFragment(new PengramSettingsActivity(SECTION_ABOUT));
+                return;
+            case BTN_ABOUT_COPY:
+                AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVersion.report());
+                BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramAboutCopied)).show();
+                return;
+            case BTN_NOTIFICATION_ICON: {
+                CharSequence[] names = new CharSequence[notificationIconNames.length];
+                for (int i = 0; i < names.length; i++) names[i] = getString(notificationIconNames[i]);
+                showChoicePicker(getString(R.string.PengramNotificationIcon), names,
+                        Math.max(0, Math.min(4, PengramConfig.getIntCached(
+                                org.telegram.messenger.PengramNotificationIcon.KEY, 0))), value -> {
+                            org.telegram.messenger.PengramNotificationIcon.setStyle(value);
+                            updateList();
+                        });
+                return;
+            }
+            case BTN_TYPING_STATS_CLEAR: {
+                if (getParentActivity() == null) return;
+                AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramTypingStatsClear));
+                b.setMessage(getString(R.string.PengramTypingStatsClearAsk));
+                b.setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                    org.telegram.messenger.PengramTypingStats.clear(currentAccount);
+                    updateList();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
+            case BTN_RESET_SECTION: {
+                final String[] keys = sectionKeys(section);
+                if (keys == null || getParentActivity() == null) {
+                    return;
+                }
+                final AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramResetSection));
+                b.setMessage(LocaleController.formatString(R.string.PengramResetSectionAsk, sectionTitle(section)));
+                b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
+                    PengramConfig.resetKeys(keys);
+                    if (section == SECTION_QUOTES && getContext() != null)
+                        org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
+                    rebuildAfterReset();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
+            case BTN_RESET_ALL: {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                final AlertDialog.Builder b = new AlertDialog.Builder(getParentActivity());
+                b.setTitle(getString(R.string.PengramResetAll));
+                b.setMessage(getString(R.string.PengramResetAllAsk));
+                b.setPositiveButton(getString(R.string.PengramResetButton), (d, w) -> {
+                    PengramConfig.resetAll();
+                    if (getContext() != null) org.telegram.ui.Components.PengramQuoteMaker.logoFile(getContext()).delete();
+                    rebuildAfterReset();
+                });
+                b.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(b.create());
+                return;
+            }
+            case BTN_HIST_MAX: {
+                final int[] limits = new int[]{2000, 10000, 20000, 50000, 0};
+                final CharSequence[] options = new CharSequence[limits.length];
+                int selected = 0;
+                for (int a = 0; a < limits.length; ++a) {
+                    options[a] = historyMaxName(limits[a]);
+                    if (limits[a] == PengramConfig.getHistoryMaxEntries()) {
+                        selected = a;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramHistoryMax), options, selected, value -> {
+                    PengramConfig.setHistoryMaxEntries(limits[value]);
+                    PengramHistory.enforceEntryLimit();
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                });
+                return;
+            }
+            case BTN_SECTION_PLAYER:
+            case BTN_PLAYER_STYLE:
+                presentFragment(new PengramPlayerStyleActivity());
+                return;
+            case BTN_CHAT_LOOK:
+            case BTN_AVATAR_POS:
+                presentFragment(new PengramChatLookActivity());
+                return;
+            case BTN_VISUAL_EDITOR:
+                presentFragment(new PengramLayoutEditorActivity());
+                return;
+            case BTN_CONSTRUCTOR:
+                presentFragment(new PengramConstructorActivity());
+                return;
+            case BTN_BYPASS:
+                presentFragment(new PengramBypassActivity());
+                return;
+            case BTN_ANTICRASH_STATS:
+                PengramAntiCrash.resetStats();
+                listView.adapter.update(true);
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                        getString(R.string.PengramAntiCrashStatsReset)).show();
+                return;
+            case BTN_CRASH_AUTOCOPY:
+                org.telegram.messenger.PengramCrashReport.setCopyEnabled(
+                        !org.telegram.messenger.PengramCrashReport.isCopyEnabled());
+                listView.adapter.update(true);
+                return;
+            case BTN_CRASH_REPORTS:
+                org.telegram.ui.Components.PengramCrashDialogs.showJournal(this);
+                return;
+            case BTN_ANTICRASH_LOG:
+                showAntiCrashLog();
+                return;
+            case BTN_DELETE_EFFECT:
+                presentFragment(new PengramDeleteEffectActivity());
+                return;
+            case BTN_LYRICS_SOURCE: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_SOURCE_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsSourceName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsSourceHeader), options,
+                        PengramConfig.getLyricsSourceRaw(), value -> {
+                            PengramConfig.setLyricsSource(value);
+                            PengramLyrics.clearAll();
+                            listView.adapter.update(true);
+                        });
+                return;
+            }
+            case BTN_HEADER_LYRICS_ANIM: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_ANIM_COUNT + 1];
+                options[0] = getString(R.string.PengramHeaderLyricsAnimSame);
+                for (int a = 0; a < PengramConfig.LYRICS_ANIM_COUNT; ++a) {
+                    options[a + 1] = getString(PengramConfig.getLyricsAnimName(a));
+                }
+                showChoicePicker(getString(R.string.PengramHeaderLyricsAnim), options, PengramConfig.getHeaderLyricsAnim() + 1,
+                        value -> PengramConfig.setHeaderLyricsAnim(value - 1));
+                return;
+            }
+            case BTN_PLAYER_BG: {
+                final CharSequence[] options = new CharSequence[4];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getPlayerBgName(a));
+                }
+                showChoicePicker(getString(R.string.PengramPlayerBg), options, PengramConfig.getPlayerBg(),
+                        value -> PengramConfig.setPlayerBg(value));
+                return;
+            }
+            case BTN_COVER_SHAPE: {
+                final CharSequence[] options = new CharSequence[3];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getCoverShapeName(a));
+                }
+                showChoicePicker(getString(R.string.PengramCoverShape), options, PengramConfig.getCoverShape(),
+                        value -> PengramConfig.setCoverShape(value));
+                return;
+            }
+            case BTN_LYRICS_ANIM: {
+                final CharSequence[] options = new CharSequence[PengramConfig.LYRICS_ANIM_COUNT];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsAnimName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsAnim), options, PengramConfig.getLyricsAnim(),
+                        value -> PengramConfig.setLyricsAnim(value));
+                return;
+            }
+            case BTN_LYRICS_ALIGN: {
+                final CharSequence[] options = new CharSequence[3];
+                for (int a = 0; a < options.length; ++a) {
+                    options[a] = getString(PengramConfig.getLyricsAlignName(a));
+                }
+                showChoicePicker(getString(R.string.PengramLyricsAlign), options, PengramConfig.getLyricsAlign(),
+                        value -> PengramConfig.setLyricsAlign(value));
+                return;
+            }
+            case BTN_SPY_ACCOUNT:
+                showSpyAccountPicker();
+                return;
+            case BTN_SPY_PROFILE:
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyProfile(spySelectedAccount,
+                            !PengramConfig.hasSpyProfile(spySelectedAccount));
+                    updateAll = true;
+                }
+                break;
+            case BTN_TABLET_MODE: {
+                showChoicePicker(getString(R.string.PengramTabletMode), new CharSequence[]{
+                        getString(R.string.PengramTabletAuto), getString(R.string.PengramTabletOff),
+                        getString(R.string.PengramTabletOn)
+                }, SharedConfig.getTabletMode(), SharedConfig::setTabletMode);
+                return;
+            }
+            case BTN_TRACK_CARD_FORMAT: {
+                showChoicePicker(getString(R.string.PengramTrackCardFormat), new CharSequence[]{
+                        getString(R.string.PengramTrackCardImage), getString(R.string.PengramTrackCardText)
+                }, PengramConfig.getTrackCardFormat(), PengramConfig::setTrackCardFormat);
+                return;
+            }
+            case BTN_TRACK_FORWARD_MODE: {
+                final CharSequence[] options = new CharSequence[]{
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_ASK),
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_AS_ME),
+                        org.telegram.ui.Components.PengramTrackForward.modeName(PengramConfig.TRACK_FORWARD_WITH_AUTHOR)
+                };
+                showChoicePicker(getString(R.string.PengramTrackForwardMode), options, PengramConfig.getTrackForwardMode(),
+                        value -> PengramConfig.setTrackForwardMode(value));
+                return;
+            }
+            case BTN_LYRICS_CLEAR: {
+                org.telegram.messenger.PengramLyrics.clearAll();
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+                return;
+            }
+            case BTN_LINK_CHANNEL:
+                openLink(LINK_CHANNEL);
+                return;
+            case BTN_LINK_AUTHOR:
+                openLink(LINK_AUTHOR);
+                return;
+            case BTN_ID_FORMAT_PICK:
+                showChoicePicker(getString(R.string.PengramIdFormatPicker), new CharSequence[]{
+                        getString(R.string.PengramIdFormatHide),
+                        getString(R.string.PengramIdFormatTelegram),
+                        getString(R.string.PengramIdFormatBot)
+                }, PengramConfig.getIdFormat(), PengramConfig::setIdFormat);
+                return;
+            case BTN_ID_PLACEMENT_PICK:
+                showChoicePicker(getString(R.string.PengramIdPlacementPicker), new CharSequence[]{
+                        getString(R.string.PengramIdStyleOff), getString(R.string.PengramIdStyleRow),
+                        getString(R.string.PengramIdStyleRowDc), getString(R.string.PengramIdStyleInline)
+                }, PengramConfig.getIdStyle(), PengramConfig::setIdStyle);
+                return;
+            case BTN_ID_FORMAT_HIDE:
+                PengramConfig.setIdFormat(PengramConfig.ID_FORMAT_HIDE);
+                updateAll = true;
+                break;
+            case BTN_ID_FORMAT_TELEGRAM:
+                PengramConfig.setIdFormat(PengramConfig.ID_FORMAT_TELEGRAM);
+                updateAll = true;
+                break;
+            case BTN_ID_FORMAT_BOT:
+                PengramConfig.setIdFormat(PengramConfig.ID_FORMAT_BOT);
+                updateAll = true;
+                break;
+            case BTN_MEDIA_TIME_DEFAULT:
+            case BTN_MEDIA_TIME_STICKERS:
+            case BTN_MEDIA_TIME_MEDIA:
+                PengramConfig.setMediaTimeMode(item.id - BTN_MEDIA_TIME_DEFAULT);
+                updateAll = true;
+                break;
             case BTN_BOOST_OFF:
                 PengramConfig.setSpeedBoost(PengramConfig.BOOST_OFF);
                 updateAll = true;
@@ -466,35 +5563,25 @@ public class PengramSettingsActivity extends UniversalFragment {
                 if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hidePhoneNumber);
                 break;
             case BTN_SAVE_IN_BOTS:
-                PengramConfig.toggleSaveInBots();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveInBots);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveInBots", !PengramConfig.isSavingInBots(spySelectedAccount));
+                } else PengramConfig.toggleSaveInBots();
+                updateAll = true;
                 break;
             case BTN_SAVE_READ_DATE:
-                PengramConfig.toggleSaveReadDate();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveReadDate);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveReadDate", !PengramConfig.isSavingReadDate(spySelectedAccount));
+                } else PengramConfig.toggleSaveReadDate();
+                updateAll = true;
                 break;
             case BTN_SAVE_LAST_ONLINE:
-                PengramConfig.toggleSaveLastOnline();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveLastOnline);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveLastOnline", !PengramConfig.isSavingLastOnline(spySelectedAccount));
+                } else PengramConfig.toggleSaveLastOnline();
+                updateAll = true;
                 break;
             case BTN_MEDIA_CLEAR:
                 PengramHistory.clearSavedMedia();
-                updateAll = true;
-                break;
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_OFF:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_HELIUM:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CHILD:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_FEMALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MALE:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_DEEP:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_MONSTER:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_ROBOT:
-            case BTN_VOICE_BASE + PengramVoiceChanger.MODE_CUSTOM:
-                PengramConfig.setVoiceChangerMode(item.id - BTN_VOICE_BASE);
-                PengramVoiceChanger.reset();
-                if (voicePreview != null) {
-                    voicePreview.update();
-                }
                 updateAll = true;
                 break;
             case BTN_HIDE_MENU_NEW_GROUP:
@@ -509,27 +5596,51 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIDE_CHAT_REPORT:
             case BTN_HIDE_CHAT_CALL:
             case BTN_HIDE_CHAT_AUTODELETE:
+            case BTN_HIDE_CHAT_SHARE_NUMBER:
                 toggleHideFlag(item.id, view);
                 break;
             case BTN_GHOST:
-                PengramConfig.toggleGhostMode();
+                ghostExpanded = !ghostExpanded;
+                if (view instanceof TextCheckCell2) {
+                    ((TextCheckCell2) view).setChecked(PengramConfig.ghostMode);
+                }
                 updateAll = true;
                 break;
             case BTN_HIDE_ONLINE:
                 PengramConfig.toggleHideOnline();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hideOnline);
+                if (view instanceof org.telegram.ui.Cells.CheckBoxCell) {
+                    ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(PengramConfig.hideOnline, true);
+                } else if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(PengramConfig.hideOnline);
+                }
+                updateAll = true;
                 break;
             case BTN_DONT_READ:
                 PengramConfig.toggleDontSendRead();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.dontSendRead);
+                if (view instanceof org.telegram.ui.Cells.CheckBoxCell) {
+                    ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(PengramConfig.dontSendRead, true);
+                } else if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(PengramConfig.dontSendRead);
+                }
+                updateAll = true;
                 break;
             case BTN_DONT_TYPE:
                 PengramConfig.toggleDontSendTyping();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.dontSendTyping);
+                if (view instanceof org.telegram.ui.Cells.CheckBoxCell) {
+                    ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(PengramConfig.dontSendTyping, true);
+                } else if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(PengramConfig.dontSendTyping);
+                }
+                updateAll = true;
                 break;
             case BTN_DONT_STORY:
                 PengramConfig.toggleDontSendStoryViews();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.dontSendStoryViews);
+                if (view instanceof org.telegram.ui.Cells.CheckBoxCell) {
+                    ((org.telegram.ui.Cells.CheckBoxCell) view).setChecked(PengramConfig.dontSendStoryViews, true);
+                } else if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(PengramConfig.dontSendStoryViews);
+                }
+                updateAll = true;
                 break;
             case BTN_ID_COPY:
                 PengramConfig.toggleCopyIdOnTap();
@@ -564,23 +5675,34 @@ public class PengramSettingsActivity extends UniversalFragment {
                 updateAll = true;
                 break;
             case BTN_HIST_DELETED:
-                PengramConfig.toggleSaveDeleted();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveDeleted);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveDeleted", !PengramConfig.isSavingDeleted(spySelectedAccount));
+                } else PengramConfig.toggleSaveDeleted();
+                // метки и прозрачность читаются открытыми чатами — обновляем их сразу
+                org.telegram.messenger.PengramHistory.notifyMarksChanged();
+                updateAll = true;
                 break;
             case BTN_HIST_EDITED:
-                PengramConfig.toggleSaveEdited();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveEdited);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveEdited", !PengramConfig.isSavingEdited(spySelectedAccount));
+                } else PengramConfig.toggleSaveEdited();
+                updateAll = true;
+                break;
+            case BTN_HIST_EDITED_MEDIA:
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveEditedMedia",
+                            !PengramConfig.getSpyOption(spySelectedAccount, "saveEditedMedia"));
+                } else PengramConfig.toggleSaveEditedMedia();
+                updateAll = true;
                 break;
             case BTN_HIST_OUTGOING:
-                PengramConfig.toggleSaveOutgoing();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.saveOutgoing);
-                break;
-            case BTN_HIST_PROFILE:
-                PengramConfig.toggleHistoryRowInProfile();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.historyRowInProfile);
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveOutgoing2", !PengramConfig.isSavingOutgoing(spySelectedAccount));
+                } else PengramConfig.toggleSaveOutgoing();
+                updateAll = true;
                 break;
             case BTN_HIST_OPEN:
-                presentFragment(new PengramHistoryActivity(0));
+                openHistoryChat(PengramHistoryChatActivity.MODE_ALL);
                 break;
             case BTN_MEDIA_SAVE:
                 PengramConfig.toggleSaveDeletedMedia();
@@ -620,15 +5742,49 @@ public class PengramSettingsActivity extends UniversalFragment {
                 break;
             case BTN_LOCAL_PREMIUM:
                 PengramConfig.toggleLocalPremium();
-                if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.localPremium);
-                break;
-            case BTN_FONT_DEFAULT:
-            case BTN_FONT_SYSTEM:
-            case BTN_FONT_SERIF:
-            case BTN_FONT_MONO:
-                PengramConfig.setAppFont(item.id - BTN_FONT_DEFAULT);
+                getUserConfig().pengramApplyLocalPremiumStatus();
                 updateAll = true;
                 break;
+            case BTN_FONT_PICK:
+                showFontPicker();
+                break;
+            case BTN_SHARE_PHONE_MODE:
+                showSharePhonePicker();
+                break;
+            case BTN_PLAYER_ACCENT:
+                showPlayerAccentPicker();
+                break;
+            case BTN_PLAYER_BEAT: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramPlayerBeatOff),
+                        getString(R.string.PengramPlayerBeatSoft),
+                        getString(R.string.PengramPlayerBeatNormal),
+                        getString(R.string.PengramPlayerBeatJuicy)
+                };
+                showChoicePicker(getString(R.string.PengramPlayerBeat), options,
+                        PengramConfig.getPlayerBeatMode(), value -> {
+                            PengramConfig.setPlayerBeatMode(value);
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                break;
+            }
+            case BTN_EMPTY_COVER: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramEmptyCoverPenguin),
+                        getString(R.string.PengramEmptyCoverHide),
+                        getString(R.string.PengramEmptyCoverPlain)
+                };
+                showChoicePicker(getString(R.string.PengramEmptyCover), options,
+                        PengramConfig.getEmptyCoverMode(), value -> {
+                            PengramConfig.setEmptyCoverMode(value);
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                break;
+            }
             case BTN_CHAT_MENU:
                 PengramConfig.toggleChatMenu();
                 updateAll = true;
@@ -647,7 +5803,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     b.setTitle(getString(R.string.PengramHistoryClearTitle));
                     b.setMessage(getString(R.string.PengramHistoryClearAll));
                     b.setPositiveButton(getString(R.string.Delete), (d, w) -> {
-                        PengramHistory.clear(0);
+                        PengramHistory.clear(currentAccount, 0);
                         if (listView != null && listView.adapter != null) listView.adapter.update(true);
                     });
                     b.setNegativeButton(getString(R.string.Cancel), null);
@@ -658,17 +5814,92 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (previewView != null) {
             previewView.update();
         }
+        if (previewMessages != null) {
+            previewMessages.update();
+        }
         if (updateAll && listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        if (headerView != null) {
+            headerView.setPaused(true);
+        }
+        if (headerViewCompact != null) {
+            headerViewCompact.setPaused(true);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (headerView != null) {
+            headerView.setPaused(false);
+        }
+        if (headerViewCompact != null) {
+            headerViewCompact.setPaused(false);
+        }
+        // значения справа в строках разделов могли измениться на вложенном экране
+        if (listView != null && listView.adapter != null) {
+            listView.adapter.update(true);
+        }
+    }
+
+    @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
-        return false;
+        // Долгое нажатие на строку модели — сразу ввод своего значения, без
+        // пролистывания списка пресетов.
+        if (item.id == BTN_DEVICE_MODEL) {
+            showDeviceCustomDialog();
+            return true;
+        }
+        final String username;
+        if (item.id == BTN_LINK_CHANNEL) {
+            username = LINK_CHANNEL;
+        } else if (item.id == BTN_LINK_AUTHOR) {
+            username = LINK_AUTHOR;
+        } else {
+            return false;
+        }
+        final String url = "https://t.me/" + username;
+        ItemOptions.makeOptions(this, view)
+                .add(R.drawable.msg_copy, getString(R.string.PengramCopyLink), () -> {
+                    AndroidUtilities.addToClipboard(url);
+                    BulletinFactory.of(this).createCopyLinkBulletin().show();
+                })
+                .add(R.drawable.msg_share, getString(R.string.PengramShareLink), () -> shareLink(url))
+                .setGravity(android.view.Gravity.RIGHT)
+                .show();
+        return true;
+    }
+
+    private void openLink(String username) {
+        if (getContext() == null) {
+            return;
+        }
+        Browser.openUrl(getContext(), "https://t.me/" + username);
+    }
+
+    /** поделиться ссылкой через выбор чата внутри Telegram */
+    private void shareLink(String url) {
+        if (getContext() == null) {
+            return;
+        }
+        try {
+            showDialog(new org.telegram.ui.Components.ShareAlert(getContext(), null, url, false, url, false));
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
     }
 
     private void showTextDialog(String title, String current, String hint, Utilities.Callback<String> onDone) {
+        showTextDialog(title, current, hint, getString(R.string.Save), onDone);
+    }
+
+    private void showTextDialog(String title, String current, String hint, String button, Utilities.Callback<String> onDone) {
         final Context context = getContext();
         if (context == null) {
             return;
@@ -690,9 +5921,1295 @@ public class PengramSettingsActivity extends UniversalFragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setTitle(title);
         builder.setView(editText);
-        builder.setPositiveButton(getString(R.string.Save), (d, w) -> onDone.run(editText.getText().toString()));
+        builder.setPositiveButton(button, (d, w) -> onDone.run(editText.getText().toString()));
         builder.setNegativeButton(getString(R.string.Cancel), null);
         showDialog(builder.create());
+    }
+
+
+    // ------------------------------------------------------------ AI-сервисы
+
+    /** что показать в строке раздела на главном экране: активный сервис или «не настроено» */
+    private CharSequence aiSectionValue() {
+        final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
+        if (service == null) return getString(R.string.PengramAIEmptyValue);
+        final int count = org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size();
+        return count == 0 ? service.title : service.title + " · " + count + " " + getString(R.string.PengramAIAutoChatsShort);
+    }
+
+    private boolean aiServicesExpanded;
+    private boolean aiRolesExpanded;
+    private boolean aiAutoAdvancedExpanded;
+    private FrameLayout aiOverviewContainer;
+    private LinearLayout aiOverviewCard;
+    private TextView aiOverviewService;
+    private TextView aiOverviewRole;
+    private TextView aiOverviewStatus;
+    private TextView aiOverviewDetail;
+
+    /** One theme-aware overview in place of two tall, competing status cards. */
+    private void addAIOverview(ArrayList<UItem> items, int watched) {
+        if (getContext() == null) return;
+        if (aiOverviewCard == null) {
+            final Context context = getContext();
+            aiOverviewContainer = new FrameLayout(context);
+            aiOverviewCard = new LinearLayout(context);
+            aiOverviewCard.setOrientation(LinearLayout.VERTICAL);
+            aiOverviewCard.setPadding(dp(20), dp(18), dp(20), dp(18));
+            aiOverviewContainer.addView(aiOverviewCard, LayoutHelper.createFrame(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 16, 10, 16, 4));
+            final TextView eyebrow = new TextView(context);
+            eyebrow.setText(getString(R.string.PengramAICurrentLabel));
+            eyebrow.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+            eyebrow.setTypeface(AndroidUtilities.bold());
+            eyebrow.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+            aiOverviewCard.addView(eyebrow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiOverviewService = new TextView(context);
+            aiOverviewService.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+            aiOverviewService.setTypeface(AndroidUtilities.bold());
+            aiOverviewService.setSingleLine(true);
+            aiOverviewService.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewService, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 7, 0, 0));
+            aiOverviewRole = new TextView(context);
+            aiOverviewRole.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            aiOverviewRole.setSingleLine(true);
+            aiOverviewRole.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewRole, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
+            final View divider = new View(context);
+            divider.setBackgroundColor(Theme.multAlpha(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()), 0.16f));
+            aiOverviewCard.addView(divider, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, 1, 0, 16, 0, 14));
+            aiOverviewStatus = new TextView(context);
+            aiOverviewStatus.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            aiOverviewStatus.setTypeface(AndroidUtilities.bold());
+            aiOverviewCard.addView(aiOverviewStatus, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+            aiOverviewDetail = new TextView(context);
+            aiOverviewDetail.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            aiOverviewDetail.setMaxLines(3);
+            aiOverviewDetail.setEllipsize(TextUtils.TruncateAt.END);
+            aiOverviewCard.addView(aiOverviewDetail, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 4, 0, 0));
+        }
+        final int accent = Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider());
+        aiOverviewCard.setBackground(Theme.createRoundRectDrawable(dp(18), Theme.multAlpha(accent, 0.10f)));
+        aiOverviewService.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+        aiOverviewRole.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+        aiOverviewDetail.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+        final org.telegram.messenger.PengramAI.Service service = org.telegram.messenger.PengramAI.active();
+        final org.telegram.messenger.PengramAIRoles.Role role = org.telegram.messenger.PengramAIRoles.active();
+        aiOverviewService.setText(service == null ? getString(R.string.PengramAIEmptyValue) : service.title);
+        aiOverviewRole.setText(getString(R.string.PengramAIRoles) + " · " + role.title);
+        final boolean on = org.telegram.messenger.PengramAIAutoReply.enabled();
+        aiOverviewStatus.setTextColor(on ? accent : Theme.getColor(
+                Theme.key_windowBackgroundWhiteGrayText2, getResourceProvider()));
+        aiOverviewStatus.setText(getString(R.string.PengramAIAutoWatched) + watched + " · " +
+                getString(on ? R.string.PengramAIAutoEnabledShort : R.string.PengramAIAutoDisabledShort));
+        aiOverviewDetail.setText(!on ? getString(R.string.PengramAIAutoOff)
+                : !org.telegram.messenger.PengramAIAutoReply.canUseService() ? getString(R.string.PengramAIAutoStatusService)
+                : TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style()) ? getString(R.string.PengramAIAutoStatusStyle)
+                : watched == 0 ? getString(R.string.PengramAIAutoStatusEmpty)
+                : org.telegram.messenger.PengramAIAutoReply.quietNow() ? getString(R.string.PengramAIAutoStatusQuiet)
+                : getString(R.string.PengramAIAutoStatusReady));
+        items.add(UItem.asCustom(aiOverviewContainer));
+    }
+
+    private String aiAutoState(long did) {
+        switch (org.telegram.messenger.PengramAIAutoReply.state(currentAccount, did)) {
+            case "waiting": return getString(R.string.PengramAIAutoStateWaiting);
+            case "request": return getString(R.string.PengramAIAutoStateRequest);
+            case "sent": return getString(R.string.PengramAIAutoStateSent);
+            case "paused": return getString(R.string.PengramAIAutoStatePaused);
+            case "cooldown": return getString(R.string.PengramAIAutoStateCooldown);
+            case "error": return getString(R.string.PengramAIAutoStateError);
+            case "manual": return getString(R.string.PengramAIAutoStateManual);
+            default: return getString(R.string.PengramAIAutoStateReady);
+        }
+    }
+
+    /** Экран «Нейросети»: свои сервисы вместо встроенных, роли и вид ответа */
+    private void fillAI(ArrayList<UItem> items) {
+        final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
+        final String activeId = org.telegram.messenger.PengramAI.activeId();
+
+        addAIOverview(items, org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).size());
+        items.add(UItem.asButton(BTN_AI_AUTO_JUMP, R.drawable.msg_message,
+                getString(R.string.PengramAIAutoJump)));
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramAISetupHeader)));
+        items.add(UItem.asButton(BTN_AI_SERVICES_EXPAND, R.drawable.msg_bot,
+                getString(R.string.PengramAIServices), getString(R.string.PengramAIConfiguredCount) + ": " + services.size()));
+        if (aiServicesExpanded || services.isEmpty()) {
+            if (services.isEmpty()) {
+                items.add(UItem.asShadow(getString(R.string.PengramAIServicesEmpty)));
+            } else {
+                for (int i = 0; i < services.size(); i++) {
+                    final org.telegram.messenger.PengramAI.Service service = services.get(i);
+                    final boolean active = TextUtils.equals(service.id, activeId)
+                            || (activeId == null && i == 0);
+                    items.add(UItem.asRadio(BTN_AI_SERVICE_BASE + i, service.title).setChecked(active));
+                }
+            }
+            final org.telegram.messenger.PengramAI.Service selectedService = org.telegram.messenger.PengramAI.active();
+            if (selectedService != null) items.add(UItem.asShadow(selectedService.summary()));
+            if (!services.isEmpty()) {
+                items.add(UItem.asButton(BTN_AI_EDIT_SERVICE, R.drawable.msg_edit, getString(R.string.PengramAIEditService)));
+            }
+            items.add(UItem.asButton(BTN_AI_ADD_SERVICE, R.drawable.msg_add, getString(R.string.PengramAIAddService)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIServicesInfo)));
+        }
+
+        final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
+        final String activeRole = org.telegram.messenger.PengramAIRoles.activeId();
+        final org.telegram.messenger.PengramAIRoles.Role chosenRole = org.telegram.messenger.PengramAIRoles.active();
+        items.add(UItem.asButton(BTN_AI_ROLES_EXPAND, R.drawable.msg_theme,
+                getString(R.string.PengramAIRoles), chosenRole.title));
+        if (aiRolesExpanded) {
+            for (int i = 0; i < roles.size(); i++) {
+                final org.telegram.messenger.PengramAIRoles.Role role = roles.get(i);
+                items.add(UItem.asRadio(BTN_AI_ROLE_BASE + i, role.title, null)
+                        .setChecked(TextUtils.equals(role.id, activeRole)));
+            }
+            final String selectedPrompt = chosenRole.prompt.replace('\n', ' ');
+            items.add(UItem.asShadow(selectedPrompt.length() > 140 ? selectedPrompt.substring(0, 140) + "…" : selectedPrompt));
+            if (!chosenRole.builtin) {
+                items.add(UItem.asButton(BTN_AI_EDIT_ROLE, R.drawable.msg_edit, getString(R.string.PengramAIEditRole)));
+            }
+            items.add(UItem.asButton(BTN_AI_ADD_ROLE, R.drawable.msg_add, getString(R.string.PengramAIAddRole)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIRolesInfo)));
+        }
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAIAnswer)));
+        items.add(tgCheckInfo(BTN_AI_STREAM, getString(R.string.PengramAIStream), getString(R.string.PengramAIStreamInfo),
+                org.telegram.messenger.PengramAI::isStream,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_STREAM, true)));
+        items.add(tgCheckInfo(BTN_AI_ONLY_ANSWER, getString(R.string.PengramAIOnlyAnswer), getString(R.string.PengramAIOnlyAnswerInfo),
+                org.telegram.messenger.PengramAI::isOnlyAnswer,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_ONLY_ANSWER, false)));
+        items.add(tgCheckInfo(BTN_AI_AS_QUOTE, getString(R.string.PengramAIAsQuote), getString(R.string.PengramAIAsQuoteInfo),
+                org.telegram.messenger.PengramAI::isAsQuote,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_AS_QUOTE, false)));
+        items.add(tgCheckInfo(BTN_AI_HISTORY, getString(R.string.PengramAIHistory), getString(R.string.PengramAIHistoryInfo),
+                org.telegram.messenger.PengramAI::isHistory,
+                () -> org.telegram.messenger.PengramAI.toggle(org.telegram.messenger.PengramAI.KEY_HISTORY, false)));
+        if (org.telegram.messenger.PengramAI.isHistory()) {
+            items.add(UItem.asButton(BTN_AI_DEPTH, getString(R.string.PengramAIDepth),
+                    String.valueOf(org.telegram.messenger.PengramAI.historyDepth())));
+        }
+        items.add(UItem.asButton(BTN_AI_MANUAL_INFO, R.drawable.msg_info,
+                getString(R.string.PengramAIMoreInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramAIAutoHeader)));
+        final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> aiRules =
+                org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+        items.add(UItem.asButton(BTN_AI_AUTO_MASTER, R.drawable.msg_bot,
+                getString(R.string.PengramAIAutoMaster), getString(org.telegram.messenger.PengramAIAutoReply.enabled()
+                        ? R.string.PengramAIAutoEnabledShort : R.string.PengramAIAutoDisabledShort)));
+        items.add(tgCheckInfo(BTN_AI_AUTO_CONTEXT, getString(R.string.PengramAIAutoContext),
+                getString(R.string.PengramAIAutoContextBrief),
+                org.telegram.messenger.PengramAIAutoReply::contextEnabled,
+                () -> org.telegram.messenger.PengramAIAutoReply.setContextEnabled(
+                        !org.telegram.messenger.PengramAIAutoReply.contextEnabled())));
+        if (org.telegram.messenger.PengramAIAutoReply.contextEnabled()) {
+            items.add(UItem.asButton(BTN_AI_AUTO_CONTEXT_LIMIT, getString(R.string.PengramAIAutoContextLimit),
+                    String.valueOf(org.telegram.messenger.PengramAIAutoReply.contextLimit())));
+        }
+        final String autoStyle = org.telegram.messenger.PengramAIAutoReply.style();
+        items.add(UItem.asButton(BTN_AI_AUTO_STYLE, R.drawable.msg_edit,
+                getString(R.string.PengramAIAutoStyle), TextUtils.isEmpty(autoStyle)
+                        ? getString(R.string.PengramAIAutoNoStyle)
+                        : autoStyle.length() > 40 ? autoStyle.substring(0, 40) + "…" : autoStyle));
+        items.add(UItem.asButton(BTN_AI_AUTO_ADVANCED, R.drawable.msg_settings,
+                getString(R.string.PengramAIAutoAdvanced), getString(aiAutoAdvancedExpanded
+                        ? R.string.PengramAICollapse : R.string.PengramAIExpand)));
+        if (aiAutoAdvancedExpanded) {
+            items.add(UItem.asButton(BTN_AI_AUTO_QUIET, getString(R.string.PengramAIAutoQuiet),
+                    org.telegram.messenger.PengramAIAutoReply.quietStart() + ":00–" +
+                            org.telegram.messenger.PengramAIAutoReply.quietEnd() + ":00"));
+            items.add(UItem.asButton(BTN_AI_AUTO_COOLDOWN, getString(R.string.PengramAIAutoCooldown),
+                    org.telegram.messenger.PengramAIAutoReply.cooldownMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+            items.add(UItem.asHeader(getString(R.string.PengramAIAutoSpamHeader)));
+            items.add(UItem.asButton(BTN_AI_AUTO_SPAM_COUNT, getString(R.string.PengramAIAutoSpamCount),
+                    String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold())));
+            items.add(UItem.asButton(BTN_AI_AUTO_SPAM_PAUSE, getString(R.string.PengramAIAutoSpamPause),
+                    org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes() + " " + getString(R.string.PengramAIAutoMinutes)));
+            items.add(UItem.asShadow(getString(R.string.PengramAIAutoSpamInfo)));
+        }
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramAIAutoWatching)));
+        items.add(UItem.asButton(BTN_AI_AUTO_ADD, R.drawable.msg_add, getString(R.string.PengramAIAutoAdd)));
+        if (aiRules.isEmpty()) {
+            items.add(UItem.asShadow(getString(R.string.PengramAIAutoNoChats)));
+        }
+        for (int i = 0; i < aiRules.size() && i < 100; ++i) {
+            final org.telegram.messenger.PengramAIAutoReply.Rule rule = aiRules.get(i);
+            final String name = aiChatName(rule.dialogId);
+            items.add(UItem.asButton(BTN_AI_AUTO_RULE_BASE + i, R.drawable.msg_message,
+                    name.length() > 28 ? name.substring(0, 28) + "…" : name,
+                    (rule.dialogId < 0 ? getString(R.string.PengramAIAutoGroup) : getString(R.string.PengramAIAutoPrivate))
+                            + " · " + rule.minSeconds + "–" + rule.maxSeconds + getString(R.string.PengramAIAutoSeconds)));
+            final String state = aiAutoState(rule.dialogId);
+            if (!"idle".equals(org.telegram.messenger.PengramAIAutoReply.state(currentAccount, rule.dialogId))) {
+                items.add(UItem.asShadow(getString(R.string.PengramAIAutoLastEvent) + state));
+            }
+        }
+        items.add(UItem.asButton(BTN_AI_AUTO_REFRESH, R.drawable.msg_retry,
+                getString(R.string.PengramAIAutoRefresh)));
+        items.add(UItem.asButton(BTN_AI_AUTO_INFO, R.drawable.msg_info,
+                getString(R.string.PengramAIAutoMoreInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asButton(BTN_AI_RESET, R.drawable.msg_reset, getString(R.string.PengramAIReset)).red());
+        items.add(UItem.asShadow(getString(R.string.PengramAIResetInfo)));
+    }
+
+    private String aiChatName(long did) {
+        if (did < 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(-did);
+            return chat == null || TextUtils.isEmpty(chat.title) ? String.valueOf(did) : chat.title;
+        }
+        final TLRPC.User user = getMessagesController().getUser(did);
+        return user == null ? String.valueOf(did) : UserObject.getUserName(user);
+    }
+
+    private void showAIAutoStyleDialog() {
+        if (getContext() == null) return;
+        final EditTextBoldCursor field = new EditTextBoldCursor(getContext());
+        field.setText(org.telegram.messenger.PengramAIAutoReply.style());
+        field.setHint(getString(R.string.PengramAIAutoStyleHint));
+        field.setSingleLine(false);
+        field.setMaxLines(8);
+        field.setMinLines(4);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
+        field.setPadding(dp(14), dp(12), dp(14), dp(12));
+        field.setBackground(Theme.createRoundRectDrawable(dp(12), Theme.multAlpha(
+                Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()), 0.06f)));
+        final LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(6), dp(22), dp(4));
+        layout.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final TextView note = new TextView(getContext());
+        note.setText(getString(R.string.PengramAIAutoStyleInfo));
+        note.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        note.setTextColor(Theme.getColor(Theme.key_dialogTextGray2, getResourceProvider()));
+        layout.addView(note, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 12, 0, 0));
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(getString(R.string.PengramAIAutoStyle));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            org.telegram.messenger.PengramAIAutoReply.setStyle(field.getText().toString());
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            if (!org.telegram.messenger.PengramAIAutoReply.enabled()
+                    && !TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                    && org.telegram.messenger.PengramAIAutoReply.canUseService()
+                    && !org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).isEmpty()) {
+                AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 180);
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private void showAIAutoPicker() {
+        final Bundle args = new Bundle();
+        args.putBoolean("onlySelect", true);
+        args.putBoolean("canSelectTopics", false);
+        args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
+        args.putBoolean("allowSwitchAccount", false);
+        final DialogsActivity picker = new DialogsActivity(args);
+        picker.setCurrentAccount(currentAccount);
+        picker.setDelegate((fragment, dids, message, param, notify, scheduleDate, scheduleRepeatPeriod, topicsFragment) -> {
+            if (dids == null || dids.isEmpty()) return false;
+            final org.telegram.messenger.MessagesStorage.TopicKey selected = dids.get(0);
+            if (selected == null) return false;
+            final long did = selected.dialogId;
+            final TLRPC.Chat chat = did < 0 ? getMessagesController().getChat(-did) : null;
+            final TLRPC.User user = did > 0 ? getMessagesController().getUser(did) : null;
+            if (did == 0 || selected.topicId != 0
+                    || did == UserConfig.getInstance(currentAccount).getClientUserId()
+                    || did < 0 && (chat == null || ChatObject.isChannelAndNotMegaGroup(chat)
+                            || !ChatObject.canSendPlain(chat))
+                    || did > 0 && (user == null || user.bot)) {
+                BulletinFactory.of(fragment).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoUnsupportedChat)).show();
+                return false;
+            }
+            final org.telegram.messenger.PengramAIAutoReply.Rule existing =
+                    org.telegram.messenger.PengramAIAutoReply.rule(currentAccount, did);
+            if (existing == null && !org.telegram.messenger.PengramAIAutoReply.put(
+                    new org.telegram.messenger.PengramAIAutoReply.Rule(currentAccount, did, true, 2, 6))) {
+                BulletinFactory.of(fragment).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoSaveError)).show();
+                return false;
+            }
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            fragment.finishFragment();
+            AndroidUtilities.runOnUIThread(() -> {
+                if (getContext() == null) return;
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
+                        getString(existing == null ? R.string.PengramAIAutoConnected
+                                : R.string.PengramAIAutoAlreadyConnected)).show();
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled()) {
+                    AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 900);
+                }
+            }, 280);
+            return true;
+        });
+        presentFragment(picker);
+    }
+
+    private void showAIAutoRuleDialog(org.telegram.messenger.PengramAIAutoReply.Rule rule) {
+        if (getContext() == null) return;
+        final LinearLayout layout = new LinearLayout(getContext());
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(8));
+        final TextView label = new TextView(getContext());
+        label.setText(getString(R.string.PengramAIAutoRangeInfo));
+        label.setTextColor(Theme.getColor(Theme.key_dialogTextGray2, getResourceProvider()));
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        layout.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        final EditTextBoldCursor min = aiField(getContext(), getString(R.string.PengramAIAutoMin),
+                String.valueOf(rule.minSeconds), layout);
+        final EditTextBoldCursor max = aiField(getContext(), getString(R.string.PengramAIAutoMax),
+                String.valueOf(rule.maxSeconds), layout);
+        min.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        max.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(aiChatName(rule.dialogId));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.PengramAIAutoEnableChat), (d, w) -> {
+            try {
+                final int from = Integer.parseInt(min.getText().toString().trim());
+                final int to = Integer.parseInt(max.getText().toString().trim());
+                if (from < 1 || from > to || to > 600) throw new NumberFormatException();
+                if (!org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                        rule.account, rule.dialogId, true, from, to))) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                            getString(R.string.PengramAIAutoSaveError)).show();
+                    return;
+                }
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled())
+                    AndroidUtilities.runOnUIThread(this::promptEnableAutoReply, 180);
+            } catch (NumberFormatException error) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoRangeError)).show();
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        builder.setNeutralButton(getString(R.string.PengramAIAutoRemove), (d, w) -> {
+            if (!org.telegram.messenger.PengramAIAutoReply.put(new org.telegram.messenger.PengramAIAutoReply.Rule(
+                    rule.account, rule.dialogId, false, rule.minSeconds, rule.maxSeconds))) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                        getString(R.string.PengramAIAutoSaveError)).show();
+                return;
+            }
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
+        showDialog(builder.create());
+    }
+
+    /** список заготовок: выбрал шлюз — остались только ключ и модель */
+    private void showAIPresets() {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final CharSequence[] titles = new CharSequence[org.telegram.messenger.PengramAI.PRESETS.length + 1];
+        for (int i = 0; i < org.telegram.messenger.PengramAI.PRESETS.length; i++) {
+            titles[i] = org.telegram.messenger.PengramAI.PRESETS[i].title;
+        }
+        titles[titles.length - 1] = getString(R.string.PengramAIManual);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(R.string.PengramAIAddService));
+        builder.setItems(titles, (d, which) -> {
+            if (which >= org.telegram.messenger.PengramAI.PRESETS.length) {
+                showAIServiceDialog(null);
+                return;
+            }
+            final org.telegram.messenger.PengramAI.Preset preset = org.telegram.messenger.PengramAI.PRESETS[which];
+            showAIServiceDialog(new org.telegram.messenger.PengramAI.Service(null, preset.title,
+                    preset.baseUrl, preset.model, ""));
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    private EditTextBoldCursor aiField(Context context, CharSequence hint, String value, LinearLayout parent) {
+        final EditTextBoldCursor field = new EditTextBoldCursor(context);
+        field.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        field.setSingleLine(true);
+        field.setHint(hint);
+        field.setText(value == null ? "" : value);
+        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint, getResourceProvider()));
+        field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()));
+        field.setBackgroundDrawable(null);
+        final TextView label = new TextView(context);
+        label.setText(hint);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        label.setTypeface(AndroidUtilities.bold());
+        label.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+        parent.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
+                0, 12, 0, 5));
+        field.setPadding(dp(12), dp(10), dp(12), dp(10));
+        field.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.multAlpha(
+                Theme.getColor(Theme.key_dialogTextBlack, getResourceProvider()), 0.06f)));
+        parent.addView(field, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        return field;
+    }
+
+    /** добавление и правка сервиса: адрес, модель, ключ */
+    private void showAIServiceDialog(org.telegram.messenger.PengramAI.Service source) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final boolean editing = source != null && !TextUtils.isEmpty(source.id);
+        final LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(4));
+        final EditTextBoldCursor title = aiField(context, getString(R.string.PengramAIFieldTitle),
+                source == null ? "" : source.title, layout);
+        final EditTextBoldCursor url = aiField(context, getString(R.string.PengramAIFieldUrl),
+                source == null ? "https://" : source.baseUrl, layout);
+        final EditTextBoldCursor model = aiField(context, getString(R.string.PengramAIFieldModel),
+                source == null ? "" : source.model, layout);
+        final EditTextBoldCursor key = aiField(context, getString(R.string.PengramAIFieldKey),
+                source == null ? "" : source.apiKey, layout);
+        key.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        key.setSelection(key.length());
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(editing ? R.string.PengramAIEditService : R.string.PengramAIAddService));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            final org.telegram.messenger.PengramAI.Service service = new org.telegram.messenger.PengramAI.Service(
+                    source == null ? null : source.id,
+                    TextUtils.isEmpty(title.getText()) ? getString(R.string.PengramSectionAI).toString() : title.getText().toString().trim(),
+                    url.getText().toString().trim(),
+                    model.getText().toString().trim(),
+                    key.getText().toString().trim());
+            if (!service.isReady()) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIEndpointInvalid)).show();
+                return;
+            }
+            org.telegram.messenger.PengramAI.put(service);
+            org.telegram.messenger.PengramAI.setActive(service.id);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+            checkAIService(service);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        if (editing) {
+            builder.setNeutralButton(getString(R.string.Delete), (d, w) -> {
+                org.telegram.messenger.PengramAI.remove(source.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        showDialog(builder.create());
+    }
+
+    /** живая проверка: сервис отвечает — значит адрес, модель и ключ сошлись */
+    private void checkAIService(org.telegram.messenger.PengramAI.Service service) {
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info, getString(R.string.PengramAIChecking)).show();
+        org.telegram.messenger.PengramAIClient.check(service, new org.telegram.messenger.PengramAIClient.Listener() {
+            @Override
+            public void onChunk(String text) {
+            }
+
+            @Override
+            public void onDone(String text) {
+                BulletinFactory.of(PengramSettingsActivity.this)
+                        .createSimpleBulletin(R.raw.done, getString(R.string.PengramAICheckOk)).show();
+                if (!org.telegram.messenger.PengramAIAutoReply.enabled()
+                        && !TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                        && !org.telegram.messenger.PengramAIAutoReply.rules(currentAccount).isEmpty()) {
+                    promptEnableAutoReply();
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                BulletinFactory.of(PengramSettingsActivity.this)
+                        .createSimpleBulletin(R.raw.error, message).show();
+            }
+        });
+    }
+
+    /** своя роль: название и то, что модель прочитает перед работой */
+    private void showAIRoleDialog(org.telegram.messenger.PengramAIRoles.Role source) {
+        final Context context = getContext();
+        if (context == null) {
+            return;
+        }
+        final LinearLayout layout = new LinearLayout(context);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(22), dp(4), dp(22), dp(4));
+        final EditTextBoldCursor title = aiField(context, getString(R.string.PengramAIFieldRoleTitle),
+                source == null ? "" : source.title, layout);
+        final EditTextBoldCursor prompt = aiField(context, getString(R.string.PengramAIFieldPrompt),
+                source == null ? "" : source.prompt, layout);
+        prompt.setSingleLine(false);
+        prompt.setMaxLines(10);
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle(getString(source == null ? R.string.PengramAIAddRole : R.string.PengramAIEditRole));
+        builder.setView(layout);
+        builder.setPositiveButton(getString(R.string.Save), (d, w) -> {
+            final String name = title.getText().toString().trim();
+            final String text = prompt.getText().toString().trim();
+            if (TextUtils.isEmpty(name) || TextUtils.isEmpty(text)) {
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.error, getString(R.string.PengramAIFieldsNeeded)).show();
+                return;
+            }
+            final org.telegram.messenger.PengramAIRoles.Role role =
+                    new org.telegram.messenger.PengramAIRoles.Role(source == null ? null : source.id, name, text, false);
+            org.telegram.messenger.PengramAIRoles.put(role);
+            org.telegram.messenger.PengramAIRoles.setActive(role.id);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        if (source != null && !source.builtin) {
+            builder.setNeutralButton(getString(R.string.Delete), (d, w) -> {
+                org.telegram.messenger.PengramAIRoles.remove(source.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            });
+        }
+        showDialog(builder.create());
+    }
+
+    /** подпись режима «второе имя»: выключено / нажатие / свайп / оба */
+    private CharSequence originalNameModeName() {
+        switch (org.telegram.messenger.PengramOriginalName.mode()) {
+            case org.telegram.messenger.PengramOriginalName.MODE_TAP:
+                return getString(R.string.PengramOriginalNameTap);
+            case org.telegram.messenger.PengramOriginalName.MODE_SWIPE:
+                return getString(R.string.PengramOriginalNameSwipe);
+            case org.telegram.messenger.PengramOriginalName.MODE_BOTH:
+                return getString(R.string.PengramOriginalNameBoth);
+            default:
+                return getString(R.string.PengramOriginalNameOff);
+        }
+    }
+
+    private void showOriginalNamePicker() {
+        showChoicePicker(getString(R.string.PengramOriginalName), new CharSequence[]{
+                getString(R.string.PengramOriginalNameOff),
+                getString(R.string.PengramOriginalNameTap),
+                getString(R.string.PengramOriginalNameSwipe),
+                getString(R.string.PengramOriginalNameBoth)
+        }, org.telegram.messenger.PengramOriginalName.mode(), value -> {
+            org.telegram.messenger.PengramOriginalName.setMode(value);
+            if (listView != null && listView.adapter != null) {
+                listView.adapter.update(true);
+            }
+        });
+    }
+
+    private void promptEnableAutoReply() {
+        if (getContext() == null || org.telegram.messenger.PengramAIAutoReply.enabled()) return;
+        if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())
+                || !org.telegram.messenger.PengramAIAutoReply.canUseService()) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    getString(R.string.PengramAIAutoNeedsSetup)).show();
+            if (TextUtils.isEmpty(org.telegram.messenger.PengramAIAutoReply.style())) showAIAutoStyleDialog();
+            return;
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(getString(R.string.PengramAIAutoMaster));
+        builder.setMessage(getString(R.string.PengramAIAutoWarning));
+        builder.setPositiveButton(getString(R.string.PengramAIAutoEnable), (d, w) -> {
+            org.telegram.messenger.PengramAIAutoReply.setEnabled(true);
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /** нажатия в разделе «Нейросети»; true — обработали */
+    private boolean onAIClick(UItem item) {
+        if (item.id >= BTN_AI_AUTO_RULE_BASE && item.id < BTN_AI_AUTO_RULE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAIAutoReply.Rule> rules =
+                    org.telegram.messenger.PengramAIAutoReply.rules(currentAccount);
+            final int index = item.id - BTN_AI_AUTO_RULE_BASE;
+            if (index < rules.size()) showAIAutoRuleDialog(rules.get(index));
+            return true;
+        }
+        if (item.id >= BTN_AI_SERVICE_BASE && item.id < BTN_AI_SERVICE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAI.Service> services = org.telegram.messenger.PengramAI.services();
+            final int index = item.id - BTN_AI_SERVICE_BASE;
+            if (index < services.size()) {
+                final org.telegram.messenger.PengramAI.Service service = services.get(index);
+                org.telegram.messenger.PengramAI.setActive(service.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            }
+            return true;
+        }
+        if (item.id >= BTN_AI_ROLE_BASE && item.id < BTN_AI_ROLE_BASE + 100) {
+            final java.util.List<org.telegram.messenger.PengramAIRoles.Role> roles = org.telegram.messenger.PengramAIRoles.all();
+            final int index = item.id - BTN_AI_ROLE_BASE;
+            if (index < roles.size()) {
+                final org.telegram.messenger.PengramAIRoles.Role role = roles.get(index);
+                org.telegram.messenger.PengramAIRoles.setActive(role.id);
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
+            }
+            return true;
+        }
+        switch (item.id) {
+            case BTN_AI_AUTO_MASTER: {
+                if (org.telegram.messenger.PengramAIAutoReply.enabled()) {
+                    org.telegram.messenger.PengramAIAutoReply.setEnabled(false);
+                } else {
+                    promptEnableAutoReply();
+                }
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            }
+            case BTN_AI_SERVICES_EXPAND:
+                aiServicesExpanded = !aiServicesExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_ROLES_EXPAND:
+                aiRolesExpanded = !aiRolesExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_AUTO_ADVANCED:
+                aiAutoAdvancedExpanded = !aiAutoAdvancedExpanded;
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_MANUAL_INFO:
+            case BTN_AI_AUTO_INFO: {
+                if (getContext() != null) {
+                    final AlertDialog.Builder info = new AlertDialog.Builder(getContext());
+                    info.setTitle(getString(item.id == BTN_AI_MANUAL_INFO
+                            ? R.string.PengramAIAnswer : R.string.PengramAIAutoHeader));
+                    info.setMessage(getString(item.id == BTN_AI_MANUAL_INFO
+                            ? R.string.PengramAIAnswerInfo : R.string.PengramAIAutoInfo));
+                    info.setPositiveButton(getString(R.string.OK), null);
+                    showDialog(info.create());
+                }
+                return true;
+            }
+            case BTN_AI_AUTO_REFRESH:
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                return true;
+            case BTN_AI_AUTO_JUMP:
+                pengramJumpTo(R.string.PengramAIAutoWatching);
+                return true;
+            case BTN_AI_AUTO_STYLE:
+                showAIAutoStyleDialog();
+                return true;
+            case BTN_AI_AUTO_ADD:
+                showAIAutoPicker();
+                return true;
+            case BTN_AI_AUTO_QUIET:
+                showTextDialog(getString(R.string.PengramAIAutoQuiet),
+                        org.telegram.messenger.PengramAIAutoReply.quietStart() + "-" +
+                        org.telegram.messenger.PengramAIAutoReply.quietEnd(), "23-8", value -> {
+                            try {
+                                final String[] parts = value.trim().split("-");
+                                final int from = Integer.parseInt(parts[0]);
+                                final int to = Integer.parseInt(parts[1]);
+                                if (from < 0 || from > 23 || to < 0 || to > 23) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setQuietHours(from, to);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (Exception ignore) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoQuietError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_AUTO_COOLDOWN:
+                showTextDialog(getString(R.string.PengramAIAutoCooldown),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.cooldownMinutes()), "0", value -> {
+                            try {
+                                org.telegram.messenger.PengramAIAutoReply.setCooldownMinutes(Integer.parseInt(value.trim()));
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException ignore) {}
+                        });
+                return true;
+            case BTN_AI_AUTO_CONTEXT_LIMIT:
+                showTextDialog(getString(R.string.PengramAIAutoContextLimit),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.contextLimit()), "3", value -> {
+                            try {
+                                final int count = Integer.parseInt(value.trim());
+                                if (count < 1 || count > org.telegram.messenger.PengramAIAutoReply.MAX_CONTEXT_LINES)
+                                    throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setContextLimit(count);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoContextLimitError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_AUTO_SPAM_COUNT:
+                showTextDialog(getString(R.string.PengramAIAutoSpamCount),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamThreshold()), "3", value -> {
+                            try {
+                                final int count = Integer.parseInt(value.trim());
+                                if (count < 1 || count > 20) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setSpamThreshold(count);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoSpamCountError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_AUTO_SPAM_PAUSE:
+                showTextDialog(getString(R.string.PengramAIAutoSpamPause),
+                        String.valueOf(org.telegram.messenger.PengramAIAutoReply.spamPauseMinutes()), "15", value -> {
+                            try {
+                                final int minutes = Integer.parseInt(value.trim());
+                                if (minutes < 1 || minutes > 1440) throw new NumberFormatException();
+                                org.telegram.messenger.PengramAIAutoReply.setSpamPauseMinutes(minutes);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            } catch (NumberFormatException error) {
+                                BulletinFactory.of(this).createSimpleBulletin(R.raw.error,
+                                        getString(R.string.PengramAIAutoSpamPauseError)).show();
+                            }
+                        });
+                return true;
+            case BTN_AI_EDIT_SERVICE:
+                showAIServiceDialog(org.telegram.messenger.PengramAI.active());
+                return true;
+            case BTN_AI_EDIT_ROLE:
+                final org.telegram.messenger.PengramAIRoles.Role editingRole = org.telegram.messenger.PengramAIRoles.active();
+                if (!editingRole.builtin) {
+                    showAIRoleDialog(editingRole);
+                }
+                return true;
+            case BTN_AI_ADD_SERVICE:
+                showAIPresets();
+                return true;
+            case BTN_AI_ADD_ROLE:
+                showAIRoleDialog(null);
+                return true;
+            case BTN_AI_DEPTH: {
+                showTextDialog(getString(R.string.PengramAIDepth),
+                        String.valueOf(org.telegram.messenger.PengramAI.historyDepth()), "10", value -> {
+                            try {
+                                org.telegram.messenger.PengramAI.setHistoryDepth(Integer.parseInt(value.trim()));
+                            } catch (Throwable ignore) {
+                            }
+                            if (listView != null && listView.adapter != null) {
+                                listView.adapter.update(true);
+                            }
+                        });
+                return true;
+            }
+            case BTN_AI_RESET: {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+                builder.setTitle(getString(R.string.PengramAIReset));
+                builder.setMessage(getString(R.string.PengramAIResetInfo));
+                builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
+                    org.telegram.messenger.PengramAI.resetAll();
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                });
+                builder.setNegativeButton(getString(R.string.Cancel), null);
+                showDialog(builder.create());
+                return true;
+            }
+            case BTN_SECTION_LYRICS:
+                presentFragment(new PengramSettingsActivity(SECTION_LYRICS));
+                return true;
+            case BTN_SECTION_AI:
+                presentFragment(new PengramSettingsActivity(SECTION_AI));
+                return true;
+            case BTN_ORIGINAL_NAME:
+                showOriginalNamePicker();
+                return true;
+        }
+        return false;
+    }
+
+    /** Шапка настроек: живой 3D-пингвин, название и короткое описание */
+    private class PengramHeaderView extends LinearLayout {
+
+        /**
+         * Базовый размер пингвина при ползунке 100%. 132dp читались как
+         * иконка, 160dp всё ещё терялись на большом экране. 224dp — это уже
+         * полноценный персонаж: тело занимает ~87 % кадра (см. CAM_FILL), то
+         * есть почти 195dp по высоте на обычном телефоне.
+         */
+        private static final int BASE_SIZE_DP = 224;
+
+        private PengramPenguinView penguinView;
+        private android.widget.ImageView fallbackLogo;
+        private TextView bubble;
+        /** какой скин реально надет сейчас — чтобы не переодевать пингвина каждую секунду */
+        private int appliedSkin = -1;
+        /** контейнер пингвина: размер меняется ползунком без пересоздания вьюхи */
+        private android.widget.FrameLayout penguinContainer;
+        private int phraseIndex;
+        private long lastPhraseTime;
+        private final Runnable stateTicker = new Runnable() {
+            @Override
+            public void run() {
+                syncWithApp();
+                AndroidUtilities.runOnUIThread(this, 1500);
+            }
+        };
+
+        /** компактная шапка корня: пингвин слева, тексты справа */
+        private final boolean compact;
+
+        public PengramHeaderView(Context context) {
+            this(context, false);
+        }
+
+        public PengramHeaderView(Context context, boolean compact) {
+            super(context);
+            this.compact = compact;
+            setOrientation(VERTICAL);
+            setGravity(Gravity.CENTER_HORIZONTAL);
+            if (compact) {
+                setPadding(dp(14), dp(12), dp(14), dp(12));
+                buildCompact(context);
+            } else {
+                setPadding(dp(16), dp(10), dp(16), dp(18));
+                buildFull(context);
+            }
+        }
+
+        /**
+         * Строка списка отдаёт полностью кастомной вьюхе WRAP_CONTENT, поэтому
+         * шапка ужималась по содержимому и прилипала к левому краю: и пингвин,
+         * и «канал» с «создателем» уезжали влево. Берём всю ширину строки —
+         * тогда Center_HORIZONTAL действительно центрирует по экрану.
+         */
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            final int width = MeasureSpec.getSize(widthMeasureSpec);
+            if (width > 0) {
+                widthMeasureSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        }
+
+        /** 3D-пингвин с запасным логотипом; размер кадра задаётся один раз */
+        private void createPenguin(Context context, int penguinSize) {
+            penguinContainer = new FrameLayout(context);
+
+            fallbackLogo = new android.widget.ImageView(context);
+            fallbackLogo.setImageResource(R.drawable.pengram_logo);
+            fallbackLogo.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            // запасной логотип (если GL недоступен) — половина от размера пингвина
+            penguinContainer.addView(fallbackLogo, LayoutHelper.createFrame(
+                    Math.round(penguinSize * 0.55f), Math.round(penguinSize * 0.55f), Gravity.CENTER));
+
+            try {
+                penguinView = new PengramPenguinView(context);
+                penguinView.setSkin(PengramConfig.getPenguinSkin());
+                penguinView.setOnTapListener(() -> {
+                    nextPhrase(true);
+                    try {
+                        if (PengramConfig.isVibrationEnabled()) {
+                            penguinView.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP,
+                                    android.view.HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        }
+                    } catch (Exception ignore) {}
+                });
+                penguinView.setOnSecretListener(() -> {
+                    // 10 быстрых тапов — все настройки пингвина
+                    try {
+                        if (section != SECTION_PENGUIN) {
+                            presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));
+                        }
+                    } catch (Throwable ignore) {}
+                });
+                penguinView.whenReady(() -> {
+                    if (fallbackLogo != null) {
+                        fallbackLogo.animate().alpha(0f).setDuration(180).start();
+                    }
+                });
+                // кадр камеры считается по содержимому, поэтому шапка влезает
+                // при любом размере — просто масштабируем саму вьюху
+                penguinContainer.addView(penguinView, LayoutHelper.createFrame(penguinSize, penguinSize, Gravity.CENTER));
+            } catch (Throwable e) {
+                org.telegram.messenger.FileLog.e(e);
+                penguinView = null;
+            }
+        }
+
+        /** большое превью: раздел «Пингвин», где его крутят и переодевают */
+        private void buildFull(Context context) {
+            final int penguinSize = clampPenguinSize(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            createPenguin(context, penguinSize);
+            addView(penguinContainer, LayoutHelper.createLinear(penguinSize, penguinSize, Gravity.CENTER_HORIZONTAL));
+
+            // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
+            bubble = createBubble(context, Gravity.CENTER);
+            addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 2, 24, 0));
+
+            addView(createTitle(context, Gravity.CENTER_HORIZONTAL),
+                    LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
+            addView(createSubtitle(context, Gravity.CENTER_HORIZONTAL),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 24, 4, 24, 0));
+
+            // Канал и автор — сразу под шапкой, а не в конце списка.
+            addView(createLinks(context, 32), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,
+                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 10, 16, 0));
+        }
+
+        /**
+         * Компактная шапка корня: пингвин слева, заголовок, версия и реплика
+         * справа. Та же вертикальная шапка, что в разделе «Пингвин», на входе
+         * в настройки занимала пол-экрана — здесь она ужата до карточки.
+         */
+        private void buildCompact(Context context) {
+            // Компактная шапка повторяет большую по композиции, только ниже:
+            // пингвин, заголовок, версия, реплика и ссылки идут по центру.
+            // Раньше пингвин стоял в левой колонке, а ссылки — отдельной
+            // строкой снизу, и шапка выглядела съехавшей влево.
+            final int size = dp(72);
+            createPenguin(context, size);
+            addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));
+
+            addView(createTitle(context, Gravity.CENTER),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                            Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+            addView(createSubtitle(context, Gravity.CENTER),
+                    LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                            Gravity.CENTER_HORIZONTAL, 0, 2, 0, 0));
+
+            bubble = createBubble(context, Gravity.CENTER);
+            addView(bubble, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                    Gravity.CENTER_HORIZONTAL, 24, 6, 24, 0));
+
+            addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,
+                    LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+        }
+
+        private TextView createTitle(Context context, int gravity) {
+            final TextView title = new TextView(context);
+            title.setText("Pengram");
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compact ? 18 : 20);
+            title.setTypeface(AndroidUtilities.bold());
+            title.setSingleLine(true);
+            title.setGravity(gravity);
+            title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            return title;
+        }
+
+        private TextView createSubtitle(Context context, int gravity) {
+            final String versionText = getAppVersion();
+            final TextView subtitle = new TextView(context);
+            subtitle.setText(versionText);
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, compact ? 13 : 14);
+            subtitle.setGravity(gravity);
+            subtitle.setSingleLine(true);
+            subtitle.setEllipsize(TextUtils.TruncateAt.END);
+            subtitle.setLineSpacing(dp(2), 1f);
+            subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
+            subtitle.setPadding(dp(compact ? 0 : 10), dp(4), dp(compact ? 0 : 10), dp(4));
+            subtitle.setBackground(Theme.createRadSelectorDrawable(
+                    Theme.getColor(Theme.key_listSelector, getResourceProvider()), 8, 8));
+            subtitle.setOnClickListener(v -> {
+                AndroidUtilities.addToClipboard(versionText);
+                BulletinFactory.of(PengramSettingsActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
+            });
+            return subtitle;
+        }
+
+        private TextView createBubble(Context context, int gravity) {
+            final TextView view = new TextView(context);
+            view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            view.setGravity(gravity);
+            view.setMaxLines(2);
+            view.setEllipsize(TextUtils.TruncateAt.END);
+            view.setPadding(dp(12), dp(6), dp(12), dp(7));
+            view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
+            view.setBackground(Theme.createRoundRectDrawable(dp(12),
+                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
+            view.setOnClickListener(v -> nextPhrase(true));
+            return view;
+        }
+
+        /** маленькие «таблетки» со ссылками на канал и автора */
+        private LinearLayout createLinks(Context context, int chipHeight) {
+            final LinearLayout links = new LinearLayout(context);
+            links.setOrientation(HORIZONTAL);
+            links.setGravity(Gravity.CENTER_HORIZONTAL);
+            links.addView(linkChip(context, R.drawable.msg_channel, getString(R.string.PengramLinkChannel),
+                    () -> openLink(LINK_CHANNEL)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 0, 0, 4, 0));
+            links.addView(linkChip(context, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor),
+                    () -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 4, 0, 0, 0));
+            return links;
+        }
+
+        /**
+         * Даже на 150 % пингвин не должен вылезать за экран: на узких
+         * устройствах 336dp могли упереться в края и обрезать шляпу.
+         */
+        private int clampPenguinSize(int size) {
+            final int width = AndroidUtilities.displaySize.x;
+            final int height = AndroidUtilities.displaySize.y;
+            // по ширине — поля 48dp, по высоте — место под пузырь, версию и ссылки;
+            // иначе в горизонтальной ориентации шапка выше экрана и список её обрежет
+            final int maxWidth = width > 0 ? width - dp(48) : size;
+            final int maxHeight = height > 0 ? height - dp(240) : size;
+            final int max = Math.max(dp(96), Math.min(maxWidth, maxHeight));
+            return Math.max(dp(96), Math.min(size, max));
+        }
+
+        /** маленькая «таблетка» со значком и подписью */
+        private View linkChip(Context context, int icon, CharSequence text, Runnable onClick) {
+            final LinearLayout chip = new LinearLayout(context);
+            chip.setOrientation(HORIZONTAL);
+            chip.setGravity(Gravity.CENTER_VERTICAL);
+            chip.setPadding(dp(11), 0, dp(13), 0);
+            chip.setBackground(Theme.createRoundRectDrawable(dp(16),
+                    Theme.getColor(Theme.key_windowBackgroundGray, getResourceProvider())));
+
+            final android.widget.ImageView iconView = new android.widget.ImageView(context);
+            iconView.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+            iconView.setImageResource(icon);
+            iconView.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()),
+                    android.graphics.PorterDuff.Mode.SRC_IN));
+            chip.addView(iconView, LayoutHelper.createLinear(17, 17, Gravity.CENTER_VERTICAL, 0, 0, 6, 0));
+
+            final TextView label = new TextView(context);
+            label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            label.setTypeface(AndroidUtilities.bold());
+            label.setSingleLine(true);
+            label.setText(text);
+            label.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
+            chip.addView(label, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
+
+            chip.setOnClickListener(v -> {
+                AndroidUtilities.vibrateCursor(v);
+                onClick.run();
+            });
+            return chip;
+        }
+
+        public void setPaused(boolean paused) {
+            if (penguinView != null) {
+                penguinView.setPaused(paused);
+            }
+            if (paused) {
+                AndroidUtilities.cancelRunOnUIThread(stateTicker);
+            } else if (isAttachedToWindow()) {
+                AndroidUtilities.cancelRunOnUIThread(stateTicker);
+                AndroidUtilities.runOnUIThread(stateTicker, 300);
+            }
+        }
+
+        @Override
+        protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            syncWithApp();
+            nextPhrase(false);
+            AndroidUtilities.cancelRunOnUIThread(stateTicker);
+            AndroidUtilities.runOnUIThread(stateTicker, 1500);
+        }
+
+        @Override
+        protected void onDetachedFromWindow() {
+            super.onDetachedFromWindow();
+            AndroidUtilities.cancelRunOnUIThread(stateTicker);
+        }
+
+        /** выполнить трюк по кнопке из настроек */
+        public void doAction(int id) {
+            if (penguinView == null) {
+                return;
+            }
+            penguinView.setSleeping(false);
+            if (id == BTN_PENGUIN_FLIP) {
+                penguinView.doFlip();
+            } else if (id == BTN_PENGUIN_DANCE) {
+                penguinView.doDance();
+                penguinView.doWave();
+            } else {
+                penguinView.resetRotation();
+            }
+        }
+
+        /** переодеть пингвина после выбора скина */
+        public void applySkin() {
+            appliedSkin = -1;
+            syncWithApp();
+        }
+
+        /**
+         * Ползунок «размер пингвина» меняет шапку сразу: пересоздавать
+         * GL-вьюху на каждое движение пальцем нельзя — это мигание и утечка
+         * текстур. Масштабируем контейнер и сам кадр, камера подстроится сама.
+         */
+        public void applySize() {
+            if (compact) {
+                // ползунок размера относится к большому превью в разделе «Пингвин»
+                return;
+            }
+            final int size = clampPenguinSize(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            if (fallbackLogo != null) {
+                fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
+                        Math.round(size * 0.55f), Math.round(size * 0.55f), Gravity.CENTER));
+            }
+            if (penguinView != null) {
+                final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();
+                if (lp != null && (lp.width != size || lp.height != size)) {
+                    lp.width = size;
+                    lp.height = size;
+                    penguinView.setLayoutParams(lp);
+                }
+            }
+            final android.view.ViewGroup.LayoutParams containerLp = penguinContainer.getLayoutParams();
+            if (containerLp != null && (containerLp.width != size || containerLp.height != size)) {
+                containerLp.width = size;
+                containerLp.height = size;
+                penguinContainer.setLayoutParams(containerLp);
+                requestLayout();
+            }
+        }
+
+        /** играет ли сейчас музыка (именно играет, а не стоит на паузе) */
+        private MessageObject playingMusic() {
+            try {
+                final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+                if (playing != null && playing.isMusic() && !MediaController.getInstance().isMessagePaused()) {
+                    return playing;
+                }
+            } catch (Throwable ignore) {
+            }
+            return null;
+        }
+
+        /**
+         * Пингвин живёт вместе с приложением: спит в режиме призрака, танцует под музыку
+         * и переодевается по ситуации. Состояние проверяется раз в полторы секунды —
+         * это дешевле и надёжнее, чем подписки на десяток уведомлений.
+         */
+        private void syncWithApp() {
+            if (penguinView == null) {
+                return;
+            }
+            final MessageObject music = playingMusic();
+            final boolean sleep = PengramConfig.isPenguinSleepGhost() && PengramConfig.ghostMode && music == null;
+            penguinView.setSleeping(sleep);
+            penguinView.setDanceLoop(!sleep && music != null && PengramConfig.isPenguinDanceMusic());
+
+            int skin = PengramConfig.getPenguinSkin();
+            if (PengramConfig.isPenguinAutoSkin()) {
+                if (music != null) {
+                    skin = PengramConfig.SKIN_HEADPHONES;
+                } else if (java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) == java.util.Calendar.DECEMBER
+                        && skin == PengramConfig.SKIN_NONE) {
+                    skin = PengramConfig.SKIN_SANTA;
+                }
+            }
+            if (skin != appliedSkin) {
+                appliedSkin = skin;
+                penguinView.setSkin(skin);
+            }
+
+            if (bubble != null) {
+                final int visibility = PengramConfig.isPenguinTips() ? VISIBLE : GONE;
+                if (bubble.getVisibility() != visibility) {
+                    bubble.setVisibility(visibility);
+                }
+                if (visibility == VISIBLE && System.currentTimeMillis() - lastPhraseTime > 6500) {
+                    nextPhrase(false);
+                }
+            }
+        }
+
+        /** следующая реплика; forced — пользователь сам ткнул в пингвина */
+        private void nextPhrase(boolean forced) {
+            if (bubble == null || !PengramConfig.isPenguinTips()) {
+                return;
+            }
+            final ArrayList<CharSequence> phrases = new ArrayList<>();
+            if (penguinView != null && penguinView.isSleeping()) {
+                phrases.add(getString(R.string.PengramPenguinSleeping));
+            } else {
+                final MessageObject music = playingMusic();
+                if (music != null) {
+                    phrases.add(LocaleController.formatString(R.string.PengramPenguinNowPlaying, music.getMusicTitle()));
+                }
+                phrases.add(getString(R.string.PengramPenguinHi));
+                phrases.add(getString(PengramConfig.ghostMode ? R.string.PengramPenguinGhostOn : R.string.PengramPenguinGhostOff));
+                final int lyrics = org.telegram.messenger.PengramLyrics.savedCount();
+                if (lyrics > 0) {
+                    phrases.add(LocaleController.formatString(R.string.PengramPenguinLyricsSaved, lyrics));
+                }
+                phrases.add(getString(R.string.PengramPenguinTipSwipe));
+                phrases.add(getString(R.string.PengramPenguinTipFlip));
+                phrases.add(getString(R.string.PengramPenguinTipHold));
+            }
+            if (phrases.isEmpty()) {
+                return;
+            }
+            phraseIndex = (phraseIndex + 1) % phrases.size();
+            lastPhraseTime = System.currentTimeMillis();
+            final CharSequence text = phrases.get(phraseIndex);
+            if (text.equals(bubble.getText())) {
+                return;
+            }
+            bubble.setText(text);
+            if (forced) {
+                bubble.setAlpha(0.4f);
+            }
+            bubble.animate().cancel();
+            bubble.setAlpha(0.35f);
+            bubble.animate().alpha(1f).setDuration(180).start();
+        }
+    }
+
+    /** версия приложения — показывается под пингвином */
+    private static String getAppVersion() {
+        // В шапке — своя версия форка: именно её называют в баг-репортах.
+        return "Pengram " + org.telegram.messenger.PengramVersion.shortLine();
+    }
+
+    @SuppressWarnings("unused")
+    private static String getTelegramVersion() {
+        String version = org.telegram.messenger.BuildVars.BUILD_VERSION_STRING;
+        int code = 0;
+        try {
+            final android.content.pm.PackageInfo info = ApplicationLoader.applicationContext
+                    .getPackageManager()
+                    .getPackageInfo(ApplicationLoader.applicationContext.getPackageName(), 0);
+            if (info != null) {
+                if (info.versionName != null) {
+                    version = info.versionName;
+                }
+                if (info.versionCode > 0) {
+                    code = info.versionCode;
+                }
+            }
+        } catch (Throwable ignore) {}
+        if (code > 0) {
+            return LocaleController.formatString(R.string.PengramHeaderVersion, version, code);
+        }
+        return LocaleController.formatString(R.string.PengramHeaderVersionShort, version);
     }
 
     /**
@@ -711,7 +7228,12 @@ public class PengramSettingsActivity extends UniversalFragment {
         private String title = "";
         private String subtitle = "";
         private float pitch = 1f;
-        private long startTime = System.currentTimeMillis();
+        private long startTime = android.os.SystemClock.elapsedRealtime();
+        /** градиент карточки пересобирается только при смене размера или цвета */
+        private LinearGradient cardShader;
+        private int shaderWidth;
+        private int shaderHeight;
+        private int shaderAccent;
 
         public VoicePreviewView(Context context) {
             super(context);
@@ -730,12 +7252,21 @@ public class PengramSettingsActivity extends UniversalFragment {
             pitch = PengramVoiceChanger.getPitchFactor();
             if (mode == PengramVoiceChanger.MODE_OFF) {
                 subtitle = getString(R.string.PengramVoicePreviewOff);
+            } else if (mode == PengramVoiceChanger.MODE_ASSISTANT) {
+                subtitle = getString(R.string.PengramVoiceAssistantPreview);
+            } else if (mode == PengramVoiceChanger.MODE_ARMOR) {
+                subtitle = getString(R.string.PengramVoiceArmorPreview);
+            } else if (mode == PengramVoiceChanger.MODE_TROLLING) {
+                subtitle = getString(R.string.PengramVoiceTrollingPreview);
+            } else if (mode == PengramVoiceChanger.MODE_CUSTOM) {
+                subtitle = getString(R.string.PengramVoiceStudioPreview);
             } else {
                 final int semitones = Math.round((float) (12.0 * Math.log(pitch) / Math.log(2.0)));
                 subtitle = LocaleController.formatString(R.string.PengramVoicePreviewOn,
                         (semitones > 0 ? "+" : "") + semitones);
             }
-            startTime = System.currentTimeMillis();
+            startTime = android.os.SystemClock.elapsedRealtime();
+            cardShader = null;
             invalidate();
         }
 
@@ -755,11 +7286,17 @@ public class PengramSettingsActivity extends UniversalFragment {
             final int accent = Theme.getColor(enabled ? Theme.key_switch2TrackChecked : Theme.key_windowBackgroundWhiteGrayText, getResourceProvider());
 
             rect.set(dp(14), dp(10), width - dp(14), height - dp(10));
-            cardPaint.setShader(new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
-                    new int[]{
-                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.14f)),
-                            Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.04f))
-                    }, null, Shader.TileMode.CLAMP));
+            if (cardShader == null || shaderWidth != width || shaderHeight != height || shaderAccent != accent) {
+                cardShader = new LinearGradient(rect.left, rect.top, rect.right, rect.bottom,
+                        new int[]{
+                                Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.14f)),
+                                Theme.blendOver(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()), Theme.multAlpha(accent, 0.04f))
+                        }, null, Shader.TileMode.CLAMP);
+                shaderWidth = width;
+                shaderHeight = height;
+                shaderAccent = accent;
+                cardPaint.setShader(cardShader);
+            }
             canvas.drawRoundRect(rect, dp(16), dp(16), cardPaint);
 
             titlePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
@@ -768,7 +7305,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             canvas.drawText(subtitle, rect.left + dp(16), rect.top + dp(46), subtitlePaint);
 
             // волна: чем выше питч — тем чаще и «звонче» столбики
-            final float time = (System.currentTimeMillis() - startTime) / 1000f;
+            final float time = (android.os.SystemClock.elapsedRealtime() - startTime) / 1000f;
             final float left = rect.left + dp(16);
             final float right = rect.right - dp(16);
             final float centerY = rect.bottom - dp(30);
@@ -789,8 +7326,10 @@ public class PengramSettingsActivity extends UniversalFragment {
                 barPaint.setAlpha((int) (255 * (enabled ? 0.9f : 0.45f)));
                 canvas.drawRoundRect(rect, barWidth / 2f, barWidth / 2f, barPaint);
             }
-            if (isAttachedToWindow()) {
-                invalidate();
+            // крутим волну только когда эффект включён и экран виден —
+            // иначе вьюшка жгла бы батарею вхолостую
+            if (enabled && isAttachedToWindow() && getVisibility() == VISIBLE) {
+                postInvalidateOnAnimation();
             }
         }
     }
@@ -800,13 +7339,17 @@ public class PengramSettingsActivity extends UniversalFragment {
         private final BackupImageView avatarImage;
         private final AvatarDrawable avatarDrawable = new AvatarDrawable();
         private final TextView nameText;
+        private final TextView statusText;
         private final TextDetailCell usernameCell;
         private final TextDetailCell idCell;
+        private final TextDetailCell regCell;
 
         public ProfilePreviewView(Context context) {
             super(context);
             setOrientation(VERTICAL);
-            setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider()));
+            setBackground(Theme.createRoundRectDrawable(dp(20),
+                    Theme.getColor(Theme.key_windowBackgroundWhite, getResourceProvider())));
+            setPadding(dp(12), dp(5), dp(12), dp(7));
 
             FrameLayout header = new FrameLayout(context);
             avatarImage = new BackupImageView(context);
@@ -818,7 +7361,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             nameText.setTypeface(AndroidUtilities.bold());
             nameText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
             nameText.setSingleLine(true);
-            header.addView(nameText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 32, 20, 0));
+            header.addView(nameText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 26, 20, 0));
+
+            statusText = new TextView(context);
+            statusText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            statusText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
+            statusText.setSingleLine(true);
+            header.addView(statusText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 50, 20, 0));
+
             addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 92));
 
             usernameCell = new TextDetailCell(context, getResourceProvider(), false, true);
@@ -826,11 +7376,25 @@ public class PengramSettingsActivity extends UniversalFragment {
 
             idCell = new TextDetailCell(context, getResourceProvider(), false, true);
             addView(idCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+            regCell = new TextDetailCell(context, getResourceProvider(), false, true);
+            addView(regCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+        }
+
+        /** превью — картинка, а не кнопка: нажатия не ловим, чтобы ничего не подсвечивалось */
+        @Override
+        public boolean onInterceptTouchEvent(android.view.MotionEvent ev) {
+            return true;
+        }
+
+        @Override
+        public boolean onTouchEvent(android.view.MotionEvent event) {
+            return false;
         }
 
         public void update() {
             final TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
-            long id = user != null ? user.id : 1234567890L;
+            final long id = user != null ? user.id : 1234567890L;
             String username = user != null ? UserObject.getPublicUsername(user) : null;
             if (username == null) {
                 username = "username";
@@ -848,19 +7412,91 @@ public class PengramSettingsActivity extends UniversalFragment {
                 nameText.setText("Pengram");
             }
 
-            final int style = PengramConfig.getIdStyle();
+            final long estimate = org.telegram.messenger.PengramRegDate.estimate(id);
+            final CharSequence regText = regSampleText(estimate);
+            final boolean regVisible = PengramConfig.isRegDateVisible() && !TextUtils.isEmpty(regText);
+
+            CharSequence status = getString(R.string.Online);
+            if (regVisible && PengramConfig.isRegDateInSubtitle()) {
+                status = status + " \u2022 " + regText;
+            }
+            statusText.setText(status);
+
+            final int format = PengramConfig.getIdFormat();
+            final int style = format == PengramConfig.ID_FORMAT_HIDE ? PengramConfig.ID_STYLE_OFF : PengramConfig.getIdStyle();
+            final String formatted = PengramConfig.formatId(id, false, false);
+
             CharSequence usernameValue = getString(R.string.Username);
             if (style == PengramConfig.ID_STYLE_INLINE) {
-                usernameValue = usernameValue + " \u2022 ID: " + id;
+                usernameValue = usernameValue + " \u2022 ID: " + formatted;
             }
-            usernameCell.setTextAndValue("@" + username, usernameValue, style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC);
+            final boolean idRowVisible = style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC;
+            usernameCell.setTextAndValue("@" + username, usernameValue, idRowVisible || regVisible);
 
-            if (style == PengramConfig.ID_STYLE_ROW || style == PengramConfig.ID_STYLE_ROW_DC) {
+            if (idRowVisible) {
                 idCell.setVisibility(VISIBLE);
-                idCell.setTextAndValue(String.valueOf(id), style == PengramConfig.ID_STYLE_ROW_DC ? ("ID \u2022 DC" + dcId) : "ID", false);
+                idCell.setTextAndValue(formatted, style == PengramConfig.ID_STYLE_ROW_DC ? ("ID \u2022 DC" + dcId) : "ID", regVisible);
+                idCell.setContentDescriptionValueFirst(true);
+                if (PengramConfig.isRegDateIconVisible() && PengramConfig.getRegDateIconRes() != 0) {
+                    idCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));
+                } else {
+                    idCell.setImage(null);
+                }
             } else {
                 idCell.setVisibility(GONE);
             }
+
+            final boolean regRowVisible = regVisible && PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE
+                    && (PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_ICON || !idRowVisible);
+            if (regRowVisible) {
+                regCell.setVisibility(VISIBLE);
+                regCell.setTextAndValue(regText, getString(R.string.PengramRegDate), false);
+                regCell.setContentDescriptionValueFirst(true);
+                if (PengramConfig.getRegDateIconRes() != 0) {
+                    regCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));
+                } else {
+                    regCell.setImage(null);
+                }
+            } else {
+                regCell.setVisibility(GONE);
+            }
+        }
+
+        /** значок даты регистрации, перекрашенный под тему (иначе чёрный пингвин тонет в тёмной) */
+        private android.graphics.drawable.Drawable tintedRegIcon() {
+            final int res = PengramConfig.getRegDateIconRes();
+            if (res == 0 || getContext() == null) {
+                return null;
+            }
+            final android.graphics.drawable.Drawable drawable = androidx.core.content.ContextCompat.getDrawable(getContext(), res);
+            if (drawable != null) {
+                drawable.mutate().setColorFilter(new android.graphics.PorterDuffColorFilter(
+                        Theme.getColor(Theme.key_switch2TrackChecked, getResourceProvider()), android.graphics.PorterDuff.Mode.SRC_IN));
+            }
+            return drawable;
+        }
+
+        /** текст даты регистрации в выбранном формате — тот же, что и в профиле */
+        private CharSequence regSampleText(long estimate) {
+            if (estimate <= 0) {
+                return "";
+            }
+            final int style = PengramConfig.getRegDateStyle();
+            final String age = org.telegram.messenger.PengramRegDate.formatAge(estimate);
+            if (style == PengramConfig.REG_STYLE_AGE) {
+                return age == null ? "" : age;
+            }
+            String date = style == PengramConfig.REG_STYLE_EXACT
+                    ? org.telegram.messenger.PengramRegDate.formatDate(estimate)
+                    : org.telegram.messenger.PengramRegDate.formatMonthYear(estimate);
+            if (date == null) {
+                return "";
+            }
+            String text = "\u2248 " + date;
+            if ((style == PengramConfig.REG_STYLE_DATE_AGE || style == PengramConfig.REG_STYLE_EXACT) && age != null) {
+                text = text + " \u2022 " + age;
+            }
+            return text;
         }
     }
 }

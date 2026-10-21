@@ -40,6 +40,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.R;
@@ -849,6 +850,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         recentSearchObject.date = (int) (System.currentTimeMillis() / 1000);
         filterRecent(lastSearchText != null ? lastSearchText.trim() : null);
         notifyDataSetChanged();
+        putRecentSearch(currentAccount, did);
+    }
+
+    public static void putRecentSearch(int currentAccount, long did) {
         MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(() -> {
             try {
                 SQLitePreparedStatement state = MessagesStorage.getInstance(currentAccount).getDatabase().executeFast("REPLACE INTO search_recent VALUES(?, ?)");
@@ -857,6 +862,16 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 state.bindInteger(2, (int) (System.currentTimeMillis() / 1000));
                 state.step();
                 state.dispose();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    public static void clearRecentSearch(int currentAccount) {
+        MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(() -> {
+            try {
+                MessagesStorage.getInstance(currentAccount).getDatabase().executeFast("DELETE FROM search_recent WHERE 1").stepThis().dispose();
             } catch (Exception e) {
                 FileLog.e(e);
             }
@@ -893,6 +908,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         final StringBuilder finalQueryFilter = queryFilter;
         filterRecent(lastSearchText != null ? lastSearchText.trim() : null);
         notifyDataSetChanged();
+        if (!searchWas) {
+            clearRecentSearch(currentAccount);
+            return;
+        }
         MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(() -> {
             try {
                 finalQueryFilter.insert(0, "DELETE FROM search_recent WHERE ");
@@ -960,6 +979,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             ArrayList<ContactsController.Contact> contacts = new ArrayList<>();
 
             MessagesStorage.getInstance(currentAccount).localSearch(dialogsType, q, resultArray, resultArrayNames, encUsers, filterDialogIds, -1);
+            pengramSearchById(q, resultArray, resultArrayNames);
             updateSearchResults(resultArray, resultArrayNames, encUsers, contacts, searchId);
             FiltersView.fillTipDates(q, localTipDates);
             localTipArchive = false;
@@ -974,6 +994,84 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         });
     }
 
+
+    /**
+     * Pengram: обычный поиск понимает ID. Пишем 1234567890 или -1001234567890 —
+     * и человек/чат оказывается первым в результатах, даже если по имени его не найти.
+     * Вызывается уже внутри очереди хранилища, поэтому читаем базу напрямую.
+     */
+    private void pengramSearchById(String query, ArrayList<Object> resultArray, ArrayList<CharSequence> resultArrayNames) {
+        try {
+            final long dialogId = org.telegram.messenger.PengramPeerId.parseDialogId(query);
+            if (dialogId == 0) {
+                return;
+            }
+            final MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
+            TLRPC.User user = dialogId > 0 ? storage.getUser(dialogId) : null;
+            TLRPC.Chat chat = null;
+            if (user == null && dialogId < 0) {
+                chat = storage.getChat(-dialogId);
+            }
+            if (user == null && chat == null && dialogId > 0) {
+                // у человека могли не сохраниться контакты — вдруг это всё же чат с таким же номером
+                chat = storage.getChat(dialogId);
+            }
+            final long foundId = user != null ? user.id : (chat != null ? -chat.id : 0);
+            if (foundId == 0) {
+                // в базе пусто — спросим сервер и добавим результат, когда он придёт
+                pengramResolveById(query, dialogId);
+                return;
+            }
+            for (int a = 0; a < resultArray.size(); ++a) {
+                final Object obj = resultArray.get(a);
+                if (obj instanceof TLRPC.User && ((TLRPC.User) obj).id == foundId) {
+                    return;
+                }
+                if (obj instanceof TLRPC.Chat && -((TLRPC.Chat) obj).id == foundId) {
+                    return;
+                }
+            }
+            final String name = user != null ? UserObject.getUserName(user) : chat.title;
+            resultArray.add(0, user != null ? user : chat);
+            if (resultArrayNames.size() >= 0) {
+                resultArrayNames.add(0, name == null ? "" : name);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
+
+    /**
+     * Pengram: ID, которого нет в локальной базе, доспрашиваем у сервера и дорисовываем
+     * в уже показанную выдачу — чтобы «поиск по ID» работал и для незнакомых людей.
+     */
+    private void pengramResolveById(String query, long dialogId) {
+        AndroidUtilities.runOnUIThread(() -> org.telegram.messenger.PengramPeerId.resolve(currentAccount, dialogId, peer -> {
+            if (peer == null) {
+                return;
+            }
+            final String current = lastSearchText == null ? null : lastSearchText.trim().toLowerCase();
+            if (!TextUtils.equals(current, query)) {
+                return; // человек уже печатает что-то другое
+            }
+            for (int a = 0; a < searchResult.size(); ++a) {
+                final Object obj = searchResult.get(a);
+                if (obj instanceof TLRPC.User && ((TLRPC.User) obj).id == dialogId) {
+                    return;
+                }
+                if (obj instanceof TLRPC.Chat && -((TLRPC.Chat) obj).id == dialogId) {
+                    return;
+                }
+            }
+            final CharSequence name = peer instanceof TLRPC.User
+                    ? UserObject.getUserName((TLRPC.User) peer)
+                    : ((TLRPC.Chat) peer).title;
+            searchResult.add(0, peer);
+            searchResultNames.add(0, name == null ? "" : name);
+            searchWas = true;
+            notifyDataSetChanged();
+        }));
+    }
 
     private void updateSearchResults(final ArrayList<Object> result, final ArrayList<CharSequence> names, final ArrayList<TLRPC.User> encUsers,  final ArrayList<ContactsController.Contact> contacts, final int searchId) {
         AndroidUtilities.runOnUIThread(() -> {
@@ -1113,7 +1211,7 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                 ConnectionsManager.getInstance(currentAccount).cancelRequest(sponsoredReqId, true);
                 sponsoredReqId = 0;
             }
-            if (query == null || query.length() < 4 || UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
+            if (query == null || query.length() < 4 || PengramConfig.isHidingAds() || UserConfig.getInstance(currentAccount).isPremium() && MessagesController.getInstance(currentAccount).isSponsoredDisabled()) {
                 sponsoredQuery = null;
             } else {
                 final TLRPC.TL_contacts_getSponsoredPeers req = new TLRPC.TL_contacts_getSponsoredPeers();
@@ -1336,8 +1434,17 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         return recent != null ? recent.size() : 0;
     }
 
+    private void purgePengramCloudResults() {
+        searchResult.removeIf(o -> o instanceof TLRPC.Chat && org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, -((TLRPC.Chat) o).id));
+        searchAdapterHelper.getGlobalSearch().removeIf(o -> o instanceof TLRPC.Chat && org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, -((TLRPC.Chat) o).id));
+        searchResultMessages.removeIf(m -> m != null && org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, m.getDialogId()));
+        if (filteredRecentSearchObjects != null) filteredRecentSearchObjects.removeIf(o -> org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, o.did));
+        if (filtered2RecentSearchObjects != null) filtered2RecentSearchObjects.removeIf(o -> org.telegram.messenger.PengramProfileCloud.isHiddenDialog(currentAccount, o.did));
+    }
+
     @Override
     public int getItemCount() {
+        purgePengramCloudResults();
         if (waitingResponseCount == 3) {
             return 0;
         }

@@ -19,6 +19,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextPaint;
 import android.text.style.ReplacementSpan;
+import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -49,6 +50,8 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramAccountOrder;
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
@@ -80,6 +83,7 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.glass.GlassTabView;
 import org.telegram.ui.Stories.recorder.HintView2;
+import org.telegram.ui.Wallet.WalletActivity;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,10 +94,10 @@ import me.vkryl.android.animator.FactorAnimator;
 public class MainTabsActivity extends ViewPagerActivity implements NotificationCenter.NotificationCenterDelegate, FactorAnimator.Target {
 
     public static final int TABS_COUNT = 4;
-    private static final int POSITION_CHATS = 0;
-    private static final int POSITION_CONTACTS = 1;
-    private static final int POSITION_CALLS_OR_SETTINGS = 2;
-    private static final int POSITION_PROFILE = 3;
+    private static final int KIND_CHATS = 0;
+    private static final int KIND_CONTACTS = 1;
+    private static final int KIND_CALLS_OR_SETTINGS = 2;
+    private static final int KIND_PROFILE = 3;
 
     private static final int INDEX_CHATS = 0;
     private static final int INDEX_CONTACTS = 1;
@@ -101,8 +105,80 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private static final int INDEX_CALLS = 3;
     private static final int INDEX_PROFILE = 4;
 
-    private static int indexToPosition(int index) {
-        return index > 2 ? index - 1 : index;
+    /* Pengram: набор страниц зависит от настроек — скрытые вкладки не создаются вовсе */
+    private int[] pageKinds;
+
+    private static int indexToKind(int index) {
+        switch (index) {
+            case INDEX_CONTACTS: return KIND_CONTACTS;
+            case INDEX_SETTINGS:
+            case INDEX_CALLS: return KIND_CALLS_OR_SETTINGS;
+            case INDEX_PROFILE: return KIND_PROFILE;
+            default: return KIND_CHATS;
+        }
+    }
+
+    public static boolean isTabHidden(int index) {
+        switch (index) {
+            case INDEX_CONTACTS: return PengramConfig.getBool(PengramConfig.KEY_TAB_CONTACTS, false);
+            case INDEX_SETTINGS: return PengramConfig.getBool(PengramConfig.KEY_TAB_SETTINGS, false);
+            case INDEX_CALLS: return PengramConfig.getBool(PengramConfig.KEY_TAB_CALLS, false);
+            case INDEX_PROFILE: return PengramConfig.getBool(PengramConfig.KEY_TAB_PROFILE, false);
+            default: return false;
+        }
+    }
+
+    private int[] buildPageKinds() {
+        final ArrayList<Integer> kinds = new ArrayList<>();
+        kinds.add(KIND_CHATS);
+        if (!isTabHidden(INDEX_CONTACTS)) {
+            kinds.add(KIND_CONTACTS);
+        }
+        final boolean callsTab = UserConfig.getInstance(currentAccount).showCallsTab;
+        if (!isTabHidden(callsTab ? INDEX_CALLS : INDEX_SETTINGS)) {
+            kinds.add(KIND_CALLS_OR_SETTINGS);
+        }
+        if (!isTabHidden(INDEX_PROFILE)) {
+            kinds.add(KIND_PROFILE);
+        }
+        final int[] result = new int[kinds.size()];
+        for (int a = 0; a < result.length; a++) {
+            result[a] = kinds.get(a);
+        }
+        return result;
+    }
+
+    private int[] getPageKinds() {
+        if (pageKinds == null) {
+            pageKinds = buildPageKinds();
+        }
+        return pageKinds;
+    }
+
+    /** позиция страницы данного типа или -1, если вкладка скрыта */
+    private int positionOf(int kind) {
+        final int[] kinds = getPageKinds();
+        for (int a = 0; a < kinds.length; a++) {
+            if (kinds[a] == kind) {
+                return a;
+            }
+        }
+        return -1;
+    }
+
+    private int kindAt(int position) {
+        final int[] kinds = getPageKinds();
+        if (position < 0 || position >= kinds.length) {
+            return -1;
+        }
+        return kinds[position];
+    }
+
+    private int indexToPosition(int index) {
+        if (isTabHidden(index)) {
+            return -1;
+        }
+        return positionOf(indexToKind(index));
     }
 
     private static final int ANIMATOR_ID_TABS_VISIBLE = 0;
@@ -117,6 +193,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private FrameLayout tabsViewWrapper;
     private MainTabsLayout tabsView;
     private BlurredBackgroundDrawable tabsViewBackground;
+    /** фабрика фона панели: нужна, чтобы пересобрать его при смене «стекла» */
+    private BlurredBackgroundDrawableViewFactory pengramGlassFactory;
+    private ViewPositionWatcher pengramViewPositionWatcher;
+    private boolean pengramGlassEffectAllowed;
+    /** отпечаток настроек стекла на момент создания фона */
+    private int pengramGlassSignature;
+    private static java.lang.ref.WeakReference<MainTabsActivity> pengramInstance = new java.lang.ref.WeakReference<>(null);
     private View fadeView;
 
     public MainTabsActivity() {
@@ -274,8 +357,93 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
+        checkPengramTabs();
+        checkPengramTabsVisibility();
 
         showAccountChangeHint();
+    }
+
+    /**
+     * Pengram: страховка — кнопка скрытой вкладки убирается с панели в любом случае,
+     * даже если набор страниц перестраивать не нужно.
+     */
+    public void checkPengramTabsVisibility() {
+        if (tabsView == null || tabs == null) {
+            return;
+        }
+        final boolean callsTab = UserConfig.getInstance(currentAccount).showCallsTab;
+        for (int index = 0; index < tabs.length; index++) {
+            if (tabs[index] == null) {
+                continue;
+            }
+            boolean visible = !isTabHidden(index);
+            if (index == INDEX_SETTINGS) {
+                visible = visible && !callsTab;
+            } else if (index == INDEX_CALLS) {
+                visible = visible && callsTab;
+            }
+            tabsView.setViewVisible(tabs[index], visible, false);
+        }
+    }
+
+    /** Pengram: применяем новый размер панели — нужна полная пересборка вью */
+    public void pengramRebuildTabs() {
+        DialogsActivity.pengramApplyTabsSize();
+        AndroidUtilities.runOnUIThread(() -> {
+            if (getParentLayout() != null) {
+                getParentLayout().rebuildAllFragmentViews(true, true);
+            }
+        });
+    }
+
+    /** Pengram: применяем скрытие/возврат вкладок без перезапуска приложения */
+    public void checkPengramTabs() {
+        final int[] oldKinds = getPageKinds();
+        final int[] newKinds = buildPageKinds();
+        if (java.util.Arrays.equals(oldKinds, newKinds)) {
+            checkPengramTabsVisibility();
+            return;
+        }
+
+        final SparseArray<FragmentState> byKind = new SparseArray<>();
+        for (int a = 0; a < oldKinds.length; a++) {
+            final FragmentState state = fragmentsArr.get(a);
+            if (state == null) {
+                continue;
+            }
+            boolean present = false;
+            for (int b = 0; b < newKinds.length; b++) {
+                if (newKinds[b] == oldKinds[a]) {
+                    present = true;
+                    break;
+                }
+            }
+            if (present) {
+                byKind.put(oldKinds[a], state);
+            }
+        }
+        for (int a = oldKinds.length - 1; a >= 0; a--) {
+            if (byKind.get(oldKinds[a]) == null) {
+                dropFragmentAtPosition(a);
+            }
+        }
+        fragmentsArr.clear();
+        for (int a = 0; a < newKinds.length; a++) {
+            final FragmentState state = byKind.get(newKinds[a]);
+            if (state != null) {
+                fragmentsArr.put(a, state);
+            }
+        }
+        if (byKind.get(KIND_CHATS) == null) {
+            dialogsActivity = null;
+        }
+        pageKinds = newKinds;
+
+        AndroidUtilities.runOnUIThread(() -> {
+            if (getParentLayout() != null) {
+                getParentLayout().rebuildAllFragmentViews(true, true);
+            }
+        });
     }
 
     private void checkContactsTabBadge() {
@@ -292,6 +460,97 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
     }
 
+    /**
+     * Хочет ли пользователь (или устройство) эффект жидкого стекла на панели.
+     * Наш переключатель важнее системного флага: человек включает «жидкое
+     * стекло» и ждёт преломление, а не просто полупрозрачную плитку.
+     */
+    private boolean pengramWantsLiquidGlass() {
+        return org.telegram.messenger.PengramConfig.isTabBarLiquidGlass()
+                || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
+    }
+
+    private BlurredBackgroundDrawable createTabsBackground() {
+        // повторная подписка на позцию вида множила бы подписчиков при каждом
+        // переключении настройки — снимаем старую перед созданием нового фона
+        if (pengramViewPositionWatcher != null && tabsView != null) {
+            pengramViewPositionWatcher.unsubscribe(tabsView);
+        }
+        // Провайдер именно наш: штатный mainTabs() заливает размытие почти
+        // непрозрачной плёнкой (alpha 0.85/0.76), и сквозь панель ничего не
+        // видно. Наш оставляет контент читаемым и включает линзу-преломление.
+        final BlurredBackgroundDrawable drawable = pengramGlassFactory.create(tabsView,
+                org.telegram.ui.Components.PengramTabBarGlass.provider(resourceProvider));
+        drawable.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
+        drawable.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        if (pengramGlassEffectAllowed) {
+            drawable.setThickness(org.telegram.ui.Components.PengramTabBarGlass.thicknessPx());
+            drawable.setIntensity(org.telegram.ui.Components.PengramTabBarGlass.intensity());
+        }
+        return drawable;
+    }
+
+    /** включить/выключить слой бликов и пересобрать фон при смене настройки */
+    public void applyPengramGlassOverlay() {
+        if (tabsView != null) {
+            tabsView.setPengramGlass(org.telegram.messenger.PengramConfig.isTabBarLiquidGlass());
+        }
+        final boolean want = pengramWantsLiquidGlass();
+        // Провайдер запекает альфу, толщину линзы и кант в момент создания
+        // drawable. Правка ползунков в настройках должна быть видна сразу,
+        // поэтому сравниваем отпечаток и пересобираем фон при его изменении.
+        final int signature = org.telegram.ui.Components.PengramTabBarGlass.signature();
+        final boolean lookChanged = want == pengramGlassEffectAllowed
+                && signature != pengramGlassSignature;
+        if ((want != pengramGlassEffectAllowed || lookChanged)
+                && pengramGlassFactory != null && tabsView != null) {
+            pengramGlassEffectAllowed = want;
+            pengramGlassSignature = signature;
+            pengramGlassFactory.setLiquidGlassEffectAllowed(want);
+            tabsViewBackground = createTabsBackground();
+            tabsView.setBackground(tabsViewBackground);
+            tabsView.invalidate();
+        }
+        if (tabsView != null) {
+            // блики и преломление живут в самом макете — там своя геометрия
+            tabsView.invalidate();
+        }
+    }
+
+    /**
+     * Изменились только блики/кант — им не нужна пересборка фона, достаточно
+     * перерисовки слоя панели. Так ползунки и свитчи не дёргают лишнюю работу.
+     */
+    public static void refreshPengramGlassOverlayOnly() {
+        final MainTabsActivity activity = pengramInstance.get();
+        if (activity != null) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (activity.tabsView != null) {
+                    activity.tabsView.invalidate();
+                }
+            });
+        }
+    }
+
+    /**
+     * Настройка поменялась на другом экране — применяем без перезапуска.
+     * Ползунок присылает значение на каждый шаг, а пересборка стекла —
+     * создание RenderNode и шейдера. Склеиваем частые вызовы: во время
+     * протяжки панель пересобирается не чаще ~12 раз в секунду, после
+     * отпускания применяется последнее значение.
+     */
+    private static final Runnable pengramGlassRefresh = () -> {
+        final MainTabsActivity activity = pengramInstance.get();
+        if (activity != null) {
+            activity.applyPengramGlassOverlay();
+        }
+    };
+
+    public static void refreshPengramGlass() {
+        AndroidUtilities.cancelRunOnUIThread(pengramGlassRefresh);
+        AndroidUtilities.runOnUIThread(pengramGlassRefresh, 80);
+    }
+
     @Override
     public void onPause() {
         super.onPause();
@@ -304,11 +563,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public View createView(Context context) {
         super.createView(context);
         tabletLayout = false;
+        // Pengram: размер нижней панели мог измениться в настройках
+        DialogsActivity.pengramApplyTabsSize();
 
         tabsView = new MainTabsLayout(context, resourceProvider);
         tabsView.setClipChildren(false);
         tabsView.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4));
-        tabsView.setMaxWidth(dp(328 + DialogsActivity.MAIN_TABS_MARGIN * 2));
+        tabsView.setMaxWidth((int) (dp(328 + DialogsActivity.MAIN_TABS_MARGIN * 2) * org.telegram.messenger.PengramConfig.getTabBarScale()));
 
         tabs = new GlassTabView[5];
         tabs[INDEX_CHATS] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.CHATS, R.string.MainTabsChats);
@@ -348,7 +609,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             });
 
             tabsView.addView(tabs[index]);
-            tabsView.setViewVisible(view, true, false);
+            tabsView.setViewVisible(view, !isTabHidden(index), false);
         }
         checkUi_callTabVisible(getUserConfig().showCallsTab, false);
 
@@ -357,15 +618,18 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
         final ViewPositionWatcher viewPositionWatcher = new ViewPositionWatcher(contentView);
+        pengramViewPositionWatcher = viewPositionWatcher;
 
-        BlurredBackgroundDrawableViewFactory iBlur3FactoryGlass = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
-        iBlur3FactoryGlass.setSourceRootView(viewPositionWatcher, contentView);
-        iBlur3FactoryGlass.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
+        pengramGlassFactory = new BlurredBackgroundDrawableViewFactory(iBlur3SourceTabGlass != null ? iBlur3SourceTabGlass : iBlur3SourceColor);
+        pengramGlassFactory.setSourceRootView(viewPositionWatcher, contentView);
+        pengramGlassEffectAllowed = pengramWantsLiquidGlass();
+        pengramGlassSignature = org.telegram.ui.Components.PengramTabBarGlass.signature();
+        pengramGlassFactory.setLiquidGlassEffectAllowed(pengramGlassEffectAllowed);
 
-        tabsViewBackground = iBlur3FactoryGlass.create(tabsView, BlurredBackgroundProviderImpl.mainTabs(resourceProvider));
-        tabsViewBackground.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
-        tabsViewBackground.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        tabsViewBackground = createTabsBackground();
         tabsView.setBackground(tabsViewBackground);
+        pengramInstance = new java.lang.ref.WeakReference<>(this);
+        applyPengramGlassOverlay();
 
         BlurredBackgroundDrawableViewFactory iBlur3FactoryFade = new BlurredBackgroundDrawableViewFactory(iBlur3SourceColor);
         iBlur3FactoryFade.setSourceRootView(viewPositionWatcher, contentView);
@@ -588,15 +852,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
     private void openFolder(int folderId) {
-        if (viewPager.getCurrentPosition() == POSITION_CHATS && dialogsActivity != null) {
+        final int chatsPosition = positionOf(KIND_CHATS);
+        if (viewPager.getCurrentPosition() == chatsPosition && dialogsActivity != null) {
             dialogsActivity.scrollToFolder(folderId);
         } else {
             if (dialogsActivity == null) {
                 prepareDialogsActivity(null);
             }
             pendingFolderId = folderId;
-            selectTab(POSITION_CHATS, true);
-            viewPager.scrollToPosition(POSITION_CHATS);
+            selectTab(chatsPosition, true);
+            viewPager.scrollToPosition(chatsPosition);
         }
     }
 
@@ -609,16 +874,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        // Pengram: порядок, выставленный перетаскиванием в настройках.
+        PengramAccountOrder.sort(accountNumbers);
 
         ItemOptions o = ItemOptions.makeOptions(this, button);
         if (UserConfig.getActivatedAccountsCount() < UserConfig.MAX_ACCOUNT_COUNT) {
@@ -732,14 +989,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
         if (viewPager != null) {
             final int currentPosition = viewPager.getCurrentPosition();
-            if (currentPosition != POSITION_CALLS_OR_SETTINGS && dropCallsFragmentAfterPageScroll) {
-                dropFragmentAtPosition(POSITION_CALLS_OR_SETTINGS);
+            final int callsPosition = positionOf(KIND_CALLS_OR_SETTINGS);
+            final int profilePosition = positionOf(KIND_PROFILE);
+            if (callsPosition >= 0 && currentPosition != callsPosition && dropCallsFragmentAfterPageScroll) {
+                dropFragmentAtPosition(callsPosition);
                 dropCallsFragmentAfterPageScroll = false;
             }
-            if (currentPosition != POSITION_PROFILE) {
-                dropFragmentAtPosition(POSITION_PROFILE);
+            if (profilePosition >= 0 && currentPosition != profilePosition) {
+                dropFragmentAtPosition(profilePosition);
             }
-            if (pendingFolderId != null && currentPosition == POSITION_CHATS && dialogsActivity != null) {
+            if (pendingFolderId != null && currentPosition == positionOf(KIND_CHATS) && dialogsActivity != null) {
                 dialogsActivity.scrollToFolder(pendingFolderId);
                 pendingFolderId = null;
             }
@@ -767,12 +1026,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected int getFragmentsCount() {
-        return TABS_COUNT;
+        return getPageKinds().length;
     }
 
     @Override
     protected int getStartPosition() {
-        return POSITION_CHATS;
+        return positionOf(KIND_CHATS);
     }
 
     private DialogsActivity dialogsActivity;
@@ -800,19 +1059,20 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         bundle.putBoolean("hasMainTabs", true);
         dialogsActivity = new DialogsActivity(bundle);
         dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
-        putFragmentAtPosition(POSITION_CHATS, dialogsActivity);
+        putFragmentAtPosition(positionOf(KIND_CHATS), dialogsActivity);
         return dialogsActivity;
     }
 
     @Override
     protected BaseFragment createBaseFragmentAt(int position) {
-        if (position == POSITION_CONTACTS) {
+        final int kind = kindAt(position);
+        if (kind == KIND_CONTACTS) {
             Bundle args = new Bundle();
             args.putBoolean("needPhonebook", true);
             args.putBoolean("needFinishFragment", false);
             args.putBoolean("hasMainTabs", true);
             return new ContactsActivity(args);
-        } else if (position == POSITION_CALLS_OR_SETTINGS) {
+        } else if (kind == KIND_CALLS_OR_SETTINGS) {
             if (getUserConfig().showCallsTab) {
                 Bundle args = new Bundle();
                 args.putBoolean("needFinishFragment", false);
@@ -822,13 +1082,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             return new SettingsActivity(args);
-        } else if (position == POSITION_CHATS) {
+        } else if (kind == KIND_CHATS) {
             Bundle args = new Bundle();
             args.putBoolean("hasMainTabs", true);
             dialogsActivity = new DialogsActivity(args);
             dialogsActivity.setMainTabsActivityController(new MainTabsActivityControllerImpl());
             return dialogsActivity;
-        } else if (position == POSITION_PROFILE) {
+        } else if (kind == KIND_PROFILE) {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
             args.putBoolean("my_profile", true);
@@ -848,9 +1108,19 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public GlassTabView[] tabs;
 
     public void selectTab(int position, boolean animated) {
+        View selectedView = null;
         for (int a = 0; a < tabs.length; a++) {
             GlassTabView tab = tabs[a];
-            tab.setSelected(indexToPosition(a) == position, animated);
+            final boolean selected = indexToPosition(a) == position;
+            tab.setSelected(selected, animated);
+            if (selected) {
+                selectedView = tab;
+            }
+        }
+        // блик и подсветка «жидкого стекла» следуют за настоящей выбранной
+        // вкладкой, а не за номером страницы: скрытые вкладки пропускаются
+        if (tabsView != null) {
+            tabsView.setPengramSelectedTab(selectedView, animated);
         }
     }
 
@@ -993,13 +1263,16 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         } else if (id == NotificationCenter.callTabsVisibleToggled) {
             final boolean callTabsVisible = getUserConfig().showCallsTab;
             checkUi_callTabVisible(callTabsVisible, true);
-            if (viewPager != null && viewPager.getCurrentPosition() == POSITION_CALLS_OR_SETTINGS) {
-                viewPager.scrollToPosition(POSITION_CHATS);
-                selectTab(POSITION_CHATS, true);
+            final int callsPosition = positionOf(KIND_CALLS_OR_SETTINGS);
+            if (viewPager != null && callsPosition >= 0 && viewPager.getCurrentPosition() == callsPosition) {
+                final int chatsPosition = positionOf(KIND_CHATS);
+                viewPager.scrollToPosition(chatsPosition);
+                selectTab(chatsPosition, true);
                 dropCallsFragmentAfterPageScroll = true;
-            } else {
-                dropFragmentAtPosition(POSITION_CALLS_OR_SETTINGS);
+            } else if (callsPosition >= 0) {
+                dropFragmentAtPosition(callsPosition);
             }
+            checkPengramTabs();
         } else if (id == NotificationCenter.mainUserInfoChanged) {
             if (tabs != null && tabs[INDEX_PROFILE] != null) {
                 tabs[INDEX_PROFILE].updateUserAvatar(currentAccount);
@@ -1032,6 +1305,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     public void onFragmentDestroy() {
+        if (pengramInstance.get() == this) {
+            pengramInstance = new java.lang.ref.WeakReference<>(null);
+        }
         Bulletin.removeDelegate(this);
         Bulletin.removeDelegate(contentView);
 
@@ -1057,7 +1333,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
 
         final float animatedPosition = viewPager.getPositionAnimated();
-        final float isProfile = 1f - MathUtils.clamp(Math.abs(POSITION_PROFILE - animatedPosition), 0, 1);
+        final int profilePosition = positionOf(KIND_PROFILE);
+        final float isProfile = profilePosition < 0 ? 0f : 1f - MathUtils.clamp(Math.abs(profilePosition - animatedPosition), 0, 1);
         final float hide = 1f - AndroidUtilities.getNavigationBarThirdButtonsFactor(0, 1f, navigationBarHeight);
         float alpha = (1f - isProfile * hide) * animatorTabsVisible.getFloatValue();
         if (tabletLayout) {
@@ -1087,8 +1364,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     private void checkUi_callTabVisible(boolean callTabsVisible, boolean animated) {
         if (tabsView != null) {
-            tabsView.setViewVisible(tabs[INDEX_SETTINGS], !callTabsVisible, animated);
-            tabsView.setViewVisible(tabs[INDEX_CALLS], callTabsVisible, animated);
+            tabsView.setViewVisible(tabs[INDEX_SETTINGS], !callTabsVisible && !isTabHidden(INDEX_SETTINGS), animated);
+            tabsView.setViewVisible(tabs[INDEX_CALLS], callTabsVisible && !isTabHidden(INDEX_CALLS), animated);
         }
     }
 

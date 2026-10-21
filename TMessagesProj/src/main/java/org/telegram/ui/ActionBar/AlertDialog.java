@@ -312,6 +312,10 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
         backgroundPaddings = new Rect();
         if (progressStyle != ALERT_TYPE_SPINNER || blurredBackground) {
             shadowDrawable = context.getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate();
+            // Pengram: диалоги Material 3 — скругление 28dp
+            if (org.telegram.messenger.PengramMD3.alerts()) {
+                shadowDrawable = org.telegram.messenger.PengramMD3.sheetBackground(shadowDrawable, false);
+            }
             blurOpacity = progressStyle == ALERT_TYPE_SPINNER ? 0.55f : (isDark ? 0.80f : 0.985f);
             shadowDrawable.setColorFilter(new PorterDuffColorFilter(backgroundColor, PorterDuff.Mode.MULTIPLY));
             shadowDrawable.getPadding(backgroundPaddings);
@@ -662,7 +666,14 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
                 containerView.setPadding(0, 0, 0, 0);
                 containerView.setBackground(shadowDrawable);
 
-                containerView.setOutlineProvider(ViewOutlineProviderImpl.boundsWithPaddingRoundRect(dp(8), dp(20)));
+                // Pengram: у диалога M3 скругление 28dp — контур обрезки должен
+                // совпадать с формой подложки, иначе из-под неё торчат прямые
+                // углы. Паддинг девятипатча в контур не берём: иначе тень,
+                // нарисованная внутри отступов, обрезается целиком.
+                final boolean md3Alert = org.telegram.messenger.PengramMD3.alerts();
+                containerView.setOutlineProvider(md3Alert
+                        ? ViewOutlineProviderImpl.boundsWithPaddingRoundRect(0, dp(28))
+                        : ViewOutlineProviderImpl.boundsWithPaddingRoundRect(dp(8), dp(20)));
                 containerView.setClipToOutline(true);
 
                 drawBackground = false;
@@ -1756,6 +1767,13 @@ public class AlertDialog extends Dialog implements Drawable.Callback, Notificati
 
     public ViewGroup getButtonsLayout() {
         return buttonsLayout;
+    }
+
+    public void makeRed(int btn) {
+        TextView button = (TextView) getButton(btn);
+        if (button != null) {
+            button.setTextColor(getThemedColor(Theme.key_text_RedBold));
+        }
     }
 
     public static class Builder {

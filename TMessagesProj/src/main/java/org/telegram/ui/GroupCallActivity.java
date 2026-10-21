@@ -519,7 +519,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
             return;
         }
         try {
-            muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         updateMuteButton(MUTE_BUTTON_STATE_MUTE, true);
         AndroidUtilities.runOnUIThread(unmuteRunnable, 80);
@@ -2223,7 +2223,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                                 s.delete(40, s.length());
                                 AndroidUtilities.shakeView(editText);
                                 try {
-                                    editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                 } catch (Exception ignored) {}
                                 ignoreTextChange = false;
                             }
@@ -4458,7 +4458,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                         if (VoIPService.getSharedInstance() != null) {
                             VoIPService.getSharedInstance().setMicMute(true, true, false);
                             try {
-                                muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                             } catch (Exception ignored) {}
                         }
                         attachedRenderersTmp.clear();
@@ -4550,7 +4550,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                         return;
                     }
                     try {
-                        v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                     } catch (Exception ignored) {}
                     startingGroupCall = true;
                     TL_phone.startScheduledGroupCall req = new TL_phone.startScheduledGroupCall();
@@ -4590,7 +4590,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                         playingHandAnimation = true;
                         AndroidUtilities.shakeView(muteButton.getTextView());
                         try {
-                            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         } catch (Exception ignored) {}
                         int num = Utilities.random.nextInt(100);
                         int endFrame;
@@ -4640,13 +4640,13 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
                         updateMuteButton(MUTE_BUTTON_STATE_MUTE, true);
                         VoIPService.getSharedInstance().setMicMute(false, false, true);
                         try {
-                            muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         } catch (Exception ignored) {}
                     } else {
                         updateMuteButton(MUTE_BUTTON_STATE_UNMUTE, true);
                         VoIPService.getSharedInstance().setMicMute(true, false, true);
                         try {
-                            muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) muteButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                         } catch (Exception ignored) {}
                     }
                 }
@@ -4998,7 +4998,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
         fullscreenUsersListView.setOnItemLongClickListener((view, position) -> {
             if (showMenuForCell(view)) {
                 try {
-                    listView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) listView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
                 } catch (Exception ignored) {}
             }
             return false;
@@ -5773,7 +5773,7 @@ public class GroupCallActivity extends BottomSheet implements NotificationCenter
             });
             final NumberPicker.OnValueChangeListener onValueChangeListener = (picker, oldVal, newVal) -> {
                 try {
-                    container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) container.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignore) {}
                 AlertsCreator.checkScheduleDate(scheduleButtonTextView, scheduleInfoTextView, 7 * 24 * 60 * 60, 2, dayPicker, hourPicker, minutePicker);
             };

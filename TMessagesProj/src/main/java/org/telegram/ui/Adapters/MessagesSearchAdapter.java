@@ -38,6 +38,7 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
@@ -57,13 +58,85 @@ import org.telegram.ui.Stories.StoriesController;
 import org.telegram.ui.Stories.StoriesListPlaceProvider;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 
 public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter implements NotificationCenter.NotificationCenterDelegate {
 
     private final Context mContext;
-    private final HashSet<Integer> messageIds = new HashSet<>();
+    private final HashSet<String> messageIds = new HashSet<>();
     private final ArrayList<MessageObject> searchResultMessages = new ArrayList<>();
+    private final ArrayList<PengramHistory.Entry> localDeleted = new ArrayList<>();
+    private final IdentityHashMap<MessageObject, PengramHistory.Entry> deletedResults = new IdentityHashMap<>();
+    private int additionalDeletedCount;
+    private String localQuery = "";
+    private long localDialogId, localMergeDialogId;
+    private int localGeneration;
+    private Runnable localResultsChanged;
+    private Runnable localSearchTask;
+    private boolean localNeedsRefresh;
+
+    public String getLocalQuery() {
+        return localQuery;
+    }
+
+    public int getLocalDeletedCount() {
+        return localDeleted.size();
+    }
+
+    public PengramHistory.Entry getLocalDeletedAt(int position) {
+        return position >= 0 && position < localDeleted.size() ? localDeleted.get(position) : null;
+    }
+
+    public PengramHistory.Entry getDeletedResult(MessageObject message) {
+        return deletedResults.get(message);
+    }
+
+    public int getAdditionalDeletedCount() {
+        return additionalDeletedCount;
+    }
+
+    public MessageObject getLoadedResult(int position) {
+        return position >= 0 && position < searchResultMessages.size() ? searchResultMessages.get(position) : null;
+    }
+
+    public int indexOfResult(long dialogId, int messageId) {
+        for (int i = 0; i < searchResultMessages.size(); i++) {
+            MessageObject result = searchResultMessages.get(i);
+            if (result.getDialogId() == dialogId && result.getId() == messageId) return i;
+        }
+        return -1;
+    }
+
+    public void searchLocalDeleted(String query, long dialogId, long mergeDialogId,
+                                   boolean allowed, Runnable onResultsChanged) {
+        final String value = allowed && query != null ? query.trim() : "";
+        localResultsChanged = onResultsChanged;
+        if (TextUtils.equals(value, localQuery) && dialogId == localDialogId
+                && mergeDialogId == localMergeDialogId) return;
+        localQuery = value;
+        localDialogId = dialogId;
+        localMergeDialogId = mergeDialogId;
+        localNeedsRefresh = false;
+        final int generation = ++localGeneration;
+        if (localSearchTask != null) AndroidUtilities.cancelRunOnUIThread(localSearchTask);
+        localDeleted.clear();
+        notifyDataSetChanged();
+        if (value.isEmpty()) return;
+        localSearchTask = () -> Utilities.globalQueue.postRunnable(() -> {
+            ArrayList<PengramHistory.Entry> entries = PengramHistory.searchDeleted(
+                    currentAccount, dialogId, mergeDialogId, value, 150);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (generation != localGeneration) return;
+                localDeleted.addAll(entries);
+                notifyDataSetChanged();
+                if (localResultsChanged != null) localResultsChanged.run();
+            });
+        });
+        AndroidUtilities.runOnUIThread(localSearchTask, 180);
+    }
+
     private final BaseFragment fragment;
 
     public boolean containsStories;
@@ -79,6 +152,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
     public MessagesSearchAdapter(Context context, BaseFragment fragment, Theme.ResourcesProvider resourcesProvider, int searchType, boolean isSavedMessages) {
         this.resourcesProvider = resourcesProvider;
+        currentAccount = fragment.getCurrentAccount();
         mContext = context;
         this.fragment = fragment;
         this.searchType = searchType;
@@ -154,14 +228,73 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         containsStories = false;//storiesList != null && storiesList.getCount() > 0;
 
         searchResultMessages.clear();
+        deletedResults.clear();
+        additionalDeletedCount = 0;
         messageIds.clear();
         ArrayList<MessageObject> searchResults = searchType == 0 ? MediaDataController.getInstance(currentAccount).getFoundMessageObjects() : HashtagSearchController.getInstance(currentAccount).getMessages(searchType);
         for (int i = 0; i < searchResults.size(); ++i) {
             MessageObject m = searchResults.get(i);
-            if ((!m.hasValidGroupId() || m.isPrimaryGroupMessage) && !messageIds.contains(m.getId())) {
+            if ((!m.hasValidGroupId() || m.isPrimaryGroupMessage) && !messageIds.contains(m.getDialogId() + ":" + m.getId())) {
                 searchResultMessages.add(m);
-                messageIds.add(m.getId());
+                messageIds.add(m.getDialogId() + ":" + m.getId());
             }
+        }
+
+        // Merge locally preserved deletions into the same dated result list. Keep
+        // Telegram's server pagination untouched; local-only navigation is handled by the chat.
+        if (searchType == 0 && !localDeleted.isEmpty()) {
+            HashMap<String, Integer> positions = new HashMap<>();
+            HashSet<String> seenDeleted = new HashSet<>();
+            for (int i = 0; i < searchResultMessages.size(); i++) {
+                MessageObject m = searchResultMessages.get(i);
+                positions.put(m.getDialogId() + ":" + m.getId(), i);
+            }
+            for (PengramHistory.Entry e : localDeleted) {
+                String key = e.dialogId + ":" + e.messageId;
+                if (seenDeleted.contains(key)) continue;
+                try {
+                    TLRPC.TL_message msg = new TLRPC.TL_message();
+                    msg.id = e.messageId;
+                    msg.dialog_id = e.dialogId;
+                    msg.date = e.date != 0 ? e.date : e.savedAt;
+                    // The hit may have matched the previous text, not the final snapshot.
+                    // Show the text that actually matched so the result is recognisable.
+                    String matched = e.text;
+                    if (!TextUtils.isEmpty(e.prevText) && e.prevText.toLowerCase(java.util.Locale.ROOT)
+                            .contains(localQuery.toLowerCase(java.util.Locale.ROOT))
+                            && (TextUtils.isEmpty(matched) || !matched.toLowerCase(java.util.Locale.ROOT)
+                            .contains(localQuery.toLowerCase(java.util.Locale.ROOT)))) {
+                        matched = e.prevText;
+                    }
+                    msg.message = "🗑 " + (matched == null ? "" : matched);
+                    msg.peer_id = MessagesController.getInstance(currentAccount).getPeer(e.dialogId);
+                    msg.from_id = MessagesController.getInstance(currentAccount).getPeer(
+                            e.fromId != 0 ? e.fromId : e.dialogId);
+                    msg.flags |= TLRPC.MESSAGE_FLAG_HAS_FROM_ID;
+                    msg.media = new TLRPC.TL_messageMediaEmpty();
+                    msg.out = e.out;
+                    MessageObject object = new MessageObject(currentAccount, msg, false, false);
+                    object.pengramDeleted = true;
+                    object.pengramArchived = true;
+                    object.pengramArchiveRowId = e.rowId;
+                    deletedResults.put(object, e);
+                    seenDeleted.add(key);
+                    // A server/cached hit can share the same id yet show a
+                    // different (or now missing) text. Prefer the archived hit
+                    // so tapping it never opens an unreadable ordinary message.
+                    Integer position = positions.get(key);
+                    if (position != null) {
+                        searchResultMessages.set(position, object);
+                    } else {
+                        positions.put(key, searchResultMessages.size());
+                        searchResultMessages.add(object);
+                        additionalDeletedCount++;
+                    }
+                } catch (Throwable ignore) { // corrupt old history row must not break search
+                }
+            }
+            java.util.Collections.sort(searchResultMessages,
+                    (a, b) -> Integer.compare(b.messageOwner.date, a.messageOwner.date));
         }
 
         final int oldLoadedCount = loadedCount;
@@ -178,7 +311,7 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
         final int newItemsCount = getItemCount();
 
-        if (oldItemsCount < newItemsCount) {
+        if (localDeleted.isEmpty() && oldItemsCount < newItemsCount) {
             if (oldFlickerCount > 0) notifyItemRangeChanged(oldItemsCount - oldFlickerCount, oldFlickerCount);
             notifyItemRangeInserted(oldItemsCount, newItemsCount - oldItemsCount);
         } else {
@@ -311,9 +444,22 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
 
     public void attach() {
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.storiesListUpdated);
+        if (localNeedsRefresh) {
+            localNeedsRefresh = false;
+            String query = localQuery;
+            localQuery = ""; // bypass the same-query fast path after detaching
+            searchLocalDeleted(query, localDialogId, localMergeDialogId, true, localResultsChanged);
+        }
     }
 
     public void detach() {
+        ++localGeneration;
+        if (localSearchTask != null) AndroidUtilities.cancelRunOnUIThread(localSearchTask);
+        localSearchTask = null;
+        localNeedsRefresh = !TextUtils.isEmpty(localQuery);
+        localDeleted.clear();
+        deletedResults.clear();
+        notifyDataSetChanged();
         AndroidUtilities.cancelRunOnUIThread(loadStories);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.storiesListUpdated);
     }

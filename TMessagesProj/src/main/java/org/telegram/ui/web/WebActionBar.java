@@ -1003,7 +1003,7 @@ public class WebActionBar extends FrameLayout {
             getParent().requestDisallowInterceptTouchEvent(true);
         }
         try {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
         } catch (Exception ignored) {}
     };
 

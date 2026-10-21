@@ -32,7 +32,7 @@ import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.AppGlobalConfig;
@@ -2615,7 +2615,7 @@ public class RichEditorListView extends UniversalRecyclerView {
         longPressConsumed = true;
         if (textSelectionHelper.isInSelectionMode()) textSelectionHelper.clear();
         try {
-            cell.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) cell.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
         } catch (Exception ignore) {}
         itemTouchHelper.startDrag(holder);
     }

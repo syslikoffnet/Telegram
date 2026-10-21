@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pengram: простой одноцветный силуэт пингвина 24x24 для строк списка -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- голова (по часовой), глаза — дырки (против часовой) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M8.5,5.7a3.5,3.5 0 1,1 7,0a3.5,3.5 0 1,1 -7,0z
+                          M10.6,5.2a0.75,0.75 0 1,0 1.5,0a0.75,0.75 0 1,0 -1.5,0z
+                          M12.9,5.2a0.75,0.75 0 1,0 1.5,0a0.75,0.75 0 1,0 -1.5,0z" />
+
+    <!-- туловище с белым животом (живот нарисован в обратную сторону, поэтому вырезается) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M12,8.1c-3.2,0 -5.5,2.5 -5.5,6.1c0,3.7 2.3,6.3 5.5,6.3c3.2,0 5.5,-2.6 5.5,-6.3c0,-3.6 -2.3,-6.1 -5.5,-6.1z
+                          M12,11.0c1.8,0 3.0,1.6 3.0,3.5c0,2.0 -1.2,3.6 -3.0,3.6c-1.8,0 -3.0,-1.6 -3.0,-3.6c0,-1.9 1.2,-3.5 3.0,-3.5z" />
+
+    <!-- клюв -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M14.9,4.6l2.6,1.2l-2.6,1.3z" />
+
+    <!-- лапы -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M9.6,20.3l-3.1,1.0l0.7,0.9l2.9,-0.5z
+                          M14.4,20.3l3.1,1.0l-0.7,0.9l-2.9,-0.5z" />
+</vector>

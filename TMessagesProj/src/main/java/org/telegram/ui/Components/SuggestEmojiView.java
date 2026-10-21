@@ -725,7 +725,7 @@ public class SuggestEmojiView extends FrameLayout implements NotificationCenter.
             }
         }
         try {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
         } catch (Exception ignore) {}
         Emoji.addRecentEmoji(emojiSource);
         show = false;

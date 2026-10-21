@@ -1493,7 +1493,7 @@ public class AndroidUtilities {
             return 0;
         }
         try {
-            Bitmap b = Bitmaps.createScaledBitmap(bitmap, 1, 1, true);
+            Bitmap b = Bitmap.createScaledBitmap(bitmap, 1, 1, true);
             if (b != null) {
                 int bitmapColor = b.getPixel(0, 0);
                 if (bitmap != b) {
@@ -2389,21 +2389,39 @@ public class AndroidUtilities {
         return result;
     }
 
+    /** шрифты Pengram кэшируются: getTypeface зовут тысячи раз при создании вьюх */
+    private static final HashMap<String, Typeface> pengramTypefaceCache = new HashMap<>();
+
     public static Typeface getTypeface(String assetPath) {
         final int pengramFont = PengramConfig.getAppFont();
         if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")) {
-            final boolean bold = assetPath.contains("bold") || assetPath.contains("medium");
-            final boolean italic = assetPath.contains("italic");
-            final int style = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : Typeface.NORMAL;
-            switch (pengramFont) {
-                case PengramConfig.FONT_SYSTEM:
-                    return Typeface.create(Typeface.DEFAULT, style);
-                case PengramConfig.FONT_SERIF:
-                    return Typeface.create(Typeface.SERIF, style);
-                case PengramConfig.FONT_MONOSPACE:
-                    return Typeface.create(Typeface.MONOSPACE, style);
+            final String cacheKey = pengramFont + "#" + assetPath;
+            synchronized (pengramTypefaceCache) {
+                final Typeface cached = pengramTypefaceCache.get(cacheKey);
+                if (cached != null) {
+                    return cached;
+                }
+            }
+            final Typeface created = pengramTypeface(pengramFont, assetPath);
+            if (created != null) {
+                synchronized (pengramTypefaceCache) {
+                    pengramTypefaceCache.put(cacheKey, created);
+                }
+                return created;
             }
         }
+        return getTypefaceOriginal(assetPath);
+    }
+
+    private static Typeface pengramTypeface(int pengramFont, String assetPath) {
+        final boolean bold = assetPath.contains("bold") || assetPath.contains("medium");
+        final boolean italic = assetPath.contains("italic");
+        final int style = bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : Typeface.NORMAL;
+        return PengramFonts.typeface(pengramFont, style);
+    }
+
+    /** родной путь Telegram: шрифты из assets со своим кэшем */
+    private static Typeface getTypefaceOriginal(String assetPath) {
         synchronized (typefaceCache) {
             if (!typefaceCache.containsKey(assetPath)) {
                 try {
@@ -2903,6 +2921,16 @@ public class AndroidUtilities {
         }
     }
 
+    public static int getAccountInProduction() {
+        if (UserConfig.getInstance(UserConfig.selectedAccount).isClientActivated() && !ConnectionsManager.getInstance(UserConfig.selectedAccount).isTestBackend())
+            return UserConfig.selectedAccount;
+        for (int i = 0; i < UserConfig.MAX_ACCOUNT_COUNT; ++i) {
+            if (UserConfig.getInstance(i).isClientActivated() && !ConnectionsManager.getInstance(i).isTestBackend())
+                return i;
+        }
+        return UserConfig.selectedAccount;
+    }
+
     public static float getPixelsInCM(float cm, boolean isX) {
         return (cm / 2.54f) * (isX ? displayMetrics.xdpi : displayMetrics.ydpi);
     }
@@ -2986,7 +3014,7 @@ public class AndroidUtilities {
     }
 
     public static boolean isTablet() {
-        return isTabletInternal() && !SharedConfig.forceDisableTabletMode;
+        return !SharedConfig.forceDisableTabletMode && (SharedConfig.forceEnableTabletMode || isTabletInternal());
     }
 
     public static boolean isFold() {
@@ -3683,7 +3711,7 @@ public class AndroidUtilities {
         }
         File storageDir = null;
         if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
-            storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Telegram");
+            storageDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Pengram");
             if (!storageDir.mkdirs()) {
                 if (!storageDir.exists()) {
                     if (BuildVars.LOGS_ENABLED) {
@@ -4093,6 +4121,9 @@ public class AndroidUtilities {
         if (v == 0) {
             return "0";
         }
+        if (PengramConfig.isNoRounding()) {
+            return formatCount(v);
+        }
         float num_ = v;
         int count = 0;
         if (dif == 0) dif = v;
@@ -4208,6 +4239,11 @@ public class AndroidUtilities {
             f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToMessage(message.messageOwner);
         }
         if (f != null && f.exists()) {
+            // Pengram: .pen — наш формат настроек, его открывает сам клиент
+            if (activity != null && org.telegram.ui.Components.PengramBackupOpener.tryOpen(activity, parentFragment, f,
+                    message.getDocumentName() != null ? message.getDocumentName() : fileName)) {
+                return;
+            }
             if (parentFragment != null && f.getName().toLowerCase().endsWith("attheme")) {
                 Theme.ThemeInfo themeInfo = Theme.applyThemeFile(f, message.getDocumentName(), null, true);
                 if (themeInfo != null) {
@@ -4283,6 +4319,10 @@ public class AndroidUtilities {
 
     public static boolean openForView(File f, String fileName, String mimeType, final Activity activity, Theme.ResourcesProvider resourcesProvider, boolean restrict) {
         if (f != null && f.exists()) {
+            // Pengram: настройки .pen применяем сами, а не отдаём системе
+            if (activity != null && org.telegram.ui.Components.PengramBackupOpener.tryOpen(activity, null, f, fileName)) {
+                return true;
+            }
             String realMimeType = null;
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -6499,6 +6539,7 @@ public class AndroidUtilities {
     public static void vibrateCursor(View view) {
         try {
             if (view == null || view.getContext() == null) return;
+            if (!PengramConfig.isVibrationEnabled()) return;
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
             if (!((Vibrator) view.getContext().getSystemService(Context.VIBRATOR_SERVICE)).hasAmplitudeControl()) return;
             view.performHapticFeedback(HapticFeedbackConstants.TEXT_HANDLE_MOVE, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
@@ -6508,6 +6549,7 @@ public class AndroidUtilities {
     public static void vibrate(View view) {
         try {
             if (view == null || view.getContext() == null) return;
+            if (!PengramConfig.isVibrationEnabled()) return;
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
             if (!((Vibrator) view.getContext().getSystemService(Context.VIBRATOR_SERVICE)).hasAmplitudeControl()) return;
             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);

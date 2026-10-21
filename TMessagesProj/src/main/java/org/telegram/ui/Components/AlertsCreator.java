@@ -106,6 +106,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.pip.utils.PipPermissions;
 import org.telegram.messenger.pip.utils.PipUtils;
+import org.telegram.messenger.PengramAccountOrder;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
@@ -913,7 +914,7 @@ public class AlertsCreator {
                     s.delete(maxLength, s.length());
                     AndroidUtilities.shakeView(editText);
                     try {
-                        editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) editText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                     } catch (Exception ignore) {}
                     ignoreTextChange = false;
                 }
@@ -2518,7 +2519,7 @@ public class AlertsCreator {
         final AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
 
         final CheckBoxCell[] cell = new CheckBoxCell[1];
-        final boolean[] value = new boolean[1];
+        final boolean[] value = new boolean[] { false };
 
         final TextView messageTextView = new TextView(context) {
             @Override
@@ -6797,6 +6798,14 @@ public class AlertsCreator {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodoAll));
         } else if (result == 22) {
             builder.setMessage(getString(R.string.ErrorSendRestrictedTodo));
+        } else if (result == 23) {
+            builder.setMessage(getString(R.string.PengramCopyCannotSchedule));
+        } else if (result == 24) {
+            builder.setMessage(getString(R.string.PengramCopyCannotPay));
+        } else if (result == 25) {
+            builder.setMessage(getString(R.string.PengramCopyCannotTopic));
+        } else if (result == 26) {
+            builder.setMessage(getString(R.string.PengramCopyCannotComment));
         }
 
         builder.setPositiveButton(LocaleController.getString(R.string.OK), null);
@@ -7707,7 +7716,8 @@ public class AlertsCreator {
 
         final LinearLayout linearLayout = new LinearLayout(parentActivity);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+        // Pengram: тот же порядок, что и во всех остальных списках аккаунтов.
+        for (int a : PengramAccountOrder.activeOrder()) {
             TLRPC.User u = UserConfig.getInstance(a).getCurrentUser();
             if (u != null) {
                 AccountSelectCell cell = new AccountSelectCell(parentActivity, false);
@@ -7908,6 +7918,10 @@ public class AlertsCreator {
         }
 
         final boolean[] deleteForAll = new boolean[1];
+        // Pengram: контейнер для галочек под текстом диалога
+        final LinearLayout pengramOptionsLayout = new LinearLayout(activity);
+        pengramOptionsLayout.setOrientation(LinearLayout.VERTICAL);
+        final boolean[] pengramSaveLocal = new boolean[]{org.telegram.messenger.PengramConfig.isSaveForMyselfDefault()};
         boolean canRevokeInbox = user != null && MessagesController.getInstance(currentAccount).canRevokePmInbox;
         int revokeTimeLimit;
         if (user != null) {
@@ -8056,8 +8070,7 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell12.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                pengramOptionsLayout.addView(frameLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
             }
         } else if (!scheduled && !isSavedMessages && !ChatObject.isChannel(chat) && encryptedChat == null) {
             if (user != null && user.id != UserConfig.getInstance(currentAccount).getClientUserId() && (!user.bot || user.support) || chat != null) {
@@ -8115,9 +8128,51 @@ public class AlertsCreator {
                     deleteForAll[0] = !deleteForAll[0];
                     cell1.setChecked(deleteForAll[0], true);
                 });
-                builder.setView(frameLayout);
-                builder.setCustomViewOffset(9);
+                pengramOptionsLayout.addView(frameLayout, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
             }
+        }
+
+        // Pengram: «Сохранить у себя» — сообщение удаляется у всех, но остаётся локально
+        if (!scheduled && !isSavedMessages && !quickReplies && encryptedChat == null
+                && org.telegram.messenger.PengramConfig.isSaveForMyselfVisible()
+                && org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount)) {
+            final FrameLayout saveFrame = new FrameLayout(activity);
+            final CheckBoxCell saveCell = new CheckBoxCell(activity, 1, resourcesProvider);
+            saveCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            saveCell.setText(LocaleController.getString(R.string.PengramSaveForMyself), "", pengramSaveLocal[0], false);
+            saveCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0, LocaleController.isRTL ? dp(8) : dp(16), 0);
+            saveFrame.addView(saveCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 0, 0, 0));
+            saveCell.setOnClickListener(v -> {
+                pengramSaveLocal[0] = !pengramSaveLocal[0];
+                ((CheckBoxCell) v).setChecked(pengramSaveLocal[0], true);
+            });
+            pengramOptionsLayout.addView(saveFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        }
+        // Pengram: если Telegram спрятал «Удалить у всех» — возвращаем галочку принудительно
+        if (!hasDeleteForAllCheck && !scheduled && !isSavedMessages && !quickReplies && encryptedChat == null
+                && org.telegram.messenger.PengramConfig.isForceDeleteForAll()
+                && (user != null && user.id != UserConfig.getInstance(currentAccount).getClientUserId()
+                    || chat != null && !ChatObject.isChannel(chat)
+                    || chat != null && chat.megagroup)) {
+            final FrameLayout forAllFrame = new FrameLayout(activity);
+            final CheckBoxCell forAllCell = new CheckBoxCell(activity, 1, resourcesProvider);
+            forAllCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            final String forAllText = user != null
+                    ? LocaleController.formatString("DeleteMessagesOptionAlso", R.string.DeleteMessagesOptionAlso, UserObject.getFirstName(user))
+                    : LocaleController.getString(R.string.DeleteForAll);
+            forAllCell.setText(forAllText, "", deleteForAll[0], false);
+            forAllCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0, LocaleController.isRTL ? dp(8) : dp(16), 0);
+            forAllFrame.addView(forAllCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 0, 0, 0));
+            forAllCell.setOnClickListener(v -> {
+                deleteForAll[0] = !deleteForAll[0];
+                ((CheckBoxCell) v).setChecked(deleteForAll[0], true);
+            });
+            pengramOptionsLayout.addView(forAllFrame, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
+        }
+
+        if (pengramOptionsLayout.getChildCount() > 0) {
+            builder.setView(pengramOptionsLayout);
+            builder.setCustomViewOffset(9);
         }
 
         AlertDialog.OnButtonClickListener deleteAction = (dialogInterface, i) -> {
@@ -8161,6 +8216,11 @@ public class AlertsCreator {
                     thisDialogId = mergeDialogId;
                 }
                 if (!ids.isEmpty()) {
+                    if (pengramSaveLocal[0]) {
+                        org.telegram.messenger.PengramHistory.guardSaveForMyself(ids);
+                    } else {
+                        org.telegram.messenger.PengramHistory.guardUserDeleted(ids);
+                    }
                     MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
                 }
                 for (MessageObject msg: ephemeralMessages) {
@@ -8181,6 +8241,11 @@ public class AlertsCreator {
                                 random_ids.add(msg.messageOwner.random_id);
                             }
                         }
+                    }
+                    if (pengramSaveLocal[0]) {
+                        org.telegram.messenger.PengramHistory.guardSaveForMyself(ids);
+                    } else {
+                        org.telegram.messenger.PengramHistory.guardUserDeleted(ids);
                     }
                     MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode);
                     selectedMessages[a].clear();

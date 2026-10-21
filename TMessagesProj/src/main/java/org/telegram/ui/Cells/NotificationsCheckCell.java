@@ -44,6 +44,9 @@ public class NotificationsCheckCell extends FrameLayout {
     private boolean needDivider;
     private boolean drawLine = true;
     private boolean isMultiline;
+    private boolean adaptiveLayout;
+    private final int horizontalPadding;
+    private final boolean withImage;
     private int currentHeight;
     private boolean animationsEnabled;
     private Theme.ResourcesProvider resourcesProvider;
@@ -66,6 +69,8 @@ public class NotificationsCheckCell extends FrameLayout {
 
         setWillNotDraw(false);
         currentHeight = height;
+        horizontalPadding = padding;
+        this.withImage = withImage;
 
         if (withImage) {
             imageView = new ImageView(context);
@@ -116,6 +121,16 @@ public class NotificationsCheckCell extends FrameLayout {
         checkBox.setFocusable(false);
     }
 
+    /** Used by Pengram settings; Telegram's original fixed-height cells remain unchanged. */
+    public void setAdaptiveLayout(boolean adaptive) {
+        if (adaptiveLayout == adaptive) return;
+        adaptiveLayout = adaptive;
+        textView.setSingleLine(!adaptive);
+        textView.setMaxLines(adaptive ? Integer.MAX_VALUE : 1);
+        textView.setEllipsize(adaptive ? null : TextUtils.TruncateAt.END);
+        requestLayout();
+    }
+
     public Switch getCheckBox() {
         return checkBox;
     }
@@ -126,7 +141,26 @@ public class NotificationsCheckCell extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        if (isMultiline) {
+        if (adaptiveLayout) {
+            int width = MeasureSpec.getSize(widthMeasureSpec);
+            int childWidth = Math.max(1, width - dp((withImage ? 64 : horizontalPadding) + 80));
+            textView.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            boolean hasValue = isMultiline && !TextUtils.isEmpty(multilineValueTextView.getText());
+            int valueHeight = 0;
+            if (hasValue) {
+                multilineValueTextView.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                valueHeight = multilineValueTextView.getMeasuredHeight();
+            }
+            FrameLayout.LayoutParams titleParams = (FrameLayout.LayoutParams) textView.getLayoutParams();
+            titleParams.topMargin = dp(10);
+            FrameLayout.LayoutParams valueParams = (FrameLayout.LayoutParams) multilineValueTextView.getLayoutParams();
+            valueParams.topMargin = dp(10) + textView.getMeasuredHeight() + dp(3);
+            int desired = Math.max(dp(currentHeight), valueParams.topMargin + valueHeight + dp(10));
+            super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(desired, MeasureSpec.EXACTLY));
+        } else if (isMultiline) {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         } else {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(currentHeight), MeasureSpec.EXACTLY));
@@ -156,7 +190,7 @@ public class NotificationsCheckCell extends FrameLayout {
             imageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogIcon), PorterDuff.Mode.MULTIPLY));
         }
         checkBox.setChecked(checked, iconType, animationsEnabled);
-        setMultiline(multiline);
+        setMultiline(multiline || adaptiveLayout);
         if (isMultiline) {
             multilineValueTextView.setText(value);
         } else {

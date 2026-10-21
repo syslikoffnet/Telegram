@@ -71,11 +71,9 @@ import android.webkit.MimeTypeMap;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
-import androidx.annotation.OptIn;
 import androidx.exifinterface.media.ExifInterface;
 
 import androidx.media3.common.C;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.common.Player;
 import androidx.media3.extractor.jpeg.MotionPhotoDescription;
@@ -801,7 +799,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     } else if (orientation.second == 2) {
                         matrix.postScale(1, -1);
                     }
-                    b = Bitmaps.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                    int width1 = bitmap.getWidth();
+                    int height1 = bitmap.getHeight();
+                    b = Bitmap.createBitmap(bitmap, 0, 0, width1, height1, matrix, true);
                     bitmap.recycle();
                 } else {
                     b = bitmap;
@@ -1126,7 +1126,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (len > 0) {
                     buffer.limit(len);
                     if (PengramVoiceChanger.isEnabled()) {
-                        PengramVoiceChanger.process(buffer, len);
+                        PengramVoiceChanger.processForSource(buffer, len, sampleRate, PengramVoiceChanger.SOURCE_VOICE);
                         buffer.position(0);
                         buffer.limit(len);
                     }
@@ -3916,11 +3916,16 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     @Override
                     public void onVisualizerUpdate(boolean playing, boolean animate, float[] values) {
                         Theme.getCurrentAudiVisualizerDrawable().setWaveform(playing, animate, values);
+                        // Pengram: тот же спектр кормит анимации плеера
+                        PengramAudioPulse.update(playing, values);
                     }
 
                     @Override
                     public boolean needUpdate() {
-                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null;
+                        // спектр считается только когда его кто-то смотрит: волна
+                        // голосового или открытый плеер с живыми визуалами
+                        return Theme.getCurrentAudiVisualizerDrawable().getParentView() != null
+                                || PengramAudioPulse.isListening();
                     }
                 });
                 if (exists) {
@@ -4411,6 +4416,30 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         return playlist;
     }
 
+    /** The ordered list used by next/previous (unlike getPlaylist when shuffle is on). */
+    public ArrayList<MessageObject> getPlaybackPlaylist() {
+        return SharedConfig.shuffleMusic ? shuffledPlaylist : playlist;
+    }
+
+    /** Select a row in the actual playback order, preserving next/previous navigation. */
+    public void playMessageAtPlaybackIndex(int index) {
+        ArrayList<MessageObject> current = getPlaybackPlaylist();
+        if (index < 0 || index >= current.size()) {
+            return;
+        }
+        currentPlaylistNum = index;
+        MessageObject messageObject = current.get(index);
+        if (playingMessageObject != null && isSamePlayingMessage(messageObject)) {
+            playMessage(messageObject); // resumes if paused; do not leave playMusicAgain set
+            return;
+        }
+        playMusicAgain = true;
+        if (playingMessageObject != null) {
+            playingMessageObject.resetPlayingProgress();
+        }
+        playMessage(messageObject);
+    }
+
     public MessagesController.SavedMusicList getMusicList() {
         return currentSavedMusicList;
     }
@@ -4678,9 +4707,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             return super.delete();
                         }
                     };
-                    PengramVoiceChanger.reset();
-                    PengramVoiceChanger.reset();
-                if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
+                    // Pengram: каждая запись начинается с чистого состояния эффекта
+                    if (PengramVoiceChanger.isEnabled()) {
+                        PengramVoiceChanger.reset();
+                    }
+                    if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                         AndroidUtilities.runOnUIThread(() -> {
                             recordStartRunnable = null;
                             NotificationCenter.getInstance(recordingCurrentAccount).postNotificationName(NotificationCenter.recordStartError, recordingGuid);
@@ -4719,7 +4750,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         requestRecordAudioFocus(true);
 
         try {
-            feedbackView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) feedbackView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignore) {}
 
         recordQueue.postRunnable(recordStartRunnable = () -> {
@@ -4759,6 +4790,10 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 FileLog.d("start recording internal " + recordingAudioFile.getPath() + " " + recordingAudioFile.exists());
             }
             AutoDeleteMediaTask.lockFile(recordingAudioFile);
+            // Pengram: каждая запись начинается с чистого состояния эффекта
+            if (PengramVoiceChanger.isEnabled()) {
+                PengramVoiceChanger.reset();
+            }
             try {
                 if (startRecord(recordingAudioFile.getPath(), sampleRate) == 0) {
                     AndroidUtilities.runOnUIThread(() -> {
@@ -5007,7 +5042,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 stopRecordingInternal(0, false, 0, false, 0);
             }
             try {
-                feedbackView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) feedbackView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             AndroidUtilities.runOnUIThread(() -> NotificationCenter.getInstance(recordingCurrentAccount).postNotificationName(NotificationCenter.recordStopped, recordingGuid, send == 2 ? 1 : 0));
         });
@@ -5115,6 +5150,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         } else {
                             dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
                         }
+                        dir = new File(dir, "Pengram");
                         dir.mkdir();
                         for (int b = 0, N = messageObjects.size(); b < N; b++) {
                             MessageObject message = messageObjects.get(b);
@@ -5269,7 +5305,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             if (Build.VERSION.SDK_INT >= 29) {
                 final ContentValues cv = new ContentValues();
                 final Uri uriToInsert = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-                final File dirDest = new File(Environment.DIRECTORY_DOWNLOADS, "Telegram");
+                final File dirDest = new File(Environment.DIRECTORY_DOWNLOADS, "Pengram");
                 cv.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 cv.put(MediaStore.Downloads.DISPLAY_NAME, filename);
                 cv.put(MediaStore.MediaColumns.MIME_TYPE, outputMime);
@@ -5291,7 +5327,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     }
                 }
             } else {
-                final File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Telegram");
+                final File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Pengram");
                 destDir.mkdirs();
                 File destFile = new File(destDir, filename);
                 if (!destFile.exists()) {
@@ -5511,11 +5547,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     } else {
                         File destFile;
                         if (type == 0) {
-                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Telegram");
+                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Pengram");
                             destFile.mkdirs();
                             destFile = new File(destFile, AndroidUtilities.generateFileName(0, FileLoader.getFileExtension(sourceFile)));
                         } else if (type == 1) {
-                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Telegram");
+                            destFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "Pengram");
                             destFile.mkdirs();
                             destFile = new File(destFile, AndroidUtilities.generateFileName(1, FileLoader.getFileExtension(sourceFile)));
                         } else {
@@ -5525,7 +5561,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             } else {
                                 dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
                             }
-                            dir = new File(dir, "Telegram");
+                            dir = new File(dir, "Pengram");
                             dir.mkdirs();
                             destFile = new File(dir, name);
                             if (destFile.exists()) {
@@ -5670,7 +5706,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     final String filename = AndroidUtilities.generateFileName(0, "jpg");
                     final ContentValues cv = new ContentValues();
                     final Uri uriToInsert = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-                    final File dirDest = new File(Environment.DIRECTORY_PICTURES, "Telegram");
+                    final File dirDest = new File(Environment.DIRECTORY_PICTURES, "Pengram");
                     cv.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                     cv.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
                     cv.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
@@ -5692,7 +5728,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         }
                     }
                 } else {
-                    final File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Telegram");
+                    final File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "Pengram");
                     destDir.mkdirs();
                     File destFile = new File(destDir, AndroidUtilities.generateFileName(0, "jpg"));
                     if (!destFile.exists()) {
@@ -5735,7 +5771,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     private static void writeMotionPhoto(File photoFile, File videoFile, OutputStream out, boolean[] cancelled) throws IOException {
         final long videoLength = videoFile.length();
         final String xmp = buildMotionPhotoXmp(videoLength);
-        final byte[] xmpHeader = "http://ns.adobe.com/xap/1.0/ ".getBytes("UTF-8");
+        final byte[] xmpHeader = "http://ns.adobe.com/xap/1.0/\0".getBytes("UTF-8");
         final byte[] xmpBytes = xmp.getBytes("UTF-8");
         final int segLen = xmpHeader.length + xmpBytes.length + 2;
         if (segLen > 65535) {
@@ -5823,7 +5859,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                     filename = AndroidUtilities.generateFileName(0, extension);
                 }
                 uriToInsert = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
-                File dirDest = new File(Environment.DIRECTORY_PICTURES, "Telegram");
+                File dirDest = new File(Environment.DIRECTORY_PICTURES, "Pengram");
                 contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 contentValues.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
                 contentValues.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
@@ -5831,7 +5867,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (filename == null) {
                     filename = AndroidUtilities.generateFileName(1, extension);
                 }
-                File dirDest = new File(Environment.DIRECTORY_MOVIES, "Telegram");
+                File dirDest = new File(Environment.DIRECTORY_MOVIES, "Pengram");
                 contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 uriToInsert = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 contentValues.put(MediaStore.Video.Media.DISPLAY_NAME, filename);
@@ -5839,7 +5875,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (filename == null) {
                     filename = sourceFile.getName();
                 }
-                File dirDest = new File(Environment.DIRECTORY_DOWNLOADS, "Telegram");
+                File dirDest = new File(Environment.DIRECTORY_DOWNLOADS, "Pengram");
                 contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 uriToInsert = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 contentValues.put(MediaStore.Downloads.DISPLAY_NAME, filename);
@@ -5847,7 +5883,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 if (filename == null) {
                     filename = sourceFile.getName();
                 }
-                File dirDest = new File(Environment.DIRECTORY_MUSIC, "Telegram");
+                File dirDest = new File(Environment.DIRECTORY_MUSIC, "Pengram");
                 contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, dirDest + File.separator);
                 uriToInsert = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
                 contentValues.put(MediaStore.Audio.Media.DISPLAY_NAME, filename);

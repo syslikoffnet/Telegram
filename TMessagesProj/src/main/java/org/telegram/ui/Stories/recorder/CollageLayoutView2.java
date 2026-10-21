@@ -881,7 +881,7 @@ public class CollageLayoutView2 extends FrameLayout implements ItemOptions.Scrim
             })
             .show();
         try {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
         } catch (Exception ignored) {}
     }
 

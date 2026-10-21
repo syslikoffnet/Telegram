@@ -70,7 +70,11 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
 
         ScaleStateListAnimator.apply(this);
         if (!isSubButton) {
-            setOutlineProvider(ViewOutlineProviderImpl.BOUNDS_OVAL);
+            // Pengram: контур для тени должен повторять форму кнопки, иначе
+            // скруглённый квадрат Material 3 отбрасывает овальную тень.
+            setOutlineProvider(org.telegram.messenger.PengramMD3.fab()
+                    ? ViewOutlineProviderImpl.boundsWithPaddingFromViewAndRoundRect(org.telegram.messenger.PengramMD3.fabRadius())
+                    : ViewOutlineProviderImpl.BOUNDS_OVAL);
             setTranslationZ(dpf2(0.5f));
         }
 
@@ -163,10 +167,18 @@ public class FragmentFloatingButton extends FrameLayout implements FactorAnimato
         } else {
             imageView.setColorFilter(Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider), PorterDuff.Mode.SRC_IN);
             progressView.setProgressColor(Theme.getColor(Theme.key_chats_actionIcon, resourcesProvider));
-            setBackground(Theme.createSimpleSelectorCircleDrawable(dp(48),
-                Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider),
-                Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider)
-            ));
+            // Pengram: в Material 3 кнопка действия — скруглённый квадрат, а не круг
+            if (org.telegram.messenger.PengramMD3.fab()) {
+                setBackground(Theme.createSimpleSelectorRoundRectDrawable(org.telegram.messenger.PengramMD3.fabRadius(),
+                    Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider),
+                    Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider)
+                ));
+            } else {
+                setBackground(Theme.createSimpleSelectorCircleDrawable(dp(48),
+                    Theme.getColor(Theme.key_featuredStickers_addButton, resourcesProvider),
+                    Theme.getColor(Theme.key_featuredStickers_addButtonPressed, resourcesProvider)
+                ));
+            }
         }
     }
 

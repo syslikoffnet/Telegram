@@ -10,6 +10,9 @@
 #define CONNECTIONSOCKET_H
 
 #include <sys/epoll.h>
+#include <sys/types.h>
+#include <cstdint>
+#include <cstddef>
 #include <netinet/in.h>
 #include <string>
 
@@ -66,6 +69,10 @@ private:
     bool isIpv6;
     std::string currentAddress;
     uint16_t currentPort;
+
+    /** Pengram: сколько отправок этого соединения уже прошло через десинхронизацию */
+    int32_t pengramWrites = 0;
+    ssize_t pengramSend(uint8_t *data, size_t size);
 
     std::string waitingForHostResolve;
     bool adjustWriteOpAfterResolve;

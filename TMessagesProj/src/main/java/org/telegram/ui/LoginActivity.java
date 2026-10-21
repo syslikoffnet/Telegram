@@ -134,6 +134,7 @@ import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.PengramBackgroundService;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
@@ -148,6 +149,7 @@ import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.RequestDelegate;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TL_auth_importBotAuthorization;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_update;
@@ -361,6 +363,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     private RadialProgressView radialProgressView;
 
     private ImageView proxyButtonView;
+    /** Pengram: выбор имени устройства ещё до входа в аккаунт */
+    private ImageView deviceButtonView;
     private ProxyDrawable proxyDrawable;
 
     // Open animation stuff
@@ -510,6 +514,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        // незавершённый вход по файлу: закрыть временный слот и затереть ключ
+        org.telegram.messenger.PengramSessionLogin.cancel();
+        pengramHideSessionProgress();
         for (int a = 0; a < views.length; a++) {
             if (views[a] != null) {
                 views[a].onDestroyActivity();
@@ -771,6 +778,18 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         proxyButtonView.setAlpha(0f);
         proxyButtonView.setVisibility(View.GONE);
         sizeNotifierFrameLayout.addView(proxyButtonView, LayoutHelper.createFrame(32, 32, Gravity.RIGHT | Gravity.TOP, 16, 16, 16, 16));
+
+        // Имя устройства сервер запоминает в момент подключения, поэтому
+        // предлагаем выбрать его прямо на экране входа — до регистрации.
+        deviceButtonView = new ImageView(context);
+        deviceButtonView.setImageResource(R.drawable.msg2_devices);
+        deviceButtonView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        deviceButtonView.setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6));
+        deviceButtonView.setColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteGrayIcon));
+        deviceButtonView.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 7));
+        deviceButtonView.setContentDescription(LocaleController.getString(R.string.PengramDeviceHeader));
+        deviceButtonView.setOnClickListener(v -> org.telegram.ui.Components.PengramDeviceNameSheet.show(this, getResourceProvider()));
+        sizeNotifierFrameLayout.addView(deviceButtonView, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.TOP, 16, 14, 54, 14));
         updateProxyButton(false, true);
 
         radialProgressView = new RadialProgressView(context);
@@ -1148,6 +1167,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_PICK_SESSION) {
+            if (resultCode == android.app.Activity.RESULT_OK && data != null && data.getData() != null) {
+                pengramHandleSessionPicked(data.getData());
+            }
+            return;
+        }
         LoginActivityRegisterView registerView = (LoginActivityRegisterView) views[VIEW_REGISTER];
         if (registerView != null) {
             registerView.imageUpdater.onActivityResult(requestCode, resultCode, data);
@@ -1167,7 +1192,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     private void onFieldError(View view, boolean allowErrorSelection) {
         try {
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         AndroidUtilities.shakeViewSpring(view, 3.5f);
 
@@ -1637,6 +1662,352 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
+    /**
+     * Pengram: вход в аккаунт бота по токену.
+     *
+     * <p>Токен выдаёт BotFather командой {@code /token}; он же заменяет и номер,
+     * и код из SMS. Метод {@code auth.importBotAuthorization} принимает его
+     * вместе с api_id/api_hash приложения и возвращает обычную авторизацию,
+     * поэтому дальше всё идёт тем же путём, что и после входа по коду.
+     */
+    private void pengramShowBotLoginDialog() {
+        if (getParentActivity() == null || getParentActivity().isFinishing()) {
+            return;
+        }
+        final EditTextBoldCursor editText = new EditTextBoldCursor(getParentActivity());
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+        editText.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+        editText.setHintTextColor(getThemedColor(Theme.key_dialogTextHint));
+        editText.setHint(getString(R.string.PengramBotLoginHint));
+        editText.setSingleLine(true);
+        editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        editText.setBackgroundDrawable(Theme.createEditTextDrawable(getParentActivity(), true));
+        editText.setPadding(dp(12), dp(12), dp(12), dp(12));
+
+        final FrameLayout container = new FrameLayout(getParentActivity());
+        container.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
+                LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT, 24, 4, 24, 0));
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramBotLoginTitle));
+        builder.setMessage(getString(R.string.PengramBotLoginInfo));
+        builder.setView(container);
+        builder.setPositiveButton(getString(R.string.Done), (dialog, which) -> {
+            AndroidUtilities.hideKeyboard(editText);
+            pengramLoginWithBotToken(editText.getText().toString().trim());
+        });
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+        AndroidUtilities.runOnUIThread(() -> {
+            if (editText.getParent() != null) {
+                editText.requestFocus();
+                AndroidUtilities.showKeyboard(editText);
+            }
+        }, 200);
+    }
+
+    private boolean pengramBotLoginRunning;
+
+    /** Pengram: выбор файла сессии (.session, tdata.zip, строковая сессия) */
+    private static final int REQUEST_PICK_SESSION = 10513;
+    /** разбор идёт в фоне; диалог прогресса один на всю операцию */
+    private AlertDialog pengramSessionProgress;
+
+    private void pengramLoginWithBotToken(String token) {
+        if (pengramBotLoginRunning) {
+            return;
+        }
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(token) || token.indexOf(':') < 0 || token.indexOf(':') == token.length() - 1) {
+            BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(
+                    R.raw.error, getString(R.string.PengramBotLoginInvalid)).show();
+            return;
+        }
+        pengramBotLoginRunning = true;
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+
+        final TL_auth_importBotAuthorization request = new TL_auth_importBotAuthorization();
+        request.flags = 0;
+        request.api_id = BuildVars.APP_ID;
+        request.api_hash = BuildVars.APP_HASH;
+        request.bot_auth_token = token;
+
+        getConnectionsManager().sendRequest(request, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            pengramBotLoginRunning = false;
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+            if (response instanceof TLRPC.TL_auth_authorization) {
+                // Контакты боту не нужны: не тянем телефонную книгу в его аккаунт.
+                syncContacts = false;
+                onAuthSuccess((TLRPC.TL_auth_authorization) response);
+                return;
+            }
+            final String reason = error != null && !TextUtils.isEmpty(error.text)
+                    ? error.text : getString(R.string.PengramBotLoginFailed);
+            BulletinFactory.of(slideViewsContainer, null).createSimpleBulletin(
+                    R.raw.error, LocaleController.formatString(R.string.PengramBotLoginError, reason)).show();
+        }), ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagFailOnServerErrors);
+    }
+
+    /**
+     * Pengram: вход по файлу сессии.
+     *
+     * Человек выбирает .session (Telethon/Pyrogram), архив tdata или строку
+     * сессии. Файл разбирается локально, никуда не отправляется и не меняет
+     * исходную базу. Дальше вход идёт сам: никаких вопросов о режиме.
+     */
+    private void pengramShowSessionLogin() {
+        if (getParentActivity() == null || getParentActivity().isFinishing()) {
+            return;
+        }
+        // В перепакованной сборке файл сессии просить нельзя: это ровно тот
+        // сценарий, ради которого APK и пересобирают — забрать чужой ключ.
+        if (org.telegram.messenger.PengramGuard.isRepackaged()) {
+            final AlertDialog.Builder blocked = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+            blocked.setTitle(getString(R.string.PengramSessionBlockedTitle));
+            blocked.setMessage(getString(R.string.PengramSessionBlocked));
+            blocked.setPositiveButton(getString(R.string.OK), null);
+            showDialog(blocked.create());
+            return;
+        }
+        try {
+            final Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.setType("*/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_PICK_SESSION);
+        } catch (Throwable error) {
+            FileLog.e(error);
+            pengramSessionError("unsupported_file");
+        }
+    }
+
+    /** файл выбран: копируем во временное хранилище и разбираем в фоне */
+    private void pengramHandleSessionPicked(final android.net.Uri uri) {
+        if (uri == null) {
+            return;
+        }
+        pengramShowSessionProgress();
+        Utilities.globalQueue.postRunnable(() -> {
+            final ArrayList<org.telegram.messenger.PengramSessionFormats.Account> accounts = new ArrayList<>();
+            String failure = null;
+            java.io.File temp = null;
+            try {
+                temp = new java.io.File(ApplicationLoader.applicationContext.getCacheDir(),
+                        "pengram_session_import.tmp");
+                try (java.io.InputStream input = ApplicationLoader.applicationContext
+                        .getContentResolver().openInputStream(uri);
+                     java.io.OutputStream output = new java.io.FileOutputStream(temp)) {
+                    if (input == null) {
+                        throw new java.io.IOException("no stream");
+                    }
+                    final byte[] buffer = new byte[64 * 1024];
+                    long total = 0;
+                    int read;
+                    while ((read = input.read(buffer)) > 0) {
+                        total += read;
+                        if (total > org.telegram.messenger.PengramSessionFormats.MAX_INPUT) {
+                            throw new org.telegram.messenger.PengramSessionFormats.Failure("file_size");
+                        }
+                        output.write(buffer, 0, read);
+                    }
+                }
+                accounts.addAll(org.telegram.messenger.PengramSessionFormats.parse(temp));
+            } catch (org.telegram.messenger.PengramSessionFormats.Failure error) {
+                failure = error.code;
+            } catch (Throwable error) {
+                FileLog.e(error);
+                failure = "invalid_file";
+            } finally {
+                if (temp != null) {
+                    // в файле лежит ключ авторизации: на диске его быть не должно
+                    try {
+                        //noinspection ResultOfMethodCallIgnored
+                        temp.delete();
+                    } catch (Throwable ignore) {
+                    }
+                }
+            }
+            final String code = failure;
+            AndroidUtilities.runOnUIThread(() -> {
+                pengramHideSessionProgress();
+                if (getParentActivity() == null) {
+                    return;
+                }
+                if (code != null) {
+                    pengramSessionError(code);
+                    return;
+                }
+                if (accounts.isEmpty()) {
+                    pengramSessionError("unsupported_file");
+                    return;
+                }
+                pengramShowSessionChoice(accounts);
+            });
+        });
+    }
+
+    /** несколько аккаунтов в tdata — сначала выбираем, кем входить */
+    private void pengramShowSessionChoice(final ArrayList<org.telegram.messenger.PengramSessionFormats.Account> accounts) {
+        if (accounts.size() == 1) {
+            pengramStartSessionLogin(accounts.get(0));
+            return;
+        }
+        final CharSequence[] names = new CharSequence[accounts.size()];
+        for (int a = 0; a < accounts.size(); ++a) {
+            names[a] = accounts.get(a).describe();
+        }
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(getString(R.string.PengramSessionChoose));
+        builder.setItems(names, (dialog, which) -> pengramStartSessionLogin(accounts.get(which)));
+        builder.setNegativeButton(getString(R.string.Cancel), null);
+        showDialog(builder.create());
+    }
+
+    /**
+     * Вход без единого вопроса: ключ из файла ставится постоянным ключом
+     * своего DC — ровно так же, как это делают Telethon, Pyrogram и Desktop, —
+     * и сразу проверяется запросом к серверу. Это и есть обычный вход, только
+     * без кода из SMS.
+     */
+    private void pengramStartSessionLogin(final org.telegram.messenger.PengramSessionFormats.Account account) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        pengramShowSessionProgress();
+        // Сессию из файла не «привязываем» к телефонной книге: это чужой
+        // аккаунт, и контакты ему не нужны.
+        syncContacts = false;
+        org.telegram.messenger.PengramSessionLogin.start(currentAccount, account,
+                org.telegram.messenger.PengramSessionLogin.MODE_AUTO,
+                new org.telegram.messenger.PengramSessionLogin.Listener() {
+                    @Override
+                    public void onSuccess(TLRPC.TL_auth_authorization authorization) {
+                        AndroidUtilities.runOnUIThread(() -> {
+                            pengramHideSessionProgress();
+                            account.clear();
+                            if (getParentActivity() == null) {
+                                return;
+                            }
+                            onAuthSuccess(authorization);
+                        });
+                    }
+
+                    @Override
+                    public void onPasswordNeeded(TL_account.Password password) {
+                        AndroidUtilities.runOnUIThread(() -> pengramOpenSessionPassword(account, password));
+                    }
+
+                    @Override
+                    public void onError(String code) {
+                        AndroidUtilities.runOnUIThread(() -> {
+                            pengramHideSessionProgress();
+                            account.clear();
+                            pengramSessionError(code);
+                        });
+                    }
+                });
+    }
+
+    /**
+     * Двухфакторная защита: показываем штатную страницу пароля. Она сама
+     * считает SRP и доводит вход до onAuthSuccess — ровно как при входе по
+     * номеру. Если KDF аккаунта новее, чем умеет эта сборка, честно говорим
+     * об этом, а не показываем поле, которое ничего не проверит.
+     */
+    private void pengramOpenSessionPassword(
+            final org.telegram.messenger.PengramSessionFormats.Account account,
+            final TL_account.Password password) {
+        pengramHideSessionProgress();
+        account.clear();
+        if (getParentActivity() == null || password == null) {
+            return;
+        }
+        if (!TwoStepVerificationActivity.canHandleCurrentPassword(password, true)) {
+            pengramSessionError("unsupported_password");
+            return;
+        }
+        final Bundle bundle = new Bundle();
+        final SerializedData data = new SerializedData(password.getObjectSize());
+        password.serializeToStream(data);
+        bundle.putString("password", Utilities.bytesToHex(data.toByteArray()));
+        bundle.putString("phoneFormated", "");
+        bundle.putString("phoneHash", "");
+        bundle.putString("code", "");
+        setPage(VIEW_PASSWORD, true, bundle, false);
+    }
+
+    private void pengramShowSessionProgress() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        pengramHideSessionProgress();
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progress.setCanCancel(false);
+        progress.show();
+        pengramSessionProgress = progress;
+    }
+
+    private void pengramHideSessionProgress() {
+        final AlertDialog progress = pengramSessionProgress;
+        pengramSessionProgress = null;
+        if (progress != null) {
+            try {
+                progress.dismiss();
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
+    /** текст ошибки по коду: ни один ответ сервера не показываем как есть */
+    private void pengramSessionError(String code) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        int res = R.string.PengramSessionErrNetwork;
+        if ("invalid_key".equals(code)) {
+            res = R.string.PengramSessionErrInvalidKey;
+        } else if ("test_session".equals(code)) {
+            res = R.string.PengramSessionErrTest;
+        } else if ("bot_session".equals(code)) {
+            res = R.string.PengramSessionErrBot;
+        } else if ("ambiguous_session".equals(code)) {
+            res = R.string.PengramSessionErrMultiple;
+        } else if ("password_tdata".equals(code) || "unsupported_password".equals(code)) {
+            res = R.string.PengramSessionErrPassword;
+        } else if ("session_revoked".equals(code)) {
+            res = R.string.PengramSessionErrRevoked;
+        } else if ("key_duplicated".equals(code)) {
+            res = R.string.PengramSessionErrDuplicated;
+        } else if ("account_banned".equals(code)) {
+            res = R.string.PengramSessionErrBanned;
+        } else if ("flood_wait".equals(code)) {
+            res = R.string.PengramSessionErrFlood;
+        } else if ("api_rejected".equals(code)) {
+            res = R.string.PengramSessionErrApi;
+        } else if ("no_slot".equals(code)) {
+            res = R.string.PengramSessionErrNoSlot;
+        } else if ("login_timeout".equals(code) || "token_expired".equals(code)
+                || "unexpected_response".equals(code)) {
+            res = R.string.PengramSessionErrTimeout;
+        } else if ("unsupported_file".equals(code) || "unsupported_session".equals(code)
+                || "invalid_file".equals(code) || "file_size".equals(code)
+                || "checksum_failed".equals(code) || "decrypt_failed".equals(code)
+                || "incomplete_tdata".equals(code) || "tdata_not_found".equals(code)
+                || "multiple_tdata".equals(code) || "unsafe_archive".equals(code)
+                || "archive_limits".equals(code) || "unsupported_tdata".equals(code)) {
+            res = R.string.PengramSessionErrBroken;
+        }
+        BulletinFactory.of(slideViewsContainer, null)
+                .createSimpleBulletin(R.raw.error, getString(res)).show();
+    }
+
     private void fakeSuccess() {
         TLRPC.TL_auth_authorization res = new TLRPC.TL_auth_authorization();
         res.user = UserConfig.getInstance(0).getCurrentUser();
@@ -1668,6 +2039,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         MessagesController.getInstance(currentAccount).loadAppConfig();
         MessagesController.getInstance(currentAccount).loadWebBrowserConfig();
         MessagesController.getInstance(currentAccount).checkPeerColors(false);
+        // Pengram: до этого момента активных слотов не было, и сервис не
+        // поднимался. Без него первый же уход из приложения оставлял
+        // уведомления без соединения до следующего запуска.
+        PengramBackgroundService.onAccountAuthorized();
 
         if (res.future_auth_token != null) {
             AuthTokensHelper.saveLogInToken(res);
@@ -1967,6 +2342,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         private ImageView chevronRight;
         private CheckBoxCell syncContactsBox;
         private CheckBoxCell testBackendCheckBox;
+        /** Pengram: вход в аккаунт бота по его токену */
+        private TextView botLoginView;
 
         @CountryState
         private int countryState = COUNTRY_STATE_NOT_SET_OR_VALID;
@@ -2107,6 +2484,36 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             phoneOutlineView.addView(linearLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 16, 8, 16, 8));
             phoneOutlineView.setText(getString(R.string.PhoneNumber));
             addView(phoneOutlineView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 58, 16, 8, 16, 8));
+
+            if (activityMode == MODE_LOGIN) {
+                // Вход по токену бота живёт рядом с обычным входом по номеру:
+                // это тот же экран, тот же слот аккаунта, другой способ входа.
+                botLoginView = new TextView(context);
+                botLoginView.setText(getString(R.string.PengramBotLogin));
+                botLoginView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                botLoginView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+                botLoginView.setGravity(Gravity.CENTER);
+                botLoginView.setPadding(dp(12), dp(10), dp(12), dp(10));
+                botLoginView.setBackground(Theme.createRadSelectorDrawable(
+                        Theme.getColor(Theme.key_listSelector), 8, 8));
+                botLoginView.setOnClickListener(v -> pengramShowBotLoginDialog());
+                addView(botLoginView, LayoutHelper.createLinear(
+                        LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 2, 16, 0));
+
+                // Вход по файлу сессии — рядом с обычным входом: это такой же
+                // полноценный вход, просто другим способом.
+                final TextView sessionLoginView = new TextView(context);
+                sessionLoginView.setText(getString(R.string.PengramSessionLogin));
+                sessionLoginView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                sessionLoginView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText4));
+                sessionLoginView.setGravity(Gravity.CENTER);
+                sessionLoginView.setPadding(dp(12), dp(10), dp(12), dp(10));
+                sessionLoginView.setBackground(Theme.createRadSelectorDrawable(
+                        Theme.getColor(Theme.key_listSelector), 8, 8));
+                sessionLoginView.setOnClickListener(v -> pengramShowSessionLogin());
+                addView(sessionLoginView, LayoutHelper.createLinear(
+                        LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 16, 2, 16, 0));
+            }
 
             plusTextView = new TextView(context);
             plusTextView.setText("+");
@@ -4181,13 +4588,25 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 nextPressed = false;
                 if (error == null) {
                     nextCodeParams = params;
-                    nextCodeAuth = (TLRPC.TL_auth_sentCode) response;
-                    if (nextCodeAuth.type instanceof TLRPC.TL_auth_sentCodeTypeSmsPhrase) {
-                        nextType = AUTH_TYPE_PHRASE;
-                    } else if (nextCodeAuth.type instanceof TLRPC.TL_auth_sentCodeTypeSmsWord) {
-                        nextType = AUTH_TYPE_WORD;
+                    if (response instanceof TLRPC.TL_auth_sentCode) {
+                        nextCodeAuth = (TLRPC.TL_auth_sentCode) response;
+                        if (nextCodeAuth.type instanceof TLRPC.TL_auth_sentCodeTypeSmsPhrase) {
+                            nextType = AUTH_TYPE_PHRASE;
+                        } else if (nextCodeAuth.type instanceof TLRPC.TL_auth_sentCodeTypeSmsWord) {
+                            nextType = AUTH_TYPE_WORD;
+                        }
+                        fillNextCodeParams(nextCodeParams, nextCodeAuth);
+                    } else if (response instanceof TLRPC.TL_auth_sentCodePaymentRequired) {
+                        final TLRPC.TL_auth_sentCodePaymentRequired auth = (TLRPC.TL_auth_sentCodePaymentRequired) response;
+                        params.putString("product", auth.store_product);
+                        params.putString("phoneHash", auth.phone_code_hash);
+                        params.putString("support_email_address", auth.support_email_address);
+                        params.putString("support_email_subject", auth.support_email_subject);
+                        params.putString("currency", auth.currency);
+                        params.putInt("premium_days", auth.premium_days);
+                        params.putLong("amount", auth.amount);
+                        setPage(VIEW_PAY, true, params, true);
                     }
-                    fillNextCodeParams(nextCodeParams, nextCodeAuth);
                 } else {
                     if (error.text != null) {
                         if (error.text.contains("PHONE_NUMBER_INVALID")) {
@@ -4754,7 +5173,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
                             animateSuccess(()-> {
                                 try {
-                                    fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) fragmentView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                 } catch (Exception ignored) {}
                                 new AlertDialog.Builder(getContext())
                                         .setTitle(getString(R.string.YourPasswordSuccess))
@@ -5016,7 +5435,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
         private void shakeWrongCode() {
             try {
-                codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
 
             for (int a = 0; a < codeFieldContainer.codeField.length; a++) {
@@ -5992,6 +6411,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             VerticalPositionAutoAnimator.attach(bottomContainer);
 
             bottomContainer.setOnClickListener(view -> {
+                // В форке без собственного OAuth-клиента Google-вход невозможен:
+                // GoogleSignInOptions.requestIdToken("") бросает исключение и роняет экран входа.
+                if (TextUtils.isEmpty(BuildVars.GOOGLE_AUTH_CLIENT_ID)) {
+                    return;
+                }
                 NotificationCenter.getGlobalInstance().addObserver(new NotificationCenter.NotificationCenterDelegate() {
                     @Override
                     public void didReceivedNotification(int id, int account, Object... args) {
@@ -6071,7 +6495,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             try {
-                emailOutlineView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) emailOutlineView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             if (clear) {
                 emailField.setText("");
@@ -6326,6 +6750,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             signInWithGoogleView.setText(str);
 
             signInWithGoogleView.setOnClickListener(view -> {
+                // В форке без собственного OAuth-клиента Google-вход невозможен:
+                // GoogleSignInOptions.requestIdToken("") бросает исключение и роняет экран входа.
+                if (TextUtils.isEmpty(BuildVars.GOOGLE_AUTH_CLIENT_ID)) {
+                    return;
+                }
                 NotificationCenter.getGlobalInstance().addObserver(new NotificationCenter.NotificationCenterDelegate() {
                     @Override
                     public void didReceivedNotification(int id, int account, Object... args) {
@@ -6769,7 +7198,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             try {
-                codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             if (clear) {
                 for (CodeNumberField f : codeFieldContainer.codeField) {
@@ -6977,7 +7406,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
         private void shakeWrongCode() {
             try {
-                codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
 
             for (int a = 0; a < codeFieldContainer.codeField.length; a++) {
@@ -7223,7 +7652,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             try {
-                codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeFieldContainer.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             if (clear) {
                 for (CodeNumberField f : codeFieldContainer.codeField) {
@@ -7560,7 +7989,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             try {
-                codeField[num].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeField[num].performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             AndroidUtilities.shakeView(codeField[num]);
         }
@@ -9334,7 +9763,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 return;
             }
             try {
-                codeField.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) codeField.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             final int a = currentType == AUTH_TYPE_WORD ? 0 : 1;
             if (asBeginning) {

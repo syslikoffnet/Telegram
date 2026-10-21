@@ -31,6 +31,7 @@ import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Layout;
@@ -63,7 +64,9 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.ChatThemeController;
-import org.telegram.messenger.CodeHighlighting;
+import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramMD3;
+import org.telegram.utils.code.highlight.CodeHighlighting;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DownloadController;
@@ -603,6 +606,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     protected float xOffset;
 
     private boolean drawCount;
+    private boolean drawGramTransfer;
+    private int gramTransferLeft;
+    private LayerDrawable gramTransferDrawable;
+    private int gramTransferColor;
     private boolean drawCount2 = true;
     private int countTop;
     private int countLeft;
@@ -641,6 +648,8 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private boolean isSelected;
 
     private RectF rect = new RectF();
+    /** подложка строки в стиле Material 3 */
+    private final Paint pengramMD3Paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private DialogsAdapter.DialogsPreloader preloader;
     private Path counterPath;
     private RectF counterPathRect;
@@ -692,7 +701,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         Theme.createDialogsResources(context);
         drawMonoforumAvatar = false;
         drawCommunityAvatar = false;
-        avatarImage.setRoundRadius(dp(26));
+        avatarImage.setRoundRadius(PengramConfig.dialogAvatarRadius(dp(26)));
         for (int i = 0; i < thumbImage.length; ++i) {
             thumbImage[i] = new ImageReceiver(this);
             thumbImage[i].ignoreNotifications = true;
@@ -1219,6 +1228,22 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     }
 
     int thumbSize;
+    private boolean pengramSenderAvatarThumb;
+
+    private boolean pengramHasInlineThumbs() {
+        if (thumbsCount <= 0 || !pengramSenderAvatarThumb) {
+            return thumbsCount > 0;
+        }
+        final int position = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
+        // В двухстрочном списке имя отправителя входит в messageString, поэтому обе
+        // позиции около имени реализуются тем же inline-span с разным индексом вставки.
+        if (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_INLINE) {
+            return true;
+        }
+        final boolean separateSenderName = (useForceThreeLines || SharedConfig.useThreeLinesLayout) && !hasTags();
+        return !separateSenderName && (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME
+                || position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME);
+    }
 
 
     // BADGE_SIZE = BADGE_TEXT_PADDING * 2 + BADGE_TEXT_MIN_WIDTH;
@@ -1502,7 +1527,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                             drawVerified = !forbidVerified && user.verified;
                             drawBotVerified = !forbidVerified && !UserObject.isUserSelf(user) && user.bot_verification_icon != 0;
                         }
-                        drawPremium = MessagesController.getInstance(currentAccount).isPremiumUser(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
+                        drawPremium = MessagesController.getInstance(currentAccount).isPremiumUserForDisplay(user) && UserConfig.getInstance(currentAccount).clientUserId != user.id && user.id != 0;
                         if (drawPremium) {
                             Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
                             emojiStatus.center = LocaleController.isRTL;
@@ -1826,12 +1851,17 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                         messageString = messageH;
                                     }
                                 }
-                                if (thumbsCount > 0) {
+                                if (pengramHasInlineThumbs()) {
                                     if (!(messageString instanceof SpannableStringBuilder)) {
                                         messageString = new SpannableStringBuilder(messageString);
                                     }
                                     checkMessage = false;
                                     SpannableStringBuilder builder = (SpannableStringBuilder) messageString;
+                                    if (pengramSenderAvatarThumb
+                                            && org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition()
+                                            == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME) {
+                                        thumbInsertIndex = 0;
+                                    }
                                     if (thumbInsertIndex >= builder.length()) {
                                         builder.append(" ");
                                         builder.setSpan(new FixedWidthSpan(dp(thumbsCount * (thumbSize + 2) - 2 + 5)), builder.length() - 1, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -2008,7 +2038,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                     builder.setSpan(new ColoredImageSpan(ContextCompat.getDrawable(getContext(), R.drawable.msg_mini_replystory).mutate()), 0, 1, 0);
                                     messageString = builder;
                                 }
-                                if (thumbsCount > 0) {
+                                if (pengramHasInlineThumbs()) {
                                     if (message.hasHighlightedWords() && !TextUtils.isEmpty(message.messageOwner.message)) {
                                         messageString = message.messageTrimmedToHighlight;
                                         if (message.messageTrimmedToHighlight != null) {
@@ -2469,6 +2499,18 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 thumbImage[i].setImageCoords(thumbLeft + (thumbSize + 2) * i, avatarTop + dp(30) + (twoLinesForName ? dp(20) : 0) - (!(useForceThreeLines || SharedConfig.useThreeLinesLayout) && tags != null && !tags.isEmpty() ? dp(9) : 0), dp(thumbSize), dp(thumbSize));
             }
         }
+        if (pengramSenderAvatarThumb) {
+            final int position = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
+            if (position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BOTTOM
+                    || position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_TOP) {
+                final int size = dp(20);
+                final int x = LocaleController.isRTL ? avatarLeft - dp(2) : avatarLeft + dp((useForceThreeLines || SharedConfig.useThreeLinesLayout) ? 38 : 34);
+                final int y = position == org.telegram.messenger.PengramConfig.SENDER_AVATAR_TOP
+                        ? avatarTop - dp(3)
+                        : avatarTop + dp((useForceThreeLines || SharedConfig.useThreeLinesLayout) ? 39 : 35);
+                thumbImage[0].setImageCoords(x, y, size, size);
+            }
+        }
         if (LocaleController.isRTL) {
             tagsRight = getMeasuredWidth() - dp(messagePaddingStart);
             tagsLeft = dp(64);
@@ -2625,6 +2667,38 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             drawMention = false;
         }
 
+        drawGramTransfer = !drawError && customDialog == null && !isFolderCell() && !isForumCell() && !isDialogFolder()
+            && (unreadCount > 0 || markUnread)
+            && message != null && !message.isOutOwner()
+            && message.messageOwner.action instanceof TLRPC.TL_messageActionGramTransfer;
+        if (drawGramTransfer) {
+            int badgesWidth = 0;
+            if (drawCount && drawCount2) {
+                badgesWidth += countWidth + dp(BADGE_GAP);
+            }
+            if (drawMention && drawCount2) {
+                badgesWidth += mentionWidth + dp(BADGE_GAP);
+            }
+            if (drawReactionMention) {
+                badgesWidth += dp(25);
+            }
+            if (drawPollVotesMention) {
+                badgesWidth += dp(25);
+            }
+            if (openBot) {
+                badgesWidth += (int) openButtonRect.width() + dp(4);
+            }
+            gramTransferLeft = LocaleController.isRTL ? dp(BADGE_MARGIN) + badgesWidth
+                : getMeasuredWidth() - dp(BADGE_MARGIN + 28) - badgesWidth;
+            messageWidth -= dp(32);
+            if (LocaleController.isRTL) {
+                messageLeft += dp(32);
+                typingLeft += dp(32);
+                buttonLeft += dp(32);
+                messageNameLeft += dp(32);
+            }
+        }
+
         if (checkMessage) {
             if (messageString == null) {
                 messageString = "";
@@ -2664,7 +2738,26 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         messageNameString = s;
                     }
                 }
-                messageNameLayout = StaticLayoutEx.createStaticLayout(messageNameString, Theme.dialogs_messageNamePaint, messageWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0, false, TextUtils.TruncateAt.END, messageWidth, 1);
+                final int senderAvatarPosition = org.telegram.messenger.PengramConfig.getDialogSenderAvatarPosition();
+                final boolean avatarBesideName = pengramSenderAvatarThumb
+                        && (senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME
+                        || senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME);
+                final int nameWidth = avatarBesideName ? Math.max(dp(12), messageWidth - dp(24)) : messageWidth;
+                if (avatarBesideName && senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_BEFORE_NAME) {
+                    final int avatarX = LocaleController.isRTL ? messageNameLeft + nameWidth + dp(4) : messageNameLeft;
+                    thumbImage[0].setImageCoords(avatarX, messageNameTop - dp(2), dp(20), dp(20));
+                    if (!LocaleController.isRTL) {
+                        messageNameLeft += dp(24);
+                    }
+                }
+                messageNameLayout = StaticLayoutEx.createStaticLayout(messageNameString, Theme.dialogs_messageNamePaint, nameWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0, false, TextUtils.TruncateAt.END, nameWidth, 1);
+                if (avatarBesideName && senderAvatarPosition == org.telegram.messenger.PengramConfig.SENDER_AVATAR_AFTER_NAME) {
+                    final int renderedWidth = messageNameLayout.getLineCount() == 0 ? 0 : (int) Math.ceil(messageNameLayout.getLineWidth(0));
+                    final int avatarX = LocaleController.isRTL
+                            ? messageNameLeft - renderedWidth - dp(24)
+                            : messageNameLeft + renderedWidth + dp(4);
+                    thumbImage[0].setImageCoords(avatarX, messageNameTop - dp(2), dp(20), dp(20));
+                }
             } catch (Exception e) {
                 FileLog.e(e);
             }
@@ -2749,12 +2842,12 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
 
             Layout.Alignment align = isForum && LocaleController.isRTL ? Layout.Alignment.ALIGN_OPPOSITE : Layout.Alignment.ALIGN_NORMAL;
             if ((useForceThreeLines || SharedConfig.useThreeLinesLayout) && !hasTags()) {
-                if (thumbsCount > 0 && messageNameString != null) {
+                if (pengramHasInlineThumbs() && messageNameString != null) {
                     messageWidth += dp(5);
                 }
                 messageLayout = StaticLayoutEx.createStaticLayout(messageStringFinal, currentMessagePaint, messageWidth, align, 1.0f, dp(1), false, TextUtils.TruncateAt.END, messageWidth, messageNameString != null ? 1 : 2);
             } else {
-                if (thumbsCount > 0) {
+                if (pengramHasInlineThumbs()) {
                     messageWidth += dp((thumbsCount * (thumbSize + 2) - 2) + 5);
                     if (LocaleController.isRTL && !isForumCell()) {
                         messageLeft -= dp((thumbsCount * (thumbSize + 2) - 2) + 5);
@@ -2971,7 +3064,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     }
 
     private void updateThumbsPosition() {
-        if (thumbsCount > 0) {
+        if (pengramHasInlineThumbs()) {
             StaticLayout layout = isForumCell() ? buttonLayout : messageLayout;
             int left = isForumCell() ? buttonLeft : messageLeft;
             if (layout == null) {
@@ -3010,7 +3103,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     }
 
     private CharSequence applyThumbs(CharSequence string) {
-        if (thumbsCount > 0) {
+        if (pengramHasInlineThumbs()) {
             SpannableStringBuilder builder = SpannableStringBuilder.valueOf(string);
             builder.insert(0, " ");
             builder.setSpan(new FixedWidthSpan(dp((thumbSize + 2) * thumbsCount - 2 + 5)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -3220,7 +3313,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
             drawMonoforumAvatar = false;
             drawCommunityAvatar = false;
-            avatarImage.setRoundRadius(dp(26));
+            avatarImage.setRoundRadius(PengramConfig.dialogAvatarRadius(dp(26)));
             drawUnmute = false;
         } else {
             int oldUnreadCount = unreadCount;
@@ -3675,7 +3768,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 avatarRadius = dp(28);
             }
 
-            avatarImage.setRoundRadius(avatarRadius);
+            avatarImage.setRoundRadius(PengramConfig.dialogAvatarRadius(avatarRadius));
         }
         if (!isTopic && (getMeasuredWidth() != 0 || getMeasuredHeight() != 0)) {
             rebuildLayout = true;
@@ -3745,7 +3838,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             drawRevealBackground = Math.abs(translationX) >= getMeasuredWidth() * 0.45f;
             if (prevValue != drawRevealBackground && archiveHidden == SharedConfig.archiveHidden) {
                 try {
-                    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignore) {}
             }
         }
@@ -3760,6 +3853,34 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     private int archiveFadeGradientDrawableColor;
 
     @SuppressLint("DrawAllocation")
+        /**
+     * Material 3: вместо сплошной строки с разделителем — «контейнер» со
+     * скруглением и тональной заливкой. Цвет берётся из акцента темы, поэтому
+     * список остаётся в выбранной палитре и не спорит с обоями.
+     */
+    private void pengramDrawMD3Container(Canvas canvas) {
+        int color = 0;
+        if (isSelected) {
+            color = PengramMD3.selectedContainer(resourcesProvider);
+        } else if (PengramMD3.tonalRows() && currentDialogFolderId == 0) {
+            if (unreadCount != 0 || markUnread) {
+                color = PengramMD3.unreadContainer(resourcesProvider);
+            } else if (getIsPinned() || drawPinBackground) {
+                color = PengramMD3.pinnedContainer(resourcesProvider);
+            }
+        }
+        if (color == 0) {
+            return;
+        }
+        final int inset = PengramMD3.rowInset();
+        final float radius = PengramMD3.rowRadius();
+        rect.set(inset, dp(2), getMeasuredWidth() - inset,
+                AndroidUtilities.lerp(getMeasuredHeight(), getCollapsedHeight(), rightFragmentOpenedProgress) - dp(2));
+        rect.offset(0, -translateY + collapseOffset);
+        pengramMD3Paint.setColor(color);
+        canvas.drawRoundRect(rect, radius, radius, pengramMD3Paint);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (currentDialogId == 0 && customDialog == null) {
@@ -3988,7 +4109,14 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         float cornersRadius = dp(8) * cornerProgress;
-        if (isSelected) {
+        // Native sample rows in the isolated layout editor should preview the
+        // same tonal container as live dialogs, without changing theme previews.
+        final boolean md3 = PengramMD3.dialogs()
+                && (customDialog == null || PengramConfig.isVisualPreviewRead());
+        if (md3) {
+            pengramDrawMD3Container(canvas);
+        }
+        if (isSelected && !md3) {
             rect.set(0, 0, getMeasuredWidth(), AndroidUtilities.lerp(getMeasuredHeight(), getCollapsedHeight(), rightFragmentOpenedProgress));
             rect.offset(0, -translateY + collapseOffset);
             canvas.drawRoundRect(rect, cornersRadius, cornersRadius, Theme.dialogs_tabletSeletedPaint);
@@ -4598,6 +4726,21 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                 canvas.restore();
             }
 
+            if (drawGramTransfer) {
+                if (gramTransferDrawable == null) {
+                    gramTransferDrawable = (LayerDrawable) ContextCompat.getDrawable(getContext(), R.drawable.dialog_gram_transfer).mutate();
+                }
+                final int color = Theme.getColor(isCounterMuted()
+                    ? Theme.key_chats_unreadCounterMuted : Theme.key_chats_unreadCounter, resourcesProvider);
+                if (gramTransferColor != color) {
+                    gramTransferDrawable.getDrawable(0).setColorFilter(new PorterDuffColorFilter(gramTransferColor = color, PorterDuff.Mode.SRC_IN));
+                }
+                final int top = countTop + (dp(BADGE_SIZE) - dp(28)) / 2;
+                gramTransferDrawable.setBounds(gramTransferLeft, top, gramTransferLeft + dp(28), top + dp(28));
+                gramTransferDrawable.setAlpha((int) ((1.0f - reorderIconProgress) * 255));
+                gramTransferDrawable.draw(canvas);
+            }
+
             if (thumbsCount > 0 && updateHelper.typingProgres != 1f) {
                 float alpha = 1f;
                 if (updateHelper.typingProgres > 0) {
@@ -4768,7 +4911,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             canvas.restore();
         }
 
-        if (useSeparator) {
+        if (useSeparator && !PengramMD3.hideDividers()) {
             int left;
             if (fullSeparator || currentDialogFolderId != 0 && archiveHidden && !fullSeparator2 || fullSeparator2 && !archiveHidden) {
                 left = 0;
@@ -5636,6 +5779,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
     }
 
     public void updateMessageThumbs() {
+        pengramSenderAvatarThumb = false;
         if (message == null) {
             return;
         }
@@ -5675,6 +5819,63 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                     setThumb(0, message);
                 }
             }
+        }
+        if (thumbsCount == 0) {
+            pengramSetSenderAvatarThumb();
+        }
+    }
+
+    /** Pengram: мини-аватарка отправителя перед текстом сообщения в списке чатов */
+    private void pengramSetSenderAvatarThumb() {
+        try {
+            if (!org.telegram.messenger.PengramConfig.isDialogSenderAvatars()) {
+                return;
+            }
+            if (message == null || message.messageOwner == null || currentDialogFolderId != 0) {
+                return;
+            }
+            if (encryptedChat != null || isDialogFolder() || isForumCell() || useFromUserAsAvatar || isSavedDialog) {
+                return;
+            }
+            // только групповые чаты: в личке и канале аватарка отправителя дублирует основную
+            final TLRPC.Chat dialogChat = chat;
+            if (dialogChat == null || ChatObject.isChannelAndNotMegaGroup(dialogChat)) {
+                return;
+            }
+            final long fromId = message.getFromChatId();
+            if (fromId == 0 || fromId == -dialogChat.id) {
+                return;
+            }
+            final AvatarDrawable avatarDrawable = new AvatarDrawable();
+            avatarDrawable.setRoundRadius(dp(thumbSize));
+            ImageLocation location = null;
+            Object parent = null;
+            if (fromId > 0) {
+                final TLRPC.User fromUser = MessagesController.getInstance(currentAccount).getUser(fromId);
+                if (fromUser == null) {
+                    return;
+                }
+                avatarDrawable.setInfo(currentAccount, fromUser);
+                location = ImageLocation.getForUser(fromUser, ImageLocation.TYPE_SMALL);
+                parent = fromUser;
+            } else {
+                final TLRPC.Chat fromChat = MessagesController.getInstance(currentAccount).getChat(-fromId);
+                if (fromChat == null) {
+                    return;
+                }
+                avatarDrawable.setInfo(currentAccount, fromChat);
+                location = ImageLocation.getForChat(fromChat, ImageLocation.TYPE_SMALL);
+                parent = fromChat;
+            }
+            thumbsCount = 1;
+            pengramSenderAvatarThumb = true;
+            hasVideoThumb = false;
+            drawPlay[0] = false;
+            drawSpoiler[0] = false;
+            thumbImage[0].setImage(location, "20_20", avatarDrawable, null, parent, 0);
+            thumbImage[0].setRoundRadius(dp(thumbSize / 2f + 1));
+        } catch (Throwable e) {
+            FileLog.e(e);
         }
     }
 

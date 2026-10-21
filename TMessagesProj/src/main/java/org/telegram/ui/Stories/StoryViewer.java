@@ -61,6 +61,7 @@ import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.FileStreamLoadOperation;
 import org.telegram.messenger.ImageReceiver;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
@@ -372,7 +373,38 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
     public void open(Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
         open(UserConfig.selectedAccount, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed);
     }
+    /* Pengram: «Предлагать призрака для сторис» */
+    private boolean pengramSkipStoriesWarn;
+
+    private boolean pengramWarnAboutStories(Context context, Runnable openRunnable) {
+        if (pengramSkipStoriesWarn) {
+            pengramSkipStoriesWarn = false;
+            return false;
+        }
+        if (!org.telegram.messenger.PengramConfig.isGhostStoriesWarn() || org.telegram.messenger.PengramConfig.ghostMode || isShowing || !isContextSafe(context)) {
+            return false;
+        }
+        final Runnable proceed = () -> {
+            pengramSkipStoriesWarn = true;
+            AndroidUtilities.runOnUIThread(openRunnable);
+        };
+        org.telegram.ui.ActionBar.AlertDialog.Builder builder = new org.telegram.ui.ActionBar.AlertDialog.Builder(context);
+        builder.setTitle(LocaleController.getString(R.string.PengramGhostStoriesWarn));
+        builder.setMessage(LocaleController.getString(R.string.PengramGhostStoriesAlert));
+        builder.setPositiveButton(LocaleController.getString(R.string.PengramGhostStoriesEnable), (dialog, which) -> {
+            org.telegram.messenger.PengramConfig.setGhostMode(true);
+            proceed.run();
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.PengramGhostStoriesOpen), (dialog, which) -> proceed.run());
+        builder.setNeutralButton(LocaleController.getString(R.string.Cancel), null);
+        builder.show();
+        return true;
+    }
+
     public void open(int account, Context context, TL_stories.StoryItem storyItem, ArrayList<Long> peerIds, int position, StoriesController.StoriesList storiesList, TL_stories.PeerStories userStories, PlaceProvider placeProvider, boolean reversed) {
+        if (pengramWarnAboutStories(context, () -> open(account, context, storyItem, peerIds, position, storiesList, userStories, placeProvider, reversed))) {
+            return;
+        }
         if (!isContextSafe(context)) {
             doOnAnimationReadyRunnables.clear();
             return;
@@ -479,7 +511,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                                 swipeToReplyWaitingKeyboard = true;
                                 showKeyboard();
                                 try {
-                                    windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                                 } catch (Exception ignored) {}
                             }
                             swipeToReplyProgress = Utilities.clamp(swipeToReplyOffset / maxOffset, 1f, 0);
@@ -534,7 +566,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                         if (velocityY < -1000 && !swipeToReplyWaitingKeyboard) {
                             swipeToReplyWaitingKeyboard = true;
                             try {
-                                windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) windowView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             } catch (Exception ignored) {}
                             showKeyboard();
                         }
@@ -1012,7 +1044,7 @@ public class StoryViewer implements NotificationCenter.NotificationCenterDelegat
                                     final float nowSeek = currentPlayerScope.player.seek((x - lastTouchX) / dp(220), videoDuration);
                                     if ((int) (nowSeek * 10) != (int) (wasSeek * 10)) {
                                         try {
-                                            peerView.performHapticFeedback(9, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) peerView.performHapticFeedback(9, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                                         } catch (Exception ignore) {}
                                     }
                                     peerView.storyContainer.invalidate();

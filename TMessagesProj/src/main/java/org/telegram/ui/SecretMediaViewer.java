@@ -340,6 +340,7 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
     private ImageReceiver centerImage = new ImageReceiver();
     private SecretDeleteTimer secretDeleteTimer;
     private HintView2 secretHint;
+    private TextView burnButton;
     private boolean isVisible;
     private long currentDialogId;
     private AspectRatioFrameLayout aspectRatioFrameLayout;
@@ -854,6 +855,9 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
                 super.setAlpha(alpha);
                 secretHint.setAlpha(alpha);
                 secretDeleteTimer.setAlpha(alpha);
+                if (burnButton != null) {
+                    burnButton.setAlpha(alpha);
+                }
             }
         };
         actionBar.setTitleColor(0xffffffff);
@@ -954,6 +958,28 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         playButton.setPivotX(dp(32));
         playButton.setPivotY(dp(32));
         containerView.addView(playButton, LayoutHelper.createFrame(64, 64, Gravity.CENTER));
+
+        // Pengram: кнопка «Сжечь» — одноразовое медиа исчезает у отправителя только по явному нажатию
+        burnButton = new TextView(activity);
+        burnButton.setText(LocaleController.getString(R.string.PengramBurnAction));
+        burnButton.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 14);
+        burnButton.setTypeface(AndroidUtilities.bold());
+        burnButton.setTextColor(Color.WHITE);
+        burnButton.setGravity(Gravity.CENTER);
+        burnButton.setPadding(dp(14), 0, dp(18), 0);
+        burnButton.setCompoundDrawablePadding(dp(6));
+        try {
+            final android.graphics.drawable.Drawable fireDrawable = activity.getResources().getDrawable(R.drawable.pengram_mark_fire).mutate();
+            fireDrawable.setColorFilter(new PorterDuffColorFilter(0xFFFF6E63, PorterDuff.Mode.SRC_IN));
+            fireDrawable.setBounds(0, 0, dp(18), dp(18));
+            burnButton.setCompoundDrawables(fireDrawable, null, null, null);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+        burnButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(18), 0x7f000000, 0x33ffffff));
+        burnButton.setVisibility(View.GONE);
+        burnButton.setOnClickListener(v -> onBurnClicked());
+        containerView.addView(burnButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 36, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, 0, 0, 28));
 
         windowLayoutParams = new WindowManager.LayoutParams();
         windowLayoutParams.height = WindowManager.LayoutParams.MATCH_PARENT;
@@ -1370,6 +1396,57 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
     private Runnable onClose;
     private boolean ignoreDelete;
 
+    /* Pengram: «Сжечь» — одноразовое медиа удаляется у отправителя только по кнопке */
+    private Runnable burnAction;
+
+    public void setBurnAction(Runnable burnAction) {
+        this.burnAction = burnAction;
+    }
+
+    private void updateBurnButton() {
+        if (burnButton == null) {
+            return;
+        }
+        final boolean visible = burnAction != null;
+        burnButton.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible) {
+            burnButton.bringToFront();
+            final FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) burnButton.getLayoutParams();
+            if (lp != null) {
+                lp.bottomMargin = dp(isVideo ? 70 : 28);
+                burnButton.setLayoutParams(lp);
+            }
+        }
+    }
+
+    private void onBurnClicked() {
+        final Runnable action = burnAction;
+        if (action == null || parentActivity == null) {
+            return;
+        }
+        try {
+            final org.telegram.ui.ActionBar.AlertDialog dialog = new org.telegram.ui.ActionBar.AlertDialog.Builder(parentActivity)
+                    .setTitle(LocaleController.getString(R.string.PengramBurnTitle))
+                    .setMessage(LocaleController.getString(isVideo ? R.string.PengramBurnVideoMessage : R.string.PengramBurnPhotoMessage))
+                    .setPositiveButton(LocaleController.getString(R.string.PengramBurnAction), (d, which) -> {
+                        burnAction = null;
+                        updateBurnButton();
+                        closePhoto(true, false);
+                        AndroidUtilities.runOnUIThread(action, 150);
+                    })
+                    .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
+                    .create();
+            dialog.show();
+            dialog.setCanceledOnTouchOutside(true);
+            final android.view.View positive = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
+            if (positive instanceof TextView) {
+                ((TextView) positive).setTextColor(Theme.getColor(Theme.key_text_RedBold));
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
     public void openMedia(MessageObject messageObject, PhotoViewer.PhotoViewerProvider provider, Runnable onOpen, Runnable onClose) {
         if (parentActivity == null || messageObject == null || !messageObject.needDrawBluredPreview() || provider == null) {
             return;
@@ -1541,6 +1618,7 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         showPlayButton(false, false);
         playButtonDrawable.setPause(true);
 
+        updateBurnButton();
         if (ignoreDelete) {
             secretDeleteTimer.setOnce();
             secretDeleteTimer.setOnClickListener(v -> {
@@ -1980,6 +2058,12 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
 
         if (ignoreDelete && byDelete) {
             return false;
+        }
+
+        // Pengram: действие «Сжечь» живёт только пока открыто конкретное медиа
+        burnAction = null;
+        if (burnButton != null) {
+            burnButton.setVisibility(View.GONE);
         }
 
         if (parentActivity != null) {

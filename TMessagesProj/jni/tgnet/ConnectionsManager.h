@@ -43,6 +43,10 @@ public:
     ~ConnectionsManager();
 
     static ConnectionsManager &getInstance(int32_t instanceNum);
+    /** Pengram: экземпляр уже создан (без побочного создания нового) */
+    static bool hasInstance(int32_t instanceNum);
+    /** Pengram: вызывается при создании экземпляра — туда вешается Java-делегат */
+    static void setInstanceCreatedCallback(void (*callback)(int32_t));
     int64_t getCurrentTimeMillis();
     int64_t getCurrentTimeMonotonicMillis();
     int32_t getCurrentTime();
@@ -58,6 +62,13 @@ public:
     void cancelRequestsForGuid(int32_t guid);
     void bindRequestToGuid(int32_t requestToken, int32_t guid);
     void applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port);
+    /** Pengram: принять готовый ключ авторизации из файла сессии */
+    void importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId);
+    /** Pengram: сделать DC домашним, не трогая авторизацию (вход по токену) */
+    void pengramSelectHomeDatacenter(uint32_t datacenterId);
+    /** Pengram: отдать копию постоянного ключа (экспорт сессии).
+     *  Вызывать только не с UI-потока: ждём сетевой поток. */
+    bool pengramCopyAuthKey(std::string *key, uint32_t *datacenterId);
     void setDelegate(ConnectiosManagerDelegate *connectiosManagerDelegate);
     ConnectionState getConnectionState();
     void setUserId(int64_t userId);
@@ -70,6 +81,8 @@ public:
     void init(uint32_t version, int32_t layer, int32_t apiId, std::string deviceModel, std::string systemVersion, std::string appVersion, std::string langCode, std::string systemLangCode, std::string configPath, std::string logPath, std::string regId, std::string cFingerprint, std::string installerId, std::string packageId, int32_t timezoneOffset, int64_t userId, bool userPremium, bool isPaused, bool enablePushConnection, bool hasNetwork, int32_t networkType, int32_t performanceClass);
     void setProxySettings(std::string address, uint16_t port, std::string username, std::string password, std::string secret);
     void setLangCode(std::string langCode);
+    /** Pengram: платформа (lang_pack) и признак «заявлен не-Android» */
+    void pengramSetPlatform(std::string langPack, bool desktopSpoof);
     void setRegId(std::string regId);
     void setSystemLangCode(std::string langCode);
     void updateDcSettings(uint32_t datacenterId, bool workaround, bool ifLoadingTryAgain);
@@ -104,7 +117,7 @@ private:
     void requestSaltsForDatacenter(Datacenter *datacenter, bool media, bool useTempConnection);
     void clearRequestsForDatacenter(Datacenter *datacenter, HandshakeType type);
     void registerForInternalPushUpdates();
-    void processRequestQueue(uint32_t connectionType, uint32_t datacenterId);
+    void processRequestQueue(uint32_t connectionType, uint32_t datacenterId, Connection *connectedDownload = nullptr);
     void authorizeOnMovingDatacenter();
     void authorizedOnMovingDatacenter();
     Datacenter *getDatacenterWithId(uint32_t datacenterId);
@@ -230,6 +243,10 @@ private:
     std::string currentSystemVersion;
     std::string currentAppVersion;
     std::string currentLangCode;
+    /** Pengram: android | ios | macos | windows | linux | web — уходит в initConnection */
+    std::string currentLangPack = "android";
+    /** Pengram: заявлен iPhone/Mac/Windows — android-параметры не отправляем */
+    bool pengramDesktopSpoof = false;
     std::string currentRegId;
     std::string certFingerprint;
     std::string installer;

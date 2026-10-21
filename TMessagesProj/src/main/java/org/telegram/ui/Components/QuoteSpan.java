@@ -368,6 +368,10 @@ public class QuoteSpan implements LeadingMarginSpan {
 
         public void draw(Canvas canvas, float offsetY, int maxWidth, int color, float alpha, TextPaint paint) {
             span.setColor(color);
+            // setColor() resets both paints to full opacity, so apply the cell's
+            // fade here on every frame instead of accumulating it.
+            span.linePaint.setAlpha((int) (Color.alpha(span.linePaint.getColor()) * alpha));
+            span.backgroundPaint.setAlpha((int) (Color.alpha(span.backgroundPaint.getColor()) * alpha));
 
             int width = span.edit ? maxWidth : (this.width + dp(32));
             if (width >= maxWidth * 0.95) {
@@ -379,7 +383,7 @@ public class QuoteSpan implements LeadingMarginSpan {
 
             AndroidUtilities.rectTmp.set(0, top, width, bottom);
             span.backgroundPathRadii[0] = span.backgroundPathRadii[1] = span.backgroundPathRadii[6] = span.backgroundPathRadii[7] = 0; // left
-            span.backgroundPathRadii[2] = span.backgroundPathRadii[3] = span.backgroundPathRadii[4] = span.backgroundPathRadii[5] = dp(4); // right
+            span.backgroundPathRadii[2] = span.backgroundPathRadii[3] = span.backgroundPathRadii[4] = span.backgroundPathRadii[5] = dp(6); // right
             span.backgroundPath.rewind();
             span.backgroundPath.addRoundRect(AndroidUtilities.rectTmp, span.backgroundPathRadii, Path.Direction.CW);
             canvas.drawPath(span.backgroundPath, span.backgroundPaint);

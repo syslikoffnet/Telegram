@@ -3115,7 +3115,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                             } else {
                                 delegate.needShowMediaBanHint();
                             }
-                            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                             sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED);
                         } else if (!hasRecordVideo || calledRecordRunnable) {
                             startedDraggingX = -1;
@@ -4155,7 +4155,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
             if (delegate.getSendAsPeers() != null) {
                 try {
-                    v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {
                 }
                 if (senderSelectPopupWindow != null) {
@@ -4348,7 +4348,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                                                 if (!performedHapticFeedback && value >= endY) {
                                                     performedHapticFeedback = true;
                                                     try {
-                                                        avatar.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) avatar.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                                                     } catch (Exception ignored) {
                                                     }
                                                 }
@@ -4465,7 +4465,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             boolean open = !botCommandsMenuButton.isOpened();
             botCommandsMenuButton.setOpened(open);
             try {
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
             if (hasBotWebView()) {
                 if (open) {
@@ -4661,7 +4661,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void startLockTransition() {
         AnimatorSet animatorSet = new AnimatorSet();
         try {
-            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
 
         ObjectAnimator translate = ObjectAnimator.ofFloat(this, "lockAnimatedTranslation", startTranslation);
@@ -4908,7 +4908,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             sendPopupWindow.dimBehind();
             sendButton.invalidate();
             try {
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
             } catch (Exception ignore) {}
 
             return true;
@@ -5066,6 +5066,19 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         ItemOptions options = ItemOptions.makeOptions(this, resourcesProvider, sendButton);
 
+        // Work on the unsent text in place. This is a preview action, not a send action.
+        if (parentFragment != null && audioToSend == null && richDraftMessage == null
+                && messageEditText != null && !TextUtils.isEmpty(messageEditText.getTextToUse().toString().trim())) {
+            options.add(R.drawable.msg_bot, getString(R.string.PengramAIDraftAction), () -> {
+                final String draft = messageEditText.getText().toString();
+                if (messageSendPreview != null) {
+                    messageSendPreview.dismissInstant();
+                    messageSendPreview = null;
+                }
+                AndroidUtilities.runOnUIThread(() -> parentFragment.askPengramAIForDraft(draft), 60);
+            });
+        }
+
         final boolean self = parentFragment != null && UserObject.isUserSelf(parentFragment.getCurrentUser());
         boolean scheduleButtonValue = parentFragment != null && parentFragment.canScheduleMessage();
         boolean sendWithoutSoundButtonValue = !(self || slowModeTimer > 0 && !isInScheduleMode());
@@ -5153,7 +5166,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         messageSendPreview.show();
 
         try {
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignore) {}
 
         return false;
@@ -5311,13 +5324,70 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private ArrayList<TextWatcher> messageEditTextWatchers;
     private boolean messageEditTextEnabled = true;
+    private long pengramLastTypingHaptic;
+    private TextView pengramWpmBadge;
+    private final Runnable pengramWpmIdle = () -> {
+        org.telegram.messenger.PengramTypingStats.finishSession();
+        if (pengramWpmBadge != null) pengramWpmBadge.setVisibility(GONE);
+    };
+
+    private void pengramUpdateWpm(int before, int count) {
+        if (pengramWpmBadge == null) return;
+        final boolean active = org.telegram.messenger.PengramTypingStats.enabled();
+        final int speed = org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count,
+                active && !ignoreTextChange && innerTextChange == 0 && !isPaste
+                        && messageEditText != null && messageEditText.isFocused());
+        removeCallbacks(pengramWpmIdle);
+        if (active) postDelayed(pengramWpmIdle, 3000);
+        final boolean show = active && org.telegram.messenger.PengramConfig.getBool(
+                org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true) && speed > 0;
+        pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
+        if (show) pengramWpmBadge.setText(speed + " WPM");
+    }
+
+    /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
+    private void pengramAnimateTyping(int start, int before, int count) {
+        if (messageEditText == null) return;
+        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
+        final long now = SystemClock.uptimeMillis();
+        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && count <= 2 && now - pengramLastTypingHaptic >= 90) {
+            pengramLastTypingHaptic = now;
+            messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+        }
+    }
 
     private class ChatActivityEditTextCaption extends EditTextCaption {
         public ChatActivityEditTextCaption(Context context, Theme.ResourcesProvider resourcesProvider) {
             super(context, resourcesProvider);
+            // Pengram: координаты стираемых символов известны только ДО удаления —
+            // запоминаем их тут, чтобы частицы разлетались ровно из снятого текста
+            addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                    if (count > 0) {
+                        PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
+                    }
+                }
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                }
+            });
         }
 
         CanvasButton canvasButton;
+
+        @Override
+        protected void onDraw(android.graphics.Canvas canvas) {
+            super.onDraw(canvas);
+            // Pengram: анимация только что набранных букв рисуется поверх текста,
+            // чтобы не трогать разметку строки (иначе текст мигает и прыгает)
+            PengramTypingEffects.drawOverlay(this, canvas);
+        }
 
         @Override
         protected void onScrollChanged(int horiz, int vert, int oldHoriz, int oldVert) {
@@ -5831,6 +5901,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         richDraftPreview.setPadding(dp(8), dp(9), dp(8), dp(10));
         richDraftPreview.setOnClickListener(v -> openRichEditor());
         messageEditTextContainer.addView(richDraftPreview, 2, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 52 - 8, 0, (isChat ? 50 : 2) - 8, 1.5f));
+        // Небольшой индикатор живёт в зарезервированной правой части композера,
+        // а не поверх набираемых строк. По умолчанию полностью скрыт.
+        pengramWpmBadge = new TextView(getContext());
+        pengramWpmBadge.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        pengramWpmBadge.setTextColor(getThemedColor(Theme.key_chat_messagePanelHint));
+        pengramWpmBadge.setGravity(Gravity.CENTER);
+        pengramWpmBadge.setVisibility(GONE);
+        messageEditTextContainer.addView(pengramWpmBadge,
+                LayoutHelper.createFrame(50, 20, Gravity.RIGHT | Gravity.TOP, 0, 0, 0, 0));
         messageEditText.setOnKeyListener(new OnKeyListener() {
 
             @Override
@@ -5918,6 +5997,15 @@ public class ChatActivityEnterView extends FrameLayout implements
             public void onTextChanged(CharSequence charSequence, int start, int before, int count) {
                 if (ignorePrevTextChange) {
                     return;
+                }
+                if (!ignoreTextChange && innerTextChange == 0 && !isPaste) {
+                    pengramAnimateTyping(start, before, count);
+                }
+                pengramUpdateWpm(before, count);
+                // Pengram: пока «@all» набран, но не отправлен, тянем список
+                // участников — к отправке он уже в кэше, и сообщение уходит сразу
+                if (parentFragment != null && innerTextChange == 0) {
+                    parentFragment.pengramMentionAllTyped(charSequence);
                 }
 
                 boolean allowChangeToSmile = true;
@@ -6324,6 +6412,14 @@ public class ChatActivityEnterView extends FrameLayout implements
         emojiView.switchToGifRecent();
     }
 
+    /** Show the persistent target indicator without unexpectedly opening the keyboard. */
+    public void showTargetTopView() {
+        if (topView == null || topViewShowed || getVisibility() != VISIBLE) return;
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) animatorTopViewVisibility.setValue(true, false);
+    }
+
     public void showTopView(boolean animated, final boolean openKeyboard) {
         showTopView(animated, openKeyboard, false);
     }
@@ -6493,6 +6589,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void onDestroy() {
+        removeCallbacks(pengramWpmIdle);
+        org.telegram.messenger.PengramTypingStats.finishSession();
         if (audioTimelineView != null) {
             audioTimelineView.destroy();
         }
@@ -7620,7 +7718,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (captionLimitView != null) {
                 AndroidUtilities.shakeViewSpring(captionLimitView, 3.5f);
                 try {
-                    captionLimitView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) captionLimitView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {
                 }
             }
@@ -7656,7 +7754,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (captionLimitView != null) {
                 AndroidUtilities.shakeViewSpring(captionLimitView, 3.5f);
                 try {
-                    captionLimitView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                    if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) captionLimitView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
                 } catch (Exception ignored) {}
             }
 
@@ -7777,8 +7875,17 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (!hasOnlyEmoji) {
             text = AndroidUtilities.getTrimmedString(text);
         }
+        if (parentFragment != null && editingMessageObject == null && text.length() > 0) {
+            if (!parentFragment.pengramTargetCanSendText(replyingMessageObject)) return false;
+            // Pengram: «@all» проверяем до отправки, иначе в чат уйдёт буквальный
+            // «@all» вместо упоминаний (список участников мог ещё не приехать)
+            if (!parentFragment.pengramMentionAllCanSend(text)) return false;
+        }
         boolean supportsNewEntities = supportsSendingNewEntities();
         int maxLength = accountInstance.getMessagesController().getMaxMessageLength();
+        if (parentFragment != null && editingMessageObject == null) {
+            maxLength = Math.max(128, maxLength - parentFragment.pengramTargetMentionLength(replyingMessageObject));
+        }
         if (text.length() != 0) {
             if (delegate != null && parentFragment != null && (scheduleDate != 0) == parentFragment.isInScheduleMode()) {
                 delegate.prepareMessageSending();
@@ -7825,6 +7932,10 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!hasOnlyEmoji) {
                     part = AndroidUtilities.getTrimmedString(part);
                 }
+                if (parentFragment != null && editingMessageObject == null) {
+                    part = parentFragment.pengramTargetTextForSend(part, replyingMessageObject);
+                    part = parentFragment.pengramMentionAllTextForSend(part);
+                }
                 CharSequence[] message = new CharSequence[]{ part };
                 ArrayList<TLRPC.MessageEntity> entities = MediaDataController.getInstance(currentAccount).getEntities(message, supportsNewEntities);
                 MessageObject.SendAnimationData sendAnimationData = null;
@@ -7853,7 +7964,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (replyToTopMsg == null && replyingTopMessage != null) {
                     replyToTopMsg = replyingTopMessage;
                 }
-                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, replyingMessageObject, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
+                MessageObject targetReply = parentFragment != null && editingMessageObject == null
+                        ? parentFragment.pengramTargetReplyForText(replyingMessageObject) : replyingMessageObject;
+                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message[0].toString(), dialog_id, targetReply, replyToTopMsg, messageWebPage, messageWebPageSearch, entities, null, null, notify, scheduleDate, scheduleRepeatPeriod, sendAnimationData, updateStickersOrder);
                 params.sendMessageChatArguments = parentFragment != null ? parentFragment.getMessageChatSendParams() : null;
                 params.effect_id = effectId;
                 params.payStars = payStars;
@@ -10040,7 +10153,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 fontMetricsInt = paint.getFontMetricsInt();
 
                 ArrayList<TLRPC.MessageEntity> entities = editingMessageObject.messageOwner.entities;
-                textToSetWithKeyboard = applyMessageEntities(entities, editingText, fontMetricsInt);
+                textToSetWithKeyboard = PengramTextFormatting.keepStyleOnType(applyMessageEntities(entities, editingText, fontMetricsInt));
             } else {
                 textToSetWithKeyboard = "";
             }
@@ -15050,7 +15163,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (openProgress > 0 && w > 0 && h > 0) {
                     AndroidUtilities.rectTmp.set(right - w, cy - h / 2f, right, cy + h / 2f);
                     AndroidUtilities.rectTmp.inset(-dp(4), -dp(4));
-                    final float r = Math.min(w, h) / 2f + dp(4);
+                    final float r = pengramShapeRadius(w, h) + dp(4);
                     canvas.drawRoundRect(AndroidUtilities.rectTmp, r, r, scrimViewBackgroundPaint);
                 }
 
@@ -15172,7 +15285,9 @@ public class ChatActivityEnterView extends FrameLayout implements
             updateColors();
             checkBackgroundRect();
             if (isNewDesignSendButton) {
-                canvas.drawRoundRect(backgroundRect, dp(RADIUS), dp(RADIUS), backgroundPaint);
+                final float bgRadius = Math.min(pengramShapeRadius(backgroundRect.width(), backgroundRect.height()),
+                        backgroundRect.height() / 2f);
+                canvas.drawRoundRect(backgroundRect, bgRadius, bgRadius, backgroundPaint);
             }
 
             final boolean inactive = isInactive();
@@ -15238,7 +15353,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             if (openProgress > 0) {
                 canvas.save();
                 path.rewind();
-                final float r = Math.min(w, h) / 2.0f;
+                final float r = Math.min(pengramShapeRadius(w, h), Math.min(w, h) / 2.0f);
                 AndroidUtilities.rectTmp.set(right - w, cy - h / 2.0f, right, cy + h / 2.0f);
                 path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
 
@@ -15518,6 +15633,21 @@ public class ChatActivityEnterView extends FrameLayout implements
                     getMeasuredWidth() - margin,
                     getMeasuredHeight() - margin
             );
+        }
+
+        /**
+         * Pengram: в Material 3 кнопка отправки — «сквиркл», как кнопка
+         * «написать» в списке чатов. Вытянутая «таблетка» с ценой звёзд
+         * остаётся стадионом: там крупное скругление выглядит обрезанным.
+         */
+        private float pengramShapeRadius(float w, float h) {
+            if (!org.telegram.messenger.PengramMD3.fab()) {
+                return Math.min(w, h) / 2f;
+            }
+            if (w > h * 1.15f) {
+                return h / 2f;
+            }
+            return dp(12);
         }
     }
 

@@ -334,6 +334,40 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
+    /**
+     * Pengram: на этом экране разрешено центрировать заголовок.
+     * По умолчанию разрешено везде — настройка «Заголовок по центру» центрирует
+     * заголовки всех экранов; экран может отказаться через setPengramCenterTitle(false).
+     */
+    private boolean pengramCenterAllowed = true;
+
+    public void setPengramCenterTitle(boolean value) {
+        pengramCenterAllowed = value;
+        requestLayout();
+    }
+
+    /** Pengram: нужно ли сейчас центрировать заголовок */
+    private boolean pengramCentered() {
+        return pengramCenterAllowed
+                && org.telegram.messenger.PengramConfig.isTitleCentered()
+                && (menu == null || !menu.searchFieldVisible())
+                && !isActionModeShowed();
+    }
+
+    /** Pengram: левый край центрированного текста (с оглядкой на кнопки) */
+    private int pengramCenterLeft(int defaultLeft, int measuredWidth) {
+        if (measuredWidth <= 0) {
+            return defaultLeft;
+        }
+        final int menuWidth = menu != null && menu.getVisibility() != GONE ? menu.getMeasuredWidth() : 0;
+        final int maxLeft = getMeasuredWidth() - menuWidth - measuredWidth;
+        final int centered = (getMeasuredWidth() - measuredWidth) / 2;
+        if (maxLeft <= defaultLeft) {
+            return defaultLeft;
+        }
+        return Math.max(defaultLeft, Math.min(centered, maxLeft));
+    }
+
     public void setSupportsHolidayImage(boolean value) {
         supportsHolidayImage = value;
         if (supportsHolidayImage) {
@@ -362,7 +396,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
+        if (supportsHolidayImage && !org.telegram.messenger.PengramConfig.isForcedSnow()
+                && !titleOverlayShown && !LocaleController.isRTL && ev.getAction() == MotionEvent.ACTION_DOWN) {
             Drawable drawable = Theme.getCurrentHolidayDrawable();
             if (drawable != null && drawable.getBounds().contains((int) ev.getX(), (int) ev.getY())) {
                 manualStart = true;
@@ -401,7 +436,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0), getMeasuredWidth(), getMeasuredHeight());
         }
         boolean result = super.drawChild(canvas, child, drawingTime);
-        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL && (child == titleTextView[0] || child == titleTextView[1] || child == titlesContainer && useContainerForTitles)) {
+        // The holiday icon belongs to the expanded title. Particles are drawn from
+        // dispatchDraw instead: the title container is INVISIBLE in the collapsed
+        // stories header, while the ActionBar itself remains on screen.
+        if (supportsHolidayImage && !titleOverlayShown && !LocaleController.isRTL
+                && (child == titleTextView[0] || child == titleTextView[1]
+                    || child == titlesContainer && useContainerForTitles)) {
             Drawable drawable = Theme.getCurrentHolidayDrawable();
             if (drawable != null) {
                 SimpleTextView titleView = child == titlesContainer ? titleTextView[0] : (SimpleTextView) child;
@@ -418,21 +458,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         child.invalidate();
                         invalidate();
                     }
-                }
-
-                if (Theme.canStartHolidayAnimation()) {
-                    if (snowflakesEffect == null) {
-                        snowflakesEffect = new SnowflakesEffect(0);
-                    }
-                } else if (!manualStart) {
-                    if (snowflakesEffect != null) {
-                        snowflakesEffect = null;
-                    }
-                }
-                if (snowflakesEffect != null) {
-                    snowflakesEffect.onDraw(this, canvas);
-                } else if (fireworksEffect != null) {
-                    fireworksEffect.onDraw(this, canvas);
                 }
             }
         }
@@ -1543,7 +1568,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         textTop = (getCurrentActionBarHeight() - titleTextView[i].getTextHeight()) / 2;
                     }
                 }
-                titleTextView[i].layout(textLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), textLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
+                int titleLeft = textLeft;
+                if (pengramCentered()) {
+                    titleLeft = pengramCenterLeft(textLeft, titleTextView[i].getMeasuredWidth());
+                }
+                titleTextView[i].layout(titleLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), titleLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
         }
         if (additionalSubTitleOverlayContainer != null) {
@@ -1552,7 +1581,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
             int textTop = getCurrentActionBarHeight() / 2 + (getCurrentActionBarHeight() / 2 - subtitleTextView.getTextHeight()) / 2 - dp(2);
-            subtitleTextView.layout(textLeft, additionalTop + textTop, textLeft + subtitleTextView.getMeasuredWidth(), additionalTop + textTop + subtitleTextView.getTextHeight());
+            int subtitleLeft = pengramCentered() ? pengramCenterLeft(textLeft, subtitleTextView.getMeasuredWidth()) : textLeft;
+            subtitleTextView.layout(subtitleLeft, additionalTop + textTop, subtitleLeft + subtitleTextView.getMeasuredWidth(), additionalTop + textTop + subtitleTextView.getTextHeight());
         }
 
         if (additionalSubtitleTextView != null && additionalSubtitleTextView.getVisibility() != GONE) {
@@ -2217,6 +2247,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     public boolean doNotDrawGlassMenu;
+    private boolean drawGlassTitle = true;
+
+    public void setDrawGlassTitle(boolean draw) {
+        if (drawGlassTitle != draw) {
+            drawGlassTitle = draw;
+            invalidate();
+        }
+    }
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
@@ -2232,7 +2270,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         final int t = getHeight() - (getCurrentActionBarHeight() + s) / 2 - p;
         final int b = t + s + p * 2;
 
-        if (glassDrawable != null && !glassOnlyBack) {
+        if (glassDrawable != null && !glassOnlyBack && drawGlassTitle) {
             final int menuWidthWithPadding = menuWidth + ((hasForcedMenuWidth || hasForcedMenuMinWidth) ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
             final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
 
@@ -2284,7 +2322,40 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
 
+        // Keep the effect alive when DialogsActivity hides its title view and draws
+        // the collapsed stories title in a separate view above this ActionBar.
+        drawHolidayParticles(canvas);
         super.dispatchDraw(canvas);
+    }
+
+    private void drawHolidayParticles(Canvas canvas) {
+        if (!supportsHolidayImage || getMeasuredWidth() == 0 || getMeasuredHeight() == 0
+                || isSearchFieldVisible() || actionModeVisible
+                || parentFragment != null && parentFragment.getParentLayout() != null
+                        && parentFragment.getParentLayout().isActionBarInCrossfade()) return;
+        final boolean forced = org.telegram.messenger.PengramConfig.isForcedSnow();
+        final boolean holiday = !titleOverlayShown && !LocaleController.isRTL
+                && Theme.getCurrentHolidayDrawable() != null;
+        if (forced) {
+            fireworksEffect = null;
+            if (snowflakesEffect == null) snowflakesEffect = new SnowflakesEffect(0);
+        } else if (holiday && Theme.canStartHolidayAnimation()) {
+            // A manual tap switches to fireworks; don't immediately replace them with snow.
+            if (snowflakesEffect == null && fireworksEffect == null) snowflakesEffect = new SnowflakesEffect(0);
+        } else if (!manualStart || !holiday) {
+            snowflakesEffect = null;
+            if (!holiday) fireworksEffect = null;
+        }
+        if ((!forced && !holiday) || (snowflakesEffect == null && fireworksEffect == null)) return;
+        canvas.save();
+        canvas.clipRect(0, -getTranslationY() + (occupyStatusBar ? AndroidUtilities.statusBarHeight : 0),
+                getMeasuredWidth(), getMeasuredHeight());
+        if (snowflakesEffect != null) {
+            snowflakesEffect.onDraw(this, canvas);
+        } else {
+            fireworksEffect.onDraw(this, canvas);
+        }
+        canvas.restore();
     }
 
     public void setForceSkipTouches(boolean forceSkipTouches) {

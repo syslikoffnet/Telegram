@@ -651,7 +651,7 @@ public class CaptionStory extends CaptionContainerView {
                     locked = true;
 
                     try {
-                        performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
+                        if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                     } catch (Exception ignore) {}
                 }
                 invalidate();
