@@ -1481,6 +1481,26 @@ public class PengramConfig {
         setBool(KEY_TAB_GLASS, value);
     }
 
+    public static final String KEY_INPUT_GLASS = "inputBarLiquidGlass";
+    public static final String KEY_HEADER_GLASS = "chatListHeaderGlass";
+    public static final String KEY_CHAT_HEADER_GLASS = "chatHeaderLiquidGlass";
+
+    public static boolean isInputGlass() { return getBool(KEY_INPUT_GLASS, false); }
+    public static void setInputGlass(boolean value) {
+        setBool(KEY_INPUT_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+    public static boolean isChatListHeaderGlass() { return getBool(KEY_HEADER_GLASS, false); }
+    public static void setChatListHeaderGlass(boolean value) {
+        setBool(KEY_HEADER_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+    public static boolean isChatHeaderGlass() { return getBool(KEY_CHAT_HEADER_GLASS, true); }
+    public static void setChatHeaderGlass(boolean value) {
+        setBool(KEY_CHAT_HEADER_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+
     // ---- тонкая настройка «жидкого стекла» ----------------------------------
     // Стекло — это не один тумблер: кому-то нужна почти прозрачная плёнка,
     // кому-то плотная плитка с толстой линзой. Значения читаются в отрисовке

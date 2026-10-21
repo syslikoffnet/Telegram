@@ -3,6 +3,7 @@ package org.telegram.ui.Components.chat;
 import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
+import org.telegram.ui.ActionBar.Theme;
 import android.graphics.Canvas;
 import android.graphics.Path;
 import android.graphics.Rect;
@@ -72,6 +73,13 @@ public class ChatInputViewsContainer extends FrameLayout {
     }
 
 
+
+    private final org.telegram.ui.Components.PengramGlassSheen pengramSheen = new org.telegram.ui.Components.PengramGlassSheen();
+
+    public void setPengramGlass(boolean enabled, Theme.ResourcesProvider resources) {
+        pengramSheen.configure(enabled, resources);
+        invalidate();
+    }
 
     public boolean drawInputBackground = true;
     public BlurredBackgroundDrawable blurredBackgroundDrawable;
@@ -269,8 +277,10 @@ public class ChatInputViewsContainer extends FrameLayout {
         tmpRect.offset(0, blurTop + (int) bubbleInputTranlationY);
 
         blurredBackgroundDrawable.setBounds(tmpRect);
-        if (drawInputBackground)
+        if (drawInputBackground) {
             blurredBackgroundDrawable.draw(canvas);
+            pengramSheen.draw(canvas, this, tmpRect);
+        }
 
         if (needDrawInAppKeyboard) {
             underKeyboardBackgroundDrawable.draw(canvas);

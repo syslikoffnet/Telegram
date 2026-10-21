@@ -17058,8 +17058,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             // поэтому на обычных сообщениях ничего не меняется.
             // maxRight теперь считается для всех блоков (раньше — только для
             // цитат), иначе страховка не срабатывала ни на одном обычном
-            // сообщении. Для RTL блок дополнительно сверяем ширину разметки:
-            // у право-лево-строк правая граница строки не показывает вылет влево.
+            // сообщении. У ботов ширина пузыря меняется после layout клавиатуры,
+            // поэтому сверяем актуальную ширину разметки на каждой отрисовке,
+            // независимо от направления текста и прежней величины maxRight.
             boolean pengramOverflow = false;
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
                 MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
@@ -17067,7 +17068,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     continue;
                 }
                 if (b.maxRight > maxWidth + 1
-                        || (b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
+                        || (b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
                     pengramOverflow = true;
                     break;
                 }
@@ -17075,8 +17076,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             int pengramClipRestore = Integer.MIN_VALUE;
             if (pengramOverflow) {
                 pengramClipRestore = canvas.save();
-                canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4), -getMeasuredHeight(),
-                        right + dp(4), getMeasuredHeight() * 2f);
+                // Граница текста не равна границе пузыря при RTL и цитатах;
+                // берём актуальный фон, чтобы учесть и смену ширины у ботов.
+                if (currentBackgroundDrawable != null) {
+                    android.graphics.Rect bubble = currentBackgroundDrawable.getBounds();
+                    canvas.clipRect(bubble.left - dp(1), bubble.top - dp(1),
+                            bubble.right + dp(1), bubble.bottom + dp(1));
+                }
             }
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum; a++) {
                 if (a >= textLayoutBlocks.size()) {

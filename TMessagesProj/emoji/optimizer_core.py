@@ -12,22 +12,24 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from scipy.spatial import cKDTree
+from image_safety import image_array, open_image
 from PIL import Image, features as pil_features
 NONE = 65535
 
 def png_read(b):
- im=Image.open(io.BytesIO(b));a=np.array(im.convert('RGBA'))
- if im.mode=='P':
-  idx=np.array(im);n=int(idx.max())+1;pal=np.zeros((n,4),np.uint8);pal[:,:3]=np.array(im.getpalette()[:n*3]).reshape(n,3);pal[:,3]=255
-  tr=im.info.get('transparency',b'')
-  if isinstance(tr,int):pal[tr,3]=0
-  else:pal[:len(tr),3]=np.frombuffer(tr,dtype=np.uint8)
- elif im.mode=='L':
-  idx=np.array(im);pal=np.arange(256,dtype=np.uint8)[:,None].repeat(4,axis=1);pal[:,3]=255
- else:
-  pal,inv=np.unique(a.reshape(-1,4),axis=0,return_inverse=True);assert len(pal)<=256;idx=inv.reshape(64,64).astype(np.uint8)
- assert np.array_equal(pal[idx],a)
- return {'rgba':a,'idx':idx,'pal':pal,'png':b,'mode':im.mode}
+ with open_image(io.BytesIO(b)) as im:
+  a=np.array(im.convert('RGBA'))
+  if im.mode=='P':
+   idx=np.array(im);n=int(idx.max())+1;pal=np.zeros((n,4),np.uint8);pal[:,:3]=np.array(im.getpalette()[:n*3]).reshape(n,3);pal[:,3]=255
+   tr=im.info.get('transparency',b'')
+   if isinstance(tr,int):pal[tr,3]=0
+   else:pal[:len(tr),3]=np.frombuffer(tr,dtype=np.uint8)
+  elif im.mode=='L':
+   idx=np.array(im);pal=np.arange(256,dtype=np.uint8)[:,None].repeat(4,axis=1);pal[:,3]=255
+  else:
+   pal,inv=np.unique(a.reshape(-1,4),axis=0,return_inverse=True);assert len(pal)<=256;idx=inv.reshape(64,64).astype(np.uint8)
+  assert np.array_equal(pal[idx],a)
+  return {'rgba':a,'idx':idx,'pal':pal,'png':b,'mode':im.mode}
 
 
 def read_reference(path, textures=None):
@@ -39,11 +41,13 @@ def read_reference(path, textures=None):
     n = struct.unpack('<I', take(0, 4))[0]
     if n % 12: raise ValueError("Invalid reference emoji table")
     n //= 12
+    if n > 8192: raise ValueError('Too many emoji textures')
     em = [struct.unpack('<HHII', take(4 + i * 12, 12)) for i in range(n)]
     pos = 4 + n * 12
     m = struct.unpack('<I', take(pos, 4))[0]
     if m % 10: raise ValueError("Invalid reference mask table")
     m //= 10
+    if n + m > 8192: raise ValueError('Texture memory budget exceeded')
     masks = [struct.unpack('<HII', take(pos + 4 + i * 10, 10)) for i in range(m)]
     records = []
     for eid, mid, off, length in sorted(em):
@@ -69,7 +73,7 @@ def read_reference(path, textures=None):
         with zipfile.ZipFile(textures) as archive:
             for d in records[:n]:
                 name = f"{d['id'] // 4096}_{d['id'] % 4096}.png"
-                with Image.open(archive.open(name)) as image:
+                with open_image(archive.open(name)) as image:
                     if image.size != (64, 64): raise ValueError(name)
             pngs = [x for x in archive.namelist() if x.lower().endswith('.png')]
             if len(pngs) != n: raise ValueError("ZIP/reference emoji count mismatch")
@@ -262,7 +266,7 @@ def verify(choice):
   if o['codec']==0:
    raw=zlib.decompress(data,-15);lut=raw[:ln];a=np.frombuffer(raw[ln:],np.uint8).copy().reshape(64,64)
   elif o['codec']==1:
-   lut=data[:ln];a=np.array(Image.open(io.BytesIO(wrap_webp(data[ln:]))).convert('L'))
+   lut=data[:ln];a=np.array(image_array(io.BytesIO(wrap_webp(data[ln:])), 'L'))
   else:raise ValueError('not indexed')
   if ps:
    if o['pred']==3:
@@ -272,7 +276,7 @@ def verify(choice):
   assert np.array_equal(a,R[i]['idx']),(i,'indices')
   return a
  for i,o in enumerate(choice):
-  if o['codec']>=2:a=np.array(Image.open(io.BytesIO(wrap_webp(o['data']) if o['codec']==2 else o['data'])).convert('RGBA'))
+  if o['codec']>=2:a=np.array(image_array(io.BytesIO(wrap_webp(o['data']) if o['codec'] == 2 else o['data']), 'RGBA'))
   else:
    ix=idx(i);a=R[i]['pal'][ix]
   assert np.array_equal(a,R[i]['rgba']),(i,'rgba')
