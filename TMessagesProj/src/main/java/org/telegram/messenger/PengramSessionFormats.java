@@ -533,8 +533,6 @@ public final class PengramSessionFormats {
                 previousPlain = plain;
             }
             return output;
-        } catch (Failure failure) {
-            throw failure;
         } catch (Throwable error) {
             throw new Failure("invalid_file");
         }
@@ -549,7 +547,12 @@ public final class PengramSessionFormats {
         final byte[][] schedule = oldMtpAes(authKey, messageKey);
         final byte[] plain = aesIgeDecrypt(
                 Arrays.copyOfRange(encrypted, 16, encrypted.length), schedule[0], schedule[1]);
-        final byte[] check = sha1(plain);
+        final byte[] check;
+        try {
+            check = sha1(plain);
+        } catch (Exception error) {
+            throw new Failure("invalid_file");
+        }
         for (int a = 0; a < 16; ++a) {
             if (check[a] != messageKey[a]) {
                 throw new Failure("decrypt_failed");
