@@ -1759,7 +1759,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
      *
      * Человек выбирает .session (Telethon/Pyrogram), архив tdata или строку
      * сессии. Файл разбирается локально, никуда не отправляется и не меняет
-     * исходную базу — после разбора предлагается режим входа.
+     * исходную базу. Дальше вход идёт сам: никаких вопросов о режиме.
      */
     private void pengramShowSessionLogin() {
         if (getParentActivity() == null || getParentActivity().isFinishing()) {
@@ -1860,9 +1860,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     }
 
     /**
-     * Вход без единого вопроса: режим выбирается сам. Сначала штатная схема
-     * с одноразовым токеном (новая сессия, как при обычном входе), при её
-     * сбое — прямое копирование ключа.
+     * Вход без единого вопроса: ключ из файла ставится постоянным ключом
+     * своего DC — ровно так же, как это делают Telethon, Pyrogram и Desktop, —
+     * и сразу проверяется запросом к серверу. Это и есть обычный вход, только
+     * без кода из SMS.
      */
     private void pengramStartSessionLogin(final org.telegram.messenger.PengramSessionFormats.Account account) {
         if (getParentActivity() == null) {

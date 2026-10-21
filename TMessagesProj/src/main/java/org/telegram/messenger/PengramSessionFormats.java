@@ -313,13 +313,23 @@ public final class PengramSessionFormats {
      */
     private static Account readAuthorization(byte[] payload, int index) throws Failure {
         final Reader stream = new Reader(payload);
-        if (stream.u32() != 0x4B) {
+        // Файл — поток блоков настроек: quint32 id и QByteArray-значение.
+        // Блок авторизации не обязан быть первым (после входа в другой версии
+        // выше могли лежать другие настройки), поэтому идём по потоку, а не
+        // требуем 0x4B по нулевому смещению.
+        byte[] authPayload = null;
+        while (stream.remaining() >= 4) {
+            final long blockId = stream.u32();
+            final byte[] value = stream.blob();
+            if (blockId == 0x4B) {
+                authPayload = value;
+                break;
+            }
+        }
+        if (authPayload == null) {
             throw new Failure("unsupported_tdata");
         }
-        final Reader auth = new Reader(stream.blob());
-        if (stream.remaining() != 0) {
-            throw new Failure("unsupported_tdata");
-        }
+        final Reader auth = new Reader(authPayload);
         final long userId;
         final int dcId;
         final byte[] head = auth.read(8);

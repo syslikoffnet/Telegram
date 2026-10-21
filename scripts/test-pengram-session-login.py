@@ -102,7 +102,7 @@ verify = connect.index('TL_users_getFullUser')
 assert clean < import_key < verify, 'slot must be cleared before the key is imported'
 assert 'manager.setUserId(user.id);' in connect
 # один автоматический повтор только для снимаемых причин
-assert '!flow.retried && ("key_duplicated".equals(code) || "network_error".equals(code))' in connect
+assert '"session_revoked".equals(code)' in connect and '!flow.retried' in connect
 assert 'flow.retried = true;' in connect
 # id ключа: младшие 64 бита SHA-1, как в handshake
 assert 'MessageDigest.getInstance("SHA-1")' in login
@@ -128,6 +128,14 @@ needed.add('PengramSessionErrBroken')
 for name in sorted(needed):
     assert 'name="%s"' % name in en, 'EN missing ' + name
     assert 'name="%s"' % name in ru, 'RU missing ' + name
+
+# --- поток блоков настроек ----------------------------------------------
+# Блок авторизации (dbiMtpAuthorization 0x4b) не обязан быть первым в файле:
+# выше могли лежать другие настройки. Разбор идёт по потоку, а не по смещению.
+auth_fn = formats.split('private static Account readAuthorization(', 1)[1].split('final long userId;', 1)[0]
+assert 'while (stream.remaining() >= 4) {' in auth_fn
+assert 'if (blockId == 0x4B) {' in auth_fn
+assert 'if (stream.u32() != 0x4B) {' not in auth_fn, 'auth block must not be required at offset 0'
 
 # --- эталонные формулы: тот же результат, что у Desktop ---------------------
 def account_filename(index):

@@ -155,10 +155,13 @@ public final class PengramSessionLogin {
                 // Ключ не подошёл — не оставляем его в слоте аккаунта.
                 manager.cleanup(true);
                 final String code = mapError(error);
-                // Дубликат ключа сервер иногда снимает сам, а сеть — тем более:
-                // один повтор через полторы секунды решает оба случая, а
-                // остальные ошибки (бан, отозванный ключ) повтором не лечатся.
-                if (!flow.retried && ("key_duplicated".equals(code) || "network_error".equals(code))) {
+                // Повторяем ровно один раз и только то, что может быть
+                // случайностью: сеть, дубликат ключа и «ключ не найден» —
+                // последнее часто означает, что временный ключ не привязался
+                // к постоянному в первом handshake, а не что файл мёртв.
+                // Бан и несовпадение формата повтором не лечатся.
+                if (!flow.retried && ("key_duplicated".equals(code)
+                        || "network_error".equals(code) || "session_revoked".equals(code))) {
                     flow.retried = true;
                     AndroidUtilities.runOnUIThread(() -> {
                         if (!flow.cancelled && active == flow) {
