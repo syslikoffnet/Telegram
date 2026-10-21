@@ -57,6 +57,8 @@ public final class PengramSessionLogin {
         final PengramSessionFormats.Account session;
         final Listener listener;
         boolean cancelled;
+        /** одна автоматическая повторная попытка на дубликат ключа и сеть */
+        boolean retried;
 
         Flow(int account, PengramSessionFormats.Account session, Listener listener) {
             this.account = account;
@@ -152,7 +154,20 @@ public final class PengramSessionLogin {
             if (user == null) {
                 // Ключ не подошёл — не оставляем его в слоте аккаунта.
                 manager.cleanup(true);
-                fail(flow, mapError(error));
+                final String code = mapError(error);
+                // Дубликат ключа сервер иногда снимает сам, а сеть — тем более:
+                // один повтор через полторы секунды решает оба случая, а
+                // остальные ошибки (бан, отозванный ключ) повтором не лечатся.
+                if (!flow.retried && ("key_duplicated".equals(code) || "network_error".equals(code))) {
+                    flow.retried = true;
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (!flow.cancelled && active == flow) {
+                            connect(flow);
+                        }
+                    }, 1500);
+                    return;
+                }
+                fail(flow, code);
                 return;
             }
             manager.setUserId(user.id);

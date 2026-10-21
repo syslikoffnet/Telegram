@@ -101,6 +101,9 @@ import_key = connect.index('manager.importAuthorization(')
 verify = connect.index('TL_users_getFullUser')
 assert clean < import_key < verify, 'slot must be cleared before the key is imported'
 assert 'manager.setUserId(user.id);' in connect
+# один автоматический повтор только для снимаемых причин
+assert '!flow.retried && ("key_duplicated".equals(code) || "network_error".equals(code))' in connect
+assert 'flow.retried = true;' in connect
 # id ключа: младшие 64 бита SHA-1, как в handshake
 assert 'MessageDigest.getInstance("SHA-1")' in login
 
@@ -252,5 +255,5 @@ sha = hashlib.sha1(bytes(range(256))).digest()
 assert key_id(bytes(range(256))) == int.from_bytes(sha[12:20], 'little')
 
 print('session login: read-only parsers (Telethon/Pyrogram/tdata/string), '
-      'automatic sign-in with instant fallback, native key export/import, '
+      'direct key sign-in with one retry, native key export/import, '
       '%d strings: OK' % len(needed))
