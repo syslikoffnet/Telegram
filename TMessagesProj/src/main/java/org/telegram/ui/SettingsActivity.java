@@ -547,15 +547,20 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         avatarView.setForUserOrChat(user, avatarDrawable);
         titleView.setText(UserObject.getUserName(user));
         final StringBuilder sb = new StringBuilder();
+        final boolean bot = user != null && user.bot;
+        final String username = UserObject.getPublicUsername(user);
         if (user != null) {
-            if (org.telegram.messenger.PengramConfig.isHidingPhoneNumber()) {
+            if (bot) {
+                // У аккаунта бота нет номера телефона: вместо него — @username,
+                // иначе в подписи оказалось бы «+null».
+                sb.append(username != null ? "@" + username : LocaleController.getString(R.string.PengramBotAccount));
+            } else if (org.telegram.messenger.PengramConfig.isHidingPhoneNumber()) {
                 sb.append(LocaleController.getString(R.string.PengramPhoneHidden));
             } else {
                 sb.append(PhoneFormat.getInstance().format("+" + user.phone));
             }
         }
-        final String username = UserObject.getPublicUsername(user);
-        if (username != null) {
+        if (username != null && !bot) {
             sb.append(" • @").append(username);
         }
         subtitleView.setText(sb);

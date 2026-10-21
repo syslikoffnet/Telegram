@@ -12212,6 +12212,7 @@
     <string name="PengramIslandBtnDelete">Delete</string>
     <string name="PengramOriginalNameProbing">Checking the official name…</string>
     <string name="PengramOriginalNameProbeSource">Name confirmed earlier</string>
+    <string name="PengramBotAccount">Bot account</string>
     <string name="PengramBotLogin">Sign in with a bot token</string>
     <string name="PengramBotLoginTitle">Bot token</string>
     <string name="PengramBotLoginInfo">A bot token from @BotFather (the /token command) signs in as the bot itself: it replaces both the phone number and the code from the SMS. The bot becomes another account in the app, and you can switch to it from the account list.</string>

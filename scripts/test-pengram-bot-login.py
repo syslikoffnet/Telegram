@@ -66,10 +66,38 @@ assert 'if (pengramBotLoginRunning) {' in flow
 # progress dialog is dismissed on the UI thread in both outcomes
 assert 'progress.dismiss();' in flow
 
+# --- a bot account has no phone number --------------------------------------
+# contacts.* is forbidden for bots, and the phone book does not exist: without
+# these guards the contacts screen waits for a load that can never finish.
+userconfig = (root / 'TMessagesProj/src/main/java/org/telegram/messenger/UserConfig.java').read_text()
+contacts = (root / 'TMessagesProj/src/main/java/org/telegram/messenger/ContactsController.java').read_text()
+assert 'public boolean isBotAccount() {' in userconfig
+assert 'return currentUser != null && currentUser.bot;' in userconfig
+
+read_contacts = contacts.split('public void readContacts() {', 1)[1].split('private boolean isNotValidNameString', 1)[0]
+assert 'if (getUserConfig().isBotAccount()) {' in read_contacts
+assert 'contactsLoaded = true;' in read_contacts
+assert 'contactsBookLoaded = true;' in read_contacts
+assert 'postNotificationName(NotificationCenter.contactsDidLoad)' in read_contacts
+
+sync = contacts.split('protected void performSyncPhoneBook(', 1)[1].split('Utilities.globalQueue.postRunnable(() -> {', 1)[0]
+assert 'getUserConfig().isBotAccount()' in sync
+# a failed contacts.getContacts must not leave the screen loading forever
+load_server = contacts.split('public void loadContacts(boolean fromCache, final long hash) {', 1)[1].split('public void processLoadedContacts', 1)[0]
+assert load_server.count('loadingContacts = false;') >= 1
+assert 'postNotificationName(NotificationCenter.contactsDidLoad)' in load_server
+
+# the settings profile line shows @username instead of "+null"
+settings = (root / 'TMessagesProj/src/main/java/org/telegram/ui/SettingsActivity.java').read_text()
+info = settings.split('public void setInfo(TLRPC.User user) {', 1)[1].split('versionView.setText(getVersionName());', 1)[0]
+assert 'final boolean bot = user != null && user.bot;' in info
+assert 'R.string.PengramBotAccount' in info
+assert 'if (username != null && !bot) {' in info
+
 # --- strings ----------------------------------------------------------------
 for res in ('values', 'values-ru'):
     xml = (root / f'TMessagesProj/src/main/res/{res}/strings.xml').read_text()
-    for s in ('PengramBotLogin', 'PengramBotLoginTitle', 'PengramBotLoginInfo',
+    for s in ('PengramBotLogin', 'PengramBotAccount', 'PengramBotLoginTitle', 'PengramBotLoginInfo',
               'PengramBotLoginHint', 'PengramBotLoginInvalid', 'PengramBotLoginFailed',
               'PengramBotLoginError'):
         assert f'<string name="{s}">' in xml, (s, res)

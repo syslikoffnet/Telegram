@@ -254,6 +254,19 @@ public class UserConfig extends BaseController {
         }
     }
 
+    /**
+     * Pengram: аккаунт бота. Вход по токену BotFather выдаёт пользователя с
+     * флагом bot и без номера телефона, поэтому всё, что опирается на номер
+     * (телефонная книга, contacts.getContacts, импорт контактов), для такого
+     * аккаунта нужно пропускать: сервер отвечает на contacts.* ошибкой, и
+     * список контактов зависал бы в вечной загрузке.
+     */
+    public boolean isBotAccount() {
+        synchronized (sync) {
+            return currentUser != null && currentUser.bot;
+        }
+    }
+
     public TLRPC.User getCurrentUser() {
         synchronized (sync) {
             return currentUser;

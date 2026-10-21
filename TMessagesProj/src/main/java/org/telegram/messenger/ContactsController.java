@@ -597,6 +597,18 @@ public class ContactsController extends BaseController {
     }
 
     public void readContacts() {
+        if (getUserConfig().isBotAccount()) {
+            // Сервер не отдаёт ботам contacts.getContacts, а телефонной книги у
+            // такого аккаунта нет вовсе. Снимаем флаг загрузки и сообщаем, что
+            // контакты «загружены», иначе список контактов крутил бы спиннер.
+            synchronized (loadContactsSync) {
+                loadingContacts = false;
+            }
+            contactsLoaded = true;
+            contactsBookLoaded = true;
+            AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad));
+            return;
+        }
         synchronized (loadContactsSync) {
             if (loadingContacts) {
                 return;
@@ -1001,6 +1013,10 @@ public class ContactsController extends BaseController {
 
     protected void performSyncPhoneBook(final HashMap<String, Contact> contactHashMap, final boolean request, final boolean first, final boolean schedule, final boolean force, final boolean checkCount, final boolean canceled) {
         if (!first && !contactsBookLoaded) {
+            return;
+        }
+        if (getUserConfig().isBotAccount()) {
+            // contacts.importContacts боту запрещён, да и импортировать нечего.
             return;
         }
         Utilities.globalQueue.postRunnable(() -> {
@@ -1547,6 +1563,13 @@ public class ContactsController extends BaseController {
                         getUserConfig().saveConfig(false);
                     }
                     processLoadedContacts(res.contacts, res.users, 0);
+                } else {
+                    // Ошибка сервера (у ботов contacts.* запрещены) не должна
+                    // оставлять контакты в вечной загрузке.
+                    synchronized (loadContactsSync) {
+                        loadingContacts = false;
+                    }
+                    AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad));
                 }
             });
         }

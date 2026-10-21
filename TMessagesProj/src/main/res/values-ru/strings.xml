@@ -1208,6 +1208,7 @@
     <string name="PengramIslandBtnDelete">Удалить</string>
     <string name="PengramOriginalNameProbing">Проверяю официальное имя…</string>
     <string name="PengramOriginalNameProbeSource">Имя, проверенное ранее</string>
+    <string name="PengramBotAccount">Аккаунт бота</string>
     <string name="PengramBotLogin">Войти по токену бота</string>
     <string name="PengramBotLoginTitle">Токен бота</string>
     <string name="PengramBotLoginInfo">Токен из @BotFather (команда /token) входит в аккаунт самого бота: он заменяет и номер телефона, и код из SMS. Бот становится ещё одним аккаунтом в приложении, переключиться на него можно в списке аккаунтов.</string>
