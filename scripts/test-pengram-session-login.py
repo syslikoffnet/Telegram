@@ -246,8 +246,15 @@ assert 'public static native int native_pengramCopyAuthKey(int currentAccount, b
 assert '{"native_pengramCopyAuthKey", "(I[B)I", (void *) copyAuthKey},' in wrapper
 assert 'ConnectionsManager::pengramCopyAuthKey' in native_manager
 assert 'getDatacenterWithId(DEFAULT_DATACENTER_ID)' in native_manager
-assert 'PengramSessionExport.show(this, currentAccount)' in (
-    java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
+# Выгрузка живёт в экране выхода и включается переключателем в настройках
+# Pengram: раздела «Защита» больше нет.
+logout = (java / 'org/telegram/ui/LogoutActivity.java').read_text()
+settings = (java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
+assert 'PengramSessionExport.show(LogoutActivity.this, currentAccount)' in logout
+assert 'PengramSessionExport.show(this, currentAccount)' not in settings
+assert 'SECTION_SECURITY' not in settings
+assert 'PengramConfig.KEY_SESSION_EXPORT' in settings
+assert 'PengramConfig.isSessionExportEnabled()' in logout
 # выгрузка не должна переживать сам экспорт: файл содержит ключ
 assert 'EXPORT_LIFETIME_MS = 10 * 60 * 1000L' in export
 assert 'static void wipeStale()' in export and 'scheduleWipe(result);' in export

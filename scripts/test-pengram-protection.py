@@ -128,16 +128,37 @@ assert 'Debug.isDebuggerConnected()' in guard_java
 assert 'getApkContentsSigners()' in guard_java
 assert 'SIGNATURE_TRUSTED' in guard_java and 'SIGNATURE_MISMATCH' in guard_java
 
-# --- экран «Защита» -----------------------------------------------------------
-assert 'public static final int SECTION_SECURITY = 21;' in settings
-assert 'case SECTION_SECURITY: fillSecurity(items); break;' in settings
-assert 'presentFragment(new PengramSettingsActivity(SECTION_SECURITY));' in settings
-assert 'private void fillSecurity(ArrayList<UItem> items)' in settings
-assert 'case BTN_SECURITY_RECHECK:' in settings
-assert 'case BTN_SECURITY_COPY_FINGERPRINT:' in settings
-assert 'case SECTION_SECURITY: return R.string.PengramHeroSecurity;' in settings
-assert 'case SECTION_SECURITY: return getString(R.string.PengramSecuritySection);' in settings
-assert 'PengramSettingsActivity.SECTION_SECURITY' in index
+# --- раздела «Защита» в настройках больше нет --------------------------------
+# По просьбе владельца пункт вырезан полностью: ни строки, ни кнопки, ни
+# строки поиска. Сама защита при этом осталась — она не настройка.
+assert 'SECTION_SECURITY' not in settings
+assert 'BTN_SECURITY_' not in settings
+assert 'fillSecurity' not in settings
+assert 'PengramSecurity' not in settings
+assert 'SECTION_SECURITY' not in index
+assert 'PengramSecurity' not in index
+for locale in ('values', 'values-ru'):
+    xml = (ROOT / ('TMessagesProj/src/main/res/%s/strings.xml' % locale)).read_text()
+    assert 'PengramSecurity' not in xml, locale
+    assert 'name="PengramHeroSecurity"' not in xml, locale
+
+# --- выгрузка сессии переехала в экран выхода --------------------------------
+# В самих настройках Pengram от неё остался только переключатель: строка
+# «Выгрузить сессию» живёт рядом с «Выйти из аккаунта» и только когда включена.
+config = (JAVA / 'org/telegram/messenger/PengramConfig.java').read_text()
+logout = (JAVA / 'org/telegram/ui/LogoutActivity.java').read_text()
+assert 'public static final String KEY_SESSION_EXPORT = "sessionExportEnabled";' in config
+assert 'public static boolean isSessionExportEnabled()' in config
+assert 'items.add(check(PengramConfig.KEY_SESSION_EXPORT, false, getString(R.string.PengramSessionExportSetting)));' in settings
+assert 'R.string.PengramSessionExportSettingInfo' in settings
+# строка есть только при включённой настройке и пересобирается на возврате
+assert 'if (PengramConfig.isSessionExportEnabled()) {' in logout
+assert 'private void rebuildRows()' in logout
+assert 'PengramConfig.isSessionExportEnabled()' in logout.split('public void onResume()', 1)[1]
+assert 'org.telegram.messenger.PengramSessionExport.show(LogoutActivity.this, currentAccount);' in logout
+assert 'R.string.PengramSessionExportRow' in logout
+# и больше нигде: в настройках Pengram действия выгрузки нет
+assert 'PengramSessionExport.show(this, currentAccount)' not in settings
 
 # --- релиз действительно закрыт ----------------------------------------------
 # Правило «keep всё, кроме Pengram*» когда-то было записано как
@@ -176,8 +197,8 @@ assert 'R.string.PengramSessionBlocked' in login
 for locale in ('values', 'values-ru'):
     tree = ET.parse(ROOT / ('TMessagesProj/src/main/res/%s/strings.xml' % locale))
     names = {node.get('name') for node in tree.iter('string')}
-    for name in sorted(set(re.findall(r'name="(Pengram(?:Security|HeroSecurity)[A-Za-z]*)"', 
-                            (ROOT / 'TMessagesProj/src/main/res/values/strings.xml').read_text()))):
+    for name in ('PengramSessionExportSetting', 'PengramSessionExportSettingInfo',
+                 'PengramSessionExportRow', 'PengramSessionExportRowInfo', 'PengramLogoutHeader'):
         assert name in names, '%s missing in %s' % (name, locale)
 
 print('Pengram protection: pin goes keystore->CMake->libtmessages, guard wired, strings encoded: OK')

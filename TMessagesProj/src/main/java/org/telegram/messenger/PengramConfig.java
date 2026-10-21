@@ -129,6 +129,14 @@ public class PengramConfig {
     public static final String KEY_HIDE_WRITE_BUTTON = "hideWriteButton";
     /** Opt-in: export the opened chat history via the system document picker. */
     public static final String KEY_EXPORT_CHAT = "exportChatEnabled";
+    /**
+     * Opt-in: показать в экране выхода строку «Выгрузить сессию».
+     *
+     * <p>По умолчанию выключено: выгрузка отдаёт ключ авторизации, а не
+     * картинку, и человек, который вышел из аккаунта, обычно не ждёт такого
+     * предложения. Кто хочет — включает один раз в настройках Pengram.
+     */
+    public static final String KEY_SESSION_EXPORT = "sessionExportEnabled";
     /** пункт «Копировать ID сообщения» в меню сообщения */
     public static final String KEY_MENU_COPY_MESSAGE_ID = "menuCopyMessageId";
     /** пункт «Сохранить в Избранное» в меню сообщения */
@@ -880,6 +888,9 @@ public class PengramConfig {
     /** продолжать оформление (жирный, курсив…) при наборе и при правке сообщения */
     public static boolean isKeepFormatting() { return getBool(KEY_KEEP_FORMATTING, true); }
     public static boolean isZalgoFilter() { return getBool(KEY_ZALGO, false); }
+
+    /** включена ли выгрузка сессии в экране выхода из аккаунта */
+    public static boolean isSessionExportEnabled() { return getBool(KEY_SESSION_EXPORT, false); }
 
     /**
      * Вырезает «zalgo» — комбинируемые символы, которыми ломают текст.

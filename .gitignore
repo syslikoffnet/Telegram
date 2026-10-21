@@ -26,3 +26,7 @@ pengram-icons-preview.png
 api.properties
 *.keystore
 *.keystore.base64
+
+# Python bytecode from the test scripts
+__pycache__/
+*.pyc

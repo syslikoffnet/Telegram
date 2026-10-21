@@ -44,7 +44,6 @@ FILL_TO_SECTION = {
     "fillAI": "SECTION_AI",
     "fillAbout": "SECTION_ABOUT",
     "fillLyrics": "SECTION_LYRICS",
-    "fillSecurity": "SECTION_SECURITY",
 }
 
 # строки-функции
