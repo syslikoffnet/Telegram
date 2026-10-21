@@ -112,7 +112,8 @@ public final class PengramSessionFormats {
         if (file.length() > MAX_INPUT) {
             throw new Failure("file_size");
         }
-        final byte[] head = readHead(file, 8);
+        // 16 байт: ровно столько занимает заголовок SQLite, по нему и различаем
+        final byte[] head = readHead(file, 16);
         if (head.length >= 16 && matches(head, 0, "SQLite format 3\0".getBytes())) {
             return readSessionDatabase(file);
         }
@@ -307,7 +308,7 @@ public final class PengramSessionFormats {
         if (salt.length != 32 || encryptedKey.length <= 16) {
             throw new Failure("invalid_file");
         }
-        final byte[] localKey = localKey("", salt);
+        final byte[] localKey = deriveLocalKey("", salt);
         final byte[] masterKey = decryptLocal(encryptedKey, localKey);
         Arrays.fill(localKey, (byte) 0);
         if (masterKey.length != 256) {
@@ -438,7 +439,7 @@ public final class PengramSessionFormats {
     // ------------------------------------------------------------- ключи
 
     /** локальный ключ Desktop: sha512(salt+pwd+salt) → PBKDF2-SHA512 */
-    static byte[] localKey(String passcode, byte[] salt) throws Failure {
+    static byte[] deriveLocalKey(String passcode, byte[] salt) throws Failure {
         if (salt.length != 32) {
             throw new Failure("invalid_file");
         }
