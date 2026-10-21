@@ -36,6 +36,15 @@ assert 'bubble = createBubble(context, Gravity.CENTER);' in settings
 # ползунок размера по-прежнему относится к большому превью
 assert 'if (compact) {' in settings
 
+# --- шапка занимает всю ширину строки ---------------------------------------
+# Строка списка отдаёт полностью кастомной вьюхе WRAP_CONTENT, поэтому шапка
+# сжималась по содержимому и прилипала к левому краю: и пингвин, и «канал» с
+# «создателем» уезжали влево. Ширина строки берётся целиком.
+assert 'protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {' in settings
+assert 'MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)' in settings
+assert 'setGravity(Gravity.CENTER_HORIZONTAL);' in settings
+assert 'links.setGravity(Gravity.CENTER_HORIZONTAL);' in settings
+
 # --- рендер: квадратный вьюпорт и проекция 1:1 ------------------------------
 assert 'final int side = Math.min(viewWidth, viewHeight);' in view
 assert 'final int viewportX = (viewWidth - side) / 2;' in view
@@ -48,4 +57,4 @@ assert 'float aspect = surfaceHeight == 0' not in view       # старый ра
 assert 'final int maxHeight = height > 0 ? height - dp(240) : size;' in settings
 assert 'Math.min(maxWidth, maxHeight)' in settings
 
-print('penguin header: wraps content, square viewport, size capped in both axes: OK')
+print('penguin header: full row width, centred content, square viewport, size capped: OK')

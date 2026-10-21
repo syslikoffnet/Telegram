@@ -34,6 +34,18 @@ assert 'if (PengramLyrics.has(PengramLyrics.keyFor(playing))) {' not in context
 # и повтор при не изменившемся треке (включили показ текста уже после старта)
 assert '} else if (pengramTicker != null && !pengramTickerShown && isMusic' in context
 
+# --- список чатов: шапку ведёт собственный насос -----------------------------
+# В списке чатов события плеера приходят редко, и строка выглядела замершей:
+# раз в полсекунды подкидываем свежий прогресс и повторяем поиск текста, пока
+# он не показан. Останавливается вместе с вьюхой.
+assert 'private final Runnable pengramTickerPump = new Runnable()' in context
+assert 'pengramTicker.setProgress(playing.audioProgress);' in context
+assert 'AndroidUtilities.runOnUIThread(this, 500);' in context
+assert 'private void pengramStartTickerPump()' in context
+assert 'private void pengramStopTickerPump()' in context
+assert 'pengramStartTickerPump();' in context
+assert 'pengramStopTickerPump();' in context
+
 # --- плеер: поиск текста не зависит от стиля с видимой панелью --------------
 assert 'if (PengramConfig.playerStyleHasLyrics(style) || PengramConfig.isHeaderLyrics()) {' in sheet
 assert sheet.count('loadLyrics(false);') >= 2   # updateTitle + toggleLyrics

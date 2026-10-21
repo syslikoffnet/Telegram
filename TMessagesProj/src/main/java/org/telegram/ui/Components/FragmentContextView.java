@@ -1429,6 +1429,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         PengramLyrics.removeListener(pengramLyricsReady);
+        pengramStopTickerPump();
         if (animatorSet != null) {
             animatorSet.cancel();
             animatorSet = null;
@@ -2149,6 +2150,41 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     /** строка песни сейчас показана (или как раз выезжает) */
     private boolean pengramTickerShown;
 
+    /**
+     * Насос шапки: пока в списке чатов играет музыка, раз в полсекунды
+     * подкидываем строке свежий прогресс и повторяем поиск текста, если он ещё
+     * не показан. В списке чатов события плеера приходят редко (а иногда не
+     * приходят вовсе, если экран чата закрыт), и без этого бегущая строка и
+     * подсветка выглядели замершей картинкой.
+     */
+    private final Runnable pengramTickerPump = new Runnable() {
+        @Override
+        public void run() {
+            if (pengramTicker == null) {
+                return;
+            }
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing == null || !isMusic || currentStyle != STYLE_AUDIO_PLAYER
+                    || !PengramConfig.isHeaderLyrics()) {
+                return; // трек кончился или шапка другая — кадры больше не нужны
+            }
+            pengramTicker.setProgress(playing.audioProgress);
+            if (!pengramTickerShown) {
+                pengramCheckTicker(playing); // текст мог догрузиться позже
+            }
+            AndroidUtilities.runOnUIThread(this, 500);
+        }
+    };
+
+    private void pengramStartTickerPump() {
+        AndroidUtilities.cancelRunOnUIThread(pengramTickerPump);
+        AndroidUtilities.runOnUIThread(pengramTickerPump, 500);
+    }
+
+    private void pengramStopTickerPump() {
+        AndroidUtilities.cancelRunOnUIThread(pengramTickerPump);
+    }
+
     /** когда в последний раз перепроверяли, не нашёлся ли текст песни */
     private long pengramLyricsCheckTime;
 
@@ -2211,6 +2247,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             return;
         }
         pengramTickerShown = true;
+        pengramStartTickerPump();
         // быстрые переключения трека: прошлую анимацию обрываем, иначе строки
         // догоняют друг друга и остаются висеть наложенными
         pengramTicker.animate().cancel();

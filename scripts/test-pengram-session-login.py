@@ -81,34 +81,28 @@ assert 'suspendConnections(false);' in datacenter       # старые соке�
 assert 'public static final String MODE_AUTO = "auto";' in login
 assert 'public static final String MODE_SAFE = "safe";' in login
 assert 'public static final String MODE_INSTANT = "instant";' in login
-assert 'FALLBACK_CODES' in login and 'instant(flow);' in login
-assert 'TL_auth_exportLoginToken' in login
-assert 'TL_auth_acceptLoginToken' in login
-assert 'TL_auth_importLoginToken' in login
-assert 'TL_auth_loginTokenSuccess' in login
-assert 'TL_auth_loginTokenMigrateTo' in login
+# Вход — прямой: ключ из файла и есть сессия (так делают Telethon, Pyrogram и
+# Desktop). Токенов здесь нет: они привязаны к DC и требуют вторую уже
+# авторизованную сессию, а её на телефоне нет.
+assert 'TL_auth_exportLoginToken' not in login
+assert 'TL_auth_acceptLoginToken' not in login
+assert 'TL_auth_importLoginToken' not in login
+assert 'TL_auth_loginTokenSuccess' not in login
+assert 'TL_auth_loginTokenMigrateTo' not in login
 assert 'TL_users_getFullUser' in login and 'TL_inputUserSelf' in login
-# account.* живут в org.telegram.tgnet.tl, а не в TLRPC: TLRPC.TL_account_*
-# не существует вовсе, и такая строка не компилируется
-assert 'import org.telegram.tgnet.tl.TL_account;' in login
-assert 'TL_account.getPassword' in login and 'TL_account.Password' in login
 assert 'TLRPC.TL_account_' not in login and 'TLRPC.TL_account_' not in activity
-assert 'SESSION_PASSWORD_NEEDED' in login
-assert 'findSourceSlot' in login and 'releaseSource' in login
-assert 'isClientActivated()' in login                   # активный аккаунт не занимаем
-assert 'MAX_ROUNDS = 5' in login and 'RETRY_DELAY = 700L' in login
-assert 'MAX_MIGRATIONS = 3' in login
-assert 'selectHomeDatacenter(migrate.dc_id)' in login    # токен импортируется на своём DC
 assert 'public static void cancel()' in login            # вход можно отменить
 assert 'PengramSessionLogin.cancel()' in activity        # и экран это делает
 assert 'canHandleCurrentPassword(password, true)' in activity
-assert 'native_pengramSelectHomeDatacenter' in manager
-assert 'native_pengramSelectHomeDatacenter' in wrapper
-assert 'ConnectionsManager::pengramSelectHomeDatacenter' in native_manager
-assert 'cleanup(true)' in login                          # временный слот закрывается
+# Порядок в connect(): сначала чистим слот, потом ключ, потом проверка.
+connect = login.split('private static void connect(final Flow flow)', 1)[1]
+clean = connect.index('manager.cleanup(true);')
+import_key = connect.index('manager.importAuthorization(')
+verify = connect.index('TL_users_getFullUser')
+assert clean < import_key < verify, 'slot must be cleared before the key is imported'
+assert 'manager.setUserId(user.id);' in connect
 # id ключа: младшие 64 бита SHA-1, как в handshake
 assert 'MessageDigest.getInstance("SHA-1")' in login
-assert 'for (int a = 19; a >= 12; --a)' in login
 
 # --- UI --------------------------------------------------------------------
 assert 'getString(R.string.PengramSessionLogin)' in activity

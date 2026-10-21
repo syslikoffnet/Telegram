@@ -6879,6 +6879,21 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
 
+        /**
+         * Строка списка отдаёт полностью кастомной вьюхе WRAP_CONTENT, поэтому
+         * шапка ужималась по содержимому и прилипала к левому краю: и пингвин,
+         * и «канал» с «создателем» уезжали влево. Берём всю ширину строки —
+         * тогда Center_HORIZONTAL действительно центрирует по экрану.
+         */
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            final int width = MeasureSpec.getSize(widthMeasureSpec);
+            if (width > 0) {
+                widthMeasureSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY);
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        }
+
         /** 3D-пингвин с запасным логотипом; размер кадра задаётся один раз */
         private void createPenguin(Context context, int penguinSize) {
             penguinContainer = new FrameLayout(context);
