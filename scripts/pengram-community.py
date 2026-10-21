@@ -532,6 +532,67 @@ def print_avatars() -> None:
 # Работа с Telegram
 # ---------------------------------------------------------------------------
 
+def peer(entity):
+    """Приводит канал/группу к inputPeer — так их принимают поля *peer*."""
+    from telethon.tl.types import InputChannel, InputPeerChannel
+
+    if isinstance(entity, InputPeerChannel):
+        return entity
+    if isinstance(entity, InputChannel):
+        return InputPeerChannel(entity.channel_id, entity.access_hash)
+    return InputPeerChannel(entity.id, entity.access_hash)
+
+
+async def resolve_saved(client, state: dict, id_key: str, hash_key: str,
+                        title: str, megagroup: bool):
+    """Находит канал/чат, созданный в прошлый раз.
+
+    Просто get_entity(id) ненадёжен: без access_hash Telegram отвечает
+    «could not find the input entity». Поэтому: access_hash из состояния →
+    get_entity(id) → поиск среди своих диалогов по точному названию.
+    """
+    from telethon.tl.types import InputChannel
+
+    entity_id = state.get(id_key)
+    if not entity_id:
+        return None
+
+    access_hash = state.get(hash_key)
+    if access_hash:
+        candidate = InputChannel(entity_id, access_hash)
+        try:
+            found = await client.get_entity(candidate)
+            if found is not None:
+                state[hash_key] = getattr(found, "access_hash", access_hash)
+                save_state(state)
+                return found
+        except Exception:
+            pass
+
+    try:
+        found = await client.get_entity(entity_id)
+        if found is not None:
+            state[hash_key] = getattr(found, "access_hash", None)
+            save_state(state)
+            return found
+    except Exception:
+        pass
+
+    try:
+        async for dialog in client.iter_dialogs(limit=200):
+            entity = dialog.entity
+            if (getattr(entity, "title", None) == title
+                    and bool(getattr(entity, "megagroup", False)) == megagroup):
+                state[id_key] = entity.id
+                state[hash_key] = getattr(entity, "access_hash", None)
+                save_state(state)
+                return entity
+    except Exception:
+        pass
+
+    return None
+
+
 async def create_entity(client, *, title: str, about: str, megagroup: bool):
     from telethon.tl.functions.channels import CreateChannelRequest
 
@@ -552,6 +613,22 @@ async def set_photo(client, entity, path: Path) -> None:
         channel=entity, photo=InputChatUploadedPhoto(file=uploaded)))
 
 
+class UsernameBlocked(Exception):
+    """Telegram не даёт этому аккаунту ставить публичные @адреса вообще."""
+
+
+def _is_public_username_block(error: Exception) -> bool:
+    """Признак того, что дело не в конкретном username, а в аккаунте.
+
+    «You're admin of too many public channels» прилетает на ЛЮБОЙ свободный
+    username, поэтому перебирать шесть вариантов бессмысленно.
+    """
+    name = type(error).__name__
+    return name in ("ChannelsAdminPublicTooMuchError",
+                    "ChannelsAdminLocatedTooMuchError",
+                    "ChannelsPublicTooMuchError")
+
+
 async def try_username(client, entity, username: str) -> bool:
     """True — username занят/недопустим, False — свободен."""
     from telethon.tl.functions.channels import CheckUsernameRequest
@@ -567,6 +644,10 @@ async def try_username(client, entity, username: str) -> bool:
         return True
     except UsernameInvalidError:
         return True
+    except Exception as error:
+        if _is_public_username_block(error):
+            raise UsernameBlocked(str(error))
+        raise
 
 
 async def ensure_username(client, entity, candidates, *, label: str,
@@ -579,6 +660,10 @@ async def ensure_username(client, entity, candidates, *, label: str,
         log(label, f"username уже стоит: @{state[key]}")
         return state[key]
 
+    if state.get("public_username_blocked") and not state.get("_retry_usernames"):
+        log(label, "публичный @адрес пропускаю: в прошлый раз Telegram не дал")
+        return None
+
     preferred = (preferred or "").strip().lstrip("@")
     queue = []
     if preferred:
@@ -586,7 +671,17 @@ async def ensure_username(client, entity, candidates, *, label: str,
     queue += [u for u in candidates if u not in queue]
 
     for username in queue:
-        if await try_username(client, entity, username):
+        try:
+            taken = await try_username(client, entity, username)
+        except UsernameBlocked as error:
+            warn(f"Telegram не даёт ставить публичный @адрес: {error}")
+            warn("Похоже, вы админ слишком многих публичных каналов. "
+                 "Освободите один (сделайте канал частным) или оставьте "
+                 "канал/чат частными — ссылка-приглашение всё равно будет.")
+            state["public_username_blocked"] = True
+            save_state(state)
+            return None
+        if taken:
             warn(f"@{username} занят — пробую следующий")
             continue
         try:
@@ -595,6 +690,13 @@ async def ensure_username(client, entity, candidates, *, label: str,
                 UsernamePurchaseAvailableError):
             warn(f"@{username} не подошёл — пробую следующий")
             continue
+        except Exception as error:
+            if _is_public_username_block(error):
+                warn(f"Telegram не даёт ставить публичный @адрес: {error}")
+                state["public_username_blocked"] = True
+                save_state(state)
+                return None
+            raise
         state[key] = username
         save_state(state)
         log(label, f"username: @{username}")
@@ -655,13 +757,10 @@ async def apply_plan(args) -> None:
     save_state(state)
 
     # --- канал ------------------------------------------------------------
-    channel = None
-    if state.get("channel_id"):
-        try:
-            channel = await client.get_entity(state["channel_id"])
-            log("канал", f"уже создан: {channel.title}")
-        except Exception:
-            warn("сохранённый канал не найден, создам новый")
+    channel = await resolve_saved(client, state, "channel_id",
+                                  "channel_access_hash", CHANNEL["title"], False)
+    if channel is not None:
+        log("канал", f"уже создан: {CHANNEL['title']}")
 
     if channel is None:
         log("канал", "создаю")
@@ -682,6 +781,7 @@ async def apply_plan(args) -> None:
                        f"созданием канала. Запустите позже — уже созданное "
                        f"подхватится автоматически.")
         state["channel_id"] = channel.id
+        state["channel_access_hash"] = getattr(channel, "access_hash", None)
         save_state(state)
         await asyncio.sleep(STEP_PAUSE)
 
@@ -702,13 +802,10 @@ async def apply_plan(args) -> None:
     await asyncio.sleep(STEP_PAUSE)
 
     # --- чат --------------------------------------------------------------
-    group = None
-    if state.get("group_id"):
-        try:
-            group = await client.get_entity(state["group_id"])
-            log("чат", f"уже создан: {group.title}")
-        except Exception:
-            warn("сохранённый чат не найден, создам новый")
+    group = await resolve_saved(client, state, "group_id",
+                                "group_access_hash", GROUP["title"], True)
+    if group is not None:
+        log("чат", f"уже создан: {GROUP['title']}")
 
     if group is None:
         log("чат", "создаю супергруппу")
@@ -721,6 +818,7 @@ async def apply_plan(args) -> None:
                        "группу сегодня. Попробуйте через сутки: канал уже "
                        "сохранён в состоянии и не будет создан заново.")
         state["group_id"] = group.id
+        state["group_access_hash"] = getattr(group, "access_hash", None)
         save_state(state)
         await asyncio.sleep(STEP_PAUSE)
 
@@ -754,7 +852,7 @@ async def apply_plan(args) -> None:
     if GROUP["invite_admins_only"] and not state.get("rights_done"):
         try:
             await client(EditChatDefaultBannedRightsRequest(
-                peer=group,
+                peer=peer(group),
                 banned_rights=ChatBannedRights(until_date=None, invite_users=True)))
             state["rights_done"] = True
             save_state(state)
@@ -809,7 +907,7 @@ async def apply_plan(args) -> None:
             try:
                 from telethon.tl.functions.messages import CreateForumTopicRequest
                 await client(CreateForumTopicRequest(
-                    peer=group,
+                    peer=peer(group),
                     title=topic["title"],
                     icon_color=topic["color"],
                     random_id=random.getrandbits(63),
@@ -822,8 +920,8 @@ async def apply_plan(args) -> None:
         # id тем узнаём запросом: так надёжнее, чем разбирать Updates
         try:
             result = await client(GetForumTopicsRequest(
-                peer=group, offset_date=None, offset_id=0, offset_topic=0,
-                limit=100))
+                peer=peer(group), offset_date=None, offset_id=0,
+                offset_topic=0, limit=100))
             for item in result.topics:
                 title = getattr(item, "title", None)
                 if title and title in [t["title"] for t in TOPICS]:
@@ -872,7 +970,7 @@ async def apply_plan(args) -> None:
                     id=folder_id,
                     title=TextWithEntities(FOLDER["title"], []),
                     pinned_peers=[],
-                    include_peers=[channel, group],
+                    include_peers=[peer(channel), peer(group)],
                     exclude_peers=[],
                     emoticon=FOLDER["emoticon"],
                 )))
@@ -887,7 +985,7 @@ async def apply_plan(args) -> None:
     links = {}
     for name, entity in (("channel", channel), ("group", group)):
         try:
-            invite = await client(ExportChatInviteRequest(peer=entity))
+            invite = await client(ExportChatInviteRequest(peer=peer(entity)))
             links[name] = invite.link
         except RPCError as error:
             warn(f"invite-ссылка для {name} не получена: {error}")
@@ -905,10 +1003,19 @@ async def apply_plan(args) -> None:
     print("=" * 72)
     print("  ГОТОВО")
     print("=" * 72)
-    print(f"  канал:  {channel.title}" + (f"  @{channel_username}" if channel_username else ""))
-    print(f"  чат:    {group.title}" + (f"  @{group_username}" if group_username else ""))
+    print(f"  канал:  {getattr(channel, 'title', CHANNEL['title'])}"
+          + (f"  @{channel_username}" if channel_username else ""))
+    print(f"  чат:    {getattr(group, 'title', GROUP['title'])}"
+          + (f"  @{group_username}" if group_username else ""))
     for label, link in links.items():
         print(f"  {label:<15} {link}")
+    if not channel_username or not group_username:
+        print()
+        print("  Канал и чат остались частными: публичный @адрес поставить не "
+              "удалось.")
+        print("  Это не мешает работе — раздавайте invite-ссылку выше.")
+        print("  Когда освободите публичный канал, повторите:")
+        print("     python3 pengram-community.py --apply --retry-usernames")
     print()
     print("  Дальше: зайдите в чат и проверьте темы, затем раздайте invite-ссылку.")
     print(f"  Состояние: {STATE_PATH}")
@@ -938,6 +1045,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="свой username для чата (без @)")
     parser.add_argument("--show-texts", action="store_true",
                         help="в просмотре показать все тексты целиком")
+    parser.add_argument("--retry-usernames", action="store_true",
+                        help="снова попробовать поставить публичный @адрес "
+                             "(если в прошлый раз Telegram не дал)")
     return parser
 
 
@@ -952,6 +1062,13 @@ def main() -> int:
 
         name_for(args.channel_avatar)
         name_for(args.group_avatar)
+
+        if args.retry_usernames:
+            state = load_state()
+            state.pop("public_username_blocked", None)
+            for key in ("channel_username", "group_username"):
+                state.pop(key, None)
+            save_state(state)
 
         if not args.apply:
             print_plan(args)

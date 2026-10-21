@@ -71,6 +71,16 @@ for topic in ("Баги", "Идеи", "Помощь", "Скриншоты", "Р�
 assert "Настройки → Pengram → О программе" in source      # где взять отчёт
 assert "одно сообщение — одна проблема".lower() in source.lower()
 
+# --- блокировка публичных @адресов не роняет запуск -------------------------
+assert "ChannelsAdminPublicTooMuchError" in source
+assert "public_username_blocked" in source
+assert "--retry-usernames" in source
+assert "оставьте" in source or "оставьте " in source
+
+# --- повторный запуск находит уже созданное --------------------------------
+assert "channel_access_hash" in source and "group_access_hash" in source
+assert "iter_dialogs" in source                     # запасной поиск по названию
+
 # --- лимиты Telegram обработаны понятным текстом ---------------------------
 assert "FloodWaitError" in source
 assert "ChannelsTooMuchError" in source
