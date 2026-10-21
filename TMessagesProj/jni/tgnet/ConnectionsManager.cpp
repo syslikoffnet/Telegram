@@ -3592,6 +3592,37 @@ void ConnectionsManager::importAuthorization(uint32_t datacenterId, std::string 
     });
 }
 
+void ConnectionsManager::pengramSelectHomeDatacenter(uint32_t datacenterId) {
+    // Вход по login-token: сервер выдаёт токен на конкретном DC, и импортировать
+    // его надо там же. Домашний DC меняем только вместе с ключом — иначе аккаунт
+    // окажется на одном DC, а ключ на другом.
+    scheduleTask([&, datacenterId] {
+        if (datacenterId < 1 || datacenterId > 5 || currentDatacenterId == datacenterId) {
+            return;
+        }
+        initDatacenters();
+        Datacenter *datacenter = getDatacenterWithId(datacenterId);
+        if (datacenter == nullptr) {
+            return;
+        }
+        currentDatacenterId = datacenterId;
+        saveConfig();
+        // На этом DC мог остаться ключ от прошлой, неудавшейся попытки входа:
+        // для login-token он не годится, и запрос ушёл бы с мёртвым ключом.
+        if (datacenter->hasAuthKey(ConnectionTypeGeneric, 0)) {
+            datacenter->clearAuthKey(HandshakeTypeAll);
+        }
+        // Ключа на новом DC ещё нет — поднимаем рукопожатие сразу, чтобы
+        // поставленный в очередь importLoginToken ушёл без ожидания таймера.
+        if (!datacenter->hasAuthKey(ConnectionTypeGeneric, 0) && !datacenter->isHandshakingAny()) {
+            datacenter->clearServerSalts(false);
+            datacenter->clearServerSalts(true);
+            datacenter->beginHandshake(HandshakeTypeAll, true);
+        }
+        processRequestQueue(0, 0);
+    });
+}
+
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {
     scheduleTask([&, datacenterId, ipAddress, port] {
         Datacenter *datacenter = getDatacenterWithId(datacenterId);

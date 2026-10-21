@@ -513,6 +513,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
+        // незавершённый вход по файлу: закрыть временный слот и затереть ключ
+        org.telegram.messenger.PengramSessionLogin.cancel();
+        pengramHideSessionProgress();
         for (int a = 0; a < views.length; a++) {
             if (views[a] != null) {
                 views[a].onDestroyActivity();
@@ -1897,26 +1900,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                     }
 
                     @Override
-                    public void onPasswordNeeded(TLRPC.TL_account_Password password) {
+                    public void onPasswordNeeded(TL_account.Password password) {
                         AndroidUtilities.runOnUIThread(() -> pengramOpenSessionPassword(account, password));
-                    }
-
-                    private void pengramOpenSessionPassword(
-                            org.telegram.messenger.PengramSessionFormats.Account account,
-                            TLRPC.TL_account_Password password) {
-                        pengramHideSessionProgress();
-                        account.clear();
-                        if (getParentActivity() == null || password == null) {
-                            return;
-                        }
-                        final Bundle bundle = new Bundle();
-                        final SerializedData data = new SerializedData(password.getObjectSize());
-                        password.serializeToStream(data);
-                        bundle.putString("password", Utilities.bytesToHex(data.toByteArray()));
-                        bundle.putString("phoneFormated", "");
-                        bundle.putString("phoneHash", "");
-                        bundle.putString("code", "");
-                        setPage(VIEW_PASSWORD, true, bundle, false);
                     }
 
                     @Override
@@ -1928,6 +1913,34 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                         });
                     }
                 });
+    }
+
+    /**
+     * Двухфакторная защита: показываем штатную страницу пароля. Она сама
+     * считает SRP и доводит вход до onAuthSuccess — ровно как при входе по
+     * номеру. Если KDF аккаунта новее, чем умеет эта сборка, честно говорим
+     * об этом, а не показываем поле, которое ничего не проверит.
+     */
+    private void pengramOpenSessionPassword(
+            final org.telegram.messenger.PengramSessionFormats.Account account,
+            final TL_account.Password password) {
+        pengramHideSessionProgress();
+        account.clear();
+        if (getParentActivity() == null || password == null) {
+            return;
+        }
+        if (!TwoStepVerificationActivity.canHandleCurrentPassword(password, true)) {
+            pengramSessionError("unsupported_password");
+            return;
+        }
+        final Bundle bundle = new Bundle();
+        final SerializedData data = new SerializedData(password.getObjectSize());
+        password.serializeToStream(data);
+        bundle.putString("password", Utilities.bytesToHex(data.toByteArray()));
+        bundle.putString("phoneFormated", "");
+        bundle.putString("phoneHash", "");
+        bundle.putString("code", "");
+        setPage(VIEW_PASSWORD, true, bundle, false);
     }
 
     private void pengramShowSessionProgress() {
@@ -1966,7 +1979,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             res = R.string.PengramSessionErrBot;
         } else if ("ambiguous_session".equals(code)) {
             res = R.string.PengramSessionErrMultiple;
-        } else if ("password_tdata".equals(code)) {
+        } else if ("password_tdata".equals(code) || "unsupported_password".equals(code)) {
             res = R.string.PengramSessionErrPassword;
         } else if ("session_revoked".equals(code)) {
             res = R.string.PengramSessionErrRevoked;

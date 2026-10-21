@@ -274,6 +274,10 @@ void importAuthKey(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId, j
     }
 }
 
+void selectHomeDatacenter(JNIEnv *env, jclass c, jint instanceNum, jint datacenterId) {
+    ConnectionsManager::getInstance(instanceNum).pengramSelectHomeDatacenter((uint32_t) datacenterId);
+}
+
 void setUserId(JNIEnv *env, jclass c, jint instanceNum, int64_t id) {
     ConnectionsManager::getInstance(instanceNum).setUserId(id);
 }
@@ -663,6 +667,7 @@ static JNINativeMethod ConnectionsManagerMethods[] = {
         {"native_pengramSecurityFlags", "()I", (void *) pengramSecurityFlags},
         {"native_pengramSignatureTrusted", "([B)Z", (void *) pengramSignatureTrusted},
         {"native_pengramImportAuthKey", "(II[BJ)V", (void *) importAuthKey},
+        {"native_pengramSelectHomeDatacenter", "(II)V", (void *) selectHomeDatacenter},
 };
 
 

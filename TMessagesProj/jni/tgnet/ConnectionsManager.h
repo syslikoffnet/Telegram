@@ -64,6 +64,8 @@ public:
     void applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port);
     /** Pengram: принять готовый ключ авторизации из файла сессии */
     void importAuthorization(uint32_t datacenterId, std::string authKey, int64_t authKeyId);
+    /** Pengram: сделать DC домашним, не трогая авторизацию (вход по токену) */
+    void pengramSelectHomeDatacenter(uint32_t datacenterId);
     void setDelegate(ConnectiosManagerDelegate *connectiosManagerDelegate);
     ConnectionState getConnectionState();
     void setUserId(int64_t userId);

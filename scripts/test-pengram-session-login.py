@@ -83,12 +83,24 @@ assert 'TL_auth_importLoginToken' in login
 assert 'TL_auth_loginTokenSuccess' in login
 assert 'TL_auth_loginTokenMigrateTo' in login
 assert 'TL_users_getFullUser' in login and 'TL_inputUserSelf' in login
-assert 'TL_account_getPassword' in login
-assert 'TL_account_Password' in login
+# account.* живут в org.telegram.tgnet.tl, а не в TLRPC: TLRPC.TL_account_*
+# не существует вовсе, и такая строка не компилируется
+assert 'import org.telegram.tgnet.tl.TL_account;' in login
+assert 'TL_account.getPassword' in login and 'TL_account.Password' in login
+assert 'TLRPC.TL_account_' not in login and 'TLRPC.TL_account_' not in activity
 assert 'SESSION_PASSWORD_NEEDED' in login
 assert 'findSourceSlot' in login and 'releaseSource' in login
 assert 'isClientActivated()' in login                   # активный аккаунт не занимаем
-assert 'cleanUp(true, -1)' in login                      # временный слот закрывается
+assert 'MAX_ROUNDS = 5' in login and 'RETRY_DELAY = 700L' in login
+assert 'MAX_MIGRATIONS = 3' in login
+assert 'selectHomeDatacenter(migrate.dc_id)' in login    # токен импортируется на своём DC
+assert 'public static void cancel()' in login            # вход можно отменить
+assert 'PengramSessionLogin.cancel()' in activity        # и экран это делает
+assert 'canHandleCurrentPassword(password, true)' in activity
+assert 'native_pengramSelectHomeDatacenter' in manager
+assert 'native_pengramSelectHomeDatacenter' in wrapper
+assert 'ConnectionsManager::pengramSelectHomeDatacenter' in native_manager
+assert 'cleanup(true)' in login                          # временный слот закрывается
 # id ключа: младшие 64 бита SHA-1, как в handshake
 assert 'MessageDigest.getInstance("SHA-1")' in login
 assert 'for (int a = 19; a >= 12; --a)' in login

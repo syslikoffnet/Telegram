@@ -740,7 +740,16 @@ public final class PengramSessionFormats {
         try {
             stream = new FileInputStream(file);
             final byte[] buffer = new byte[length];
-            final int read = stream.read(buffer);
+            int read = 0;
+            // read() не обязан заполнить буфер целиком даже на обычном файле:
+            // недобранные байты иначе превращают SQLite-сессию в «битый файл»
+            while (read < length) {
+                final int count = stream.read(buffer, read, length - read);
+                if (count <= 0) {
+                    break;
+                }
+                read += count;
+            }
             return read == length ? buffer : Arrays.copyOf(buffer, Math.max(0, read));
         } catch (Throwable error) {
             return new byte[0];

@@ -646,6 +646,14 @@ public class ConnectionsManager extends BaseController {
         native_pengramImportAuthKey(currentAccount, datacenterId, authKey, authKeyId);
     }
 
+    /**
+     * Pengram: сделать DC домашним, не трогая авторизацию. Нужно для входа по
+     * login-token: токен создан на конкретном DC и импортируется только там.
+     */
+    public void selectHomeDatacenter(int datacenterId) {
+        native_pengramSelectHomeDatacenter(currentAccount, datacenterId);
+    }
+
     public int getConnectionState() {
         if (connectionState == ConnectionStateConnected && isUpdating) {
             return ConnectionStateUpdating;
@@ -1050,6 +1058,7 @@ public class ConnectionsManager extends BaseController {
     public static native void native_bindRequestToGuid(int currentAccount, int requestToken, int guid);
     public static native void native_applyDatacenterAddress(int currentAccount, int datacenterId, String ipAddress, int port);
     public static native void native_pengramImportAuthKey(int currentAccount, int datacenterId, byte[] authKey, long authKeyId);
+    public static native void native_pengramSelectHomeDatacenter(int currentAccount, int datacenterId);
     public static native int native_getConnectionState(int currentAccount);
     public static native void native_setUserId(int currentAccount, long id);
     public static native void native_init(int currentAccount, int version, int layer, int apiId, String deviceModel, String systemVersion, String appVersion, String langCode, String systemLangCode, String configPath, String logPath, String regId, String cFingerprint, String installer, String packageId, int timezoneOffset, long userId, boolean userPremium, boolean enablePushConnection, boolean hasNetwork, int networkType, int performanceClass);

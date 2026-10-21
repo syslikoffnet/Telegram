@@ -1,9 +1,12 @@
 package org.telegram.messenger;
 
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.tl.TL_account;
 
 import java.security.MessageDigest;
+import java.util.Arrays;
 
 /**
  * Pengram: вход в аккаунт по файлу сессии.
@@ -38,22 +41,48 @@ public final class PengramSessionLogin {
             | ConnectionsManager.RequestFlagEnableUnauthorized;
 
     /** сколько раз ждём, пока сервер отдаст готовую авторизацию */
-    private static final int MAX_ROUNDS = 4;
+    private static final int MAX_ROUNDS = 5;
     /** пауза между экспортом токена: серверу нужно время применить подтверждение */
     private static final long RETRY_DELAY = 700L;
+    /** сколько раз сервер может переслать токен на другой DC */
+    private static final int MAX_MIGRATIONS = 3;
 
     public interface Listener {
         void onSuccess(TLRPC.TL_auth_authorization authorization);
 
         /** нужен пароль двухфакторной защиты: показать штатную страницу */
-        void onPasswordNeeded(TLRPC.TL_account_Password password);
+        void onPasswordNeeded(TL_account.Password password);
 
         /** код ошибки — текст живёт в строках интерфейса */
         void onError(String code);
     }
 
-    /** слот, через который говорит уже готовая сессия */
-    private static int sourceSlot = -1;
+    /**
+     * Состояние одного входа. Отдельный объект, а не статические поля: два
+     * параллельных входа (например, пользователь передумал и выбрал другой
+     * файл) не должны перемешивать слоты и счётчики.
+     */
+    private static final class Flow {
+        final int account;
+        final PengramSessionFormats.Account session;
+        final Listener listener;
+
+        int round;
+        int migrations;
+        int sourceSlot = -1;
+        /** токен, который уже отправлен на подтверждение: повторно не шлём */
+        byte[] acceptedToken;
+        boolean cancelled;
+
+        Flow(int account, PengramSessionFormats.Account session, Listener listener) {
+            this.account = account;
+            this.session = session;
+            this.listener = listener;
+        }
+    }
+
+    /** вход, который сейчас выполняется: нужен, чтобы его можно было отменить */
+    private static Flow active;
 
     private PengramSessionLogin() {
     }
@@ -85,163 +114,223 @@ public final class PengramSessionLogin {
             listener.onError("invalid_key");
             return;
         }
+        cancel();
+        final Flow flow = new Flow(targetAccount, session, listener);
+        active = flow;
         if (MODE_INSTANT.equals(mode)) {
-            instant(targetAccount, session, listener);
+            instant(flow);
         } else {
-            exportToken(targetAccount, session, listener, 0);
+            exportToken(flow);
         }
     }
 
-    /** временный слот освобождаем всегда, даже если вход не удался */
+    /**
+     * Отмена: закрываем временный слот, если он был занят. Ключ из файла при
+     * этом затирается — второй попытке он уже не понадобится, а держать его
+     * в памяти незачем.
+     */
     public static void cancel() {
-        releaseSource();
+        final Flow flow = active;
+        active = null;
+        if (flow == null) {
+            return;
+        }
+        flow.cancelled = true;
+        releaseSource(flow);
+        flow.session.clear();
     }
 
     // ------------------------------------------------------------- мгновенный
 
-    private static void instant(final int account, final PengramSessionFormats.Account session,
-                                final Listener listener) {
-        final ConnectionsManager manager = ConnectionsManager.getInstance(account);
+    private static void instant(final Flow flow) {
+        final ConnectionsManager manager = ConnectionsManager.getInstance(flow.account);
+        final PengramSessionFormats.Account session = flow.session;
         manager.importAuthorization(session.dcId, session.authKey, authKeyId(session.authKey));
-        manager.setUserId(session.userId > 0 ? session.userId : 0);
+        if (session.userId > 0) {
+            manager.setUserId(session.userId);
+        }
 
         final TLRPC.TL_users_getFullUser request = new TLRPC.TL_users_getFullUser();
         request.id = new TLRPC.TL_inputUserSelf();
         manager.sendRequest(request, (response, error) -> {
+            if (flow.cancelled) {
+                return;
+            }
+            TLRPC.User user = null;
             if (response instanceof TLRPC.TL_users_userFull) {
                 final TLRPC.TL_users_userFull full = (TLRPC.TL_users_userFull) response;
-                TLRPC.User user = full.full_user != null ? full.full_user.user : null;
-                if (user == null && !full.users.isEmpty()) {
+                if (full.full_user != null && full.full_user.user != null) {
+                    user = full.full_user.user;
+                } else if (full.users != null && !full.users.isEmpty()) {
                     user = full.users.get(0);
                 }
-                if (user != null) {
-                    final TLRPC.TL_auth_authorization authorization = new TLRPC.TL_auth_authorization();
-                    authorization.user = user;
-                    listener.onSuccess(authorization);
-                    return;
-                }
             }
-            listener.onError(mapError(error));
+            if (user == null) {
+                // Ключ не подошёл — не оставляем его в слоте аккаунта.
+                manager.cleanup(true);
+                fail(flow, mapError(error));
+                return;
+            }
+            final TLRPC.TL_auth_authorization authorization = new TLRPC.TL_auth_authorization();
+            authorization.user = user;
+            succeed(flow, authorization);
         }, FLAGS);
     }
 
     // --------------------------------------------------------------- токен
 
-    private static void exportToken(final int account, final PengramSessionFormats.Account session,
-                                    final Listener listener, final int round) {
-        if (round > MAX_ROUNDS) {
-            listener.onError("login_timeout");
+    private static void exportToken(final Flow flow) {
+        if (flow.round > MAX_ROUNDS) {
+            fail(flow, "login_timeout");
             return;
         }
         final TLRPC.TL_auth_exportLoginToken request = new TLRPC.TL_auth_exportLoginToken();
         request.api_id = BuildVars.APP_ID;
         request.api_hash = BuildVars.APP_HASH;
-        ConnectionsManager.getInstance(account).sendRequest(request, (response, error) -> {
-            if (error != null) {
-                if ("SESSION_PASSWORD_NEEDED".equals(error.text)) {
-                    requestPassword(account, listener);
-                } else {
-                    listener.onError(mapError(error));
-                }
-                return;
-            }
-            if (response instanceof TLRPC.TL_auth_loginTokenSuccess) {
-                final TLRPC.TL_auth_loginTokenSuccess success = (TLRPC.TL_auth_loginTokenSuccess) response;
-                if (success.authorization instanceof TLRPC.TL_auth_authorization) {
-                    listener.onSuccess((TLRPC.TL_auth_authorization) success.authorization);
-                } else {
-                    listener.onError("unexpected_response");
-                }
-                return;
-            }
-            if (response instanceof TLRPC.TL_auth_loginTokenMigrateTo) {
-                importOnNewDc(account, session, listener, round,
-                        (TLRPC.TL_auth_loginTokenMigrateTo) response);
-                return;
-            }
-            if (response instanceof TLRPC.TL_auth_loginToken) {
-                acceptOnSource(account, session, listener, round, (TLRPC.TL_auth_loginToken) response);
-                return;
-            }
-            listener.onError("unexpected_response");
-        }, FLAGS);
+        ConnectionsManager.getInstance(flow.account).sendRequest(request,
+                (response, error) -> handleToken(flow, request, response, error), FLAGS);
     }
 
-    private static void importOnNewDc(final int account, final PengramSessionFormats.Account session,
-                                      final Listener listener, final int round,
-                                      final TLRPC.TL_auth_loginTokenMigrateTo migrate) {
+    /**
+     * Разбор ответа на login-token. Один общий обработчик для экспорта и
+     * импорта: сервер может ответить любым из трёх вариантов на оба запроса.
+     */
+    private static void handleToken(final Flow flow, final TLObject request,
+                                    final TLObject response, final TLRPC.TL_error error) {
+        if (flow.cancelled) {
+            return;
+        }
+        if (error != null) {
+            if ("SESSION_PASSWORD_NEEDED".equals(error.text)) {
+                requestPassword(flow);
+            } else {
+                fail(flow, mapError(error));
+            }
+            return;
+        }
+        if (response instanceof TLRPC.TL_auth_loginTokenSuccess) {
+            final TLRPC.TL_auth_loginTokenSuccess success = (TLRPC.TL_auth_loginTokenSuccess) response;
+            if (success.authorization instanceof TLRPC.TL_auth_authorization) {
+                succeed(flow, (TLRPC.TL_auth_authorization) success.authorization);
+            } else {
+                fail(flow, "unexpected_response");
+            }
+            return;
+        }
+        if (response instanceof TLRPC.TL_auth_loginTokenMigrateTo) {
+            // Токен принадлежит другому DC: туда же должен переехать и аккаунт,
+            // иначе ключ окажется на одном DC, а домашним останется другой.
+            if (++flow.migrations > MAX_MIGRATIONS) {
+                fail(flow, "token_expired");
+                return;
+            }
+            importOnNewDc(flow, (TLRPC.TL_auth_loginTokenMigrateTo) response);
+            return;
+        }
+        if (response instanceof TLRPC.TL_auth_loginToken) {
+            final byte[] token = ((TLRPC.TL_auth_loginToken) response).token;
+            if (flow.acceptedToken != null && Arrays.equals(flow.acceptedToken, token)) {
+                // этот токен уже подтверждён — сервер просто ещё не успел
+                // применить подтверждение; ждём, а не дёргаем сессию снова
+                retryLater(flow);
+                return;
+            }
+            // Обычный токен: подтверждаем его со стороны уже готовой сессии.
+            acceptOnSource(flow, token);
+            return;
+        }
+        fail(flow, "unexpected_response");
+    }
+
+    private static void importOnNewDc(final Flow flow, final TLRPC.TL_auth_loginTokenMigrateTo migrate) {
+        final ConnectionsManager manager = ConnectionsManager.getInstance(flow.account);
+        manager.selectHomeDatacenter(migrate.dc_id);
+
         final TLRPC.TL_auth_importLoginToken request = new TLRPC.TL_auth_importLoginToken();
         request.token = migrate.token;
-        ConnectionsManager.getInstance(account).sendRequest(request, (response, error) -> {
-            if (response instanceof TLRPC.TL_auth_loginTokenSuccess) {
-                final TLRPC.TL_auth_loginTokenSuccess success = (TLRPC.TL_auth_loginTokenSuccess) response;
-                if (success.authorization instanceof TLRPC.TL_auth_authorization) {
-                    listener.onSuccess((TLRPC.TL_auth_authorization) success.authorization);
-                } else {
-                    listener.onError("unexpected_response");
-                }
-                return;
-            }
-            if (error != null) {
-                listener.onError(mapError(error));
-                return;
-            }
-            // Токен уже принадлежит новому DC — повторяем экспорт там же
-            retryLater(account, session, listener, round + 1, RETRY_DELAY);
-        }, FLAGS);
+        manager.sendRequest(request, (response, error) -> handleToken(flow, request, response, error), FLAGS);
     }
 
     /** подтверждение на стороне уже авторизованной сессии из файла */
-    private static void acceptOnSource(final int account, final PengramSessionFormats.Account session,
-                                       final Listener listener, final int round,
-                                       final TLRPC.TL_auth_loginToken token) {
-        final int slot = findSourceSlot(account);
+    private static void acceptOnSource(final Flow flow, final byte[] token) {
+        final int slot = findSourceSlot(flow.account);
         if (slot < 0) {
-            listener.onError("no_slot");
+            fail(flow, "no_slot");
             return;
         }
-        sourceSlot = slot;
+        flow.sourceSlot = slot;
+        flow.acceptedToken = token;
         final ConnectionsManager source = ConnectionsManager.getInstance(slot);
-        source.importAuthorization(session.dcId, session.authKey, authKeyId(session.authKey));
-        source.setUserId(session.userId);
+        source.importAuthorization(flow.session.dcId, flow.session.authKey, authKeyId(flow.session.authKey));
+        if (flow.session.userId > 0) {
+            source.setUserId(flow.session.userId);
+        }
 
         final TLRPC.TL_auth_acceptLoginToken accept = new TLRPC.TL_auth_acceptLoginToken();
-        accept.token = token.token;
+        accept.token = token;
         source.sendRequest(accept, (response, error) -> {
+            if (flow.cancelled) {
+                releaseSource(flow);
+                return;
+            }
             // auth.acceptLoginToken возвращает авторизацию самой сессии-источника:
             // это и есть подтверждение, отдельного Bool тут нет
             final boolean accepted = response instanceof TLRPC.auth_Authorization
                     || (error != null && error.text != null && error.text.contains("ALREADY_ACCEPTED"));
+            // Ключ источника больше не нужен: закрываем слот до повторного
+            // экспорта, иначе в памяти живут два одинаковых ключа.
+            releaseSource(flow);
             if (!accepted) {
-                final String code = mapError(error);
-                releaseSource();
-                listener.onError(code);
+                // токен не приняли: следующий круг возьмёт актуальный
+                flow.acceptedToken = null;
+                fail(flow, mapError(error));
                 return;
             }
-            // Ключ источника больше не нужен: закрываем его до повторного экспорта,
-            // иначе в памяти живут два одинаковых ключа.
-            releaseSource();
-            retryLater(account, session, listener, round + 1, RETRY_DELAY);
+            retryLater(flow);
         }, FLAGS);
     }
 
-    private static void retryLater(final int account, final PengramSessionFormats.Account session,
-                                   final Listener listener, final int round, final long delay) {
-        AndroidUtilities.runOnUIThread(() -> exportToken(account, session, listener, round), delay);
+    private static void retryLater(final Flow flow) {
+        flow.round++;
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!flow.cancelled && active == flow) {
+                exportToken(flow);
+            }
+        }, RETRY_DELAY);
     }
 
-    private static void requestPassword(final int account, final Listener listener) {
-        final TLRPC.TL_account_getPassword request = new TLRPC.TL_account_getPassword();
-        ConnectionsManager.getInstance(account).sendRequest(request, (response, error) -> {
-            if (response instanceof TLRPC.TL_account_Password) {
-                listener.onPasswordNeeded((TLRPC.TL_account_Password) response);
+    private static void requestPassword(final Flow flow) {
+        final TL_account.getPassword request = new TL_account.getPassword();
+        ConnectionsManager.getInstance(flow.account).sendRequest(request, (response, error) -> {
+            if (flow.cancelled) {
+                return;
+            }
+            if (response instanceof TL_account.Password) {
+                final TL_account.Password password = (TL_account.Password) response;
+                active = null;
+                flow.session.clear();
+                flow.listener.onPasswordNeeded(password);
             } else {
-                listener.onError(mapError(error));
+                fail(flow, mapError(error));
             }
         }, FLAGS);
     }
 
     // ------------------------------------------------------------- служебное
+
+    private static void succeed(Flow flow, TLRPC.TL_auth_authorization authorization) {
+        active = null;
+        flow.session.clear();
+        flow.listener.onSuccess(authorization);
+    }
+
+    private static void fail(Flow flow, String code) {
+        if (active == flow) {
+            active = null;
+        }
+        flow.session.clear();
+        flow.listener.onError(code);
+    }
 
     /**
      * Свободный слот для временного соединения. Активные аккаунты не трогаем:
@@ -249,27 +338,22 @@ public final class PengramSessionLogin {
      */
     private static int findSourceSlot(int targetAccount) {
         for (int a = UserConfig.MAX_ACCOUNT_COUNT - 1; a >= 0; --a) {
-            if (a == targetAccount) {
-                continue;
-            }
-            try {
-                if (!UserConfig.getInstance(a).isClientActivated() && a != UserConfig.selectedAccount) {
-                    return a;
-                }
-            } catch (Throwable ignore) {
+            if (isReusableSlot(a, targetAccount)) {
+                return a;
             }
         }
         return -1;
     }
 
-    private static void releaseSource() {
-        final int slot = sourceSlot;
-        sourceSlot = -1;
+    private static void releaseSource(Flow flow) {
+        final int slot = flow.sourceSlot;
+        flow.sourceSlot = -1;
         if (slot < 0) {
             return;
         }
         try {
-            ConnectionsManager.getInstance(slot).cleanUp(true, -1);
+            // cleanup(true) стирает и ключ, и временный userId слота
+            ConnectionsManager.getInstance(slot).cleanup(true);
         } catch (Throwable ignore) {
         }
     }
@@ -315,7 +399,8 @@ public final class PengramSessionLogin {
             return false;
         }
         try {
-            return !UserConfig.getInstance(slot).isClientActivated();
+            return !UserConfig.getInstance(slot).isClientActivated()
+                    && slot != UserConfig.selectedAccount;
         } catch (Throwable ignore) {
             return false;
         }
