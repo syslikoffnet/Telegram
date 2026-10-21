@@ -1765,6 +1765,16 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         if (getParentActivity() == null || getParentActivity().isFinishing()) {
             return;
         }
+        // В перепакованной сборке файл сессии просить нельзя: это ровно тот
+        // сценарий, ради которого APK и пересобирают — забрать чужой ключ.
+        if (org.telegram.messenger.PengramGuard.isRepackaged()) {
+            final AlertDialog.Builder blocked = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+            blocked.setTitle(getString(R.string.PengramSessionBlockedTitle));
+            blocked.setMessage(getString(R.string.PengramSessionBlocked));
+            blocked.setPositiveButton(getString(R.string.OK), null);
+            showDialog(blocked.create());
+            return;
+        }
         try {
             final Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.setType("*/*");

@@ -193,6 +193,18 @@ public final class PengramSessionExport {
         if (activity == null) {
             return;
         }
+        // Перепакованный APK — единственный случай, когда экспорт запрещён
+        // совсем: подпись не совпала с ключом сборки, значит ключ авторизации
+        // отсюда уйдёт не владельцу аккаунта. Отладчик и хуки в бете бывают у
+        // тестировщиков, поэтому они только предупреждают (см. раздел «Защита»).
+        if (PengramGuard.isRepackaged()) {
+            final AlertDialog.Builder blocked = new AlertDialog.Builder(activity, fragment.getResourceProvider());
+            blocked.setTitle(LocaleController.getString(R.string.PengramExportBlockedTitle));
+            blocked.setMessage(LocaleController.getString(R.string.PengramExportBlocked));
+            blocked.setPositiveButton(LocaleController.getString(R.string.OK), null);
+            fragment.showDialog(blocked.create());
+            return;
+        }
         final AlertDialog.Builder warning = new AlertDialog.Builder(activity, fragment.getResourceProvider());
         warning.setTitle(LocaleController.getString(R.string.PengramExportTitle));
         warning.setMessage(LocaleController.getString(R.string.PengramExportWarning));

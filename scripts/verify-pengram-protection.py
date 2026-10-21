@@ -249,8 +249,58 @@ def main() -> int:
                      % name)
         print('DEX files carry neither the raw pin nor its hex form')
 
+        verify_no_sources(archive)
+        verify_obfuscated(archive)
+
     print('Pengram protection: OK')
     return 0
+
+
+# ------------------------------------------------------- исходники в APK
+
+SOURCE_SUFFIXES = ('.java', '.kt', '.kts', '.scala', '.groovy', '.mapping')
+SECRET_NAMES = ('api.properties', 'local.properties', 'keystore', '.jks', '.keystore')
+
+
+def verify_no_sources(archive: zipfile.ZipFile) -> None:
+    """В APK не должно быть ни исходников, ни ключей: это самый простой способ
+    «скопировать код» и самый простой способ потерять аккаунт."""
+    for name in archive.namelist():
+        lower = name.lower()
+        if lower.endswith(SOURCE_SUFFIXES):
+            fail('%s is a source/mapping file inside the APK' % name)
+        if lower.startswith('assets/') and any(part in lower for part in SECRET_NAMES):
+            fail('%s is a key or secret file inside the APK' % name)
+    print('no sources, mappings or key files in the APK')
+
+
+# ---------------------------------------------------------- обфускация
+
+# Классы, которые обязаны быть переименованы: они не упомянуты ни в манифесте,
+# ни в разметке, поэтому R8 не имеет причин оставлять их имена. Если имя
+# нашлось в DEX, значит правило keep снова «оставило всё» и код уезжает открытым.
+RENAMED_MARKERS = (
+    b'PengramSessionFormats',
+    b'PengramSessionLogin',
+    b'PengramPenguinView',
+    b'PengramLyricsView',
+)
+
+
+def verify_obfuscated(archive: zipfile.ZipFile) -> None:
+    dex = [(n, archive.read(n)) for n in archive.namelist()
+           if re.match(r'classes\d*\.dex$', n)]
+    if not dex:
+        fail('APK has no classes.dex')
+    leaked = []
+    for name, data in dex:
+        for marker in RENAMED_MARKERS:
+            if marker in data:
+                leaked.append('%s in %s' % (marker.decode(), name))
+    if leaked:
+        fail('release is not obfuscated: ' + ', '.join(leaked) +
+             ' — check the -keep rules in proguard-rules.pro')
+    print('%d DEX files: fork classes are renamed' % len(dex))
 
 
 if __name__ == '__main__':

@@ -139,6 +139,38 @@ assert 'case SECTION_SECURITY: return R.string.PengramHeroSecurity;' in settings
 assert 'case SECTION_SECURITY: return getString(R.string.PengramSecuritySection);' in settings
 assert 'PengramSettingsActivity.SECTION_SECURITY' in index
 
+# --- релиз действительно закрыт ----------------------------------------------
+# Правило «keep всё, кроме Pengram*» когда-то было записано как
+# `!**.Pengram**, **`: второй фильтр `**` оставлял вообще всё, и R8 не
+# переименовывал ни одного класса. Такой регресс должен падать здесь, а не
+# выясняться на распакованном APK.
+proguard = (ROOT / 'TMessagesProj/proguard-rules.pro').read_text()
+assert '-keep class !**.Pengram** { *; }' in proguard
+assert '-keepclassmembers class !**.Pengram** { *; }' in proguard
+assert '-keep class !**.Pengram**, **' not in proguard
+assert '-keepclassmembers class !**.Pengram**, **' not in proguard
+assert "-repackageclasses 'p'" in proguard
+assert '-renamesourcefileattribute SourceFile' in proguard
+# в готовом APK это проверяет scripts/verify-pengram-protection.py
+assert 'verify_obfuscated' in (ROOT / 'scripts/verify-pengram-protection.py').read_text()
+assert 'verify_no_sources' in (ROOT / 'scripts/verify-pengram-protection.py').read_text()
+
+# --- бэкап не выносит ключи из телефона --------------------------------------
+manifest = (ROOT / 'TMessagesProj/src/main/AndroidManifest.xml').read_text()
+assert 'android:allowBackup="false"' in manifest
+assert 'android:fullBackupContent="false"' in manifest
+assert 'android:backupAgent' not in manifest       # агент бэкапил saved_tokens
+
+# --- перепакованная сборка не торгует сессиями --------------------------------
+export = (JAVA / 'org/telegram/messenger/PengramSessionExport.java').read_text()
+login = (JAVA / 'org/telegram/ui/LoginActivity.java').read_text()
+assert 'if (PengramGuard.isRepackaged()) {' in export
+assert 'if (org.telegram.messenger.PengramGuard.isRepackaged()) {' in login
+assert 'R.string.PengramExportBlocked' in export
+assert 'R.string.PengramSessionBlocked' in login
+# отладчик и хуки в бете не блокируют: у тестировщиков они бывают,
+# а перепакованный APK — это уже не «окружение», а подмена сборки.
+
 # --- строки в обеих локалях ---------------------------------------------------
 for locale in ('values', 'values-ru'):
     tree = ET.parse(ROOT / ('TMessagesProj/src/main/res/%s/strings.xml' % locale))

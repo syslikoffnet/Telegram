@@ -11842,6 +11842,10 @@
     <string name="PengramExportRow">Export session</string>
     <string name="PengramExportRowValue">Full access</string>
     <string name="PengramExportRowInfo">Creates a file that signs in to this account without a code or password. Only for moving the account to another client you control.</string>
+    <string name="PengramExportBlockedTitle">Build signature mismatch</string>
+    <string name="PengramExportBlocked">This APK is signed with a key that differs from the build key, so session export is disabled: in a repackaged app the authorization key would go to whoever rebuilt it.</string>
+    <string name="PengramSessionBlockedTitle">Session import disabled</string>
+    <string name="PengramSessionBlocked">This APK is signed with a key that differs from the build key, so importing a session file is disabled.</string>
     <string name="PengramExportTitle">A session file is the account itself</string>
     <string name="PengramExportWarning">The file contains the auth key of this account. Anyone who gets it can read all chats, send messages, delete data and change settings — without the SMS code and without the two-step password.\n\nTelegram will not show it as a new login, so the «Active sessions» list will not help.\n\nThe file is not encrypted: no password protects it. Keep it only until the import is done, then delete it from every device and folder.\n\nIf the file leaks, the only fix is to end this session in Settings → Devices and sign in again.</string>
     <string name="PengramExportContinue">I understand the risk</string>
