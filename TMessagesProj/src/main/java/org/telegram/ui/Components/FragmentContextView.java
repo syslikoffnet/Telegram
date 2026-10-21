@@ -2163,14 +2163,18 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             if (pengramTicker == null) {
                 return;
             }
-            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-            if (playing == null || !isMusic || currentStyle != STYLE_AUDIO_PLAYER
+            if (pengramTicker == null || !isMusic || currentStyle != STYLE_AUDIO_PLAYER
                     || !PengramConfig.isHeaderLyrics()) {
-                return; // трек кончился или шапка другая — кадры больше не нужны
+                return; // шапка другая — кадры больше не нужны
             }
-            pengramTicker.setProgress(playing.audioProgress);
-            if (!pengramTickerShown) {
-                pengramCheckTicker(playing); // текст мог догрузиться позже
+            // Пауза не должна останавливать насос: после неё трек играет
+            // дальше, а сообщения плеера в списке чатов приходят редко.
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing != null) {
+                pengramTicker.setProgress(playing.audioProgress);
+                if (!pengramTickerShown) {
+                    pengramCheckTicker(playing); // текст мог догрузиться позже
+                }
             }
             AndroidUtilities.runOnUIThread(this, 500);
         }
