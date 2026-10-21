@@ -69,6 +69,8 @@ AVATAR_DIR = PROJECT_DIR / "avatars"
 STATE_PATH = Path.home() / ".pengram-community.json"
 SESSION_PATH = Path.home() / ".pengram-community.session"
 
+BUILD_TAG = "community 2026-10-21.4"
+
 STEP_PAUSE = 1.6  # секунды между запросами: мягче к лимитам Telegram
 
 # откуда докачивать аватарки, если скрипт скачали одним файлом
@@ -467,6 +469,7 @@ def print_plan(args) -> None:
 
     print()
     print("=" * 72)
+    print(f"  {BUILD_TAG}")
     print("  ЧТО БУДЕТ СОЗДАНО (просмотр, ничего не отправляется)")
     print("=" * 72)
 
@@ -806,6 +809,7 @@ async def apply_plan(args) -> None:
     from telethon.tl.types import (ChatBannedRights, DialogFilter,
                                    InputReplyToMessage, TextWithEntities)
 
+    print(f"[сборка] {BUILD_TAG}", flush=True)
     api_id, api_hash = read_api_credentials()
     state = load_state()
 
@@ -1180,6 +1184,7 @@ async def apply_plan(args) -> None:
         print("  Повторить: python3 pengram-community.py --repair")
     print("  Дальше: зайдите в чат и проверьте темы, затем раздайте invite-ссылку.")
     print(f"  Состояние: {STATE_PATH}")
+    print(f"  Сборка:    {BUILD_TAG}")
     print()
 
     await client.disconnect()
@@ -1194,6 +1199,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Создаёт канал и чат-форум Pengram в вашем аккаунте.")
     parser.add_argument("--apply", action="store_true",
                         help="реально создать (без флага — только показать план)")
+    parser.add_argument("--version", action="store_true",
+                        help="показать метку сборки скрипта и выйти")
     parser.add_argument("--avatar-list", action="store_true",
                         help="показать доступные аватарки и выйти")
     parser.add_argument("--channel-avatar", type=int, default=1,
@@ -1220,6 +1227,10 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        if args.version:
+            print(BUILD_TAG)
+            return 0
+
         if args.avatar_list:
             print_avatars()
             return 0

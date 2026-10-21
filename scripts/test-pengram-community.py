@@ -114,5 +114,8 @@ assert len(files) >= 10, f"найдено {len(files)} аватарок"
 for path in files:
     assert path.stat().st_size > 20_000, path.name
 
+assert "BUILD_TAG" in source
+assert '"--version"' in source
+
 print("community setup: dry-run by default, forum topics, pinned texts, "
       "10 avatars, secrets kept out: OK")
