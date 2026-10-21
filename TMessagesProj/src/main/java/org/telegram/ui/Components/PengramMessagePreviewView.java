@@ -111,7 +111,8 @@ public class PengramMessagePreviewView extends LinearLayout {
         }
         try {
             cells[index].setMessageObject(messageObject, null, false, false, false);
-            final float alpha = messageObject.pengramDeleted && PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+            final float alpha = messageObject.pengramDeleted && PengramConfig.isFadingDeleted()
+                    ? org.telegram.ui.Cells.ChatMessageCell.PENGRAM_DELETED_ALPHA : 1f;
             cells[index].setAlpha(alpha);
             cells[index].requestLayout();
             cells[index].invalidate();

@@ -55,6 +55,8 @@ public class PengramSectionHero extends FrameLayout {
     private float glowShaderY = Float.NaN;
     private float appear;
     private float breath;
+    /** появление проигрывается один раз: список пересобирается, а шапка та же */
+    private boolean appearPlayed;
     private ValueAnimator appearAnimator;
     private ValueAnimator breathAnimator;
 
@@ -115,21 +117,33 @@ public class PengramSectionHero extends FrameLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        // один короткий «выпрыг» значка при открытии раздела
-        appear = 0;
-        iconView.setScaleX(0.6f);
-        iconView.setScaleY(0.6f);
-        iconView.animate().scaleX(1f).scaleY(1f).setDuration(420)
-                .setInterpolator(new OvershootInterpolator(2.2f)).start();
+        if (!appearPlayed) {
+            // один короткий «выпрыг» значка при открытии раздела. Повторно его
+            // не проигрываем: список пересобирается на каждое переключение, и
+            // шапка «подпрыгивала» снова и снова.
+            appearPlayed = true;
+            appear = 0;
+            iconView.setScaleX(0.6f);
+            iconView.setScaleY(0.6f);
+            iconView.animate().scaleX(1f).scaleY(1f).setDuration(420)
+                    .setInterpolator(new OvershootInterpolator(2.2f)).start();
 
-        if (appearAnimator != null) appearAnimator.cancel();
-        appearAnimator = ValueAnimator.ofFloat(0f, 1f);
-        appearAnimator.setDuration(380);
-        appearAnimator.addUpdateListener(a -> {
-            appear = (float) a.getAnimatedValue();
-            invalidate();
-        });
-        appearAnimator.start();
+            if (appearAnimator != null) appearAnimator.cancel();
+            appearAnimator = ValueAnimator.ofFloat(0f, 1f);
+            appearAnimator.setDuration(380);
+            appearAnimator.addUpdateListener(a -> {
+                appear = (float) a.getAnimatedValue();
+                invalidate();
+            });
+            appearAnimator.start();
+        } else {
+            // уже видели: сразу в конечном состоянии, без анимации
+            appear = 1f;
+            iconView.setScaleX(1f);
+            iconView.setScaleY(1f);
+        }
+        // Дыхание свечения — тоже только пока экран на виду: иначе аниматор
+        // крутится вхолостую, когда шапка уехала за пределы экрана.
 
         if (breathAnimator == null) {
             breathAnimator = ValueAnimator.ofFloat(0f, 1f);
@@ -152,6 +166,20 @@ public class PengramSectionHero extends FrameLayout {
         if (appearAnimator != null) appearAnimator.cancel();
         if (breathAnimator != null) breathAnimator.cancel();
         super.onDetachedFromWindow();
+    }
+
+    /** шапка ушла за пределы экрана: бесконечное «дыхание» можно остановить */
+    @Override
+    protected void onVisibilityChanged(View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        if (breathAnimator == null) {
+            return;
+        }
+        if (visibility == VISIBLE) {
+            if (!breathAnimator.isRunning()) breathAnimator.start();
+        } else if (breathAnimator.isRunning()) {
+            breathAnimator.cancel();
+        }
     }
 
     @Override

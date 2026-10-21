@@ -1961,18 +1961,16 @@ public class ChatActivity extends BaseFragment implements
 
     private int pengramMarksSignature = -1;
 
-    /** Pengram: сигнатура настроек меток — чтобы ловить их изменение на лету */
+    /**
+     * Pengram: отпечаток вида сообщений — метки, «изменено», хвост пузыря,
+     * аватарка у ника, время поверх медиа. Раньше здесь были только метки, и
+     * всё остальное применялось лишь после перезахода в чат.
+     */
     private int pengramMarksSignatureNow() {
-        int v = org.telegram.messenger.PengramConfig.getDeletedMark();
-        v = v * 31 + org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
-        v = v * 31 + (org.telegram.messenger.PengramConfig.isFadingDeleted() ? 1 : 0);
-        v = v * 31 + (org.telegram.messenger.PengramConfig.isKeepingDeletedInChat(currentAccount) ? 1 : 0);
-        v = v * 31 + (org.telegram.messenger.PengramConfig.isSavingDeleted(currentAccount) ? 1 : 0);
-        v = v * 31 + (org.telegram.messenger.PengramLocalKeep.keepDeletedMessages() ? 1 : 0);
-        return v;
+        return org.telegram.messenger.PengramConfig.chatLookSignature(currentAccount);
     }
 
-    /** Pengram: если настройки меток поменяли, пока чат был открыт — перерисовываем сообщения сразу */
+    /** Pengram: настройки вида поменяли, пока чат был открыт — пересобираем сообщения сразу */
     private void pengramCheckMarksSettings() {
         final int signature = pengramMarksSignatureNow();
         if (pengramMarksSignature == signature) {
@@ -1982,6 +1980,27 @@ public class ChatActivity extends BaseFragment implements
         pengramMarksSignature = signature;
         if (first) {
             return;
+        }
+        // Часть настроек меняет не только цвет, но и геометрию пузыря
+        // (хвост, аватарка у ника, время поверх медиа), поэтому ячеек мало —
+        // нужен полный пересчёт строк, иначе остаются обрезки старой вёрстки.
+        if (chatAdapter != null) {
+            try {
+                // notifyDataSetChanged(false) глушит аниматор списка — возвращаем
+                // его сразу, чтобы пересылка и удаление дальше анимировались
+                final boolean hadAnimator = chatListView != null && chatListView.getItemAnimator() != null;
+                chatAdapter.notifyDataSetChanged(false);
+                if (hadAnimator && chatListItemAnimator != null && chatListView != null) {
+                    chatListView.setItemAnimator(chatListItemAnimator);
+                }
+                pengramRefreshMarkedCells();
+                if (chatListView != null) {
+                    chatListView.invalidateViews();
+                }
+                return;
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
         }
         pengramRefreshMarkedCells();
     }
@@ -2182,7 +2201,8 @@ public class ChatActivity extends BaseFragment implements
     /** Pengram: прозрачность ячейки для текущего состояния сообщения */
     private float pengramAlphaFor(MessageObject message) {
         return message != null && (message.pengramDeleted || message.pengramArchived)
-                && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f;
+                && org.telegram.messenger.PengramConfig.isFadingDeleted()
+                ? ChatMessageCell.PENGRAM_DELETED_ALPHA : 1f;
     }
 
     /**
@@ -36073,7 +36093,14 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_PENGRAM_RESEND: {
-                pengramResend(selectedObject, dialog_id);
+                // «Всегда спрашивать чат»: вместо копии в текущий чат открываем
+                // выбор получателя. Настройка была в списке, но ни на что не
+                // влияла — теперь она делает ровно то, что обещает.
+                if (org.telegram.messenger.PengramConfig.isResendAskChat()) {
+                    pengramResendToChat(selectedObject);
+                } else {
+                    pengramResend(selectedObject, dialog_id);
+                }
                 break;
             }
             case OPTION_PENGRAM_SAVE: {

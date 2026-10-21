@@ -114,6 +114,8 @@ public class PengramQuickToggles extends LinearLayout {
             progress.set(on ? 1f : 0f, true);
             sync(false);
 
+            setClickable(true);
+            setFocusable(true);
             setOnClickListener(v -> {
                 toggle.toggle();
                 AndroidUtilities.vibrateCursor(v);
@@ -145,10 +147,14 @@ public class PengramQuickToggles extends LinearLayout {
         protected void onDraw(Canvas canvas) {
             final float t = progress.set(on ? 1f : 0f);
             rect.set(0, 0, getWidth(), getHeight());
-            bgPaint.setColor(ColorUtils.blendARGB(
+            int fill = ColorUtils.blendARGB(
                     ColorUtils.blendARGB(Theme.getColor(Theme.key_windowBackgroundWhite),
                             Theme.getColor(Theme.key_windowBackgroundGray), 0.55f),
-                    color, t));
+                    color, t);
+            if (isPressed()) {
+                fill = ColorUtils.blendARGB(fill, Theme.isCurrentThemeDark() ? 0xFFFFFFFF : 0xFF000000, 0.10f);
+            }
+            bgPaint.setColor(fill);
             canvas.drawRoundRect(rect, dp(14), dp(14), bgPaint);
 
             // лёгкая обводка у включённой плитки

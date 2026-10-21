@@ -58,6 +58,18 @@ public class PengramSwipePreview extends View {
     private Runnable demo;
     private boolean enabled = true;
 
+    // Текст в onDraw зависел от ширины и трека и пересобирался каждый кадр:
+    // ellipsize + String.valueOf + getString — три аллокации на кадр, и всё
+    // это во время анимации. Держим готовые строки и пересчитываем только
+    // когда действительно что-то поменялось.
+    private int cachedWidth = -1;
+    private int cachedTrack = -1;
+    private boolean cachedEnabled;
+    private boolean hasCachedText;
+    private String cachedTitle;
+    private String cachedSubtitle;
+    private String cachedHint;
+
     public PengramSwipePreview(Context context) {
         super(context);
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -78,6 +90,7 @@ public class PengramSwipePreview extends View {
             return;
         }
         enabled = value;
+        hasCachedText = false;
         cancelAnimator();
         setShift(0);
         if (enabled) {
@@ -272,19 +285,38 @@ public class PengramSwipePreview extends View {
         final float right = rect.right - dp(14);
         titlePaint.setColor(ColorUtils.setAlphaComponent(text, (int) (255 * alpha)));
         subtitlePaint.setColor(ColorUtils.setAlphaComponent(gray, (int) (255 * alpha)));
-        final String[] item = DEMO[track];
-        canvas.drawText(String.valueOf(TextUtils.ellipsize(item[0], titlePaint, right - left,
-                TextUtils.TruncateAt.END)), left, cy - dp(2), titlePaint);
-        canvas.drawText(String.valueOf(TextUtils.ellipsize(item[1], subtitlePaint, right - left,
-                TextUtils.TruncateAt.END)), left, cy + dp(13), subtitlePaint);
+        updateCachedText(w, right - left);
+        if (cachedTitle != null) {
+            canvas.drawText(cachedTitle, left, cy - dp(2), titlePaint);
+        }
+        if (cachedSubtitle != null) {
+            canvas.drawText(cachedSubtitle, left, cy + dp(13), subtitlePaint);
+        }
         canvas.restore();
 
         // подпись снизу
         hintPaint.setColor(gray);
+        if (cachedHint != null) {
+            canvas.drawText(cachedHint, w / 2f, barTop + barHeight + dp(22), hintPaint);
+        }
+    }
+
+    /** строки для кадра: пересобираем только при смене трека, ширины или режима */
+    private void updateCachedText(int width, float titleWidth) {
+        if (hasCachedText && cachedWidth == width && cachedTrack == track && cachedEnabled == enabled) {
+            return;
+        }
+        hasCachedText = true;
+        cachedWidth = width;
+        cachedTrack = track;
+        cachedEnabled = enabled;
+        final float available = Math.max(1f, titleWidth);
+        final String[] item = DEMO[track % DEMO.length];
+        cachedTitle = TextUtils.ellipsize(item[0], titlePaint, available, TextUtils.TruncateAt.END).toString();
+        cachedSubtitle = TextUtils.ellipsize(item[1], subtitlePaint, available, TextUtils.TruncateAt.END).toString();
         final String hint = LocaleController.getString(enabled
                 ? R.string.PengramPlayerSwipePreviewHint : R.string.PengramPlayerSwipePreviewOff);
-        canvas.drawText(String.valueOf(TextUtils.ellipsize(hint, hintPaint, w - dp(28),
-                TextUtils.TruncateAt.END)), w / 2f, barTop + barHeight + dp(22), hintPaint);
+        cachedHint = TextUtils.ellipsize(hint, hintPaint, width - dp(28), TextUtils.TruncateAt.END).toString();
     }
 
     private void drawArrows(Canvas canvas, boolean forward, RectF bar, float progress, int accent) {

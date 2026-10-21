@@ -46,8 +46,16 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private EGLConfig eglConfig;
 
     private SurfaceTexture surfaceTexture;
-    private RenderThread thread;
-    private volatile boolean running;
+    private volatile RenderThread thread;
+    /**
+     * Каждый показ пингвина — свой поток и свой EGL-контекст. Токен нужен,
+     * чтобы старый поток не трогал поля нового: при сворачивании и возврате
+     * поверхность пересоздаётся, и два потока на один TextureView — это
+     * чёрный квадрат вместо пингвина и брошенные GL-контексты.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger glToken = new java.util.concurrent.atomic.AtomicInteger();
+    /** поля EGL общие для всех потоков, поэтому init и release идут под этим замком */
+    private final Object glLock = new Object();
     private volatile boolean paused;
     /** пауза от экрана (фрагмент ушёл в фон) и пауза от системы (окно скрыто) — независимы */
     private volatile boolean pausedByScreen;
@@ -264,8 +272,13 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         surfaceWidth = width;
         surfaceHeight = height;
         applyPaused();
-        thread = new RenderThread();
-        thread.start();
+        // старый поток (если ещё жив) обязан успеть освободить свой EGL —
+        // иначе новый контекст затрёт его поля, а старый «зачистит» новый
+        final RenderThread previous = thread;
+        final int token = glToken.incrementAndGet();
+        final RenderThread started = new RenderThread(token, previous);
+        thread = started;
+        started.start();
     }
 
     @Override
@@ -276,7 +289,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     @Override
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-        running = false;
+        // токен «гасит» текущий поток: следующий кадр он не рисует и сам
+        // освобождает EGL в своём потоке
+        glToken.incrementAndGet();
         thread = null;
         ready = false;
         return false;
@@ -1276,42 +1291,86 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     private class RenderThread extends Thread {
 
+        private final int token;
+        /** поток, которому мы наследуем поверхность: дожидаемся его EGL-очистки */
+        private final RenderThread previous;
+
+        RenderThread(int token, RenderThread previous) {
+            this.token = token;
+            this.previous = previous;
+        }
+
+        private boolean alive() {
+            return token == glToken.get();
+        }
+
         @Override
         public void run() {
-            running = true;
-            try {
-                initGL();
-                initProgram();
-                buildMeshes();
-            } catch (Throwable e) {
-                FileLog.e(e);
-                running = false;
+            if (previous != null) {
+                try {
+                    previous.join(500);
+                } catch (InterruptedException ignore) {
+                    return;
+                }
+            }
+            if (!alive()) {
                 return;
+            }
+            synchronized (glLock) {
+                if (previous != null) {
+                    // Предыдущий поток уже не владеет токеном и сам EGL не
+                    // освободит — добираем его контекст, иначе на каждом
+                    // пересоздании поверхности остаётся брошенный контекст.
+                    releaseGLLocked();
+                }
+                if (!alive()) {
+                    return;
+                }
+                try {
+                    initGL();
+                    initProgram();
+                    buildMeshes();
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                    releaseGLLocked();
+                    return;
+                }
             }
 
             final int targetFps = Math.max(30, (int) AndroidUtilities.screenRefreshRate);
             final long frameTime = Math.max(1, 1000L / targetFps);
             long last = android.os.SystemClock.elapsedRealtime();
 
-            while (running) {
+            while (alive()) {
                 final long now = android.os.SystemClock.elapsedRealtime();
                 final float dt = Math.max(0.001f, (now - last) / 1000f);
                 last = now;
-                try {
-                    if (!paused) {
-                        drawFrame(dt);
-                        egl.eglSwapBuffers(eglDisplay, eglSurface);
-                        if (!ready) {
-                            ready = true;
-                            final Runnable listener = readyListener;
-                            readyListener = null;
-                            if (listener != null) {
-                                AndroidUtilities.runOnUIThread(listener);
+                boolean broken = false;
+                // кадр тоже под замком: пока мы читаем общие EGL-поля, никто
+                // не должен их переинициализировать
+                synchronized (glLock) {
+                    if (!alive()) {
+                        break;
+                    }
+                    try {
+                        if (!paused) {
+                            drawFrame(dt);
+                            egl.eglSwapBuffers(eglDisplay, eglSurface);
+                            if (!ready) {
+                                ready = true;
+                                final Runnable listener = readyListener;
+                                readyListener = null;
+                                if (listener != null) {
+                                    AndroidUtilities.runOnUIThread(listener);
+                                }
                             }
                         }
+                    } catch (Throwable e) {
+                        FileLog.e(e);
+                        broken = true;
                     }
-                } catch (Throwable e) {
-                    FileLog.e(e);
+                }
+                if (broken) {
                     break;
                 }
                 try {
@@ -1325,7 +1384,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     break;
                 }
             }
-            releaseGL();
+            synchronized (glLock) {
+                if (alive()) {
+                    releaseGLLocked();
+                }
+            }
         }
     }
 
@@ -1382,7 +1445,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         }
     }
 
-    private void releaseGL() {
+    /** вызывать только под glLock */
+    private void releaseGLLocked() {
         try {
             if (egl != null && eglDisplay != null) {
                 egl.eglMakeCurrent(eglDisplay, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_CONTEXT);

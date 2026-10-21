@@ -1007,6 +1007,38 @@ public class PengramConfig {
         return getMarkIcon(getDeletedMark());
     }
 
+    /**
+     * Pengram: отпечаток всего, что ячейка сообщения читает при отрисовке —
+     * метки, «изменено», хвост пузыря, аватарка у ника, время поверх медиа.
+     *
+     * <p>Чат сравнивает отпечаток при каждом возвращении на экран и, если он
+     * изменился, пересобирает сообщения. Раньше так работали только метки:
+     * переключатель «скрыть хвост» или «убрать изменено» применялся лишь после
+     * перезахода в чат, потому что ячейка уже была построена со старым видом.
+     *
+     * <p>Считается по кэшам, без похода в SharedPreferences, поэтому вызывать
+     * его можно свободно.
+     */
+    public static int chatLookSignature(int account) {
+        int v = isHidingBubbleTail() ? 1 : 0;
+        v = v * 31 + (shouldHideEditedLabel() ? 1 : 0);
+        v = v * 31 + getMediaTimeMode();
+        v = v * 31 + (isMediaTimeRoundHidden() ? 1 : 0);
+        v = v * 31 + (isMediaTimeKeptWhileSending() ? 1 : 0);
+        v = v * 31 + getGroupAvatarPos();
+        v = v * 31 + (isNoRounding() ? 1 : 0);
+        v = v * 31 + (isTimeWithSeconds() ? 1 : 0);
+        v = v * 31 + getDeletedMark();
+        v = v * 31 + getEditedMarkIconRes();
+        v = v * 31 + (isFadingDeleted() ? 1 : 0);
+        v = v * 31 + (isKeepingDeletedInChat(account) ? 1 : 0);
+        v = v * 31 + (isSavingDeleted(account) ? 1 : 0);
+        v = v * 31 + (PengramLocalKeep.keepDeletedMessages() ? 1 : 0);
+        v = v * 31 + (isDeletedReplyQuote() ? 1 : 0);
+        v = v * 31 + (isDeletedReplySigned() ? 1 : 0);
+        return v;
+    }
+
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
         // History opens with a pencil by default. If the user chooses only the

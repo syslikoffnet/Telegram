@@ -491,8 +491,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                     quickTogglesView.add(R.drawable.msg_viewchats, quickTileName(tile),
                             IconBackgroundColors.RED.bottom,
                             new org.telegram.ui.Components.PengramQuickToggles.Toggle() {
-                                @Override public boolean isOn() { return PengramConfig.saveDeleted; }
-                                @Override public void toggle() { PengramConfig.toggleSaveDeleted(); }
+                                // читаем через геттер, а не поле: у аккаунта может
+                                // быть собственный профиль настроек, и поле помнит
+                                // только общее значение
+                                @Override public boolean isOn() { return PengramConfig.isSavingDeleted(currentAccount); }
+                                @Override public void toggle() {
+                                    if (PengramConfig.hasSpyProfile(currentAccount)) {
+                                        PengramConfig.setSpyOption(currentAccount, "saveDeleted",
+                                                !PengramConfig.isSavingDeleted(currentAccount));
+                                    } else {
+                                        PengramConfig.toggleSaveDeleted();
+                                    }
+                                    // удалённые сообщения и прозрачность читаются открытыми
+                                    // чатами — обновляем их сразу, без перезахода
+                                    org.telegram.messenger.PengramHistory.notifyMarksChanged();
+                                }
                             }, refresh);
                     break;
                 case PengramConfig.QUICK_TILE_ADS:

@@ -682,7 +682,8 @@ public class PengramHistoryChatActivity extends BaseFragment {
             if (cell != null) {
                 cell.setMessageObject(item.message, null, false, false, false);
                 cell.setAlpha(item.message != null && item.message.pengramDeleted
-                        && org.telegram.messenger.PengramConfig.isFadingDeleted() ? 0.55f : 1f);
+                        && org.telegram.messenger.PengramConfig.isFadingDeleted()
+                        ? org.telegram.ui.Cells.ChatMessageCell.PENGRAM_DELETED_ALPHA : 1f);
             }
         }
 
