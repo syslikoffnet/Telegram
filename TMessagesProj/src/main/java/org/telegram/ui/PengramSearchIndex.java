@@ -96,6 +96,7 @@ public final class PengramSearchIndex {
             {R.string.PengramHistoryOpenLongPress, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
             {R.string.PengramSaveForMyselfOption, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
             {R.string.PengramSaveForMyselfDefault, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
+            {R.string.PengramLocalKeep, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramLocalKeepHeader, 0, R.string.PengramLocalKeepInfo},
             {R.string.PengramProfileHistory, PengramSettingsActivity.SECTION_HISTORY, 0, 0, 0},
             {R.string.PengramKeepDeleted, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramInChatHeader, 0, R.string.PengramKeepDeletedInfo},
             {R.string.PengramDeletedReplyQuote, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramInChatHeader, 0, 0},

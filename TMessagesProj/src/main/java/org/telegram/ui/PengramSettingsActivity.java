@@ -3214,6 +3214,14 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCheck(BTN_SAVE_READ_DATE, getString(R.string.PengramSaveReadDate)).setChecked(PengramConfig.saveReadDate));
         items.add(UItem.asCheck(BTN_SAVE_LAST_ONLINE, getString(R.string.PengramSaveLastOnline)).setChecked(PengramConfig.saveLastOnline));
         items.add(UItem.asShadow(getString(R.string.PengramTrackInfo)));
+
+        // --- локальная копия --------------------------------------------------
+        // Telegram стирает данные, как только сервер сказал «удалено» или
+        // «сессия отозвана». Здесь это можно выключить.
+        items.add(UItem.asHeader(getString(R.string.PengramLocalKeepHeader)));
+        items.add(checkInfo(org.telegram.messenger.PengramLocalKeep.KEY_ENABLED, true,
+                getString(R.string.PengramLocalKeep), getString(R.string.PengramLocalKeepInfo)));
+
         items.add(moreButton(GROUP_SPY_ADVANCED, getString(R.string.PengramSpyMore)));
         if (expanded(GROUP_SPY_ADVANCED)) fillHistoryAdvanced(items);
     }

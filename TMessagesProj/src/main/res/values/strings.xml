@@ -11837,6 +11837,9 @@
     <string name="PengramSecurityNativeGuardValue">in libtmessages, strings encoded</string>
     <string name="PengramSecurityMTHint">MT Manager shows the name of a known packer (Legu, Bangcle, DexGuard…) in its “Protection” tab, not the level of protection. An ordinary APK has no packer — that is why it says “no protection detected”. Since v2.26.2 MT itself calls this “not detected”, not “unprotected”. Everything listed above works without a packer.</string>
 
+    <string name="PengramLocalKeepHeader">Local copy</string>
+    <string name="PengramLocalKeep">Keep chats and history on the device</string>
+    <string name="PengramLocalKeepInfo">If you are removed from a group or a chat becomes unavailable, it stays in the list and opens read-only with everything already downloaded. Messages deleted on the server stay in the chat, and a revoked session no longer signs you out: the account keeps working offline as a local copy. Nothing is sent anywhere.</string>
     <string name="PengramMentionsHeader">Mentions</string>
     <string name="PengramMentionName">Mention by name on long press</string>
     <string name="PengramMentionNameInfo">In the @ list, long-press a person to insert the name they are saved under in your contacts, with a hidden mention attached. Their @username stays out of the text, and people without a username can be mentioned too.</string>

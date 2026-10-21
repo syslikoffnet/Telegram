@@ -14171,12 +14171,16 @@ public class MessagesController extends BaseController implements NotificationCe
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("checkLastDialogMessage for " + dialog.id + " current dialog not found");
                                 }
-                                getMessagesStorage().isDialogHasTopMessage(dialog.id, () -> deleteDialog(dialog.id, 3));
+                                getMessagesStorage().isDialogHasTopMessage(dialog.id, () -> {
+                                    if (!PengramLocalKeep.keepDialog()) {
+                                        deleteDialog(dialog.id, 3);
+                                    }
+                                });
                             } else {
                                 if (BuildVars.LOGS_ENABLED) {
                                     FileLog.d("checkLastDialogMessage for " + dialog.id + " current dialog top message " + currentDialog.top_message);
                                 }
-                                if (currentDialog.top_message == 0) {
+                                if (currentDialog.top_message == 0 && !PengramLocalKeep.keepDialog()) {
                                     deleteDialog(dialog.id, 3);
                                 }
                             }
@@ -19014,15 +19018,19 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogs_read_outbox_max.put(dialogId, Math.max(value, update.max_id));
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteMessages) {
                 TL_update.TL_updateDeleteMessages update = (TL_update.TL_updateDeleteMessages) baseUpdate;
-                if (deletedMessages == null) {
-                    deletedMessages = new LongSparseArray<>();
+                // Pengram: локальная копия — удалённые сообщения остаются в чате
+                // и в кэше, поэтому список на удаление не собираем вовсе
+                if (!PengramLocalKeep.keepDeletedMessages()) {
+                    if (deletedMessages == null) {
+                        deletedMessages = new LongSparseArray<>();
+                    }
+                    ArrayList<Integer> arrayList = deletedMessages.get(0);
+                    if (arrayList == null) {
+                        arrayList = new ArrayList<>();
+                        deletedMessages.put(0, arrayList);
+                    }
+                    arrayList.addAll(update.messages);
                 }
-                ArrayList<Integer> arrayList = deletedMessages.get(0);
-                if (arrayList == null) {
-                    arrayList = new ArrayList<>();
-                    deletedMessages.put(0, arrayList);
-                }
-                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateDeleteQuickReplyMessages) {
                 TL_update.TL_updateDeleteQuickReplyMessages update = (TL_update.TL_updateDeleteQuickReplyMessages) baseUpdate;
                 if (deletedQuickReplyMessages == null) {
@@ -19539,16 +19547,20 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d(baseUpdate + " channelId = " + update.channel_id);
                 }
-                if (deletedMessages == null) {
-                    deletedMessages = new LongSparseArray<>();
+                // Pengram: локальная копия — удалённые сообщения остаются в чате
+                // и в кэше, поэтому список на удаление не собираем вовсе
+                if (!PengramLocalKeep.keepDeletedMessages()) {
+                    if (deletedMessages == null) {
+                        deletedMessages = new LongSparseArray<>();
+                    }
+                    long dialogId = -update.channel_id;
+                    ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
+                    if (arrayList == null) {
+                        arrayList = new ArrayList<>();
+                        deletedMessages.put(dialogId, arrayList);
+                    }
+                    arrayList.addAll(update.messages);
                 }
-                long dialogId = -update.channel_id;
-                ArrayList<Integer> arrayList = deletedMessages.get(dialogId);
-                if (arrayList == null) {
-                    arrayList = new ArrayList<>();
-                    deletedMessages.put(dialogId, arrayList);
-                }
-                arrayList.addAll(update.messages);
             } else if (baseUpdate instanceof TL_update.TL_updateChannel) {
                 if (BuildVars.LOGS_ENABLED) {
                     TL_update.TL_updateChannel update = (TL_update.TL_updateChannel) baseUpdate;
@@ -20463,7 +20475,11 @@ public class MessagesController extends BaseController implements NotificationCe
                             if (dialog == null && chat instanceof TLRPC.TL_channel && !chat.left) {
                                 Utilities.stageQueue.postRunnable(() -> getChannelDifference(update.channel_id, 1, 0, null));
                             } else if (ChatObject.isNotInChat(chat) && dialog != null && (promoDialog == null || promoDialog.id != dialog.id)) {
-                                deleteDialog(dialog.id, 0);
+                                // Pengram: локальная копия — чат остаётся в списке
+                                // и открывается только на чтение из кэша
+                                if (!PengramLocalKeep.keepDialog()) {
+                                    deleteDialog(dialog.id, 0);
+                                }
                             }
                             if (chat instanceof TLRPC.TL_channelForbidden || chat.kicked) {
                                 ChatObject.Call call = getGroupCall(chat.id, false);
@@ -20501,7 +20517,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 }
                             }
                             TLRPC.Dialog dialog = dialogs_dict.get(-chat.id);
-                            if (dialog != null) {
+                            if (dialog != null && !PengramLocalKeep.keepDialog()) {
                                 deleteDialog(dialog.id, 0);
                             }
                         }

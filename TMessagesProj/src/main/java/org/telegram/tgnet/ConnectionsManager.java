@@ -863,6 +863,12 @@ public class ConnectionsManager extends BaseController {
         AndroidUtilities.runOnUIThread(() -> {
             AccountInstance accountInstance = AccountInstance.getInstance(currentAccount);
             if (accountInstance.getUserConfig().getClientUserId() != 0) {
+                // Pengram: локальная копия — сессия отозвана, но аккаунт, чаты и
+                // скачанные файлы остаются. Сеть выключаем, чтобы 401 не сыпался
+                // в интерфейс: дальше можно читать только кэш.
+                if (org.telegram.messenger.PengramLocalKeep.keepRevokedAccount(currentAccount)) {
+                    return;
+                }
                 accountInstance.getUserConfig().clearConfig();
                 accountInstance.getMessagesController().performLogout(0);
             }
