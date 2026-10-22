@@ -202,7 +202,17 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             Object[] objects = spannable.getSpans(0, text.length(), Object.class);
             containsSpans = objects != null && objects.length > 0;
         }
-        if (editText.length() != text.length() || containsSpans) {
+        // Pengram: мягкий перенос вставляет в messageText невидимые U+200B
+        // (MessageObject.pengramSoftWrap), поэтому длина переставала совпадать с
+        // полем ввода и перелёт уходил в crossfade — другую ветвь отрисовки, чем
+        // в официальном Telegram: летящий текст гаснет, а текст строки проявляется
+        // через alphaProgress. Невидимые символы не должны менять анимацию,
+        // поэтому сравниваем длину без них.
+        int pengramZeroWidth = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\u200B') pengramZeroWidth++;
+        }
+        if (editText.length() != text.length() - pengramZeroWidth || containsSpans) {
             crossfade = true;
             int[] newStart = new int[1];
             CharSequence trimmedStr = AndroidUtilities.trim(editText, newStart);

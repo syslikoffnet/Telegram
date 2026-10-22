@@ -66,6 +66,18 @@ assert clamp, 'компенсация отступа не прижата к ст
 assert on_draw.index('final float cellTop = messageViewY;') < on_draw.index(
     'messageViewY -= (listViewTargetBottomPadding'), 'cellTop снят после сдвига'
 
+# --- 2b. мягкий перенос не уводит перелёт в crossfade ------------------------
+# pengramSoftWrap вставляет в messageText невидимые U+200B; без их вычета длина
+# переставала совпадать с полем ввода и crossfade включался на каждом сообщении,
+# уводя отрисовку в другую ветвь (летящий текст гаснет, строка проявляется через
+# alphaProgress) — не так, как в официальном Telegram.
+assert "pengramZeroWidth" in transition, 'невидимые U+200B снова влияют на crossfade'
+cond = re.search(r'if \(editText\.length\(\) != text\.length\(\) - pengramZeroWidth \|\| containsSpans\) \{\s*crossfade = true;', transition)
+assert cond, 'условие crossfade не сравнивает длину без U+200B'
+assert transition.index('pengramZeroWidth') < transition.index('crossfade = true;'), (
+    'вычет U+200B считается после включения crossfade')
+assert "'\\u200B'" in transition or '\u200B' in transition, 'нет проверки zero-width space'
+
 # --- 3. отрисовка overlay штатная, как в официальном Telegram ---------------
 assert 'ALPHA_RAMP' not in transition, 'осталась нестандартная константа проявления'
 assert 'float alphaProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;' in transition, (
