@@ -22,6 +22,12 @@ assert 'messageView.setEnterTransitionInProgress(true)' in enter
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
+emoji_start = cell.index('private void drawAnimatedEmojiMessageText(Canvas canvas, float alpha)')
+emoji_wrapper = cell[emoji_start:cell.index('\n    }', emoji_start) + 6]
+assert emoji_wrapper.count('currentMessageObject.textXOffset, enterTransitionInProgress);') == 3, 'animated emoji overlay still inherits the cell viewport'
+emoji_selector_start = cell.index('        int firstVisibleBlockNum;', emoji_start)
+emoji_selector = cell[emoji_selector_start:cell.index('\n        float right;', emoji_selector_start)]
+assert emoji_selector.strip() == selector.strip(), 'emoji/text range selection diverged; extend runtime harness before changing it'
 print('Send overlay forwarding source contract PASS')
 
 if not shutil.which('javac') or not shutil.which('java'):

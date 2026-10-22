@@ -161,6 +161,7 @@ public class NotificationsController extends BaseController implements Notificat
     private AlarmManager alarmManager;
 
     private int notificationId;
+    private final String summaryNotificationTag;
     private String notificationGroup;
 
     private SpoilerEffect mediaSpoilerEffect = new SpoilerEffect();
@@ -203,6 +204,7 @@ public class NotificationsController extends BaseController implements Notificat
     public NotificationsController(int instance) {
         super(instance);
         notificationId = currentAccount + 1;
+        summaryNotificationTag = PengramNotificationRouting.summaryIdentity(currentAccount);
         notificationGroup = "messages" + (currentAccount == 0 ? "" : currentAccount);
         SharedPreferences preferences = getAccountInstance().getNotificationsSettings();
         inChatSoundEnabled = preferences.getBoolean("EnableInChatSound", true);
@@ -3329,7 +3331,7 @@ public class NotificationsController extends BaseController implements Notificat
 
     public void hideNotifications() {
         notificationsQueue.postRunnable(() -> {
-            notificationManager.cancel(notificationId);
+            notificationManager.cancel(summaryNotificationTag, notificationId);
             lastWearNotifiedMessageId.clear();
             for (int a = 0; a < wearNotificationsIds.size(); a++) {
                 notificationManager.cancel(notificationGroup, wearNotificationsIds.valueAt(a));
@@ -3341,7 +3343,7 @@ public class NotificationsController extends BaseController implements Notificat
     private void dismissNotification() {
         FileLog.d("NotificationsController dismissNotification");
         try {
-            notificationManager.cancel(notificationId);
+            notificationManager.cancel(summaryNotificationTag, notificationId);
             pushMessages.clear();
             pushMessagesDict.clear();
             lastWearNotifiedMessageId.clear();
@@ -3452,7 +3454,7 @@ public class NotificationsController extends BaseController implements Notificat
         notificationsQueue.postRunnable(() -> {
             int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
             if (hour >= 11 && hour <= 22) {
-                notificationManager.cancel(notificationId);
+                notificationManager.cancel(summaryNotificationTag, notificationId);
                 showOrUpdateNotification(true);
             } else {
                 scheduleNotificationRepeat();
@@ -4878,7 +4880,7 @@ public class NotificationsController extends BaseController implements Notificat
             editor.commit();
             sound = Settings.System.DEFAULT_RINGTONE_URI;
             notificationBuilder.setChannelId(validateChannelId(dialogId, topicId, chatName, vibrationPattern, ledColor, sound, importance, isDefault, isInApp, isSilent, chatType));
-            notificationManager.notify(notificationId, notificationBuilder.build());
+            notificationManager.notify(summaryNotificationTag, notificationId, notificationBuilder.build());
         }
     }
 
@@ -4899,7 +4901,7 @@ public class NotificationsController extends BaseController implements Notificat
         }
         Notification mainNotification = notificationBuilder.build();
         if (Build.VERSION.SDK_INT <= 19) {
-            notificationManager.notify(notificationId, mainNotification);
+            notificationManager.notify(summaryNotificationTag, notificationId, mainNotification);
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("show summary notification by SDK check");
             }
@@ -5774,7 +5776,7 @@ public class NotificationsController extends BaseController implements Notificat
                 FileLog.d("show summary with id " + notificationId);
             }
             try {
-                notificationManager.notify(notificationId, mainNotification);
+                notificationManager.notify(summaryNotificationTag, notificationId, mainNotification);
             } catch (SecurityException e) {
                 FileLog.e(e);
                 resetNotificationSound(notificationBuilder, lastDialogId, lastTopicId, chatName, vibrationPattern, ledColor, sound, importance, isDefault, isInApp, isSilent, chatType);
@@ -5784,7 +5786,7 @@ public class NotificationsController extends BaseController implements Notificat
                 if (BuildVars.LOGS_ENABLED) {
                     FileLog.d("cancel summary with id " + notificationId);
                 }
-                notificationManager.cancel(notificationId);
+                notificationManager.cancel(summaryNotificationTag, notificationId);
             }
         }
 

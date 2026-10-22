@@ -4818,19 +4818,19 @@
           "code": ".setStyle(mediaStyle);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:401",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:403",
           "code": ".setStyle(new NotificationCompat.BigTextStyle().bigText(message))"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4377",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4379",
           "code": "mBuilder.setStyle(new NotificationCompat.BigTextStyle().bigText(message));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4410",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4412",
           "code": "mBuilder.setStyle(inboxStyle);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5666",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5668",
           "code": ".setStyle(messagingStyle)"
         }
       ]
@@ -5549,7 +5549,7 @@
           "code": "public static void request(int currentAccount, int requestToken, String action, String key_id) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1097",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1099",
           "code": "VoIPGroupNotification.request(ApplicationLoader.applicationContext, currentAccount, messageObject.getDialogId(), names.toString(), action.call_id, messageObject.getId(), action.video);"
         }
       ]
@@ -10479,7 +10479,7 @@
           "code": "v = v * 31 + (isFadingDeleted() ? 1 : 0);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:28348",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:28349",
           "code": "if (!org.telegram.messenger.PengramConfig.isFadingDeleted()) {"
         },
         {
@@ -15873,7 +15873,7 @@
           "code": "if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:22184",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:22185",
           "code": "if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {"
         }
       ]
@@ -15957,7 +15957,7 @@
           "code": "public static int getMediaTimeMode() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24141",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24142",
           "code": "final int mode = PengramConfig.getMediaTimeMode();"
         },
         {
@@ -15997,7 +15997,7 @@
           "code": "public static boolean isMediaTimeRoundHidden() { return getBool(KEY_MEDIA_TIME_ROUND, false); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24155",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24156",
           "code": "return PengramConfig.isMediaTimeRoundHidden();"
         }
       ]
@@ -16017,7 +16017,7 @@
           "code": "public static boolean isMediaTimeKeptWhileSending() { return getBool(KEY_MEDIA_TIME_SENDING, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24146",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24147",
           "code": "if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {"
         }
       ]
@@ -29397,11 +29397,11 @@
       "lexical_occurrences": 5,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4646",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4648",
           "code": ".setSmallIcon(PengramNotificationIcon.drawable())"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5658",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5660",
           "code": ".setSmallIcon(PengramNotificationIcon.drawable())"
         },
         {
@@ -29434,34 +29434,50 @@
         }
       ]
     },
-    "shortcutIdentity": {
+    "summaryIdentity": {
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:36"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:3661",
-          "code": "String id = PengramNotificationRouting.shortcutIdentity(currentAccount, getUserConfig().getClientUserId(), did);"
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:207",
+          "code": "summaryNotificationTag = PengramNotificationRouting.summaryIdentity(currentAccount);"
         },
         {
           "at": "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:37",
+          "code": "public static String summaryIdentity(int account) {"
+        }
+      ]
+    },
+    "shortcutIdentity": {
+      "declarations": [
+        "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:41"
+      ],
+      "lexical_occurrences": 2,
+      "examples": [
+        {
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:3663",
+          "code": "String id = PengramNotificationRouting.shortcutIdentity(currentAccount, getUserConfig().getClientUserId(), did);"
+        },
+        {
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:42",
           "code": "public static String shortcutIdentity(int account, long userId, long dialogId) {"
         }
       ]
     },
     "broadcastIdentity": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:40"
+        "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:45"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4889",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4891",
           "code": "intent.setData(Uri.parse(PengramNotificationRouting.broadcastIdentity(currentAccount,"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:41",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/PengramNotificationRouting.java:46",
           "code": "public static String broadcastIdentity(int account, long userId, long dialogId, long topicId, int messageId) {"
         }
       ]
@@ -36619,7 +36635,7 @@
           "code": "FileLog.d(\"LocaleController checkUpdateForCurrentRemoteLocale version is up to date (local is \" + currentLocaleInfo.version + \", remote is \" + version + \")\");"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4922",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:4924",
           "code": "FileLog.d(\"showExtraNotifications: dialog \" + dialog_id + \" is skipped, message date (\" + messageObject.messageOwner.date + \" <= \" + dismissDate + \")\");"
         },
         {
@@ -36727,7 +36743,7 @@
           "code": "return String.format(\"%1$s (@%2$s)\", name, username);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5258",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:5260",
           "code": "conversationName = String.format(\"%1$s (%2$d)\", name, n);"
         },
         {
@@ -48880,27 +48896,27 @@
           "code": "metadata.putString(MediaMetadata.KEY_TITLE, audioInfo.getTitle());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1936",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1938",
           "code": "name = getTitle(chat);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1945",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:1947",
           "code": "name += \" @ \" + getTitle(chat);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2026",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2028",
           "code": "return LocaleController.formatString(R.string.ChannelAddedByNotification, name, getTitle(chat));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2029",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2031",
           "code": "return LocaleController.formatString(R.string.NotificationInvitedToGroup, name, getTitle(chat));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2037",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2039",
           "code": "return LocaleController.formatString(R.string.NotificationGroupAddSelfMega, name, getTitle(chat));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2039",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/NotificationsController.java:2041",
           "code": "return LocaleController.formatString(R.string.NotificationGroupAddSelf, name, getTitle(chat));"
         }
       ]
@@ -49502,7 +49518,7 @@
           "code": "delegate.didLongPress(this, lastTouchX, lastTouchY);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:26909",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:26910",
           "code": "delegate.didLongPress(this, 0, 0);"
         },
         {

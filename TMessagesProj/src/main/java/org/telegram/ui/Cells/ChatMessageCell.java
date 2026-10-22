@@ -21701,6 +21701,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject == null || currentMessageObject.isSponsored()) {
             return;
         }
+        // Почему: emoji в send overlay не должны исчезать из-за viewport исходной ячейки.
         float textY = this.textY;
         if (transitionParams.animateTextY) {
             textY = transitionParams.animateFromTextY * (1f - transitionParams.animateChangeProgress) + this.textY * transitionParams.animateChangeProgress;
@@ -21721,11 +21722,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     );
                 }
             }
-            drawAnimatedEmojiMessageText(textX, textY, canvas, transitionParams.animateOutTextBlocks, transitionParams.animateOutAnimateEmoji, false, alpha * (1.0f - transitionParams.animateChangeProgress), currentMessageObject.textXOffset, false);
-            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha * transitionParams.animateChangeProgress, currentMessageObject.textXOffset, false);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, transitionParams.animateOutTextBlocks, transitionParams.animateOutAnimateEmoji, false, alpha * (1.0f - transitionParams.animateChangeProgress), currentMessageObject.textXOffset, enterTransitionInProgress);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha * transitionParams.animateChangeProgress, currentMessageObject.textXOffset, enterTransitionInProgress);
             canvas.restore();
         } else {
-            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha, currentMessageObject.textXOffset, false);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha, currentMessageObject.textXOffset, enterTransitionInProgress);
         }
     }
 

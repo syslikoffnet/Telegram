@@ -15,6 +15,12 @@ assert 'PengramNotificationRouting.broadcastIdentity(' in n
 assert 'PengramNotificationRouting.findPushAccount(userIdObject)' in p
 assert 'Utilities.parseInt((String) userIdObject)' not in p
 assert 'notificationManager.cancel(notificationGroup, id);' in n
+assert 'notificationManager.notify(notificationId,' not in n, 'summary collides with foreground service ids'
+assert 'notificationManager.cancel(notificationId)' not in n, 'summary cancellation affects unrelated service notification'
+assert 'summaryNotificationTag = PengramNotificationRouting.summaryIdentity(currentAccount);' in n
+assert n.count('notificationManager.notify(summaryNotificationTag, notificationId,') == 3
+assert n.count('notificationManager.cancel(summaryNotificationTag, notificationId)') == 4
+
 cleanup=n.split('public void cleanup()',1)[1].split('\n    }',1)[0]
 assert 'wearNotificationsIds.clear()' not in cleanup.split('dismissNotification();',1)[0], 'child ids lost before cancel'
 dismiss=n.split('private void dismissNotification()',1)[1].split('\n    }',1)[0]
@@ -66,7 +72,14 @@ public class Regression {
   check(a.equals(PengramNotificationRouting.broadcastIdentity(0,123,777000,0,1)),"identity not stable");
   check(!PengramNotificationRouting.shortcutIdentity(0,123,777000).equals(PengramNotificationRouting.shortcutIdentity(2,8000000001L,777000)),"shortcut account collision");
   check(!PengramNotificationRouting.shortcutIdentity(0,123,777000).equals(PengramNotificationRouting.shortcutIdentity(0,124,777000)),"shortcut slot reuse");
-  System.out.println("OK: production resolver/identity, 26 cases; host Java, NOT Android PendingIntent rendering");
+  java.util.HashSet<String> summaries = new java.util.HashSet<>();
+  for (int account = 0; account < 16; account++) {
+   String tag = PengramNotificationRouting.summaryIdentity(account);
+   check(tag != null && !tag.isEmpty(), "untagged summary collides with foreground service");
+   check(summaries.add(tag), "summary account collision");
+   check(!tag.equals("messages" + (account == 0 ? "" : account)), "summary collides with child ids");
+  }
+  System.out.println("OK: production resolver/identity, 26 baseline cases + all 16 summary namespaces; host Java, NOT Android rendering");
  }
 }
 '''

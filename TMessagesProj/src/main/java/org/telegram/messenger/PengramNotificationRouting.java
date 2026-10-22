@@ -34,6 +34,11 @@ public final class PengramNotificationRouting {
         return result;
     }
 
+    public static String summaryIdentity(int account) {
+        // Почему: ids 4/5/6 уже заняты foreground services; нужен отдельный tag.
+        return "pengram.summary." + account;
+    }
+
     public static String shortcutIdentity(int account, long userId, long dialogId) {
         return "ndid_" + account + "_" + userId + "_" + dialogId;
     }
