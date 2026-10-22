@@ -5700,6 +5700,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_HIDE_PHONE:
                 PengramConfig.toggleHidePhoneNumber();
                 if (view instanceof TextCheckCell) ((TextCheckCell) view).setChecked(PengramConfig.hidePhoneNumber);
+                // Строка биндится из UItem.checked, зафиксированного при постройке
+                // списка: без перестройки прокрутка возвращает прежнее положение
+                // переключателя. updateAll пересобирает раздел из PengramConfig.
+                updateAll = true;
                 break;
             case BTN_SAVE_IN_BOTS:
                 if (spySelectedAccount >= 0) {

@@ -1170,7 +1170,7 @@
     <string name="PengramHeroAI">Один сервис и одна роль для всех чатов. Обрабатывайте сообщение или набранный текст перед отправкой и сами решайте, что делать с результатом.</string>
     <string name="PengramBackupNoPasswordWarning">У файла нет пароля — собрать такой мог кто угодно. Применяйте, только если делали его сами.</string>
     <string name="PengramOriginalNameHeader">Имя в профиле</string>
-    <string name="PengramOriginalName">Показывать официальное имя</string>
+    <string name="PengramOriginalName">Второе имя жестом по имени</string>
     <string name="PengramOriginalNameInfo">Человека из контактов Telegram показывает так, как записали его вы. Жест по имени в профиле показывает, как его видят все остальные, — имя, которое он поставил себе сам, — и возвращает ваше обратно. Pengram берёт его с публичной страницы профиля, а если её нет — из имён, встреченных до добавления в контакты, и из истории профилей. В контактах ничего не меняется, номер не передаётся, число проверок не ограничено.</string>
     <string name="PengramOriginalNameOff">Выключено</string>
     <string name="PengramOriginalNameTap">По нажатию</string>
@@ -1902,10 +1902,10 @@
     <string name="PengramHistoryMaxValue">%1$d записей</string>
     <string name="PengramHistoryMaxUnlimited">Без лимита</string>
     <string name="PengramBackgroundChannel">Pengram в фоне</string>
-    <string name="PengramBackgroundTitle">🐧✨</string>
-    <string name="PengramBackgroundText">👀📡</string>
-    <string name="PengramBackgroundSleepTitle">🐧💤</string>
-    <string name="PengramBackgroundSleepText">🌙☁️</string>
+    <string name="PengramBackgroundTitle">Pengram работает в фоне</string>
+    <string name="PengramBackgroundText">Это не сообщение: связь активна, уведомления приходят</string>
+    <string name="PengramBackgroundSleepTitle">Pengram в фоне: режим сна</string>
+    <string name="PengramBackgroundSleepText">Это не сообщение: экономия батареи, связь проверяется реже</string>
     <string name="PengramTypingStatsTitle">Скорость набора</string>
     <string name="PengramTypingStatsEnable">Собирать мою скорость набора</string>
     <string name="PengramTypingStatsPrivacy">Только ваш ввод: на устройстве хранятся счётчики, но не текст. По умолчанию выключено.</string>

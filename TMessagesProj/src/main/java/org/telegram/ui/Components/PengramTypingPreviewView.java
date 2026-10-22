@@ -133,7 +133,16 @@ public class PengramTypingPreviewView extends FrameLayout {
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         // Фиксированные 90 dp обрезали подпись reduce motion при шрифте 2×.
-        final int width = Math.max(0, MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight());
+        // Ширину берём только достоверную: если сверху пришёл не EXACTLY или
+        // нулевой размер (первый проход, перенос строки в списке), подпись
+        // измерялась бы при ширине 0, переносилась по символам и раздувала
+        // строку — поле ввода уезжало под соседние строки и кнопки.
+        int available = MeasureSpec.getSize(widthSpec);
+        if (available <= 0 || MeasureSpec.getMode(widthSpec) != MeasureSpec.EXACTLY) {
+            available = getResources().getDisplayMetrics().widthPixels;
+            widthSpec = MeasureSpec.makeMeasureSpec(available, MeasureSpec.EXACTLY);
+        }
+        final int width = Math.max(0, available - getPaddingLeft() - getPaddingRight());
         caption.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
         FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) input.getLayoutParams();
@@ -170,6 +179,9 @@ public class PengramTypingPreviewView extends FrameLayout {
         input.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
         input.setBackground(createBackground());
         input.setAlpha(1f);
+        // Подпись могла стать длиннее (другой режим, крупный шрифт, перевод):
+        // высота строки считается от неё в onMeasure, поэтому пересчитываем.
+        requestLayout();
     }
 
     @Override protected void onDetachedFromWindow() {
