@@ -27,9 +27,22 @@
 
 ## Проверка
 
-Первый запуск нового теста **до исправления**: exit1, лог `/home/user/pengram-send-delete-red.log`. После изменений: exit0. Полный локальный прогон **56 scripts,0 nonzero exits,последний27.0s**. Локального JDK нет, поэтому новые extracted-method JVM harness и прежние JVM subchecks здесь SKIP, не PASS. Android Java/resources и JVM подтверждаются отдельно настоящим GitHub preflight; APK сборка отдельно.
+Первый запуск нового теста **до исправления**: exit1, лог `/home/user/pengram-send-delete-red.log`. После изменений: exit0. Полный локальный прогон **56 scripts,0 nonzero exits** (до последних доработок27.0s, финальный28.6s). Локального JDK нет, поэтому новые extracted-method JVM harness и прежние JVM subchecks здесь SKIP, не PASS. Android Java/resources и JVM подтверждаются отдельно настоящим GitHub preflight; APK сборка отдельно.
 
-**CI: PENDING. APK: PENDING.** Обновить только после реального результата, не на основании Python/source PASS.
+### Реальные GitHub проверки
+
+Финальный функциональный исходник: `111079cd1418db8afebd21400323b70c2c5c9ade`.
+
+| Run | Результат |
+|---|---|
+| [39762850230](https://github.com/syslikoffnet/Telegram/actions/runs/39762850230),4ef5d51b | SUCCESS,8m30s: Java/resources/all56; исходные JVM scheduler/particle harness |
+| [39763227883](https://github.com/syslikoffnet/Telegram/actions/runs/39763227883),41d50d14 | SUCCESS: включая one-pass snapshot window |
+| [39763444821](https://github.com/syslikoffnet/Telegram/actions/runs/39763444821),82ae18ea | FAILURE в regression step: source удалил2clear calls, а commit не включил пересчитанный lexical counter3080→3078. Код JVM/Java не объявляется виновником без соответствующего compile failure. Inventory зафиксированac7ebd1a без ослабления assert |
+| [39763948724](https://github.com/syslikoffnet/Telegram/actions/runs/39763948724),ac7ebd1a | SUCCESS,7m57s: Java/resources/all56, preview IME-region fix |
+| [39764824675](https://github.com/syslikoffnet/Telegram/actions/runs/39764824675),111079cd | **SUCCESS,6m54s:** Java, merge APK ресурсов, все56suite, JVM harness с cache-priority case, PCM/native-crash-decoder/artwork/lyric/security |
+| [APK362 /39764824501](https://github.com/syslikoffnet/Telegram/actions/runs/39764824501),111079cd | **SUCCESS,12m45s:** Build APK, обфускация R8, signing schemes, protection и upload прошли. Release publication SKIPPED: это branch artifact, не новый release |
+
+JDK17 настроен штатным preflight; оба извлечённых production-method harness входят в новый script и исполняются в общем suite step. Это не Android rendering. Полные заключительные строки ниже относятся к локальному прогону, где JVM честно SKIP. Последний локальный56sweep после cache-priority fix:28.6s,0ненулевых выходов.
 
 ## Ручные сценарии: все NOT RUN (устройства нет)
 
@@ -111,3 +124,9 @@ test-pengram-visual-editor.py [exit=0]: Pengram visual editor source/resource/sa
 ## Приоритет bitmap cache для LETTERS
 
 При IME snapshot целого слова старый порядок выдавал до24raster неизменённым префиксным буквам, хотя cache ограничен32и часть изображений удерживается предыдущими частицами. Реальная удаляемая буква в конце могла получить null raster и превращалась в fallback-пыль. Теперь сначала сохраняется геометрия, затем bitmap выдаются начиная у старого курсора. Сам cache/budget/OOM fallback не увеличены. Новый assert сначала exit1, затем exit0 (raster-priority-red.log); JVM fixture запускает настоящий rasterizeSnapshot + spawnFromSnapshot с единственным свободным raster slot и требует LETTERS для удалённого хвоста. Это bounded-cache модель, не Android GPU rendering.
+
+## Готовая сборка
+
+**APK362**, функциональный commit111079cd: https://github.com/syslikoffnet/Telegram/actions/runs/39764824501 — Artifacts → `Pengram-ARM64-standalone-run-362`. APK357 не содержит этих исправлений. Более поздний docs-only commit фиксирует результаты и не меняет функциональный исходник APK362.
+
+Штатные предупреждения workflow сохранены: apksigner не вывел certificate SHA-256 digest при успешных Verify v1/v2/v3; часть fork-классов переименована без relocation. Это не новые изменения signing/ProGuard; workflow не менялся, предупреждения не подавлялись. Ветка прежняя, новых PR/merge нет. Реальная Android/device визуальная проверка девяти сценариев выше остаётся NOT RUN.
