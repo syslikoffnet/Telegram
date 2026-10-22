@@ -16935,7 +16935,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return;
         if (alpha == 0) {
-            if (origin && !caption && !explanation && (transitionParams.animateOutTextBlocks == null
+            // Почему: явный alpha=0 у send overlay — начало crossfade, а не потерянный текст.
+            if (origin && !drawOnlyText && !caption && !explanation && (transitionParams.animateOutTextBlocks == null
                     || transitionParams.animateOutTextBlocks.isEmpty())) alpha = 1f;
             else return;
         }
