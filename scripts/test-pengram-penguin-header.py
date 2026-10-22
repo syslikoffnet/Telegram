@@ -26,7 +26,7 @@ assert 'headerViewCompact = new PengramHeaderView(getContext(), true);' in setti
 assert 'public PengramHeaderView(Context context, boolean compact)' in settings
 assert 'private void buildCompact(Context context)' in settings
 assert 'private void buildFull(Context context)' in settings
-assert 'final int size = dp(72);' in settings                # пингвин, а не точка
+assert 'final int size = dp(96);' in settings                # пингвин, а не точка
 # компактная шапка — та же центрированная композиция, что и большая:
 # ни пингвин, ни ссылки не должны уезжать влево
 # Готовые px нельзя передавать в LayoutHelper: он снова применяет density.

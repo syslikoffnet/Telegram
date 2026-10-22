@@ -5696,7 +5696,7 @@
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramSessionExport.java:294",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramPenguinView.java:1385",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramPhotoClipboard.java:170",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6922"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6935"
       ],
       "lexical_occurrences": 3403,
       "examples": [
@@ -6838,8 +6838,8 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramQuickToggles.java:65",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingPreviewView.java:153",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramVoicePickerView.java:54",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7393",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7539"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7413",
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7559"
       ],
       "lexical_occurrences": 1298,
       "examples": [
@@ -13127,7 +13127,7 @@
           "code": "showChoicePicker(getString(R.string.PengramRegStyle), options, PengramConfig.getRegDateStyle(), value -> {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7629",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7649",
           "code": "final int style = PengramConfig.getRegDateStyle();"
         },
         {
@@ -13167,7 +13167,7 @@
           "code": "if (PengramConfig.isRegDateVisible()) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7562",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7582",
           "code": "final boolean regVisible = PengramConfig.isRegDateVisible() && !TextUtils.isEmpty(regText);"
         }
       ]
@@ -13207,7 +13207,7 @@
           "code": "showChoicePicker(getString(R.string.PengramRegPlace), options, PengramConfig.getRegDatePlace(), value -> {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7594",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7614",
           "code": "final boolean regRowVisible = regVisible && PengramConfig.getRegDatePlace() != PengramConfig.REG_PLACE_SUBTITLE"
         }
       ]
@@ -13255,7 +13255,7 @@
           "code": "public static boolean isRegDateIconVisible() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7585",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7605",
           "code": "if (PengramConfig.isRegDateIconVisible() && PengramConfig.getRegDateIconRes() != 0) {"
         },
         {
@@ -13275,7 +13275,7 @@
           "code": "public static boolean isRegDateInSubtitle() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7565",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7585",
           "code": "if (regVisible && PengramConfig.isRegDateInSubtitle()) {"
         },
         {
@@ -13347,15 +13347,15 @@
           "code": "items.add(UItem.asSettingsCell(BTN_REG_ICON, PengramConfig.getRegDateIconRes() == 0 ? R.drawable.msg_info : PengramConfig.getRegDateIconRes(),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7585",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7605",
           "code": "if (PengramConfig.isRegDateIconVisible() && PengramConfig.getRegDateIconRes() != 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7600",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7620",
           "code": "if (PengramConfig.getRegDateIconRes() != 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7612",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7632",
           "code": "final int res = PengramConfig.getRegDateIconRes();"
         },
         {
@@ -15453,11 +15453,11 @@
           "code": "public static boolean isPenguinTips() { return getBool(KEY_PENGUIN_TIPS, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7301",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7321",
           "code": "final int visibility = PengramConfig.isPenguinTips() ? VISIBLE : GONE;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7313",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7333",
           "code": "if (bubble == null || !PengramConfig.isPenguinTips()) {"
         }
       ]
@@ -15473,7 +15473,7 @@
           "code": "public static boolean isPenguinDanceMusic() { return getBool(KEY_PENGUIN_DANCE_MUSIC, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7284",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7304",
           "code": "penguinView.setDanceLoop(!sleep && music != null && PengramConfig.isPenguinDanceMusic());"
         }
       ]
@@ -15489,7 +15489,7 @@
           "code": "public static boolean isPenguinAutoSkin() { return getBool(KEY_PENGUIN_AUTO_SKIN, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7287",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7307",
           "code": "if (PengramConfig.isPenguinAutoSkin()) {"
         }
       ]
@@ -15505,7 +15505,7 @@
           "code": "public static boolean isPenguinSleepGhost() { return getBool(KEY_PENGUIN_SLEEP_GHOST, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7282",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7302",
           "code": "final boolean sleep = PengramConfig.isPenguinSleepGhost() && PengramConfig.ghostMode && music == null;"
         }
       ]
@@ -15525,11 +15525,11 @@
           "code": "70, PengramConfig.getPenguinSize(), 150,"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7022",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7035",
           "code": "requestedPenguinPercent = PengramConfig.getPenguinSize();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7254",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7274",
           "code": "requestedPenguinPercent = PengramConfig.getPenguinSize();"
         }
       ]
@@ -15577,11 +15577,11 @@
           "code": "showChoicePicker(getString(R.string.PengramPenguinSkin), options, PengramConfig.getPenguinSkin(), value -> {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6983",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6996",
           "code": "penguinView.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7286",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7306",
           "code": "int skin = PengramConfig.getPenguinSkin();"
         }
       ]
@@ -19060,7 +19060,7 @@
           "code": "}, PengramConfig.getIdFormat(), PengramConfig::setIdFormat);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7570",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7590",
           "code": "final int format = PengramConfig.getIdFormat();"
         }
       ]
@@ -19080,7 +19080,7 @@
           "code": "builder.setMessage(PengramConfig.formatId(Math.abs(dialogId), dialogId < 0, false));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7572",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7592",
           "code": "final String formatted = PengramConfig.formatId(id, false, false);"
         },
         {
@@ -19224,7 +19224,7 @@
           "code": "}, PengramConfig.getIdStyle(), PengramConfig::setIdStyle);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7571",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7591",
           "code": "final int style = format == PengramConfig.ID_FORMAT_HIDE ? PengramConfig.ID_STYLE_OFF : PengramConfig.getIdStyle();"
         },
         {
@@ -31367,7 +31367,7 @@
           "code": "final long value = estimate(userId);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7560",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7580",
           "code": "final long estimate = org.telegram.messenger.PengramRegDate.estimate(id);"
         },
         {
@@ -31576,7 +31576,7 @@
           "code": "public static String formatMonthYear(long unixtime) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7636",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7656",
           "code": ": org.telegram.messenger.PengramRegDate.formatMonthYear(estimate);"
         },
         {
@@ -31600,7 +31600,7 @@
           "code": "public static String formatAge(long unixtime) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7630",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7650",
           "code": "final String age = org.telegram.messenger.PengramRegDate.formatAge(estimate);"
         },
         {
@@ -33877,7 +33877,7 @@
           "code": "getString(R.string.PengramAbout), org.telegram.messenger.PengramVersion.shortLine()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7356",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7376",
           "code": "return \"Pengram \" + org.telegram.messenger.PengramVersion.shortLine();"
         }
       ]
@@ -34304,7 +34304,7 @@
           "code": "final float factor = PengramVoiceChanger.getPitchFactor(mode);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7397",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7417",
           "code": "pitch = PengramVoiceChanger.getPitchFactor();"
         }
       ]
@@ -34837,7 +34837,7 @@
           "code": "return PengramVoiceChanger.getModeName(voice);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7396",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7416",
           "code": "title = PengramVoiceChanger.getModeName(mode);"
         }
       ]
@@ -35124,7 +35124,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramPenguinView.java:334",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSectionHero.java:118",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSwipePreview.java:104",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7208"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7228"
       ],
       "lexical_occurrences": 1046,
       "examples": [
@@ -35174,7 +35174,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSectionHero.java:164",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramSwipePreview.java:112",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramBypassActivity.java:156",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7217"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7237"
       ],
       "lexical_occurrences": 1056,
       "examples": [
@@ -35471,8 +35471,8 @@
         "TMessagesProj/src/main/java/org/telegram/ui/PengramBypassActivity.java:203",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramLayoutEditorActivity.java:156",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramMenuItemsActivity.java:443",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6957",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7419"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6970",
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7439"
       ],
       "lexical_occurrences": 2055,
       "examples": [
@@ -35603,7 +35603,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/PengramPlayerStyleActivity.java:276",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramPlayerStyleActivity.java:341",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramPlayerStyleActivity.java:402",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7424"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7444"
       ],
       "lexical_occurrences": 1117,
       "examples": [
@@ -35742,7 +35742,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTabsMockView.java:191",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTrackButton.java:42",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramVoicePickerView.java:136",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7536"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7556"
       ],
       "lexical_occurrences": 822,
       "examples": [
@@ -41298,7 +41298,7 @@
     "onInterceptTouchEvent": {
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMessagePreviewView.java:229",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7531"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7551"
       ],
       "lexical_occurrences": 276,
       "examples": [
@@ -42891,7 +42891,7 @@
           "code": "public void setOnTapListener(OnClickListener tapListener) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6984",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6997",
           "code": "penguinView.setOnTapListener(() -> {"
         },
         {
@@ -42931,11 +42931,11 @@
           "code": "public void setSkin(int value) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6983",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6996",
           "code": "penguinView.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7297",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7317",
           "code": "penguinView.setSkin(skin);"
         }
       ]
@@ -42971,7 +42971,7 @@
           "code": "doFlip();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7229",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7249",
           "code": "penguinView.doFlip();"
         }
       ]
@@ -42995,7 +42995,7 @@
           "code": "doDance();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7231",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7251",
           "code": "penguinView.doDance();"
         }
       ]
@@ -43019,7 +43019,7 @@
           "code": "public void setDanceLoop(boolean value) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7284",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7304",
           "code": "penguinView.setDanceLoop(!sleep && music != null && PengramConfig.isPenguinDanceMusic());"
         }
       ]
@@ -43051,11 +43051,11 @@
           "code": "public void setSleeping(boolean value) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7227",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7247",
           "code": "penguinView.setSleeping(false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7283",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7303",
           "code": "penguinView.setSleeping(sleep);"
         }
       ]
@@ -43071,7 +43071,7 @@
           "code": "public boolean isSleeping() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7317",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7337",
           "code": "if (penguinView != null && penguinView.isSleeping()) {"
         }
       ]
@@ -43095,7 +43095,7 @@
           "code": "doWave();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7232",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7252",
           "code": "penguinView.doWave();"
         }
       ]
@@ -43167,7 +43167,7 @@
           "code": "wallet.whenReady(() -> {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7005",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7018",
           "code": "penguinView.whenReady(() -> {"
         }
       ]
@@ -43187,7 +43187,7 @@
           "code": "public void whenUnavailable(Runnable runnable) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7001",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7014",
           "code": "penguinView.whenUnavailable(() -> {"
         }
       ]
@@ -43419,7 +43419,7 @@
     "setPaused": {
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramPenguinView.java:349",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7194"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7214"
       ],
       "lexical_occurrences": 101,
       "examples": [
@@ -43577,7 +43577,7 @@
           "code": "public void setOnSecretListener(Runnable listener) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6993",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7006",
           "code": "penguinView.setOnSecretListener(() -> {"
         }
       ]
@@ -43685,7 +43685,7 @@
           "code": "public void resetRotation() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7234",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7254",
           "code": "penguinView.resetRotation();"
         }
       ]
@@ -55562,11 +55562,11 @@
           "code": "private void openLink(String username) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7126",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7146",
           "code": "() -> openLink(LINK_CHANNEL)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 0, 0, 4, 0));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7128",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7148",
           "code": "() -> openLink(LINK_AUTHOR)), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, chipHeight, 4, 0, 0, 0));"
         }
       ]
@@ -55962,72 +55962,72 @@
     },
     "createPenguin": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6969"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6982"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6969",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6982",
           "code": "private void createPenguin(Context context, int penguinSize) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7025",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7038",
           "code": "createPenguin(context, penguinSize);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7055",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7075",
           "code": "createPenguin(context, size);"
         }
       ]
     },
     "buildFull": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7021"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7034"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6946",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6959",
           "code": "buildFull(context);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7021",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7034",
           "code": "private void buildFull(Context context) {"
         }
       ]
     },
     "buildCompact": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7049"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7062"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6943",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6956",
           "code": "buildCompact(context);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7049",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7062",
           "code": "private void buildCompact(Context context) {"
         }
       ]
     },
     "createTitle": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7074"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7094"
       ],
       "lexical_occurrences": 6,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7034",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7047",
           "code": "addView(createTitle(context, Gravity.CENTER_HORIZONTAL),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7060",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7080",
           "code": "addView(createTitle(context, Gravity.CENTER),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7075",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7095",
           "code": "private TextView createTitle(Context context, int gravity) {"
         },
         {
@@ -56046,47 +56046,47 @@
     },
     "createSubtitle": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7085"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7105"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7036",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7049",
           "code": "addView(createSubtitle(context, Gravity.CENTER_HORIZONTAL),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7063",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7083",
           "code": "addView(createSubtitle(context, Gravity.CENTER),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7086",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7106",
           "code": "private TextView createSubtitle(Context context, int gravity) {"
         }
       ]
     },
     "createBubble": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7105"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7125"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7031",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7044",
           "code": "bubble = createBubble(context, Gravity.CENTER);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7067",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7087",
           "code": "bubble = createBubble(context, Gravity.CENTER);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7106",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7126",
           "code": "private TextView createBubble(Context context, int gravity) {"
         }
       ]
     },
     "createLinks": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7121"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7141"
       ],
       "lexical_occurrences": 6,
       "examples": [
@@ -56103,91 +56103,91 @@
           "code": "backwardLinks = createLinks(false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7040",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7053",
           "code": "addView(createLinks(context, 32), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7071",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7091",
           "code": "addView(createLinks(context, 28), LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT,"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7121",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7141",
           "code": "private LinearLayout createLinks(Context context, int chipHeight) {"
         }
       ]
     },
     "clampPenguinSize": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7136",
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7141"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7156",
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7161"
       ],
       "lexical_occurrences": 5,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7023",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7036",
           "code": "final int penguinSize = clampPenguinSize("
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7136",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7156",
           "code": "private int clampPenguinSize(int size) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7137",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7157",
           "code": "return clampPenguinSize(size, AndroidUtilities.displaySize.x);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7141",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7161",
           "code": "private int clampPenguinSize(int size, int measuredWidth) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7153",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7173",
           "code": "final int size = clampPenguinSize("
         }
       ]
     },
     "updatePenguinSize": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7152"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7172"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6963",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6976",
           "code": "updatePenguinSize(width);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7152",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7172",
           "code": "private void updatePenguinSize(int width) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7255",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7275",
           "code": "updatePenguinSize(getMeasuredWidth());"
         }
       ]
     },
     "linkChip": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7164"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7184"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7125",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7145",
           "code": "links.addView(linkChip(context, R.drawable.msg_channel, getString(R.string.PengramLinkChannel),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7127",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7147",
           "code": "links.addView(linkChip(context, R.drawable.msg_openprofile, getString(R.string.PengramLinkAuthor),"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7164",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7184",
           "code": "private View linkChip(Context context, int icon, CharSequence text, Runnable onClick) {"
         }
       ]
     },
     "doAction": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7223"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7243"
       ],
       "lexical_occurrences": 2,
       "examples": [
@@ -56196,14 +56196,14 @@
           "code": "headerView.doAction(item.id);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7223",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7243",
           "code": "public void doAction(int id) {"
         }
       ]
     },
     "applySkin": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7239"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7259"
       ],
       "lexical_occurrences": 3,
       "examples": [
@@ -56216,14 +56216,14 @@
           "code": "headerViewCompact.applySkin();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7239",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7259",
           "code": "public void applySkin() {"
         }
       ]
     },
     "applySize": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7249"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7269"
       ],
       "lexical_occurrences": 2,
       "examples": [
@@ -56232,131 +56232,131 @@
           "code": "headerView.applySize();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7249",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7269",
           "code": "public void applySize() {"
         }
       ]
     },
     "playingMusic": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7261"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7281"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7261",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7281",
           "code": "private MessageObject playingMusic() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7281",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7301",
           "code": "final MessageObject music = playingMusic();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7320",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7340",
           "code": "final MessageObject music = playingMusic();"
         }
       ]
     },
     "syncWithApp": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7277"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7297"
       ],
       "lexical_occurrences": 4,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6923",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6936",
           "code": "syncWithApp();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7210",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7230",
           "code": "syncWithApp();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7241",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7261",
           "code": "syncWithApp();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7277",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7297",
           "code": "private void syncWithApp() {"
         }
       ]
     },
     "nextPhrase": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7312"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7332"
       ],
       "lexical_occurrences": 5,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6985",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6998",
           "code": "nextPhrase(true);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7116",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7136",
           "code": "view.setOnClickListener(v -> nextPhrase(true));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7211",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7231",
           "code": "nextPhrase(false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7306",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7326",
           "code": "nextPhrase(false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7312",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7332",
           "code": "private void nextPhrase(boolean forced) {"
         }
       ]
     },
     "getAppVersion": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7354"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7374"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7087",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7107",
           "code": "final String versionText = getAppVersion();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7354",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7374",
           "code": "private static String getAppVersion() {"
         }
       ]
     },
     "tintedRegIcon": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7611"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7631"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7586",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7606",
           "code": "idCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7601",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7621",
           "code": "regCell.setImage(tintedRegIcon(), getString(R.string.PengramRegDate));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7611",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7631",
           "code": "private android.graphics.drawable.Drawable tintedRegIcon() {"
         }
       ]
     },
     "regSampleText": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7625"
+        "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7645"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7561",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7581",
           "code": "final CharSequence regText = regSampleText(estimate);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7625",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7645",
           "code": "private CharSequence regSampleText(long estimate) {"
         }
       ]
@@ -63841,11 +63841,11 @@
         "code": "case SECTION_PENGUIN:"
       },
       {
-        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6996",
+        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7009",
         "code": "if (section != SECTION_PENGUIN) {"
       },
       {
-        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6997",
+        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7010",
         "code": "presentFragment(new PengramSettingsActivity(SECTION_PENGUIN));"
       }
     ],
@@ -65847,7 +65847,7 @@
         "code": "if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {"
       },
       {
-        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7228",
+        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7248",
         "code": "if (id == BTN_PENGUIN_FLIP) {"
       }
     ],
@@ -65865,7 +65865,7 @@
         "code": "if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {"
       },
       {
-        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7230",
+        "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7250",
         "code": "} else if (id == BTN_PENGUIN_DANCE) {"
       }
     ],
@@ -72886,62 +72886,62 @@
     },
     {
       "kind": "catch (Throwable ignore)",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:6999",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7012",
       "code": "} catch (Throwable ignore) {}"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7225",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7245",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7252",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7272",
       "code": "return;"
     },
     {
       "kind": "catch (Throwable ignore)",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7267",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7287",
       "code": "} catch (Throwable ignore) {"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7279",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7299",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7314",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7334",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7335",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7355",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7341",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7361",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7428",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7448",
       "code": "return;"
     },
     {
       "kind": "Gravity.LEFT",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7502",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7522",
       "code": "header.addView(avatarImage, LayoutHelper.createFrame(64, 64, Gravity.LEFT | Gravity.TOP, 20, 14, 0, 0));"
     },
     {
       "kind": "Gravity.LEFT",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7509",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7529",
       "code": "header.addView(nameText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 26, 20, 0));"
     },
     {
       "kind": "Gravity.LEFT",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7515",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:7535",
       "code": "header.addView(statusText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 98, 50, 20, 0));"
     }
   ]

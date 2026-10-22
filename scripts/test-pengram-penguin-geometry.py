@@ -37,18 +37,39 @@ assert 'if (ownsGL) releaseGLLocked();' in v
 assert 'if (finished || !isAlive()) releaseSurface();' in v
 assert 'surfaceReleased.compareAndSet(false, true)' in v
 assert 'egl.eglSwapBuffers' in v and 'GL_LINK_STATUS' in v
+# Container sizes come from the source, so this matrix cannot drift from the UI.
+BASE_SIZE_DP = int(re.search(r'private static final int BASE_SIZE_DP = (\d+);', s).group(1))
+COMPACT_DP = int(re.search(r'private void buildCompact\(Context context\) \{.*?final int size = dp\((\d+)\);', s, re.S).group(1))
+CLAMP_FLOOR_DP = int(re.search(r'Math\.min\(Math\.max\(dp\((\d+)\), size\), max\)', s).group(1))
+# "Средний, не огромный и не мелкий": превью остаётся персонажем, а не плакатом,
+# компактная шапка — не значком. Полоса фиксирует требование пользователя, чтобы
+# будущая правка не вернула 72dp/224dp и не уехала в 400dp.
+assert 240 <= BASE_SIZE_DP <= 300, BASE_SIZE_DP
+assert 88 <= COMPACT_DP <= 112, COMPACT_DP
+assert CLAMP_FLOOR_DP <= COMPACT_DP, (CLAMP_FLOOR_DP, COMPACT_DP)
+# Видимый рост тела — ~0.759 высоты квадратного кадра (аналитическая модель
+# камеры ниже: конверт содержимого связывает раньше, чем BODY_FILL = 0.84).
+BODY_FRACTION = 0.759
+# Превью при 100%: персонаж ~194dp ростом (было ~170dp при 224dp кадра).
+assert 185 <= BASE_SIZE_DP*BODY_FRACTION <= 205, BASE_SIZE_DP*BODY_FRACTION
+# Крайние положения ползунка остаются в «средней» полосе, а не в плакате/значке.
+assert 125 <= BASE_SIZE_DP*0.70*BODY_FRACTION, BASE_SIZE_DP*0.70*BODY_FRACTION
+assert BASE_SIZE_DP*1.50*BODY_FRACTION <= 300, BASE_SIZE_DP*1.50*BODY_FRACTION
+# Компактная шапка: ~73dp ростом (было ~55dp при 72dp) — уже не значок.
+assert 65 <= COMPACT_DP*BODY_FRACTION <= 85, COMPACT_DP*BODY_FRACTION
+
 # Density matrix: the container owns pixels exactly once, even after live resize.
 cases = 0
 for density in (1, 1.5, 2, 3, 4):
     dp = lambda x: math.ceil(x*density)
     for width, height in ((320,640),(640,320),(640,960),(240,300),(80,200)):
         for percent in (70,100,150):
-            requested=dp(224*percent/100)
+            requested=dp(BASE_SIZE_DP*percent/100)
             maximum=min(max(1,dp(width)-dp(32)),max(1,dp(height)-dp(240)))
-            actual=min(max(dp(96),requested),maximum)
+            actual=min(max(dp(CLAMP_FLOOR_DP),requested),maximum)
             assert 0 < actual <= maximum
-            # Compact is always 72dp, not density-squared 72dp.
-            assert dp(72) <= 72*density+1
+            # Compact is always COMPACT_DP, not density-squared COMPACT_DP.
+            assert dp(COMPACT_DP) <= COMPACT_DP*density+1
             cases+=1
 # Analytic camera envelope only: no claim about transformed dance/flip geometry.
 for top in (1.18,1.5,1.9,2.2):
@@ -58,4 +79,4 @@ for top in (1.18,1.5,1.9,2.2):
     for z in (0,.35,.75):
         fraction=(high-bottom)/(2*(distance-z)*math.tan(math.radians(17)))
         assert fraction <= .98+1e-10
-print(f'penguin geometry: {cases} density/size cases + static camera envelopes PASS; animated/device acceptance NOT RUN')
+print(f'penguin geometry: base {BASE_SIZE_DP}dp / compact {COMPACT_DP}dp, {cases} density/size cases + static camera envelopes PASS; animated/device acceptance NOT RUN')

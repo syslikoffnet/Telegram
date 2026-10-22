@@ -47,7 +47,7 @@ assert 'BODY_FILL = 0.84f' in v and 'Math.max(bodyDistance, fitDistance)' in v
 assert 'dance > 0.01f || jump > 0.001f ? CAM_JUMP_LIMIT : 0f' in v
 assert 'camDistance = 0f;' in v[v.index('if (builtSkin != requestedSkin)'):v.index('// вьюпорт квадратный')]
 assert 'GLES20.glScissor(viewportX, viewportY, side, side)' in v
-assert 'BASE_SIZE_DP = 224' in s and 'dp(72)' in s
+assert 'BASE_SIZE_DP = 256' in s and 'dp(96)' in s
 assert 'LayoutHelper.createLinear(132, 132' in p and 'LayoutHelper.createFrame(160, 160' in p
 assert 'Gravity.CENTER, 4, 4, 4, 4)' in p
 assert 'invalidate();' in body(s,'applySize')

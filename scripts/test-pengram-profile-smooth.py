@@ -6,8 +6,8 @@
 2) оценка даты регистрации считалась по несколько раз на одну и ту же строку;
 3) значок календарика заново разбирался на каждую привязку.
 
-Плюс пингвин в шапке настроек обязан быть крупным: 224dp базово и камера,
-которая отдаёт телу почти весь кадр.
+Плюс пингвин в шапке настроек обязан быть средним, а не мелким: 256dp базово
+в превью и 96dp в компактной шапке корня, камера отдаёт телу почти весь кадр.
 """
 
 from pathlib import Path
@@ -39,7 +39,8 @@ assert 'getConstantState()' in profile
 assert 'pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);' in profile
 
 # --- пингвин: базовый размер и безопасный кадр без density² ------------------------
-assert 'private static final int BASE_SIZE_DP = 224;' in settings
+assert 'final int size = dp(96);' in settings   # компактная шапка корня тоже подросла
+assert 'private static final int BASE_SIZE_DP = 256;' in settings
 assert 'private int clampPenguinSize(int size)' in settings
 assert 'Math.min(Math.max(dp(96), size), max)' in settings
 assert 'private static final float BODY_FILL = 0.84f;' in penguin

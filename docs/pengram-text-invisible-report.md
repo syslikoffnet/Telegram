@@ -37,7 +37,7 @@ that is **not proof** that commit first introduced those paths.
 | Minimum depth allowance | absent | .75 | .75 retained for perspective safety |
 | Jump reservation | unconditional .26 | unconditional .26 | .26 only while jump/dance active |
 | Margin | .035 | .035 | .035 |
-| BASE_SIZE_DP / compact | 224 / 72 | 224 / 72 | unchanged; no density² |
+| BASE_SIZE_DP / compact | 224 / 72 | 224 / 72 | 256 / 96 (see `docs/pengram-penguin-size.md`); no density² |
 | MINI / LYRICS slot | 132 / 160 | 132 / 160 | unchanged |
 | Player child margins | 10 | 10 | 4 dp |
 | Placeholder fill/stroke | accent54 / accent70 | same | themed20 / none |
@@ -45,7 +45,7 @@ that is **not proof** that commit first introduced those paths.
 
 **Not measurements:** camera tests check analytic static envelopes, not transformed GL vertices
 or pixels. Tall hats can limit body occupancy even with BODY_FILL=.84. The requested ≥52/92/112dp
-across every skin and the 70%-slider ≥.62×224dp bound are NOT established. Height/width clamping on
+across every skin and the 70%-slider ≥.62×256dp bound are NOT established. Height/width clamping on
 short screens is retained rather than overflowing the UI. No body dp/% table is labelled measured.
 
 ## Verified implementation observations (40)
