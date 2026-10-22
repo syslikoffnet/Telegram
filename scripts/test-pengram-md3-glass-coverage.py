@@ -30,13 +30,20 @@ assert 'runOnUIThread(dispatch, 80)' in skin
 signature = tab.split('public static int signature()', 1)[1]
 assert 'getGlassGlow()' in signature and 'rimEnabled()' in signature and 'isGlassSheenEnabled()' in signature
 assert 'isSettingsSurfaceGlass()' in skin
-assert 'new PengramSurfaceGlass(topBar, backgroundView' in player
-assert 'backgroundView.blurred != null || backgroundView.unblurred != null' in player
+# Верхняя строка плеера (закрыть / «сейчас играет» / поделиться карточкой /
+# очередь / настройки / переслать трек) больше не получает собственную
+# поверхность: ни тонированной MD3-полосы, ни «линзы» из размытой обложки.
+# Пользователь назвал этот наплыв убогим и попросил один фон на весь плеер.
+assert 'PengramSurfaceGlass' not in player.replace('// (styleSheetHeader + PengramSurfaceGlass)', '')
+assert 'styleSheetHeader' not in player.replace('// (styleSheetHeader + PengramSurfaceGlass)', '')
+assert 'topBarGlass' not in player
+assert 'new PengramSurfaceGlass(topBar, backgroundView' not in player
+assert 'backgroundView.blurred != null || backgroundView.unblurred != null' not in player
 assert 'new org.telegram.ui.Components.PengramSurfaceGlass(doneBar, listView' in menu
 assert 'PengramMD3.menus()' in menu and 'setCornerRadii(' in menu and 'setElevation(0)' in menu
 assert 'SharedConfig.animationsEnabled()' in menu and 'CubicBezierInterpolator.EASE_OUT_QUINT' in menu
 assert 'sheetBackground(pengramOriginalSheetBackground, true)' in sheets
-assert 'PengramMD3.styleSheetHeader(topBar, resourcesProvider, topBarGlass)' in player
+assert 'PengramMD3.styleSheetHeader(topBar' not in player   # плеер: один фон, без выделения шапки
 assert 'PengramMD3.styleSheetHeader(header, resourcesProvider, null)' in read('ui/Components/PengramChatMusicSheet.java')
 assert 'containerView.getBackground() == old' in sheets
 assert ': pengramOriginalSheetBackground' in sheets

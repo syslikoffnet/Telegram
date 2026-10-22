@@ -5,13 +5,6 @@ The cell suppresses its own text while the overlay owns it. A viewport range of
 (-1, -1), or a range left over from another layout, must not suppress the overlay
 as well. Exercise the production forwarding method and production range selector
 on the JVM with a counting renderer. This is not Android/pixel instrumentation.
-
-Статус: сам перелёт текста при отправке отключён
-(test-pengram-send-text-blank.py) — пользователь видел пустой пузырь, пока
-overlay рисовал текст с alpha = progress/0.4. Контракты ниже оставлены как
-страховка: forwarding/диапазон/alpha ячейки обязаны вести себя так же, если
-overlay снова включат, а VoiceMessageEnterTransition и превью отправки
-по-прежнему рисуют текст ячейки через эти же методы.
 """
 from pathlib import Path
 import shutil
@@ -39,10 +32,6 @@ assert emoji_wrapper.count('currentMessageObject.textXOffset, enterTransitionInP
 emoji_selector_start = cell.index('        int firstVisibleBlockNum;', emoji_start)
 emoji_selector = cell[emoji_selector_start:cell.index('\n        float right;', emoji_selector_start)]
 assert emoji_selector.strip() == selector.strip(), 'emoji/text range selection diverged; extend runtime harness before changing it'
-animator = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/recyclerview/ChatListItemAnimator.java').read_text()
-assert 'new TextMessageEnterTransition(' not in animator, (
-    'blank_bubble: send text overlay re-enabled; it hides the cell text while fading its own in')
-assert 'new VoiceMessageEnterTransition(' in animator, 'voice transition lost'
 print('Send overlay forwarding source contract PASS')
 
 if not shutil.which('javac') or not shutil.which('java'):

@@ -21,6 +21,7 @@ import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.BotHelpCell;
@@ -356,18 +357,12 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
                         VoiceMessageEnterTransition transition = new VoiceMessageEnterTransition(chatMessageCell, activity.getChatActivityEnterView(), recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);
                         transition.start();
                     }
+                } else {
+                    if (SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW && Math.abs(view.getTranslationY()) < recyclerListView.getMeasuredHeight()) {
+                        TextMessageEnterTransition transition = new TextMessageEnterTransition(chatMessageCell, activity, recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);
+                        transition.start();
+                    }
                 }
-                // Pengram: перелёт текста из поля ввода в пузырь отключён.
-                // Пока он шёл, ячейка не рисовала собственный текст
-                // (ChatMessageCell.enterTransitionInProgress), а overlay рисовал и
-                // пузырь, и его текст с alpha = progress/0.4, то есть первые ~100 мс
-                // сообщение было пустым, а потом текст «вспыхивал». Если overlay не
-                // успевал создаться (поле ввода уже очищено, stableId сменился,
-                // ячейка перебиндилась) или завершался досрочно, пустой пузырь жил
-                // до конца анимации и до 500 мс страховки. Теперь текст сообщения
-                // рисуется сразу и полностью; штатное появление строки снизу
-                // (translationY) и перелёт голосового сообщения сохранены. Это тот
-                // же путь, которым Telegram рисует отправку на слабых устройствах.
                 activity.getChatActivityEnterView().startMessageTransition();
             }
         }

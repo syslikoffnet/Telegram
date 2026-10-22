@@ -213,13 +213,16 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 compact ? LayoutHelper.WRAP_CONTENT : LayoutHelper.MATCH_PARENT));
 
         // ---------- верхняя строка ----------
+        // Pengram: строка кнопок (закрыть, «сейчас играет», поделиться
+        // карточкой, очередь, настройки, переслать трек) лежит на том же фоне,
+        // что и весь плеер. Раньше здесь рисовалась отдельная MD3-поверхность
+        // (styleSheetHeader + PengramSurfaceGlass): тонированная скруглённая
+        // полоса и «линза» из размытой обложки под кнопками визуально отрывали
+        // верх от карточки и выглядели чужеродным наплывом. Подложки нет —
+        // фон один на весь плеер, а иконки и заголовок остались белыми, как в
+        // карточке плеера без тональной поверхности.
         final FrameLayout topBar = new FrameLayout(context);
         content.addView(topBar, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-        // В градиентном режиме под панелью нет изображения: линза там лишь
-        // пачкала бы фон. Захватываем только слой обложки, не кнопки/текст.
-        final PengramSurfaceGlass topBarGlass = new PengramSurfaceGlass(topBar, backgroundView, resourcesProvider,
-                () -> PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER
-                        && (backgroundView.blurred != null || backgroundView.unblurred != null));
 
         final ImageView closeButton = new ImageView(context);
         closeButton.setScaleType(ImageView.ScaleType.CENTER);
@@ -313,7 +316,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             topBar.addView(forwardButton, LayoutHelper.createFrame(42, 42, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 100, 0));
         }
 
-        org.telegram.messenger.PengramMD3.styleSheetHeader(topBar, resourcesProvider, topBarGlass);
+        // Отдельной поверхности у верхней строки больше нет: фон один на всю
+        // карточку плеера (см. комментарий у создания topBar).
 
         // ---------- обложка и текст песни ----------
         final LinearLayout centerLayout = new LinearLayout(context);
