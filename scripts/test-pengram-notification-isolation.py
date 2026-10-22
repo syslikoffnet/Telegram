@@ -15,6 +15,11 @@ assert 'PengramNotificationRouting.broadcastIdentity(' in n
 assert 'PengramNotificationRouting.findPushAccount(userIdObject)' in p
 assert 'Utilities.parseInt((String) userIdObject)' not in p
 assert 'notificationManager.cancel(notificationGroup, id);' in n
+cleanup=n.split('public void cleanup()',1)[1].split('\n    }',1)[0]
+assert 'wearNotificationsIds.clear()' not in cleanup.split('dismissNotification();',1)[0], 'child ids lost before cancel'
+dismiss=n.split('private void dismissNotification()',1)[1].split('\n    }',1)[0]
+assert dismiss.index('notificationManager.cancel(notificationGroup, wearNotificationsIds.valueAt(a))') < dismiss.index('wearNotificationsIds.clear()')
+
 diag=(j/'PengramDiagnostics.java').read_text()
 assert 'verifyAccountIdentities' not in diag and 'sendRequest(' not in diag
 shortcut=n.split('private String createNotificationShortcut(',1)[1].split('ShortcutInfoCompat.Builder shortcutBuilder',1)[0]

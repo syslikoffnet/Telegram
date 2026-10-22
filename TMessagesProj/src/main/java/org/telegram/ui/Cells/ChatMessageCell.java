@@ -16917,7 +16917,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (transitionParams.animateTextY) {
             textY = transitionParams.animateFromTextY * (1f - transitionParams.animateChangeProgress) + this.textY * transitionParams.animateChangeProgress;
         }
-        drawMessageText(textX, textY, canvas, textLayoutBlocks, currentMessageObject == null ? 0 : currentMessageObject.textXOffset, origin, alpha, false, drawOnlyText, false);
+        // Почему: send overlay рисуется вне viewport ячейки, которая уже скрыла свой текст.
+        // Её диапазон видимых блоков (-1/-1 при перелёте) не должен скрывать и overlay.
+        drawMessageText(textX, textY, canvas, textLayoutBlocks, currentMessageObject == null ? 0 : currentMessageObject.textXOffset, origin, alpha, drawOnlyText, drawOnlyText, false);
     }
 
     @SuppressLint("Range")

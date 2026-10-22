@@ -6706,11 +6706,11 @@
           "code": "public static void drawStub(Canvas canvas, Theme.ResourcesProvider provider, int width, int height) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:20367",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:20369",
           "code": "PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:20378",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:20380",
           "code": "PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());"
         }
       ]
@@ -10479,7 +10479,7 @@
           "code": "v = v * 31 + (isFadingDeleted() ? 1 : 0);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:28346",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:28348",
           "code": "if (!org.telegram.messenger.PengramConfig.isFadingDeleted()) {"
         },
         {
@@ -12084,7 +12084,7 @@
           "code": "public static int getDeletedMarkIcon() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18712",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18714",
           "code": "pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();"
         },
         {
@@ -12124,7 +12124,7 @@
           "code": "public static int getEditedMarkIconRes() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18714",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18716",
           "code": "pengramMarkRes = org.telegram.messenger.PengramConfig.getEditedMarkIconRes();"
         }
       ]
@@ -15873,7 +15873,7 @@
           "code": "if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:22182",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:22184",
           "code": "if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {"
         }
       ]
@@ -15957,7 +15957,7 @@
           "code": "public static int getMediaTimeMode() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24139",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24141",
           "code": "final int mode = PengramConfig.getMediaTimeMode();"
         },
         {
@@ -15997,7 +15997,7 @@
           "code": "public static boolean isMediaTimeRoundHidden() { return getBool(KEY_MEDIA_TIME_ROUND, false); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24153",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24155",
           "code": "return PengramConfig.isMediaTimeRoundHidden();"
         }
       ]
@@ -16017,7 +16017,7 @@
           "code": "public static boolean isMediaTimeKeptWhileSending() { return getBool(KEY_MEDIA_TIME_SENDING, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24144",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:24146",
           "code": "if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {"
         }
       ]
@@ -16037,7 +16037,7 @@
           "code": "public static boolean shouldHideEditedLabel() { return isHidingEditedLabel(); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18672",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18674",
           "code": "} else if (edited && org.telegram.messenger.PengramConfig.shouldHideEditedLabel()) {"
         }
       ]
@@ -21525,7 +21525,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramQuickToggles.java:48",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:217"
       ],
-      "lexical_occurrences": 3078,
+      "lexical_occurrences": 3077,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/AdapterHelper.java:149",
@@ -28384,7 +28384,7 @@
           "code": "default boolean isAdmin(long uid) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19098",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19100",
           "code": "isAdmin = delegate.isAdmin(currentUser != null ? currentUser.id : currentChat.id);"
         },
         {
@@ -36735,15 +36735,15 @@
           "code": "\"(?i)(?:https?://|www\\\\.|t\\\\.me/|@[a-z0-9_]{4,}|[a-z0-9._%+-]+@[a-z0-9.-]+\\\\.[a-z]{2,}|(?<![\\\\p{L}\\\\p{N}])\\\\+?\\\\d[\\\\d\\\\s().-]{4,}\\\\d(?![\\\\p{L}\\\\p{N}])|\\\\b\\\\d{4,8}\\\\b)\");"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19350",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19352",
           "code": "currentForwardNameString = String.format(\"%s (%s)\", currentForwardChannel.title, UserObject.getUserName(currentForwardUser));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19353",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19355",
           "code": "currentForwardNameString = String.format(\"%s (%s)\", currentForwardChannel.title, messageObject.messageOwner.fwd_from.post_author);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19766",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:19768",
           "code": "currentForwardNameString = String.format(\"%s (%s)\", currentForwardChannel.title, UserObject.getUserName(currentForwardUser));"
         }
       ]
@@ -40791,7 +40791,7 @@
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18724",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18726",
           "code": "pengramMarkWidth = org.telegram.ui.Components.PengramMarkSpan.widthFor(Theme.chat_timePaint, PENGRAM_MARK_SCALE);"
         },
         {
@@ -44369,7 +44369,7 @@
           "code": "if (drawPhotoImage && currentMessageObject != null && currentMessageObject.hasMediaSpoilers() && currentMessageObject.isSensitive() && (!currentMessageObject.isMediaSpoilersRevealed || mediaSpoilerRevealProgress != 0 && mediaSpoilerRevealProgress < 1)) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18057",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18059",
           "code": "if (delegate != null && currentMessageObject.isSensitive() && currentMessageObject.hasMediaSpoilers() && !currentMessageObject.needDrawBluredPreview() && !currentMessageObject.isMediaSpoilersRevealed) {"
         }
       ]
@@ -49414,11 +49414,11 @@
           "code": "delegate.needPlayMessage(this, currentMessageObject, false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18070",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18072",
           "code": "if (delegate.needPlayMessage(this, currentMessageObject, false)) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18204",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:18206",
           "code": "if (delegate.needPlayMessage(this, currentMessageObject, false)) {"
         },
         {
@@ -49502,7 +49502,7 @@
           "code": "delegate.didLongPress(this, lastTouchX, lastTouchY);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:26907",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java:26909",
           "code": "delegate.didLongPress(this, 0, 0);"
         },
         {

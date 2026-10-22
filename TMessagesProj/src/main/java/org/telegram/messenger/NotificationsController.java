@@ -435,7 +435,7 @@ public class NotificationsController extends BaseController implements Notificat
             pushMessagesDict.clear();
             fcmRandomMessagesDict.clear();
             pushDialogs.clear();
-            wearNotificationsIds.clear();
+            // Почему: dismissNotification отменяет дочерние уведомления до очистки их ids.
             lastWearNotifiedMessageId.clear();
             openedInBubbleDialogs.clear();
             delayedPushMessages.clear();
