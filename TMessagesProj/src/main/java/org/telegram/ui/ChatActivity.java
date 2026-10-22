@@ -4795,6 +4795,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
+        resetPengramSurfaceSignatures();
 
         if (dialog_id != 0 && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount)) {
             org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
@@ -28931,6 +28932,13 @@ public class ChatActivity extends BaseFragment implements
     private int pengramInputGlassSignature = Integer.MIN_VALUE;
     private int pengramHeaderGlassSignature = Integer.MIN_VALUE;
     private final Runnable pengramGlassRefresh = this::refreshPengramSurfaces;
+
+    private void resetPengramSurfaceSignatures() {
+        // Почему: при смене темы createView создаёт новые view на том же фрагменте.
+        // Старая сигнатура не означает, что новым контейнерам уже назначены drawable.
+        pengramInputGlassSignature = Integer.MIN_VALUE;
+        pengramHeaderGlassSignature = Integer.MIN_VALUE;
+    }
 
     private void refreshPengramSurfaces() {
         if (actionBar == null || chatInputViewsContainer == null || viewPositionWatcher == null) return;

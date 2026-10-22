@@ -20,6 +20,9 @@ def method(text, name):
 menu=read('ui/Components/PengramChatMenuWrapper.java')
 assert 'windowLayout.removeInnerViews();' in method(menu,'rebuild'), 'popup structural container is detached by removeAllViews'
 assert 'windowLayout.removeAllViews();' not in method(menu,'rebuild')
+chat=read('ui/ChatActivity.java')
+chat_create=chat.split('public View createView(Context context)',1)[1]
+assert chat_create.index('resetPengramSurfaceSignatures();') < chat_create.index('chatInputViewsContainer = new ChatInputViewsContainer(context);') < chat_create.index('refreshPengramSurfaces();')
 input_source=read('ui/Components/chat/ChatInputViewsContainer.java')
 draw=method(input_source,'dispatchDraw') # fadeView's override precedes the outer method; select it below
 outer=input_source[input_source.index('private final Rect tmpRect'):]
@@ -97,6 +100,7 @@ public class Regression {
  }
  static class Child { int account=7; void setCurrentAccount(int a){account=a;} }
  static class Parent { int currentAccount=2; PARENT_METHOD }
+ static class SurfaceLifecycle {int pengramInputGlassSignature=42,pengramHeaderGlassSignature=24;RESET_SURFACE_METHOD}
  static class Path {}
  static class Rect {void set(int a,int b,int c,int d){} void inset(int a,int b){} void offset(int a,int b){}}
  static class RectF {void set(Rect r){}}
@@ -152,12 +156,14 @@ public class Regression {
    check(c.clips==1,"keyboard clip missing");cases++;
    h.setInputIslandBubbleDrawable(null);h.setUnderKeyboardBackgroundDrawable(null);h.updateColors();h.dispatchDraw(c);cases++;
   }
+  SurfaceLifecycle lifecycle=new SurfaceLifecycle();lifecycle.resetPengramSurfaceSignatures();check(lifecycle.pengramInputGlassSignature==Integer.MIN_VALUE&&lifecycle.pengramHeaderGlassSignature==Integer.MIN_VALUE,"theme retained old view signatures");cases++;
   Input h=new Input();h.setInputBubbleAlpha(81);h.dispatchDraw(new Canvas());check(h.fallbackPaint.alpha==81,"fallback alpha lost");
   h.setInputIslandBubbleDrawable(new BlurredBackgroundDrawable());check(h.blurredBackgroundDrawable.alpha==81,"replacement alpha lost");cases+=2;
   System.out.println("OK: "+cases+" extracted production-method cases (host stubs, NOT Android rendering)");
  }
 }
 """
+fixture=fixture.replace('RESET_SURFACE_METHOD',method(chat,'resetPengramSurfaceSignatures'))
 fixture=fixture.replace('SELF_METHOD',method(login,'resolveSessionSelf'))
 fixture=fixture.replace('MENU_METHOD',method(menu,'rebuild'))
 fixture=fixture.replace('PARENT_METHOD',method(pager,'bindChildAccount').replace('BaseFragment','Child'))
@@ -260,6 +266,7 @@ if shutil.which('javac') and shutil.which('java'):
         # Negative controls must fail; they do not replace device reproduction.
         for name, original, broken in (
             ('popup', 'windowLayout.removeInnerViews();', 'windowLayout.removeAllViews();'),
+            ('theme recreation', 'pengramInputGlassSignature = Integer.MIN_VALUE;', 'pengramInputGlassSignature = 42;'),
             ('theme', 'if (underKeyboardBackgroundDrawable != null) {', 'if (true) {'),
             ('child account', 'fragment.setCurrentAccount(currentAccount);', 'fragment.setCurrentAccount(7);'),
             ('self selection', 'if (full == null || full.full_user == null) return null;', 'if (full != null) return full.users.get(0);')
@@ -270,5 +277,5 @@ if shutil.which('javac') and shutil.which('java'):
             failed=subprocess.run(['java','-cp',d,'Regression'],capture_output=True,text=True)
             assert failed.returncode!=0,'negative control survived: '+name
             print('RED negative control: '+name)
-    jvm='PASS(67 component + 18 import/storage-flow cases)'
+    jvm='PASS(68 component + 18 import/storage-flow cases)'
 print('OK: popup structure, null-theme fallback, parent account and verified session self; JVM='+jvm)
