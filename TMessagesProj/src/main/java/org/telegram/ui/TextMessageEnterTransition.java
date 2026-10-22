@@ -154,6 +154,9 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
 
         CharSequence editText = chatActivityEnterView.getEditText();
+        // Почему: поле уже могло очиститься после send. Пустой layout не вправе
+        // скрывать настоящий текст ячейки на время полёта/crossfade.
+        if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) return;
         CharSequence text = messageView.getMessageObject().messageText;
 
         crossfade = false;
@@ -490,6 +493,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float messageViewY;
 
         if (messageView.getMessageObject().stableId != messageId) {
+            finishTransition();
             return;
         } else {
             messageViewX = messageView.getX() + listView.getX() - container.getX();

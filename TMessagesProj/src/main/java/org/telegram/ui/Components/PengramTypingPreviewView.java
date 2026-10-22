@@ -21,6 +21,7 @@ public class PengramTypingPreviewView extends FrameLayout {
     private final EditText input;
     private final TextView caption;
     private boolean suppress;
+    private boolean compositionEdit;
 
     public PengramTypingPreviewView(Context context) {
         super(context);
@@ -63,6 +64,17 @@ public class PengramTypingPreviewView extends FrameLayout {
                 android.view.inputmethod.InputConnection original = super.onCreateInputConnection(info);
                 if (original == null) return null;
                 return new android.view.inputmethod.InputConnectionWrapper(original, false) {
+                    @Override public boolean setComposingText(CharSequence text, int position) {
+                        compositionEdit = true;
+                        try { return super.setComposingText(text, position); }
+                        finally { compositionEdit = false; }
+                    }
+                    @android.annotation.TargetApi(33)
+                    @Override public boolean setComposingText(CharSequence text, int position, android.view.inputmethod.TextAttribute attributes) {
+                        compositionEdit = true;
+                        try { return super.setComposingText(text, position, attributes); }
+                        finally { compositionEdit = false; }
+                    }
                     @Override public boolean setComposingRegion(int start, int end) {
                         PengramTypingEffects.clear(input);
                         return super.setComposingRegion(start, end);
@@ -106,12 +118,13 @@ public class PengramTypingPreviewView extends FrameLayout {
         addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 28, 0, 0));
         input.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                if (!suppress && count > 0 && after == 0) {
-                    PengramTypingEffects.captureBefore(input, s, start, count);
-                }
+                if (!suppress) {
+                    PengramTypingEffects.captureReplacement(input, s, start, count, after);
+                    if (count > after) PengramTypingEffects.captureBefore(input, s, start, count);
+                } else PengramTypingEffects.clear(input);
             }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                PengramTypingEffects.apply(input, input.getText(), start, before, count, suppress);
+                PengramTypingEffects.apply(input, input.getText(), start, before, count, suppress, compositionEdit);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -144,7 +157,8 @@ public class PengramTypingPreviewView extends FrameLayout {
         setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
         caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         PengramTypingEffects.refreshMotionPreference();
-        boolean enabled = PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE;
+        boolean enabled = PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE
+                || PengramConfig.isTypingDeleteAnim() || PengramConfig.isTypingCursorSmooth();
         caption.setText(!enabled ? LocaleController.getString(R.string.PengramTypingEffectsOff)
                 : !PengramTypingEffects.motionAllowed() ? LocaleController.getString(R.string.PengramTypingReducedMotion)
                 : LocaleController.formatString(R.string.PengramInputPreviewCurrent,

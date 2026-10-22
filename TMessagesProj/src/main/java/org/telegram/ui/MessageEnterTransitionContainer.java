@@ -16,7 +16,8 @@ public class MessageEnterTransitionContainer extends View {
     private final int currentAccount;
     private final ViewGroup parent;
 
-    Runnable hideRunnable = () -> setVisibility(View.GONE);
+    // Почему: idle callback мог уже выйти из очереди до регистрации нового overlay.
+    Runnable hideRunnable = () -> { if (transitions.isEmpty()) setVisibility(View.GONE); };
 
     public MessageEnterTransitionContainer(ViewGroup parent, int currentAccount) {
         super(parent.getContext());
@@ -61,9 +62,10 @@ public class MessageEnterTransitionContainer extends View {
         if (transitions.isEmpty() && getVisibility() != View.GONE) {
             NotificationCenter.getInstance(currentAccount).removeDelayed(hideRunnable);
             NotificationCenter.getInstance(currentAccount).doOnIdle(hideRunnable);
-        } else if (!transitions.isEmpty() && getVisibility() != View.VISIBLE) {
+        } else if (!transitions.isEmpty()) {
+            // Почему: VISIBLE не означает, что старое отложенное скрытие отменено.
             NotificationCenter.getInstance(currentAccount).removeDelayed(hideRunnable);
-            setVisibility(View.VISIBLE);
+            if (getVisibility() != View.VISIBLE) setVisibility(View.VISIBLE);
         }
     }
 

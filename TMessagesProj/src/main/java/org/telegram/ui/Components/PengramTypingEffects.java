@@ -58,7 +58,7 @@ public final class PengramTypingEffects {
     }
     public static void settingsChanged() {
         readMotion();
-        final boolean disabled = !motionAllowed() || PengramConfig.getInputAnimation() == PengramConfig.INPUT_ANIM_NONE;
+        final boolean disabled = !motionAllowed() || !effectsEnabled();
         for (State state : states.values()) {
             state.clearAll();
             final EditText edit = state.ref.get();
@@ -104,9 +104,14 @@ public final class PengramTypingEffects {
     public static boolean composing(EditText edit) {
         return edit != null && edit.getText() != null && BaseInputConnection.getComposingSpanStart(edit.getText()) >= 0;
     }
+    private static boolean effectsEnabled() {
+        // Почему: удаление и курсор — отдельные переключатели, не дочерние режимы появления.
+        return PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE
+                || PengramConfig.isTypingDeleteAnim() || PengramConfig.isTypingCursorSmooth();
+    }
     private static boolean live(EditText edit) {
         return edit != null && edit.isAttachedToWindow() && edit.isShown() && edit.isFocused()
-                && edit.hasWindowFocus() && motionAllowed() && PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE;
+                && edit.hasWindowFocus() && motionAllowed() && effectsEnabled();
     }
     public static void wake(EditText edit) {
         try {
@@ -117,10 +122,13 @@ public final class PengramTypingEffects {
         apply(edit, text, start, before, count, false);
     }
     public static void apply(EditText edit, Editable text, int start, int before, int count, boolean isPaste) {
-        try { applyUserEdit(edit, text, start, before, count, isPaste); }
+        apply(edit, text, start, before, count, isPaste, false);
+    }
+    public static void apply(EditText edit, Editable text, int start, int before, int count, boolean isPaste, boolean composition) {
+        try { applyUserEdit(edit, text, start, before, count, isPaste, composition); }
         catch (RuntimeException | OutOfMemoryError unavailable) { clear(edit); }
     }
-    private static void applyUserEdit(EditText edit, Editable text, int start, int before, int count, boolean isPaste) {
+    private static void applyUserEdit(EditText edit, Editable text, int start, int before, int count, boolean isPaste, boolean composition) {
         if (edit == null || text == null) return;
         if (!live(edit) || isPaste) { clear(edit); return; }
         final State s = state(edit);
@@ -146,7 +154,8 @@ public final class PengramTypingEffects {
             if (count == 0) return;
         }
         s.releaseSnapshot();
-        if (count <= 0 || start < 0 || start + count > text.length()) return;
+        if (count <= 0 || start < 0 || start + count > text.length()
+                || composition || composing(edit) || PengramConfig.getInputAnimation() == PengramConfig.INPUT_ANIM_NONE) return;
         final int end = start + count;
         // Размер — лишь страховка против массового/голосового ввода. Длинное
         // одиночное слово (glide) допускается; факт paste передаётся отдельно.
@@ -171,7 +180,8 @@ public final class PengramTypingEffects {
         catch (RuntimeException | OutOfMemoryError unavailable) { clear(edit); }
     }
     private static void committedSafe(EditText edit, int start, int end) {
-        if (live(edit) && !composing(edit) && start >= 0 && end > start && end <= edit.length()
+        if (live(edit) && PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE
+                && !composing(edit) && start >= 0 && end > start && end <= edit.length()
                 && end - start <= 256) {
             State s = state(edit);
             s.onTextChanged();
@@ -196,9 +206,9 @@ public final class PengramTypingEffects {
     }
 
     public static void captureBefore(EditText edit, CharSequence text, int start, int count) {
-        if (!live(edit) || composing(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {
+        if (!live(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {
             State previous = states.get(edit);
-            if (previous != null) previous.removedCount = 0;
+            if (previous != null) previous.releaseSnapshot();
             return;
         }
         try { state(edit).snapshot(text, start, count); }
@@ -268,6 +278,7 @@ public final class PengramTypingEffects {
         final Random random = new Random();
         int cacheBytes;
         final String[] removedClusters = new String[MAX_DELETE_CLUSTERS];
+        final int[] removedOffsets = new int[MAX_DELETE_CLUSTERS];
         final float[] removedX = new float[MAX_DELETE_CLUSTERS], removedBaseline = new float[MAX_DELETE_CLUSTERS];
         final float[] removedWidth = new float[MAX_DELETE_CLUSTERS], removedDirection = new float[MAX_DELETE_CLUSTERS];
         final Raster[] removedRasters = new Raster[MAX_DELETE_CLUSTERS];
@@ -458,7 +469,13 @@ public final class PengramTypingEffects {
             if (!validLayout(edit, layout)) return;
             removedStart = start; removedUnits = count;
             removedScrollX = edit.getScrollX(); removedScrollY = edit.getScrollY();
-            for (int offset = start; offset < start + count && removedCount < MAX_DELETE_CLUSTERS;) {
+            // Почему: IME заменяет и длинное слово целиком, а стирает обычно
+            // кластер перед курсором. Бюджет снимка тратим возле курсора, не в начале слова.
+            int captureStart = Math.min(start + count, Math.max(start, edit.getSelectionStart()));
+            for (int n = 0; n < MAX_DELETE_CLUSTERS && captureStart > start; n++) {
+                captureStart = PengramGraphemes.clusterStart(text, captureStart - 1);
+            }
+            for (int offset = captureStart; offset < start + count && removedCount < MAX_DELETE_CLUSTERS;) {
                 int end = PengramGraphemes.clusterEnd(text, offset);
                 if (end > start + count) break;
                 String cluster = text.subSequence(offset, end).toString();
@@ -467,6 +484,7 @@ public final class PengramTypingEffects {
                     int line = layout.getLineForOffset(offset);
                     int paddingTop = edit.getTotalPaddingTop();
                     removedClusters[n] = cluster;
+                    removedOffsets[n] = offset;
                     removedTop[n] = rect.top;
                     removedX[n] = rect.left;
                     removedBaseline[n] = layout.getLineBaseline(line) + paddingTop;
@@ -548,7 +566,8 @@ public final class PengramTypingEffects {
         void spawnFromSnapshot(int start, int before) {
             EditText edit = ref.get();
             int perCluster = PengramConfig.getTypingDeleteCount();
-            if (removedStart != start || removedUnits != before || edit == null || perCluster == 0) { releaseSnapshot(); return; }
+            if (start < removedStart || before > removedUnits || start - removedStart > removedUnits - before
+                    || edit == null || perCluster == 0) { releaseSnapshot(); return; }
             float speed = .2f + PengramConfig.getTypingDeleteSpeed() / 50f;
             float spread = PengramConfig.getTypingDeleteSpread() / 50f;
             float size = PengramConfig.getTypingDeleteSize() / 50f;
@@ -558,7 +577,11 @@ public final class PengramTypingEffects {
             // один эмодзи на несколько наложенных копий.
             final int total = style == PengramConfig.DELETE_PARTICLE_LETTERS
                     ? Math.min(removedCount, perCluster * 2) : removedCount;
-            for (int i = 0; i < total && particles.size() < MAX_PARTICLES; i++) {
+            int emitted = 0;
+            for (int i = 0; i < removedCount && emitted < total && particles.size() < MAX_PARTICLES; i++) {
+                // Почему: prefix/suffix нормализация IME оставляет только удалённый диапазон.
+                if (removedOffsets[i] < start || removedOffsets[i] + removedClusters[i].length() > start + before) continue;
+                emitted++;
                 // Буква/эмодзи остаётся единым глифом. count=0 выключает и его.
                 int pieces = style == PengramConfig.DELETE_PARTICLE_LETTERS ? 1 : perCluster;
                 for (int j = 0; j < pieces && particles.size() < MAX_PARTICLES; j++) {

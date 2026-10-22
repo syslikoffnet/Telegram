@@ -5355,7 +5355,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private void pengramAnimateTyping(int start, int before, int count) {
         if (messageEditText == null || !isChat || editingMessageObject != null) { PengramTypingEffects.clear(messageEditText); return; }
-        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count, isPaste || pengramExternalEditDepth > 0);
+        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count, isPaste || pengramExternalEditDepth > 0, pengramImeComposing);
         final long now = SystemClock.uptimeMillis();
         if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && PengramTypingEffects.motionAllowed()
                 && org.telegram.messenger.PengramConfig.getInputAnimation() != org.telegram.messenger.PengramConfig.INPUT_ANIM_NONE
@@ -5379,7 +5379,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                         PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
                     } else {
                         PengramTypingEffects.captureReplacement(ChatActivityEditTextCaption.this, s, start, count, after);
-                        if (!pengramImeComposing && count > 0 && after == 0)
+                        if (count > after)
                             PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
                     }
                 }
@@ -6117,7 +6117,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (ignorePrevTextChange) {
                     return;
                 }
-                if (!ignoreTextChange && innerTextChange == 0 && !pengramImeComposing && editingMessageObject == null) {
+                if (!ignoreTextChange && innerTextChange == 0 && (!pengramImeComposing || before > count) && editingMessageObject == null) {
                     pengramAnimateTyping(start, before, count);
                 } else PengramTypingEffects.clear(messageEditText);
                 pengramUpdateWpm(before, count);
