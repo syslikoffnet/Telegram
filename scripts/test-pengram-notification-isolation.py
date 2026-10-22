@@ -7,6 +7,9 @@ j=root/'TMessagesProj/src/main/java/org/telegram/messenger'
 n=(j/'NotificationsController.java').read_text()
 p=(j/'PushListenerController.java').read_text()
 assert 'notificationManager.notify(notificationGroup, id, notification.build());' in n, 'same peer notification overwrites another account'
+repeat=n.split('private void scheduleNotificationRepeat()',1)[1].split('private boolean isPersonalMessage',1)[0]
+assert 'PendingIntent.getService(ApplicationLoader.applicationContext, currentAccount, intent,' in repeat
+assert 'PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT' in repeat
 assert n.count('PendingIntent.getBroadcast(')==1, 'broadcast PendingIntents must all use account identity'
 assert 'PengramNotificationRouting.broadcastIdentity(' in n
 assert 'PengramNotificationRouting.findPushAccount(userIdObject)' in p

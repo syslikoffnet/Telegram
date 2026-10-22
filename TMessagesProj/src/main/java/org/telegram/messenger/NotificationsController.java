@@ -3288,7 +3288,10 @@ public class NotificationsController extends BaseController implements Notificat
         try {
             Intent intent = new Intent(ApplicationLoader.applicationContext, NotificationRepeat.class);
             intent.putExtra("currentAccount", currentAccount);
-            PendingIntent pintent = PendingIntent.getService(ApplicationLoader.applicationContext, 0, intent, PendingIntent.FLAG_MUTABLE);
+            // Почему: extras не входят в identity PendingIntent. Общий requestCode=0
+            // заставлял повтор одного аккаунта запускать или отменять напоминание другого.
+            PendingIntent pintent = PendingIntent.getService(ApplicationLoader.applicationContext, currentAccount, intent,
+                    PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             SharedPreferences preferences = getAccountInstance().getNotificationsSettings();
             int minutes = preferences.getInt("repeat_messages", 60);
             if (minutes > 0 && personalCount > 0) {
