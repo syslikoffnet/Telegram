@@ -7994,7 +7994,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramDeleteEffectView.java:714",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTrackForward.java:49"
       ],
-      "lexical_occurrences": 2511,
+      "lexical_occurrences": 2510,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/DefaultItemAnimator.java:290",

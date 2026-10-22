@@ -55,6 +55,18 @@ import org.telegram.ui.Components.ReplyMessageLine;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 
+/**
+ * Перелёт текста из поля ввода в пузырь отправленного сообщения.
+ *
+ * <p>Pengram: для отправки текста больше не создаётся —
+ * {@link org.telegram.ui.recyclerview.ChatListItemAnimator#animateAddImpl} не
+ * запускает этот overlay, потому что на время перелёта ячейка прятала свой текст,
+ * а overlay рисовал пузырь и текст с alpha = progress/0.4: сообщение стояло
+ * пустым, затем текст появлялся рывком. Класс оставлен как есть (его контракты
+ * покрыты scripts/test-pengram-send-text-draw.py и
+ * scripts/test-pengram-send-delete-regressions.py), чтобы отключение было
+ * обратимым в одну строку; живой пользователь — {@link VoiceMessageEnterTransition}.
+ */
 public class TextMessageEnterTransition implements MessageEnterTransitionContainer.Transition {
     float fromRadius;
     float progress;
