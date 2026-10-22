@@ -183,34 +183,11 @@ public class PushListenerController {
                     } else {
                         userIdObject = null;
                     }
-                    long accountUserId;
-                    if (userIdObject == null) {
-                        accountUserId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-                    } else {
-                        if (userIdObject instanceof Long) {
-                            accountUserId = (Long) userIdObject;
-                        } else if (userIdObject instanceof Integer) {
-                            accountUserId = (Integer) userIdObject;
-                        } else if (userIdObject instanceof String) {
-                            accountUserId = Utilities.parseInt((String) userIdObject);
-                        } else {
-                            accountUserId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
-                        }
-                    }
-                    int account = UserConfig.selectedAccount;
-                    boolean foundAccount = false;
-                    for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-                        if (UserConfig.getInstance(a).getClientUserId() == accountUserId) {
-                            account = a;
-                            foundAccount = true;
-                            break;
-                        }
-                    }
-                    if (!foundAccount) {
-                        if (BuildVars.LOGS_ENABLED) {
-                            FileLog.d(tag + " ACCOUNT NOT FOUND");
-                        }
-                        countDownLatch.countDown();
+                    final int account = PengramNotificationRouting.findPushAccount(userIdObject);
+                    if (account < 0) {
+                        // Почему: неоднозначный payload не должен создавать уведомление в чужом слоте.
+                        // Вместо угадывания будим штатные соединения для получения собственных updates.
+                        onDecryptError();
                         return;
                     }
                     final int accountFinal = currentAccount = account;
@@ -1765,7 +1742,7 @@ public class PushListenerController {
 
     private static void onDecryptError() {
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()) {
+            if (UserConfig.getInstance(a).isClientActivated() && !PengramLocalKeep.isLocalOnly(a)) {
                 ConnectionsManager.onInternalPushReceived(a);
                 ConnectionsManager.getInstance(a).resumeNetworkMaybe();
             }

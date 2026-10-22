@@ -16,7 +16,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.LayoutHelper;
 
-/** On-demand snapshots; no network initialization or background polling. */
+/** Local snapshots; server identity requests require an explicit diagnostic button. */
 public class PengramDiagnosticsActivity extends BaseFragment {
     private TextView reportView;
     private final Runnable refresh = new Runnable() {
@@ -50,12 +50,26 @@ public class PengramDiagnosticsActivity extends BaseFragment {
             BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.TextCopied)).show();
         });
         root.addView(copy, LayoutHelper.createLinear(-1, -2));
+        TextView verify = new TextView(context);
+        verify.setText(LocaleController.getString(R.string.PengramDiagnosticsVerifyAccounts));
+        verify.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+        verify.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
+        verify.setOnClickListener(v -> PengramDiagnostics.verifyAccountIdentities());
+        root.addView(verify, LayoutHelper.createLinear(-1, -2));
+        TextView verifyInfo = new TextView(context);
+        verifyInfo.setText(LocaleController.getString(R.string.PengramDiagnosticsVerifyAccountsInfo));
+        verifyInfo.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+
         ScrollView scroll = new ScrollView(context);
         reportView = new TextView(context);
         reportView.setTextIsSelectable(true);
         reportView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         reportView.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), AndroidUtilities.dp(16));
-        scroll.addView(reportView);
+        LinearLayout reportContent = new LinearLayout(context);
+        reportContent.setOrientation(LinearLayout.VERTICAL);
+        reportContent.addView(verifyInfo, LayoutHelper.createLinear(-1, -2, 16, 0, 16, 12));
+        reportContent.addView(reportView, LayoutHelper.createLinear(-1, -2));
+        scroll.addView(reportContent);
         root.addView(scroll, LayoutHelper.createLinear(-1, 0, 1f));
         reportView.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override public void onViewAttachedToWindow(View view) {

@@ -13364,4 +13364,6 @@
     <string name="PengramSessionErrSlotBusy">This account slot is occupied, including retained local copies. Choose an empty slot. Replacing its session without a confirmed full reset is not allowed.</string>
     <string name="PengramSessionErrIdentity">The account identity returned by Telegram does not match this session. Import was stopped; existing accounts and local history were not changed.</string>
     <string name="PengramSessionErrAccountExists">This account already exists in another slot, including retained local copies. Switch to that account instead of importing its session again.</string>
+    <string name="PengramDiagnosticsVerifyAccounts">Verify account owners (online, read-only)</string>
+    <string name="PengramDiagnosticsVerifyAccountsInfo">Compare the saved profile with the owner returned by Telegram. This makes read-only requests for active online accounts and does not change profiles, keys or history. Wait for PENDING to finish, then copy the report.</string>
 </resources>
