@@ -47,6 +47,8 @@ assert 'pengramPlainTextFallback();' in layout
 assert 'cachedTextHeight = null' in layout
 assert 'layoutCreated = true;' not in method(msg, 'checkLayout')
 assert 'layoutCreated = pengramHasTextLayout()' in layout
+assert 'block.textLayout == null || block.height <= 0' in method(msg, 'pengramHasTextLayout')
+assert 'TextUtils.equals(newText, oldText)' in cell
 assert 'new StaticLayout(plain,' in method(msg, 'pengramPlainTextFallback')
 assert 'PengramAntiCrashBlocked' in method(msg, 'pengramPlainTextFallback')
 assert 'messageText == pengramWrappedMessageText' in layout

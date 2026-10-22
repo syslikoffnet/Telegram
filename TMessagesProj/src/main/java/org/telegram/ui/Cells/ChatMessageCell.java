@@ -28885,7 +28885,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     for (int i = 0; i < lastDrawingTextBlocks.size(); i++) {
                         String newText = currentMessageObject.textLayoutBlocks.get(i).textLayout == null ? null : currentMessageObject.textLayoutBlocks.get(i).textLayout.getText().toString();
                         String oldText = lastDrawingTextBlocks.get(i).textLayout == null ? null : lastDrawingTextBlocks.get(i).textLayout.getText().toString();
-                        if ((newText == null && oldText != null) || (newText != null && oldText == null) || !newText.equals(oldText)) {
+                        if (!TextUtils.equals(newText, oldText)) {
                             sameText = false;
                             break;
                         } else {

@@ -66,9 +66,10 @@ public class PengramBeatHalo extends View {
     /** 0 — совсем деликатно, 1 — как задумано, выше — «сочнее» */
     public void setIntensity(float value) {
         intensity = Math.max(0f, value);
+        // Почему: после juicy старые кольца не должны ожить при смене soft → juicy.
+        if (intensity <= 1f) for (int i = 0; i < RINGS; i++) ringPower[i] = 0;
         if (intensity <= 0) {
             level = targetLevel = beat = 0;
-            for (int i = 0; i < RINGS; i++) ringPower[i] = 0;
             animating = false;
         }
         invalidate();

@@ -69,15 +69,15 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
 | 13 | `ui/TextMessageEnterTransition.java:467` | An expired/rebound overlay removes itself before drawing stale text. |
 | 14 | `ui/MessageEnterTransitionContainer.java:29` | Removed transitions get a cleanup callback; other transition implementations retain default compatibility. |
 | 15 | `ui/MessageEnterTransitionContainer.java:45` | Container detach removes its transitions; reverse draw iteration tolerates self-removal. |
-| 16 | `messenger/MessageObject.java:8845` | Fallback removes spans, builds plain text outside drawing, then tries existing EN/RU anti-crash notice. |
-| 17 | `messenger/MessageObject.java:8868` | Fallback stores block height and character range so measure does not collapse to zero. |
-| 18 | `messenger/MessageObject.java:8898` | Generation exceptions trigger full fallback even when some blocks were already created. |
-| 19 | `messenger/MessageObject.java:8918` | layoutCreated is set after generation; the first failed layout remains eligible for one retry. |
-| 20 | `messenger/MessageObject.java:8891` | Generation invalidates cached height to prevent a stale zero. |
-| 21 | `messenger/MessageObject.java:8894` | Before regenerating, original source text is restored for server-indexed entities. |
-| 22 | `messenger/MessageObject.java:9020` | Normal message layout adopts wrapped display text; messageOwner text/entities remain unchanged. |
-| 23 | `messenger/MessageObject.java:9079` | Layout ranges slice the actual layout text, eliminating the proven NFT/long-link bounds mismatch. |
-| 24 | `messenger/MessageObject.java:9244` | A failed sub-block cannot silently continue and hide part of the message. |
+| 16 | `messenger/MessageObject.java:8850` | Fallback removes spans, builds plain text outside drawing, then tries existing EN/RU anti-crash notice. |
+| 17 | `messenger/MessageObject.java:8873` | Fallback stores block height and character range so measure does not collapse to zero. |
+| 18 | `messenger/MessageObject.java:8903` | Generation exceptions trigger full fallback even when some blocks were already created. |
+| 19 | `messenger/MessageObject.java:8923` | layoutCreated is set after generation; the first failed layout remains eligible for one retry. |
+| 20 | `messenger/MessageObject.java:8896` | Generation invalidates cached height to prevent a stale zero. |
+| 21 | `messenger/MessageObject.java:8899` | Before regenerating, original source text is restored for server-indexed entities. |
+| 22 | `messenger/MessageObject.java:9025` | Normal message layout adopts wrapped display text; messageOwner text/entities remain unchanged. |
+| 23 | `messenger/MessageObject.java:9084` | Layout ranges slice the actual layout text, eliminating the proven NFT/long-link bounds mismatch. |
+| 24 | `messenger/MessageObject.java:9249` | A failed sub-block cannot silently continue and hide part of the message. |
 | 25 | `ui/Components/PengramTypingEffects.java:254` | Up to 16 pending batches survive until pre-draw instead of a single overwritable posted slot. |
 | 26 | `ui/Components/PengramTypingEffects.java:385` | Invalid Layout retries are bounded by 3 attempts / 400ms; stale content is rejected. |
 | 27 | `ui/Components/PengramTypingEffects.java:384` | Applying requires matching actual range content as well as usable layout geometry. |
@@ -93,7 +93,7 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
 | 37 | `messenger/PengramCovers.java:102` | No-file and null-decoder/rejection paths now notify failure instead of silently abandoning the sheet. |
 | 38 | `ui/Components/PengramMusicPlayerSheet.java:1589` | Player gets a logo behind GL, restored on unavailability; child margins shrink 10→4dp. |
 | 39 | `ui/Components/PengramPenguinView.java:138` | Body target .84 is separate from accessory-safe .98; jump reserve is conditional; density² remains fixed. |
-| 40 | `ui/Components/PengramBeatHalo.java:78` | Shader allocation moved out of draw; off draws nothing, soft/normal cap glow40 without rings/sparks, juicy retains clipped effects. |
+| 40 | `ui/Components/PengramBeatHalo.java:79` | Shader allocation moved out of draw; off draws nothing, soft/normal cap glow40 without rings/sparks, juicy retains clipped effects. |
 
 ## Deliberately retained / open limits
 

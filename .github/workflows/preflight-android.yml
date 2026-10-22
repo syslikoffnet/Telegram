@@ -71,34 +71,12 @@ jobs:
       - name: Test artwork queue
         run: python3 scripts/test-cover-cache.py
 
-      - name: Test Pengram visual editor and settings search
+      - name: Test all Pengram regressions
         run: |
-          python3 scripts/test-pengram-settings-create.py
-          python3 scripts/test-pengram-text-visibility.py
-          python3 scripts/test-pengram-penguin-visibility.py
-          python3 scripts/test-pengram-penguin-geometry.py
-          python3 scripts/test-pengram-visual-editor.py
-          python3 scripts/test-pengram-search-index.py
-          python3 scripts/test-pengram-history-search.py
-          python3 scripts/test-pengram-edited-media.py
-          python3 scripts/test-pengram-edit-chain.py
-          python3 scripts/test-pengram-send-style.py
-          python3 scripts/test-pengram-forward-quotes.py
-          python3 scripts/test-pengram-security-wiring.py
-          python3 scripts/test-pengram-lyrics-wiring.py
-          python3 scripts/test-pengram-player-wiring.py
-          python3 scripts/test-pengram-name-check.py
-          python3 scripts/test-pengram-bot-login.py
-          python3 scripts/test-pengram-device-platform.py
-          python3 scripts/test-pengram-mention-all.py
-          python3 scripts/test-pengram-mention-name.py
-          python3 scripts/test-pengram-penguin-header.py
-          python3 scripts/test-pengram-local-keep.py
-          python3 scripts/test-pengram-session-login.py
-          python3 scripts/test-pengram-signer-block.py
-          python3 scripts/test-pengram-text-overflow.py
-          python3 scripts/test-pengram-lyrics-header.py
-          python3 scripts/test-pengram-protection.py
+          for suite in scripts/test-pengram-*.py; do
+            echo "Running $suite"
+            python3 "$suite"
+          done
 
       - name: Test Pengram lyric timing
         run: |

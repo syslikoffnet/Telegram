@@ -8837,8 +8837,13 @@ public class MessageObject {
     private CharSequence pengramWrappedMessageText;
 
     private boolean pengramHasTextLayout() {
-        return type == TYPE_ARTICLE ? richLayout != null
-                : textLayoutBlocks != null && !textLayoutBlocks.isEmpty();
+        if (type == TYPE_ARTICLE) return richLayout != null;
+        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return false;
+        for (int i = 0; i < textLayoutBlocks.size(); i++) {
+            TextLayoutBlock block = textLayoutBlocks.get(i);
+            if (block == null || block.textLayout == null || block.height <= 0) return false;
+        }
+        return true;
     }
 
     // Почему: антикраш обязан оставить читаемый текст, а не пустой пузырь.
