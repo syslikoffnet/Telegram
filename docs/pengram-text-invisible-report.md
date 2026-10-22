@@ -1,6 +1,6 @@
 # Pengram: text, typing, penguin and player
 
-2026-10-22. Base `0666b87`, working branch `arena/42ea70d0-telegram`; draft PR5 **not merged**.
+2026-10-22. Base `0666b87`, verified implementation `6e6ddfead`, working branch `arena/42ea70d0-telegram`; draft PR5 **not merged**.
 
 ## Status and evidence policy
 
@@ -117,6 +117,8 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
   existing anti-crash notice. Reconstruction of all rich document text is not implemented.
 - Existing renderer still has animated pose/flip/hat geometry risks. Full static/animated bounds and
   minimum dp across all skins require more than the conservative camera correction delivered here.
+- LYRICS artwork is also observed through the actually attached small receiver. Its placeholder is
+  a background, not setImageDrawable, so rendering fallback does not cancel that receiver's request.
 - Player empty cover/beat/skin/dance/shape updates listen to preferences while open, unregister on
   dismiss. Changing structural player style still requires rebuilding the sheet; not fixed here.
 - New diagnostic logs are guarded by LOGS_ENABLED and contain IDs/types/lengths/counts/flags only;
@@ -131,7 +133,17 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
   it is outside Git and adds no app dependency. CI JDK17 must run the extracted lifecycle model.
 - New suites: `test-pengram-text-visibility.py`, `test-pengram-penguin-visibility.py`; updated geometry,
   profile and typing assertions because they previously hard-coded the regression constants.
-- Java/resource preflight and APK for this patch: **PENDING** (do not reuse 0666b87 success).
+- **Java/resource/full regression preflight SUCCESS**, 8m9s, on implementation `6e6ddfeadc7beddad9122f3e6bb6d42aae93eac3`:
+  https://github.com/syslikoffnet/Telegram/actions/runs/39734279469 . Real Android Java compilation,
+  resource merge, artwork host-JVM queue tests, all 53 Pengram suites (including production Unicode17
+  JVM runner and extracted lifecycle runner), lyric timing and security policy steps passed.
+- ARM64 **APK #351 is still building** at this report update:
+  https://github.com/syslikoffnet/Telegram/actions/runs/39734279419 . It contains the verified implementation;
+  subsequent report-only commits do not change the Java/resources.
+- Earlier failed runs are not hidden: `39732537234` found the still-used deletion whitespace helper,
+  repaired in `4789e69d5`; `39733397190` compiled production Java/resources but failed an outdated host
+  Bitmap stub. `5c960da8d` completed that stub and added missing-file/null/invalid-size callback cases.
+  Latest success above supersedes those failures, not the unrelated `0666b87` preflight.
 - Device time/frame, fps, memory, 30s/10min heat, applied/lost batches before/after: **NOT MEASURED**.
 - All 28 manual matrix rows: **NOT RUN**; P1–P8 and Web/Desktop artifacts absent by user decision.
 
@@ -140,3 +152,36 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
 This is a tested source-hardening stage, not completion of all eleven acceptance criteria. Missing
 Android visual/performance proof, tall-skin/body minimum guarantees, complete rich/wrapped-block
 integration and universal glyph-success guarantees remain explicit. PR remains open, never merged.
+
+## Manual matrix (no runtime evidence claimed)
+
+| # | Scenario | Device result |
+|---|---|---|
+| 1 | Short outgoing message | NOT RUN |
+| 2 | Slow-network send acknowledgement | NOT RUN |
+| 3 | Five quick messages | NOT RUN |
+| 4 | Long 30+ line message | NOT RUN |
+| 5 | Long message + NFT link | NOT RUN |
+| 6 | NFT preview above | NOT RUN |
+| 7 | Same NFT message from another client | NOT RUN |
+| 8 | Scroll/reuse cells | NOT RUN |
+| 9 | Background/foreground while sending | NOT RUN |
+| 10 | Normal / glide / predictive / paste input | NOT RUN |
+| 11 | Paste then immediate typing | NOT RUN |
+| 12 | Emoji and combining clusters | NOT RUN |
+| 13 | Emoji deletion in five styles | NOT RUN |
+| 14 | Anti-crash switched off | NOT RUN |
+| 15 | Reduced motion / system animations off | NOT RUN |
+| 16 | 2x font / RTL / dark theme | NOT RUN |
+| 17 | 3000 characters with active typing | NOT RUN |
+| 18 | Ten-minute typing / heat | NOT RUN |
+| 19 | Penguin settings 70/100/150% | NOT RUN |
+| 20 | Compact header body >=52dp | NOT RUN |
+| 21 | Player without cover | NOT RUN |
+| 22 | No cover offline | NOT RUN |
+| 23 | Current track with cover | NOT RUN |
+| 24 | Twenty rapid track switches | NOT RUN |
+| 25 | All three player styles in both themes | NOT RUN |
+| 26 | Beat off / soft / on | NOT RUN |
+| 27 | Skin changes at all three locations | NOT RUN |
+| 28 | Rotation / tablet layout | NOT RUN |
