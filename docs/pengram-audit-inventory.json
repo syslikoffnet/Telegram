@@ -21525,7 +21525,7 @@
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramQuickToggles.java:48",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:217"
       ],
-      "lexical_occurrences": 3080,
+      "lexical_occurrences": 3078,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/AdapterHelper.java:149",
