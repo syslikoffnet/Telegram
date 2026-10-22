@@ -1378,20 +1378,6 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
-    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {
-        return getEntries(dialogId, filter, limit, null, 0, false);
-    }
-
-    /**
-     * @param messageId если != 0 — только версии конкретного сообщения
-     * @param ascending true — от старых к новым (как в чате)
-     */
-    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending) {
-        // Legacy callers still see only the selected account, never the shared
-        // SQLite archive of every signed-in account.
-        return getEntries(dialogId, filter, limit, query, messageId, ascending, UserConfig.selectedAccount);
-    }
-
     /** Archive queries always belong to one Telegram account. */
     public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending, int account) {
         ArrayList<Entry> result = new ArrayList<>();

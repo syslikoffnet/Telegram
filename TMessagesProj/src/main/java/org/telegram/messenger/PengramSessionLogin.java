@@ -56,7 +56,7 @@ public final class PengramSessionLogin {
         final int account;
         final PengramSessionFormats.Account session;
         final Listener listener;
-        boolean cancelled;
+        volatile boolean cancelled;
         /** одна автоматическая повторная попытка на дубликат ключа и сеть */
         boolean retried;
 
@@ -67,7 +67,7 @@ public final class PengramSessionLogin {
         }
     }
 
-    private static Flow active;
+    private static volatile Flow active;
 
     private PengramSessionLogin() {
     }
@@ -103,10 +103,28 @@ public final class PengramSessionLogin {
             listener.onError("invalid_key");
             return;
         }
+        if (targetAccount < 0 || targetAccount >= UserConfig.MAX_ACCOUNT_COUNT) {
+            listener.onError("no_slot");
+            return;
+        }
+        PengramDiagnostics.recordImportAttempt(targetAccount);
+        // Почему: сетевой cleanup не удаляет профиль и БД занятого слота.
+        // Без отдельного подтверждённого сброса заменять ключ здесь нельзя.
+        if (!isSlotAvailable(targetAccount)) {
+            listener.onError("slot_busy");
+            return;
+        }
         cancel();
         final Flow flow = new Flow(targetAccount, session, listener);
         active = flow;
         connect(flow);
+    }
+
+    private static boolean isSlotAvailable(int account) {
+        return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
+                && UserConfig.getInstance(account).getClientUserId() == 0
+                && !UserConfig.getInstance(account).isClientActivated()
+                && !PengramLocalKeep.isLocalOnly(account);
     }
 
     /** Отмена: ключ из файла затирается, слот остаётся чистым. */
@@ -125,6 +143,11 @@ public final class PengramSessionLogin {
      * запрос проверяет, что Telegram этот ключ знает.
      */
     private static void connect(final Flow flow) {
+        if (flow.cancelled || active != flow) return;
+        if (!isSlotAvailable(flow.account)) {
+            fail(flow, "slot_busy");
+            return;
+        }
         final ConnectionsManager manager = ConnectionsManager.getInstance(flow.account);
         final PengramSessionFormats.Account session = flow.session;
 
@@ -138,8 +161,11 @@ public final class PengramSessionLogin {
 
         final TLRPC.TL_users_getFullUser request = new TLRPC.TL_users_getFullUser();
         request.id = new TLRPC.TL_inputUserSelf();
-        manager.sendRequest(request, (response, error) -> {
-            if (flow.cancelled) {
+        manager.sendRequest(request, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (flow.cancelled || active != flow) return;
+            // Почему: ответ старого импорта не должен менять уже занятый слот.
+            if (!isSlotAvailable(flow.account)) {
+                fail(flow, "slot_busy");
                 return;
             }
             TLRPC.User user = null;
@@ -177,7 +203,7 @@ public final class PengramSessionLogin {
             final TLRPC.TL_auth_authorization authorization = new TLRPC.TL_auth_authorization();
             authorization.user = user;
             succeed(flow, authorization);
-        }, FLAGS);
+        }), FLAGS);
     }
 
     private static void succeed(Flow flow, TLRPC.TL_auth_authorization authorization) {

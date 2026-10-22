@@ -309,6 +309,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CRASH_AUTOCOPY = 1495;
     private static final int BTN_SECTION_ABOUT = 1496;
     private static final int BTN_ABOUT_COPY = 1497;
+    private static final int BTN_DIAGNOSTICS = 1498;
     private static final int BTN_RESET_SECTION = 1498;
     private static final int BTN_RESET_ALL = 1499;
     private static final int BTN_HIST_MAX = 407;
@@ -1198,6 +1199,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(aboutRow(R.string.PengramAboutDevice, org.telegram.messenger.PengramVersion.device()));
         items.add(aboutRow(R.string.PengramAboutSystem, org.telegram.messenger.PengramVersion.androidVersion()));
         items.add(aboutRow(R.string.PengramAboutAbi, org.telegram.messenger.PengramVersion.abi()));
+        items.add(UItem.asButton(BTN_DIAGNOSTICS, R.drawable.msg_info, getString(R.string.PengramDiagnostics)));
         items.add(UItem.asButton(BTN_ABOUT_COPY, R.drawable.msg_copy, getString(R.string.PengramAboutCopy)));
         items.add(UItem.asShadow(getString(R.string.PengramAboutCopyInfo)));
 
@@ -5426,6 +5428,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_ABOUT:
                 presentFragment(new PengramSettingsActivity(SECTION_ABOUT));
                 return;
+            case BTN_DIAGNOSTICS:
+                PengramDiagnosticsActivity diagnostics = new PengramDiagnosticsActivity();
+                diagnostics.setCurrentAccount(currentAccount);
+                presentFragment(diagnostics);
+                break;
             case BTN_ABOUT_COPY:
                 AndroidUtilities.addToClipboard(org.telegram.messenger.PengramVersion.report());
                 BulletinFactory.of(this).createCopyBulletin(getString(R.string.PengramAboutCopied)).show();

@@ -275,9 +275,22 @@ public abstract class BaseFragment {
     }
 
     private View performCreateViewImpl(Context context) {
-        final View view = createView(context);
-        onViewCreated(view);
-        return view;
+        String phase = "createView";
+        try {
+            final View view = createView(context);
+            phase = "onViewCreated";
+            onViewCreated(view);
+            return view;
+        } catch (RuntimeException | Error error) {
+            // Почему: без точного mapping нужен сохранённый маршрут и этап сбоя.
+            // Семантика пока прежняя: исходная ошибка не подавляется.
+            try {
+                org.telegram.messenger.PengramDiagnostics.recordCreateFailure(this, phase, error);
+            } catch (Throwable diagnosticError) {
+                // Почему: даже сбой диагностики не должен подменить исходное исключение.
+            }
+            throw error;
+        }
     }
 
     @CallSuper

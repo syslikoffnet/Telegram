@@ -13358,4 +13358,8 @@
     <string name="PengramHistoryLock">Lock archive screens</string>
     <string name="PengramHistoryLockInfo">Require the Telegram app passcode or configured biometrics whenever opening or returning to an archive screen. Hide archive screens from screenshots and the recent-apps preview. This does not encrypt stored records, lock message bubbles or protect exported files.</string>
     <string name="PengramHistorySetPasscode">Archive locked. Tap to set up the Telegram app passcode, then return here.</string>
+    <string name="PengramDiagnostics">Diagnostics</string>
+    <string name="PengramDiagnosticsInfo">Updates every second while visible. Unknown key status means it cannot be read through the current Java API. Pending ghost counts are in-memory request markers, not server acknowledgments. Copying includes user IDs; review before sharing.</string>
+    <string name="PengramDiagnosticsCopy">Copy diagnostic report</string>
+    <string name="PengramSessionErrSlotBusy">This account slot is occupied, including retained local copies. Choose an empty slot. Replacing its session without a confirmed full reset is not allowed.</string>
 </resources>

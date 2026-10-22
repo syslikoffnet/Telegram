@@ -156,6 +156,7 @@ public final class PengramSearchMetadata {
 
     public static void open(BaseFragment fragment, int[] entry, boolean remember) {
         if (entry == null || entry.length < 4) return;
+        org.telegram.messenger.PengramDiagnostics.recordSearch(entry, fragment);
         if (entry[3] == 1) {
             PengramChatLookActivity target = new PengramChatLookActivity(entry[0]);
             if (remember) target.searchDestination = entry;

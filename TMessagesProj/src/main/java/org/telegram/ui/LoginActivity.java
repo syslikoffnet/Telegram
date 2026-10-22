@@ -1991,6 +1991,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             res = R.string.PengramSessionErrFlood;
         } else if ("api_rejected".equals(code)) {
             res = R.string.PengramSessionErrApi;
+        } else if ("slot_busy".equals(code)) {
+            res = R.string.PengramSessionErrSlotBusy;
         } else if ("no_slot".equals(code)) {
             res = R.string.PengramSessionErrNoSlot;
         } else if ("login_timeout".equals(code) || "token_expired".equals(code)
