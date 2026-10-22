@@ -11561,8 +11561,6 @@
     <string name="PengramMarkDot">Dot</string>
     <string name="PengramEditedMark">Edited mark</string>
     <string name="PengramEditedMarkTitle">Edited mark</string>
-    <string name="PengramHeaderVersion">Version %1$s (%2$d)</string>
-    <string name="PengramHeaderVersionShort">Version %1$s</string>
     <string name="PengramBurnAction">Burn</string>
     <string name="PengramBurnTitle">Burn this media?</string>
     <string name="PengramBurnPhotoMessage">The photo will disappear for the sender, as if you had just viewed it. Your copy stays in the chat.</string>
@@ -11691,8 +11689,6 @@
     <string name="PengramForwardDoneAlert">Notify when finished</string>
     <string name="PengramForwardInfo">Copy preparation shows a status. Ordinary forwarding does not block input. Hold the status to continue in the background.</string>
     <string name="PengramTabsInfo2">Switch off a button to remove it from the bar at the bottom of the main screen. Turning off Contacts leaves three perfectly spaced buttons.</string>
-    <string name="PengramTabHidden">Button hidden</string>
-    <string name="PengramTabVisible">Button is shown</string>
     <string name="PengramSendStyleHeader">Sent text</string>
     <string name="PengramSendStyle">Sending style</string>
     <string name="PengramSendStyleCaptions">Apply to media captions</string>
@@ -12061,7 +12057,7 @@
     <string name="PengramPenguinTipHold">Hold me and I will dance</string>
     <string name="PengramPenguinSleeping">Shh, I am asleep…</string>
     <string name="PengramSearchHint">Start typing a feature name — it will be found in any section.</string>
-    <string name="PengramSearchRecent">Recent searches</string>
+    <string name="PengramSearchRecent">Recently visited settings</string>
     <string name="PengramSearchParentOff">This setting appears after you turn on “%1$s”</string>
     <string name="PengramSearchHistoryClear">Clear search history</string>
         <string name="PengramTracksViewList">List</string>
@@ -12785,8 +12781,8 @@
     <string name="PengramInputIntensitySoft">Soft</string>
     <string name="PengramInputIntensityMedium">Medium</string>
     <string name="PengramInputIntensityStrong">Strong</string>
-    <string name="PengramTypingBlur">Emerge from blur</string>
-    <string name="PengramTypingBlurRadius">Blur strength</string>
+    <string name="PengramTypingBlur">Dissolve on appearance</string>
+    <string name="PengramTypingBlurRadius">Dissolve strength</string>
     <string name="PengramTypingBehaviorHeader">Behavior</string>
     <string name="PengramTypingIgnoreSpaces">Ignore spaces</string>
     <string name="PengramTypingAllLines">Animate every line</string>
@@ -13032,7 +13028,7 @@
     <string name="PengramExportPinned">Message pinned</string>
     <string name="PengramExportCall">Call</string>
     <string name="PengramExportLocalTitle">Locally saved deleted messages</string>
-    <string name="PengramExportLocalNote">Local snapshots may be incomplete or missing attachments; this section is not server history. Edited versions and deletions not captured locally cannot be recovered.</string>
+    <string name="PengramExportLocalNote">Local snapshots may be incomplete or missing attachments; this section is not server history. Edited versions and deletions not captured locally cannot be recovered. This file contains deleted messages. Do not share it with third parties.</string>
     <string name="PengramExportLocalLoading">Reading local snapshots</string>
     <string name="PengramExportForwarded">Forwarded</string>
     <string name="PengramExportRootMissing">Topic opening message is unavailable.</string>
@@ -13330,4 +13326,42 @@
     <string name="CreateManagedBotUsernameBotLimit">This bot already has a Premium username. Remove it before adding another.</string>
     <string name="CreateManagedBotUsernameSuffixMissing">The username must end in %1$s.</string>
     <string name="CreateManagedBotUsernameCheckFailed">Couldn\'t check this username. Please try again.</string>
+    <string name="PengramInputGlass">Input bar glass</string>
+    <string name="PengramHeaderGlass">Chat list header glass</string>
+    <string name="PengramChatHeaderGlass">Chat header glass</string>
+    <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>
+    <string name="PengramSearchHistoryRemove">Remove from history</string>
+    <string name="PengramSearchHistoryRemoved">Removed from history</string>
+    <string name="PengramSettingsSurfaceGlass">Glass over artwork and lists</string>
+    <string name="PengramSettingsSurfaceGlassInfo">Adds a lens to the player header over artwork and the floating menu editor bar. Uses the shared glass parameters. No glass is added over plain backgrounds.</string>
+    <string name="PengramMenuDoneCount">Done · Visible items: %1$d</string>
+
+    <!-- Pengram: настройки локального наложения, не самого текста. -->
+    <string name="PengramTypingEffectsOff">Effects are off</string>
+    <string name="PengramTypingReducedMotion">System or app animations are disabled — typing effects are limited.</string>
+    <string name="PengramTypingPreset">Typing animation preset</string>
+    <string name="PengramTypingPresetCalm">Calm</string>
+    <string name="PengramTypingPresetLively">Lively</string>
+    <string name="PengramTypingPresetMaximum">Maximum</string>
+    <string name="PengramTypingPresetCustom">Custom settings</string>
+    <string name="PengramTypingAdvancedHeader">Advanced</string>
+    <string name="PengramTypingPerformanceHint">Effects are local overlays. Dissolve replaces hardware text blur. More particles use more power; unsupported glyphs fall back to dust.</string>
+    <string name="PengramTypingStepLow">Low</string>
+    <string name="PengramTypingStepMedium">Medium</string>
+    <string name="PengramTypingStepHigh">High</string>
+    <string name="PengramTypingStepMaximum">Maximum</string>
+    <string name="PengramTypingReset">Reset typing animations</string>
+    <string name="PengramTypingResetConfirm">Restore default typing effects? Message styles, text and WPM counters will not change.</string>
+    <string name="PengramHistoryReadFailed">Could not read the archive. Tap to retry; no records were erased.</string>
+    <string name="PengramHistoryLoadMore">Load older archive entries</string>
+    <string name="PengramHistoryPrivacyPolicy">The archive is stored unencrypted in the app sandbox and excluded from Android backup. Secret chats and hidden edits are not newly archived. Existing records are not erased. Local copy also stores deletion snapshots for reliable marks, even when tracking is off. Exported files are sensitive; do not share them with third parties.</string>
+    <string name="PengramHistoryLock">Lock archive screens</string>
+    <string name="PengramHistoryLockInfo">Require the Telegram app passcode or configured biometrics whenever opening or returning to an archive screen. Hide archive screens from screenshots and the recent-apps preview. This does not encrypt stored records, lock message bubbles or protect exported files.</string>
+    <string name="PengramHistorySetPasscode">Archive locked. Tap to set up the Telegram app passcode, then return here.</string>
+    <string name="PengramDiagnostics">Diagnostics</string>
+    <string name="PengramDiagnosticsInfo">Updates every second while visible. Unknown key status means it cannot be read through the current Java API. Pending ghost counts are in-memory request markers, not server acknowledgments. Copying includes user IDs; review before sharing.</string>
+    <string name="PengramDiagnosticsCopy">Copy diagnostic report</string>
+    <string name="PengramSessionErrSlotBusy">This account slot is occupied, including retained local copies. Choose an empty slot. Replacing its session without a confirmed full reset is not allowed.</string>
+    <string name="PengramSessionErrIdentity">The account identity returned by Telegram does not match this session. Import was stopped; existing accounts and local history were not changed.</string>
+    <string name="PengramSessionErrAccountExists">This account already exists in another slot, including retained local copies. Switch to that account instead of importing its session again.</string>
 </resources>

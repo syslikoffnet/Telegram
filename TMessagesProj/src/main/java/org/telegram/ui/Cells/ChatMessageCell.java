@@ -290,8 +290,31 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     boolean enterTransitionInProgress;
 
+    private long pengramEnterGeneration;
+    private final Runnable pengramTextChangeWatchdog = () -> {
+        if (this.transitionParams.animateMessageText && this.transitionParams.animateChangeProgress != 1f) {
+            // Почему: зависший crossfade не может владеть прозрачностью текста.
+            this.transitionParams.animateMessageText = false;
+            invalidate();
+        }
+    };
+    // Почему: удаление/отмена overlay не всегда завершает Animator.
+    private final Runnable pengramEnterWatchdog = () -> setEnterTransitionInProgress(false);
+
+    public long getEnterTransitionGeneration() {
+        return pengramEnterGeneration;
+    }
+
+    public void finishEnterTransition(long generation) {
+        if (generation == pengramEnterGeneration) setEnterTransitionInProgress(false);
+    }
+
     public void setEnterTransitionInProgress(boolean b) {
+        removeCallbacks(pengramEnterWatchdog);
+        pengramEnterGeneration++;
         enterTransitionInProgress = b;
+        if (b) postDelayed(pengramEnterWatchdog,
+                org.telegram.ui.recyclerview.ChatListItemAnimator.DEFAULT_DURATION + 250);
         invalidate();
     }
 
@@ -6429,6 +6452,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     @Override
     protected void onDetachedFromWindow() {
+        setEnterTransitionInProgress(false);
+        removeCallbacks(pengramTextChangeWatchdog);
         super.onDetachedFromWindow();
 
         if (observersGroup != null) {
@@ -13433,6 +13458,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                                  boolean topNear,
                                  boolean firstInChat,
                                  boolean lastInChatList) {
+        setEnterTransitionInProgress(false);
+        removeCallbacks(pengramTextChangeWatchdog);
         if (attachedToWindow && !frozen) {
             setMessageContent(messageObject, groupedMessages, bottomNear, topNear, firstInChat, lastInChatList);
             pengramUpdateFade();
@@ -13995,10 +14022,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 linkPreviewY = textY + dp(14);
             } else if (linkPreviewAbove) {
                 linkPreviewY = textY + dp(10);
-                textY += linkPreviewHeight + dp(13);
-                if (drawInstantView && !hasInvoicePreview && !currentMessageObject.isGiveawayOrGiveawayResults()) {
-                    textY += dp(44);
-                }
+                textY += pengramPreviewTextOffset();
             } else {
                 linkPreviewY = textY + currentMessageObject.textHeight(transitionParams) + dp(10);
             }
@@ -16796,10 +16820,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             linkPreviewY = textY + dp(14);
         } else if (linkPreviewAbove) {
             linkPreviewY = textY + dp(10);
-            textY += linkPreviewHeight + dp(13);
-            if (drawInstantView && !hasInvoicePreview && !currentMessageObject.isGiveawayOrGiveawayResults()) {
-                textY += dp(44);
-            }
+            textY += pengramPreviewTextOffset();
         } else {
             linkPreviewY = textY + currentMessageObject.textHeight(transitionParams) + dp(10);
         }
@@ -16816,6 +16837,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    private int pengramPreviewTextOffset() {
+        return linkPreviewHeight + dp(13) + (drawInstantView && !hasInvoicePreview
+                && !currentMessageObject.isGiveawayOrGiveawayResults() ? dp(44) : 0);
+    }
+
     public void drawMessageText(Canvas canvas) {
         if (currentMessageObject == null || currentMessageObject.isSponsored()) {
             return;
@@ -16824,7 +16850,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (transitionParams.animateTextY) {
             textY = transitionParams.animateFromTextY * (1f - transitionParams.animateChangeProgress) + this.textY * transitionParams.animateChangeProgress;
         }
-        if (transitionParams.animateChangeProgress != 1.0f && transitionParams.animateMessageText) {
+        if (transitionParams.animateChangeProgress != 1.0f && transitionParams.animateMessageText
+                && transitionParams.animateOutTextBlocks != null && !transitionParams.animateOutTextBlocks.isEmpty()) {
             canvas.save();
             if (currentBackgroundDrawable != null) {
                 Rect r = currentBackgroundDrawable.getBounds();
@@ -16890,7 +16917,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (transitionParams.animateTextY) {
             textY = transitionParams.animateFromTextY * (1f - transitionParams.animateChangeProgress) + this.textY * transitionParams.animateChangeProgress;
         }
-        drawMessageText(textX, textY, canvas, textLayoutBlocks, currentMessageObject == null ? 0 : currentMessageObject.textXOffset, origin, alpha, false, drawOnlyText, false);
+        // Почему: send overlay рисуется вне viewport ячейки, которая уже скрыла свой текст.
+        // Её диапазон видимых блоков (-1/-1 при перелёте) не должен скрывать и overlay.
+        drawMessageText(textX, textY, canvas, textLayoutBlocks, currentMessageObject == null ? 0 : currentMessageObject.textXOffset, origin, alpha, drawOnlyText, drawOnlyText, false);
     }
 
     @SuppressLint("Range")
@@ -16899,8 +16928,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawMessageText(float textX, float textY, Canvas canvas, ArrayList<MessageObject.TextLayoutBlock> textLayoutBlocks, float rtlOffset, boolean origin, float alpha, boolean drawAllBlocks, boolean drawOnlyText, boolean caption, boolean explanation) {
-        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty() || alpha == 0) {
-            return;
+        if ((textLayoutBlocks == null || textLayoutBlocks.isEmpty()) && origin && !caption && !explanation
+                && currentMessageObject != null && currentMessageObject.pengramPlainTextBlocks != null) {
+            textLayoutBlocks = currentMessageObject.pengramPlainTextBlocks;
+            alpha = 1f;
+        }
+        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return;
+        if (alpha == 0) {
+            // Почему: явный alpha=0 у send overlay — начало crossfade, а не потерянный текст.
+            if (origin && !drawOnlyText && !caption && !explanation && (transitionParams.animateOutTextBlocks == null
+                    || transitionParams.animateOutTextBlocks.isEmpty())) alpha = 1f;
+            else return;
         }
 
         int firstVisibleBlockNum;
@@ -17058,8 +17096,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             // поэтому на обычных сообщениях ничего не меняется.
             // maxRight теперь считается для всех блоков (раньше — только для
             // цитат), иначе страховка не срабатывала ни на одном обычном
-            // сообщении. Для RTL блок дополнительно сверяем ширину разметки:
-            // у право-лево-строк правая граница строки не показывает вылет влево.
+            // сообщении. У ботов ширина пузыря меняется после layout клавиатуры,
+            // поэтому сверяем актуальную ширину разметки на каждой отрисовке,
+            // независимо от направления текста и прежней величины maxRight.
             boolean pengramOverflow = false;
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
                 MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
@@ -17067,7 +17106,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     continue;
                 }
                 if (b.maxRight > maxWidth + 1
-                        || (b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
+                        || (b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
                     pengramOverflow = true;
                     break;
                 }
@@ -17075,8 +17114,13 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             int pengramClipRestore = Integer.MIN_VALUE;
             if (pengramOverflow) {
                 pengramClipRestore = canvas.save();
-                canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4), -getMeasuredHeight(),
-                        right + dp(4), getMeasuredHeight() * 2f);
+                // Граница текста не равна границе пузыря при RTL и цитатах;
+                // берём актуальный фон, чтобы учесть и смену ширины у ботов.
+                if (currentBackgroundDrawable != null) {
+                    android.graphics.Rect bubble = currentBackgroundDrawable.getBounds();
+                    canvas.clipRect(bubble.left - dp(1), bubble.top - dp(1),
+                            bubble.right + dp(1), bubble.bottom + dp(1));
+                }
             }
             for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum; a++) {
                 if (a >= textLayoutBlocks.size()) {
@@ -21658,6 +21702,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (currentMessageObject == null || currentMessageObject.isSponsored()) {
             return;
         }
+        // Почему: emoji в send overlay не должны исчезать из-за viewport исходной ячейки.
         float textY = this.textY;
         if (transitionParams.animateTextY) {
             textY = transitionParams.animateFromTextY * (1f - transitionParams.animateChangeProgress) + this.textY * transitionParams.animateChangeProgress;
@@ -21678,11 +21723,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     );
                 }
             }
-            drawAnimatedEmojiMessageText(textX, textY, canvas, transitionParams.animateOutTextBlocks, transitionParams.animateOutAnimateEmoji, false, alpha * (1.0f - transitionParams.animateChangeProgress), currentMessageObject.textXOffset, false);
-            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha * transitionParams.animateChangeProgress, currentMessageObject.textXOffset, false);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, transitionParams.animateOutTextBlocks, transitionParams.animateOutAnimateEmoji, false, alpha * (1.0f - transitionParams.animateChangeProgress), currentMessageObject.textXOffset, enterTransitionInProgress);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha * transitionParams.animateChangeProgress, currentMessageObject.textXOffset, enterTransitionInProgress);
             canvas.restore();
         } else {
-            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha, currentMessageObject.textXOffset, false);
+            drawAnimatedEmojiMessageText(textX, textY, canvas, currentMessageObject.textLayoutBlocks, animatedEmojiStack, true, alpha, currentMessageObject.textXOffset, enterTransitionInProgress);
         }
     }
 
@@ -28844,7 +28889,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     for (int i = 0; i < lastDrawingTextBlocks.size(); i++) {
                         String newText = currentMessageObject.textLayoutBlocks.get(i).textLayout == null ? null : currentMessageObject.textLayoutBlocks.get(i).textLayout.getText().toString();
                         String oldText = lastDrawingTextBlocks.get(i).textLayout == null ? null : lastDrawingTextBlocks.get(i).textLayout.getText().toString();
-                        if ((newText == null && oldText != null) || (newText != null && oldText == null) || !newText.equals(oldText)) {
+                        if (!TextUtils.equals(newText, oldText)) {
                             sameText = false;
                             break;
                         } else {
@@ -28856,8 +28901,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 } else {
                     sameText = false;
                 }
-                if (!sameText) {
+                if (!sameText && lastDrawingTextBlocks != null && !lastDrawingTextBlocks.isEmpty()) {
                     animateMessageText = true;
+                    removeCallbacks(pengramTextChangeWatchdog);
+                    postDelayed(pengramTextChangeWatchdog,
+                            org.telegram.ui.recyclerview.ChatListItemAnimator.DEFAULT_DURATION + 250);
                     animateOutTextBlocks = lastDrawingTextBlocks;
                     animateOutTextXOffset = lastTextXOffset;
                     animateOutAnimateEmoji = AnimatedEmojiSpan.update(AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES, ChatMessageCell.this, animateOutAnimateEmoji, lastDrawingTextBlocks, true);

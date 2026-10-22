@@ -7,6 +7,7 @@ Requires the build Python dependencies and a JDK with com.sun.tools.javac.Main.
 import argparse,hashlib,io,shutil,struct,subprocess,tempfile
 from pathlib import Path
 import numpy as np
+from image_safety import image_array, open_image
 from PIL import Image
 from verify_emoji_pack import Pack,wrap_webp
 ROOT=Path(__file__).resolve().parent
@@ -23,7 +24,7 @@ def main():
             n=sum(p.entries[j][6]for j in e[4:6]if j!=65535)
             b=wrap_webp(b[p.palette_length(e)+(1 if e[8]in(5,6)else 0)+n:])
         elif e[7]==2:b=wrap_webp(b)
-        rgba=np.array(Image.open(io.BytesIO(b)).convert('RGBA')).tobytes()
+        rgba=np.array(image_array(io.BytesIO(b), 'RGBA')).tobytes()
         (fixtures/hashlib.sha256(b).hexdigest()).write_bytes(rgba)
     expected=work/'expected.bin'
     with expected.open('wb')as f:

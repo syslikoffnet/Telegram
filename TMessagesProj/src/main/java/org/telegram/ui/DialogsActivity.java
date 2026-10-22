@@ -2231,7 +2231,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                             performSelectedDialogsAction(selectedDialogs, read, true, false);
                                         } else if (SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_MUTE) {
                                             if (!getMessagesController().isDialogMuted(dialogId, 0)) {
-                                                NotificationsController.getInstance(UserConfig.selectedAccount).setDialogNotificationsSettings(dialogId, 0, NotificationsController.SETTING_MUTE_FOREVER);
+                                                NotificationsController.getInstance(currentAccount).setDialogNotificationsSettings(dialogId, 0, NotificationsController.SETTING_MUTE_FOREVER);
                                                 if (BulletinFactory.canShowBulletin(DialogsActivity.this)) {
                                                     BulletinFactory.createMuteBulletin(DialogsActivity.this, NotificationsController.SETTING_MUTE_FOREVER).show();
                                                 }
@@ -5297,7 +5297,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 }
                                 BulletinFactory.of(DialogsActivity.this).createUsersBulletin(Arrays.asList(user), AndroidUtilities.replaceTags(LocaleController.formatString("NotificationsStoryUnmutedHint", R.string.NotificationsStoryUnmutedHint, name))).show();
                             }).makeMultiline(false).addIf(!isPremiumBlocked && dialogId > 0 && isPremium && isUnread && !isLive, R.drawable.msg_stories_stealth2, LocaleController.getString(R.string.ViewAnonymously), () -> {
-                                TL_stories.TL_storiesStealthMode stealthMode = MessagesController.getInstance(UserConfig.selectedAccount).getStoriesController().getStealthMode();
+                                TL_stories.TL_storiesStealthMode stealthMode = MessagesController.getInstance(currentAccount).getStoriesController().getStealthMode();
                                 if (stealthMode != null && ConnectionsManager.getInstance(currentAccount).getCurrentTime() < stealthMode.active_until_date) {
                                     if (view instanceof StoryCell) {
                                         dialogStoriesCell.openStoryForCell((StoryCell) view);
@@ -5897,7 +5897,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         final SelectAnimatedEmojiDialog.SelectAnimatedEmojiDialogWindow[] popup = new SelectAnimatedEmojiDialog.SelectAnimatedEmojiDialogWindow[1];
-        TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
+        TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
         int xoff = 0, yoff = 0;
         boolean hasEmoji = false;
         SimpleTextView actionBarTitle = actionBar.getTitleTextView();
@@ -7055,6 +7055,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onResume() {
+        org.telegram.ui.Components.PengramGlassSkin.register(pengramGlassRefresh);
         super.onResume();
         pengramUpdateTitle();
         updateFloatingButtonVisibility(false);
@@ -7276,6 +7277,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onPause() {
+        org.telegram.ui.Components.PengramGlassSkin.unregister(pengramGlassRefresh);
         super.onPause();
         if (storiesBulletin != null) {
             storiesBulletin.hide();
@@ -13978,7 +13980,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new WalletActivity());
             });
         } else {
-            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
+            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(currentAccount).getAttachMenuBots();
             if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
                 for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
                     if (attachMenuBot.show_in_side_menu) {
@@ -14381,6 +14383,40 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
 
     /* Blur */
+
+    private int pengramHeaderGlassSignature = Integer.MIN_VALUE;
+    private final Runnable pengramGlassRefresh = this::refreshPengramHeaderGlass;
+
+    private void refreshPengramHeaderGlass() {
+        if (actionBar == null || fragmentView == null || viewPositionWatcher == null) return;
+        final int signature = org.telegram.ui.Components.PengramGlassSkin.signature(
+                org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER);
+        if (signature == pengramHeaderGlassSignature) return;
+        pengramHeaderGlassSignature = signature;
+        viewPositionWatcher.unsubscribe(actionBar);
+        iBlur3FactoryLiquidGlass.setLiquidGlassEffectAllowed(
+                org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+        if (org.telegram.messenger.PengramConfig.isChatListHeaderGlass()) {
+            actionBar.setupGlass(iBlur3FactoryLiquidGlass,
+                    org.telegram.ui.Components.PengramGlassSkin.provider(
+                            org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER, resourceProvider));
+            actionBar.applyPengramGlassLens();
+        } else {
+            actionBar.clearGlass();
+        }
+        if (topPanelLayout != null) {
+            viewPositionWatcher.unsubscribe(topPanelLayout);
+            final BlurredBackgroundDrawable background = iBlur3FactoryLiquidGlass.create(topPanelLayout,
+                    org.telegram.messenger.PengramConfig.isChatListHeaderGlass()
+                            ? org.telegram.ui.Components.PengramGlassSkin.provider(
+                                    org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER, resourceProvider)
+                            : BlurredBackgroundProviderImpl.topPanel(resourceProvider));
+            org.telegram.ui.Components.PengramGlassSkin.applyToDrawable(background);
+            topPanelLayout.setBlurredBackground(background);
+            topPanelLayout.setPengramGlass(org.telegram.messenger.PengramConfig.isChatListHeaderGlass(), resourceProvider);
+            topPanelLayout.invalidate();
+        }
+    }
 
     private ViewPositionWatcher viewPositionWatcher;
 

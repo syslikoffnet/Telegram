@@ -26,6 +26,7 @@ import org.telegram.ui.Components.LayoutHelper;
 public class PengramProfileHistorySettingsActivity extends BaseFragment {
     private LinearLayout list;
     private ScrollView scroll;
+    int[] searchDestination;
     private int highlightRes;
     public PengramProfileHistorySettingsActivity() { this(0); }
     public PengramProfileHistorySettingsActivity(int highlightRes) { this.highlightRes = highlightRes; }
@@ -68,10 +69,31 @@ public class PengramProfileHistorySettingsActivity extends BaseFragment {
                 break;
             }
         }
-        // If history is disabled, first expose the switch instead of a nonexistent row.
+        // Облачные настройки зависят от выбора хранилища, а весь журнал —
+        // от мастер-переключателя. Сохраняем фактического родителя, не пустую цель.
+        if (target == null && PengramProfileHistory.enabled()
+                && (requested == R.string.PengramProfileCloudFormat || requested == R.string.PengramProfileCloudRecreate)) {
+            for (int i = 0; i < list.getChildCount(); i++) {
+                View row = list.getChildAt(i);
+                if (row.getTag() instanceof Integer && (Integer) row.getTag() == R.string.PengramProfileHistoryStorage) {
+                    target = row;
+                    break;
+                }
+            }
+        }
         if (target == null && list.getChildCount() > 0) target = list.getChildAt(0);
         final View destination = target;
         if (destination != null) scroll.post(() -> {
+            if (getParentLayout() != null && searchDestination != null && destination.getTag() instanceof Integer) {
+                final int reached = (Integer) destination.getTag();
+                if (reached != requested) {
+                    org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            org.telegram.messenger.LocaleController.formatString(R.string.PengramSearchParentOff,
+                                    getString(reached))).show();
+                }
+                PengramSearchMetadata.rememberReached(searchDestination, reached);
+                searchDestination = null;
+            }
             scroll.smoothScrollTo(0, Math.max(0, destination.getTop() - dp(72)));
             destination.setBackgroundColor(Theme.getColor(Theme.key_listSelector));
             destination.postDelayed(() -> destination.setBackgroundColor(

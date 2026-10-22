@@ -236,6 +236,31 @@ public class MessagesStorage extends BaseController {
         storageQueue.postRunnable(() -> openDatabase(1));
     }
 
+    public void checkSessionSlotEmpty(Utilities.Callback<Boolean> callback) {
+        storageQueue.postRunnable(() -> {
+            boolean empty = database != null;
+            if (empty) {
+                try {
+                    // Почему: не заменяем ключ поверх сохранённых диалогов и сообщений.
+                    for (String table : new String[]{"dialogs", "messages_v2", "enc_chats", "users", "chats", "contacts"}) {
+                        SQLiteCursor cursor = database.queryFinalized("SELECT 1 FROM " + table + " LIMIT 1");
+                        try {
+                            if (cursor.next()) empty = false;
+                        } finally {
+                            cursor.dispose();
+                        }
+                        if (!empty) break;
+                    }
+                } catch (Exception error) {
+                    FileLog.e(error);
+                    empty = false;
+                }
+            }
+            final boolean result = empty;
+            AndroidUtilities.runOnUIThread(() -> callback.run(result));
+        });
+    }
+
     public SQLiteDatabase getDatabase() {
         return database;
     }
@@ -14687,16 +14712,18 @@ public class MessagesStorage extends BaseController {
                         if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
                             continue; // «Избранное» — там ничего не пропадает
                         }
+                        if (!PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)
+                                || PengramHistory.isUserDeleted(message.id)) continue;
                         final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
                         final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
                         final boolean archived = saveArchive
                                 && !(!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did))
                                 && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave);
-                        if (archived) {
+                        if (archived || keepVisible) {
                             final String text = PengramHistory.describe(message);
                             // Сначала переносим голосовое во внутреннее постоянное хранилище и
                             // обновляем attachPath, затем сериализуем сообщение в историю.
-                            pengramSaveDeletedMedia(did, message);
+                            if (archived) pengramSaveDeletedMedia(did, message);
                             PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
                                     PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
                         }

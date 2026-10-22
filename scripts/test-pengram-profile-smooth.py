@@ -38,11 +38,12 @@ assert 'pengramRegDateIconState' in profile
 assert 'getConstantState()' in profile
 assert 'pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);' in profile
 
-# --- пингвин: большой базовый размер и плотный кадр ------------------------
+# --- пингвин: базовый размер и безопасный кадр без density² ------------------------
 assert 'private static final int BASE_SIZE_DP = 224;' in settings
 assert 'private int clampPenguinSize(int size)' in settings
-assert 'Math.min(size, max)' in settings
-assert 'private static final float CAM_FILL = 0.97f;' in penguin
+assert 'Math.min(Math.max(dp(96), size), max)' in settings
+assert 'private static final float BODY_FILL = 0.84f;' in penguin
+assert 'Math.max(bodyDistance, fitDistance)' in penguin
 assert 'private static final float CAM_MARGIN = 0.035f;' in penguin
 # ползунок по-прежнему масштабирует шапку на лету
 assert 'headerView.applySize();' in settings

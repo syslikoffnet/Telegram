@@ -2,6 +2,7 @@ package org.telegram.ui.Components;
 
 import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.graphics.Rect;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
@@ -63,7 +64,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private volatile int surfaceWidth, surfaceHeight;
 
     private volatile boolean ready;
-    private Runnable readyListener;
+    private volatile Runnable readyListener;
+    private volatile Runnable unavailableListener;
+    private final Rect visibleRect = new Rect();
+    private boolean pausedByViewport;
+    private final android.view.ViewTreeObserver.OnScrollChangedListener scrollListener = this::refreshVisibility;
 
     private int program;
     private int aPosition, aNormal, aColor;
@@ -126,11 +131,14 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     /** нижняя точка пингвина (лапки) в мировых координатах */
     private static final float CONTENT_BOTTOM = -1.11f;
     /**
-     * Какую долю высоты кадра занимает содержимое. 1.0 — впритык к краям,
-     * поэтому оставляем маленький воздух: на пике подскока ничего не
-     * касается края текстуры.
+     * Цель тела отдельно от безопасной границы аксессуара: запасы не суммируются.
+     * Высокая шапка вправе уменьшить тело, но не обрезаться. Экстремальное
+     * сальто и минимальные dp требуют отдельного замера на устройстве.
      */
-    private static final float CAM_FILL = 0.97f;
+    private static final float BODY_FILL = 0.84f;
+    private static final float CAM_FILL = 0.98f;
+    /** Запас глубины: близкие к камере вершины иначе крупнее расчёта плоскости XY. */
+    private static final float CAM_DEPTH_MARGIN = 0.75f;
     /** воздух над шляпой и под лапками, в мировых единицах */
     private static final float CAM_MARGIN = 0.035f;
 
@@ -162,6 +170,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     /** надеть скин: шапка, шарф, очки и так далее */
     public void setSkin(int value) {
+        if (skin == value) return;
         skin = value;
         // маленький «переодевающийся» прыжок, чтобы обновка была заметна
         doJump();
@@ -257,11 +266,19 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     /** вызовется на UI-потоке, когда первый кадр реально нарисован */
     public void whenReady(Runnable runnable) {
-        if (ready) {
-            runnable.run();
-        } else {
-            readyListener = runnable;
-        }
+        readyListener = runnable;
+        if (ready && runnable != null) runnable.run();
+    }
+
+    /** Заглушка возвращается при потере поверхности или ошибке GL. */
+    public void whenUnavailable(Runnable runnable) {
+        unavailableListener = runnable;
+    }
+
+    private void notifyUnavailable() {
+        ready = false;
+        final Runnable listener = unavailableListener;
+        if (listener != null) AndroidUtilities.runOnUIThread(listener);
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -271,7 +288,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         surfaceTexture = surface;
         surfaceWidth = width;
         surfaceHeight = height;
-        applyPaused();
+        refreshVisibility();
         // старый поток (если ещё жив) обязан успеть освободить свой EGL —
         // иначе новый контекст затрёт его поля, а старый «зачистит» новый
         final RenderThread previous = thread;
@@ -292,8 +309,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // токен «гасит» текущий поток: следующий кадр он не рисует и сам
         // освобождает EGL в своём потоке
         glToken.incrementAndGet();
-        thread = null;
-        ready = false;
+        final RenderThread retiring = thread;
+        if (retiring != null) retiring.requestSurfaceRelease();
+        else surface.release();
+        notifyUnavailable();
+        // Сохраняем ссылку: следующий поток дождётся очистки EGL предыдущим.
         return false;
     }
 
@@ -303,6 +323,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
     @Override
     protected void onDetachedFromWindow() {
+        getViewTreeObserver().removeOnScrollChangedListener(scrollListener);
+        cancelLongPress2();
         super.onDetachedFromWindow();
         pausedByWindow = true;
         applyPaused();
@@ -311,8 +333,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        getViewTreeObserver().addOnScrollChangedListener(scrollListener);
         pausedByWindow = getWindowVisibility() != VISIBLE;
-        applyPaused();
+        refreshVisibility();
     }
 
     @Override
@@ -320,7 +343,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         super.onWindowVisibilityChanged(visibility);
         // приложение свернули или экран погас — незачем крутить 3D и жечь батарею
         pausedByWindow = visibility != VISIBLE;
-        applyPaused();
+        if (visibleRect != null) refreshVisibility();
+        else applyPaused();
     }
 
     public void setPaused(boolean value) {
@@ -328,8 +352,26 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         applyPaused();
     }
 
+    @Override
+    protected void onVisibilityChanged(android.view.View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        // View может вызвать callback ещё до инициализации полей подкласса.
+        if (visibleRect != null) refreshVisibility();
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        refreshVisibility();
+    }
+
+    private void refreshVisibility() {
+        pausedByViewport = !isShown() || !getGlobalVisibleRect(visibleRect);
+        applyPaused();
+    }
+
     private void applyPaused() {
-        paused = pausedByScreen || pausedByWindow;
+        paused = pausedByScreen || pausedByWindow || pausedByViewport;
     }
 
     // ---------------------------------------------------------------- touch
@@ -614,8 +656,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final int viewportX = (viewWidth - side) / 2;
         final int viewportY = (viewHeight - side) / 2;
         GLES20.glViewport(viewportX, viewportY, side, side);
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
         GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glScissor(viewportX, viewportY, side, side);
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
         GLES20.glDepthFunc(GLES20.GL_LEQUAL);
         GLES20.glEnable(GLES20.GL_BLEND);
@@ -623,13 +668,15 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         GLES20.glDisable(GLES20.GL_CULL_FACE);
 
         // сначала надеваем аксессуар: от его высоты зависит кадр
-        if (builtSkin != skin) {
+        final int requestedSkin = skin;
+        if (builtSkin != requestedSkin) {
+            camDistance = 0f;
             try {
-                buildAccessory(skin);
-                builtSkin = skin;
+                buildAccessory(requestedSkin);
+                builtSkin = requestedSkin;
             } catch (Throwable e) {
                 FileLog.e(e);
-                builtSkin = skin;
+                builtSkin = requestedSkin;
                 accessoryMesh = null;
             }
         }
@@ -637,24 +684,31 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // вьюпорт квадратный (см. выше), поэтому и проекция строго 1:1
         Matrix.perspectiveM(projection, 0, CAM_FOV_DEG, 1f, 1f, 14f);
 
-        // Верх сцены — макушка или шляпа, низ — лапки. Раньше камера отъезжала
-        // ещё на 0.40 сверху и на 10% запаса, и пингвин занимал меньше двух
-        // третей кадра — в шапке он выглядел и вовсе игрушечным. Теперь кадр
-        // считается от настоящего содержимого: сверху только высота прыжка и
-        // пара сантиметров воздуха, снизу — лапки.
+        // Кадр включает аксессуар, прыжок и наружный отступ под лапками.
+        // После смены сетки камера ставится сразу, без обрезанного переходного кадра.
         final float contentTop = Math.max(bodyMesh == null ? 1.18f : bodyMesh.maxY,
                 accessoryMesh == null ? 0f : accessoryMesh.maxY);
-        final float fitTop = contentTop + CAM_JUMP_LIMIT + CAM_MARGIN;
-        final float fitBottom = CONTENT_BOTTOM + CAM_MARGIN;
+        final float contentBottom = Math.min(CONTENT_BOTTOM,
+                Math.min(bodyMesh.minY, accessoryMesh == null ? 0f : accessoryMesh.minY) - 0.1f);
+        final float contentDepth = Math.max(CAM_DEPTH_MARGIN,
+                Math.max(bodyMesh.radiusXZ, accessoryMesh == null ? 0f : accessoryMesh.radiusXZ));
+        // Почему: постоянный запас под прыжок уменьшал неподвижное тело.
+        final float jumpReserve = dance > 0.01f || jump > 0.001f ? CAM_JUMP_LIMIT : 0f;
+        final float fitTop = contentTop + jumpReserve + CAM_MARGIN;
+        final float fitBottom = contentBottom - CAM_MARGIN;
         final float fitHeight = Math.max(0.6f, fitTop - fitBottom);
         // половина кадра — это fitHeight / (2 * CAM_FILL); отсюда расстояние
-        final float targetDistance = Math.max(3.2f, (fitHeight / CAM_FILL * 0.5f) / CAM_TAN_HALF_FOV);
+        final float bodyHeight = Math.max(0.6f, bodyMesh.maxY - bodyMesh.minY);
+        final float bodyDistance = (bodyHeight / BODY_FILL * 0.5f) / CAM_TAN_HALF_FOV;
+        final float fitDistance = contentDepth + (fitHeight / CAM_FILL * 0.5f) / CAM_TAN_HALF_FOV;
+        final float targetDistance = Math.max(3.2f, Math.max(bodyDistance, fitDistance));
         final float targetCenter = (fitTop + fitBottom) * 0.5f;
         if (camDistance <= 0.01f) {
             camDistance = targetDistance;
             camCenter = targetCenter;
         } else {
-            final float k = Math.min(1f, dt * 6f);
+            // Отъезд немедленный: иначе первый кадр прыжка обрежет аксессуар.
+            final float k = targetDistance > camDistance ? 1f : Math.min(1f, dt * 6f);
             camDistance += (targetDistance - camDistance) * k;
             camCenter += (targetCenter - camCenter) * k;
         }
@@ -898,10 +952,16 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private void initProgram() {
         final int vs = compile(GLES20.GL_VERTEX_SHADER, VERTEX_SHADER);
         final int fs = compile(GLES20.GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
+        if (vs == 0 || fs == 0) throw new IllegalStateException("Pengram penguin shader compile failed");
         program = GLES20.glCreateProgram();
         GLES20.glAttachShader(program, vs);
         GLES20.glAttachShader(program, fs);
         GLES20.glLinkProgram(program);
+        final int[] linkStatus = new int[1];
+        GLES20.glGetProgramiv(program, GLES20.GL_LINK_STATUS, linkStatus, 0);
+        GLES20.glDeleteShader(vs);
+        GLES20.glDeleteShader(fs);
+        if (linkStatus[0] == 0) throw new IllegalStateException(GLES20.glGetProgramInfoLog(program));
         aPosition = GLES20.glGetAttribLocation(program, "aPosition");
         aNormal = GLES20.glGetAttribLocation(program, "aNormal");
         aColor = GLES20.glGetAttribLocation(program, "aColor");
@@ -932,7 +992,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private static class Mesh {
         final FloatBuffer buffer;
         final int count;
-        final float minY, maxY;
+        final float minY, maxY, radiusXZ;
 
         Mesh(ArrayList<Float> data) {
             final float[] array = new float[data.size()];
@@ -944,14 +1004,17 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     .asFloatBuffer();
             buffer.put(array).position(0);
             count = array.length / 9;
-            float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
-            for (int i = 1; i + 8 < array.length; i += 9) {
+            float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE, radius = 0f;
+            for (int i = 1; i < array.length; i += 9) {
                 final float y = array[i];
+                final float x = array[i - 1], z = array[i + 1];
+                radius = Math.max(radius, (float) Math.sqrt(x * x + z * z));
                 if (y < lo) lo = y;
                 if (y > hi) hi = y;
             }
             minY = count == 0 ? 0f : lo;
             maxY = count == 0 ? 0f : hi;
+            radiusXZ = radius;
         }
     }
 
@@ -1293,7 +1356,21 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
         private final int token;
         /** поток, которому мы наследуем поверхность: дожидаемся его EGL-очистки */
-        private final RenderThread previous;
+        private RenderThread previous;
+        private final SurfaceTexture ownedSurface = surfaceTexture;
+        private volatile boolean releaseRequested;
+        private volatile boolean finished;
+        private boolean ownsGL;
+        private final java.util.concurrent.atomic.AtomicBoolean surfaceReleased = new java.util.concurrent.atomic.AtomicBoolean();
+
+        void requestSurfaceRelease() {
+            releaseRequested = true;
+            if (finished || !isAlive()) releaseSurface();
+        }
+
+        private void releaseSurface() {
+            if (surfaceReleased.compareAndSet(false, true)) ownedSurface.release();
+        }
 
         RenderThread(int token, RenderThread previous) {
             this.token = token;
@@ -1306,10 +1383,33 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
 
         @Override
         public void run() {
+            try {
+                renderLoop();
+            } finally {
+                // Новый поток сначала join-ит этот: EGL освобождает только его владелец.
+                synchronized (glLock) {
+                    if (ownsGL) releaseGLLocked();
+                }
+                finished = true;
+                if (releaseRequested) releaseSurface();
+            }
+        }
+
+        private void renderLoop() {
             if (previous != null) {
-                try {
-                    previous.join(500);
-                } catch (InterruptedException ignore) {
+                boolean interrupted = false;
+                for (;;) {
+                    try {
+                        previous.join();
+                        break;
+                    } catch (InterruptedException e) {
+                        // Даже отменённый наследник не должен обогнать очистку старого EGL.
+                        interrupted = true;
+                    }
+                }
+                previous = null; // Не удерживаем цепочку завершённых потоков и SurfaceTexture.
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
                     return;
                 }
             }
@@ -1317,22 +1417,20 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 return;
             }
             synchronized (glLock) {
-                if (previous != null) {
-                    // Предыдущий поток уже не владеет токеном и сам EGL не
-                    // освободит — добираем его контекст, иначе на каждом
-                    // пересоздании поверхности остаётся брошенный контекст.
-                    releaseGLLocked();
-                }
                 if (!alive()) {
                     return;
                 }
                 try {
+                    ownsGL = true;
                     initGL();
                     initProgram();
                     buildMeshes();
+                    // Старый кадр мог завершиться одновременно с уничтожением поверхности.
+                    ready = false;
+                    camDistance = 0f;
                 } catch (Throwable e) {
                     FileLog.e(e);
-                    releaseGLLocked();
+                    notifyUnavailable();
                     return;
                 }
             }
@@ -1355,18 +1453,22 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     try {
                         if (!paused) {
                             drawFrame(dt);
-                            egl.eglSwapBuffers(eglDisplay, eglSurface);
+                            if (!egl.eglSwapBuffers(eglDisplay, eglSurface)) {
+                                throw new IllegalStateException("Pengram penguin EGL swap failed: " + egl.eglGetError());
+                            }
                             if (!ready) {
                                 ready = true;
                                 final Runnable listener = readyListener;
-                                readyListener = null;
                                 if (listener != null) {
-                                    AndroidUtilities.runOnUIThread(listener);
+                                    AndroidUtilities.runOnUIThread(() -> {
+                                        if (alive() && ready) listener.run();
+                                    });
                                 }
                             }
                         }
                     } catch (Throwable e) {
                         FileLog.e(e);
+                        notifyUnavailable();
                         broken = true;
                     }
                 }
@@ -1384,11 +1486,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                     break;
                 }
             }
-            synchronized (glLock) {
-                if (alive()) {
-                    releaseGLLocked();
-                }
-            }
+
         }
     }
 

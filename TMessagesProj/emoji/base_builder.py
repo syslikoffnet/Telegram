@@ -5,11 +5,14 @@ Inputs: the original PNG-based emoji.pack and original 64x64 texture ZIP.
 The existing mask decomposition is a build input, never part of the public API.
 Use --lossless to disable fitted palettes and lossy WebP candidates.
 """
-import argparse, hashlib, io, json, pickle, struct, time, zipfile, zlib
+import argparse, hashlib, io, json, struct, time, zipfile, zlib
 from pathlib import Path
+from stage_cache import read_cache, write_cache
+from image_safety import build_path
 from collections import Counter
 import numpy as np
 from scipy.ndimage import uniform_filter
+from image_safety import image_array, open_image
 from PIL import Image, features
 import optimizer_core as old
 import optimizer_visual as visual
@@ -25,7 +28,7 @@ def custom(i,codec,pred,parents,ts,data,pal=None,approx=False):
  return o
 def pixels(o):
  i=o['i'];b=o['data'];ch=o['channels'];n=o['colors'];plen=o['paletteLength']
- if o['codec']==3:a=np.array(Image.open(io.BytesIO(b)).convert('RGBA'))
+ if o['codec']==3:a=np.array(image_array(io.BytesIO(b), 'RGBA'))
  else:
   if o['flags']&1:
    vals=[]
@@ -57,7 +60,7 @@ def assemble(base_half, mirrors, templates, half_templates, native, lossless=Fal
                     delta = np.frombuffer(raw[ln:], np.uint8).reshape(64, 64).copy()
                 else:
                     lut = data[:ln]
-                    delta = np.array(Image.open(io.BytesIO(data[ln:])).convert('L'))
+                    delta = np.array(image_array(io.BytesIO(data[ln:]), 'L'))
                 delta[BASE[i, :, :, 3] == 0] = 0
                 zz = visual.zlib.compress(lut + delta.tobytes(), 9)[2:-4]
                 edges[i].append(custom(i, 0, 3, (a, b), (0, 0), zz))
@@ -113,7 +116,7 @@ def main():
     R, NE, lookup, original_size = old.read_reference(args.reference, args.textures)
     N = len(R)
     with zipfile.ZipFile(args.textures) as archive:
-        O = np.array([np.array(Image.open(archive.open(f"{d['id']//4096}_{d['id']%4096}.png")).convert('RGBA')) for d in R[:NE]])
+        O = np.array([np.array(image_array(archive.open(f"{d['id'] // 4096}_{d['id'] % 4096}.png"), 'RGBA')) for d in R[:NE]])
     old.R = R; old.N = N; old.NE = NE; old.MASK_LOOKUP = lookup
     old.IDX = old.I = np.array([d['idx'] for d in R])
     visual.initialize(R, O); BASE = visual.RGBA
@@ -125,17 +128,14 @@ def main():
     cache = Path(args.cache) if args.cache else None
     if cache: cache.mkdir(parents=True, exist_ok=True)
     def stage(name, fn, jobs):
-        path = cache / (name + '.pkl') if cache else None
+        path = build_path(cache, name + '.json') if cache else None
         if path and path.exists():
-            # This cache is produced by this tool. Do not use untrusted pickle files.
-            with path.open('rb') as stream: saved = pickle.load(stream)
+            saved = read_cache(path)
             if saved['key'] == key:
                 print(name + ': cache', flush=True); return saved['value']
         value = old.map_jobs(fn, jobs, args.workers, name)
         if path:
-            temp = path.with_suffix('.tmp')
-            with temp.open('wb') as stream: pickle.dump({'key': key, 'value': value}, stream, protocol=5)
-            temp.replace(path)
+            write_cache(path, {'key': key, 'value': value})
         return value
     old.B = stage('base-webp', old.baseline, R)
     old.C = old.candidates()

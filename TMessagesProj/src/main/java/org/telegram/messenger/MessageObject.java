@@ -230,6 +230,8 @@ public class MessageObject {
     /** Pengram: снимок из архива удалёнок — удалён по определению, даже если
      * метка ещё не подгружена в кэш (иначе такой пузырь «светлеет») */
     public boolean pengramArchived;
+    /** Снимок любой версии архива: удалённой или изменённой, только локальные файлы. */
+    public boolean pengramHistorySnapshot;
     /** Pengram: к какому архивному id относится снимок (для навигации поиска) */
     public long pengramArchiveRowId;
     public boolean deletedByThanos;
@@ -3564,7 +3566,6 @@ public class MessageObject {
             audioProgressSec = player.audioProgressSec;
         }
         generateLayout(fromUser);
-        layoutCreated = true;
         generateThumbs(false);
         checkMediaExistance();
     }
@@ -6847,7 +6848,6 @@ public class MessageObject {
             }
         }
         if (!layoutCreated) {
-            layoutCreated = true;
             TLRPC.User fromUser = null;
             if (isFromUser()) {
                 fromUser = MessagesController.getInstance(currentAccount).getUser(messageOwner.from_id.user_id);
@@ -8831,19 +8831,101 @@ public class MessageObject {
      * убивают приложение ещё до показа чата. Любой отказ здесь должен стоить
      * максимум одного кривого сообщения, а не всего клиента.
      */
-    public void generateLayout(TLRPC.User fromUser) {
-        if (!PengramAntiCrash.isEnabled()) {
-            pengramGenerateLayout(fromUser);
-            return;
+    public ArrayList<TextLayoutBlock> pengramPlainTextBlocks;
+    private int pengramLayoutFailures;
+    private CharSequence pengramOriginalMessageText;
+    private CharSequence pengramWrappedMessageText;
+
+    private boolean pengramHasTextLayout() {
+        if (type == TYPE_ARTICLE) return richLayout != null;
+        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return false;
+        for (int i = 0; i < textLayoutBlocks.size(); i++) {
+            TextLayoutBlock block = textLayoutBlocks.get(i);
+            if (block == null || block.textLayout == null || block.height <= 0) return false;
         }
+        return true;
+    }
+
+    // Почему: антикраш обязан оставить читаемый текст, а не пустой пузырь.
+    private void pengramPlainTextFallback() {
+        if (type == TYPE_ARTICLE && richLayout == null) {
+            // Почему: ячейка ARTICLE иначе повторно строит упавший RichMessageLayout.
+            type = TYPE_TEXT;
+            if (TextUtils.isEmpty(messageText)) messageText = getString(R.string.PengramAntiCrashBlocked);
+        }
+        if (TextUtils.isEmpty(messageText)) return;
+        try {
+            final TextPaint paint = getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame
+                    ? Theme.chat_msgGameTextPaint : Theme.chat_msgTextPaint;
+            final int width = Math.max(dp(32), getMaxMessageTextWidth());
+            final String plain = messageText.toString();
+            StaticLayout layout;
+            try {
+                layout = new StaticLayout(plain, paint, width, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+            } catch (Throwable failure) {
+                layout = new StaticLayout(getString(R.string.PengramAntiCrashBlocked), paint, width,
+                        Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
+            }
+            TextLayoutBlock block = new TextLayoutBlock();
+            block.textLayout = layout;
+            block.originalWidth = width;
+            block.charactersOffset = 0;
+            block.charactersEnd = layout.getText().length();
+            block.height = layout.getHeight();
+            block.collapsedHeight = block.height;
+            block.first = block.last = true;
+            pengramPlainTextBlocks = new ArrayList<>();
+            pengramPlainTextBlocks.add(block);
+            textLayoutBlocks = pengramPlainTextBlocks;
+            textWidth = 0;
+            for (int i = 0; i < layout.getLineCount(); i++) {
+                textWidth = Math.max(textWidth, Math.min(width, (int) Math.ceil(layout.getLineWidth(i))));
+            }
+            textXOffset = 0;
+            lastLineWidth = (int) Math.ceil(layout.getLineWidth(layout.getLineCount() - 1));
+            hasCode = hasQuote = hasSingleCode = hasSingleQuote = false;
+        } catch (Throwable unavailable) {
+            // Даже OOM не должен выключать защиту остальных сообщений.
+            PengramAntiCrash.report("plain layout: " + unavailable.getClass().getSimpleName());
+        }
+    }
+
+    public void generateLayout(TLRPC.User fromUser) {
+        final long started = BuildVars.LOGS_ENABLED ? android.os.SystemClock.uptimeMillis() : 0;
+        pengramPlainTextBlocks = null;
+        cachedTextHeight = null;
+        // Почему: entities имеют серверные индексы; перед их повторным применением
+        // возвращаем исходную строку. U+200B живёт только в display messageText.
+        if (messageText == pengramWrappedMessageText && pengramOriginalMessageText != null) {
+            messageText = pengramOriginalMessageText;
+        }
+        pengramOriginalMessageText = pengramWrappedMessageText = null;
+        boolean failed = false;
         try {
             pengramGenerateLayout(fromUser);
         } catch (Throwable e) {
-            PengramAntiCrash.report("message layout: " + e.getClass().getSimpleName());
-            if (textLayoutBlocks == null) {
-                textLayoutBlocks = new ArrayList<>();
+            failed = true;
+            if (PengramAntiCrash.isEnabled()) PengramAntiCrash.report("message layout: " + e.getClass().getSimpleName());
+            if (BuildVars.LOGS_ENABLED) {
+                // Без getMessage()/toString(): исключение может содержать исходный текст.
+                FileLog.d("Pengram layout failure id=" + getId() + " class=" + e.getClass().getName());
+                for (StackTraceElement frame : e.getStackTrace()) FileLog.d(frame.toString());
             }
         }
+        final boolean empty = (!TextUtils.isEmpty(messageText) || type == TYPE_ARTICLE) && !pengramHasTextLayout();
+        if (empty || failed) {
+            pengramLayoutFailures++;
+            pengramPlainTextFallback();
+        } else {
+            pengramLayoutFailures = 0;
+        }
+        // Один последующий штатный повтор, затем кэшируем безопасную деградацию.
+        layoutCreated = pengramHasTextLayout() && (!(empty || failed) || pengramLayoutFailures > 1);
+        if (BuildVars.LOGS_ENABLED) FileLog.d("Pengram layout id=" + getId() + " type=" + type
+                + " length=" + (messageText == null ? 0 : messageText.length())
+                + " blocks=" + (textLayoutBlocks == null ? 0 : textLayoutBlocks.size())
+                + " fallback=" + (pengramPlainTextBlocks != null)
+                + " durationMs=" + (android.os.SystemClock.uptimeMillis() - started));
     }
 
     private void pengramGenerateLayout(TLRPC.User fromUser) {
@@ -8933,8 +9015,15 @@ public class MessageObject {
             textLayoutOriginalWidth = maxWidth;
             textLayout = makeStaticLayout(text, paint, maxWidth, 1f, totalAnimatedEmojiCount >= 4 ? -1 : 0, emojiOnlyCount > 0);
         } catch (Exception e) {
-            FileLog.e(e);
-            return;
+            throw new IllegalStateException("text layout", e);
+        }
+
+        if (!isRepostPreview && textLayout.getText() != text) {
+            // Один display-источник для диапазонов, ссылок, выделения и crossfade.
+            // messageOwner.message/entities (отправка и хранение) не меняются.
+            pengramOriginalMessageText = messageText;
+            messageText = pengramWrappedMessageText = textLayout.getText();
+            text = messageText;
         }
 
         if (isRepostPreview) {
@@ -8979,8 +9068,7 @@ public class MessageObject {
                     textLayoutOriginalWidth = maxWidth;
                     textLayout = makeStaticLayout(text, paint, maxWidth, 1f, totalAnimatedEmojiCount >= 4 ? -1 : 0, emojiOnlyCount > 0);
                 } catch (Exception e) {
-                    FileLog.e(e);
-                    return;
+                    throw new IllegalStateException("preview layout", e);
                 }
             }
         }
@@ -8991,6 +9079,9 @@ public class MessageObject {
             maxWidth += AndroidUtilities.dp(15);
         }
 
+        // Почему: soft-wrap добавляет U+200B; диапазоны Layout нельзя резать
+        // по исходной более короткой строке (длинная NFT-ссылка давала пустой layout).
+        text = textLayout.getText();
 //        textHeight = 0;
         int linesCount = textLayout.getLineCount();
         int linesPreBlock = totalAnimatedEmojiCount >= 50 ? LINES_PER_BLOCK_WITH_EMOJI : LINES_PER_BLOCK;
@@ -9155,8 +9246,7 @@ public class MessageObject {
                     block.height = block.textLayout.getHeight();//Math.max(block.height, block.textLayout.getLineBottom(block.textLayout.getLineCount() - 1));
                     block.collapsedHeight = (int) Math.min(paint.getTextSize() * 1.4f * 3, block.height);
                 } catch (Exception e) {
-                    FileLog.e(e);
-                    continue;
+                    throw new IllegalStateException("text block layout", e);
                 }
             }
 

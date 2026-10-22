@@ -44,7 +44,8 @@ assert 'saved.account != currentAccount' in chat
 assert 'messages.add(at, ghost)' in chat and 'ghost.pengramDeleted = true' in chat
 assert 'messagesByDays.put(ghost.dateKey, day)' in chat
 assert 'clearSearchDeletedGhosts();' in chat
-assert 'getAdditionalDeletedCount()' in chat and 'searchCountText.setVisibility(View.VISIBLE)' in chat
+assert 'return messagesSearchAdapter == null ? 0 : messagesSearchAdapter.loadedCount;' in chat
+assert 'searchCountText.setVisibility(View.VISIBLE)' in chat
 assert 'getLoadedResult(next)' in chat and 'getDeletedResult(result)' in chat
 assert 'getDeletedEntry(int account, long rowId)' in history
 assert 'account = ? AND id = ? AND action = ? LIMIT 1' in history

@@ -120,6 +120,9 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     int toColor;
     private final Theme.ResourcesProvider resourcesProvider;
 
+    private long enterGeneration;
+    private boolean transitionFinished;
+    private boolean transitionStarted;
     private final PointF tmpPointF = new PointF();
 
     @SuppressLint("WrongConstant")
@@ -149,9 +152,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             messageView.draw(new Canvas());
         }
 
-        messageView.setEnterTransitionInProgress(true);
 
         CharSequence editText = chatActivityEnterView.getEditText();
+        // Почему: поле уже могло очиститься после send. Пустой layout не вправе
+        // скрывать настоящий текст ячейки на время полёта/crossfade.
+        if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) return;
         CharSequence text = messageView.getMessageObject().messageText;
 
         crossfade = false;
@@ -369,8 +374,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         messageId = messageView.getMessageObject().stableId;
 
-        chatActivityEnterView.getEditField().setAlpha(0f);
-        chatActivityEnterView.setTextTransitionIsRunning(true);
 
         if (messageView.replyNameLayout != null && messageView.replyNameLayout.getText().length() > 1) {
             if (messageView.replyNameLayout.getPrimaryHorizontal(0) != 0) {
@@ -389,21 +392,16 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         animator.setInterpolator(new LinearInterpolator());
         animator.setDuration(ChatListItemAnimator.DEFAULT_DURATION);
 
-        container.addTransition(this);
-        notificationsLocker.lock();
 
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
+            public void onAnimationCancel(Animator animation) {
+                finishTransition();
+            }
+
+            @Override
             public void onAnimationEnd(Animator animation) {
-                notificationsLocker.unlock();
-                container.removeTransition(TextMessageEnterTransition.this);
-                messageView.setEnterTransitionInProgress(false);
-                messageView.getTransitionParams().lastDrawingBackgroundRect.set(messageView.getBackgroundDrawableLeft(), messageView.getBackgroundDrawableTop(), messageView.getBackgroundDrawableRight(), messageView.getBackgroundDrawableBottom());
-                chatActivityEnterView.setTextTransitionIsRunning(false);
-                chatActivityEnterView.getEditField().setAlpha(1f);
-                chatActivity.getReplyNameTextView().setAlpha(1f);
-                chatActivity.getReplyObjectTextView().setAlpha(1f);
-                AnimatedEmojiSpan.release(null, animatedEmojiStack);
+                finishTransition();
             }
         });
 
@@ -415,8 +413,40 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         }
     }
 
+    private void finishTransition() {
+        if (transitionFinished) return;
+        transitionFinished = true;
+        notificationsLocker.unlock();
+        container.removeTransition(this);
+        messageView.finishEnterTransition(enterGeneration);
+        // Почему: старый callback не вправе сбрасывать флаг новой анимации ячейки.
+        if (messageView.getMessageObject() == currentMessageObject) {
+            messageView.getTransitionParams().lastDrawingBackgroundRect.set(messageView.getBackgroundDrawableLeft(), messageView.getBackgroundDrawableTop(), messageView.getBackgroundDrawableRight(), messageView.getBackgroundDrawableBottom());
+        }
+        if (enterView != null) {
+            enterView.setTextTransitionIsRunning(false);
+            if (enterView.getEditField() != null) enterView.getEditField().setAlpha(1f);
+        }
+        chatActivity.getReplyNameTextView().setAlpha(1f);
+        chatActivity.getReplyObjectTextView().setAlpha(1f);
+        AnimatedEmojiSpan.release(null, animatedEmojiStack);
+        if (animator != null && animator.isStarted()) animator.cancel();
+    }
+
+    @Override
+    public void onRemoved() {
+        finishTransition();
+    }
+
     public void start() {
-        if (animator != null) {
+        if (animator != null && !transitionFinished && !transitionStarted) {
+            transitionStarted = true;
+            container.addTransition(this);
+            notificationsLocker.lock();
+            if (enterView.getEditField() != null) enterView.getEditField().setAlpha(0f);
+            enterView.setTextTransitionIsRunning(true);
+            messageView.setEnterTransitionInProgress(true);
+            enterGeneration = messageView.getEnterTransitionGeneration();
             animator.start();
         }
     }
@@ -435,6 +465,12 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private float listViewTargetBottomPadding;
 
     public void onDraw(Canvas canvas) {
+        if (transitionFinished) return;
+        if (messageView.getMessageObject() != currentMessageObject
+                || messageView.getEnterTransitionGeneration() != enterGeneration) {
+            finishTransition();
+            return;
+        }
         if (drawBitmaps && !initBitmaps && crossfadeTextBitmap != null && messageView.getTransitionParams().wasDraw) {
             initBitmaps = true;
             Canvas bitmapCanvas = new Canvas(crossfadeTextBitmap);
@@ -457,6 +493,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float messageViewY;
 
         if (messageView.getMessageObject().stableId != messageId) {
+            finishTransition();
             return;
         } else {
             messageViewX = messageView.getX() + listView.getX() - container.getX();

@@ -59,26 +59,51 @@ public class PengramBeatHalo extends View {
         }
         accentColor = color;
         glowShader = null;
+        ensureShader(Math.max(1, Math.min(getWidth(), getHeight()) / 2));
         invalidate();
     }
 
     /** 0 — совсем деликатно, 1 — как задумано, выше — «сочнее» */
     public void setIntensity(float value) {
         intensity = Math.max(0f, value);
+        // Почему: после juicy старые кольца не должны ожить при смене soft → juicy.
+        if (intensity <= 1f) for (int i = 0; i < RINGS; i++) ringPower[i] = 0;
+        if (intensity <= 0) {
+            level = targetLevel = beat = 0;
+            animating = false;
+        }
+        invalidate();
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        ensureShader(Math.max(1, Math.min(w, h) / 2));
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        level = targetLevel = beat = 0;
+        animating = false;
+        lastFrame = 0;
+        super.onDetachedFromWindow();
     }
 
     public void onPulse(float level, float bass) {
+        if (intensity <= 0 || !isShown()) return;
         targetLevel = Math.max(level, bass * 0.8f);
         kick();
     }
 
     public void onBeat(float power) {
-        if (power <= 0 || intensity <= 0) {
+        if (power <= 0 || intensity <= 0 || !isShown()) {
             return;
         }
-        ringProgress[ringIndex] = 0f;
-        ringPower[ringIndex] = Math.min(1f, power);
-        ringIndex = (ringIndex + 1) % RINGS;
+        if (intensity > 1f) {
+            ringProgress[ringIndex] = 0f;
+            ringPower[ringIndex] = Math.min(1f, power);
+            ringIndex = (ringIndex + 1) % RINGS;
+        }
         beat = Math.min(1f, beat + 0.45f + power * 0.55f);
         kick();
     }
@@ -90,7 +115,7 @@ public class PengramBeatHalo extends View {
     }
 
     private void kick() {
-        if (!animating) {
+        if (intensity > 0 && isShown() && !animating) {
             animating = true;
             lastFrame = 0;
             postInvalidateOnAnimation();
@@ -99,6 +124,9 @@ public class PengramBeatHalo extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (intensity <= 0 || !isShown()) { animating = false; return; }
+        final int clipSave = canvas.save();
+        canvas.clipRect(0, 0, getWidth(), getHeight());
         final long now = android.os.SystemClock.elapsedRealtime();
         float dt = lastFrame == 0 ? 0.016f : (now - lastFrame) / 1000f;
         lastFrame = now;
@@ -111,6 +139,7 @@ public class PengramBeatHalo extends View {
         final int h = getHeight();
         if (w == 0 || h == 0 || intensity <= 0) {
             animating = false;
+            canvas.restoreToCount(clipSave);
             return;
         }
         final float cx = w / 2f;
@@ -123,18 +152,19 @@ public class PengramBeatHalo extends View {
         final float glowRadius = base * (0.62f + level * 0.3f + beat * 0.12f) * (0.85f + intensity * 0.15f);
         final int glowAlpha = (int) (((level * 90f) + beat * 70f) * Math.min(1.4f, intensity));
         if (glowAlpha > 2 && glowRadius > 1) {
-            ensureShader((int) glowRadius);
             glowPaint.setShader(glowShader);
-            glowPaint.setAlpha(Math.min(190, glowAlpha));
+            glowPaint.setAlpha(Math.min(intensity <= 1f ? 40 : 100, glowAlpha));
             canvas.save();
             canvas.translate(cx, cy);
-            canvas.drawCircle(0, 0, glowRadius, glowPaint);
+            final float shaderScale = glowRadius / Math.max(1, shaderSize);
+            canvas.scale(shaderScale, shaderScale);
+            canvas.drawCircle(0, 0, shaderSize, glowPaint);
             canvas.restore();
         }
 
         // кольца: каждое расходится наружу и тает
         for (int i = 0; i < RINGS; i++) {
-            if (ringPower[i] <= 0) {
+            if (ringPower[i] <= 0 || intensity <= 1f) {
                 continue;
             }
             ringProgress[i] += dt * 1.35f;
@@ -159,7 +189,7 @@ public class PengramBeatHalo extends View {
 
         // искры: медленно кружат, на ударах разлетаются чуть дальше
         final float spark = level * 0.7f + beat * 0.5f;
-        if (spark > 0.04f) {
+        if (spark > 0.04f && intensity > 1f) {
             alive = true;
             final float t = now / 1000f;
             sparkPaint.setColor(accentColor);
@@ -173,6 +203,7 @@ public class PengramBeatHalo extends View {
             }
         }
 
+        canvas.restoreToCount(clipSave);
         if (alive) {
             postInvalidateOnAnimation();
         } else {

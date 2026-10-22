@@ -63,6 +63,25 @@ public class PengramMenuItemsActivity extends BaseFragment {
 
     private RecyclerListView listView;
     private ListAdapter adapter;
+    private TextView doneBar;
+    private org.telegram.ui.Components.PengramSurfaceGlass footerGlass;
+
+    private void refreshMenuAppearance() {
+        if (doneBar != null) {
+            int visible = 0;
+            for (Row row : rows) if (row.type == VIEW_TYPE_ITEM && !isHiddenSection(row.section)) visible++;
+            doneBar.setText(LocaleController.formatString(R.string.PengramMenuDoneCount, visible));
+            doneBar.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+            final android.graphics.drawable.Drawable background = Theme.createRoundRectDrawable(AndroidUtilities.dp(22),
+                    org.telegram.messenger.PengramMD3.menus()
+                            ? org.telegram.messenger.PengramMD3.surface(getResourceProvider(), .05f)
+                            : Theme.getColor(Theme.key_windowBackgroundWhite));
+            if (footerGlass != null) footerGlass.setOriginalBackground(background);
+            else doneBar.setBackground(background);
+        }
+        if (adapter != null) adapter.notifyDataSetChanged();
+    }
+
     private ItemTouchHelper itemTouchHelper;
 
     private final ArrayList<Row> rows = new ArrayList<>();
@@ -215,6 +234,12 @@ public class PengramMenuItemsActivity extends BaseFragment {
     }
 
     private void save() {
+        if (doneBar != null) {
+            int visible = 0;
+            for (Row row : rows) if (row.type == VIEW_TYPE_ITEM && !isHiddenSection(row.section)) visible++;
+            doneBar.setText(LocaleController.formatString(R.string.PengramMenuDoneCount, visible));
+        }
+
         final ArrayList<Integer> order = new ArrayList<>();
         for (Row row : rows) {
             if (row.type != VIEW_TYPE_ITEM) {
@@ -319,9 +344,9 @@ public class PengramMenuItemsActivity extends BaseFragment {
         itemAnimator.setSupportsChangeAnimations(false);
         itemAnimator.setDelayAnimations(false);
         itemAnimator.setTranslationInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-        itemAnimator.setMoveDuration(320);
-        itemAnimator.setRemoveDuration(260);
-        itemAnimator.setAddDuration(260);
+        itemAnimator.setMoveDuration(org.telegram.messenger.SharedConfig.animationsEnabled() ? 180 : 0);
+        itemAnimator.setRemoveDuration(org.telegram.messenger.SharedConfig.animationsEnabled() ? 180 : 0);
+        itemAnimator.setAddDuration(org.telegram.messenger.SharedConfig.animationsEnabled() ? 180 : 0);
         listView.setItemAnimator(itemAnimator);
         adapter = new ListAdapter(context);
         listView.setAdapter(adapter);
@@ -346,6 +371,20 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 }
             }
         });
+
+        listView.setClipToPadding(false);
+        listView.setPadding(0, 0, 0, AndroidUtilities.dp(88));
+        doneBar = new TextView(context);
+        doneBar.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        doneBar.setTypeface(AndroidUtilities.bold());
+        doneBar.setGravity(Gravity.CENTER);
+        doneBar.setOnClickListener(v -> finishFragment());
+        frameLayout.addView(doneBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56,
+                Gravity.BOTTOM, 12, 0, 12, 12));
+        refreshMenuAppearance();
+        footerGlass = new org.telegram.ui.Components.PengramSurfaceGlass(doneBar, listView,
+                getResourceProvider(), () -> true);
+        org.telegram.messenger.PengramMD3.watch(doneBar, this::refreshMenuAppearance);
 
         return fragmentView;
     }
@@ -462,6 +501,23 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 return;
             }
             final Row row = rows.get(position);
+            if (row.type == VIEW_TYPE_HEADER || row.type == VIEW_TYPE_ITEM || row.type == VIEW_TYPE_PLACEHOLDER) {
+                final boolean md3 = org.telegram.messenger.PengramMD3.menus();
+                final RecyclerView.LayoutParams params = (RecyclerView.LayoutParams) holder.itemView.getLayoutParams();
+                params.leftMargin = params.rightMargin = md3 ? org.telegram.messenger.PengramMD3.rowInset() : 0;
+                params.topMargin = md3 && row.type == VIEW_TYPE_HEADER ? AndroidUtilities.dp(8) : 0;
+                params.bottomMargin = md3 && row.type == VIEW_TYPE_PLACEHOLDER ? AndroidUtilities.dp(8) : 0;
+                if (md3) {
+                    final android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
+                    background.setColor(org.telegram.messenger.PengramMD3.surface(getResourceProvider(), .05f));
+                    final float top = row.type == VIEW_TYPE_HEADER ? AndroidUtilities.dp(16) : 0;
+                    final float bottom = row.type == VIEW_TYPE_PLACEHOLDER ? AndroidUtilities.dp(16) : 0;
+                    // Соседние строки образуют одну корзину, а не россыпь капсул.
+                    background.setCornerRadii(new float[]{top, top, top, top, bottom, bottom, bottom, bottom});
+                    holder.itemView.setBackground(background);
+                } else holder.itemView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                holder.itemView.setLayoutParams(params);
+            }
             switch (holder.getItemViewType()) {
                 case VIEW_TYPE_INFO: {
                     CharSequence info = LocaleController.getString(infoRes());
@@ -495,7 +551,8 @@ public class PengramMenuItemsActivity extends BaseFragment {
                     final TextCell cell = (TextCell) holder.itemView;
                     final boolean hidden = isHiddenSection(row.section);
                     final boolean last = position + 1 < rows.size() && rows.get(position + 1).type != VIEW_TYPE_ITEM;
-                    cell.setTextAndIcon(itemTitle(row.id), itemIcon(row.id), !last);
+                    cell.setTextAndIcon(itemTitle(row.id), itemIcon(row.id), !last
+                            && !org.telegram.messenger.PengramMD3.hideDividers() && !org.telegram.messenger.PengramMD3.menus());
                     final ImageView handle = cell.getValueImageView();
                     handle.setVisibility(View.VISIBLE);
                     handle.setImageResource(R.drawable.list_reorder);
@@ -577,7 +634,10 @@ public class PengramMenuItemsActivity extends BaseFragment {
                 listView.cancelClickRunnables(false);
                 if (viewHolder != null) {
                     viewHolder.itemView.setPressed(true);
-                    viewHolder.itemView.animate().scaleX(1.03f).scaleY(1.03f).setDuration(160).start();
+                    viewHolder.itemView.setElevation(org.telegram.messenger.PengramMD3.menus() ? AndroidUtilities.dp(8) : 0);
+                    viewHolder.itemView.animate().scaleX(1.03f).scaleY(1.03f)
+                            .setDuration(org.telegram.messenger.SharedConfig.animationsEnabled() ? 160 : 0)
+                            .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
                 }
             } else if (viewHolder != null) {
                 viewHolder.itemView.setPressed(false);
@@ -594,7 +654,10 @@ public class PengramMenuItemsActivity extends BaseFragment {
         public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
             super.clearView(recyclerView, viewHolder);
             viewHolder.itemView.setPressed(false);
-            viewHolder.itemView.animate().scaleX(1f).scaleY(1f).setDuration(160).start();
+            viewHolder.itemView.setElevation(0);
+            viewHolder.itemView.animate().scaleX(1f).scaleY(1f)
+                    .setDuration(org.telegram.messenger.SharedConfig.animationsEnabled() ? 160 : 0)
+                    .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT).start();
             save();
             AndroidUtilities.runOnUIThread(() -> {
                 if (adapter != null) {

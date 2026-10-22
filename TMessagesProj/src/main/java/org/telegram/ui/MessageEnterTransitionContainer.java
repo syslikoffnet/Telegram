@@ -16,7 +16,8 @@ public class MessageEnterTransitionContainer extends View {
     private final int currentAccount;
     private final ViewGroup parent;
 
-    Runnable hideRunnable = () -> setVisibility(View.GONE);
+    // Почему: idle callback мог уже выйти из очереди до регистрации нового overlay.
+    Runnable hideRunnable = () -> { if (transitions.isEmpty()) setVisibility(View.GONE); };
 
     public MessageEnterTransitionContainer(ViewGroup parent, int currentAccount) {
         super(parent.getContext());
@@ -26,6 +27,7 @@ public class MessageEnterTransitionContainer extends View {
 
     public interface Transition {
         void onDraw(Canvas canvas);
+        default void onRemoved() { }
     }
 
     void addTransition(Transition transition) {
@@ -35,9 +37,15 @@ public class MessageEnterTransitionContainer extends View {
     }
 
     void removeTransition(Transition transition) {
-        transitions.remove(transition);
+        if (transitions.remove(transition)) transition.onRemoved();
         checkVisibility();
         parent.invalidate();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        while (!transitions.isEmpty()) removeTransition(transitions.get(transitions.size() - 1));
+        super.onDetachedFromWindow();
     }
 
     @Override
@@ -45,7 +53,7 @@ public class MessageEnterTransitionContainer extends View {
         if (transitions.isEmpty()) {
             return;
         }
-        for (int i = 0; i < transitions.size(); i++) {
+        for (int i = transitions.size() - 1; i >= 0; i--) {
             transitions.get(i).onDraw(canvas);
         }
     }
@@ -54,9 +62,10 @@ public class MessageEnterTransitionContainer extends View {
         if (transitions.isEmpty() && getVisibility() != View.GONE) {
             NotificationCenter.getInstance(currentAccount).removeDelayed(hideRunnable);
             NotificationCenter.getInstance(currentAccount).doOnIdle(hideRunnable);
-        } else if (!transitions.isEmpty() && getVisibility() != View.VISIBLE) {
+        } else if (!transitions.isEmpty()) {
+            // Почему: VISIBLE не означает, что старое отложенное скрытие отменено.
             NotificationCenter.getInstance(currentAccount).removeDelayed(hideRunnable);
-            setVisibility(View.VISIBLE);
+            if (getVisibility() != View.VISIBLE) setVisibility(View.VISIBLE);
         }
     }
 

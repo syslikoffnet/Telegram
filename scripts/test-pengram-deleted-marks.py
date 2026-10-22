@@ -56,7 +56,9 @@ assert 'marksLoadedDialogs.add(marksKey(account, dialogId))' in history
 assert 'accountMarks(account).indexOfKey(dialogId) >= 0' not in history
 # новая метка дочитывает старые, а не прячет их
 idx_mark = history.index('loadMarks(account, dialogId, null);')
-assert history.index('set.addAll(copy);', history.index('public static void markDeleted')) < idx_mark
+assert history.index('set.add(id);', history.index('private static void publishDeletedMark')) < idx_mark
+assert 'hasEntry(account, dialogId, id)' in history
+assert 'db.endTransaction();' in history[:history.index('publishDeletedMark(account, dialogId, messageId);')]
 
 # --- 5. открытый чат перекрашивается сам ------------------------------------
 assert 'PengramHistory.marksEnabled(currentAccount)' in chat

@@ -355,7 +355,7 @@ public final class PengramChatExport {
                     message.message = entry.text == null ? "" : entry.text;
                     message.date = entry.date != 0 ? entry.date : entry.savedAt;
                     message.out = entry.out;
-                    Attachment a = attachment(message);
+                    Attachment a = attachment(message, true);
                     lh.write(render(message, a,
                             (entry.dialogId == legacyDialogId ? "legacy-d" : "d") + entry.rowId));
                     deletedCount++;
@@ -450,6 +450,10 @@ public final class PengramChatExport {
     }
 
     private Attachment attachment(TLRPC.Message msg) throws Exception {
+        return attachment(msg, false);
+    }
+
+    private Attachment attachment(TLRPC.Message msg, boolean localOnly) throws Exception {
         TLRPC.MessageMedia mm = msg.media;
         if (mm == null || mm instanceof TLRPC.TL_messageMediaEmpty) return null;
         Attachment a = new Attachment();
@@ -491,7 +495,7 @@ public final class PengramChatExport {
             File cached = loader.getPathToAttach(size, true);
             if (cached != null && cached.isFile() && cached.length() > 0) file = cached;
         }
-        if (file == null || !file.isFile() || file.length() == 0) {
+        if (!localOnly && (file == null || !file.isFile() || file.length() == 0)) {
             status(s(R.string.PengramExportLoading) + " · " + count + " · " + a.name);
             try { file = download(loader, msg, doc, photo, size, file); } catch (InterruptedException e) { throw e; } catch (Exception e) { FileLog.e(e); }
         }

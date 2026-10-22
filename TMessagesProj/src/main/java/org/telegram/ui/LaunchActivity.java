@@ -1208,8 +1208,16 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         switchToAccount(account, removeAll, obj -> new MainTabsActivity());
     }
 
+    private boolean hasAccountRoot(int account) {
+        return currentAccount == account && actionBarLayout != null
+                && !actionBarLayout.getFragmentStack().isEmpty()
+                && actionBarLayout.getFragmentStack().get(0).getCurrentAccount() == account;
+    }
+
     public void switchToAccount(int account, boolean removeAll, GenericProvider<Void, MainTabsActivity> dialogsActivityProvider) {
-        if (account == UserConfig.selectedAccount || !UserConfig.isValidAccount(account)) {
+        // Почему: selectedAccount мог измениться раньше пересоздания корневого экрана.
+        if (!UserConfig.isValidAccount(account)
+                || (account == UserConfig.selectedAccount && hasAccountRoot(account))) {
             return;
         }
         switchingAccount = true;
@@ -1237,6 +1245,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             actionBarLayout.removeFragmentFromStack(0);
         }
         MainTabsActivity mainTabsActivity = dialogsActivityProvider.provide(null);
+        mainTabsActivity.setCurrentAccount(account);
         actionBarLayout.addFragmentToStack(mainTabsActivity, INavigationLayout.FORCE_ATTACH_VIEW_AS_FIRST);
         actionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
         if (AndroidUtilities.isTablet()) {

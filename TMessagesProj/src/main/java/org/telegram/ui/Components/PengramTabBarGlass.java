@@ -82,6 +82,9 @@ public final class PengramTabBarGlass {
         hash = hash * 31 + org.telegram.messenger.PengramConfig.getGlassThicknessDp();
         hash = hash * 31 + org.telegram.messenger.PengramConfig.getGlassIntensity();
         hash = hash * 31 + (rimEnabled() ? 1 : 0);
+        hash = hash * 31 + org.telegram.messenger.PengramConfig.getGlassGlow();
+        hash = hash * 31 + (org.telegram.messenger.PengramConfig.isGlassSheenEnabled() ? 1 : 0);
+        hash = hash * 31 + (org.telegram.messenger.PengramConfig.isGlassDragEnabled() ? 1 : 0);
         return hash;
     }
 }

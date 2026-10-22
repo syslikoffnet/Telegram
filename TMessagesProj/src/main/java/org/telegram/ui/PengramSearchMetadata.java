@@ -52,14 +52,123 @@ public final class PengramSearchMetadata {
         return current;
     }
 
+    public static org.telegram.messenger.PengramConfig.SearchDestination destination(int[] entry) {
+        for (int i = 0; i < PengramSearchIndex.ITEMS.length; i++) {
+            if (sameEntry(PengramSearchIndex.ITEMS[i], entry)) {
+                return new org.telegram.messenger.PengramConfig.SearchDestination(
+                        PengramSearchIndex.KEYS[i], entry[1], entry[3]);
+            }
+        }
+        for (int i = 0; i < PengramSearchIndex.GROUP_ITEMS.length; i++) {
+            if (sameEntry(PengramSearchIndex.GROUP_ITEMS[i], entry)) {
+                return new org.telegram.messenger.PengramConfig.SearchDestination(
+                        PengramSearchIndex.GROUP_KEYS[i], entry[1], entry[3]);
+            }
+        }
+        return null;
+    }
+
+    private static boolean sameEntry(int[] a, int[] b) {
+        return a != null && b != null && a.length >= 4 && b.length >= 4
+                && a[0] == b[0] && a[1] == b[1] && a[3] == b[3];
+    }
+
+    public static boolean canRemember(int[] entry) {
+        for (int i = 0; i < PengramSearchIndex.ITEMS.length; i++) {
+            if (sameEntry(PengramSearchIndex.ITEMS[i], entry)) return PengramSearchIndex.HISTORY_ALLOWED[i];
+        }
+        for (int[] group : PengramSearchIndex.GROUP_ITEMS) if (sameEntry(group, entry)) return true;
+        return false;
+    }
+
+    public static int[] resolveDestination(org.telegram.messenger.PengramConfig.SearchDestination row) {
+        if (row == null || row.key == null || row.key.trim().isEmpty()) return null;
+        int[] candidate = null;
+        boolean ambiguous = false;
+        final int[][][] inventories = {PengramSearchIndex.ITEMS, PengramSearchIndex.GROUP_ITEMS};
+        final String[][] keys = {PengramSearchIndex.KEYS, PengramSearchIndex.GROUP_KEYS};
+        for (int list = 0; list < inventories.length; list++) {
+            for (int i = 0; i < inventories[list].length; i++) {
+                if (!row.key.equals(keys[list][i])) continue;
+                final int[] entry = inventories[list][i];
+                if (entry[1] == row.section && entry[3] == row.kind) return entry;
+                if (candidate != null && !sameEntry(candidate, entry)) ambiguous = true;
+                candidate = entry;
+            }
+        }
+        // Ключ важнее старого раздела: перенесённая строка остаётся доступной,
+        // но при двух новых владельцах не угадываем, куда хотел пользователь.
+        return ambiguous ? null : candidate;
+    }
+
+    public static int[] migrateLegacyQuery(String query) {
+        if (query == null || query.trim().length() < 2 || query.length() > 80) return null;
+        final String[] terms = queryTerms(query);
+        int best = 0;
+        boolean tied = false;
+        int[] result = null;
+        try {
+            for (int[] entry : PengramSearchIndex.ITEMS) {
+                final String title = getString(entry[0]);
+                if (title.isEmpty() || title.startsWith("LOC_ERR")) continue;
+                final int score = relevance(entry, terms);
+                if (score > best) { best = score; result = entry; tied = false; }
+                else if (score == best && score > 0) tied = true;
+            }
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        // Только совпадение всех слов в заголовке; синоним или ничья не дают
+        // права превращать старый запрос в якобы совершённый переход.
+        return best >= 260 && !tied && canRemember(result) ? result : null;
+    }
+
+    public static String historyPath(int[] entry) {
+        final String full = path(entry);
+        final int first = full.indexOf(" ➔ ");
+        final int last = full.lastIndexOf(" ➔ ");
+        return first >= 0 && last > first ? full.substring(first + 3, last) : "";
+    }
+
+    public static void rememberReached(int[] requested, int actualRes) {
+        if (requested == null) return;
+        if (requested[0] == actualRes) {
+            org.telegram.messenger.PengramConfig.rememberSearchDestination(destination(requested));
+            return;
+        }
+        for (int[] entry : PengramSearchIndex.ITEMS) {
+            if (entry[0] == actualRes && entry[1] == requested[1] && entry[3] == requested[3]) {
+                org.telegram.messenger.PengramConfig.rememberSearchDestination(destination(entry));
+                return;
+            }
+        }
+        for (int[] group : PengramSearchIndex.GROUP_ITEMS) {
+            if (group[0] == actualRes && group[1] == requested[1]) {
+                org.telegram.messenger.PengramConfig.rememberSearchDestination(destination(group));
+                return;
+            }
+        }
+    }
+
     public static void open(BaseFragment fragment, int[] entry) {
-        if (entry.length > 3 && entry[3] == 1) {
-            fragment.presentFragment(new PengramChatLookActivity(entry[0]));
-        } else if (entry.length > 3 && entry[3] == 2) {
-            fragment.presentFragment(new PengramProfileHistorySettingsActivity(entry[0]));
+        open(fragment, entry, false);
+    }
+
+    public static void open(BaseFragment fragment, int[] entry, boolean remember) {
+        if (entry == null || entry.length < 4) return;
+        org.telegram.messenger.PengramDiagnostics.recordSearch(entry, fragment);
+        if (entry[3] == 1) {
+            PengramChatLookActivity target = new PengramChatLookActivity(entry[0]);
+            if (remember) target.searchDestination = entry;
+            fragment.presentFragment(target);
+        } else if (entry[3] == 2) {
+            PengramProfileHistorySettingsActivity target = new PengramProfileHistorySettingsActivity(entry[0]);
+            if (remember) target.searchDestination = entry;
+            fragment.presentFragment(target);
         } else {
-            fragment.presentFragment(new PengramSettingsActivity(entry[1], entry[0],
-                    entry.length > 2 ? entry[2] : 0));
+            PengramSettingsActivity target = new PengramSettingsActivity(entry[1], entry[0], entry[2]);
+            if (remember) target.pendingSearchDestination = entry;
+            fragment.presentFragment(target);
         }
     }
 
@@ -157,6 +266,7 @@ public final class PengramSearchMetadata {
         if (has(own, "цитат", "quote")) tags.append(" цитирование цитата quote");
         if (has(own, "голос", "voice")) tags.append(" речь аудио голосовые войсы voice speech");
         if (has(own, "отправ", "send", "sent")) tags.append(" послать отправка отправлять переслать send submit");
+        if (entry[1] == PengramSettingsActivity.SECTION_TYPING) tags.append(" анимация ввода печатание каретка курсор частицы исчезновение эмодзи typing caret cursor particles deletion emoji");
         if (has(own, "ввод", "набор", "писать", "typing")) tags.append(" печатать клавиатура текст набор ввода typing keyboard");
         if (has(own, "анимац", "эффект", "animation", "effect")) tags.append(" движение эффекты плавно animate motion");
         if (has(own, "пузыр", "bubble")) tags.append(" бабл баллон сообщение bubble chat");
