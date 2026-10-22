@@ -73,6 +73,7 @@ jobs:
 
       - name: Test Pengram visual editor and settings search
         run: |
+          python3 scripts/test-pengram-settings-create.py
           python3 scripts/test-pengram-visual-editor.py
           python3 scripts/test-pengram-search-index.py
           python3 scripts/test-pengram-history-search.py

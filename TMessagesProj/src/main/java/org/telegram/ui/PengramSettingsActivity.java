@@ -788,6 +788,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             AndroidUtilities.hideKeyboard(pengramSearchField.editText);
             return true;
         });
+        // setIsSearchField задаёт только флаг: контейнер ленивый, как и штатный EditText.
+        // Создаём его без открытия поиска/клавиатуры до добавления MD3-поля.
+        searchItem.getSearchField();
         searchItem.getSearchContainer().addView(pengramSearchField,
                 LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
         pengramStyleSearch();
