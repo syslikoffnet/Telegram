@@ -25,6 +25,10 @@ for source, method in ((chat, 'refreshPengramSurfaces'), (dialogs, 'refreshPengr
     assert body.index('setLiquidGlassEffectAllowed(') < body.index('.create(') if '.create(' in body else True
     assert 'actionBar.setupGlass(' in body and 'actionBar.clearGlass()' in body
     assert 'register(pengramGlassRefresh)' in source and 'unregister(pengramGlassRefresh)' in source
+# contentView локален createView; callback должен проверять поле BaseFragment.
+header_refresh = dialogs.split('private void refreshPengramHeaderGlass()', 1)[1].split('\n    private ', 1)[0]
+assert 'fragmentView == null' in header_refresh
+assert not re.search(r'\bcontentView\b', header_refresh)
 assert 'public void clearGlass()' in bar
 assert 'setBackground(pengramBackgroundBeforeGlass)' in bar
 assert 'setClipChildren(pengramClipBeforeGlass)' in bar

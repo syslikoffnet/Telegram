@@ -14388,7 +14388,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private final Runnable pengramGlassRefresh = this::refreshPengramHeaderGlass;
 
     private void refreshPengramHeaderGlass() {
-        if (actionBar == null || contentView == null || viewPositionWatcher == null) return;
+        if (actionBar == null || fragmentView == null || viewPositionWatcher == null) return;
         final int signature = org.telegram.ui.Components.PengramGlassSkin.signature(
                 org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER);
         if (signature == pengramHeaderGlassSignature) return;
