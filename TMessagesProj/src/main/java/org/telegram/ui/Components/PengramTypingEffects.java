@@ -471,10 +471,16 @@ public final class PengramTypingEffects {
             removedScrollX = edit.getScrollX(); removedScrollY = edit.getScrollY();
             // Почему: IME заменяет и длинное слово целиком, а стирает обычно
             // кластер перед курсором. Бюджет снимка тратим возле курсора, не в начале слова.
-            int captureStart = Math.min(start + count, Math.max(start, edit.getSelectionStart()));
-            for (int n = 0; n < MAX_DELETE_CLUSTERS && captureStart > start; n++) {
-                captureStart = PengramGraphemes.clusterStart(text, captureStart - 1);
+            int cursor = Math.min(start + count, Math.max(start, edit.getSelectionStart()));
+            int boundaryCount = 0;
+            // Один прямой проход, без 24 повторных сканирований всей строки.
+            // removedOffsets пока свободен после releaseSnapshot: используем его как ring buffer.
+            for (int offset = start; offset < cursor; offset = PengramGraphemes.clusterEnd(text, offset)) {
+                removedOffsets[boundaryCount % MAX_DELETE_CLUSTERS] = offset;
+                boundaryCount++;
             }
+            int captureStart = boundaryCount >= MAX_DELETE_CLUSTERS
+                    ? removedOffsets[boundaryCount % MAX_DELETE_CLUSTERS] : start;
             for (int offset = captureStart; offset < start + count && removedCount < MAX_DELETE_CLUSTERS;) {
                 int end = PengramGraphemes.clusterEnd(text, offset);
                 if (end > start + count) break;

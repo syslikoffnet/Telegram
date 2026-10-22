@@ -34,6 +34,7 @@ spawn=method(effects,'spawnFromSnapshot')
 assert 'removedOffsets[i] < start' in spawn and 'removedClusters[i].length() > start + before' in spawn
 assert 'removedStart != start' not in spawn, 'normalized IME subrange must be accepted'
 assert 'emitted <' in spawn, 'density cap must apply after selecting the deleted range'
+assert 'removedOffsets[boundaryCount % MAX_DELETE_CLUSTERS]' in method(effects,'snapshot')
 assert 'composing(edit)' in method(effects,'applyUserEdit'), 'composition must not animate inserted text prematurely'
 preview=(java/'ui/Components/PengramTypingPreviewView.java').read_text()
 assert 'captureReplacement(input' in preview and 'count > after' in preview
