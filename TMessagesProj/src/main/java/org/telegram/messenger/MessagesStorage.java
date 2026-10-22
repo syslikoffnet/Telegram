@@ -242,7 +242,7 @@ public class MessagesStorage extends BaseController {
             if (empty) {
                 try {
                     // Почему: не заменяем ключ поверх сохранённых диалогов и сообщений.
-                    for (String table : new String[]{"dialogs", "messages_v2", "enc_chats"}) {
+                    for (String table : new String[]{"dialogs", "messages_v2", "enc_chats", "users", "chats", "contacts"}) {
                         SQLiteCursor cursor = database.queryFinalized("SELECT 1 FROM " + table + " LIMIT 1");
                         try {
                             if (cursor.next()) empty = false;

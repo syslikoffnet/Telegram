@@ -33,6 +33,8 @@ for name in ('checkInsets','checkInAppKeyboardViewHeight','checkInAppKeyboardChi
 assert 'new ' not in draw and 'new ' not in method(outer,'drawFallback')
 storage_check=method(read('messenger/MessagesStorage.java'),'checkSessionSlotEmpty')
 assert 'storageQueue.postRunnable' in storage_check and 'AndroidUtilities.runOnUIThread' in storage_check
+for table in ('dialogs','messages_v2','enc_chats','users','chats','contacts'):
+    assert '"'+table+'"' in storage_check
 assert 'cursor.dispose()' in storage_check and 'empty = false;' in storage_check
 assert 'DELETE ' not in storage_check and 'cleanup(' not in storage_check
 pager=read('ui/ViewPagerActivity.java')
@@ -185,9 +187,14 @@ public class SessionFlow {
   static class Account {long userId;byte[] authKey=new byte[256];int dcId=2;boolean isUsable(){return authKey!=null&&authKey.length==256;}void clear(){Arrays.fill(authKey,(byte)0);}}
  }
  interface Result {void run(boolean empty);}
+ static class Utilities {interface Callback<T> {void run(T value);}}
+ static class Queue {void postRunnable(Runnable r){r.run();}}
+ static class FileLog {static void e(Exception e){}}
+ static class SQLiteCursor {boolean row,broken;static int disposed;SQLiteCursor(boolean r,boolean b){row=r;broken=b;}boolean next(){if(broken)throw new RuntimeException("read failure");return row;}void dispose(){disposed++;}}
+ static class SQLiteDatabase {static Map<String,Boolean> rows=new HashMap<>();static boolean broken;int account;SQLiteDatabase(int a){account=a;}SQLiteCursor queryFinalized(String sql){String table=sql.split(" ")[3];return new SQLiteCursor(account==2&&(!MessagesStorage.empty[account]||Boolean.TRUE.equals(rows.get(table))),broken);}}
  static class MessagesStorage {
-  static boolean[] empty;static MessagesStorage getInstance(int a){return new MessagesStorage(a);}int account;MessagesStorage(int a){account=a;}
-  void checkSessionSlotEmpty(Result r){r.run(empty[account]);}
+  static boolean[] empty;static MessagesStorage getInstance(int a){return new MessagesStorage(a);}int account;SQLiteDatabase database;Queue storageQueue=new Queue();MessagesStorage(int a){account=a;database=new SQLiteDatabase(a);}
+  STORAGE_METHOD
  }
  static class AndroidUtilities {
   static ArrayDeque<Runnable> pending=new ArrayDeque<>();static void runOnUIThread(Runnable r){pending.add(r);}static void runOnUIThread(Runnable r,int ms){pending.add(r);}
@@ -214,28 +221,34 @@ public class SessionFlow {
   public void onSuccess(TLRPC.TL_auth_authorization auth){success++;UserConfig.getInstance(target).uid=auth.user.id;}
   public void onError(String e){error=e;}
  }
- static void reset(){Login.cancel();AndroidUtilities.pending.clear();UserConfig.slots=new UserConfig[4];ConnectionsManager.instances=new ConnectionsManager[4];PengramLocalKeep.local=new boolean[4];MessagesStorage.empty=new boolean[]{true,true,true,true};for(int n=0;n<4;n++){UserConfig.slots[n]=new UserConfig();ConnectionsManager.instances[n]=new ConnectionsManager(n);}UserConfig.slots[0].uid=10;}
+ static void reset(){Login.cancel();AndroidUtilities.pending.clear();SQLiteDatabase.rows.clear();SQLiteDatabase.broken=false;SQLiteCursor.disposed=0;UserConfig.slots=new UserConfig[4];ConnectionsManager.instances=new ConnectionsManager[4];PengramLocalKeep.local=new boolean[4];MessagesStorage.empty=new boolean[]{true,true,true,true};for(int n=0;n<4;n++){UserConfig.slots[n]=new UserConfig();ConnectionsManager.instances[n]=new ConnectionsManager(n);}UserConfig.slots[0].uid=10;}
  static PengramSessionFormats.Account session(long id){PengramSessionFormats.Account a=new PengramSessionFormats.Account();a.userId=id;Arrays.fill(a.authKey,(byte)9);return a;}
  static TLRPC.TL_users_userFull reply(long id){TLRPC.TL_users_userFull f=new TLRPC.TL_users_userFull();f.full_user.id=id;f.users.add(new TLRPC.User(10,false));f.users.add(new TLRPC.User(id,true));return f;}
+ static void begin(int a,PengramSessionFormats.Account s,String mode,Listener l){Login.start(a,s,mode,l);AndroidUtilities.drain();}
  static void safeMain(){check(UserConfig.slots[0].uid==10&&ConnectionsManager.instances[0].cleanups==0&&ConnectionsManager.instances[0].imports==0,"main slot changed");}
  public static void main(String[] args){
-  int cases=0;reset();Listener l=new Listener(2);Login.start(2,session(0),"auto",l);ConnectionsManager.instances[2].deliver(reply(20));check(l.success==1&&UserConfig.slots[2].uid==20,"first related user installed");safeMain();cases++;
-  reset();l=new Listener(2);Login.start(2,session(10),"auto",l);check("account_exists".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"known duplicate imported");safeMain();cases++;
-  reset();l=new Listener(2);Login.start(2,session(20),"auto",l);ConnectionsManager.instances[2].deliver(reply(30));check("identity_mismatch".equals(l.error)&&l.success==0&&UserConfig.slots[2].uid==0,"metadata mismatch committed");safeMain();cases++;
-  reset();l=new Listener(2);Login.start(2,session(0),"auto",l);TLRPC.TL_users_userFull f=reply(10);f.users.remove(0);ConnectionsManager.instances[2].deliver(f);check("account_exists".equals(l.error)&&l.success==0,"unknown duplicate committed");safeMain();cases++;
-  reset();l=new Listener(0);Login.start(0,session(20),"auto",l);check("slot_busy".equals(l.error),"occupied slot accepted");safeMain();cases++;
-  reset();MessagesStorage.empty[2]=false;l=new Listener(2);Login.start(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"old DB overwritten");safeMain();cases++;
-  reset();l=new Listener(2);Login.start(2,session(20),"auto",l);UserConfig.slots[2].uid=30;ConnectionsManager.instances[2].deliver(reply(20));check("slot_busy".equals(l.error)&&UserConfig.slots[2].uid==30&&ConnectionsManager.instances[2].cleanups==1,"late reply cleaned occupied slot");safeMain();cases++;
-  reset();Listener old=new Listener(2);Login.start(2,session(20),"auto",old);Response stale=ConnectionsManager.instances[2].response;Login.cancel();l=new Listener(2);Login.start(2,session(30),"auto",l);stale.run(reply(20),null);AndroidUtilities.drain();check(old.success==0&&l.success==0&&old.error==null,"cancelled callback committed");ConnectionsManager.instances[2].deliver(reply(30));check(l.success==1&&UserConfig.slots[2].uid==30,"replacement callback lost");safeMain();cases++;
-  reset();PengramLocalKeep.local[2]=true;l=new Listener(2);Login.start(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"local copy overwritten");safeMain();cases++;
-  reset();l=new Listener(2);Login.start(2,session(20),"auto",l);f=reply(20);f.users.get(1).self=false;ConnectionsManager.instances[2].deliver(f);check("identity_mismatch".equals(l.error)&&l.success==0,"unverified self installed");safeMain();cases++;
-  reset();UserConfig.slots[2].loaded=false;l=new Listener(2);Login.start(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"unloaded config overwritten");safeMain();cases++;
+  int cases=0;reset();Listener l=new Listener(2);begin(2,session(0),"auto",l);ConnectionsManager.instances[2].deliver(reply(20));check(l.success==1&&UserConfig.slots[2].uid==20,"first related user installed");safeMain();cases++;
+  reset();l=new Listener(2);begin(2,session(10),"auto",l);check("account_exists".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"known duplicate imported");safeMain();cases++;
+  reset();l=new Listener(2);begin(2,session(20),"auto",l);ConnectionsManager.instances[2].deliver(reply(30));check("identity_mismatch".equals(l.error)&&l.success==0&&UserConfig.slots[2].uid==0,"metadata mismatch committed");safeMain();cases++;
+  reset();l=new Listener(2);begin(2,session(0),"auto",l);TLRPC.TL_users_userFull f=reply(10);f.users.remove(0);ConnectionsManager.instances[2].deliver(f);check("account_exists".equals(l.error)&&l.success==0,"unknown duplicate committed");safeMain();cases++;
+  reset();l=new Listener(0);begin(0,session(20),"auto",l);check("slot_busy".equals(l.error),"occupied slot accepted");safeMain();cases++;
+  reset();MessagesStorage.empty[2]=false;l=new Listener(2);begin(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"old DB overwritten");safeMain();cases++;
+  reset();l=new Listener(2);begin(2,session(20),"auto",l);UserConfig.slots[2].uid=30;ConnectionsManager.instances[2].deliver(reply(20));check("slot_busy".equals(l.error)&&UserConfig.slots[2].uid==30&&ConnectionsManager.instances[2].cleanups==1,"late reply cleaned occupied slot");safeMain();cases++;
+  reset();Listener old=new Listener(2);begin(2,session(20),"auto",old);Response stale=ConnectionsManager.instances[2].response;Login.cancel();l=new Listener(2);begin(2,session(30),"auto",l);stale.run(reply(20),null);AndroidUtilities.drain();check(old.success==0&&l.success==0&&old.error==null,"cancelled callback committed");ConnectionsManager.instances[2].deliver(reply(30));check(l.success==1&&UserConfig.slots[2].uid==30,"replacement callback lost");safeMain();cases++;
+  reset();PengramLocalKeep.local[2]=true;l=new Listener(2);begin(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"local copy overwritten");safeMain();cases++;
+  reset();l=new Listener(2);begin(2,session(20),"auto",l);f=reply(20);f.users.get(1).self=false;ConnectionsManager.instances[2].deliver(f);check("identity_mismatch".equals(l.error)&&l.success==0,"unverified self installed");safeMain();cases++;
+  reset();UserConfig.slots[2].loaded=false;l=new Listener(2);begin(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"unloaded config overwritten");safeMain();cases++;
+  for(String table:new String[]{"dialogs","messages_v2","enc_chats","users","chats","contacts"}){
+   reset();SQLiteDatabase.rows.put(table,true);l=new Listener(2);begin(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0,"retained "+table+" erased");check(SQLiteCursor.disposed>0,"cursor leaked");safeMain();cases++;
+  }
+  reset();SQLiteDatabase.broken=true;l=new Listener(2);begin(2,session(20),"auto",l);check("slot_busy".equals(l.error)&&ConnectionsManager.instances[2].imports==0&&SQLiteCursor.disposed==1,"DB error was not fail-closed");safeMain();cases++;
   System.out.println("OK: "+cases+" extracted production import-flow cases (fake transport/storage, NOT device isolation)");
  }
 }
 """
 start=login.index('private static final class Flow {');end=login.index('    private static volatile Flow active;',start)
 flow_fixture=flow_fixture.replace('FLOW_CLASS',login[start:end])
+flow_fixture=flow_fixture.replace('STORAGE_METHOD',storage_check)
 flow_fixture=flow_fixture.replace('LOGIN_METHODS','\n'.join(method(login,n) for n in ('authKeyId','start','isSlotAvailable','cancel','connect','resolveSessionSelf','hasAccountUserId','succeed','fail','mapError')))
 if shutil.which('javac') and shutil.which('java'):
     with tempfile.TemporaryDirectory() as d:
@@ -257,5 +270,5 @@ if shutil.which('javac') and shutil.which('java'):
             failed=subprocess.run(['java','-cp',d,'Regression'],capture_output=True,text=True)
             assert failed.returncode!=0,'negative control survived: '+name
             print('RED negative control: '+name)
-    jvm='PASS(67 component + 11 import-flow cases)'
+    jvm='PASS(67 component + 18 import/storage-flow cases)'
 print('OK: popup structure, null-theme fallback, parent account and verified session self; JVM='+jvm)
