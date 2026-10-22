@@ -4354,15 +4354,15 @@
           "code": "final State s = state(edit);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:169",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:176",
           "code": "State s = state(edit);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:185",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:192",
           "code": "State s = state(edit);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:197",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:204",
           "code": "try { state(edit).snapshot(text, start, count); }"
         },
         {
@@ -17206,7 +17206,7 @@
           "code": "s.enqueue(from, end, PengramConfig.getInputAnimation());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:180",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:187",
           "code": "if (!covered) s.enqueue(PengramGraphemes.clusterStart(edit.getText(), start), end, PengramConfig.getInputAnimation());"
         },
         {
@@ -17246,15 +17246,15 @@
           "code": "public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:291",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:298",
           "code": "PengramConfig.getInputAnimationSpeed(); PengramConfig.getInputAnimationIntensity();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:395",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:402",
           "code": "long duration = PengramConfig.getInputAnimationSpeed() == 0 ? 150 : PengramConfig.getInputAnimationSpeed() == 1 ? 210 : 320;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:395",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:402",
           "code": "long duration = PengramConfig.getInputAnimationSpeed() == 0 ? 150 : PengramConfig.getInputAnimationSpeed() == 1 ? 210 : 320;"
         },
         {
@@ -17294,11 +17294,11 @@
           "code": "public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:291",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:298",
           "code": "PengramConfig.getInputAnimationSpeed(); PengramConfig.getInputAnimationIntensity();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:408",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:415",
           "code": "g.start = now; g.duration = duration; g.intensity = PengramConfig.getInputAnimationIntensity() * .4f;"
         },
         {
@@ -17338,11 +17338,11 @@
           "code": "public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:292",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:299",
           "code": "PengramConfig.isTypingBlur(); PengramConfig.getTypingBlurRadius();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:706",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:713",
           "code": "if (PengramConfig.isTypingBlur() && PengramConfig.getTypingBlurRadius() > 0) {"
         },
         {
@@ -17362,15 +17362,15 @@
           "code": "public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 10))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:292",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:299",
           "code": "PengramConfig.isTypingBlur(); PengramConfig.getTypingBlurRadius();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:706",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:713",
           "code": "if (PengramConfig.isTypingBlur() && PengramConfig.getTypingBlurRadius() > 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:707",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:714",
           "code": "float halo = Math.min(em * .15f, PengramConfig.getTypingBlurRadius()) * tail;"
         },
         {
@@ -17394,11 +17394,11 @@
           "code": "if (count == 0 && PengramConfig.isTypingDeleteAnim()) s.spawnFromSnapshot(start, before);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:192",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:199",
           "code": "if (!live(edit) || composing(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:294",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:301",
           "code": "PengramConfig.isTypingDeleteAnim(); PengramConfig.getTypingDeleteStyle();"
         },
         {
@@ -17418,15 +17418,15 @@
           "code": "public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_DUST))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:294",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:301",
           "code": "PengramConfig.isTypingDeleteAnim(); PengramConfig.getTypingDeleteStyle();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:468",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:475",
           "code": "if (PengramConfig.getTypingDeleteStyle() == PengramConfig.DELETE_PARTICLE_LETTERS) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:548",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:555",
           "code": "int style = PengramConfig.getTypingDeleteStyle();"
         },
         {
@@ -17450,11 +17450,11 @@
           "code": "public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 5))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:295",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:302",
           "code": "PengramConfig.getTypingDeleteCount(); PengramConfig.getTypingDeleteSpeed();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:543",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:550",
           "code": "int perCluster = PengramConfig.getTypingDeleteCount();"
         },
         {
@@ -17474,11 +17474,11 @@
           "code": "public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 50))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:295",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:302",
           "code": "PengramConfig.getTypingDeleteCount(); PengramConfig.getTypingDeleteSpeed();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:545",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:552",
           "code": "float speed = .2f + PengramConfig.getTypingDeleteSpeed() / 50f;"
         },
         {
@@ -17498,11 +17498,11 @@
           "code": "public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 50))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:296",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:303",
           "code": "PengramConfig.getTypingDeleteSpread(); PengramConfig.getTypingDeleteSize();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:546",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:553",
           "code": "float spread = PengramConfig.getTypingDeleteSpread() / 50f;"
         },
         {
@@ -17522,11 +17522,11 @@
           "code": "public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 50))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:296",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:303",
           "code": "PengramConfig.getTypingDeleteSpread(); PengramConfig.getTypingDeleteSize();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:547",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:554",
           "code": "float size = PengramConfig.getTypingDeleteSize() / 50f;"
         },
         {
@@ -17546,11 +17546,11 @@
           "code": "public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:297",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:304",
           "code": "PengramConfig.isTypingCursorSmooth(); PengramConfig.getTypingCursorSpeed();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:618",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:625",
           "code": "return live(edit) && edit instanceof EditTextBoldCursor && PengramConfig.isTypingCursorSmooth() && edit.isCursorVisible() && !composing(edit);"
         },
         {
@@ -17570,11 +17570,11 @@
           "code": "public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 25))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:297",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:304",
           "code": "PengramConfig.isTypingCursorSmooth(); PengramConfig.getTypingCursorSpeed();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:652",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:659",
           "code": "float ease = 1f - (float) Math.exp(-dt / (18f + (60 - PengramConfig.getTypingCursorSpeed()) * 1.6f));"
         },
         {
@@ -17594,11 +17594,11 @@
           "code": "public static int getTypingCursorWidth() { return Math.max(1, Math.min(12, getIntCached(KEY_TYPING_CURSOR_WIDTH, 2))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:298",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:305",
           "code": "PengramConfig.getTypingCursorWidth(); PengramConfig.isTypingCursorLiquid();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:766",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:773",
           "code": "float width = dp(PengramConfig.getTypingCursorWidth());"
         },
         {
@@ -17618,11 +17618,11 @@
           "code": "public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, false); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:298",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:305",
           "code": "PengramConfig.getTypingCursorWidth(); PengramConfig.isTypingCursorLiquid();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:769",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:776",
           "code": "if (PengramConfig.isTypingCursorLiquid()) {"
         },
         {
@@ -17642,11 +17642,11 @@
           "code": "public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 15))); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:299",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:306",
           "code": "PengramConfig.getTypingCursorLiquidScale(); PengramConfig.isTypingSelectionLiquid();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:770",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:777",
           "code": "float stretch = Math.min(edit.getTextSize() * .7f, Math.abs(dx)) * PengramConfig.getTypingCursorLiquidScale() / 40f;"
         },
         {
@@ -17666,11 +17666,11 @@
           "code": "public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, false); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:299",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:306",
           "code": "PengramConfig.getTypingCursorLiquidScale(); PengramConfig.isTypingSelectionLiquid();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:759",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:766",
           "code": "if (PengramConfig.isTypingSelectionLiquid()) {"
         }
       ]
@@ -17686,11 +17686,11 @@
           "code": "public static boolean isTypingIgnoreSpaces() { return getBool(KEY_TYPING_IGNORE_SPACES, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:293",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:300",
           "code": "PengramConfig.isTypingIgnoreSpaces(); PengramConfig.isTypingAnimateAllLines();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:402",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:409",
           "code": "if (cluster.indexOf('\\n') < 0 && cluster.indexOf('\\r') < 0 && (!PengramConfig.isTypingIgnoreSpaces() || !cluster.trim().isEmpty())"
         }
       ]
@@ -17706,11 +17706,11 @@
           "code": "public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, false); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:293",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:300",
           "code": "PengramConfig.isTypingIgnoreSpaces(); PengramConfig.isTypingAnimateAllLines();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:403",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:410",
           "code": "&& (PengramConfig.isTypingAnimateAllLines() || layout.getLineForOffset(from) == cursorLine)) {"
         }
       ]
@@ -21500,7 +21500,7 @@
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramTypingStats.java:98",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramLyricsView.java:175",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramQuickToggles.java:48",
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:200"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:207"
       ],
       "lexical_occurrences": 3079,
       "examples": [
@@ -25672,19 +25672,19 @@
           "code": "state.clearAll();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:202",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:209",
           "code": "if (s != null) { s.clearAll(); edit.removeOnAttachStateChangeListener(s); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:209",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:216",
           "code": "s.clearAll();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:214",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:221",
           "code": "} catch (RuntimeException unavailable) { s.clearAll(); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:222",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:229",
           "code": "catch (RuntimeException | OutOfMemoryError unavailable) { s.clearAll(); }"
         }
       ]
@@ -38344,15 +38344,15 @@
           "code": "while (next < end && next < text.length()) { start = next; next = clusterEnd(text, start); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:399",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:406",
           "code": "int to = PengramGraphemes.clusterEnd(text, from);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:455",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:462",
           "code": "int end = PengramGraphemes.clusterEnd(text, offset);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:478",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:485",
           "code": "int end = PengramGraphemes.clusterEnd(text, from);"
         }
       ]
@@ -38376,15 +38376,15 @@
           "code": "if (PengramGraphemes.clusterStart(text, end) != end) return;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:180",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:187",
           "code": "if (!covered) s.enqueue(PengramGraphemes.clusterStart(edit.getText(), start), end, PengramConfig.getInputAnimation());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:448",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:455",
           "code": "|| PengramGraphemes.clusterStart(text, start) != start"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:449",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:456",
           "code": "|| PengramGraphemes.clusterStart(text, start + count) != start + count) return;"
         }
       ]
@@ -47498,15 +47498,15 @@
           "code": "if (live(edit) && !composing(edit)) { State s = state(edit); s.onTextChanged(); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:167",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:174",
           "code": "if (live(edit) && !composing(edit) && start >= 0 && end > start && end <= edit.length()"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:192",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:199",
           "code": "if (!live(edit) || composing(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:618",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:625",
           "code": "return live(edit) && edit instanceof EditTextBoldCursor && PengramConfig.isTypingCursorSmooth() && edit.isCursorVisible() && !composing(edit);"
         }
       ]
@@ -47534,19 +47534,19 @@
           "code": "if (!live(edit) || isPaste) { clear(edit); return; }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:167",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:174",
           "code": "if (live(edit) && !composing(edit) && start >= 0 && end > start && end <= edit.length()"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:184",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:191",
           "code": "if (!live(edit)) return;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:192",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:199",
           "code": "if (!live(edit) || composing(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:367",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:374",
           "code": "if (!live(edit)) { pendingBatches.clear(); stopPendingObserver(); return; }"
         }
       ]
@@ -47603,9 +47603,25 @@
         }
       ]
     },
+    "multiword": {
+      "declarations": [
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:163"
+      ],
+      "lexical_occurrences": 2,
+      "examples": [
+        {
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:163",
+          "code": "private static boolean multiword(CharSequence text, int start, int end) {"
+        },
+        {
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:465",
+          "code": "if (!multiword(cluster, 0, cluster.length()) && glyphRect(edit, layout, offset, end)) {"
+        }
+      ]
+    },
     "committed": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:162"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:169"
       ],
       "lexical_occurrences": 7,
       "examples": [
@@ -47622,7 +47638,7 @@
           "code": "PengramTypingEffects.committed(ChatActivityEditTextCaption.this, start, end);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:162",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:169",
           "code": "public static void committed(EditText edit, int start, int end) {"
         },
         {
@@ -47641,23 +47657,23 @@
     },
     "committedSafe": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:166"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:173"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:163",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:170",
           "code": "try { committedSafe(edit, start, end); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:166",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:173",
           "code": "private static void committedSafe(EditText edit, int start, int end) {"
         }
       ]
     },
     "captureReplacement": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:183"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:190"
       ],
       "lexical_occurrences": 2,
       "examples": [
@@ -47666,14 +47682,14 @@
           "code": "PengramTypingEffects.captureReplacement(ChatActivityEditTextCaption.this, s, start, count, after);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:183",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:190",
           "code": "public static void captureReplacement(EditText edit, CharSequence text, int start, int before, int count) {"
         }
       ]
     },
     "captureBefore": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:190"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:197"
       ],
       "lexical_occurrences": 3,
       "examples": [
@@ -47682,7 +47698,7 @@
           "code": "PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:191",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:198",
           "code": "public static void captureBefore(EditText edit, CharSequence text, int start, int count) {"
         },
         {
@@ -47693,7 +47709,7 @@
     },
     "prepareDraw": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:204"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:211"
       ],
       "lexical_occurrences": 16,
       "examples": [
@@ -47733,7 +47749,7 @@
     },
     "drawOverlay": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:217"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:224"
       ],
       "lexical_occurrences": 21,
       "examples": [
@@ -70652,72 +70668,72 @@
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:184",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:191",
       "code": "if (!live(edit)) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:195",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:202",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:219",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:226",
       "code": "if (s == null) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:334",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:341",
       "code": "if (edit == null) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:367",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:374",
       "code": "if (!live(edit)) { pendingBatches.clear(); stopPendingObserver(); return; }"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:449",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:456",
       "code": "|| PengramGraphemes.clusterStart(text, start + count) != start + count) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:451",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:458",
       "code": "if (!validLayout(edit, layout)) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:544",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:551",
       "code": "if (removedStart != start || removedUnits != before || edit == null || perCluster == 0) { releaseSnapshot(); return; }"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:611",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:618",
       "code": "if (scheduled || !live(edit)) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:623",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:630",
       "code": "if (!live(edit)) { clearAll(); return; }"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:635",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:642",
       "code": "if (!validLayout(edit, layout) || offset < 0 || offset > edit.length()) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:646",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:653",
       "code": "if (!targetValid) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:661",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:668",
       "code": "if (!live(edit)) { clearAll(); return; }"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:786",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingEffects.java:793",
       "code": "if (!validLayout(edit, layout) || offset < 0 || offset > edit.length()) return;"
     },
     {

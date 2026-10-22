@@ -78,10 +78,10 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
 | 22 | `messenger/MessageObject.java:9020` | Normal message layout adopts wrapped display text; messageOwner text/entities remain unchanged. |
 | 23 | `messenger/MessageObject.java:9079` | Layout ranges slice the actual layout text, eliminating the proven NFT/long-link bounds mismatch. |
 | 24 | `messenger/MessageObject.java:9244` | A failed sub-block cannot silently continue and hide part of the message. |
-| 25 | `ui/Components/PengramTypingEffects.java:247` | Up to 16 pending batches survive until pre-draw instead of a single overwritable posted slot. |
-| 26 | `ui/Components/PengramTypingEffects.java:378` | Invalid Layout retries are bounded by 3 attempts / 400ms; stale content is rejected. |
-| 27 | `ui/Components/PengramTypingEffects.java:377` | Applying requires matching actual range content as well as usable layout geometry. |
-| 28 | `ui/Components/PengramTypingEffects.java:316` | Only overlapping glyphs/batches are removed; following indices move by the edit delta. |
+| 25 | `ui/Components/PengramTypingEffects.java:254` | Up to 16 pending batches survive until pre-draw instead of a single overwritable posted slot. |
+| 26 | `ui/Components/PengramTypingEffects.java:385` | Invalid Layout retries are bounded by 3 attempts / 400ms; stale content is rejected. |
+| 27 | `ui/Components/PengramTypingEffects.java:384` | Applying requires matching actual range content as well as usable layout geometry. |
+| 28 | `ui/Components/PengramTypingEffects.java:323` | Only overlapping glyphs/batches are removed; following indices move by the edit delta. |
 | 29 | `ui/Components/PengramTypingEffects.java:128` | Replacement snapshot comparisons remove unchanged prefix/suffix instead of replaying the whole word. |
 | 30 | `ui/Components/ChatActivityEnterView.java:5495` | IME composing no longer clears every active effect; InputConnection still delegates to native methods. |
 | 31 | `ui/Components/ChatActivityEnterView.java:5392` | Paste is additionally reset after watchers and on focus; existing try/finally reset already covered no-op context-menu paste. |

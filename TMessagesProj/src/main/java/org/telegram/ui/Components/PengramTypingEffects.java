@@ -158,6 +158,13 @@ public final class PengramTypingEffects {
         s.noteCursorEvent(last == '\n' ? CURSOR_EVENT_DIVE : Character.isWhitespace(last) ? CURSOR_EVENT_JUMP : CURSOR_EVENT_NONE);
         s.enqueue(from, end, PengramConfig.getInputAnimation());
     }
+    // Почему: удаление пробельного кластера не должно создавать пустую частицу.
+    // Это фильтр снапшота, не эвристика paste/glide.
+    private static boolean multiword(CharSequence text, int start, int end) {
+        for (int i = start; i < end; i++) if (Character.isWhitespace(text.charAt(i))) return true;
+        return false;
+    }
+
     /** Коммит композиции может не менять текст вообще: watcher тогда молчит. */
     public static void committed(EditText edit, int start, int end) {
         try { committedSafe(edit, start, end); }

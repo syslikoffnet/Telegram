@@ -67,6 +67,8 @@ assert 'count == 0 && PengramConfig.isTypingDeleteAnim()' in effects
 assert 'if (before > 0)' in effects and 's.invalidateEditedRange(start, before, count)' in effects
 assert 'count > PASTE_THRESHOLD && count > 4096' in effects
 assert 'OnPreDrawListener' in effects and 'batch.attempts <= 3' in effects
+assert 'private static boolean multiword(' in effects  # still used by deletion snapshots
+assert 'multiword(text, start, end)' not in body(effects, 'applyUserEdit')
 assert 'ignoreTextChange || innerTextChange != 0' in composer
 assert 'autofill(' in composer and 'ACTION_SET_TEXT' in composer and 'android.R.id.undo' in composer
 assert 'setLayerType' not in effects and 'setSpan(' not in effects and 'setText(' not in effects
