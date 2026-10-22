@@ -919,8 +919,15 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
-                messageView.drawAnimatedEmojis(canvas, alphaProgress);
+                // Pengram: в ветви crossfade (она включается, когда текст сообщения
+                // отличается от поля ввода — стиль отправки «жирный» и любой другой
+                // добавляет спаны, а невидимые U+200B мягкого переноса меняли длину)
+                // текст строки проявлялся через alphaProgress: первые 100 мс из 250
+                // он был полупрозрачным, а при alpha == 0 drawMessageText вообще
+                // выходит без отрисовки. Строку теперь рисует сама ячейка, поэтому
+                // копия overlay рисуется сразу непрозрачной и совпадает с ней.
+                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);
+                messageView.drawAnimatedEmojis(canvas, 1f);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {
                     Theme.chat_msgTextPaint.setColor(oldColor);
                 }

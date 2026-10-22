@@ -27,7 +27,11 @@ assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not bec
 # когда геометрия overlay расходилась со строкой (высота «острова» ввода
 # меняется жидким стеклом панельки).
 assert 'setEnterTransitionInProgress' not in enter, 'cell suppression is back'
-assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
+# В ветви crossfade (стиль отправки, спаны, U+200B мягкого переноса) копия строки
+# рисуется непрозрачной: проявление через alphaProgress давало 100 мс полупрозрачного
+# текста, а при alpha == 0 drawMessageText выходит без отрисовки вовсе.
+assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true)' in enter
+assert 'messageView.drawAnimatedEmojis(canvas, 1f);' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
 emoji_start = cell.index('private void drawAnimatedEmojiMessageText(Canvas canvas, float alpha)')
