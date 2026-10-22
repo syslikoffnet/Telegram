@@ -496,12 +496,24 @@ public final class PengramTypingEffects {
                     removedBaseline[n] = layout.getLineBaseline(line) + paddingTop;
                     removedWidth[n] = rect.width();
                     removedDirection[n] = layout.isRtlCharAt(offset) ? -1 : 1;
-                    if (PengramConfig.getTypingDeleteStyle() == PengramConfig.DELETE_PARTICLE_LETTERS) {
-                        removedRasters[n] = raster(edit, layout, offset, end, cluster);
-                        if (removedRasters[n] != null) removedRasters[n].uses++;
-                    }
                 }
                 offset = end;
+            }
+            rasterizeSnapshot(edit, layout, cursor);
+        }
+        void rasterizeSnapshot(EditText edit, Layout layout, int cursor) {
+            if (PengramConfig.getTypingDeleteStyle() != PengramConfig.DELETE_PARTICLE_LETTERS) return;
+            // Почему: бюджет cache32 мог занять неизменённый префикс snapshot24,
+            // оставив реальной удаляемой букве только fallback-пыль. Начинаем у курсора.
+            int pivot = 0;
+            while (pivot + 1 < removedCount && removedOffsets[pivot + 1] < cursor) pivot++;
+            for (int n = 0; n < removedCount; n++) {
+                int i = n <= pivot ? pivot - n : n;
+                int start = removedOffsets[i];
+                int end = start + removedClusters[i].length();
+                if (!glyphRect(edit, layout, start, end)) continue;
+                removedRasters[i] = raster(edit, layout, start, end, removedClusters[i]);
+                if (removedRasters[i] != null) removedRasters[i].uses++;
             }
         }
         boolean hasGlyphs(TextPaint font, String text) {

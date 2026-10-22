@@ -35,6 +35,7 @@ assert 'removedOffsets[i] < start' in spawn and 'removedClusters[i].length() > s
 assert 'removedStart != start' not in spawn, 'normalized IME subrange must be accepted'
 assert 'emitted <' in spawn, 'density cap must apply after selecting the deleted range'
 assert 'removedOffsets[boundaryCount % MAX_DELETE_CLUSTERS]' in method(effects,'snapshot')
+assert 'rasterizeSnapshot(edit, layout, cursor)' in method(effects,'snapshot'), 'deleted glyph near cursor must get the limited raster budget first'
 assert 'composing(edit)' in method(effects,'applyUserEdit'), 'composition must not animate inserted text prematurely'
 preview=(java/'ui/Components/PengramTypingPreviewView.java').read_text()
 assert 'captureReplacement(input' in preview and 'count > after' in preview
@@ -88,6 +89,7 @@ static class PengramConfig {
  static int getTypingDeleteStyle(){return DELETE_PARTICLE_LETTERS;}
 }
 static class EditText {float getTextSize(){return 16;} void invalidate(){}}
+static class Layout {}
 static class Bitmap {int getWidth(){return 10;}}
 static class Raster {Bitmap bitmap=new Bitmap();int uses;}
 static class SystemClock {static long uptimeMillis(){return 1000;}}
@@ -103,14 +105,22 @@ Raster[] removedRasters=new Raster[24];
 float[] removedX=new float[24],removedBaseline=new float[24],removedTop=new float[24],removedWidth=new float[24],removedDirection=new float[24];
 Random random=new Random(1); ArrayList<Particle> particles=new ArrayList<>();
 void releaseSnapshot(){removedCount=0;} void scheduleAfter(long d){}
-'''+method(effects,'spawnFromSnapshot')+r'''
+int rasterBudget=1000;
+boolean glyphRect(EditText e,Layout l,int start,int end){return true;}
+Raster raster(EditText e,Layout l,int start,int end,String cluster){return rasterBudget-- > 0 ? new Raster() : null;}
+
+'''+method(effects,'spawnFromSnapshot')+'\n'+method(effects,'rasterizeSnapshot')+r'''
 void fill(int start,int units,int first,int n){
  removedStart=start; removedUnits=units; removedCount=n;
  for(int i=0;i<n;i++){removedOffsets[i]=first+i;removedClusters[i]="x";removedRasters[i]=new Raster();removedWidth[i]=10;removedDirection[i]=1;}
 }
 public static void main(String[] args){
+ // A nearly full bitmap cache must prioritize the actual backspace glyph over the old prefix.
+ ParticleHarness h=new ParticleHarness();h.fill(0,40,16,24);Arrays.fill(h.removedRasters,null);h.rasterBudget=1;
+ h.rasterizeSnapshot(h.edit,new Layout(),40);h.spawnFromSnapshot(39,1);
+ if(h.particles.size()!=1 || h.particles.get(0).style!=PengramConfig.DELETE_PARTICLE_LETTERS)throw new AssertionError("deleted letter lost raster priority");
  // IME rewrites a long word. The density cap must not discard its deleted tail.
- ParticleHarness h=new ParticleHarness();h.fill(0,40,16,24);h.spawnFromSnapshot(39,1);
+ h=new ParticleHarness();h.fill(0,40,16,24);h.spawnFromSnapshot(39,1);
  if(h.particles.size()!=1)throw new AssertionError("IME tail lost");
  h=new ParticleHarness();h.fill(5,2,5,2);h.spawnFromSnapshot(5,2);
  if(h.particles.size()!=2)throw new AssertionError("selection delete lost");
@@ -129,5 +139,5 @@ public static void main(String[] args){
         (p/'ParticleHarness.java').write_text(particles)
         run_java(['javac','-encoding','UTF-8',str(p/'ParticleHarness.java')])
         run_java(['java','-cp',d,'ParticleHarness'])
-        jvm='PASS(100 scheduler cases + 9 IME/range/cluster cases; production methods, fake Android)'
+        jvm='PASS(100 scheduler cases + 10 IME/range/cluster/cache-priority cases; production methods, fake Android)'
 print('OK: send overlay ownership, empty-source fallback, independent delete effect and IME subranges; JVM='+jvm)
