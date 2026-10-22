@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Send overlay must not inherit RecyclerView's visible-block culling.
 
-The cell suppresses its own text while the overlay owns it. A viewport range of
-(-1, -1), or a range left over from another layout, must not suppress the overlay
-as well. Exercise the production forwarding method and production range selector
-on the JVM with a counting renderer. This is not Android/pixel instrumentation.
+Исторически ячейка прятала собственный текст, пока им владел overlay отправки,
+поэтому диапазон видимых блоков (-1, -1) или чужой leftover не имел права глушить
+overlay тоже. Теперь overlay содержимое не рисует вовсе
+(test-pengram-send-text-visible.py): текст отправленного сообщения рисует сама
+ячейка. Контракты ниже оставлены как страховка — forwarding, выбор диапазона и
+alpha ячейки обязаны вести себя так же для голосового перелёта
+(VoiceMessageEnterTransition) и для превью отправки, которые этими методами
+пользуются. Exercise the production forwarding method and production range
+selector on the JVM with a counting renderer. This is not Android/pixel
+instrumentation.
 """
 from pathlib import Path
 import shutil
@@ -22,7 +28,11 @@ alpha_start = cell.rfind('        if (alpha == 0) {', start, selector_start)
 assert alpha_start >= 0
 alpha_guard = cell[alpha_start:cell.index('\n        }\n', alpha_start) + 10]
 assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not become opaque'
-assert 'messageView.setEnterTransitionInProgress(true)' in enter
+# Overlay отправки больше не прячет ячейку и не рисует её текст: иначе строка
+# стояла бы пустой 250 мс, а потом текст «вспыхивал» (жалоба пользователя).
+assert 'messageView.setEnterTransitionInProgress(true)' not in enter
+assert 'DRAW_MESSAGE_CONTENT_IN_OVERLAY = false;' in enter
+# Код отрисовки текста в overlay сохранён под флагом — откат в одну правку.
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
