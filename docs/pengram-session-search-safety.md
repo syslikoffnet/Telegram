@@ -162,3 +162,7 @@ test-pengram-visual-editor.py [exit=0]: Pengram visual editor source/resource/sa
 ## Промежуточный compile failure
 
 `39754521853` (da4dfa263) действительно выполнил javac и выявил duplicate case label в PengramSettingsActivity:5464. Локальные source suites этого не доказывали. Новый settings-search-crash contract проверяет уникальность числового ID диагностики; production constant1599 не пересекается с существующими literal BTN IDs. Требуется новый успешный compile/resource run; прежние FAIL не скрываются.
+
+## Сериализация успешного commit
+
+После переноса SessionLogin response callback на UI thread обнаружен лишний повторный post в LoginActivity listener.onSuccess. Он мог оставить очередь UI между проверкой пустого слота и записью UserConfig/onAuthSuccess; другой import смог бы занять этот промежуток. Убрано только повторное планирование: onAuthSuccess теперь вызывается непосредственно из уже UI-serialized response. Дополнительный source contract сначала дал exit1 (`auth commit must not be re-posted after the UI-thread slot check`), затем exit0; лог session-auth-commit-red.log. Это логическое доказательство границы UI transaction, не выполненный Android race scenario.

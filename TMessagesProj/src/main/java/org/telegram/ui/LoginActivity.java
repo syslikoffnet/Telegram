@@ -1889,14 +1889,15 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 new org.telegram.messenger.PengramSessionLogin.Listener() {
                     @Override
                     public void onSuccess(TLRPC.TL_auth_authorization authorization) {
-                        AndroidUtilities.runOnUIThread(() -> {
-                            pengramHideSessionProgress();
-                            account.clear();
-                            if (getParentActivity() == null) {
-                                return;
-                            }
-                            onAuthSuccess(authorization);
-                        });
+                        // Почему: SessionLogin уже проверил слот на UI thread.
+                        // Повторный post оставил бы окно для импорта другого ключа
+                        // до записи UserConfig и очистки БД этого auth-ответа.
+                        pengramHideSessionProgress();
+                        account.clear();
+                        if (getParentActivity() == null) {
+                            return;
+                        }
+                        onAuthSuccess(authorization);
                     }
 
                     @Override

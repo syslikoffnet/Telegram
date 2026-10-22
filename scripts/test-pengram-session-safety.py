@@ -20,6 +20,8 @@ assert 'flow.cancelled || active != flow' in connect
 assert 'volatile boolean cancelled' in login and 'volatile Flow active' in login
 ui = (java / 'ui/LoginActivity.java').read_text()
 assert '"slot_busy".equals(code)' in ui and 'R.string.PengramSessionErrSlotBusy' in ui
+success = ui.split('new org.telegram.messenger.PengramSessionLogin.Listener()', 1)[1].split('public void onPasswordNeeded', 1)[0]
+assert 'AndroidUtilities.runOnUIThread' not in success, 'auth commit must not be re-posted after the UI-thread slot check'
 assert 'UserConfig.selectedAccount' not in (java / 'ui/DialogsActivity.java').read_text()
 history = (java / 'messenger/PengramHistory.java').read_text()
 assert 'public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {' not in history

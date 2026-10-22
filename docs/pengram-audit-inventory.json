@@ -7081,7 +7081,7 @@
           "code": "public static void onAccountAuthorized() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java:2047",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/LoginActivity.java:2048",
           "code": "PengramBackgroundService.onAccountAuthorized();"
         }
       ]
