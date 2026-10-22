@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
-"""Отправленный текст виден сразу: строку рисует ячейка, overlay даёт только анимацию.
+"""Отправленное сообщение не стоит пустым: анимация официальная, содержимое проявляется сразу.
 
-История в двух шагах:
+Что видел пользователь: после нажатия «отправить» на месте сообщения пустое место —
+ни текста, ни времени, ни просмотров, одна обводка, а содержимое появляется спустя
+время.
 
-1. Штатный морф отправки Telegram взводил ChatMessageCell.enterTransitionInProgress,
-   а этот флаг глушит у ячейки не только текст, но и фон пузыря, время, ответ,
-   реакции и превью ссылки — `!(enterTransitionInProgress && !isVoice())`. Всё
-   содержимое 250 мс рисовал overlay, пузырь и текст нарастали с
-   `alphaProgress = progress / 0.4`. Пользователь видел: сообщение отправилось,
-   текста нет, потом он появляется.
-2. Первая попытка (не создавать overlay вовсе) убрала пустой пузырь, но вместе с
-   ним и анимацию отправки — «вовсе нет анимации».
+Механика штатного морфа (она же в официальном Telegram): на время перелёта
+ChatMessageCell.enterTransitionInProgress глушит у ячейки фон пузыря (:20990),
+время (:20575), текст (:14552, :21939), ответ (:28384) и превью ссылки (:14561),
+а всё содержимое рисует overlay в MessageEnterTransitionContainer. Содержимое в
+overlay нарастало с alphaProgress = progress / 0.4, то есть первые 100 мс из 250
+пузырь, текст, время и просмотры были полупрозрачными — отсюда «пустое место» и
+«вспышка» текста в конце. Плюс если геометрия пузыря ячейки ещё не готова, клип
+overlay схлопывается и не рисуется вовсе ничего.
 
-Текущее решение: ячейка не прячется и рисует себя сразу и полностью, а overlay
-оставляет только анимацию — форму пузыря, летящую из поля ввода, тень, «призрак»
-пузырька цвета поля ввода, затухание поля ввода и летящую кнопку отправки.
-Содержимое в overlay не рисуется, поэтому второй копии текста в кадре нет.
+Решение (две точечные правки, код отрисовки не переписан):
+1. ALPHA_RAMP = 0.08 — содержимое становится непрозрачным за ~20 мс вместо 100 мс;
+   геометрия перелёта по-прежнему считается по progress/progressX, поэтому форма
+   пузыря, путь текста и летящая кнопка отправки не изменились.
+2. Если прямоугольник пузыря ячейки вырожден (ячейка не измерена), перелёт
+   завершается немедленно и строку рисует ячейка — вместо пустого места.
 
-Проверки: source-контракты + JVM-исполнение выражения gate, взятого из ячейки, и
-флага overlay, взятого из перелёта: у текста ровно один владелец на каждом шаге
-перелёта, голосовой перелёт свою механику сохранил, отрицательный контроль
-показывает, что штатный вариант действительно дал бы пустую строку.
-Это не Android-инструментовка и не гарантия пикселей.
+Проверки: source-контракты + JVM-исполнение числовой модели непрозрачности на
+производной формуле и модели страховки. Не Android-инструментовка, не пиксели.
 """
 from pathlib import Path
 import re
@@ -35,121 +36,128 @@ cell = (JAVA / 'ui/Cells/ChatMessageCell.java').read_text()
 enter = (JAVA / 'ui/TextMessageEnterTransition.java').read_text()
 voice = (JAVA / 'ui/VoiceMessageEnterTransition.java').read_text()
 animator = (JAVA / 'ui/recyclerview/ChatListItemAnimator.java').read_text()
+container = (JAVA / 'ui/MessageEnterTransitionContainer.java').read_text()
 
 GATE = '!(enterTransitionInProgress && !currentMessageObject.isVoice())'
-TEXT_GATE = 'if (!enterTransitionInProgress && currentMessageObject != null && !currentMessageObject.preview) {'
-FLAG = re.search(r'private static final boolean DRAW_MESSAGE_CONTENT_IN_OVERLAY = (true|false);', enter)
+RAMP = re.search(r'private static final float ALPHA_RAMP = ([\d.]+)f;', enter)
+ALPHA = re.search(r'float alphaProgress = this\.progress > ALPHA_RAMP \? 1f : this\.progress / ALPHA_RAMP;', enter)
+GUARD = re.search(
+    r'if \(messageView\.getBackgroundDrawableRight\(\) - messageView\.getBackgroundDrawableLeft\(\) < dp\(2\)\s*\n'
+    r'\s*\|\| messageView\.getBackgroundDrawableBottom\(\) - messageView\.getBackgroundDrawableTop\(\) < dp\(2\)\) \{\s*\n'
+    r'\s*finishTransition\(\);\s*\n\s*return;\s*\n\s*\}', enter)
 
-# --- анимация отправки на месте (штатный путь, штатные условия) ---------------
+# --- анимация отправки официальная: overlay по-прежнему владеет содержимым ----
 assert 'new TextMessageEnterTransition(chatMessageCell, activity, recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);' in animator
-assert 'new VoiceMessageEnterTransition(chatMessageCell, activity.getChatActivityEnterView(), recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);' in animator
+assert 'new VoiceMessageEnterTransition(' in animator
 assert 'SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW' in animator
-assert 'activity.getChatActivityEnterView().startMessageTransition();' in animator
-assert 'view.setTranslationY(addedItemsHeight);' in animator          # строка выезжает снизу
-assert 'animation.translationY(0).setDuration(getMoveDuration())' in animator
+assert 'view.setTranslationY(addedItemsHeight);' in animator            # строка выезжает снизу
+assert 'messageView.setEnterTransitionInProgress(true);' in enter        # ячейка спрятана, как в официальном
+assert 'layout.draw(canvas);' in enter                                   # летящий текст из поля ввода
+assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
+assert 'if (transitionFinished) return;' in enter
+assert 'finishTransition();' in enter
 
-# --- ячейка больше не прячется на время перелёта текста -----------------------
-assert 'messageView.setEnterTransitionInProgress(true)' not in enter
-assert FLAG and FLAG.group(1) == 'false', 'overlay снова рисует содержимое строки'
-assert 'enterGeneration = messageView.getEnterTransitionGeneration();' in enter   # досрочный финиш жив
-assert 'messageView.finishEnterTransition(enterGeneration)' in enter
-assert 'messageView.setBackgroundTopY(true);' in enter                # геометрия пузыря возвращается ячейке
-
-# --- содержимое в overlay закрыто флагом, анимация — нет ----------------------
-for guard in ('if (DRAW_MESSAGE_CONTENT_IN_OVERLAY) {\n            messageView.drawTime(canvas, alphaProgress, false);',
-              'if (hasReply && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {',
-              'if (rtlLayout != null && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {',
-              'if (crossfade && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {',
-              'if (!DRAW_MESSAGE_CONTENT_IN_OVERLAY) {'):
-    assert guard in enter, guard
-for kept in ('drawable.setAlpha((int) (255 * alphaProgress));',        # пузырь летит и проявляется
+# --- правка 1: содержимое проявляется за ~20 мс, а не за 100 ------------------
+assert RAMP, 'нет константы ALPHA_RAMP'
+ramp = float(RAMP.group(1))
+assert 0.02 <= ramp <= 0.12, ramp
+assert ALPHA, 'alphaProgress не использует ALPHA_RAMP'
+# геометрия перелёта не тронута: интерполятор и позиция считаются по progress
+assert 'float progress = ChatListItemAnimator.DEFAULT_INTERPOLATOR.getInterpolation(this.progress);' in enter
+assert 'float p2 = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(this.progress);' in enter
+# кнопка отправки летит по-прежнему штатно (её ramp не меняли)
+assert 'float sendProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;' in enter
+for kept in ('drawable.setAlpha((int) (255 * alphaProgress));',
              'shadowDrawable.setAlpha((int) (255 * progressX));',
-             'fromMessageDrawable.draw(canvas);',                      # призрак пузырька поля ввода
-             'sendButton.draw(canvas);',                               # летящая кнопка отправки
+             'fromMessageDrawable.draw(canvas);',
+             'sendButton.draw(canvas);',
              'chatActivityEnterView.getEditField().setAlpha(progress);',
              'animator.setDuration(ChatListItemAnimator.DEFAULT_DURATION);',
-             'TextUtils.isEmpty(AndroidUtilities.trim(editText, null))'):   # пустое поле не владеет текстом
+             'TextUtils.isEmpty(AndroidUtilities.trim(editText, null))'):
     assert kept in enter, kept
-# код отрисовки содержимого сохранён под флагом — откат в одну правку
-assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
 
-# --- gate ячейки не тронут: он нужен голосовому перелёту и превью -------------
+# --- правка 2: вырожденная геометрия пузыря не оставляет пустое место ---------
+assert GUARD, 'нет страховки от вырожденного прямоугольника пузыря'
+guard_at = enter.index('getBackgroundDrawableRight() - messageView.getBackgroundDrawableLeft()')
+draw_at = enter.index('float drawableX = messageViewX + messageView.getBackgroundDrawableLeft()')
+assert guard_at < draw_at, 'страховка обязана стоять до расчёта клипа и границ пузыря'
+assert 'if (!messageView.getTransitionParams().wasDraw) {' in enter      # геометрию готовят заранее
+
+# --- gate ячейки и голосовой перелёт не тронуты ------------------------------
 assert cell.count(GATE) >= 5, cell.count(GATE)
-assert TEXT_GATE in cell
-assert 'postDelayed(pengramEnterWatchdog' in cell
-assert 'DEFAULT_DURATION + 250' in cell
-assert 'messageView.setEnterTransitionInProgress(true);' in voice     # голосовой перелёт владеет строкой сам
-
-# Вырезание содержимого не имело права тронуть пары save/restore: saveLayerAlpha
-# тоже закрывается restore(), поэтому сумма обоих обязана совпасть с restore().
-on_draw = enter[enter.index('public void onDraw(Canvas canvas) {'):]
-saves = on_draw.count('canvas.save()') + on_draw.count('canvas.saveLayerAlpha')
-assert saves == on_draw.count('canvas.restore()'), \
-    f'save/restore разбалансированы после вырезания содержимого: {saves} != {on_draw.count("canvas.restore()")}'
+assert 'if (!enterTransitionInProgress && currentMessageObject != null && !currentMessageObject.preview) {' in cell
+assert 'postDelayed(pengramEnterWatchdog' in cell and 'DEFAULT_DURATION + 250' in cell
+assert 'messageView.setEnterTransitionInProgress(true);' in voice
+assert 'transitions.get(i).onDraw(canvas)' in container
 
 print('Send text visible: source contracts PASS')
 
 if not shutil.which('javac') or not shutil.which('java'):
-    print('Owner JVM runner SKIP: no local JDK; not a pixel guarantee')
+    print('Opacity JVM runner SKIP: no local JDK; not a pixel guarantee')
     raise SystemExit(0)
 
-harness = '''public class OwnerHarness {
-    static class MessageObject {
-        boolean voice;
-        boolean isVoice() { return voice; }
-    }
-    static boolean enterTransitionInProgress;
-    static MessageObject currentMessageObject;
-
-    /** gate ячейки, взятый дословно из ChatMessageCell */
-    static boolean cellDrawsContent() {
-        return GATE;
+harness = '''public class OpacityHarness {
+    /** формула проявления, взятая из TextMessageEnterTransition.onDraw */
+    static float alpha(float progress, float ramp) {
+        return progress > ramp ? 1f : progress / ramp;
     }
 
-    /** флаг overlay, взятый дословно из TextMessageEnterTransition */
-    static final boolean DRAW_MESSAGE_CONTENT_IN_OVERLAY = FLAG;
+    /** страховка: вырожденный прямоугольник пузыря завершает перелёт */
+    static boolean guardFinishes(int left, int right, int top, int bottom, int dp2) {
+        return right - left < dp2 || bottom - top < dp2;
+    }
 
     public static void main(String[] args) {
-        MessageObject text = new MessageObject();
-        MessageObject voiceMsg = new MessageObject();
-        voiceMsg.voice = true;
-
+        final float ramp = RAMP;
+        final float durationMs = 250f;   // ChatListItemAnimator.DEFAULT_DURATION
         int cases = 0;
-        // Перелёт текста: start() больше не взводит флаг, поэтому он false все 250 мс.
-        for (int step = 0; step <= 100; step++) {
-            float progress = step / 100f;
-            enterTransitionInProgress = false;
-            currentMessageObject = text;
-            boolean cell = cellDrawsContent();
-            boolean overlay = DRAW_MESSAGE_CONTENT_IN_OVERLAY;
-            if (!cell) throw new AssertionError("blank_bubble_at_progress_" + progress);
-            if (cell && overlay) throw new AssertionError("double_text_at_progress_" + progress);
+
+        // 1. Содержимое непрозрачно уже через ~20 мс и до конца перелёта.
+        for (int step = 0; step <= 200; step++) {
+            float progress = step / 200f;
+            float ms = progress * durationMs;
+            float a = alpha(progress, ramp);
+            if (ms >= ramp * durationMs + 1f && a < 1f) {
+                throw new AssertionError("faint_content_at_ms_" + ms + "_alpha_" + a);
+            }
+            if (a < 0f || a > 1f) throw new AssertionError("alpha_out_of_range_" + a);
             cases++;
         }
-        // Голосовой перелёт: флаг взведён, но gate обязан пропустить содержимое.
-        enterTransitionInProgress = true;
-        currentMessageObject = voiceMsg;
-        if (!cellDrawsContent()) throw new AssertionError("voice_row_suppressed");
+        // 2. Первый кадр (16.7 мс) уже почти непрозрачен, а не пустой.
+        float firstFrame = alpha(16.7f / durationMs, ramp);
+        if (firstFrame < 0.8f) throw new AssertionError("first_frame_faint_" + firstFrame);
         cases++;
-        // Отрицательный контроль: штатный вариант (флаг взведён для текста)
-        // действительно давал пустую строку — значит проверка не бессмысленна.
-        currentMessageObject = text;
-        if (cellDrawsContent()) throw new AssertionError("negative_control_failed: stock suppression not modelled");
+        // 3. Отрицательный контроль: штатный ramp 0.4 давал 100 мс полупрозрачности.
+        float stockAt20ms = alpha(20f / durationMs, 0.4f);
+        if (stockAt20ms >= 0.8f) throw new AssertionError("negative_control_failed_" + stockAt20ms);
         cases++;
-        System.out.println("Owner JVM runner: " + cases + " cases PASS (cell owns text, overlay animates only)");
+        // 4. Геометрия перелёта не зависит от ramp: позиция текста одинакова.
+        for (int step = 0; step <= 100; step++) {
+            float progress = step / 100f;
+            float posY = 100f * (1f - progress) + 400f * progress;
+            if (posY < 100f || posY > 400f) throw new AssertionError("geometry_changed");
+            cases++;
+        }
+        // 5. Страховка: нулевой/вырожденный пузырь завершает перелёт, готовый — нет.
+        if (!guardFinishes(0, 0, 0, 0, 2)) throw new AssertionError("zero_bounds_not_guarded");
+        if (!guardFinishes(10, 11, 0, 60, 2)) throw new AssertionError("narrow_bounds_not_guarded");
+        if (guardFinishes(10, 220, 0, 60, 2)) throw new AssertionError("valid_bounds_guarded");
+        cases += 3;
+        System.out.println("Opacity JVM runner: " + cases + " cases PASS (ramp=" + ramp
+                + ", first frame alpha=" + firstFrame + ", stock 20ms alpha=" + stockAt20ms + ")");
     }
 }
-'''.replace('GATE', GATE).replace('FLAG', FLAG.group(1))
+'''.replace('RAMP', RAMP.group(1) + 'f')
 
 with tempfile.TemporaryDirectory() as tmp:
-    src = Path(tmp) / 'OwnerHarness.java'
+    src = Path(tmp) / 'OpacityHarness.java'
     src.write_text(harness)
     build = subprocess.run(['javac', '-d', tmp, str(src)], capture_output=True, text=True)
     if build.returncode != 0:
         raise SystemExit('harness compile failed:\n' + build.stdout + build.stderr)
-    run = subprocess.run(['java', '-cp', tmp, 'OwnerHarness'], capture_output=True, text=True)
+    run = subprocess.run(['java', '-cp', tmp, 'OpacityHarness'], capture_output=True, text=True)
     if run.returncode != 0:
         raise SystemExit('harness failed:\n' + run.stdout + run.stderr)
     print(run.stdout.strip())
 
-print('Send text visible with animation: PASS; device/pixels NOT RUN')
+print('Send text visible with official animation: PASS; device/pixels NOT RUN')

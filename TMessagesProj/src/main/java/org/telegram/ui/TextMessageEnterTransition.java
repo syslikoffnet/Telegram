@@ -58,25 +58,16 @@ import org.telegram.ui.Components.spoilers.SpoilerEffect;
 public class TextMessageEnterTransition implements MessageEnterTransitionContainer.Transition {
 
     /**
-     * Pengram: overlay больше не владеет содержимым отправленной строки.
+     * Pengram: за какую долю перелёта содержимое становится полностью непрозрачным.
      *
-     * <p>Штатный морф отправки взводил {@code ChatMessageCell.enterTransitionInProgress},
-     * а этот флаг глушит у ячейки не только текст, но и фон пузыря, время, ответ,
-     * реакции и превью ссылки ({@code !(enterTransitionInProgress && !isVoice())}).
-     * Всё содержимое 250 мс рисовал overlay, причём пузырь и текст нарастали с
-     * {@code alphaProgress = progress / 0.4}. В итоге отправленное сообщение
-     * стояло пустым, а текст «вспыхивал» в конце перелёта — ровно то, на что
-     * жаловался пользователь.
-     *
-     * <p>Теперь ячейка рисует себя сразу и полностью, поэтому содержимое в
-     * overlay не рисуется вовсе: иначе в кадре были бы две копии текста.
-     * От перелёта остаётся сама анимация отправки — форма пузыря, летящая из
-     * поля ввода, тень, «призрак» пузырька цвета поля ввода, затухание поля
-     * ввода и летящая кнопка отправки.
-     *
-     * <p>{@code true} вернул бы штатное поведение Telegram одной правкой.
+     * <p>Штатные 0.4 (100 мс из 250) держали пузырь, текст, время и просмотры
+     * полупрозрачными в начале перелёта: пользователь видел пустое место вместо
+     * сообщения и «вспышку» текста в конце. Геометрия перелёта по-прежнему
+     * считается по progress/progressX, поэтому форма пузыря, путь текста и
+     * летящая кнопка отправки не изменились — быстрее нарастает только
+     * непрозрачность. 0.08 от 250 мс это ~20 мс, один-два кадра.
      */
-    private static final boolean DRAW_MESSAGE_CONTENT_IN_OVERLAY = false;
+    private static final float ALPHA_RAMP = 0.08f;
 
     float fromRadius;
     float progress;
@@ -467,11 +458,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             notificationsLocker.lock();
             if (enterView.getEditField() != null) enterView.getEditField().setAlpha(0f);
             enterView.setTextTransitionIsRunning(true);
-            // Pengram: ячейку не прячем — enterTransitionInProgress глушил бы
-            // весь пузырь строки на 250 мс перелёта, и отправленный текст
-            // появлялся бы только в конце. Поколение всё равно запоминаем: по
-            // нему onDraw понимает, что ячейку перебиндили, и завершает перелёт
-            // досрочно.
+            messageView.setEnterTransitionInProgress(true);
             enterGeneration = messageView.getEnterTransitionGeneration();
             animator.start();
         }
@@ -531,8 +518,24 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             lastMessageY = messageViewY;
         }
 
+        // Pengram: страховка от «пустого места» вместо отправленного сообщения.
+        //
+        // На время перелёта ячейка спрятана (enterTransitionInProgress глушит у
+        // неё фон, текст, время и просмотры), а всё содержимое рисует overlay.
+        // Он клипает текст по прямоугольнику пузыря, который берётся из
+        // getBackgroundDrawableLeft/Top/Right/Bottom ячейки. Если геометрия
+        // пузыря ещё не готова (ячейка не измерена, backgroundWidth == 0),
+        // клип схлопывается и overlay не рисует ничего — пользователь видит
+        // пустую обводку, пока перелёт не закончится. В таком случае завершаем
+        // перелёт немедленно: флаг снимается и строка рисуется сразу целиком.
+        if (messageView.getBackgroundDrawableRight() - messageView.getBackgroundDrawableLeft() < dp(2)
+                || messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop() < dp(2)) {
+            finishTransition();
+            return;
+        }
+
         float progress = ChatListItemAnimator.DEFAULT_INTERPOLATOR.getInterpolation(this.progress);
-        float alphaProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;
+        float alphaProgress = this.progress > ALPHA_RAMP ? 1f : this.progress / ALPHA_RAMP;
 
         float p2 = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(this.progress);
         float progressX = CubicBezierInterpolator.EASE_OUT.getInterpolation(p2);
@@ -584,14 +587,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             drawable.draw(canvas);
             drawable.setDrawFullBubble(false);
             drawable.setAlpha(255);
-            // Pengram: drawable у ячейки и overlay общий, а setBackgroundTopY
-            // ячейка зовёт только при его пересоздании. Раз строка теперь
-            // рисуется сама в этом же кадре, возвращаем ей собственную
-            // геометрию верха — иначе координата overlay
-            // (container.getTop() - listView.getTop()) осталась бы в пузырьке.
-            if (!DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
-                messageView.setBackgroundTopY(true);
-            }
         }
         canvas.restore();
 
@@ -610,19 +605,17 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             }
         }
         canvas.translate(messageView.getLeft() + listView.getX() - container.getX(), messageViewY + (fromY - toY) * (1f - progress));
-        if (DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
-            messageView.drawTime(canvas, alphaProgress, false);
-            messageView.drawNamesLayout(canvas, alphaProgress);
-            messageView.drawCommentButton(canvas, alphaProgress);
-            messageView.drawCaptionLayout(canvas, false, alphaProgress);
-            messageView.drawReactionsLayout(canvas, alphaProgress, null);
-            messageView.drawCommentLayout(canvas, alphaProgress);
-            messageView.drawLinkPreview(canvas, alphaProgress);
-        }
+        messageView.drawTime(canvas, alphaProgress, false);
+        messageView.drawNamesLayout(canvas, alphaProgress);
+        messageView.drawCommentButton(canvas, alphaProgress);
+        messageView.drawCaptionLayout(canvas, false, alphaProgress);
+        messageView.drawReactionsLayout(canvas, alphaProgress, null);
+        messageView.drawCommentLayout(canvas, alphaProgress);
+        messageView.drawLinkPreview(canvas, alphaProgress);
         canvas.restore();
 
 
-        if (hasReply && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
+        if (hasReply) {
             chatActivity.getReplyNameTextView().setAlpha(0f);
             chatActivity.getReplyObjectTextView().setAlpha(0f);
 
@@ -846,10 +839,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
         canvas.scale(scale, scale * scale2, 0, 0);
 
-        if (!DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
-            // Pengram: текст из поля ввода не летит — строка уже нарисована
-            // ячейкой, а вторая копия текста в кадре не нужна.
-        } else if (drawBitmaps) {
+        if (drawBitmaps) {
             if (crossfade) {
                 bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
             }
@@ -875,7 +865,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         }
         canvas.restore();
 
-        if (rtlLayout != null && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
+        if (rtlLayout != null) {
             canvas.save();
             canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
             canvas.scale(scale, scale * scale2, 0, 0);
@@ -903,7 +893,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             canvas.restore();
         }
 
-        if (crossfade && DRAW_MESSAGE_CONTENT_IN_OVERLAY) {
+        if (crossfade) {
             canvas.save();
             canvas.translate(messageView.getLeft() + listView.getX() - container.getX() + (fromX - toX) * (1f - progressX), messageViewY + (fromY - toY) * (1f - progress));
             canvas.scale(scale, scale * scale2, messageView.getTextX(), messageView.getTextY());
