@@ -26,6 +26,7 @@ public class MessageEnterTransitionContainer extends View {
 
     public interface Transition {
         void onDraw(Canvas canvas);
+        default void onRemoved() { }
     }
 
     void addTransition(Transition transition) {
@@ -35,9 +36,15 @@ public class MessageEnterTransitionContainer extends View {
     }
 
     void removeTransition(Transition transition) {
-        transitions.remove(transition);
+        if (transitions.remove(transition)) transition.onRemoved();
         checkVisibility();
         parent.invalidate();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        while (!transitions.isEmpty()) removeTransition(transitions.get(transitions.size() - 1));
+        super.onDetachedFromWindow();
     }
 
     @Override
@@ -45,7 +52,7 @@ public class MessageEnterTransitionContainer extends View {
         if (transitions.isEmpty()) {
             return;
         }
-        for (int i = 0; i < transitions.size(); i++) {
+        for (int i = transitions.size() - 1; i >= 0; i--) {
             transitions.get(i).onDraw(canvas);
         }
     }

@@ -88,7 +88,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private FrameLayout penguinHolder;
     private PengramBeatHalo beatHalo;
     /** 0 — реакция на музыку выключена в настройках */
-    private final float beatIntensity = PengramConfig.getPlayerBeatIntensity();
+    private float beatIntensity = PengramConfig.getPlayerBeatIntensity();
     private PengramAudioPulse.Listener pulseListener;
     private final BackupImageView smallCoverView;
     private final TextView titleView;
@@ -112,6 +112,27 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private String lyricsKey;
     private int lyricsToken;
     private int accentColor = 0xFF5FD0A0;
+    private android.content.SharedPreferences playerPreferences;
+    private final Runnable refreshPlayerAppearance = this::refreshPlayerAppearance;
+    private void refreshPlayerAppearance() {
+        if (this.coverDisposed) return;
+        beatIntensity = PengramConfig.getPlayerBeatIntensity();
+        if (beatHalo != null) beatHalo.setIntensity(beatIntensity);
+        if (beatIntensity > 0) startPulse(); else {
+            stopPulse();
+            coverView.setScaleX(1f);
+            coverView.setScaleY(1f);
+        }
+        applyCoverShape();
+        setCoverState(this.coverState, this.displayedCoverKey);
+        updatePenguinMood();
+    }
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener playerPreferenceListener = (prefs, key) -> {
+        if (key == null || key.startsWith("player") || key.startsWith("cover") || key.startsWith("penguin")) {
+            AndroidUtilities.cancelRunOnUIThread(refreshPlayerAppearance);
+            AndroidUtilities.runOnUIThread(refreshPlayerAppearance);
+        }
+    };
 
     public PengramMusicPlayerSheet(Context context, Theme.ResourcesProvider resourcesProvider) {
         super(context, true, resourcesProvider);
@@ -310,19 +331,6 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         // Картинка может не приехать вовсе (битая ссылка артворка, нет сети) —
         // тогда никто бы не сообщил, что обложки нет. Слушаем сам приёмник:
         // пришла — прячем пингвина, не пришла — он остаётся на месте.
-        coverView.getImageReceiver().setDelegate((receiver, set, thumb, memCache) -> {
-            if (set) {
-                hideEmptyCover();
-                final android.graphics.Bitmap bitmap = receiver.getBitmap();
-                if (bitmap != null && !bitmap.isRecycled()) {
-                    backgroundView.setCover(bitmap);
-                }
-            } else {
-                // A request is still in flight. Replacing the receiver image
-                // here cancels that request and leaves a false "missing" cover.
-                applyEmptyCover(true);
-            }
-        });
         lyricsContainer = new FrameLayout(context);
 
         if (style == PengramConfig.PLAYER_STYLE_MINI_LYRICS) {
@@ -561,6 +569,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             buildQueuePanel(context);
         }
 
+        playerPreferences = context.getSharedPreferences("pengramconfig", Context.MODE_PRIVATE);
+        playerPreferences.registerOnSharedPreferenceChangeListener(playerPreferenceListener);
         startPulse();
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
@@ -1412,58 +1422,79 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         return main != null ? main : smallCoverView.getImageReceiver().getBitmap();
     }
 
+    private static final int COVER_VISIBLE = 0, COVER_LOADING = 1, COVER_MISSING = 2, COVER_ERROR = 3;
+    private int coverState = COVER_MISSING;
+    private long coverGeneration;
+    private boolean coverDisposed;
     private String displayedCoverKey;
+
+    private boolean currentCover(String key, long generation) {
+        return !coverDisposed && generation == coverGeneration && TextUtils.equals(key, displayedCoverKey)
+                && TextUtils.equals(key, org.telegram.messenger.PengramCovers.keyFor(
+                        MediaController.getInstance().getPlayingMessageObject()));
+    }
+
+    private static boolean usableCover(android.graphics.Bitmap bitmap) {
+        return bitmap != null && !bitmap.isRecycled() && bitmap.getWidth() > 0 && bitmap.getHeight() > 0;
+    }
 
     private void updateCover(MessageObject messageObject) {
         final String trackKey = org.telegram.messenger.PengramCovers.keyFor(messageObject);
+        final long requestGeneration = ++coverGeneration;
+        coverView.getImageReceiver().setDelegate(null);
         if (!TextUtils.equals(trackKey, displayedCoverKey)) {
             displayedCoverKey = trackKey;
-            // Don't keep the previous track's background while the new cover loads.
             backgroundView.setCover(null);
-            // Don't share the previous track's artwork while the new one loads.
             coverView.setImageDrawable(null);
             smallCoverView.setImageDrawable(null);
         }
+        setCoverState(COVER_LOADING, trackKey);
         final AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
         applyCoverShape();
-        if (audioInfo != null && (audioInfo.getCover() != null || audioInfo.getSmallCover() != null)) {
-            applyCoverBitmap(audioInfo.getCover() != null ? audioInfo.getCover() : audioInfo.getSmallCover());
-            return;
-        }
-        final android.graphics.Bitmap cached = org.telegram.messenger.PengramCovers.getCached(messageObject);
-        if (cached != null) {
-            applyCoverBitmap(cached);
-            return;
-        }
-        // обложка может лежать в тегах файла — достаём её в фоне и показываем, как только готова
-        org.telegram.messenger.PengramCovers.request(messageObject, (key, bitmap) -> {
-            final MessageObject now = MediaController.getInstance().getPlayingMessageObject();
-            if (bitmap == null || key == null || !key.equals(org.telegram.messenger.PengramCovers.keyFor(now))) {
+        // AudioInfo принадлежит активному MediaController; проверяем и текущий трек.
+        if (currentCover(trackKey, requestGeneration) && audioInfo != null) {
+            final android.graphics.Bitmap bitmap = usableCover(audioInfo.getCover())
+                    ? audioInfo.getCover() : audioInfo.getSmallCover();
+            if (usableCover(bitmap)) {
+                applyCoverBitmap(trackKey, requestGeneration, bitmap);
                 return;
             }
-            applyCoverBitmap(bitmap);
-        });
-        final TLRPC.Document document = messageObject.getDocument();
-        TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 360) : null;
-        if (!(thumb instanceof TLRPC.TL_photoSize) && !(thumb instanceof TLRPC.TL_photoSizeProgressive)) {
-            thumb = null;
         }
-        final String artworkUrl = messageObject.getArtworkUrl(false);
+        final android.graphics.Bitmap cached = org.telegram.messenger.PengramCovers.getCached(messageObject);
+        if (usableCover(cached)) {
+            applyCoverBitmap(trackKey, requestGeneration, cached);
+            return;
+        }
+        coverView.getImageReceiver().setDelegate((receiver, set, thumb, memCache) -> {
+            if (applyingEmptyCover || !currentCover(trackKey, requestGeneration)) return;
+            final android.graphics.Bitmap bitmap = receiver.getBitmap();
+            if (set && usableCover(bitmap)) {
+                backgroundView.setCover(bitmap);
+                setCoverState(COVER_VISIBLE, trackKey);
+            } else if (coverState != COVER_VISIBLE) {
+                setCoverState(COVER_ERROR, trackKey);
+            }
+        });
+        // Запросы запускаются только здесь, никогда из renderCoverState/onDraw.
+        final TLRPC.Document document = messageObject == null ? null : messageObject.getDocument();
+        TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 360) : null;
+        if (!(thumb instanceof TLRPC.TL_photoSize) && !(thumb instanceof TLRPC.TL_photoSizeProgressive)) thumb = null;
+        final String artworkUrl = messageObject == null ? null : messageObject.getArtworkUrl(false);
         final ImageLocation thumbLocation = thumb != null ? ImageLocation.getForDocument(thumb, document) : null;
         if (!TextUtils.isEmpty(artworkUrl)) {
-            applyEmptyCover(true);
             coverView.setImage(ImageLocation.getForPath(artworkUrl), null, thumbLocation, null, null, 0, 1, messageObject);
             smallCoverView.setImage(ImageLocation.getForPath(artworkUrl), "44_44", thumbLocation, null, null, 0, 1, messageObject);
         } else if (thumbLocation != null) {
-            applyEmptyCover(true);
             coverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
             smallCoverView.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
-            applyEmptyCover();
-            return;
+            setCoverState(COVER_MISSING, trackKey);
         }
-        // A cached image receiver can complete synchronously during setImage.
-        // Do not erase the background it just supplied.
+        org.telegram.messenger.PengramCovers.request(messageObject, (key, bitmap) -> {
+            if (!currentCover(key, requestGeneration)) return;
+            if (usableCover(bitmap)) applyCoverBitmap(key, requestGeneration, bitmap);
+            else if (coverState != COVER_VISIBLE) setCoverState(COVER_ERROR, key);
+        });
     }
 
     /**
@@ -1538,22 +1569,31 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
      */
     private FrameLayout createPenguinHolder(Context context) {
         final FrameLayout holder = new FrameLayout(context);
-        holder.setVisibility(View.GONE);
-        if (beatIntensity > 0) {
-            // сияние живёт под пингвином и чуть выходит за его границы
+        holder.setClipChildren(true);
+        holder.setClipToPadding(true);
+        {
+            // Почему: сияние не должно заходить на строки и кнопки.
             beatHalo = new PengramBeatHalo(context);
             beatHalo.setIntensity(beatIntensity);
             beatHalo.setAccentColor(accentColor);
             holder.addView(beatHalo, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
+        final android.widget.ImageView fallback = new android.widget.ImageView(context);
+        fallback.setImageResource(R.drawable.pengram_logo);
+        fallback.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        fallback.setScaleX(0.78f);
+        fallback.setScaleY(0.78f);
+        holder.addView(fallback, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         penguinCover = new PengramPenguinView(context);
+        penguinCover.whenReady(() -> fallback.setAlpha(0f));
+        penguinCover.whenUnavailable(() -> fallback.setAlpha(1f));
         penguinCover.setSkin(PengramConfig.getPenguinSkin());
         penguinCover.setOnTapListener(() -> {
             // тап — маленькая награда за любопытство
             penguinCover.doFlip();
             AndroidUtilities.vibrateCursor(holder);
         });
-        holder.addView(penguinCover, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 10, 10, 10, 10));
+        holder.addView(penguinCover, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 4, 4, 4, 4));
         return holder;
     }
 
@@ -1561,9 +1601,8 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private android.graphics.drawable.Drawable emptyCoverBackground(int radius) {
         final android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
         shape.setCornerRadius(radius);
-        // лёгкий оттенок акцента вместо серой пустоты: заглушка выглядит задуманной
-        shape.setColor(ColorUtils.setAlphaComponent(accentColor, 54));
-        shape.setStroke(dp(1), ColorUtils.setAlphaComponent(accentColor, 70));
+        // Почему: персонаж — не выделенный элемент. Акцент остаётся у управления.
+        shape.setColor(ColorUtils.setAlphaComponent(getThemedColor(Theme.key_windowBackgroundGray), 20));
         return shape;
     }
 
@@ -1574,73 +1613,56 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
      * компактных режимах и в мини-тексте это возвращает экрану половину
      * высоты), «как в оригинале» оставляет прежнюю заливку.
      */
-    private void applyEmptyCover() {
-        applyEmptyCover(false);
-    }
-
-    /**
-     * @param pending обложку ещё только грузим: пингвин уже на сцене, но место
-     *                под картинку остаётся — она появится поверх него сама.
-     *                Так пустой блок не висит, пока сеть думает, и не мигает,
-     *                если обложка в итоге не придёт.
-     */
     private boolean applyingEmptyCover;
 
-    private void applyEmptyCover(boolean pending) {
-        if (applyingEmptyCover) {
-            return;   // заглушка сама дёргает приёмник картинки — второй заход не нужен
-        }
+    // Единственный владелец видимости: callbacks передают только состояние/ключ.
+    private void setCoverState(int state, String trackKey) {
+        if (coverDisposed || !TextUtils.equals(trackKey, displayedCoverKey) || applyingEmptyCover) return;
         applyingEmptyCover = true;
         try {
-            applyEmptyCoverInner(pending);
+            coverState = state;
+            final boolean visible = state == COVER_VISIBLE;
+            final boolean pending = state == COVER_LOADING;
+            final int mode = PengramConfig.getEmptyCoverMode();
+            final boolean penguin = !visible && mode == PengramConfig.EMPTY_COVER_PENGUIN && penguinHolder != null;
+            final boolean hide = !visible && mode == PengramConfig.EMPTY_COVER_HIDE;
+            if (penguinHolder != null) {
+                penguinHolder.setVisibility(penguin ? View.VISIBLE : View.GONE);
+                if (penguin) {
+                    penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));
+                    penguinCover.setSkin(PengramConfig.getPenguinSkin());
+                    updatePenguinMood();
+                } else if (penguinCover != null) {
+                    penguinCover.setDanceLoop(false);
+                    penguinCover.setPaused(true);
+                    if (beatHalo != null) beatHalo.reset();
+                }
+            }
+            // При загрузке ImageReceiver остаётся активным, но прозрачен до результата.
+            coverView.setVisibility(visible || pending && !hide || !penguin && !hide ? View.VISIBLE : View.GONE);
+            coverView.setBackground(!visible && !penguin && !hide ? emptyCoverBackground(coverCornerRadius()) : null);
+            if (!visible && !pending && !penguin && !hide) coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
+            if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
+                smallCoverView.setVisibility(hide ? View.GONE : View.VISIBLE);
+                if (!visible) {
+                    if (penguin) {
+                        final android.graphics.drawable.Drawable glyph = getContext().getResources()
+                                .getDrawable(R.drawable.pengram_penguin_glyph).mutate();
+                        glyph.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
+                        final android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(
+                                new android.graphics.drawable.Drawable[]{emptyCoverBackground(dp(10)), glyph});
+                        layers.setLayerInset(1, dp(9), dp(9), dp(9), dp(9));
+                        smallCoverView.setImageDrawable(layers);
+                    } else if (!hide && !pending) smallCoverView.setImageDrawable(emptyCoverBackground(dp(10)));
+                }
+            }
+            if (!visible) backgroundView.setCover(null);
+            if (org.telegram.messenger.BuildVars.LOGS_ENABLED) org.telegram.messenger.FileLog.d(
+                    "Pengram cover state=" + state + " style=" + style + " generation=" + coverGeneration
+                    + " emptyMode=" + mode + " penguin=" + penguin + " beat=" + beatIntensity);
         } finally {
             applyingEmptyCover = false;
         }
-    }
-
-    private void applyEmptyCoverInner(boolean pending) {
-        final int mode = PengramConfig.getEmptyCoverMode();
-        final boolean penguin = mode == PengramConfig.EMPTY_COVER_PENGUIN && penguinHolder != null;
-        final boolean hide = mode == PengramConfig.EMPTY_COVER_HIDE;
-
-        if (penguinHolder != null) {
-            penguinHolder.setVisibility(penguin ? View.VISIBLE : View.GONE);
-            if (penguin) {
-                penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));
-                penguinCover.setSkin(PengramConfig.getPenguinSkin());
-                updatePenguinMood();
-            } else if (penguinCover != null) {
-                penguinCover.setPaused(true);
-            }
-        }
-        coverView.setVisibility((penguin && !pending) || (hide && !pending) ? View.GONE : View.VISIBLE);
-        if (!penguin && !hide) {
-            coverView.setBackground(emptyCoverBackground(coverCornerRadius()));
-        }
-        if (!pending && !penguin && !hide) {
-            coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
-        }
-        if (!pending && (smallCoverView.getVisibility() != View.GONE || !hide)) {
-            if (hide) {
-                smallCoverView.setVisibility(View.GONE);
-            } else if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
-                smallCoverView.setVisibility(View.VISIBLE);
-                if (penguin) {
-                    // в маленьком квадрате живой пингвин не читается — ставим его силуэт
-                    final android.graphics.drawable.Drawable glyph = getContext().getResources()
-                            .getDrawable(R.drawable.pengram_penguin_glyph).mutate();
-                    glyph.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-                    final android.graphics.drawable.LayerDrawable layers =
-                            new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{
-                                    emptyCoverBackground(dp(10)), glyph});
-                    layers.setLayerInset(1, dp(9), dp(9), dp(9), dp(9));
-                    smallCoverView.setImageDrawable(layers);
-                } else {
-                    smallCoverView.setImageDrawable(emptyCoverBackground(dp(10)));
-                }
-            }
-        }
-        backgroundView.setCover(null);
     }
 
     /** радиус, который сейчас у обложки — чтобы заглушка повторяла её форму */
@@ -1662,42 +1684,29 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
         final boolean paused = MediaController.getInstance().isMessagePaused();
         penguinCover.setPaused(false);
-        if (!PengramConfig.isPenguinDancing()) {
-            penguinCover.setDanceLoop(false);
-            penguinCover.setSleeping(false);
-            return;
-        }
         penguinCover.setSleeping(paused);
-        penguinCover.setDanceLoop(!paused);
+        penguinCover.setDanceLoop(!paused && PengramConfig.isPenguinDancing());
         if (paused && beatHalo != null) {
             beatHalo.reset();
         }
     }
 
-    /** обложка нашлась — пингвин уходит со сцены */
-    private void hideEmptyCover() {
-        if (penguinHolder != null && penguinHolder.getVisibility() != View.GONE) {
-            penguinHolder.setVisibility(View.GONE);
-            if (penguinCover != null) {
-                penguinCover.setDanceLoop(false);
-                penguinCover.setPaused(true);
-            }
-        }
-        coverView.setVisibility(View.VISIBLE);
-        coverView.setBackground(null);
-        if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
-            smallCoverView.setVisibility(View.VISIBLE);
-        }
-    }
-
-    private void applyCoverBitmap(android.graphics.Bitmap bitmap) {
-        if (bitmap == null || bitmap.isRecycled()) {
+    private void applyCoverBitmap(String key, long generation, android.graphics.Bitmap bitmap) {
+        if (!currentCover(key, generation)) return;
+        if (!usableCover(bitmap)) {
+            if (coverState != COVER_VISIBLE) setCoverState(COVER_ERROR, key);
             return;
         }
-        hideEmptyCover();
-        coverView.setImageBitmap(bitmap);
-        smallCoverView.setImageBitmap(bitmap);
-        backgroundView.setCover(bitmap);
+        // Почему: установка картинки может синхронно вызвать delegate.
+        applyingEmptyCover = true;
+        try {
+            coverView.setImageBitmap(bitmap);
+            smallCoverView.setImageBitmap(bitmap);
+            backgroundView.setCover(bitmap);
+        } finally {
+            applyingEmptyCover = false;
+        }
+        setCoverState(COVER_VISIBLE, key);
     }
 
     private void updateProgress(MessageObject messageObject) {
@@ -1834,6 +1843,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
     @Override
     public void dismiss() {
+        coverDisposed = true;
+        coverGeneration++;
+        AndroidUtilities.cancelRunOnUIThread(refreshPlayerAppearance);
+        if (playerPreferences != null) playerPreferences.unregisterOnSharedPreferenceChangeListener(playerPreferenceListener);
+        coverView.getImageReceiver().setDelegate(null);
+        if (penguinCover != null) penguinCover.setPaused(true);
         super.dismiss();
         stopPulse();
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);

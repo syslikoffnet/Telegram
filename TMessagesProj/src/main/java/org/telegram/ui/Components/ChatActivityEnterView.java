@@ -5375,10 +5375,12 @@ public class ChatActivityEnterView extends FrameLayout implements
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
                     if (!isChat || ignoreTextChange || innerTextChange != 0 || isPaste || pengramExternalEditDepth > 0
-                            || pengramImeComposing || editingMessageObject != null) {
+                            || editingMessageObject != null) {
                         PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
-                    } else if (count > 0 && after == 0) {
-                        PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
+                    } else {
+                        PengramTypingEffects.captureReplacement(ChatActivityEditTextCaption.this, s, start, count, after);
+                        if (!pengramImeComposing && count > 0 && after == 0)
+                            PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
                     }
                 }
 
@@ -5388,6 +5390,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                 @Override
                 public void afterTextChanged(Editable s) {
+                    isPaste = false;
                 }
             });
         }
@@ -5397,6 +5400,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             super.onDetachedFromWindow();
         }
         @Override protected void onFocusChanged(boolean focused, int direction, Rect previous) {
+            isPaste = false;
             super.onFocusChanged(focused, direction, previous);
             if (focused && isChat && editingMessageObject == null) PengramTypingEffects.wake(this); else PengramTypingEffects.clear(this);
         }
@@ -5490,23 +5494,19 @@ public class ChatActivityEnterView extends FrameLayout implements
             final InputConnection ic = original == null ? null : new android.view.inputmethod.InputConnectionWrapper(original, false) {
                 @Override public boolean setComposingText(CharSequence text, int position) {
                     pengramImeComposing = true;
-                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
                     try { return super.setComposingText(text, position); }
                     finally { pengramImeComposing = false; }
                 }
                 @Override public boolean setComposingRegion(int start, int end) {
-                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
                     return super.setComposingRegion(start, end);
                 }
                 @android.annotation.TargetApi(33)
                 @Override public boolean setComposingRegion(int start, int end, android.view.inputmethod.TextAttribute attributes) {
-                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
                     return super.setComposingRegion(start, end, attributes);
                 }
                 @android.annotation.TargetApi(33)
                 @Override public boolean setComposingText(CharSequence text, int position, android.view.inputmethod.TextAttribute attributes) {
                     pengramImeComposing = true;
-                    PengramTypingEffects.clear(ChatActivityEditTextCaption.this);
                     try { return super.setComposingText(text, position, attributes); }
                     finally { pengramImeComposing = false; }
                 }

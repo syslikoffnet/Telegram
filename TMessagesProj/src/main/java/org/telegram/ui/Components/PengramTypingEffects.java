@@ -32,7 +32,7 @@ import java.util.WeakHashMap;
 /** Только добавочное рисование. Ни текст, ни спаны прозрачности, ни слой EditText
  * не меняются: опоздавшая разметка означает пропуск эффекта, а не пропажу текста. */
 public final class PengramTypingEffects {
-    private static final int MAX_ACTIVE = 6, MAX_PER_BATCH = 3, PASTE_THRESHOLD = 12;
+    private static final int MAX_ACTIVE = 6, MAX_PER_BATCH = 3, PASTE_THRESHOLD = 64;
     private static final int MAX_DELETE_CLUSTERS = 24, MAX_PARTICLES = 160, PARTICLE_LIFE = 620;
     private static final int CURSOR_EVENT_NONE = 0, CURSOR_EVENT_PULSE = 1, CURSOR_EVENT_DIVE = 2, CURSOR_EVENT_JUMP = 3;
     private static final WeakHashMap<EditText, State> states = new WeakHashMap<>();
@@ -122,34 +122,41 @@ public final class PengramTypingEffects {
     }
     private static void applyUserEdit(EditText edit, Editable text, int start, int before, int count, boolean isPaste) {
         if (edit == null || text == null) return;
-        if (!live(edit) || isPaste || composing(edit)) { clear(edit); return; }
+        if (!live(edit) || isPaste) { clear(edit); return; }
         final State s = state(edit);
         s.onTextChanged();
-        if (before > 0 || s.overlapsInsertion(start)) s.clearGlyphs();
-        // Замена слова — не новые буквы. Частицы допустимы только при чистом удалении.
+        if (before > 0 && count > 0 && s.replacedStart == start && s.replacedText != null && s.replacedText.length() == before) {
+            final String old = s.replacedText;
+            int prefix = 0;
+            while (prefix < before && prefix < count && old.charAt(prefix) == text.charAt(start + prefix)) prefix++;
+            int suffix = 0;
+            while (suffix < before - prefix && suffix < count - prefix
+                    && old.charAt(before - suffix - 1) == text.charAt(start + count - suffix - 1)) suffix++;
+            start += prefix;
+            before -= prefix + suffix;
+            count -= prefix + suffix;
+        }
+        s.replacedText = null;
+        s.invalidateEditedRange(start, before, count);
+        // Почему: IME часто заменяет слово целиком; эффект нужен лишь изменённому хвосту.
         if (before > 0) {
             if (count == 0 && PengramConfig.isTypingDeleteAnim()) s.spawnFromSnapshot(start, before);
             else s.releaseSnapshot();
             s.noteCursorEvent(CURSOR_EVENT_PULSE);
-            return;
+            if (count == 0) return;
         }
         s.releaseSnapshot();
         if (count <= 0 || start < 0 || start + count > text.length()) return;
         final int end = start + count;
         // Размер — лишь страховка против массового/голосового ввода. Длинное
         // одиночное слово (glide) допускается; факт paste передаётся отдельно.
-        if (count > PASTE_THRESHOLD && (count > 256 || multiword(text, start, end))) return;
+        if (count > PASTE_THRESHOLD && count > 4096) return;
         int from = PengramGraphemes.clusterStart(text, start);
-        if (from != start) s.clearGlyphs();
+        if (from != start) s.invalidateEditedRange(from, end - from, end - from);
         if (PengramGraphemes.clusterStart(text, end) != end) return;
         int last = Character.codePointBefore(text, end);
         s.noteCursorEvent(last == '\n' ? CURSOR_EVENT_DIVE : Character.isWhitespace(last) ? CURSOR_EVENT_JUMP : CURSOR_EVENT_NONE);
-        s.enqueue(from, end, PengramGraphemes.clusterEnd(text, from) < end
-                ? PengramConfig.INPUT_ANIM_FADE : PengramConfig.getInputAnimation());
-    }
-    private static boolean multiword(CharSequence text, int start, int end) {
-        for (int i = start; i < end; i++) if (Character.isWhitespace(text.charAt(i))) return true;
-        return false;
+        s.enqueue(from, end, PengramConfig.getInputAnimation());
     }
     /** Коммит композиции может не менять текст вообще: watcher тогда молчит. */
     public static void committed(EditText edit, int start, int end) {
@@ -160,11 +167,27 @@ public final class PengramTypingEffects {
         if (live(edit) && !composing(edit) && start >= 0 && end > start && end <= edit.length()
                 && end - start <= 256) {
             State s = state(edit);
-            s.clearGlyphs();
             s.onTextChanged();
-            s.enqueue(PengramGraphemes.clusterStart(edit.getText(), start), end, PengramConfig.INPUT_ANIM_FADE);
+            boolean covered = false;
+            for (int i = 0; i < s.pendingBatches.size(); i++) {
+                PendingBatch batch = s.pendingBatches.get(i);
+                if (batch.start >= start && batch.end <= end) { covered = true; break; }
+            }
+            for (int i = 0; !covered && i < s.glyphs.size(); i++) {
+                Glyph glyph = s.glyphs.get(i);
+                covered = glyph.from >= start && glyph.to <= end;
+            }
+            if (!covered) s.enqueue(PengramGraphemes.clusterStart(edit.getText(), start), end, PengramConfig.getInputAnimation());
         }
     }
+    public static void captureReplacement(EditText edit, CharSequence text, int start, int before, int count) {
+        if (!live(edit)) return;
+        State s = state(edit);
+        s.replacedText = before > 0 && count > 0 && before <= 4096 && start >= 0 && start + before <= text.length()
+                ? text.subSequence(start, start + before).toString() : null;
+        s.replacedStart = start;
+    }
+
     public static void captureBefore(EditText edit, CharSequence text, int start, int count) {
         if (!live(edit) || composing(edit) || !PengramConfig.isTypingDeleteAnim() || count <= 0) {
             State previous = states.get(edit);
@@ -221,7 +244,12 @@ public final class PengramTypingEffects {
         float x, y, vx, vy, gravity, size, rotationSpeed, seed, scale, scrollX, scrollY, topDelta;
         long start, duration;
     }
-    private static final class State implements Runnable, View.OnAttachStateChangeListener {
+    private static final class PendingBatch {
+        int start, end, mode, attempts;
+        long deadline;
+        String text;
+    }
+    private static final class State implements Runnable, View.OnAttachStateChangeListener, android.view.ViewTreeObserver.OnPreDrawListener {
         final WeakReference<EditText> ref;
         final ArrayList<Glyph> glyphs = new ArrayList<>();
         final ArrayList<Particle> particles = new ArrayList<>();
@@ -239,8 +267,10 @@ public final class PengramTypingEffects {
         int removedCount, removedStart, removedUnits;
         int removedScrollX, removedScrollY;
         final float[] removedTop = new float[MAX_DELETE_CLUSTERS];
-        int pendingStart = -1, pendingEnd, pendingMode;
-        String pendingText;
+        String replacedText;
+        int replacedStart;
+        final ArrayList<PendingBatch> pendingBatches = new ArrayList<>();
+        android.view.ViewTreeObserver pendingObserver;
         boolean pendingPosted, scheduled, nativeHidden;
         int textColor;
         float textSize;
@@ -283,34 +313,90 @@ public final class PengramTypingEffects {
             if (edit != null) { edit.removeCallbacks(this); scheduled = false; edit.invalidate(); scheduleAfter(0); }
         }
         void noteCursorEvent(int event) { cursorEvent = event; cursorEventTime = SystemClock.uptimeMillis(); }
+        void invalidateEditedRange(int start, int before, int count) {
+            final int oldEnd = start + before;
+            final int delta = count - before;
+            for (int i = glyphs.size() - 1; i >= 0; i--) {
+                Glyph glyph = glyphs.get(i);
+                if (glyph.to <= start) continue;
+                if (glyph.from >= oldEnd) { glyph.from += delta; glyph.to += delta; }
+                else removeGlyph(i);
+            }
+            for (int i = pendingBatches.size() - 1; i >= 0; i--) {
+                PendingBatch batch = pendingBatches.get(i);
+                if (batch.end <= start) continue;
+                if (batch.start >= oldEnd) { batch.start += delta; batch.end += delta; }
+                else pendingBatches.remove(i);
+            }
+        }
         void enqueue(int start, int end, int mode) {
             EditText edit = ref.get();
             if (edit == null) return;
-            pendingStart = start; pendingEnd = end; pendingMode = mode;
-            pendingText = edit.getText().subSequence(start, end).toString();
-            if (!pendingPosted) { pendingPosted = true; edit.post(applyRunnable); }
+            if (pendingBatches.size() == 16) pendingBatches.remove(0);
+            PendingBatch batch = new PendingBatch();
+            batch.start = start; batch.end = end; batch.mode = mode;
+            batch.text = edit.getText().subSequence(start, end).toString();
+            batch.deadline = SystemClock.uptimeMillis() + 400;
+            pendingBatches.add(batch);
+            if (!pendingPosted) {
+                pendingPosted = true;
+                pendingObserver = edit.getViewTreeObserver();
+                pendingObserver.addOnPreDrawListener(this);
+                // Почему: post() может исполниться раньше пересборки Layout.
+                edit.postDelayed(applyRunnable, 400);
+                edit.invalidate();
+            }
+        }
+        @Override public boolean onPreDraw() {
+            applyPending();
+            return true;
+        }
+        void stopPendingObserver() {
+            EditText edit = ref.get();
+            if (edit != null) edit.removeCallbacks(applyRunnable);
+            if (pendingObserver != null && pendingObserver.isAlive()) pendingObserver.removeOnPreDrawListener(this);
+            pendingObserver = null;
+            pendingPosted = false;
         }
         void applyPending() {
             try { applyPendingSafe(); }
             catch (RuntimeException | OutOfMemoryError unavailable) { clearGlyphs(); }
         }
         void applyPendingSafe() {
-            pendingPosted = false;
-            int start = pendingStart, end = pendingEnd, mode = pendingMode;
-            String expected = pendingText;
-            pendingStart = -1; pendingText = null;
             EditText edit = ref.get();
-            if (!live(edit) || composing(edit) || start < 0 || end > edit.length() || expected == null) return;
+            if (!live(edit)) { pendingBatches.clear(); stopPendingObserver(); return; }
+            final long now = SystemClock.uptimeMillis();
+            final Layout layout = edit.getLayout();
+            for (int i = 0; i < pendingBatches.size();) {
+                PendingBatch batch = pendingBatches.get(i);
+                if (!matches(edit.getText(), batch.start, batch.end, batch.text)) {
+                    pendingBatches.remove(i);
+                    continue;
+                }
+                final boolean ready = validLayout(edit, layout)
+                        && matches(layout.getText(), batch.start, batch.end, batch.text);
+                if (!ready && ++batch.attempts <= 3 && now < batch.deadline) {
+                    edit.postInvalidateOnAnimation();
+                    i++;
+                    continue;
+                }
+                pendingBatches.remove(i);
+                if (ready) applyBatch(edit, layout, batch);
+                if (org.telegram.messenger.BuildVars.LOGS_ENABLED) org.telegram.messenger.FileLog.d(
+                        "Pengram typing applied=" + ready + " attempts=" + batch.attempts
+                        + " start=" + batch.start + " length=" + batch.text.length());
+            }
+            if (pendingBatches.isEmpty()) stopPendingObserver();
+        }
+        void applyBatch(EditText edit, Layout layout, PendingBatch batch) {
+            final int start = batch.start, end = batch.end, mode = batch.mode;
             Editable text = edit.getText();
-            Layout layout = edit.getLayout();
-            if (!matches(text, start, end, expected) || !validLayout(edit, layout)) return;
             long now = SystemClock.uptimeMillis();
             long duration = PengramConfig.getInputAnimationSpeed() == 0 ? 150 : PengramConfig.getInputAnimationSpeed() == 1 ? 210 : 320;
             int cursorLine = layout.getLineForOffset(Math.max(0, Math.min(edit.getSelectionEnd(), text.length())));
             // Не обрываем старые следы при заполненном бюджете: пропускаем новый.
             for (int from = start, n = 0; from < end && n < MAX_PER_BATCH && glyphs.size() < MAX_ACTIVE; n++) {
                 int to = PengramGraphemes.clusterEnd(text, from);
-                if (mode == PengramConfig.INPUT_ANIM_FADE && from == start && to < end) to = end;
                 if (to > end) break;
                 String cluster = text.subSequence(from, to).toString();
                 if (cluster.indexOf('\n') < 0 && cluster.indexOf('\r') < 0 && (!PengramConfig.isTypingIgnoreSpaces() || !cluster.trim().isEmpty())
@@ -507,20 +593,16 @@ public final class PengramTypingEffects {
             Particle p = particles.remove(i);
             if (p.raster != null) p.raster.uses--;
         }
-        boolean overlapsInsertion(int offset) {
-            for (int i = 0; i < glyphs.size(); i++) if (glyphs.get(i).to > offset) return true;
-            return false;
-        }
         void clearGlyphs() {
             EditText edit = ref.get();
-            if (edit != null) edit.removeCallbacks(applyRunnable);
-            pendingPosted = false; pendingStart = -1; pendingText = null;
+            stopPendingObserver();
+            pendingBatches.clear();
             for (int i = glyphs.size() - 1; i >= 0; i--) removeGlyph(i);
         }
         void clearAll() {
             EditText edit = ref.get();
             if (edit != null) { edit.removeCallbacks(this); syncNativeCursor(edit, false); }
-            scheduled = false; clearGlyphs(); releaseSnapshot();
+            scheduled = false; clearGlyphs(); releaseSnapshot(); replacedText = null;
             for (int i = particles.size() - 1; i >= 0; i--) removeParticle(i);
             rasterCache.clear(); cacheBytes = 0; cursorX = Float.NaN; lastFrame = 0; targetValid = false; cursorEvent = CURSOR_EVENT_NONE;
         }

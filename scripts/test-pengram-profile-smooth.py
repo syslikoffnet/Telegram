@@ -42,7 +42,8 @@ assert 'pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.M
 assert 'private static final int BASE_SIZE_DP = 224;' in settings
 assert 'private int clampPenguinSize(int size)' in settings
 assert 'Math.min(Math.max(dp(96), size), max)' in settings
-assert 'private static final float CAM_FILL = 0.82f;' in penguin
+assert 'private static final float BODY_FILL = 0.84f;' in penguin
+assert 'Math.max(bodyDistance, fitDistance)' in penguin
 assert 'private static final float CAM_MARGIN = 0.035f;' in penguin
 # ползунок по-прежнему масштабирует шапку на лету
 assert 'headerView.applySize();' in settings

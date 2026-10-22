@@ -131,11 +131,12 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     /** нижняя точка пингвина (лапки) в мировых координатах */
     private static final float CONTENT_BOTTOM = -1.11f;
     /**
-     * Какую долю высоты кадра занимает содержимое. 1.0 — впритык к краям,
-     * поэтому резервируем 9% сверху и снизу для обычной позы и аксессуаров.
-     * Экстремальное сальто дополнительно проверяется на устройстве.
+     * Цель тела отдельно от безопасной границы аксессуара: запасы не суммируются.
+     * Высокая шапка вправе уменьшить тело, но не обрезаться. Экстремальное
+     * сальто и минимальные dp требуют отдельного замера на устройстве.
      */
-    private static final float CAM_FILL = 0.82f;
+    private static final float BODY_FILL = 0.84f;
+    private static final float CAM_FILL = 0.98f;
     /** Запас глубины: близкие к камере вершины иначе крупнее расчёта плоскости XY. */
     private static final float CAM_DEPTH_MARGIN = 0.75f;
     /** воздух над шляпой и под лапками, в мировых единицах */
@@ -655,8 +656,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final int viewportX = (viewWidth - side) / 2;
         final int viewportY = (viewHeight - side) / 2;
         GLES20.glViewport(viewportX, viewportY, side, side);
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
         GLES20.glClearColor(0, 0, 0, 0);
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glScissor(viewportX, viewportY, side, side);
         GLES20.glEnable(GLES20.GL_DEPTH_TEST);
         GLES20.glDepthFunc(GLES20.GL_LEQUAL);
         GLES20.glEnable(GLES20.GL_BLEND);
@@ -688,17 +692,23 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 Math.min(bodyMesh.minY, accessoryMesh == null ? 0f : accessoryMesh.minY) - 0.1f);
         final float contentDepth = Math.max(CAM_DEPTH_MARGIN,
                 Math.max(bodyMesh.radiusXZ, accessoryMesh == null ? 0f : accessoryMesh.radiusXZ));
-        final float fitTop = contentTop + CAM_JUMP_LIMIT + CAM_MARGIN;
+        // Почему: постоянный запас под прыжок уменьшал неподвижное тело.
+        final float jumpReserve = dance > 0.01f || jump > 0.001f ? CAM_JUMP_LIMIT : 0f;
+        final float fitTop = contentTop + jumpReserve + CAM_MARGIN;
         final float fitBottom = contentBottom - CAM_MARGIN;
         final float fitHeight = Math.max(0.6f, fitTop - fitBottom);
         // половина кадра — это fitHeight / (2 * CAM_FILL); отсюда расстояние
-        final float targetDistance = Math.max(3.2f, contentDepth + (fitHeight / CAM_FILL * 0.5f) / CAM_TAN_HALF_FOV);
+        final float bodyHeight = Math.max(0.6f, bodyMesh.maxY - bodyMesh.minY);
+        final float bodyDistance = (bodyHeight / BODY_FILL * 0.5f) / CAM_TAN_HALF_FOV;
+        final float fitDistance = contentDepth + (fitHeight / CAM_FILL * 0.5f) / CAM_TAN_HALF_FOV;
+        final float targetDistance = Math.max(3.2f, Math.max(bodyDistance, fitDistance));
         final float targetCenter = (fitTop + fitBottom) * 0.5f;
         if (camDistance <= 0.01f) {
             camDistance = targetDistance;
             camCenter = targetCenter;
         } else {
-            final float k = Math.min(1f, dt * 6f);
+            // Отъезд немедленный: иначе первый кадр прыжка обрежет аксессуар.
+            final float k = targetDistance > camDistance ? 1f : Math.min(1f, dt * 6f);
             camDistance += (targetDistance - camDistance) * k;
             camCenter += (targetCenter - camCenter) * k;
         }

@@ -3845,7 +3845,7 @@ public class PengramConfig {
     public static final String KEY_PLAYER_BEAT = "playerBeat";
 
     public static int getPlayerBeatMode() {
-        final int value = getIntCached(KEY_PLAYER_BEAT, PLAYER_BEAT_NORMAL);
+        final int value = getIntCached(KEY_PLAYER_BEAT, PLAYER_BEAT_SOFT);
         return value < 0 || value >= PLAYER_BEAT_COUNT ? PLAYER_BEAT_NORMAL : value;
     }
 

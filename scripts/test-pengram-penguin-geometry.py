@@ -7,11 +7,13 @@ root = Path(__file__).resolve().parent.parent
 ui = root/'TMessagesProj/src/main/java/org/telegram/ui'
 s = (ui/'PengramSettingsActivity.java').read_text()
 v = (ui/'Components/PengramPenguinView.java').read_text()
-assert 'private static final float CAM_FILL = 0.82f;' in v
+assert 'private static final float BODY_FILL = 0.84f;' in v
 assert 'contentBottom - CAM_MARGIN' in v
 assert 'Math.min(CONTENT_BOTTOM,' in v
 assert 'accessoryMesh.radiusXZ' in v
 assert 'contentDepth + (fitHeight / CAM_FILL' in v
+assert 'Math.max(bodyDistance, fitDistance)' in v
+assert 'dance > 0.01f || jump > 0.001f ? CAM_JUMP_LIMIT : 0f' in v
 assert 'final int requestedSkin = skin;' in v
 assert 'buildAccessory(requestedSkin);' in v
 assert 'builtSkin = requestedSkin;' in v
@@ -52,8 +54,8 @@ for density in (1, 1.5, 2, 3, 4):
 for top in (1.18,1.5,1.9,2.2):
     bottom=-1.11-.035
     high=top+.26+.035
-    distance=.75+(high-bottom)/(.82*2*math.tan(math.radians(17)))
+    distance=.75+(high-bottom)/(.98*2*math.tan(math.radians(17)))
     for z in (0,.35,.75):
         fraction=(high-bottom)/(2*(distance-z)*math.tan(math.radians(17)))
-        assert fraction <= .82+1e-10
+        assert fraction <= .98+1e-10
 print(f'penguin geometry: {cases} density/size cases + static camera envelopes PASS; animated/device acceptance NOT RUN')
