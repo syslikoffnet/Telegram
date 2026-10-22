@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Crash-triage contracts only; not a reproduction of obfuscated build 71789."""
 from pathlib import Path
+import re
 root = Path(__file__).resolve().parents[1]
 java = root / 'TMessagesProj/src/main/java/org/telegram'
 base = (java / 'ui/ActionBar/BaseFragment.java').read_text()
@@ -17,6 +18,9 @@ for key in ('lastSearch', 'createView', 'onViewCreated', 'PengramSettingsActivit
     assert key in diag, key
 assert '.commit()' in diag, 'a crash must not outrun the small persistent diagnostic record'
 assert 'getMessage()' not in diag, 'exception messages may contain user data'
+settings = (java / 'ui/PengramSettingsActivity.java').read_text()
+ids = dict((name, int(value)) for name, value in re.findall(r'private static final int (BTN_\w+) = (\d+);', settings))
+assert ids['BTN_DIAGNOSTICS'] not in [value for name, value in ids.items() if name != 'BTN_DIAGNOSTICS'], 'diagnostics button ID collides with another action'
 activity = (java / 'ui/PengramDiagnosticsActivity.java').read_text()
 assert activity.index('fragmentView = root') < activity.index('root.addView(')
 assert 'removeCallbacks(refresh)' in activity and 'postDelayed(refresh, 1000)' in activity

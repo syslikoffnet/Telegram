@@ -65525,7 +65525,7 @@
     "BTN_DIAGNOSTICS": [
       {
         "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:312",
-        "code": "private static final int BTN_DIAGNOSTICS = 1498;"
+        "code": "private static final int BTN_DIAGNOSTICS = 1599;"
       },
       {
         "at": "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:1202",

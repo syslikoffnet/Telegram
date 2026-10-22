@@ -80,7 +80,7 @@
 
 Первый полный sweep: 55, один FAIL audit-clean (нужно пересоздать inventory). После `gen-pengram-audit.py`: **55 scripts, 0 nonzero exits, 28.6 s**. В локальной среде нет javac: три JVM-подпроверки честно SKIP; Python/source contracts не заменяют Android/JVM выполнение. Preflight уже содержит полный glob `scripts/test-pengram-*.py`, поэтому автоматически включает оба новых теста; workflow не менялся. Текущий список 55 скриптов приведён ниже.
 
-Java/resource CI для первоначального функционального коммита da4dfa263: https://github.com/syslikoffnet/Telegram/actions/runs/39754521853 — IN PROGRESS; APK353: https://github.com/syslikoffnet/Telegram/actions/runs/39754522338 — ещё не подтверждён. Дополнительный fail-closed guard unloaded-config будет проверен отдельным последующим run. Пока ни один из этих статусов не объявляется SUCCESS. Старые успешные runs 39735275998 / APK35239735275990 относятся к baseline26237c339, не к этому изменению. Старый APK35139734279419 теперь также подтверждён SUCCESS; это не новая сборка.
+Java/resource CI для первоначального функционального коммита da4dfa263: https://github.com/syslikoffnet/Telegram/actions/runs/39754521853 — FAILURE: javac duplicate case label, ошибочно выбранный BTN_DIAGNOSTICS=1498 совпал с BTN_RESET_SECTION. Исправлено на свободный1599; новый source regression test сначала упал на коллизии и стал зелёным после исправления (search-id-red.log). APK353: https://github.com/syslikoffnet/Telegram/actions/runs/39754522338 — ещё не подтверждён. Дополнительный fail-closed guard unloaded-config будет проверен отдельным последующим run. Пока ни один из этих статусов не объявляется SUCCESS. Старые успешные runs 39735275998 / APK35239735275990 относятся к baseline26237c339, не к этому изменению. Старый APK35139734279419 теперь также подтверждён SUCCESS; это не новая сборка.
 
 ## Ручная матрица (ровно 10 сценариев)
 
@@ -158,3 +158,7 @@ test-pengram-visual-editor.py [exit=0]: Pengram visual editor source/resource/sa
 ```
 
 Локальные JVM skips: settings-create JVM model; text-visibility extracted lifecycle JVM runner; typing-anim production Java UAX runner. Реальное CI должно проверить их с JDK17.
+
+## Промежуточный compile failure
+
+`39754521853` (da4dfa263) действительно выполнил javac и выявил duplicate case label в PengramSettingsActivity:5464. Локальные source suites этого не доказывали. Новый settings-search-crash contract проверяет уникальность числового ID диагностики; production constant1599 не пересекается с существующими literal BTN IDs. Требуется новый успешный compile/resource run; прежние FAIL не скрываются.

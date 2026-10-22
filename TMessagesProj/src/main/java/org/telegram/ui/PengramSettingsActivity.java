@@ -309,7 +309,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CRASH_AUTOCOPY = 1495;
     private static final int BTN_SECTION_ABOUT = 1496;
     private static final int BTN_ABOUT_COPY = 1497;
-    private static final int BTN_DIAGNOSTICS = 1498;
+    private static final int BTN_DIAGNOSTICS = 1599;
     private static final int BTN_RESET_SECTION = 1498;
     private static final int BTN_RESET_ALL = 1499;
     private static final int BTN_HIST_MAX = 407;
