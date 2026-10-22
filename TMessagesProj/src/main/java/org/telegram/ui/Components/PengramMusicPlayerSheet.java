@@ -1442,6 +1442,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final String trackKey = org.telegram.messenger.PengramCovers.keyFor(messageObject);
         final long requestGeneration = ++coverGeneration;
         coverView.getImageReceiver().setDelegate(null);
+        smallCoverView.getImageReceiver().setDelegate(null);
         if (!TextUtils.equals(trackKey, displayedCoverKey)) {
             displayedCoverKey = trackKey;
             backgroundView.setCover(null);
@@ -1465,7 +1466,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             applyCoverBitmap(trackKey, requestGeneration, cached);
             return;
         }
-        coverView.getImageReceiver().setDelegate((receiver, set, thumb, memCache) -> {
+        final org.telegram.messenger.ImageReceiver.ImageReceiverDelegate artworkDelegate = (receiver, set, thumb, memCache) -> {
             if (applyingEmptyCover || !currentCover(trackKey, requestGeneration)) return;
             final android.graphics.Bitmap bitmap = receiver.getBitmap();
             if (set && usableCover(bitmap)) {
@@ -1474,7 +1475,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             } else if (coverState != COVER_VISIBLE) {
                 setCoverState(COVER_ERROR, trackKey);
             }
-        });
+        };
+        coverView.getImageReceiver().setDelegate(artworkDelegate);
+        // Почему: в LYRICS большая coverView не добавлена в дерево вьюх.
+        // Реальную обложку подтверждает видимый приёмник рядом с названием.
+        smallCoverView.getImageReceiver().setDelegate(style == PengramConfig.PLAYER_STYLE_LYRICS ? artworkDelegate : null);
         // Запросы запускаются только здесь, никогда из renderCoverState/onDraw.
         final TLRPC.Document document = messageObject == null ? null : messageObject.getDocument();
         TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 360) : null;
@@ -1644,7 +1649,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (!visible && !pending && !penguin && !hide) coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));
             if (style == PengramConfig.PLAYER_STYLE_LYRICS) {
                 smallCoverView.setVisibility(hide ? View.GONE : View.VISIBLE);
-                if (!visible) {
+                if (visible) {
+                    smallCoverView.setBackground(null);
+                } else {
                     if (penguin) {
                         final android.graphics.drawable.Drawable glyph = getContext().getResources()
                                 .getDrawable(R.drawable.pengram_penguin_glyph).mutate();
@@ -1652,8 +1659,9 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                         final android.graphics.drawable.LayerDrawable layers = new android.graphics.drawable.LayerDrawable(
                                 new android.graphics.drawable.Drawable[]{emptyCoverBackground(dp(10)), glyph});
                         layers.setLayerInset(1, dp(9), dp(9), dp(9), dp(9));
-                        smallCoverView.setImageDrawable(layers);
-                    } else if (!hide && !pending) smallCoverView.setImageDrawable(emptyCoverBackground(dp(10)));
+                        // Фон не отменяет загрузку в ImageReceiver, в отличие от setImageDrawable.
+                        smallCoverView.setBackground(layers);
+                    } else if (!hide) smallCoverView.setBackground(emptyCoverBackground(dp(10)));
                 }
             }
             if (!visible) backgroundView.setCover(null);
@@ -1848,6 +1856,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         AndroidUtilities.cancelRunOnUIThread(refreshPlayerAppearance);
         if (playerPreferences != null) playerPreferences.unregisterOnSharedPreferenceChangeListener(playerPreferenceListener);
         coverView.getImageReceiver().setDelegate(null);
+        smallCoverView.getImageReceiver().setDelegate(null);
         if (penguinCover != null) penguinCover.setPaused(true);
         super.dismiss();
         stopPulse();

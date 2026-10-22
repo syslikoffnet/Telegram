@@ -5447,7 +5447,7 @@
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramAIAutoReply.java:539",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramChatMusicSheet.java:275",
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1730"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1738"
       ],
       "lexical_occurrences": 316,
       "examples": [
@@ -15554,11 +15554,11 @@
           "code": "public static int getPenguinSkin() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1590",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1595",
           "code": "penguinCover.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1633",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1638",
           "code": "penguinCover.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
@@ -19549,7 +19549,7 @@
           "code": "public static boolean isEmptyCoverHidden() { return getEmptyCoverMode() == EMPTY_COVER_HIDE; }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1626",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1631",
           "code": "final int mode = PengramConfig.getEmptyCoverMode();"
         },
         {
@@ -19637,7 +19637,7 @@
           "code": "public static boolean isPenguinDancing() { return getBool(KEY_PENGUIN_DANCE, true); }"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1688",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1696",
           "code": "penguinCover.setDanceLoop(!paused && PengramConfig.isPenguinDancing());"
         }
       ]
@@ -19809,7 +19809,7 @@
           "code": "public static boolean isNewPlayer() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1863",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1872",
           "code": "if (PengramConfig.isNewPlayer()) {"
         },
         {
@@ -20209,7 +20209,7 @@
           "code": "if (PengramConfig.getPlayerAccentMode() == PengramConfig.PLAYER_ACCENT_COVER) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1510",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1515",
           "code": "final int mode = PengramConfig.getPlayerAccentMode();"
         },
         {
@@ -20253,7 +20253,7 @@
           "code": "public static int getPlayerAccentColor() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1512",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1517",
           "code": "return PengramConfig.getPlayerAccentColor();"
         },
         {
@@ -20489,7 +20489,7 @@
           "code": "final int shape = PengramConfig.getCoverShape();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1670",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1678",
           "code": "final int shape = PengramConfig.getCoverShape();"
         },
         {
@@ -21383,7 +21383,7 @@
           "code": "final String cached = getCached(key);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1463",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1464",
           "code": "final android.graphics.Bitmap cached = org.telegram.messenger.PengramCovers.getCached(messageObject);"
         },
         {
@@ -31864,7 +31864,7 @@
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramSessionExport.java:392",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramChatMusicSheet.java:265",
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1845"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1853"
       ],
       "lexical_occurrences": 2002,
       "examples": [
@@ -35753,11 +35753,11 @@
           "code": "public void setAccentColor(int color) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1553",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1558",
           "code": "beatHalo.setAccentColor(accentColor);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1578",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1583",
           "code": "beatHalo.setAccentColor(accentColor);"
         },
         {
@@ -35789,7 +35789,7 @@
           "code": "if (beatHalo != null) beatHalo.setIntensity(beatIntensity);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1577",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1582",
           "code": "beatHalo.setIntensity(beatIntensity);"
         },
         {
@@ -35850,7 +35850,7 @@
     "onPulse": {
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramBeatHalo.java:91",
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1801"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1809"
       ],
       "lexical_occurrences": 5,
       "examples": [
@@ -35867,11 +35867,11 @@
           "code": "public void onPulse(float level, float bass) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1801",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1809",
           "code": "public void onPulse(float level, float bass) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1822",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1830",
           "code": "beatHalo.onPulse(level, bass);"
         }
       ]
@@ -35879,7 +35879,7 @@
     "onBeat": {
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramBeatHalo.java:97",
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1806"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1814"
       ],
       "lexical_occurrences": 5,
       "examples": [
@@ -35896,11 +35896,11 @@
           "code": "public void onBeat(float power) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1806",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1814",
           "code": "public void onBeat(float power) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1837",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1845",
           "code": "beatHalo.onBeat(power);"
         }
       ]
@@ -41328,7 +41328,7 @@
           "code": "private void toggleQueue(boolean show) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1782",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1790",
           "code": "toggleQueue(false);"
         }
       ]
@@ -41436,7 +41436,7 @@
           "code": "private void loadChatTracks() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1742",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1750",
           "code": "loadChatTracks();"
         }
       ]
@@ -41472,11 +41472,11 @@
           "code": "AndroidUtilities.runOnUIThread(this::updateQueue, 120);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1744",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1752",
           "code": "updateQueue();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1764",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1772",
           "code": "updateQueue();"
         }
       ]
@@ -41608,7 +41608,7 @@
           "code": "private void applyCoverShape() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1453",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1454",
           "code": "applyCoverShape();"
         }
       ]
@@ -41716,7 +41716,7 @@
           "code": "private void pengramPrefetchNext() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1739",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1747",
           "code": "pengramPrefetchNext();"
         }
       ]
@@ -41876,7 +41876,7 @@
           "code": "speedPanel.setOnClickListener(v -> toggleSpeedPanel(false));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1778",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1786",
           "code": "toggleSpeedPanel(false);"
         }
       ]
@@ -41992,19 +41992,19 @@
           "code": "private boolean currentCover(String key, long generation) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1455",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1456",
           "code": "if (currentCover(trackKey, requestGeneration) && audioInfo != null) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1469",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1470",
           "code": "if (applyingEmptyCover || !currentCover(trackKey, requestGeneration)) return;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1494",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1499",
           "code": "if (!currentCover(key, requestGeneration)) return;"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1695",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1703",
           "code": "if (!currentCover(key, generation)) return;"
         }
       ]
@@ -42020,27 +42020,27 @@
           "code": "private static boolean usableCover(android.graphics.Bitmap bitmap) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1456",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1457",
           "code": "final android.graphics.Bitmap bitmap = usableCover(audioInfo.getCover())"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1458",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1459",
           "code": "if (usableCover(bitmap)) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1464",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1465",
           "code": "if (usableCover(cached)) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1471",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1472",
           "code": "if (set && usableCover(bitmap)) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1495",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1500",
           "code": "if (usableCover(bitmap)) applyCoverBitmap(key, requestGeneration, bitmap);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1696",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1704",
           "code": "if (!usableCover(bitmap)) {"
         }
       ]
@@ -42071,7 +42071,7 @@
     },
     "resolveAccent": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1509"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1514"
       ],
       "lexical_occurrences": 2,
       "examples": [
@@ -42080,50 +42080,50 @@
           "code": "accentColor = resolveAccent(context, resourcesProvider);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1509",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1514",
           "code": "private int resolveAccent(Context context, Theme.ResourcesProvider provider) {"
         }
       ]
     },
     "themeAccent": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1527"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1532"
       ],
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1521",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1526",
           "code": "return themeAccent(provider);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1523",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1528",
           "code": "return themeAccent(provider);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1527",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1532",
           "code": "private static int themeAccent(Theme.ResourcesProvider provider) {"
         }
       ]
     },
     "monetAccent": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1537"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1542"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1515",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1520",
           "code": "final int monet = monetAccent(context);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1537",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1542",
           "code": "private static int monetAccent(Context context) {"
         }
       ]
     },
     "applyAccentToViews": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1549"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1554"
       ],
       "lexical_occurrences": 2,
       "examples": [
@@ -42132,14 +42132,14 @@
           "code": "AndroidUtilities.runOnUIThread(PengramMusicPlayerSheet.this::applyAccentToViews);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1549",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1554",
           "code": "private void applyAccentToViews() {"
         }
       ]
     },
     "createPenguinHolder": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1570"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1575"
       ],
       "lexical_occurrences": 4,
       "examples": [
@@ -42156,50 +42156,50 @@
           "code": "penguinHolder = createPenguinHolder(context);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1570",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1575",
           "code": "private FrameLayout createPenguinHolder(Context context) {"
         }
       ]
     },
     "emptyCoverBackground": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1601"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1606"
       ],
       "lexical_occurrences": 7,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1556",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1561",
           "code": "penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1601",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1606",
           "code": "private android.graphics.drawable.Drawable emptyCoverBackground(int radius) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1632",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1637",
           "code": "penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1643",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1648",
           "code": "coverView.setBackground(!visible && !penguin && !hide ? emptyCoverBackground(coverCornerRadius()) : null);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1644",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1649",
           "code": "if (!visible && !pending && !penguin && !hide) coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1653",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1660",
           "code": "new android.graphics.drawable.Drawable[]{emptyCoverBackground(dp(10)), glyph});"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1656",
-          "code": "} else if (!hide && !pending) smallCoverView.setImageDrawable(emptyCoverBackground(dp(10)));"
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1664",
+          "code": "} else if (!hide) smallCoverView.setBackground(emptyCoverBackground(dp(10)));"
         }
       ]
     },
     "setCoverState": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1619"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1624"
       ],
       "lexical_occurrences": 9,
       "examples": [
@@ -42208,66 +42208,66 @@
           "code": "setCoverState(this.coverState, this.displayedCoverKey);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1451",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1452",
           "code": "setCoverState(COVER_LOADING, trackKey);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1473",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1474",
           "code": "setCoverState(COVER_VISIBLE, trackKey);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1475",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1476",
           "code": "setCoverState(COVER_ERROR, trackKey);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1491",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1496",
           "code": "setCoverState(COVER_MISSING, trackKey);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1496",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1501",
           "code": "else if (coverState != COVER_VISIBLE) setCoverState(COVER_ERROR, key);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1619",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1624",
           "code": "private void setCoverState(int state, String trackKey) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1697",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1705",
           "code": "if (coverState != COVER_VISIBLE) setCoverState(COVER_ERROR, key);"
         }
       ]
     },
     "coverCornerRadius": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1669"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1677"
       ],
       "lexical_occurrences": 5,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1556",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1561",
           "code": "penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1632",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1637",
           "code": "penguinHolder.setBackground(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1643",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1648",
           "code": "coverView.setBackground(!visible && !penguin && !hide ? emptyCoverBackground(coverCornerRadius()) : null);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1644",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1649",
           "code": "if (!visible && !pending && !penguin && !hide) coverView.setImageDrawable(emptyCoverBackground(coverCornerRadius()));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1669",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1677",
           "code": "private int coverCornerRadius() {"
         }
       ]
     },
     "updatePenguinMood": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1681"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1689"
       ],
       "lexical_occurrences": 4,
       "examples": [
@@ -42276,46 +42276,46 @@
           "code": "updatePenguinMood();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1634",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1639",
           "code": "updatePenguinMood();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1681",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1689",
           "code": "private void updatePenguinMood() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1748",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1756",
           "code": "updatePenguinMood();"
         }
       ]
     },
     "applyCoverBitmap": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1693"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1701"
       ],
       "lexical_occurrences": 4,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1459",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1460",
           "code": "applyCoverBitmap(trackKey, requestGeneration, bitmap);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1465",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1466",
           "code": "applyCoverBitmap(trackKey, requestGeneration, cached);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1495",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1500",
           "code": "if (usableCover(bitmap)) applyCoverBitmap(key, requestGeneration, bitmap);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1694",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1702",
           "code": "private void applyCoverBitmap(String key, long generation, android.graphics.Bitmap bitmap) {"
         }
       ]
     },
     "updateProgress": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1711"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1719"
       ],
       "lexical_occurrences": 27,
       "examples": [
@@ -42355,7 +42355,7 @@
     },
     "onBackPressed": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1776",
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1784",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramLayoutEditorActivity.java:1128",
         "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java:931"
       ],
@@ -42397,7 +42397,7 @@
     },
     "startPulse": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1795"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1803"
       ],
       "lexical_occurrences": 3,
       "examples": [
@@ -42410,14 +42410,14 @@
           "code": "startPulse();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1795",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1803",
           "code": "private void startPulse() {"
         }
       ]
     },
     "stopPulse": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1812"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1820"
       ],
       "lexical_occurrences": 3,
       "examples": [
@@ -42426,50 +42426,50 @@
           "code": "stopPulse();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1813",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1821",
           "code": "private void stopPulse() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1853",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1862",
           "code": "stopPulse();"
         }
       ]
     },
     "applyPulse": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1819"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1827"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1802",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1810",
           "code": "applyPulse(level, bass);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1820",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1828",
           "code": "private void applyPulse(float level, float bass) {"
         }
       ]
     },
     "applyBeat": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1834"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1842"
       ],
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1807",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1815",
           "code": "applyBeat(power);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1835",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1843",
           "code": "private void applyBeat(float power) {"
         }
       ]
     },
     "create": {
       "declarations": [
-        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1862"
+        "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1871"
       ],
       "lexical_occurrences": 892,
       "examples": [
@@ -42658,7 +42658,7 @@
       "lexical_occurrences": 8,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1591",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1596",
           "code": "penguinCover.setOnTapListener(() -> {"
         },
         {
@@ -42698,11 +42698,11 @@
       "lexical_occurrences": 5,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1590",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1595",
           "code": "penguinCover.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1633",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1638",
           "code": "penguinCover.setSkin(PengramConfig.getPenguinSkin());"
         },
         {
@@ -42738,7 +42738,7 @@
       "lexical_occurrences": 4,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1593",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1598",
           "code": "penguinCover.doFlip();"
         },
         {
@@ -42786,11 +42786,11 @@
       "lexical_occurrences": 4,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1636",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1641",
           "code": "penguinCover.setDanceLoop(false);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1688",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1696",
           "code": "penguinCover.setDanceLoop(!paused && PengramConfig.isPenguinDancing());"
         },
         {
@@ -42822,7 +42822,7 @@
       "lexical_occurrences": 4,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1687",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1695",
           "code": "penguinCover.setSleeping(paused);"
         },
         {
@@ -42886,7 +42886,7 @@
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1840",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1848",
           "code": "penguinCover.pulse(Math.min(1f, power * beatIntensity));"
         },
         {
@@ -42902,7 +42902,7 @@
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1825",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1833",
           "code": "penguinCover.setEnergy(level);"
         },
         {
@@ -42926,7 +42926,7 @@
           "code": "amountInput.getDiamondView().whenReady(null);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1588",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1593",
           "code": "penguinCover.whenReady(() -> fallback.setAlpha(0f));"
         },
         {
@@ -42958,7 +42958,7 @@
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1589",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1594",
           "code": "penguinCover.whenUnavailable(() -> fallback.setAlpha(1f));"
         },
         {
@@ -43231,7 +43231,7 @@
           "code": "public void setPaused(boolean paused) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1637",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1642",
           "code": "penguinCover.setPaused(true);"
         }
       ]
@@ -57067,7 +57067,7 @@
         "code": "AndroidUtilities.runOnUIThread(PengramMusicPlayerSheet.this::applyAccentToViews);"
       },
       {
-        "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1549",
+        "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1554",
         "code": "private void applyAccentToViews() {"
       }
     ],
@@ -69798,77 +69798,77 @@
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1460",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1461",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1466",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1467",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1469",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1470",
       "code": "if (applyingEmptyCover || !currentCover(trackKey, requestGeneration)) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1494",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1499",
       "code": "if (!currentCover(key, requestGeneration)) return;"
     },
     {
       "kind": "0xFFFFFFFF",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1551",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1556",
       "code": "lyricsView.setColors(accentColor, 0xFFFFFFFF);"
     },
     {
       "kind": "catch (Throwable ignore)",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1559",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1564",
       "code": "} catch (Throwable ignore) {"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1620",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1625",
       "code": "if (coverDisposed || !TextUtils.equals(trackKey, displayedCoverKey) || applyingEmptyCover) return;"
     },
     {
       "kind": "0xFFFFFFFF",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1651",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1658",
       "code": "glyph.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1683",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1691",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1695",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1703",
       "code": "if (!currentCover(key, generation)) return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1698",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1706",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1714",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1722",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1779",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1787",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1783",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1791",
       "code": "return;"
     },
     {
       "kind": "return;",
-      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1797",
+      "at": "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramMusicPlayerSheet.java:1805",
       "code": "return;"
     },
     {

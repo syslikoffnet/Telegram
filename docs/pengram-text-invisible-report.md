@@ -87,11 +87,11 @@ Paths below start at `TMessagesProj/src/main/java/org/telegram/`.
 | 31 | `ui/Components/ChatActivityEnterView.java:5392` | Paste is additionally reset after watchers and on focus; existing try/finally reset already covered no-op context-menu paste. |
 | 32 | `ui/Components/PengramTypingEffects.java:35` | Real paste flag is primary; glide no longer fails the multiword/12-char heuristic. Resource guard remains 4096 units. |
 | 33 | `ui/Components/PengramTypingEffects.java:36` | Existing Unicode17 grapheme snapshots, hasGlyph raster protection and delete count=0 were already present; retained. |
-| 34 | `ui/Components/PengramMusicPlayerSheet.java:1619` | One function owns penguinHolder/coverView visibility for visible/loading/missing/error states. |
+| 34 | `ui/Components/PengramMusicPlayerSheet.java:1624` | One function owns penguinHolder/coverView visibility for visible/loading/missing/error states. |
 | 35 | `ui/Components/PengramMusicPlayerSheet.java:1431` | Callbacks validate playing key, displayed key and request generation, including A→B→A. |
 | 36 | `ui/Components/PengramMusicPlayerSheet.java:1437` | Null/recycled/invalid-size bitmap cannot hide the placeholder. |
 | 37 | `messenger/PengramCovers.java:102` | No-file and null-decoder/rejection paths now notify failure instead of silently abandoning the sheet. |
-| 38 | `ui/Components/PengramMusicPlayerSheet.java:1589` | Player gets a logo behind GL, restored on unavailability; child margins shrink 10→4dp. |
+| 38 | `ui/Components/PengramMusicPlayerSheet.java:1594` | Player gets a logo behind GL, restored on unavailability; child margins shrink 10→4dp. |
 | 39 | `ui/Components/PengramPenguinView.java:138` | Body target .84 is separate from accessory-safe .98; jump reserve is conditional; density² remains fixed. |
 | 40 | `ui/Components/PengramBeatHalo.java:79` | Shader allocation moved out of draw; off draws nothing, soft/normal cap glow40 without rings/sparks, juicy retains clipped effects. |
 

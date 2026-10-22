@@ -39,6 +39,9 @@ assert 'penguinCover.setSleeping(paused)' in body(p,'updatePenguinMood')
 background=body(p,'emptyCoverBackground')
 assert 'accentColor' not in background and 'setStroke' not in background
 assert 'Theme.key_windowBackgroundGray' in background
+assert 'smallCoverView.getImageReceiver().setDelegate(style == PengramConfig.PLAYER_STYLE_LYRICS ? artworkDelegate : null)' in p
+assert 'smallCoverView.setImageDrawable(layers)' not in state
+assert 'smallCoverView.setBackground(layers)' in state
 assert 'registerOnSharedPreferenceChangeListener' in p and 'unregisterOnSharedPreferenceChangeListener' in p
 assert 'BODY_FILL = 0.84f' in v and 'Math.max(bodyDistance, fitDistance)' in v
 assert 'dance > 0.01f || jump > 0.001f ? CAM_JUMP_LIMIT : 0f' in v
