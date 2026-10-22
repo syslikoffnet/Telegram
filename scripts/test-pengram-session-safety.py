@@ -11,6 +11,8 @@ start = login.split('public static void start(', 1)[1].split('public static void
 assert 'isSlotAvailable(targetAccount)' in start, 'occupied slot is not rejected before starting import'
 assert start.index('isSlotAvailable(targetAccount)') < start.index('cancel();') < start.index('connect(flow);')
 assert 'listener.onError("slot_busy")' in start
+slot = login.split('private static boolean isSlotAvailable(int account)', 1)[1].split('public static void cancel()', 1)[0]
+assert 'isConfigLoaded()' in slot, 'an unloaded slot must not be treated as an empty account'
 connect = login.split('private static void connect(final Flow flow)', 1)[1].split('private static void succeed', 1)[0]
 assert 'isSlotAvailable(flow.account)' in connect
 assert connect.index('isSlotAvailable(flow.account)') < connect.index('manager.cleanup(true)') < connect.index('manager.importAuthorization(')

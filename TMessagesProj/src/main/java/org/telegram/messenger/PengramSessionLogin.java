@@ -122,12 +122,13 @@ public final class PengramSessionLogin {
 
     private static boolean isSlotAvailable(int account) {
         return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
+                && UserConfig.getInstance(account).isConfigLoaded()
                 && UserConfig.getInstance(account).getClientUserId() == 0
                 && !UserConfig.getInstance(account).isClientActivated()
                 && !PengramLocalKeep.isLocalOnly(account);
     }
 
-    /** Отмена: ключ из файла затирается, слот остаётся чистым. */
+    /** Отмена: стираем разобранный ключ из памяти; нативный слот здесь не очищаем. */
     public static void cancel() {
         final Flow flow = active;
         active = null;

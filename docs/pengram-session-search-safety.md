@@ -17,6 +17,12 @@
 | Пропавшая отправка: ghost delay или revoked/localOnly? | `TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java:8193`, `TMessagesProj/src/main/java/org/telegram/messenger/PengramLocalKeep.java:68`, `TMessagesProj/src/main/java/org/telegram/tgnet/ConnectionsManager.java:895` | В коде: 12/20 секунд отложки; memory-only localOnly; logout возвращается после keepRevokedAccount; cleanup не отменяет этот таймер | Добавлены logout timestamp/userId, import-attempt previousUserId, pending-marker count и экран всех 16 слотов. **Причина account A не установлена; поведение отправки пока НЕ исправлено** |
 | Обфусцированный createView NPE 71789 | Точного mapping/необфусцированного debug stack/нажатой записи нет | Поиск файлов checkout и первых 100 GitHub artifacts не нашёл mapping/71789; это не доказательство отсутствия архивов вне этих источников. BaseFragment по умолчанию возвращает null; отсутствие super.createView не объявляется причиной | Новый search-crash тест baseline: exit 1, `createView failure lacks persistent route/phase diagnostics`. Теперь `TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java:159` сохраняет route; `TMessagesProj/src/main/java/org/telegram/ui/ActionBar/BaseFragment.java:288` — фазу/цель/наличие root. Исходное исключение повторно выбрасывается: **crash НЕ исправлен** |
 
+### Дополнительная проверка полного auth-пути
+
+`LoginActivity.onAuthSuccess:2025–2033` уже вызывает MessagesController cleanup, clearConfig и MessagesStorage.cleanup(true). Поэтому утверждать «после успешного импорта вообще нет очистки» нельзя. Подтверждённый риск относится к **периоду до успешной авторизации**: раньше можно было заменить ключ занятого слота; при неуспешном users.getFullUser выполнялся native cleanup, а старый UserConfig/DB оставались. Это потенциальный механизм потери рабочей авторизации без удаления профиля, не доказательство пользовательского случая. Source guard блокирует вход в этот путь, а не подменяет полный PengramSlotReset.
+
+Дополнительный red→green: UserConfig constructor сам не загружает prefs (UserConfig:113), `isConfigLoaded` выставляется в loadConfig (:395). Guard теперь fail-closed и при незагруженной конфигурации. До добавления проверки обновлённый test завершился exit1 с `an unloaded slot must not be treated as an empty account`; лог `session-unloaded-red.log`. В штатном startup ApplicationLoader:258 уже загружает все конфигурации.
+
 ### Проверенные опровержения / уже существующие защиты
 
 - Утверждение «native_resumeNetwork нигде нет» неверно для текущего дерева: ConnectionsManager:786 (`resumeNetworkMaybe`), :851 (обычный resume). Это не доказывает валидность отозванного ключа и не решает UI local-only.
@@ -74,7 +80,7 @@
 
 Первый полный sweep: 55, один FAIL audit-clean (нужно пересоздать inventory). После `gen-pengram-audit.py`: **55 scripts, 0 nonzero exits, 28.6 s**. В локальной среде нет javac: три JVM-подпроверки честно SKIP; Python/source contracts не заменяют Android/JVM выполнение. Preflight уже содержит полный glob `scripts/test-pengram-*.py`, поэтому автоматически включает оба новых теста; workflow не менялся. Текущий список 55 скриптов приведён ниже.
 
-Java/resource CI и APK для этого изменения: **PENDING**, ещё не подтверждены. Старые успешные runs 39735275998 / APK35239735275990 относятся к baseline26237c339, не к этому изменению. Старый APK35139734279419 теперь также подтверждён SUCCESS; это не новая сборка.
+Java/resource CI для первоначального функционального коммита da4dfa263: https://github.com/syslikoffnet/Telegram/actions/runs/39754521853 — IN PROGRESS; APK353: https://github.com/syslikoffnet/Telegram/actions/runs/39754522338 — ещё не подтверждён. Дополнительный fail-closed guard unloaded-config будет проверен отдельным последующим run. Пока ни один из этих статусов не объявляется SUCCESS. Старые успешные runs 39735275998 / APK35239735275990 относятся к baseline26237c339, не к этому изменению. Старый APK35139734279419 теперь также подтверждён SUCCESS; это не новая сборка.
 
 ## Ручная матрица (ровно 10 сценариев)
 
