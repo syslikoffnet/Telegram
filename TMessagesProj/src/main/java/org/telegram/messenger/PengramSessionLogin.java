@@ -114,10 +114,23 @@ public final class PengramSessionLogin {
             listener.onError("slot_busy");
             return;
         }
+        if (session.userId != 0 && hasAccountUserId(session.userId, targetAccount)) {
+            listener.onError("account_exists");
+            return;
+        }
         cancel();
         final Flow flow = new Flow(targetAccount, session, listener);
         active = flow;
-        connect(flow);
+        // Почему: пустой UserConfig ещё не доказывает отсутствие сохранённой истории.
+        // Проверка идёт по storageQueue до установки ключа, без удаления старой БД.
+        MessagesStorage.getInstance(targetAccount).checkSessionSlotEmpty(empty -> {
+            if (flow.cancelled || active != flow) return;
+            if (!empty) {
+                fail(flow, "slot_busy");
+                return;
+            }
+            connect(flow);
+        });
     }
 
     private static boolean isSlotAvailable(int account) {
@@ -172,10 +185,11 @@ public final class PengramSessionLogin {
             TLRPC.User user = null;
             if (response instanceof TLRPC.TL_users_userFull) {
                 final TLRPC.TL_users_userFull full = (TLRPC.TL_users_userFull) response;
-                if (full.full_user != null && full.full_user.user != null) {
-                    user = full.full_user.user;
-                } else if (full.users != null && !full.users.isEmpty()) {
-                    user = full.users.get(0);
+                user = resolveSessionSelf(full);
+                if (user == null) {
+                    manager.cleanup(true);
+                    fail(flow, "identity_mismatch");
+                    return;
                 }
             }
             if (user == null) {
@@ -200,11 +214,53 @@ public final class PengramSessionLogin {
                 fail(flow, code);
                 return;
             }
+            if (session.userId != 0 && session.userId != user.id) {
+                manager.cleanup(true);
+                fail(flow, "identity_mismatch");
+                return;
+            }
+            if (hasAccountUserId(user.id, flow.account)) {
+                manager.cleanup(true);
+                fail(flow, "account_exists");
+                return;
+            }
             manager.setUserId(user.id);
             final TLRPC.TL_auth_authorization authorization = new TLRPC.TL_auth_authorization();
             authorization.user = user;
             succeed(flow, authorization);
         }), FLAGS);
+    }
+
+    static TLRPC.User resolveSessionSelf(TLRPC.TL_users_userFull full) {
+        if (full == null || full.full_user == null) return null;
+        final TLRPC.User legacy = full.full_user.user;
+        final long id = full.full_user.id != 0 ? full.full_user.id : legacy != null ? legacy.id : 0;
+        if (id <= 0) return null;
+        // Почему: users содержит также связанных пользователей, порядок не задаёт self.
+        TLRPC.User result = null;
+        if (legacy != null) {
+            if (legacy.id != id || !legacy.self || legacy.deleted) return null;
+            result = legacy;
+        }
+        if (full.users != null) {
+            for (int i = 0; i < full.users.size(); i++) {
+                final TLRPC.User user = full.users.get(i);
+                if (user != null && user.id == id) {
+                    if (!user.self || user.deleted || (result != null && result != user)) return null;
+                    result = user;
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean hasAccountUserId(long userId, int exceptAccount) {
+        for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+            if (account != exceptAccount && UserConfig.getInstance(account).getClientUserId() == userId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void succeed(Flow flow, TLRPC.TL_auth_authorization authorization) {

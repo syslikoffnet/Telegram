@@ -13362,4 +13362,6 @@
     <string name="PengramDiagnosticsInfo">Updates every second while visible. Unknown key status means it cannot be read through the current Java API. Pending ghost counts are in-memory request markers, not server acknowledgments. Copying includes user IDs; review before sharing.</string>
     <string name="PengramDiagnosticsCopy">Copy diagnostic report</string>
     <string name="PengramSessionErrSlotBusy">This account slot is occupied, including retained local copies. Choose an empty slot. Replacing its session without a confirmed full reset is not allowed.</string>
+    <string name="PengramSessionErrIdentity">The account identity returned by Telegram does not match this session. Import was stopped; existing accounts and local history were not changed.</string>
+    <string name="PengramSessionErrAccountExists">This account already exists in another slot, including retained local copies. Switch to that account instead of importing its session again.</string>
 </resources>

@@ -6,6 +6,7 @@ import android.content.Context;
 import org.telegram.ui.ActionBar.Theme;
 import android.graphics.Canvas;
 import android.graphics.Path;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Build;
@@ -77,6 +78,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     private final org.telegram.ui.Components.PengramGlassSheen pengramSheen = new org.telegram.ui.Components.PengramGlassSheen();
 
     public void setPengramGlass(boolean enabled, Theme.ResourcesProvider resources) {
+        fallbackResourcesProvider = resources;
         pengramSheen.configure(enabled, resources);
         invalidate();
     }
@@ -86,21 +88,32 @@ public class ChatInputViewsContainer extends FrameLayout {
     private BlurredBackgroundDrawable underKeyboardBackgroundDrawable;
     public void setInputIslandBubbleDrawable(BlurredBackgroundDrawable drawable) {
         blurredBackgroundDrawable = drawable;
-        blurredBackgroundDrawable.setPadding(dp(7));
-        blurredBackgroundDrawable.setRadius(dp(INPUT_BUBBLE_RADIUS));
+        if (blurredBackgroundDrawable != null) {
+            blurredBackgroundDrawable.setPadding(dp(7));
+            blurredBackgroundDrawable.setRadius(dp(INPUT_BUBBLE_RADIUS));
+            blurredBackgroundDrawable.setAlpha(inputBubbleAlpha);
+        }
+        invalidate();
     }
 
     public void setUnderKeyboardBackgroundDrawable(BlurredBackgroundDrawable drawable) {
         underKeyboardBackgroundDrawable = drawable;
-        underKeyboardBackgroundDrawable.enableInAppKeyboardOptimization();
-        underKeyboardBackgroundDrawable.setRadius(dp(INPUT_KEYBOARD_RADIUS), dp(INPUT_KEYBOARD_RADIUS), 0, 0);
-        underKeyboardBackgroundDrawable.setThickness(dp(32));
-        underKeyboardBackgroundDrawable.setIntensity(0.4f);
+        if (underKeyboardBackgroundDrawable != null) {
+            underKeyboardBackgroundDrawable.enableInAppKeyboardOptimization();
+            underKeyboardBackgroundDrawable.setRadius(dp(INPUT_KEYBOARD_RADIUS), dp(INPUT_KEYBOARD_RADIUS), 0, 0);
+            underKeyboardBackgroundDrawable.setThickness(dp(32));
+            underKeyboardBackgroundDrawable.setIntensity(0.4f);
+        }
+        invalidate();
     }
 
     public void updateColors() {
-        blurredBackgroundDrawable.updateColors();
-        underKeyboardBackgroundDrawable.updateColors();
+        if (blurredBackgroundDrawable != null) {
+            blurredBackgroundDrawable.updateColors();
+        }
+        if (underKeyboardBackgroundDrawable != null) {
+            underKeyboardBackgroundDrawable.updateColors();
+        }
         invalidate();
     }
 
@@ -125,6 +138,7 @@ public class ChatInputViewsContainer extends FrameLayout {
 
 
     private void checkInAppKeyboardViewHeight() {
+        if (windowInsetsProvider == null) return;
         LayoutParams lp = (LayoutParams) inAppKeyboardBubbleContainer.getLayoutParams();
 
         final int oldHeight = lp.height;
@@ -160,6 +174,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     private boolean needDrawInAppKeyboard;
 
     public void checkInsets() {
+        if (windowInsetsProvider == null) return;
         maxBottomInset = windowInsetsProvider.getAnimatedMaxBottomInset();
         imeBottomInset = windowInsetsProvider.getAnimatedImeBottomInset();
 
@@ -196,6 +211,7 @@ public class ChatInputViewsContainer extends FrameLayout {
 
 
     private void checkInAppKeyboardChild() {
+        if (windowInsetsProvider == null) return;
         final int navbarHeight = windowInsetsProvider.getCurrentNavigationBarInset();
         final float keyboardHeight = windowInsetsProvider.getAnimatedImeBottomInset();
 
@@ -253,17 +269,24 @@ public class ChatInputViewsContainer extends FrameLayout {
 
     /* Render */
 
+    private final Paint fallbackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Theme.ResourcesProvider fallbackResourcesProvider;
+    private int inputBubbleAlpha = 255;
     private final Rect tmpRect = new Rect();
     private final RectF tmpRectF = new RectF();
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        underKeyboardBackgroundDrawable.setBounds(
-            0,
-            getMeasuredHeight() - (int) imeBottomInset,
-            getMeasuredWidth(),
-            Math.max(getMeasuredHeight(), getMeasuredHeight() - (int) imeBottomInset + dp(INPUT_KEYBOARD_RADIUS * 2))
-        );
+        // Почему: тема может пересоздать drawable после создания/первой отрисовки view.
+        // Без стекла рисуем фон темы, но не пропускаем отрисовку дочерних input views.
+        if (underKeyboardBackgroundDrawable != null) {
+            underKeyboardBackgroundDrawable.setBounds(
+                0,
+                getMeasuredHeight() - (int) imeBottomInset,
+                getMeasuredWidth(),
+                Math.max(getMeasuredHeight(), getMeasuredHeight() - (int) imeBottomInset + dp(INPUT_KEYBOARD_RADIUS * 2))
+            );
+        }
 
         final int blurTop = getMeasuredHeight() - currentBlurredHeight;
 
@@ -276,17 +299,38 @@ public class ChatInputViewsContainer extends FrameLayout {
         tmpRect.inset(0, -dp(7));
         tmpRect.offset(0, blurTop + (int) bubbleInputTranlationY);
 
-        blurredBackgroundDrawable.setBounds(tmpRect);
+        if (blurredBackgroundDrawable != null) {
+            blurredBackgroundDrawable.setBounds(tmpRect);
+        }
         if (drawInputBackground) {
-            blurredBackgroundDrawable.draw(canvas);
-            pengramSheen.draw(canvas, this, tmpRect);
+            if (blurredBackgroundDrawable != null) {
+                blurredBackgroundDrawable.draw(canvas);
+                pengramSheen.draw(canvas, this, tmpRect);
+            } else {
+                drawFallback(canvas, false);
+            }
         }
 
         if (needDrawInAppKeyboard) {
-            underKeyboardBackgroundDrawable.draw(canvas);
+            if (underKeyboardBackgroundDrawable != null) {
+                underKeyboardBackgroundDrawable.draw(canvas);
+            } else {
+                drawFallback(canvas, true);
+            }
         }
 
         super.dispatchDraw(canvas);
+    }
+
+    private void drawFallback(Canvas canvas, boolean keyboard) {
+        fallbackPaint.setColor(Theme.getColor(Theme.key_chat_messagePanelBackground, fallbackResourcesProvider));
+        fallbackPaint.setAlpha(keyboard ? 255 : inputBubbleAlpha);
+        if (keyboard) {
+            canvas.drawPath(underKeyboardPath, fallbackPaint);
+        } else {
+            tmpRectF.set(tmpRect);
+            canvas.drawRoundRect(tmpRectF, dp(INPUT_BUBBLE_RADIUS), dp(INPUT_BUBBLE_RADIUS), fallbackPaint);
+        }
     }
 
     @Override
@@ -294,7 +338,8 @@ public class ChatInputViewsContainer extends FrameLayout {
         final boolean needClip = child == inAppKeyboardBubbleContainer;
         if (needClip) {
             canvas.save();
-            canvas.clipPath(underKeyboardBackgroundDrawable.getPath());
+            canvas.clipPath(underKeyboardBackgroundDrawable != null
+                    ? underKeyboardBackgroundDrawable.getPath() : underKeyboardPath);
         }
 
         final boolean result = super.drawChild(canvas, child, drawingTime);
@@ -330,6 +375,7 @@ public class ChatInputViewsContainer extends FrameLayout {
     }
 
     public void setInputBubbleAlpha(int alpha) {
+        inputBubbleAlpha = alpha;
         if (blurredBackgroundDrawable != null) {
             blurredBackgroundDrawable.setAlpha(alpha);
         }

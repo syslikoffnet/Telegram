@@ -1884,7 +1884,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         // Сессию из файла не «привязываем» к телефонной книге: это чужой
         // аккаунт, и контакты ему не нужны.
         syncContacts = false;
-        org.telegram.messenger.PengramSessionLogin.start(currentAccount, account,
+        final int importedAccount = currentAccount;
+        org.telegram.messenger.PengramSessionLogin.start(importedAccount, account,
                 org.telegram.messenger.PengramSessionLogin.MODE_AUTO,
                 new org.telegram.messenger.PengramSessionLogin.Listener() {
                     @Override
@@ -1895,6 +1896,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                         pengramHideSessionProgress();
                         account.clear();
                         if (getParentActivity() == null) {
+                            return;
+                        }
+                        if (currentAccount != importedAccount
+                                || getUserConfig().getClientUserId() != 0
+                                || org.telegram.messenger.PengramLocalKeep.isLocalOnly(importedAccount)) {
+                            pengramSessionError("slot_busy");
                             return;
                         }
                         onAuthSuccess(authorization);
@@ -1992,6 +1999,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             res = R.string.PengramSessionErrFlood;
         } else if ("api_rejected".equals(code)) {
             res = R.string.PengramSessionErrApi;
+        } else if ("identity_mismatch".equals(code)) {
+            res = R.string.PengramSessionErrIdentity;
+        } else if ("account_exists".equals(code)) {
+            res = R.string.PengramSessionErrAccountExists;
         } else if ("slot_busy".equals(code)) {
             res = R.string.PengramSessionErrSlotBusy;
         } else if ("no_slot".equals(code)) {
