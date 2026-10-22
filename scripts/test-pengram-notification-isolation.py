@@ -13,18 +13,7 @@ assert 'PengramNotificationRouting.findPushAccount(userIdObject)' in p
 assert 'Utilities.parseInt((String) userIdObject)' not in p
 assert 'notificationManager.cancel(notificationGroup, id);' in n
 diag=(j/'PengramDiagnostics.java').read_text()
-probe=diag.split('public static void verifyAccountIdentities()',1)[1].split('private static void recordAccountIdentity',1)[0]
-assert 'TL_inputUserSelf' in probe and 'resolveSessionSelf' in probe
-for forbidden in ('setCurrentUser(', 'clearConfig(', '.cleanup(', 'importAuthorization(', 'setUserId('):
- assert forbidden not in probe,forbidden
-assert 'config.getClientUserId() != expected' in probe
-assert 'generation != identityProbeGenerations[account]' in probe
-assert 'PengramLocalKeep.isLocalOnly(account)' in probe
-assert 'verifyAccountIdentities(' not in diag.split('public static String report()',1)[1]
-for loc in ('values','values-ru'):
- xml=(root/'TMessagesProj/src/main/res'/loc/'strings.xml').read_text()
- for key in ('PengramDiagnosticsVerifyAccounts','PengramDiagnosticsVerifyAccountsInfo'):
-  assert 'name="'+key+'"' in xml
+assert 'verifyAccountIdentities' not in diag and 'sendRequest(' not in diag
 shortcut=n.split('private String createNotificationShortcut(',1)[1].split('ShortcutInfoCompat.Builder shortcutBuilder',1)[0]
 assert 'shortcutIntent.putExtra("currentAccount", currentAccount);' in shortcut
 assert 'PengramNotificationRouting.shortcutIdentity(' in shortcut
