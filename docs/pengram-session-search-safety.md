@@ -19,7 +19,7 @@
 
 ### Дополнительная проверка полного auth-пути
 
-`LoginActivity.onAuthSuccess:2025–2033` уже вызывает MessagesController cleanup, clearConfig и MessagesStorage.cleanup(true). Поэтому утверждать «после успешного импорта вообще нет очистки» нельзя. Подтверждённый риск относится к **периоду до успешной авторизации**: раньше можно было заменить ключ занятого слота; при неуспешном users.getFullUser выполнялся native cleanup, а старый UserConfig/DB оставались. Это потенциальный механизм потери рабочей авторизации без удаления профиля, не доказательство пользовательского случая. Source guard блокирует вход в этот путь, а не подменяет полный PengramSlotReset.
+`LoginActivity.onAuthSuccess:2026–2034` уже вызывает MessagesController cleanup, clearConfig и MessagesStorage.cleanup(true). Поэтому утверждать «после успешного импорта вообще нет очистки» нельзя. Подтверждённый риск относится к **периоду до успешной авторизации**: раньше можно было заменить ключ занятого слота; при неуспешном users.getFullUser выполнялся native cleanup, а старый UserConfig/DB оставались. Это потенциальный механизм потери рабочей авторизации без удаления профиля, не доказательство пользовательского случая. Source guard блокирует вход в этот путь, а не подменяет полный PengramSlotReset.
 
 Дополнительный red→green: UserConfig constructor сам не загружает prefs (UserConfig:113), `isConfigLoaded` выставляется в loadConfig (:395). Guard теперь fail-closed и при незагруженной конфигурации. До добавления проверки обновлённый test завершился exit1 с `an unloaded slot must not be treated as an empty account`; лог `session-unloaded-red.log`. В штатном startup ApplicationLoader:258 уже загружает все конфигурации.
 
@@ -78,9 +78,26 @@
 
 Два новых теста действительно запущены до изменений на baseline, оба exit 1; полные исходные traceback в `/home/user/pengram-safety/proof/session-red.log` и `search-red.log`. После реализации оба exit 0, печатают ровно одну заключительную OK-строку. **Это red→green контрактов защиты/инструментации, а не red→green пользовательского NPE или сценариев R1–R15.**
 
-Первый полный sweep: 55, один FAIL audit-clean (нужно пересоздать inventory). После `gen-pengram-audit.py`: **55 scripts, 0 nonzero exits, 28.6 s**. В локальной среде нет javac: три JVM-подпроверки честно SKIP; Python/source contracts не заменяют Android/JVM выполнение. Preflight уже содержит полный glob `scripts/test-pengram-*.py`, поэтому автоматически включает оба новых теста; workflow не менялся. Текущий список 55 скриптов приведён ниже.
+Первый полный sweep: 55, один FAIL audit-clean (нужно пересоздать inventory). После `gen-pengram-audit.py`: **55 scripts, 0 nonzero exits** (первый зелёный sweep28.6s; последний после UI-transaction fix27.3s). В локальной среде нет javac: три JVM-подпроверки честно SKIP; Python/source contracts не заменяют Android/JVM выполнение. Preflight уже содержит полный glob `scripts/test-pengram-*.py`, поэтому автоматически включает оба новых теста; workflow не менялся. Текущий список 55 скриптов приведён ниже.
 
-Java/resource CI для первоначального функционального коммита da4dfa263: https://github.com/syslikoffnet/Telegram/actions/runs/39754521853 — FAILURE: javac duplicate case label, ошибочно выбранный BTN_DIAGNOSTICS=1498 совпал с BTN_RESET_SECTION. Исправлено на свободный1599; новый source regression test сначала упал на коллизии и стал зелёным после исправления (search-id-red.log). APK353: https://github.com/syslikoffnet/Telegram/actions/runs/39754522338 — ещё не подтверждён. Дополнительный fail-closed guard unloaded-config будет проверен отдельным последующим run. Пока ни один из этих статусов не объявляется SUCCESS. Старые успешные runs 39735275998 / APK35239735275990 относятся к baseline26237c339, не к этому изменению. Старый APK35139734279419 теперь также подтверждён SUCCESS; это не новая сборка.
+### Реальная проверка GitHub Actions
+
+Финальный функциональный коммит: **4d796e8288ea947117fa18ee7f3902ba889dc164**.
+
+| Commit / run | Фактический результат |
+|---|---|
+| da4dfa263 / preflight [39754521853](https://github.com/syslikoffnet/Telegram/actions/runs/39754521853) | FAILURE: javac duplicate case label; diagnostics1498 столкнулся с reset-section1498. Исправлено1599, добавлен red→green contract ID collision |
+| 89e5a34c / preflight [39754914658](https://github.com/syslikoffnet/Telegram/actions/runs/39754914658) | FAILURE: тот же duplicate case (guard-loaded commit был отправлен до получения первого javac результата) |
+| 38a88423 / preflight [39755405590](https://github.com/syslikoffnet/Telegram/actions/runs/39755405590) | **SUCCESS, 7m50s:** Java, resource merge, все55suite, PCM/native-crash-decoder/artwork/lyric/security |
+| 4d796e82 / preflight [39756622802](https://github.com/syslikoffnet/Telegram/actions/runs/39756622802) | **SUCCESS, 7m56s:** Java, resource merge, все55suite, PCM/native-crash-decoder/artwork/lyric/security, с JDK17. Проверен и последний UI-transaction fix |
+| da4dfa263 / APK353 [39754522338](https://github.com/syslikoffnet/Telegram/actions/runs/39754522338) | FAILURE (не готовый APK) |
+| 89e5a34c / APK354 [39754914881](https://github.com/syslikoffnet/Telegram/actions/runs/39754914881) | FAILURE (не готовый APK) |
+| 4d796e82 / APK356 [39756622887](https://github.com/syslikoffnet/Telegram/actions/runs/39756622887) | **SUCCESS, 17m15s:** Build APK, R8 obfuscation check, signing schemes, protection, Upload APK — SUCCESS; beta-release step SKIPPED (это branch build, не новый release) |
+
+Проверены статусы всех шагов final preflight через GitHub API; raw log download через gh завершился EOF на внешнем actions log host, поэтому не приводятся придуманные CI stdout строки. Ниже — реальные заключительные строки локальных55скриптов. Локально JDK отсутствует; в CI установлен JDK17 и общий шаг всех suite SUCCESS.
+
+Baseline runs39735275998 / APK35239735275990 относятся к26237c339, не к новому коду. Старый APK35139734279419 также подтверждён SUCCESS; он не является этой диагностической сборкой.
+
 
 ## Ручная матрица (ровно 10 сценариев)
 
@@ -161,8 +178,18 @@ test-pengram-visual-editor.py [exit=0]: Pengram visual editor source/resource/sa
 
 ## Промежуточный compile failure
 
-`39754521853` (da4dfa263) действительно выполнил javac и выявил duplicate case label в PengramSettingsActivity:5464. Локальные source suites этого не доказывали. Новый settings-search-crash contract проверяет уникальность числового ID диагностики; production constant1599 не пересекается с существующими literal BTN IDs. Требуется новый успешный compile/resource run; прежние FAIL не скрываются.
+`39754521853` (da4dfa263) действительно выполнил javac и выявил duplicate case label в PengramSettingsActivity:5464. Локальные source suites этого не доказывали. Новый settings-search-crash contract проверяет уникальность числового ID диагностики; production constant1599 не пересекается с существующими literal BTN IDs. Повторные compile/resource runs39755405590 и39756622802 завершились SUCCESS; прежние FAIL не скрываются.
 
 ## Сериализация успешного commit
 
 После переноса SessionLogin response callback на UI thread обнаружен лишний повторный post в LoginActivity listener.onSuccess. Он мог оставить очередь UI между проверкой пустого слота и записью UserConfig/onAuthSuccess; другой import смог бы занять этот промежуток. Убрано только повторное планирование: onAuthSuccess теперь вызывается непосредственно из уже UI-serialized response. Дополнительный source contract сначала дал exit1 (`auth commit must not be re-posted after the UI-thread slot check`), затем exit0; лог session-auth-commit-red.log. Это логическое доказательство границы UI transaction, не выполненный Android race scenario.
+
+## Почему одного номера71789 недостаточно для exact mapping
+
+В текущем gradle.properties:16–21 APP_VERSION_CODE=7178 и Pengram beta10; TMessagesProj_AppStandalone/build.gradle:145–150 вычисляет APK versionCode из этого значения и ABI. Эти значения не включают git SHA и не уникальны для каждого CI run. Для exact71789mapping нужен конкретный исходный APK/run/commit, а не только versionCode. Существующий publishing workflow (:266–298) намеренно оставляет mapping только на runner; upload-artifact (:368–374) публикует APK/idsig, не mapping. Это прочитано, **не изменено**; mapping не публиковался и keep/obfuscation не ослаблялись. Ни совпадение версии, ни сборка нынешнего исходника не считаются retrace старого APK.
+
+## APK и оставшийся proof gate
+
+Готовая диагностическая сборка **APK356, functional4d796e82**: https://github.com/syslikoffnet/Telegram/actions/runs/39756622887 — скачать artifact `Pengram-ARM64-standalone-run-356` в разделе Artifacts. Более поздний docs-only commit не меняет функциональный исходник этой сборки. Сохраняются предупреждения существующего workflow: apksigner не напечатал SHA-256 certificate digest, но v1/v2/v3 Verify=true; часть fork-классов переименована без relocation. Workflow не менялся, предупреждения не подавлялись.
+
+Для дальнейшего доказательства accountA/accountB нужен снимок диагностики одинаковой операции и фактический UI/error результат. Для P2 нужен точный старый mapping либо воспроизведение на debug с выбранной записью/целью. Новая instrumentation помогает собрать route/phase; она не обещает recovery, если весь PengramSettings root не открывается (тогда нужны FileLog/debug stack). Нельзя отмечать задачи R1–R15/C1–C8 выполненными на основании этой сборки.
