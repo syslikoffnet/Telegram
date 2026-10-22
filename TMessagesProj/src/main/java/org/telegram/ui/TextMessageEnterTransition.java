@@ -158,7 +158,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         // Почему: поле уже могло очиститься после send. Пустой layout не вправе
         // скрывать настоящий текст ячейки на время полёта/crossfade.
         if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) return;
-        CharSequence text = messageView.getMessageObject().messageText;
+        // Pengram: берём текст без невидимых мест переноса, которые расставляет
+        // мягкая вёрстка (MessageObject.pengramSoftWrap). Иначе длина расходилась
+        // с полем ввода и перелёт уходил в crossfade на каждом сообщении с длинным
+        // словом или ссылкой — не так, как в официальном Telegram.
+        CharSequence text = messageView.getMessageObject().pengramUnwrappedText();
 
         crossfade = false;
         int linesOffset = 0;
@@ -202,17 +206,7 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             Object[] objects = spannable.getSpans(0, text.length(), Object.class);
             containsSpans = objects != null && objects.length > 0;
         }
-        // Pengram: мягкий перенос вставляет в messageText невидимые U+200B
-        // (MessageObject.pengramSoftWrap), поэтому длина переставала совпадать с
-        // полем ввода и перелёт уходил в crossfade — другую ветвь отрисовки, чем
-        // в официальном Telegram: летящий текст гаснет, а текст строки проявляется
-        // через alphaProgress. Невидимые символы не должны менять анимацию,
-        // поэтому сравниваем длину без них.
-        int pengramZeroWidth = 0;
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) == '\u200B') pengramZeroWidth++;
-        }
-        if (editText.length() != text.length() - pengramZeroWidth || containsSpans) {
+        if (editText.length() != text.length() || containsSpans) {
             crossfade = true;
             int[] newStart = new int[1];
             CharSequence trimmedStr = AndroidUtilities.trim(editText, newStart);
@@ -521,31 +515,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             messageViewX = messageView.getX() + listView.getX() - container.getX();
             messageViewY = messageView.getTop() + messageView.getPaddingTop() + listView.getTop() - container.getY();
 
-            // Компенсация нижнего отступа списка имеет смысл, только пока она не
-            // уводит пузырь от строки: иначе летающая копия приземляется мимо
-            // настоящей строки (например, под панель ввода) и в конце перелёта
-            // заметно «прыгает».
-            final float cellTop = messageViewY;
             messageViewY -= (listViewTargetBottomPadding - listView.getPaddingBottom());
-            if (Math.abs(messageViewY - cellTop) > dp(2)) {
-                messageViewY = cellTop;
-            }
 
             lastMessageX = messageViewX;
             lastMessageY = messageViewY;
-        }
-
-        // Pengram: страховка от вырожденной геометрии пузыря.
-        //
-        // Overlay клипает летящий текст по прямоугольнику пузыря, который берётся
-        // из getBackgroundDrawableLeft/Top/Right/Bottom ячейки. Если геометрия ещё
-        // не готова (ячейка не измерена, backgroundWidth == 0), клип схлопывается
-        // и overlay не рисует ничего — в полёт уходила бы невидимая копия. В таком
-        // случае перелёт завершается немедленно и остаётся сама строка.
-        if (messageView.getBackgroundDrawableRight() - messageView.getBackgroundDrawableLeft() < dp(2)
-                || messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop() < dp(2)) {
-            finishTransition();
-            return;
         }
 
         float progress = ChatListItemAnimator.DEFAULT_INTERPOLATOR.getInterpolation(this.progress);
@@ -919,15 +892,8 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                // Pengram: в ветви crossfade (она включается, когда текст сообщения
-                // отличается от поля ввода — стиль отправки «жирный» и любой другой
-                // добавляет спаны, а невидимые U+200B мягкого переноса меняли длину)
-                // текст строки проявлялся через alphaProgress: первые 100 мс из 250
-                // он был полупрозрачным, а при alpha == 0 drawMessageText вообще
-                // выходит без отрисовки. Строку теперь рисует сама ячейка, поэтому
-                // копия overlay рисуется сразу непрозрачной и совпадает с ней.
-                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);
-                messageView.drawAnimatedEmojis(canvas, 1f);
+                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
+                messageView.drawAnimatedEmojis(canvas, alphaProgress);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {
                     Theme.chat_msgTextPaint.setColor(oldColor);
                 }

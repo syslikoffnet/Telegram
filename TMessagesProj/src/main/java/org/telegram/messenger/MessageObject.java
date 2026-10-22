@@ -8836,6 +8836,20 @@ public class MessageObject {
     private CharSequence pengramOriginalMessageText;
     private CharSequence pengramWrappedMessageText;
 
+    /**
+     * Pengram: текст сообщения без невидимых мест переноса (U+200B), которые
+     * расставляет мягкая вёрстка длинных слов и ссылок.
+     *
+     * <p>Display-текст ({@link #messageText}) намеренно объединён с текстом
+     * layout — иначе диапазоны, ссылки и выделение разъезжались бы на вставленных
+     * символах. Но сравнивать его с полем ввода нельзя: длина расходится на
+     * число невидимых символов, и анимация отправки уходила в другую ветвь
+     * отрисовки. Для таких сравнений нужен исходный текст.
+     */
+    public CharSequence pengramUnwrappedText() {
+        return pengramOriginalMessageText != null ? pengramOriginalMessageText : messageText;
+    }
+
     private boolean pengramHasTextLayout() {
         if (type == TYPE_ARTICLE) return richLayout != null;
         if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return false;

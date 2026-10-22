@@ -4411,7 +4411,7 @@
           "code": "public void detach() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8951",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8965",
           "code": "old.detach(old.view);"
         },
         {
@@ -6376,15 +6376,15 @@
           "code": "report();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8889",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8903",
           "code": "PengramAntiCrash.report(\"plain layout: \" + unavailable.getClass().getSimpleName());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8908",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8922",
           "code": "if (PengramAntiCrash.isEnabled()) PengramAntiCrash.report(\"message layout: \" + e.getClass().getSimpleName());"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8943",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8957",
           "code": "PengramAntiCrash.report(\"rich layout: \" + e.getClass().getSimpleName());"
         },
         {
@@ -6686,7 +6686,7 @@
       "lexical_occurrences": 2,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8961",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8975",
           "code": "PengramAntiCrash.sanitizeEntities(messageOwner);"
         },
         {
@@ -17821,11 +17821,11 @@
           "code": "} else if (messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions()) {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8964",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8978",
           "code": "boolean noforwards = messageOwner != null && messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions();"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11938",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11952",
           "code": "if (PengramConfig.isBypassingForwardRestrictions()) {"
         },
         {
@@ -28772,11 +28772,11 @@
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11764",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11778",
           "code": "performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11821",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11835",
           "code": "performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));"
         },
         {
@@ -28792,11 +28792,11 @@
       "lexical_occurrences": 3,
       "examples": [
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11631",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11645",
           "code": "title = PengramMusicMeta.titleFrom(title);"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11667",
+          "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:11681",
           "code": "title = PengramMusicMeta.titleFrom(title);"
         },
         {
