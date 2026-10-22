@@ -126,6 +126,8 @@ public class SendAddHarness {
         TransitionParams getTransitionParams() { return transitionParams; }
     }
     static class ViewHolder { View itemView; }
+    // production-сигнатура animateAddImpl ссылается на RecyclerView.ViewHolder
+    static class RecyclerView { static class ViewHolder extends SendAddHarness.ViewHolder { } }
     static class RecyclerListView extends View {
         int measuredHeight = 1000;
         int getMeasuredHeight() { return measuredHeight; }
