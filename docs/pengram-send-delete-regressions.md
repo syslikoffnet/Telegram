@@ -103,3 +103,7 @@ test-pengram-ticker-lifecycle.py [exit=0]: ticker: lifecycle, track identity, re
 test-pengram-typing-anim.py [exit=0]: Typing source contracts, all modes/styles, lifecycle, settings and 766 Unicode reference vectors: PASS
 test-pengram-visual-editor.py [exit=0]: Pengram visual editor source/resource/safety invariants: OK
 ```
+
+## Preview composing region
+
+Дополнительный red→green: setComposingRegion preview раньше вызывал clear(input), стирая все активные частицы после успешного backspace при следующем IME span update. Оба overload теперь сохраняют additive overlay, как основной composer. Отдельный assert сначала exit1 (`IME region update must not erase live deletion particles`), затем exit0; лог preview-region-red.log. Focus/detach/paste/programmatic clear и reduce-motion ограничения сохранены.

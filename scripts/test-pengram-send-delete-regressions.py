@@ -40,6 +40,7 @@ preview=(java/'ui/Components/PengramTypingPreviewView.java').read_text()
 assert 'captureReplacement(input' in preview and 'count > after' in preview
 assert 'count, suppress, compositionEdit)' in preview
 assert 'isTypingDeleteAnim()' in preview
+assert 'PengramTypingEffects.clear(input)' not in method(preview,'setComposingRegion'), 'IME region update must not erase live deletion particles'
 # Run the actual production visibility method and hide callback against a fake idle scheduler.
 def run_java(command):
     result = subprocess.run(command, capture_output=True, text=True)

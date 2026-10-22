@@ -76,12 +76,12 @@ public class PengramTypingPreviewView extends FrameLayout {
                         finally { compositionEdit = false; }
                     }
                     @Override public boolean setComposingRegion(int start, int end) {
-                        PengramTypingEffects.clear(input);
+                        // Почему: обновление composing-region не отменяет уже удалённые глифы.
                         return super.setComposingRegion(start, end);
                     }
                     @android.annotation.TargetApi(33)
                     @Override public boolean setComposingRegion(int start, int end, android.view.inputmethod.TextAttribute attributes) {
-                        PengramTypingEffects.clear(input);
+                        // Почему: обновление composing-region не отменяет уже удалённые глифы.
                         return super.setComposingRegion(start, end, attributes);
                     }
                     @android.annotation.TargetApi(33)
