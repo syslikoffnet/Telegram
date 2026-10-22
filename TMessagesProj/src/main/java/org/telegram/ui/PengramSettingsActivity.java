@@ -1576,6 +1576,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             // без пересборки фона (она нужна только ползункам)
             org.telegram.ui.MainTabsActivity.refreshPengramGlassOverlayOnly();
         }
+        if (PengramConfig.KEY_HISTORY_LOCK.equals(key)) {
+            org.telegram.messenger.PengramHistory.notifyMarksChanged();
+        }
         if (org.telegram.messenger.PengramLocalKeep.KEY_ENABLED.equals(key)) {
             // локальная копия меняет судьбу удалённых сообщений — открытые чаты
             // должны перекраситься сразу, без перезахода
@@ -3189,6 +3192,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillHistory(ArrayList<UItem> items) {
+        items.add(UItem.asShadow(getString(R.string.PengramHistoryPrivacyPolicy)));
+        items.add(checkInfo(PengramConfig.KEY_HISTORY_LOCK, false,
+                getString(R.string.PengramHistoryLock), getString(R.string.PengramHistoryLockInfo)));
         if (spySelectedAccount >= 0 && !org.telegram.messenger.UserConfig.getInstance(spySelectedAccount).isClientActivated()) {
             spySelectedAccount = -1;
         }

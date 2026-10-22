@@ -230,6 +230,8 @@ public class MessageObject {
     /** Pengram: снимок из архива удалёнок — удалён по определению, даже если
      * метка ещё не подгружена в кэш (иначе такой пузырь «светлеет») */
     public boolean pengramArchived;
+    /** Снимок любой версии архива: удалённой или изменённой, только локальные файлы. */
+    public boolean pengramHistorySnapshot;
     /** Pengram: к какому архивному id относится снимок (для навигации поиска) */
     public long pengramArchiveRowId;
     public boolean deletedByThanos;

@@ -35,6 +35,8 @@ import java.util.Date;
  * dialogId == 0 — по всем чатам, иначе только по конкретному чату.
  */
 public class PengramHistoryActivity extends UniversalFragment {
+    private org.telegram.ui.Components.PengramArchiveGuard archiveGuard;
+
 
     private static final int MENU_CLEAR = 1;
 
@@ -42,6 +44,9 @@ public class PengramHistoryActivity extends UniversalFragment {
     private int filter = PengramHistory.FILTER_ALL;
     private ArrayList<PengramHistory.Entry> entries = new ArrayList<>();
     private final Runnable historyChanged = this::reload;
+    private static final int PAGE_SIZE = 100;
+    private int generation, totalEntries;
+    private boolean loading, morePages, failed, destroyed;
 
     public PengramHistoryActivity() {
         this(0);
@@ -61,7 +66,10 @@ public class PengramHistoryActivity extends UniversalFragment {
 
     @Override
     public void onFragmentDestroy() {
+        destroyed = true;
+        generation++;
         PengramHistory.removeChangeListener(historyChanged);
+        if (archiveGuard != null) archiveGuard.destroy();
         super.onFragmentDestroy();
     }
 
@@ -80,11 +88,30 @@ public class PengramHistoryActivity extends UniversalFragment {
                 }
             }
         });
+        listView.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(androidx.recyclerview.widget.RecyclerView recycler, int dx, int dy) {
+                if (dy > 0 && !recycler.canScrollVertically(1)) loadNextPage();
+            }
+        });
         reload();
         org.telegram.messenger.PengramMD3.watch(view, () -> {
             if (listView != null && listView.adapter != null) listView.adapter.update(false);
         });
-        return view;
+        archiveGuard = new org.telegram.ui.Components.PengramArchiveGuard(this, view);
+        return fragmentView = archiveGuard;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (archiveGuard != null) archiveGuard.resume();
+    }
+
+    @Override
+    public void onPause() {
+        if (archiveGuard != null) archiveGuard.pause();
+        super.onPause();
     }
 
     private void showClearAlert() {
@@ -95,7 +122,7 @@ public class PengramHistoryActivity extends UniversalFragment {
         builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
             PengramHistory.clear(currentAccount, dialogId);
             // The change listener reloads after the queued SQLite deletion.
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, getString(R.string.PengramHistoryCleared)).show();
+            // Успех показывает только обновлённый список после commit, не оптимистичный bulletin.
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         AlertDialog dialog = builder.create();
@@ -107,10 +134,31 @@ public class PengramHistoryActivity extends UniversalFragment {
     }
 
     private void reload() {
-        entries = PengramHistory.getEntries(dialogId, filter, 500, null, 0, false, currentAccount);
-        if (listView != null && listView.adapter != null) {
-            listView.adapter.update(true);
-        }
+        generation++;
+        entries.clear();
+        totalEntries = 0;
+        morePages = true;
+        loading = false;
+        failed = false;
+        loadNextPage();
+    }
+
+    private void loadNextPage() {
+        if (destroyed || loading || !morePages) return;
+        loading = true;
+        final int request = generation;
+        final long beforeId = entries.isEmpty() ? Long.MAX_VALUE : entries.get(entries.size() - 1).rowId;
+        PengramHistory.loadArchivePage(currentAccount, dialogId, filter, beforeId, PAGE_SIZE, (page, total, error) -> {
+            if (destroyed || request != generation) return;
+            loading = false;
+            failed = error;
+            if (!error) {
+                entries.addAll(page);
+                totalEntries = total;
+                morePages = page.size() == PAGE_SIZE;
+            }
+            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+        });
     }
 
     @Override
@@ -132,24 +180,30 @@ public class PengramHistoryActivity extends UniversalFragment {
         items.add(edited);
         items.add(UItem.asShadow(null));
 
+        if (failed) {
+            items.add(UItem.asButton(20, R.drawable.msg_retry, getString(R.string.PengramHistoryReadFailed)));
+        }
         if (entries.isEmpty()) {
-            items.add(UItem.asShadow(getString(R.string.PengramHistoryEmpty)));
+            items.add(UItem.asShadow(getString(loading ? R.string.Loading : R.string.PengramHistoryEmpty)));
             return;
         }
 
-        items.add(UItem.asHeader(LocaleController.formatPluralString("messages", entries.size())));
+        items.add(UItem.asHeader(LocaleController.formatPluralString("messages", totalEntries)));
         for (int i = 0; i < entries.size(); ++i) {
             final PengramHistory.Entry entry = entries.get(i);
             EntryView view = new EntryView(getContext());
             view.set(entry);
             items.add(UItem.asCustom(1000 + i, view));
         }
+        if (morePages && !failed) items.add(UItem.asButton(20, R.drawable.msg_download, getString(R.string.PengramHistoryLoadMore)));
         items.add(UItem.asShadow(getString(R.string.PengramHistoryInfo)));
     }
 
     @Override
     protected void onClick(UItem item, View view, int position, float x, float y) {
-        if (item.id == 10) {
+        if (item.id == 20) {
+            loadNextPage();
+        } else if (item.id == 10) {
             filter = PengramHistory.FILTER_ALL;
             reload();
         } else if (item.id == 11) {
@@ -217,12 +271,12 @@ public class PengramHistoryActivity extends UniversalFragment {
             prevText = new TextView(context);
             prevText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             prevText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText, getResourceProvider()));
-            addView(prevText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, 0, 3, 0, 0));
+            addView(prevText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.START, 0, 3, 0, 0));
 
             bodyText = new TextView(context);
             bodyText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             bodyText.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, getResourceProvider()));
-            addView(bodyText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, 0, 3, 0, 0));
+            addView(bodyText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.START, 0, 3, 0, 0));
         }
 
         public void set(PengramHistory.Entry entry) {

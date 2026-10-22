@@ -2401,7 +2401,8 @@ public class ChatActivity extends BaseFragment implements
                 obj = filteredMessagesDict.get((long) mid);
             }
             if (obj != null) {
-                obj.pengramDeleted = true;
+                org.telegram.messenger.PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner);
+                obj.pengramDeleted = org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, mid);
                 any = true;
                 pengramRefreshMessage(obj, true);
             }

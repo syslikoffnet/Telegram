@@ -13028,7 +13028,7 @@
     <string name="PengramExportPinned">Message pinned</string>
     <string name="PengramExportCall">Call</string>
     <string name="PengramExportLocalTitle">Locally saved deleted messages</string>
-    <string name="PengramExportLocalNote">Local snapshots may be incomplete or missing attachments; this section is not server history. Edited versions and deletions not captured locally cannot be recovered.</string>
+    <string name="PengramExportLocalNote">Local snapshots may be incomplete or missing attachments; this section is not server history. Edited versions and deletions not captured locally cannot be recovered. This file contains deleted messages. Do not share it with third parties.</string>
     <string name="PengramExportLocalLoading">Reading local snapshots</string>
     <string name="PengramExportForwarded">Forwarded</string>
     <string name="PengramExportRootMissing">Topic opening message is unavailable.</string>
@@ -13352,4 +13352,10 @@
     <string name="PengramTypingStepMaximum">Maximum</string>
     <string name="PengramTypingReset">Reset typing animations</string>
     <string name="PengramTypingResetConfirm">Restore default typing effects? Message styles, text and WPM counters will not change.</string>
+    <string name="PengramHistoryReadFailed">Could not read the archive. Tap to retry; no records were erased.</string>
+    <string name="PengramHistoryLoadMore">Load older archive entries</string>
+    <string name="PengramHistoryPrivacyPolicy">The archive is stored unencrypted in the app sandbox and excluded from Android backup. Secret chats and hidden edits are not newly archived. Existing records are not erased. Local copy also stores deletion snapshots for reliable marks, even when tracking is off. Exported files are sensitive; do not share them with third parties.</string>
+    <string name="PengramHistoryLock">Lock archive screens</string>
+    <string name="PengramHistoryLockInfo">Require the Telegram app passcode or configured biometrics whenever opening or returning to an archive screen. Hide archive screens from screenshots and the recent-apps preview. This does not encrypt stored records, lock message bubbles or protect exported files.</string>
+    <string name="PengramHistorySetPasscode">Archive locked. Tap to set up the Telegram app passcode, then return here.</string>
 </resources>

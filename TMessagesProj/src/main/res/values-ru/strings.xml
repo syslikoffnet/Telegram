@@ -2024,7 +2024,7 @@
     <string name="PengramExportPinned">Сообщение закреплено</string>
     <string name="PengramExportCall">Звонок</string>
     <string name="PengramExportLocalTitle">Локально сохранённые удалённые</string>
-    <string name="PengramExportLocalNote">Локальные снимки могут быть неполными или без вложений; это не история с сервера. Несохранённые удалённые сообщения и версии правок нельзя восстановить.</string>
+    <string name="PengramExportLocalNote">Локальные снимки могут быть неполными или без вложений; это не история с сервера. Несохранённые удалённые сообщения и версии правок нельзя восстановить. Файл содержит удалённые сообщения. Не передавайте его третьим лицам.</string>
     <string name="PengramExportLocalLoading">Чтение локальных снимков</string>
     <string name="PengramExportForwarded">Переслано</string>
     <string name="PengramExportRootMissing">Начальное сообщение темы недоступно.</string>
@@ -2080,4 +2080,10 @@
     <string name="PengramTypingStepMaximum">Максимум</string>
     <string name="PengramTypingReset">Сбросить анимации набора</string>
     <string name="PengramTypingResetConfirm">Вернуть стандартные эффекты набора? Стили сообщений, текст и счётчики WPM не изменятся.</string>
+    <string name="PengramHistoryReadFailed">Не удалось прочитать архив. Нажмите для повтора; записи не удалены.</string>
+    <string name="PengramHistoryLoadMore">Загрузить более старые записи</string>
+    <string name="PengramHistoryPrivacyPolicy">Архив хранится без шифрования в песочнице приложения и исключён из резервной копии Android. Секретные чаты и скрытые правки больше не архивируются; старые записи не удаляются. Локальная копия тоже сохраняет снимки удалений для достоверных меток, даже если слежка выключена. Экспорт содержит личные данные — не передавайте его третьим лицам.</string>
+    <string name="PengramHistoryLock">Замок на экранах архива</string>
+    <string name="PengramHistoryLockInfo">При открытии или возвращении на экран архива запрашивать код приложения Telegram или настроенную биометрию. Скрывать экраны архива на скриншотах и в списке задач. Это не шифрует записи, не блокирует сообщения в чате и не защищает экспортированные файлы.</string>
+    <string name="PengramHistorySetPasscode">Архив заблокирован. Нажмите, чтобы настроить код приложения Telegram, затем вернитесь сюда.</string>
 </resources>

@@ -215,10 +215,6 @@ public class PengramConfig {
     public static final int SENDER_AVATAR_AFTER_NAME = 4;
     /** всегда показывать галочку «Удалить у всех» */
     public static final String KEY_FORCE_DELETE_FOR_ALL = "forceDeleteForAll";
-    /** удалённые пересылать от своего лица, без «переслано от» */
-    public static final String KEY_RESEND_AS_MINE = "resendDeletedAsMine";
-    /** пункты «отправить удалёнку» в меню сообщения */
-    public static final String KEY_RESEND_MENU = "resendDeletedMenu";
     /** одноразовые медиа тоже можно переслать от своего лица */
     public static final String KEY_RESEND_ONCE = "resendOnceMedia";
     /** спрашивать чат перед отправкой удалёнки */
@@ -327,6 +323,8 @@ public class PengramConfig {
     public static final String KEY_FADE_DELETED = "fadeDeleted";
     /** метка у изменённых сообщений */
     public static final String KEY_MARK_EDITED = "markEdited";
+    public static final String KEY_HISTORY_LOCK = "historyLock";
+    public static boolean isHistoryLocked() { return getBool(KEY_HISTORY_LOCK, false); }
     /** галочка «сохранить у себя» включена по умолчанию */
     public static final String KEY_SAVE_FOR_MYSELF_DEFAULT = "saveForMyselfDefault";
     /** показывать подсказку «сохранить у себя» в меню удаления */
@@ -1099,6 +1097,11 @@ public class PengramConfig {
         v = v * 31 + (isTimeWithSeconds() ? 1 : 0);
         v = v * 31 + getDeletedMark();
         v = v * 31 + getEditedMarkIconRes();
+        v = v * 31 + (isMarkingEdited() ? 1 : 0);
+        v = v * 31 + getEditedMark();
+        v = v * 31 + (isEditHistoryMarkEnabled() ? 1 : 0);
+        v = v * 31 + (isEditHistoryMenuEnabled() ? 1 : 0);
+        v = v * 31 + (isForceDeleteForAll() ? 1 : 0);
         v = v * 31 + (isFadingDeleted() ? 1 : 0);
         v = v * 31 + (isKeepingDeletedInChat(account) ? 1 : 0);
         v = v * 31 + (isSavingDeleted(account) ? 1 : 0);
@@ -1115,13 +1118,7 @@ public class PengramConfig {
 
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
-        // History opens with a pencil by default. If the user chooses only the
-        // long-press menu, respect the independent edited-mark appearance setting.
-        if (!isMarkingEdited()) {
-            return isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
-        }
-        int icon = getEditedMarkIcon(getEditedMark());
-        return icon != 0 ? icon : isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
+        return isMarkingEdited() ? getEditedMarkIcon(getEditedMark()) : 0;
     }
 
     private static boolean loaded;
@@ -2821,8 +2818,6 @@ public class PengramConfig {
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
-    /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
-    public static boolean isResendDeletedAsMine() { return true; }
     public static boolean isResendMenuVisible() { return getBool("messageMenuResendHere", false) || getBool("messageMenuResendTo", false); }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }

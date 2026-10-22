@@ -28,7 +28,7 @@ for block, table in ((marks, "marks"), (clear, "history")):
     assert "new String[]{String.valueOf(account)}" in block
 assert "marksCache.remove(account)" in marks
 assert "accountMarks(account).remove(dialogId)" in marks
-assert "PengramHistory.getEntries(dialogId, filter, 500, null, 0, false, currentAccount)" in archive
+assert "PengramHistory.loadArchivePage(currentAccount, dialogId, filter, beforeId, PAGE_SIZE" in archive
 assert 'StringBuilder where = new StringBuilder("account = ?")' in history
 assert "if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return result" in history
 assert "getEntries(dialogId, filter, limit, query, messageId, ascending, UserConfig.selectedAccount)" in history

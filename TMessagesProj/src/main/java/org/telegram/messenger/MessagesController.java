@@ -11477,7 +11477,8 @@ public class MessagesController extends BaseController implements NotificationCe
     /** Pengram: сохраняем предыдущую версию отредактированного сообщения */
     private void pengramSaveEdited(TLRPC.Message message) {
         try {
-            if (message == null || !PengramConfig.isSavingEdited(currentAccount)) {
+            if (message == null || !PengramHistory.isArchivableSnapshot(MessageObject.getDialogId(message), message, PengramHistory.ACTION_EDITED)
+                    || !PengramConfig.isSavingEdited(currentAccount)) {
                 return;
             }
             if (message.out && !PengramConfig.isSavingOutgoing(currentAccount)) {
