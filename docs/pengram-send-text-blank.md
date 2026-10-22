@@ -75,10 +75,11 @@ overlay (`ChatActivityEnterView.drawChild` прячет её только при
 - Новый `scripts/test-pengram-send-text-blank.py`: source-контракты
   (overlay не создаётся, голосовой перелёт и сброс поля ввода на месте, контракт
   ячейки `!enterTransitionInProgress` и watchdog сохранены) + JVM-исполнение
-  настоящего production `animateAddImpl` с фейковым Android: 8 случаев
-  (текст на мощном/слабом устройстве, далеко/близко, не из отправки, запрещённый
-  переход, голосовое близко/далеко) и 2 отрицательных контроля (возврат overlay →
-  `blank_bubble`, потеря голосового перелёта → `voice_transition_lost`).
+  настоящего production `animateAddImpl` с фейковым Android: 9 случаев
+  (текст на мощном/слабом устройстве, измеренная и неизмеренная ячейка, не из
+  отправки, запрещённый переход, голосовое в трёх вариантах) и 2 отрицательных
+  контроля (возврат overlay → `blank_bubble`, потеря голосового перелёта →
+  `voice_transition_lost`).
   Локально **SKIP: JDK в этой среде нет**, синтаксис сгенерированного harness
   проверен парсером javalang; исполнение — только в preflight с JDK17.
   Первый прогон в CI ([39800599805](https://github.com/syslikoffnet/Telegram/actions/runs/39800599805))
@@ -89,6 +90,15 @@ overlay (`ChatActivityEnterView.drawChild` прячет её только при
   resource merge были SUCCESS. Логи job'а из этой среды недоступны (хост логов
   заблокирован), поэтому шаг «Test all Pengram regressions» теперь дублирует
   падение suite аннотациями `::error`.
+  Второй прогон ([39803822534](https://github.com/syslikoffnet/Telegram/actions/runs/39803822534))
+  дошёл до исполнения harness и поймал уже ошибку самого теста:
+  `voice_transition_lost: voice_far created=1 expected=0`. Причина в штатном коде —
+  `animateAddImpl` делает `view.setTranslationY(addedItemsHeight)` **до** проверки
+  `Math.abs(view.getTranslationY()) < view.getMeasuredHeight() * 3f`, поэтому
+  «далеко» для голосового перелёта означает не смещение строки, а неизмеренную
+  ячейку (порог 0). Production-код не менялся: ожидание теста исправлено
+  (`voice_translation_reset` ждёт перелёт, `voice_unmeasured` — нет), а эта
+  особенность штатной проверки зафиксирована здесь и в комментарии harness.
 - `scripts/test-pengram-send-text-draw.py`: добавлен контракт, что overlay в
   аниматоре не создаётся; прежние контракты forwarding/диапазона/alpha ячейки не
   ослаблены (они по-прежнему нужны голосовому перелёту и превью).

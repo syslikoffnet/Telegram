@@ -175,17 +175,19 @@ public class SendAddHarness {
 
 METHOD
 
-    static RecyclerView.ViewHolder newHolder(boolean voice, float translationY, boolean ignoreAlpha) {
+    static RecyclerView.ViewHolder newHolder(boolean voice, float translationY, boolean ignoreAlpha,
+                                             int cellHeight) {
         ChatMessageCell cell = new ChatMessageCell();
         cell.messageObject.voice = voice;
         cell.translationY = translationY;
+        cell.measuredHeight = cellHeight;
         cell.transitionParams.ignoreAlpha = ignoreAlpha;
         RecyclerView.ViewHolder holder = new RecyclerView.ViewHolder();
         holder.itemView = cell;
         return holder;
     }
 
-    static void check(String name, boolean voice, float translationY, int listHeight,
+    static void check(String name, boolean voice, float translationY, int cellHeight, int listHeight,
                       int performanceClass, boolean canShow, boolean animating,
                       int expectedText, int expectedVoice, boolean expectedComposerReset) {
         TextMessageEnterTransition.created = 0;
@@ -196,7 +198,7 @@ METHOD
         SendAddHarness animator = new SendAddHarness();
         animator.recyclerListView.measuredHeight = listHeight;
         animator.activity.enterView.canShow = canShow;
-        RecyclerView.ViewHolder holder = newHolder(voice, translationY, false);
+        RecyclerView.ViewHolder holder = newHolder(voice, translationY, false, cellHeight);
         if (animating) animator.activity.animatingMessageObjects.add(holder.itemView instanceof ChatMessageCell
                 ? ((ChatMessageCell) holder.itemView).messageObject : null);
         animator.animateAddImpl(holder, 0);
@@ -222,18 +224,23 @@ METHOD
 
     public static void main(String[] args) {
         // Отправленный текст: overlay не создаётся ни на мощном, ни на слабом
-        // устройстве, ни при большом, ни при маленьком смещении строки.
-        check("text_high_near", false, 10f, 1000, 2, true, true, 0, 0, true);
-        check("text_high_far", false, 900f, 1000, 2, true, true, 0, 0, true);
-        check("text_low", false, 10f, 1000, 0, true, true, 0, 0, true);
-        check("text_emoji_only", false, 0f, 1000, 2, true, true, 0, 0, true);
+        // устройстве, ни при какой высоте ячейки и списка.
+        check("text_high_near", false, 10f, 60, 1000, 2, true, true, 0, 0, true);
+        check("text_high_far", false, 900f, 60, 1000, 2, true, true, 0, 0, true);
+        check("text_low", false, 10f, 60, 1000, 0, true, true, 0, 0, true);
+        check("text_emoji_only", false, 0f, 60, 1000, 2, true, true, 0, 0, true);
         // Сообщение не из отправки — ничего не запускается, поле ввода не трогаем.
-        check("text_not_animating", false, 10f, 1000, 2, true, false, 0, 0, false);
-        check("text_transition_denied", false, 10f, 1000, 2, false, true, 0, 0, false);
-        // Голосовое: свой перелёт сохранён вместе со своим ограничением расстояния.
-        check("voice_near", true, 10f, 1000, 2, true, true, 0, 1, true);
-        check("voice_far", true, 900f, 1000, 2, true, true, 0, 0, true);
-        System.out.println("Production animateAddImpl: 8 cases PASS (fake Android, not a device)");
+        check("text_not_animating", false, 10f, 60, 1000, 2, true, false, 0, 0, false);
+        check("text_transition_denied", false, 10f, 60, 1000, 2, false, true, 0, 0, false);
+        // Голосовой перелёт сохранён. Важно: animateAddImpl сам делает
+        // view.setTranslationY(addedItemsHeight) ДО проверки
+        // Math.abs(getTranslationY()) < getMeasuredHeight() * 3f, поэтому
+        // «далеко» здесь — это не измеренная ячейка (порог 0), а не смещение
+        // строки. Штатное поведение не меняем, только документируем.
+        check("voice_measured", true, 10f, 60, 1000, 2, true, true, 0, 1, true);
+        check("voice_translation_reset", true, 900f, 60, 1000, 2, true, true, 0, 1, true);
+        check("voice_unmeasured", true, 900f, 0, 1000, 2, true, true, 0, 0, true);
+        System.out.println("Production animateAddImpl: 9 cases PASS (fake Android, not a device)");
     }
 }'''.replace('METHOD', add_impl)
 
