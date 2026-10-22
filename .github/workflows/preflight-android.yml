@@ -74,10 +74,24 @@ jobs:
 
       - name: Test all Pengram regressions
         run: |
+          # Скачать лог job'а из песочницы получается не всегда (хост логов
+          # недоступен), поэтому падение suite дублируется аннотациями: javac/
+          # python traceback видно прямо в списке аннотаций проверки.
+          status=0
           for suite in scripts/test-pengram-*.py; do
             echo "Running $suite"
-            python3 "$suite"
+            if ! out=$(python3 "$suite" 2>&1); then
+              status=1
+              echo "$out"
+              echo "$out" | grep -E "error:|Error|assert|Exception|Traceback|\.java:|\.py:" | head -n 15 \
+                | while IFS= read -r line; do
+                    echo "::error title=$suite::$line"
+                  done
+            else
+              echo "$out" | tail -n 2
+            fi
           done
+          exit $status
 
       - name: Test Pengram lyric timing
         run: |

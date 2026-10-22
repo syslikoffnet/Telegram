@@ -104,7 +104,6 @@ public class SendAddHarness {
         ViewPropertyAnimator setDuration(long d) { return this; }
         ViewPropertyAnimator setInterpolator(Object i) { return this; }
         ViewPropertyAnimator setListener(Object l) { return this; }
-        void setListener(Object l) { }
         void start() { }
     }
     static class Animator { }
@@ -162,12 +161,7 @@ public class SendAddHarness {
         static int performanceClass = PERFORMANCE_CLASS_HIGH;
         static int getDevicePerformanceClass() { return performanceClass; }
     }
-    static class ArrayListAdditions extends ArrayList<ViewHolder> {
-        boolean add(ViewHolder holder) { super.add(holder); return true; }
-        boolean remove(ViewHolder holder) { return super.remove(holder); }
-    }
-
-    final ArrayListAdditions mAddAnimations = new ArrayListAdditions();
+    final ArrayList<ViewHolder> mAddAnimations = new ArrayList<>();
     Activity activity = new Activity();
     RecyclerListView recyclerListView = new RecyclerListView();
     Object resourcesProvider = new Object();
@@ -181,12 +175,12 @@ public class SendAddHarness {
 
 METHOD
 
-    static ViewHolder holder(boolean voice, float translationY, boolean ignoreAlpha) {
+    static RecyclerView.ViewHolder newHolder(boolean voice, float translationY, boolean ignoreAlpha) {
         ChatMessageCell cell = new ChatMessageCell();
         cell.messageObject.voice = voice;
         cell.translationY = translationY;
         cell.transitionParams.ignoreAlpha = ignoreAlpha;
-        ViewHolder holder = new ViewHolder();
+        RecyclerView.ViewHolder holder = new RecyclerView.ViewHolder();
         holder.itemView = cell;
         return holder;
     }
@@ -202,7 +196,7 @@ METHOD
         SendAddHarness animator = new SendAddHarness();
         animator.recyclerListView.measuredHeight = listHeight;
         animator.activity.enterView.canShow = canShow;
-        ViewHolder holder = holder(voice, translationY, false);
+        RecyclerView.ViewHolder holder = newHolder(voice, translationY, false);
         if (animating) animator.activity.animatingMessageObjects.add(holder.itemView instanceof ChatMessageCell
                 ? ((ChatMessageCell) holder.itemView).messageObject : null);
         animator.animateAddImpl(holder, 0);

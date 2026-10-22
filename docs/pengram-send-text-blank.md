@@ -81,6 +81,14 @@ overlay (`ChatActivityEnterView.drawChild` прячет её только при
   `blank_bubble`, потеря голосового перелёта → `voice_transition_lost`).
   Локально **SKIP: JDK в этой среде нет**, синтаксис сгенерированного harness
   проверен парсером javalang; исполнение — только в preflight с JDK17.
+  Первый прогон в CI ([39800599805](https://github.com/syslikoffnet/Telegram/actions/runs/39800599805))
+  честно поймал три ошибки компиляции самого harness (дубль сигнатуры
+  `setListener(Object)`, `add(ViewHolder)` с тем же erasure, что `List.add(int, E)`,
+  и `ViewHolder` вместо `RecyclerView.ViewHolder` в сигнатуре production-метода) —
+  исправлены, production Java при этом собрался: шаги Compile Java и Validate APK
+  resource merge были SUCCESS. Логи job'а из этой среды недоступны (хост логов
+  заблокирован), поэтому шаг «Test all Pengram regressions» теперь дублирует
+  падение suite аннотациями `::error`.
 - `scripts/test-pengram-send-text-draw.py`: добавлен контракт, что overlay в
   аниматоре не создаётся; прежние контракты forwarding/диапазона/alpha ячейки не
   ослаблены (они по-прежнему нужны голосовому перелёту и превью).
