@@ -12906,10 +12906,10 @@
     <string name="PengramHistoryMaxValue">%1$d entries</string>
     <string name="PengramHistoryMaxUnlimited">No limit</string>
     <string name="PengramBackgroundChannel">Pengram in background</string>
-    <string name="PengramBackgroundTitle">Pengram is running in the background</string>
-    <string name="PengramBackgroundText">Not a message: the connection is active, notifications arrive</string>
-    <string name="PengramBackgroundSleepTitle">Pengram in background: sleep mode</string>
-    <string name="PengramBackgroundSleepText">Not a message: saving battery, the connection is checked less often</string>
+    <string name="PengramBackgroundTitle">🐧✨</string>
+    <string name="PengramBackgroundText">👀📡</string>
+    <string name="PengramBackgroundSleepTitle">🐧💤</string>
+    <string name="PengramBackgroundSleepText">🌙☁️</string>
     <string name="PengramTypingStatsTitle">Typing speed</string>
     <string name="PengramTypingStatsEnable">Collect my typing speed</string>
     <string name="PengramTypingStatsPrivacy">Only your own typing; stored on this device as counters, never text. Off by default.</string>

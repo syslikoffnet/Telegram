@@ -22,7 +22,11 @@ alpha_start = cell.rfind('        if (alpha == 0) {', start, selector_start)
 assert alpha_start >= 0
 alpha_guard = cell[alpha_start:cell.index('\n        }\n', alpha_start) + 10]
 assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not become opaque'
-assert 'messageView.setEnterTransitionInProgress(true)' in enter
+# Ячейка на время текстового перелёта не глушится: строку рисует она сама,
+# overlay добавляет летящую копию поверх. Глушение давало «пустое место»,
+# когда геометрия overlay расходилась со строкой (высота «острова» ввода
+# меняется жидким стеклом панельки).
+assert 'setEnterTransitionInProgress' not in enter, 'cell suppression is back'
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')

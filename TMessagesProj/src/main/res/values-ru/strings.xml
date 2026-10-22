@@ -1902,10 +1902,10 @@
     <string name="PengramHistoryMaxValue">%1$d записей</string>
     <string name="PengramHistoryMaxUnlimited">Без лимита</string>
     <string name="PengramBackgroundChannel">Pengram в фоне</string>
-    <string name="PengramBackgroundTitle">Pengram работает в фоне</string>
-    <string name="PengramBackgroundText">Это не сообщение: связь активна, уведомления приходят</string>
-    <string name="PengramBackgroundSleepTitle">Pengram в фоне: режим сна</string>
-    <string name="PengramBackgroundSleepText">Это не сообщение: экономия батареи, связь проверяется реже</string>
+    <string name="PengramBackgroundTitle">🐧✨</string>
+    <string name="PengramBackgroundText">👀📡</string>
+    <string name="PengramBackgroundSleepTitle">🐧💤</string>
+    <string name="PengramBackgroundSleepText">🌙☁️</string>
     <string name="PengramTypingStatsTitle">Скорость набора</string>
     <string name="PengramTypingStatsEnable">Собирать мою скорость набора</string>
     <string name="PengramTypingStatsPrivacy">Только ваш ввод: на устройстве хранятся счётчики, но не текст. По умолчанию выключено.</string>
