@@ -273,7 +273,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
             PengramHistory.clear(currentAccount, dialogId);
             // historyChanged reloads after the queued deletion completes.
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, getString(R.string.PengramHistoryCleared)).show();
+            // Успех показывает только обновлённый список после commit, не оптимистичный bulletin.
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         AlertDialog dialog = builder.create();
@@ -310,6 +310,10 @@ public class PengramHistoryChatActivity extends BaseFragment {
             AndroidUtilities.runOnUIThread(() -> {
                 if (generation != loadGeneration || fragmentView == null) return;
                 loadingEntries = false;
+                if (PengramHistory.hasStorageError()) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
+                            getString(R.string.PengramHistoryReadFailed)).show();
+                }
                 hasOlderEntries = entries.size() == limit;
                 applyEntries(entries, query, keepScroll);
             });
@@ -725,6 +729,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         super.onResume();
         refreshTheme();
     }
+
 
     @Override
     public ArrayList<ThemeDescription> getThemeDescriptions() {

@@ -15,7 +15,7 @@ editor = (java / 'ui/PengramLayoutEditorActivity.java').read_text()
 preview = (java / 'ui/Components/PengramInteractivePreviewView.java').read_text()
 chat = (java / 'ui/ChatActivity.java').read_text()
 
-assert 'DB_VERSION = 7' in history and 'if (oldVersion < 6)' in history and 'if (oldVersion < 7)' in history
+assert 'DB_VERSION = 8' in history and 'if (oldVersion < 6)' in history and 'if (oldVersion < 7)' in history and 'if (oldVersion < 8)' in history
 for column in ('prev_data BLOB', 'prev_media_path TEXT'):
     assert column in history
 assert 'e.prevData = c.getBlob(12)' in history and 'e.prevMediaPath = c.getString(13)' in history

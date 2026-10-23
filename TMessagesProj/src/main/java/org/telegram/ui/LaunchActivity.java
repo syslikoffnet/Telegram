@@ -463,6 +463,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         frameLayout.setClipToPadding(false);
         frameLayout.setClipChildren(false);
         setContentView(frameLayout);
+        // Островок свёрнутого плеера: глобальная капсула поверх контента экрана.
+        org.telegram.ui.Components.PengramMusicIsland.attach((ViewGroup) findViewById(android.R.id.content));
         // Проверка имени могла не успеть вернуть контакт (сеть, падение) —
         // возвращаем такие контакты при первом удобном случае.
         AndroidUtilities.runOnUIThread(() -> {
@@ -6901,6 +6903,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     protected void onDestroy() {
         GramWalletStorageAuth.onActivityDestroyed(this);
         isActive = false;
+        org.telegram.ui.Components.PengramMusicIsland.detach();
         activeInstanceCount--;
         unregisterReceiver(batteryReceiver);
 

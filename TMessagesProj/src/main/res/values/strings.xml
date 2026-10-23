@@ -11325,6 +11325,8 @@
     <string name="PengramHistoryClearChat">Delete all saved messages of this chat?</string>
     <string name="PengramHistoryClearAll">Delete all saved deleted and edited messages?</string>
     <string name="PengramHistoryCleared">History cleared</string>
+    <string name="PengramHistoryLoadMore">Load more</string>
+    <string name="PengramHistoryReadFailed">Couldn\'t read the saved history</string>
     <string name="PengramHistoryClearButton">Clear saved history</string>
     <string name="PengramHistorySize">Database size: %1$s</string>
     <string name="PengramRegHeader">Registration date</string>
@@ -13333,6 +13335,8 @@
     <string name="PengramInputGlass">Input bar glass</string>
     <string name="PengramHeaderGlass">Chat list header glass</string>
     <string name="PengramChatHeaderGlass">Chat header glass</string>
+    <string name="PengramPlayerIslandGlass">Player island glass</string>
+    <string name="PengramChatPinnedGlass">Pinned message glass</string>
     <string name="PengramChatEnterAnim">Chat open animation</string>
     <string name="PengramChatEnterAnimInfo">Opening a chat fades the screen in with a slight zoom instead of a plain slide. Only cheap property animations — no overlays or extra layers, so no flicker or lag. Off by default: the stock Telegram transition is used.</string>
     <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>

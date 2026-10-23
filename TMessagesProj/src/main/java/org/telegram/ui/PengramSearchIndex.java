@@ -164,6 +164,8 @@ public final class PengramSearchIndex {
             {R.string.PengramInputGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramHeaderGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramChatHeaderGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
+            {R.string.PengramPlayerIslandGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
+            {R.string.PengramChatPinnedGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramGlassOpacity, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramGlassThickness, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramGlassIntensity, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},

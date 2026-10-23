@@ -44,7 +44,9 @@ assert 'saved.account != currentAccount' in chat
 assert 'messages.add(at, ghost)' in chat and 'ghost.pengramDeleted = true' in chat
 assert 'messagesByDays.put(ghost.dateKey, day)' in chat
 assert 'clearSearchDeletedGhosts();' in chat
-assert 'getAdditionalDeletedCount()' in chat and 'searchCountText.setVisibility(View.VISIBLE)' in chat
+assert 'pengramLocalSearchTotal()' in chat and 'searchCountText.setVisibility(View.VISIBLE)' in chat
+assert 'isLocalSearchLoading()' in chat
+assert 'getAdditionalDeletedCount()' not in chat  # строки локальных заглушек и серверные не смешиваем
 assert 'getLoadedResult(next)' in chat and 'getDeletedResult(result)' in chat
 assert 'getDeletedEntry(int account, long rowId)' in history
 assert 'account = ? AND id = ? AND action = ? LIMIT 1' in history

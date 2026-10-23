@@ -55,8 +55,17 @@ assert 'marksLoadedDialogs.contains(marksKey(account, dialogId))' in history
 assert 'marksLoadedDialogs.add(marksKey(account, dialogId))' in history
 assert 'accountMarks(account).indexOfKey(dialogId) >= 0' not in history
 # новая метка дочитывает старые, а не прячет их
-idx_mark = history.index('loadMarks(account, dialogId, null);')
-assert history.index('set.addAll(copy);', history.index('public static void markDeleted')) < idx_mark
+idx_del = history.index('public static void markDeleted')
+idx_insert = history.index('insertDeletedMark(db, account, dialogId, id)', idx_del)
+idx_publish = history.index('publishDeletedMark(account, dialogId, id)', idx_insert)
+assert idx_del < idx_insert < idx_publish
+assert history.index('notifyMarksChanged()', idx_publish) > idx_publish
+publish = history.split('private static void publishDeletedMark', 1)[1].split('    /**', 1)[0]
+assert 'set.add(id)' in publish and 'loadMarks(account, dialogId, null)' in publish
+# loadMarks объединяет прочитанное с уже имеющимся, а не вытесняет
+idx_load = history.index('public static void loadMarks')
+assert 'set.addAll(existing);' in history[idx_load:]
+assert 'accountMarks(account).put(dialogId, set);' in history[idx_load:]
 
 # --- 5. открытый чат перекрашивается сам ------------------------------------
 assert 'PengramHistory.marksEnabled(currentAccount)' in chat

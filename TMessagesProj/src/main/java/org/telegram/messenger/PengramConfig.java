@@ -1513,6 +1513,22 @@ public class PengramConfig {
         org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
     }
 
+    /** Островок свёрнутого плеера сверху экрана: жидкое стекло вместо плоского фона. */
+    public static final String KEY_PLAYER_ISLAND_GLASS = "playerIslandGlass";
+    public static boolean isPlayerIslandGlass() { return getBool(KEY_PLAYER_ISLAND_GLASS, false); }
+    public static void setPlayerIslandGlass(boolean value) {
+        setBool(KEY_PLAYER_ISLAND_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+
+    /** Тестовый слой стекла на плашке закреплённого сообщения в чате. */
+    public static final String KEY_CHAT_PINNED_GLASS = "chatPinnedGlass";
+    public static boolean isChatPinnedGlass() { return getBool(KEY_CHAT_PINNED_GLASS, false); }
+    public static void setChatPinnedGlass(boolean value) {
+        setBool(KEY_CHAT_PINNED_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+
     // ---- тонкая настройка «жидкого стекла» ----------------------------------
     // Стекло — это не один тумблер: кому-то нужна почти прозрачная плёнка,
     // кому-то плотная плитка с толстой линзой. Значения читаются в отрисовке

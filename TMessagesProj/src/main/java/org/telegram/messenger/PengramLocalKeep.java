@@ -62,16 +62,21 @@ public final class PengramLocalKeep {
         if (!isEnabled()) {
             return false;
         }
-        localOnly.add(account);
-        try {
-            org.telegram.tgnet.ConnectionsManager.native_pauseNetwork(account);
-        } catch (Throwable ignore) {
+        synchronized (localOnly) {
+            if (localOnly.contains(account)) return true;
+            try {
+                org.telegram.tgnet.ConnectionsManager.native_pauseNetwork(account);
+                localOnly.add(account);
+                return true;
+            } catch (Throwable e) {
+                FileLog.e(e);
+                return false;
+            }
         }
-        return true;
     }
 
     /** аккаунт работает только с локальными данными */
     public static boolean isLocalOnly(int account) {
-        return localOnly.contains(account);
+        synchronized (localOnly) { return localOnly.contains(account); }
     }
 }

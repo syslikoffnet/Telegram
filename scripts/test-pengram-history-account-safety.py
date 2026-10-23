@@ -28,10 +28,12 @@ for block, table in ((marks, "marks"), (clear, "history")):
     assert "new String[]{String.valueOf(account)}" in block
 assert "marksCache.remove(account)" in marks
 assert "accountMarks(account).remove(dialogId)" in marks
-assert "PengramHistory.getEntries(dialogId, filter, 500, null, 0, false, currentAccount)" in archive
+assert "PengramHistory.loadArchivePage(currentAccount, dialogId, filter, beforeId, PAGE_SIZE" in archive
+assert "ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending, int account)" in history
+assert "PengramHistory.getEntries(dialogId, filter, limit, query, singleMessageId, true, currentAccount)" in chat_archive
 assert 'StringBuilder where = new StringBuilder("account = ?")' in history
 assert "if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return result" in history
-assert "getEntries(dialogId, filter, limit, query, messageId, ascending, UserConfig.selectedAccount)" in history
+assert "args.add(String.valueOf(account));" in history  # выборка всегда привязана к аккаунту
 assert "PengramHistory.deleteEntry(currentAccount, entry.rowId)" in archive
 assert "PengramHistory.addChangeListener(historyChanged)" in archive
 assert "PengramHistory.removeChangeListener(historyChanged)" in archive

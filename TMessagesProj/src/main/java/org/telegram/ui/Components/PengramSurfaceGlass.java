@@ -61,8 +61,11 @@ public final class PengramSurfaceGlass implements View.OnAttachStateChangeListen
     public boolean isRequested() { return wanted(); }
 
     private boolean wanted() {
+        // Общего «слоя поверхностей» не оказалось: реальных экземпляров раньше
+        // не было, а островок плеера включает стекло собственным ключом
+        // (playerIslandGlass) — условие целиком делегируется вызывающему.
         try {
-            return PengramConfig.isSettingsSurfaceGlass() && applicable.call();
+            return applicable.call();
         } catch (Exception ignored) {
             return false;
         }
