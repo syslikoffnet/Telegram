@@ -13,14 +13,14 @@
 2. Текст для сравнения с полем ввода берётся без невидимых мест переноса
    (``MessageObject.pengramUnwrappedText()``); штатное условие
    ``editText.length() != text.length() || containsSpans`` не тронуто.
-3. Летящий текст — это всегда копия строки (``drawMessageText``), и она
-   непрозрачна с первого кадра (``1f``, а не ``alphaProgress``). Официальная
-   копия поля ввода сохранена в коде под ``drawFieldCopy = false``: на
-   устройстве её пиксели в перелёте не видны ни в одной ветви (жалоба
-   воспроизводится и с выключенными фичами), а ``drawMessageText`` в логе
-   виден в каждом кадре — единственный подтверждённый путь. Без этого
-   ``alphaProgress`` (0→1 за первые 100 мс из 250) оставлял отправленное
-   сообщение без текста — ровно исходный баг.
+3. Летящий текст рисует официальная пара копий, восстановленная после
+   проверки master-сборкой: полевая копия (``drawFieldCopy = true``) даёт
+   непрозрачные пиксели с первого кадра при обычной отправке, копия строки
+   (``drawMessageText``) работает только в ``crossfade`` с официальной
+   парой альф. Прежняя схема (полевая копия выключена, копия строки
+   безусловна) оставляла перелёт на один путь, и на устройстве он пикселей
+   не давал — пустой пузырь до конца анимации (видео 2026-10-23 13:37,
+   run393).
 
 Всё остальное в отрисовке (формула ``alphaProgress`` и проявление пузыря,
 официальная геометрия перелёта fromX/fromY/scale, клип по пузырю, rtl-код,
@@ -98,15 +98,21 @@ assert 'messageText = pengramWrappedMessageText = textLayout.getText();' in mess
 # --- 3. отрисовка overlay — официальная, без самодеятельности ---------------
 assert 'float alphaProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;' in transition, (
     'проявление пузыря изменено относительно официального Telegram')
-# Летящий текст = копия строки, непрозрачная с первого кадра (причина — в
-# докстринге). Официальная копия поля ввода сохранена, но не рисуется.
-assert 'final boolean drawFieldCopy = false;' in transition, (
-    'копия поля ввода снова участвует в отрисовке: на устройстве её пиксели не видны')
-assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);' in transition, (
-    'текст строки снова проявляется через alphaProgress — вернётся пустые 100 мс')
-assert 'messageView.drawAnimatedEmojis(canvas, 1f);' in transition
-assert 'if (crossfade) {\n            canvas.save();\n            canvas.translate(messageView.getLeft()' not in transition, (
-    'копия строки ограничена ветвью crossfade: без неё пустыми останутся обычные отправки')
+# Летящий текст = официальная пара копий (причина — в докстринге): полевая
+# копия включена и в обеих ветвях даёт пиксели, копия строки работает только
+# при crossfade с официальной альфой alphaProgress.
+assert 'final boolean drawFieldCopy = true;' in transition, (
+    'полевая копия выключена: обычная отправка теряет текст с первого кадра — '
+    'именно на полевой копии master-сборка прошла проверку пользователем')
+assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);' in transition, (
+    'копия строки не использует официальную пару альф: при crossfade поле уходит '
+    '1→0, строка входит 0→1 — иначе возможны пустые кадры')
+assert 'messageView.drawAnimatedEmojis(canvas, alphaProgress);' in transition
+assert 'if (crossfade) {\n            canvas.save();\n            canvas.translate(messageView.getLeft()' in transition, (
+    'копия строки снова безусловная: одна копия — одна точка отказа, '
+    'на устройстве строковая копия пикселей не давала (run393)')
+assert 'drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true)' not in transition, (
+    'осталась безусловная непрозрачная копия строки поверх официальной пары')
 assert 'ALPHA_RAMP' not in transition, 'осталась нестандартная константа проявления'
 assert 'cellTop' not in on_draw, 'остался костыль прижима цели перелёта к строке'
 assert 'messageViewY -= (listViewTargetBottomPadding - listView.getPaddingBottom());' in on_draw, (
@@ -147,57 +153,66 @@ def alpha_progress(progress):
 
 
 def overlay_field_alpha(progress, crossfade):
-    """Копия поля ввода: drawFieldCopy = false — в модели всегда 0.
+    """Копия поля ввода — официальная: drawFieldCopy = true.
 
-    Это сознательно пессимистичная модель: на устройстве пиксели этой копии
-    не подтверждены ни в одной ветви (жалоба воспроизводится и в обычной
-    ветви, где официальный код рисует её вообще без saveLayerAlpha). Гарантия
-    видимости не должна на ней держаться.
+    Обычная отправка (crossfade=False): копия рисуется без saveLayerAlpha,
+    полная непрозрачность каждый кадр — на этой копии работает master-сборка.
+    Crossfade: официальная пара альф поле (1-alphaProgress) + строка
+    (alphaProgress) даёт сплошные пиксели в каждый кадр.
     """
-    return 0.0
+    if not crossfade:
+        return 1.0
+    return 1.0 - alpha_progress(progress)
 
 
 def overlay_row_alpha(progress, crossfade):
-    """Копия текста строки: рисуется всегда и непрозрачна с первого кадра."""
-    return 1.0
+    """Копия текста строки — официальная ветка: только при crossfade, 0→1."""
+    if not crossfade:
+        return 0.0
+    return alpha_progress(progress)
 
 
 STEPS = 201
 for crossfade in (False, True):
-    # Нынешняя схема: ячейка глушится, летящий текст рисует overlay копией
-    # строки с альфой 1 с первого кадра; копия поля ввода не участвует.
-    blanks, doubles = [], []
+    # Официальная пара копий: ячейка глушится, overlay рисует поле всегда
+    # и строку при crossfade — суммарная непрозрачность чернил не падает.
+    blanks, doubles, thin = [], [], []
     for i in range(STEPS):
         p = i / (STEPS - 1)
         ink = overlay_field_alpha(p, crossfade) + overlay_row_alpha(p, crossfade)
         if not cell_draws_row(suppress=True) and ink <= 0.02:
             blanks.append(i)
+        # ниже порога «различимо на экране» — ровно та полупрозрачность,
+        # которую пользователь описывал как пустоту в первые кадры
+        if not cell_draws_row(suppress=True) and ink < 0.5:
+            thin.append(i)
         # копий текста строки на экране: своя у ячейки + у overlay
         copies = int(cell_draws_row(suppress=True)) + int(overlay_row_alpha(p, crossfade) > 0.02)
         if copies > 1:
             doubles.append(i)
     assert not blanks, f'пустые кадры при crossfade={crossfade}: {blanks[:5]}'
+    assert not thin, f'неразличимо-полупрозрачные кадры при crossfade={crossfade}: {thin[:5]}'
     assert not doubles, f'две копии текста строки одновременно при crossfade={crossfade}: {doubles[:5]}'
 
-    # Штатная схема официального Telegram (до правок форка): ячейка глушится,
-    # копия строки проявляется через alphaProgress — при crossfade=False её
-    # вовсе нет, и весь текст держится на копии поля ввода (0 в нашей модели),
-    # при crossfade=True первые кадры alphaProgress≈0. Это и есть пустые
-    # ~100 мс из лога устройства при штатном alphaProgress.
-    def stock_row_alpha(progress, crossfade=crossfade):
-        return alpha_progress(progress) if crossfade else 0.0
-    # Порог 0.5 — не «есть ли хоть капля чернил», а «различимо ли на экране»:
-    # полупрозрачный текст в первые десятки мс — ровно та «пустота», которую
-    # описывал пользователь (текст «вспыхивает» к концу ramp'а).
-    stock_blanks = [i for i in range(STEPS)
-                    if not cell_draws_row(suppress=True)
-                    and overlay_field_alpha(0, crossfade) + stock_row_alpha(i / (STEPS - 1)) < 0.5]
-    if crossfade:
-        # штатная схема: текст различим только после p=0.2 (50 мс), полностью —
-        # при p=0.4 (100 мс); до этого кадры «пустые»
-        assert len(stock_blanks) > STEPS * 0.15, 'модель не воспроизводит пустые кадры штатной схемы'
-    else:
-        assert len(stock_blanks) == STEPS, 'в штатной обычной ветви текст держится на копии поля ввода'
+    # Контроль «единственная копия» (схема run393: поле выключено, строка
+    # безусловная): модель показывает, почему наивная проверка вела в брак —
+    # в модели копия строки даёт чернила всегда, но на устройстве она пикселей
+    # не дала. Модель не доказывает рендеринг — доказывает устройство,
+    # поэтому сохраняется трасса PengramSendTrace для полевой проверки.
+    def single_row_alpha(progress, crossfade=crossfade):
+        return 1.0
+    model_single = sum(1 for i in range(STEPS)
+                       if single_row_alpha(i / (STEPS - 1), crossfade) <= 0.02)
+    assert model_single == 0, 'модель одно-копийной схемы дала пустые кадры — странно'
+    # а вот официальная пара для crossfade даёт полям работу и в первые кадры:
+    assert overlay_field_alpha(0.0, True) == 1.0, (
+        'в первом кадре crossfade поле обязано быть непрозрачным (официальная пара)')
+    assert overlay_row_alpha(1.0, True) == 1.0, (
+        'в конце crossfade строка обязана принять непрозрачность')
+    if not crossfade:
+        # обычная отправка: чернила только на полевой копии, но она полная
+        # с первого по последний кадр — как в master-сборке
+        assert overlay_field_alpha(0.0, False) == 1.0
 
 # длина текста: мягкая вёрстка не должна влиять на выбор ветви анимации
 original = 'see https://example.com/some/very/long/unbreakable/path'
@@ -236,8 +251,9 @@ assert len(Row(replaced, original, wrapped).unwrapped()) == len(replaced), (
 
 print('send-text-visible: OK')
 print(f'  кадров в перелёте: {STEPS}, длительность 250 мс')
-print('  пустых кадров: 0 в обеих ветвях (копия строки непрозрачна с кадра 1)')
-print('  копий текста строки: ровно 1 в каждый кадр (прежняя схема давала 2)')
-print('  отличий от официального overlay: источник текста, порядок проверки поля')
-print('  ввода и владелец летящего текста (drawFieldCopy=false, копия строки 1f)')
+print('  пустых кадров: 0 в обеих ветвях (официальная пара: поле всегда,')
+print('  строка при crossfade, сумма альф не падает ниже 1)')
+print('  копий текста строки: ровно 1 в каждый кадр (ячейка глушена)')
+print('  отличий от официального overlay: источник текста (unwrapped),')
+print('  bail на пустом поле, обход viewport-диапазона в wrapper, жизненный цикл')
 sys.exit(0)

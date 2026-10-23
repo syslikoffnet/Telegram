@@ -173,22 +173,16 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         }
 
         // Как в официальном Telegram: на время перелёта содержимое строки рисует
-        // overlay, а не ячейка. Без этого строка рисуется дважды — своя копия
-        // (альфа 1) и летящая копия overlay (альфа 0→1) в ~30 px от неё, — и
-        // расхождение двух копий видно как мигание текста.
-        //
-        // Лог с устройства (Xiaomi 2311DRK48G, Android 14, 4 отправки, 3591
-        // строка трассы) показал ровно это: в каждом кадре перелёта who=cell
-        // alpha=1.0 и who=overlay alpha=0..1 одновременно, при том что overlay
-        // приземляется на строку с точностью до пикселя (bubT=1193 против 1192 у
-        // строки, textX/textY совпадают) — то есть передача содержимого в конце
-        // перелёта бесшовная, и глушение здесь безопасно. Пустых кадров не
-        // будет: летящий текст всегда рисует копия строки (drawMessageText,
-        // непрозрачная с первого кадра) — видимость больше не держится на
-        // alphaProgress и не зависит от ветви. Официальная копия поля ввода
-        // сохранена в коде под drawFieldCopy = false: на устройстве её
-        // пиксели в перелёте не видны, а drawMessageText в логе виден в
-        // каждом кадре.
+        // overlay (официальная пара копий: полевая всегда, строковая — при
+        // crossfade), а не ячейка. Без глушения строка рисуется дважды — своя
+        // копия (альфа 1) и летящая overlay — и расхождение видно как мигание.
+        // Лог с устройства (Xiaomi 2311DRK48G, Android 14, трасса 3591 строка)
+        // показал, что overlay приземляется на строку с точностью до пикселя
+        // (bubT=1193 против 1192, textX/textY совпадают) — глушение здесь
+        // безопасно, содержимое с первого кадра рисует копия поля (обычные
+        // отправки) или пара «поле + строка» (crossfade) — ровно как в
+        // оригинальном Telegram; мастер-сборка на этом коде прошла проверку
+        // пользователем.
         messageView.setEnterTransitionInProgress(true);
 
         // Pengram: берём текст без невидимых мест переноса, которые расставляет
@@ -518,18 +512,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             notificationsLocker.lock();
             if (enterView.getEditField() != null) enterView.getEditField().setAlpha(0f);
             enterView.setTextTransitionIsRunning(true);
-            // Ячейку на время перелёта НЕ глушим. Почему: enterTransitionInProgress
-            // прячет у строки фон, текст, время и просмотры, и их рисует overlay —
-            // а его геометрия зависит от высоты «острова» ввода
-            // (listViewTargetBottomPadding считается через getInputIslandHeightTarget(),
-            // который возвращает текущую высоту; жидкое стекло панельки ввода её
-            // меняет). При расхождении overlay рисовал содержимое мимо строки, а
-            // спрятанная ячейка давала ровно то, что видел пользователь: пустое
-            // место, которое заполнялось текстом только после конца перелёта.
-            // Голосовые перелёты в этом же форке всегда работали без глушения
-            // (гейт ячейки исключает isVoice) и претензий к ним не было — теперь
-            // текстовый перелёт ведёт себя так же: анимация летит поверх строки,
-            // а текст, время и просмотры видны сразу.
+            // Подавление ячейки на время перелёта ставит конструктор — как в
+            // официальном Telegram (флаг глушения выше, в ctor): строку рисует
+            // overlay официальными копиями, ячейка ждёт конца перелёта. Здесь
+            // только запускаем аниматор и фиксируем поколение для
+            // finishEnterTransition.
             enterGeneration = messageView.getEnterTransitionGeneration();
             animator.start();
         }
@@ -917,18 +904,19 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             scale2 = 1f;
         }
 
-        // Pengram: официальная копия поля ввода (и её rtl-вариант ниже)
-        // сохранена в коде, но не рисуется. Почему: на устройстве (Xiaomi,
-        // Android 14, лог send trace) её пиксели в перелёте не видны ни в
-        // одной ветви — воспроизведение «баг при любом стиле шрифта, в том числе
-        // выключенных фичах» описывает как раз отправки, которые шли мимо
-        // crossfade, где эта копия рисуется вообще без saveLayerAlpha. Единственная
-        // копия, которую лог подтверждает видимой, — drawMessageText ниже, и
-        // она рисует содержимое строки непрозрачно с первого кадра. Летящий
-        // текст в обеих ветвях — это копия строки: одна копия, один владелец,
-        // пустых кадров нет, официальная геометрия (fromX/fromY, scale,
-        // клип по пузырю) и формула alphaProgress для пузыря не тронуты.
-        final boolean drawFieldCopy = false;
+        // Pengram: официальная пара копий восстановлена как в оригинальном
+        // Telegram. Полевая копия ниже — тот самый текст, который master-сборка
+        // (побайтово официальный код) рисует с первого кадра перелёта при
+        // обычном сообщении: пользователь подтвердил на ней «нормальную»
+        // отправку. Её содержимое в форке гарантировано: bail=empty_edit_text
+        // в конструкторе не даёт переходу создаться на уже очищенном поле, а
+        // сравнение длин идёт по pengramUnwrappedText() без U+200B мягкой
+        // вёрстки. Прежнее выключение (drawFieldCopy=false) оставляло перелёт
+        // на одну копию строки, а на устройстве она пикселей не давала —
+        // пустой пузырь до самого конца анимации (видео 2026-10-23 13:37,
+        // сборка run393). Официальная геометрия (fromX/fromY, scale, клип
+        // по пузырю) и формула alphaProgress не тронуты.
+        final boolean drawFieldCopy = true;
 
         if (drawFieldCopy) {
             canvas.save();
@@ -990,29 +978,29 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             }
         }
 
-        // Копия строки рисуется всегда (в обеих ветвях официального crossfade),
-        // непрозрачная с первого кадра — см. комментарий у drawFieldCopy.
-        {
+        // Копия строки — официальная ветка: только при crossfade и с
+        // официальной парой альф (поле уходит 1→0, строка входит 0→1), поэтому
+        // в каждый кадр перелёта хотя бы одна копия даёт сплошные пиксели.
+        // Обход гейта viewport'а ячейки в wrapper (drawOnlyText -> drawAllBlocks)
+        // сохранён: диапазон -1/-1 при перелёте не должен гасить копию строки.
+        if (crossfade) {
             canvas.save();
             canvas.translate(messageView.getLeft() + listView.getX() - container.getX() + (fromX - toX) * (1f - progressX), messageViewY + (fromY - toY) * (1f - progress));
             canvas.scale(scale, scale * scale2, messageView.getTextX(), messageView.getTextY());
             canvas.translate(0, -crossfadeTextOffset);
 
             if (crossfadeTextBitmap != null) {
-                bitmapPaint.setAlpha(255);
+                bitmapPaint.setAlpha((int) (255 * alphaProgress));
                 canvas.drawBitmap(crossfadeTextBitmap, 0, 0, bitmapPaint);
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                // Pengram: непрозрачность с первого кадра — по той же причине,
-                // что и drawFieldCopy: штатный alphaProgress (0→1 за первые
-                // 100 мс из 250) при глушённой ячейке оставлял сообщение без
-                // текста (лог: SKIP reason=alpha_zero, затем 11 кадров
-                // alphaP=0→1, текст «вспыхивает» только при alphaProgress=1).
-                // Цвет toColor, геометрия, клип и формула alphaProgress для
-                // пузыря — официальные.
-                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);
-                messageView.drawAnimatedEmojis(canvas, 1f);
+                // Официальная альфа строки (alphaProgress 0→1 за первые 100 мс):
+                // вклад в непрозрачность кадра у неё добирает полевая копия
+                // (1-alphaProgress), поэтому пустых кадров не бывает — как в
+                // оригинальном Telegram.
+                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
+                messageView.drawAnimatedEmojis(canvas, alphaProgress);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {
                     Theme.chat_msgTextPaint.setColor(oldColor);
                 }

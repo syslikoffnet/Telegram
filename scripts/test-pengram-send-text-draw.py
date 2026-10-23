@@ -22,23 +22,20 @@ alpha_start = cell.rfind('        if (alpha == 0) {', start, selector_start)
 assert alpha_start >= 0
 alpha_guard = cell[alpha_start:cell.index('\n        }\n', alpha_start) + 10]
 assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not become opaque'
-# Ячейка на время текстового перелёта не глушится: строку рисует она сама,
-# overlay добавляет летящую копию поверх. Глушение давало «пустое место»,
-# когда геометрия overlay расходилась со строкой (высота «острова» ввода
-# меняется жидким стеклом панельки).
-# Як в официальном Telegram: на время перелёта ячейка глушится, содержимое
-# строки рисует overlay. Поэтому overlay обязан рисовать ВСЕ блоки текста, а не
-# диапазон, оставшийся от ячейки, — иначе вместе с глушением вернётся пустая
-# строка (исторический баг overlay_missing_text).
+# Как в официальном Telegram: на время перелёта ячейка глушится, содержимое
+# строки рисует overlay официальной парой копий. Поэтому overlay обязан
+# рисовать ВСЕ блоки текста, а не диапазон, оставшийся от ячейки, — иначе
+# вместе с глушением вернётся пустая строка (исторический баг
+# overlay_missing_text).
 assert 'messageView.setEnterTransitionInProgress(true);' in enter, (
     'cell suppression missing: overlay and cell would both paint the text')
-# Летящий текст — копия строки, непрозрачная с первого кадра (1f): штатный
-# alphaProgress оставлял отправленное сообщение без текста на первые 100 мс
-# при глушённой ячейке. Копия поля ввода (официальная) сохранена в коде под
-# drawFieldCopy = false — на устройстве её пиксели не видны.
-assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true)' in enter
-assert 'messageView.drawAnimatedEmojis(canvas, 1f);' in enter
-assert 'final boolean drawFieldCopy = false;' in enter
+# Летящий текст = официальная пара копий: полевая (drawFieldCopy = true)
+# непрозрачна с первого кадра при обычной отправке — как в master-сборке,
+# которую пользователь подтвердил; строковая — только при crossfade с
+# официальной альфой alphaProgress (поле уходит 1→0, строка входит 0→1).
+assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
+assert 'messageView.drawAnimatedEmojis(canvas, alphaProgress);' in enter
+assert 'final boolean drawFieldCopy = true;' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
 emoji_start = cell.index('private void drawAnimatedEmojiMessageText(Canvas canvas, float alpha)')
