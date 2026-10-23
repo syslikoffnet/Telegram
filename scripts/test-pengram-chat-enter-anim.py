@@ -61,6 +61,28 @@ def main():
     # тумблер выключен по базе → вне перехода флаг не должен оставаться
     assert 'if (pengramEnterAnimApplied) {' in chat[end_pos:end_pos + 800]
 
+    # D2. Плавность: удлинённое окно перехода только за тумблером,
+    # штатный путь (декелерат150 мс) сохранён байт-в-байт по смыслу
+    assert 'getFragmentTransitionDuration' in chat, 'ChatActivity не задаёт длительность'
+    dur_pos = chat.find('public float getFragmentTransitionDuration')
+    assert dur_pos != -1 and 'isChatEnterAnim() ? 260f : 0f' in chat[dur_pos:dur_pos + 300], \
+        'длительность260 мс должна включаться только тумблером'
+    base = read('TMessagesProj/src/main/java/org/telegram/ui/ActionBar/BaseFragment.java')
+    assert 'public float getFragmentTransitionDuration()' in base and \
+        'return 0;' in base[base.find('getFragmentTransitionDuration'):base.find('getFragmentTransitionDuration') + 200], \
+        'базовый хук обязан возвращать0 = штатные150 мс'
+    layout = read('TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarLayout.java')
+    assert 'smoothCustomTransition' in layout, 'нет флага кастомного перехода'
+    assert 'durationDriver.getFragmentTransitionDuration()' in layout, 'длительность не берётся из экрана'
+    assert 'CubicBezierInterpolator.EASE_OUT_QUINT' in layout and \
+        'decelerateInterpolator' in layout, \
+        'штатная кривая декелерата должна сохраниться для выключенного тумблера'
+    gate_pos = layout.find('interpolated = (smoothCustomTransition')
+    assert gate_pos != -1 and 'smoothCustomTransition' in layout[gate_pos:gate_pos + 400], \
+        'гейт кривой не на месте'
+    assert 'decelerateInterpolator' in layout[gate_pos:gate_pos + 400], \
+        'штатный путь в гейте обязан остаться'
+
     # E. Первый кадр стекла: hasContent у источников + guard в drawable
     iface = read('TMessagesProj/src/main/java/org/telegram/ui/Components/blur3/source/BlurredBackgroundSource.java')
     assert 'default boolean hasContent()' in iface, 'нет hasContent в интерфейсе'

@@ -1828,6 +1828,17 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                 }
                 lastFrameTime = newTime;
                 float duration = preview && open ? 190.0f : 150.0f;
+                // Тумблер «Анимация входа в чат»: экран, участвующий в переходе,
+                // сам задаёт более длинное окно — без него всё байт-в-байт как раньше.
+                boolean smoothCustomTransition = false;
+                if (!preview) {
+                    final BaseFragment durationDriver = open ? newFragment : oldFragment;
+                    final float customDuration = durationDriver != null ? durationDriver.getFragmentTransitionDuration() : 0;
+                    if (customDuration > 0) {
+                        duration = customDuration;
+                        smoothCustomTransition = true;
+                    }
+                }
                 animationProgress += dt / duration;
                 if (animationProgress > 1.0f) {
                     animationProgress = 1.0f;
@@ -1870,7 +1881,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                         interpolated = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(animationProgress);
                     }
                 } else {
-                    interpolated = decelerateInterpolator.getInterpolation(animationProgress);
+                    interpolated = (smoothCustomTransition
+                            ? CubicBezierInterpolator.EASE_OUT_QUINT
+                            : decelerateInterpolator).getInterpolation(animationProgress);
                 }
                 if (open) {
                     float clampedInterpolated = MathUtils.clamp(interpolated, 0, 1);

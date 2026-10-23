@@ -978,6 +978,11 @@ public abstract class BaseFragment {
         return null;
     }
 
+    /** Длительность стандартного перехода экрана;0 = штатные150 мс. */
+    public float getFragmentTransitionDuration() {
+        return 0;
+    }
+
     protected boolean shouldOverrideSlideTransition(boolean topFragment, boolean backAnimation) {
         return false;
     }

@@ -29961,6 +29961,13 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean pengramEnterAnimApplied;
 
+    @Override
+    public float getFragmentTransitionDuration() {
+        // Включённый тумблер удлиняет окно перехода: стоковый кроссфейд и
+        // fade/scale ниже идут в одном прогрессе260 мс вместо150 — плавнее.
+        return org.telegram.messenger.PengramConfig.isChatEnterAnim() ? 260f : 0f;
+    }
+
     /** Тумблер «Анимация входа в чат»: дешёвые alpha/scale-свойства, без слоёв и наложений. */
     private void applyPengramEnterAnim(boolean isOpen, float progress) {
         if (fragmentView == null || inPreviewMode) {
@@ -29977,11 +29984,11 @@ public class ChatActivity extends BaseFragment implements
         final float alpha;
         final float scale;
         if (isOpen) {
-            alpha = 0.45f + 0.55f * eased;
-            scale = 0.97f + 0.03f * eased;
+            alpha = 0.5f + 0.5f * eased;
+            scale = 0.98f + 0.02f * eased;
         } else {
-            alpha = 1f - 0.55f * eased;
-            scale = 1f - 0.02f * eased;
+            alpha = 1f - 0.5f * eased;
+            scale = 1f - 0.015f * eased;
         }
         pengramEnterAnimApplied = true;
         fragmentView.setAlpha(alpha);
