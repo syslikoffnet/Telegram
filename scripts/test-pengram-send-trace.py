@@ -153,6 +153,7 @@ def test_transition_records_every_frame_and_every_refusal():
         ('targetPad=', 'насколько ниже должен приземлиться пузырь'),
         ('editTextLen=', 'длина текста в поле ввода — с ней сравнивается официальное условие'),
         ('msgTextLen=', 'длина отображаемого текста сообщения'),
+        ('messageText == null || text == null', 'диагностика не должна ронять отправку на null'),
         ('log("START"', 'запустился ли аниматор'),
         ('log("FRAME"', 'кадры перелёта'),
         ('nextFrame()', 'счётчик кадров — по нему видно, идёт ли анимация вообще'),
@@ -274,6 +275,33 @@ def test_settings_rows():
     assert len(others) == len(set(others)), 'новые id не должны пересекаться с существующими'
 
 
+def test_referenced_resources_exist():
+    """Локального javac нет, поэтому ресурсы проверяем сами.
+
+    Ровно на этом в первый раз и споткнулась сборка: в настройках появился
+    R.raw.infotoast, которого в проекте никогда не было.
+    """
+    src = load(SETTINGS)
+    blocks = []
+    for marker in ('case BTN_SEND_TRACE_SHARE', 'case BTN_SEND_TRACE_CLEAR'):
+        start = src.index(marker)
+        blocks.append(src[start:start + 900])
+    fill = src[src.index('Диагностика анимации отправки'):]
+    blocks.append(fill[:fill.index('private CharSequence sendTraceSummary()')])
+
+    raw = RES / 'raw'
+    for block in blocks:
+        for name in set(re.findall(r'R\.raw\.([A-Za-z0-9_]+)', block)):
+            assert list(raw.glob(name + '.*')), f'нет ресурса R.raw.{name}'
+        for name in set(re.findall(r'R\.drawable\.([A-Za-z0-9_]+)', block)):
+            found = any(list(d.glob(name + '.*')) for d in RES.glob('drawable*'))
+            assert found, f'нет ресурса R.drawable.{name}'
+        for name in set(re.findall(r'R\.string\.([A-Za-z0-9_]+)', block)):
+            for locale in ('values', 'values-ru'):
+                xml = (RES / locale / 'strings.xml').read_text(encoding='utf-8')
+                assert f'name="{name}"' in xml, f'{locale}: нет R.string.{name}'
+
+
 def test_strings_in_both_locales():
     names = ('PengramSendTraceHeader', 'PengramSendTrace', 'PengramSendTraceOff',
              'PengramSendTraceEmpty', 'PengramSendTraceLines', 'PengramSendTraceShare',
@@ -313,6 +341,7 @@ def main():
         test_layout_records_what_the_row_will_draw,
         test_animator_records_whether_the_transition_happens,
         test_settings_rows,
+        test_referenced_resources_exist,
         test_strings_in_both_locales,
         test_tracing_does_not_change_the_send_path,
     ]

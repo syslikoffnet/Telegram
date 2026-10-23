@@ -382,10 +382,14 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             - (chatActivity.getInputIslandHeightTarget() - dp(44));
         if (org.telegram.messenger.PengramSendTrace.enabled()) {
             org.telegram.messenger.PengramSendTrace.log("CTOR", "ok id=" + messageId
-                    + " editTextLen=" + editText.length()
-                    + " msgTextLen=" + messageView.getMessageObject().messageText.length()
-                    + " unwrappedLen=" + text.length()
-                    + " zwsp=" + (messageView.getMessageObject().messageText.length() - text.length())
+                    + " editTextLen=" + (editText == null ? -1 : editText.length())
+                    + " msgTextLen=" + (messageView.getMessageObject().messageText == null
+                    ? -1 : messageView.getMessageObject().messageText.length())
+                    + " unwrappedLen=" + (text == null ? -1 : text.length())
+                    // Диагностика не должна сама ронять отправку: длины считаем
+                    // только когда оба текста на месте.
+                    + " zwsp=" + (messageView.getMessageObject().messageText == null || text == null
+                    ? -1 : messageView.getMessageObject().messageText.length() - text.length())
                     + " crossfade=" + crossfade
                     + " spans=" + containsSpans
                     + " islandH=" + chatActivity.getInputIslandHeightTarget()

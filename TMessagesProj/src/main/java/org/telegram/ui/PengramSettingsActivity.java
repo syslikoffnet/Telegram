@@ -5478,7 +5478,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             case BTN_SEND_TRACE_CLEAR:
                 org.telegram.messenger.PengramSendTrace.reset();
-                BulletinFactory.of(this).createSimpleBulletin(R.raw.infotoast,
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                         getString(R.string.PengramSendTraceCleared)).show();
                 updateAll = true;
                 break;
