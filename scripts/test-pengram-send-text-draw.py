@@ -32,10 +32,13 @@ assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not bec
 # строка (исторический баг overlay_missing_text).
 assert 'messageView.setEnterTransitionInProgress(true);' in enter, (
     'cell suppression missing: overlay and cell would both paint the text')
-# Ветвь crossfade в overlay — официальная: копия строки проявляется через
-# alphaProgress. Видимость текста гарантирует ячейка, которую перелёт не глушит.
-assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
-assert 'messageView.drawAnimatedEmojis(canvas, alphaProgress);' in enter
+# Летящий текст — копия строки, непрозрачная с первого кадра (1f): штатный
+# alphaProgress оставлял отправленное сообщение без текста на первые 100 мс
+# при глушённой ячейке. Копия поля ввода (официальная) сохранена в коде под
+# drawFieldCopy = false — на устройстве её пиксели не видны.
+assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true)' in enter
+assert 'messageView.drawAnimatedEmojis(canvas, 1f);' in enter
+assert 'final boolean drawFieldCopy = false;' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
 emoji_start = cell.index('private void drawAnimatedEmojiMessageText(Canvas canvas, float alpha)')

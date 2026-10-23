@@ -182,10 +182,13 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         // alpha=1.0 и who=overlay alpha=0..1 одновременно, при том что overlay
         // приземляется на строку с точностью до пикселя (bubT=1193 против 1192 у
         // строки, textX/textY совпадают) — то есть передача содержимого в конце
-        // перелёта бесшовная, и глушение здесь безопасно. Пустых кадров не будет:
-        // в ветви crossfade overlay рисует копию поля ввода с альфой
-        // (1 - alphaProgress) и копию строки с альфой alphaProgress — их сумма
-        // всегда 1, а в обычной ветви копия поля ввода рисуется непрозрачной.
+        // перелёта бесшовная, и глушение здесь безопасно. Пустых кадров не
+        // будет: летящий текст всегда рисует копия строки (drawMessageText,
+        // непрозрачная с первого кадра) — видимость больше не держится на
+        // alphaProgress и не зависит от ветви. Официальная копия поля ввода
+        // сохранена в коде под drawFieldCopy = false: на устройстве её
+        // пиксели в перелёте не видны, а drawMessageText в логе виден в
+        // каждом кадре.
         messageView.setEnterTransitionInProgress(true);
 
         // Pengram: берём текст без невидимых мест переноса, которые расставляет
@@ -914,78 +917,102 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             scale2 = 1f;
         }
 
-        canvas.save();
-        canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
-        canvas.scale(scale, scale * scale2, 0, 0);
+        // Pengram: официальная копия поля ввода (и её rtl-вариант ниже)
+        // сохранена в коде, но не рисуется. Почему: на устройстве (Xiaomi,
+        // Android 14, лог send trace) её пиксели в перелёте не видны ни в
+        // одной ветви — воспроизведение «баг при любом стиле шрифта, в том числе
+        // выключенных фичах» описывает как раз отправки, которые шли мимо
+        // crossfade, где эта копия рисуется вообще без saveLayerAlpha. Единственная
+        // копия, которую лог подтверждает видимой, — drawMessageText ниже, и
+        // она рисует содержимое строки непрозрачно с первого кадра. Летящий
+        // текст в обеих ветвях — это копия строки: одна копия, один владелец,
+        // пустых кадров нет, официальная геометрия (fromX/fromY, scale,
+        // клип по пузырю) и формула alphaProgress для пузыря не тронуты.
+        final boolean drawFieldCopy = false;
 
-        if (drawBitmaps) {
-            if (crossfade) {
-                bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
-            }
-            canvas.drawBitmap(textLayoutBitmap, 0, 0, bitmapPaint);
-        } else {
-            if (crossfade && changeColor) {
-                int oldColor = layout.getPaint().getColor();
-                layout.getPaint().setColor(ColorUtils.blendARGB(fromColor, toColor, alphaProgress));
-                canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
-                layout.draw(canvas);
-                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
-                layout.getPaint().setColor(oldColor);
-                canvas.restore();
-            } else if (crossfade) {
-                canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
-                layout.draw(canvas);
-                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
-                canvas.restore();
-            } else {
-                layout.draw(canvas);
-                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f);
-            }
-        }
-        canvas.restore();
-
-        if (rtlLayout != null) {
+        if (drawFieldCopy) {
             canvas.save();
-            canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+            canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
             canvas.scale(scale, scale * scale2, 0, 0);
+
             if (drawBitmaps) {
                 if (crossfade) {
                     bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
                 }
-                canvas.drawBitmap(textLayoutBitmapRtl, 0, 0, bitmapPaint);
+                canvas.drawBitmap(textLayoutBitmap, 0, 0, bitmapPaint);
             } else {
                 if (crossfade && changeColor) {
-                    int oldColor = rtlLayout.getPaint().getColor();
-                    int oldAlpha = Color.alpha(oldColor);
-                    rtlLayout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
-                    rtlLayout.draw(canvas);
-                    rtlLayout.getPaint().setColor(oldColor);
+                    int oldColor = layout.getPaint().getColor();
+                    layout.getPaint().setColor(ColorUtils.blendARGB(fromColor, toColor, alphaProgress));
+                    canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                    layout.draw(canvas);
+                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
+                    layout.getPaint().setColor(oldColor);
+                    canvas.restore();
                 } else if (crossfade) {
-                    int oldAlpha = rtlLayout.getPaint().getAlpha();
-                    rtlLayout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
-                    rtlLayout.draw(canvas);
-                    rtlLayout.getPaint().setAlpha(oldAlpha);
+                    canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                    layout.draw(canvas);
+                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
+                    canvas.restore();
                 } else {
-                    rtlLayout.draw(canvas);
+                    layout.draw(canvas);
+                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f);
                 }
             }
             canvas.restore();
+
+            if (rtlLayout != null) {
+                canvas.save();
+                canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+                canvas.scale(scale, scale * scale2, 0, 0);
+                if (drawBitmaps) {
+                    if (crossfade) {
+                        bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
+                    }
+                    canvas.drawBitmap(textLayoutBitmapRtl, 0, 0, bitmapPaint);
+                } else {
+                    if (crossfade && changeColor) {
+                        int oldColor = rtlLayout.getPaint().getColor();
+                        int oldAlpha = Color.alpha(oldColor);
+                        rtlLayout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
+                        rtlLayout.draw(canvas);
+                        rtlLayout.getPaint().setColor(oldColor);
+                    } else if (crossfade) {
+                        int oldAlpha = rtlLayout.getPaint().getAlpha();
+                        rtlLayout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
+                        rtlLayout.draw(canvas);
+                        rtlLayout.getPaint().setAlpha(oldAlpha);
+                    } else {
+                        rtlLayout.draw(canvas);
+                    }
+                }
+                canvas.restore();
+            }
         }
 
-        if (crossfade) {
+        // Копия строки рисуется всегда (в обеих ветвях официального crossfade),
+        // непрозрачная с первого кадра — см. комментарий у drawFieldCopy.
+        {
             canvas.save();
             canvas.translate(messageView.getLeft() + listView.getX() - container.getX() + (fromX - toX) * (1f - progressX), messageViewY + (fromY - toY) * (1f - progress));
             canvas.scale(scale, scale * scale2, messageView.getTextX(), messageView.getTextY());
             canvas.translate(0, -crossfadeTextOffset);
 
             if (crossfadeTextBitmap != null) {
-                bitmapPaint.setAlpha((int) (255 * alphaProgress));
+                bitmapPaint.setAlpha(255);
                 canvas.drawBitmap(crossfadeTextBitmap, 0, 0, bitmapPaint);
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
-                messageView.drawAnimatedEmojis(canvas, alphaProgress);
+                // Pengram: непрозрачность с первого кадра — по той же причине,
+                // что и drawFieldCopy: штатный alphaProgress (0→1 за первые
+                // 100 мс из 250) при глушённой ячейке оставлял сообщение без
+                // текста (лог: SKIP reason=alpha_zero, затем 11 кадров
+                // alphaP=0→1, текст «вспыхивает» только при alphaProgress=1).
+                // Цвет toColor, геометрия, клип и формула alphaProgress для
+                // пузыря — официальные.
+                messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, 1f, true);
+                messageView.drawAnimatedEmojis(canvas, 1f);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {
                     Theme.chat_msgTextPaint.setColor(oldColor);
                 }

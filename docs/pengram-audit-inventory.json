@@ -31704,7 +31704,7 @@
           "code": "public static synchronized int nextFrame() {"
         },
         {
-          "at": "TMessagesProj/src/main/java/org/telegram/ui/TextMessageEnterTransition.java:624",
+          "at": "TMessagesProj/src/main/java/org/telegram/ui/TextMessageEnterTransition.java:627",
           "code": "org.telegram.messenger.PengramSendTrace.log(\"FRAME\", \"n=\" + org.telegram.messenger.PengramSendTrace.nextFrame()"
         }
       ]
