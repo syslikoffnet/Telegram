@@ -51,6 +51,11 @@ public class BlurredBackgroundSourceBitmap implements BlurredBackgroundSource {
         return bitmap;
     }
 
+    @Override
+    public boolean hasContent() {
+        return bitmap != null && !bitmap.isRecycled();
+    }
+
 
     private final Matrix matrixForDraw = new Matrix();
 

@@ -56,7 +56,7 @@ public final class PengramSessionLogin {
         final int account;
         final PengramSessionFormats.Account session;
         final Listener listener;
-        volatile boolean cancelled;
+        boolean cancelled;
         /** одна автоматическая повторная попытка на дубликат ключа и сеть */
         boolean retried;
 
@@ -67,7 +67,7 @@ public final class PengramSessionLogin {
         }
     }
 
-    private static volatile Flow active;
+    private static Flow active;
 
     private PengramSessionLogin() {
     }
@@ -103,45 +103,13 @@ public final class PengramSessionLogin {
             listener.onError("invalid_key");
             return;
         }
-        if (targetAccount < 0 || targetAccount >= UserConfig.MAX_ACCOUNT_COUNT) {
-            listener.onError("no_slot");
-            return;
-        }
-        PengramDiagnostics.recordImportAttempt(targetAccount);
-        // Почему: сетевой cleanup не удаляет профиль и БД занятого слота.
-        // Без отдельного подтверждённого сброса заменять ключ здесь нельзя.
-        if (!isSlotAvailable(targetAccount)) {
-            listener.onError("slot_busy");
-            return;
-        }
-        if (session.userId != 0 && hasAccountUserId(session.userId, targetAccount)) {
-            listener.onError("account_exists");
-            return;
-        }
         cancel();
         final Flow flow = new Flow(targetAccount, session, listener);
         active = flow;
-        // Почему: пустой UserConfig ещё не доказывает отсутствие сохранённой истории.
-        // Проверка идёт по storageQueue до установки ключа, без удаления старой БД.
-        MessagesStorage.getInstance(targetAccount).checkSessionSlotEmpty(empty -> {
-            if (flow.cancelled || active != flow) return;
-            if (!empty) {
-                fail(flow, "slot_busy");
-                return;
-            }
-            connect(flow);
-        });
+        connect(flow);
     }
 
-    private static boolean isSlotAvailable(int account) {
-        return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
-                && UserConfig.getInstance(account).isConfigLoaded()
-                && UserConfig.getInstance(account).getClientUserId() == 0
-                && !UserConfig.getInstance(account).isClientActivated()
-                && !PengramLocalKeep.isLocalOnly(account);
-    }
-
-    /** Отмена: стираем разобранный ключ из памяти; нативный слот здесь не очищаем. */
+    /** Отмена: ключ из файла затирается, слот остаётся чистым. */
     public static void cancel() {
         final Flow flow = active;
         active = null;
@@ -157,11 +125,6 @@ public final class PengramSessionLogin {
      * запрос проверяет, что Telegram этот ключ знает.
      */
     private static void connect(final Flow flow) {
-        if (flow.cancelled || active != flow) return;
-        if (!isSlotAvailable(flow.account)) {
-            fail(flow, "slot_busy");
-            return;
-        }
         final ConnectionsManager manager = ConnectionsManager.getInstance(flow.account);
         final PengramSessionFormats.Account session = flow.session;
 
@@ -175,21 +138,17 @@ public final class PengramSessionLogin {
 
         final TLRPC.TL_users_getFullUser request = new TLRPC.TL_users_getFullUser();
         request.id = new TLRPC.TL_inputUserSelf();
-        manager.sendRequest(request, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-            if (flow.cancelled || active != flow) return;
-            // Почему: ответ старого импорта не должен менять уже занятый слот.
-            if (!isSlotAvailable(flow.account)) {
-                fail(flow, "slot_busy");
+        manager.sendRequest(request, (response, error) -> {
+            if (flow.cancelled) {
                 return;
             }
             TLRPC.User user = null;
             if (response instanceof TLRPC.TL_users_userFull) {
                 final TLRPC.TL_users_userFull full = (TLRPC.TL_users_userFull) response;
-                user = resolveSessionSelf(full);
-                if (user == null) {
-                    manager.cleanup(true);
-                    fail(flow, "identity_mismatch");
-                    return;
+                if (full.full_user != null && full.full_user.user != null) {
+                    user = full.full_user.user;
+                } else if (full.users != null && !full.users.isEmpty()) {
+                    user = full.users.get(0);
                 }
             }
             if (user == null) {
@@ -214,53 +173,11 @@ public final class PengramSessionLogin {
                 fail(flow, code);
                 return;
             }
-            if (session.userId != 0 && session.userId != user.id) {
-                manager.cleanup(true);
-                fail(flow, "identity_mismatch");
-                return;
-            }
-            if (hasAccountUserId(user.id, flow.account)) {
-                manager.cleanup(true);
-                fail(flow, "account_exists");
-                return;
-            }
             manager.setUserId(user.id);
             final TLRPC.TL_auth_authorization authorization = new TLRPC.TL_auth_authorization();
             authorization.user = user;
             succeed(flow, authorization);
-        }), FLAGS);
-    }
-
-    static TLRPC.User resolveSessionSelf(TLRPC.TL_users_userFull full) {
-        if (full == null || full.full_user == null) return null;
-        final TLRPC.User legacy = full.full_user.user;
-        final long id = full.full_user.id != 0 ? full.full_user.id : legacy != null ? legacy.id : 0;
-        if (id <= 0) return null;
-        // Почему: users содержит также связанных пользователей, порядок не задаёт self.
-        TLRPC.User result = null;
-        if (legacy != null) {
-            if (legacy.id != id || !legacy.self || legacy.deleted) return null;
-            result = legacy;
-        }
-        if (full.users != null) {
-            for (int i = 0; i < full.users.size(); i++) {
-                final TLRPC.User user = full.users.get(i);
-                if (user != null && user.id == id) {
-                    if (!user.self || user.deleted || (result != null && result != user)) return null;
-                    result = user;
-                }
-            }
-        }
-        return result;
-    }
-
-    private static boolean hasAccountUserId(long userId, int exceptAccount) {
-        for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
-            if (account != exceptAccount && UserConfig.getInstance(account).getClientUserId() == userId) {
-                return true;
-            }
-        }
-        return false;
+        }, FLAGS);
     }
 
     private static void succeed(Flow flow, TLRPC.TL_auth_authorization authorization) {

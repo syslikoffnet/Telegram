@@ -275,22 +275,9 @@ public abstract class BaseFragment {
     }
 
     private View performCreateViewImpl(Context context) {
-        String phase = "createView";
-        try {
-            final View view = createView(context);
-            phase = "onViewCreated";
-            onViewCreated(view);
-            return view;
-        } catch (RuntimeException | Error error) {
-            // Почему: без точного mapping нужен сохранённый маршрут и этап сбоя.
-            // Семантика пока прежняя: исходная ошибка не подавляется.
-            try {
-                org.telegram.messenger.PengramDiagnostics.recordCreateFailure(this, phase, error);
-            } catch (Throwable diagnosticError) {
-                // Почему: даже сбой диагностики не должен подменить исходное исключение.
-            }
-            throw error;
-        }
+        final View view = createView(context);
+        onViewCreated(view);
+        return view;
     }
 
     @CallSuper
@@ -989,6 +976,11 @@ public abstract class BaseFragment {
 
     public Animator getCustomSlideTransition(boolean topFragment, boolean backAnimation, float distanceToMove) {
         return null;
+    }
+
+    /** Длительность стандартного перехода экрана;0 = штатные150 мс. */
+    public float getFragmentTransitionDuration() {
+        return 0;
     }
 
     protected boolean shouldOverrideSlideTransition(boolean topFragment, boolean backAnimation) {

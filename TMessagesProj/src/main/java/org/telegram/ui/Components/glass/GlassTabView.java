@@ -470,7 +470,6 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
         AvatarDrawable avatarDrawable = new AvatarDrawable(user);
 
         BackupImageView backupImageView = new BackupImageView(context);
-        backupImageView.getImageReceiver().setCurrentAccount(currentAccount);
         backupImageView.setForUserOrChat(user, avatarDrawable);
         backupImageView.setRoundRadius(dp(11 * pengramScale()));
         tab.backupImageView = backupImageView;
@@ -486,7 +485,6 @@ public class GlassTabView extends FrameLayout implements MainTabsLayout.Tab, Fac
     }
 
     public void updateUserAvatar(int currentAccount) {
-        backupImageView.getImageReceiver().setCurrentAccount(currentAccount);
         TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(UserConfig.getInstance(currentAccount).getClientUserId());
         AvatarDrawable avatarDrawable = new AvatarDrawable(user);
         backupImageView.setForUserOrChat(user, avatarDrawable);

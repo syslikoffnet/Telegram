@@ -5604,11 +5604,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             nameTextView[a].setFocusable(a == 0);
-            // Pengram: жест по имени показывает вторую известную версию имени.
-            // Жест нужен на обоих видах: в раскрытой шапке виден nameTextView[0],
-            // в свёрнутой — nameTextView[1]. Раньше он висел только на [1],
-            // поэтому в открытом профиле нажатие и свайп ничего не делали.
-            org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
+            // Pengram: жест по имени показывает вторую известную версию имени
+            if (a == 1) {
+                org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
+            }
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
@@ -11509,7 +11508,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
      */
     private void pengramToggleOriginalName() {
         final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
-        if (user == null || !pengramHasNameView()) {
+        if (user == null || nameTextView[1] == null) {
             return;
         }
         if (pengramOriginalNameShown) {
@@ -11524,7 +11523,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     org.telegram.messenger.PengramOriginalName.other(account, user);
             final boolean refresh = org.telegram.messenger.PengramOriginalName.canRefresh(account, user);
             AndroidUtilities.runOnUIThread(() -> {
-                if (seq != pengramNameCheckSeq || !pengramHasNameView()) {
+                if (seq != pengramNameCheckSeq || nameTextView[1] == null) {
                     return;
                 }
                 if (cached != null) {
@@ -11566,31 +11565,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int pengramNameCheckSeq;
     private Runnable pengramOriginalNameHideRunnable;
 
-    /** есть ли хоть один вид имени: шапка может быть ещё не собрана */
-    private boolean pengramHasNameView() {
-        if (nameTextView == null) {
-            return false;
-        }
-        for (int a = 0; a < nameTextView.length; a++) {
-            if (nameTextView[a] != null) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void pengramShowOriginalName(org.telegram.messenger.PengramOriginalName.Result other, int seq) {
-        if (!pengramHasNameView() || other == null) {
+        if (nameTextView[1] == null || other == null) {
             return;
         }
         pengramOriginalNameShown = true;
-        // Второй вариант имени ставим на оба вида: какой из них виден сейчас,
-        // зависит от раскрытия шапки, и меняться должен именно видимый.
-        for (int a = 0; a < nameTextView.length; a++) {
-            if (nameTextView[a] != null) {
-                nameTextView[a].setText(other.name);
-            }
-        }
+        nameTextView[1].setText(other.name);
         BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                 getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
         if (pengramOriginalNameHideRunnable != null) {

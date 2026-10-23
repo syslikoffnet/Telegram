@@ -43,17 +43,18 @@ assert "if (tries < 12 && listView.adapter.getItemCount() < 3)" in SETTINGS
 assert SETTINGS.count('TextUtils.equals(target, item.text)') == 2
 assert 'R.string.PengramSearchParentOff' in SETTINGS
 
-# --- история фактических переходов --------------------------------------------
+# --- история запросов ---------------------------------------------------------
 assert 'private static final String KEY_SEARCH_HISTORY' in CONFIG
-assert 'getSearchDestinations()' in CONFIG and 'rememberSearchDestination(' in CONFIG
-assert 'clearSearchDestinations()' in CONFIG
-assert 'addSearchHistory' not in CONFIG and 'pengramRememberSearch' not in SETTINGS
+assert 'public static java.util.ArrayList<String> getSearchHistory()' in CONFIG
+assert 'public static void addSearchHistory(String query)' in CONFIG
+assert 'public static void clearSearchHistory()' in CONFIG
 assert 'public void onSearchPressed(EditText editText)' in SETTINGS
+assert 'pengramRememberSearch();' in SETTINGS
 assert 'BTN_SEARCH_HISTORY_BASE' in SETTINGS and 'BTN_SEARCH_HISTORY_CLEAR' in SETTINGS
-assert SETTINGS.count('pengramOpenSearchDestination(') >= 3
-assert 'PengramSearchMetadata.rememberReached(pendingSearchDestination, stringRes)' in SETTINGS
+assert 'private void pengramApplySearch(String query)' in SETTINGS
+assert 'searchItem.getSearchField()' in SETTINGS
 assert 'BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE' in SETTINGS
-assert 'PengramSearchMetadata.historyPath(entry)' in SETTINGS
+assert 'history.get(i)' in SETTINGS
 
 # --- строки в обеих локалях ---------------------------------------------------
 needed = ['PengramSearchRecent', 'PengramSearchHistoryClear', 'PengramSearchParentOff']

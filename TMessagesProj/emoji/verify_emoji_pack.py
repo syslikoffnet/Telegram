@@ -3,7 +3,6 @@
 import argparse, collections, hashlib, io, json, mmap, struct, time
 from pathlib import Path
 import numpy as np
-from image_safety import image_array, open_image
 from PIL import Image
 NONE = 65535
 
@@ -92,7 +91,7 @@ class Pack:
             arr = np.frombuffer(raw[ln:], np.uint8).reshape(64, 64).copy()
         else:
             lut = np.frombuffer(b[:ln], np.uint8)
-            arr = np.array(image_array(io.BytesIO(wrap_webp(b[ln:])), 'L'))
+            arr = np.array(Image.open(io.BytesIO(wrap_webp(b[ln:]))).convert('L'))
         if parents:
             if e[8] in (3, 5, 6):
                 axis = 0 if e[8] == 6 else 1
@@ -109,7 +108,7 @@ class Pack:
             self.native_calls += 1
             b = self.blob(i)
             if e[7] == 2: b = wrap_webp(b)
-            return np.array(image_array(io.BytesIO(b), 'RGBA'))
+            return np.array(Image.open(io.BytesIO(b)).convert('RGBA'))
         idx = self.indices(i)
         n, ch = e[6], e[9] & 127
         if ch == 0:
@@ -171,13 +170,13 @@ def validate(pack_path, reference_path, textures_path, compare_pack_path=None):
     compared_changes = []
     raw, emojis, masks = reference(reference_path)
     assert pack.ne == len(emojis) and pack.n == len(emojis) + len(masks)
-    mask_images = {key: np.array(image_array(io.BytesIO(raw[off:off + length]), 'L'))
+    mask_images = {key: np.array(Image.open(io.BytesIO(raw[off:off+length])).convert('L'))
                    for key, off, length in masks}
     changed = []; before = []; after = []; max_streams = max_input = 0; total_streams = 0; total_palettes = max_palettes = 0
     with zipfile.ZipFile(textures_path) as archive:
         for i, (key, mask, off, length) in enumerate(emojis):
             assert pack.entries[i][:2] == (key, mask)
-            baseline = np.array(image_array(io.BytesIO(raw[off:off + length]), 'RGBA'))
+            baseline = np.array(Image.open(io.BytesIO(raw[off:off+length])).convert('RGBA'))
             if mask != NONE:
                 baseline[:, :, 3] = ((baseline[:, :, 3].astype(np.uint16) * mask_images[mask] + 127) // 255).astype(np.uint8)
             pack.cache.clear(); pack.native_calls = pack.input_bytes = pack.palette_calls = 0
@@ -190,7 +189,7 @@ def validate(pack_path, reference_path, textures_path, compare_pack_path=None):
             a[a[:, :, 3] == 0, :3] = 0; b[b[:, :, 3] == 0, :3] = 0
             if not np.array_equal(a, b):
                 assert pack.entries[i][10] & 128, f'Unmarked visual change: {key}'
-                original = np.array(image_array(archive.open(f'{key // 4096}_{key % 4096}.png'), 'RGBA'))
+                original = np.array(Image.open(archive.open(f'{key//4096}_{key%4096}.png')).convert('RGBA'))
                 m0 = quality.metrics(baseline, original); m1 = quality.metrics(actual, original)
                 assert m1[0] <= m0[0]+1e-10 and m1[1] >= m0[1]-1e-7 and m1[2] <= m0[2]+1e-10, f'Global quality gate: {key}'
                 e0 = uniform_filter(quality.error(baseline, original), size=5)
@@ -203,7 +202,7 @@ def validate(pack_path, reference_path, textures_path, compare_pack_path=None):
                 assert np.array_equal(actual[:, :, 3], prev[:, :, 3])
                 visible = actual[:, :, 3] > 0
                 if not np.array_equal(actual[visible, :3], prev[visible, :3]):
-                    original = np.array(image_array(archive.open(f'{key // 4096}_{key % 4096}.png'), 'RGBA'))
+                    original = np.array(Image.open(archive.open(f'{key//4096}_{key%4096}.png')).convert('RGBA'))
                     m0 = quality.metrics(prev, original); m1 = quality.metrics(actual, original)
                     assert m1[0] <= m0[0]+1e-10 and m1[1] >= m0[1]-1e-7 and m1[2] <= m0[2]+1e-10, f'Previous-pack global gate: {key}'
                     assert quality.passes_local(actual, original, uniform_filter(quality.error(prev, original), size=5), quality.structure(prev, original)), f'Previous-pack local gate: {key}'

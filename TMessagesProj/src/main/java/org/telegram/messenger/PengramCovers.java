@@ -85,10 +85,7 @@ public class PengramCovers {
 
     private static void requestInternal(MessageObject messageObject, Callback callback, boolean prefetch) {
         final String key = keyFor(messageObject);
-        if (TextUtils.isEmpty(key)) {
-            if (callback != null) callback.onCover(key, null);
-            return;
-        }
+        if (TextUtils.isEmpty(key)) return;
         final Bitmap cached = cache.get(key);
         if (cached != null && !cached.isRecycled()) {
             if (callback != null) callback.onCover(key, cached);
@@ -99,10 +96,7 @@ public class PengramCovers {
         final File file = pathOf(messageObject);
         // A track can be streamed before its file is downloaded. Never cache
         // "missing" permanently: retry after the file finishes downloading.
-        if (file == null) {
-            if (callback != null) callback.onCover(key, null);
-            return;
-        }
+        if (file == null) return;
         final ArrayList<Callback> callbacks;
         final int requestGeneration;
         synchronized (loading) {
@@ -142,18 +136,18 @@ public class PengramCovers {
                         if (generation != requestGeneration || loading.get(key) != callbacks) return;
                         loading.remove(key);
                     }
-                    final Bitmap usable = result != null && !result.isRecycled()
-                            && result.getWidth() > 0 && result.getHeight() > 0 ? result : null;
-                    if (usable != null) cache.put(key, usable);
-                    final ArrayList<Callback> listeners;
-                    synchronized (loading) {
-                        listeners = new ArrayList<>(callbacks);
-                    }
-                    for (Callback listener : listeners) {
-                        try {
-                            listener.onCover(key, usable);
-                        } catch (Throwable error) {
-                            FileLog.e(error);
+                    if (result != null && !result.isRecycled()) {
+                        cache.put(key, result);
+                        final ArrayList<Callback> listeners;
+                        synchronized (loading) {
+                            listeners = new ArrayList<>(callbacks);
+                        }
+                        for (Callback listener : listeners) {
+                            try {
+                                listener.onCover(key, result);
+                            } catch (Throwable error) {
+                                FileLog.e(error);
+                            }
                         }
                     }
                 });
@@ -162,7 +156,6 @@ public class PengramCovers {
             synchronized (loading) {
                 if (loading.get(key) == callbacks) loading.remove(key);
             }
-            for (Callback listener : callbacks) listener.onCover(key, null);
         }
     }
 

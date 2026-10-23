@@ -32,9 +32,7 @@ assert 'BlurredBackgroundProviderImpl.mainTabs(resourceProvider)' not in activit
 assert 'public static int thicknessPx()' in glass and 'public static float intensity()' in glass
 
 # --- линза включается нашим тумблером, а не только системным флагом ----------
-# Пользовательский переключатель не должен обходить системный LiteMode/API guard.
-assert 'org.telegram.ui.Components.PengramGlassSkin.canRefract()' in activity
-assert '&& LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)' in activity
+assert 'org.telegram.messenger.PengramConfig.isTabBarLiquidGlass()\n                || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)' in activity
 assert 'drawable.setThickness(org.telegram.ui.Components.PengramTabBarGlass.thicknessPx());' in activity
 assert 'drawable.setIntensity(org.telegram.ui.Components.PengramTabBarGlass.intensity());' in activity
 assert 'pengramGlassFactory.setLiquidGlassEffectAllowed(want);' in activity

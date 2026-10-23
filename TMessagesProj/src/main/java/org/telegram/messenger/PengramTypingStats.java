@@ -28,16 +28,6 @@ public final class PengramTypingStats {
 
     /** Call only for user-originated edits in the composer. Returns instantaneous WPM or zero. */
     public static synchronized int onEdit(int currentAccount, int before, int count, boolean userEdit) {
-        return record(currentAccount, before, count, userEdit, false);
-    }
-
-    public static synchronized int onCompositionEdit(int currentAccount, int before, int count) {
-        // IME переписывает слово целиком: считаем только положительную дельту,
-        // иначе Gboard перестаёт давать WPM вообще или удваивает слово при commit.
-        return record(currentAccount, before, count, true, true);
-    }
-
-    private static int record(int currentAccount, int before, int count, boolean userEdit, boolean composition) {
         if (!enabled()) {
             resetSession();
             return 0;
@@ -53,7 +43,7 @@ public final class PengramTypingStats {
             finish(now);
             account = currentAccount;
         }
-        if (count <= before || count > 256 || !composition && (before > 0 || count > 3)) { // deletion, paste or IME word replacement
+        if (count <= before || count > 3) { // deletion, paste or IME word replacement
             return currentWpm(now);
         }
         if (start == 0) start = now;

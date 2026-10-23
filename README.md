@@ -1,4 +1,4 @@
-# Pengram ❤️
+# Pengram
 
 <img src="branding/pengram_icon.png" width="120" align="right" alt="Pengram icon"/>
 

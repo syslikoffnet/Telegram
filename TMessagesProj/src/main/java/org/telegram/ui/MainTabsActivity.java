@@ -466,9 +466,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
      * стекло» и ждёт преломление, а не просто полупрозрачную плитку.
      */
     private boolean pengramWantsLiquidGlass() {
-        return org.telegram.ui.Components.PengramGlassSkin.canRefract()
-                && LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)
-                && org.telegram.messenger.PengramConfig.isTabBarLiquidGlass();
+        return org.telegram.messenger.PengramConfig.isTabBarLiquidGlass()
+                || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS);
     }
 
     private BlurredBackgroundDrawable createTabsBackground() {

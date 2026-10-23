@@ -663,13 +663,6 @@ public class ConnectionsManager extends BaseController {
         return native_pengramCopyAuthKey(currentAccount, out);
     }
 
-    /** Диагностика не должна запускать сеть неинициализированного слота. */
-    public static int pengramPeekConnectionState(int account) {
-        if (account < 0 || account >= Instance.length) return -1;
-        ConnectionsManager manager = Instance[account];
-        return manager == null ? -1 : manager.connectionState;
-    }
-
     public int getConnectionState() {
         if (connectionState == ConnectionStateConnected && isUpdating) {
             return ConnectionStateUpdating;
@@ -894,7 +887,6 @@ public class ConnectionsManager extends BaseController {
 
     public static void onLogout(final int currentAccount) {
         AndroidUtilities.runOnUIThread(() -> {
-            org.telegram.messenger.PengramDiagnostics.recordLogout(currentAccount);
             AccountInstance accountInstance = AccountInstance.getInstance(currentAccount);
             if (accountInstance.getUserConfig().getClientUserId() != 0) {
                 // Pengram: локальная копия — сессия отозвана, но аккаунт, чаты и

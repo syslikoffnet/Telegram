@@ -358,27 +358,7 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
                         transition.start();
                     }
                 } else {
-                    final boolean pengramPerfOk = SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW;
-                    final boolean pengramNearEnough = Math.abs(view.getTranslationY()) < recyclerListView.getMeasuredHeight();
-                    if (org.telegram.messenger.PengramSendTrace.enabled()) {
-                        // Граница эпизода — даже когда перелёт не создан: иначе в
-                        // логе не видно, что новая строка вообще появлялась.
-                        org.telegram.messenger.PengramSendTrace.send();
-                        org.telegram.messenger.PengramSendTrace.log("ANIM", "created=" + (pengramPerfOk && pengramNearEnough)
-                                + " perfOk=" + pengramPerfOk
-                                + " nearEnough=" + pengramNearEnough
-                                + " transY=" + view.getTranslationY()
-                                + " listH=" + recyclerListView.getMeasuredHeight()
-                                + " cellH=" + view.getMeasuredHeight()
-                                + " cellAlpha=" + view.getAlpha()
-                                + " perf=" + SharedConfig.getDevicePerformanceClass()
-                                + " out=" + chatMessageCell.getMessageObject().isOut()
-                                + " sending=" + chatMessageCell.getMessageObject().isSending()
-                                + " textLen=" + (chatMessageCell.getMessageObject().messageText == null
-                                ? -1 : chatMessageCell.getMessageObject().messageText.length())
-                                + " id=" + chatMessageCell.getMessageObject().getId());
-                    }
-                    if (pengramPerfOk && pengramNearEnough) {
+                    if (SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW && Math.abs(view.getTranslationY()) < recyclerListView.getMeasuredHeight()) {
                         TextMessageEnterTransition transition = new TextMessageEnterTransition(chatMessageCell, activity, recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);
                         transition.start();
                     }

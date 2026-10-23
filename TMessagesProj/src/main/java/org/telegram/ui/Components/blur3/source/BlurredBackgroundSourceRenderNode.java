@@ -109,6 +109,14 @@ public class BlurredBackgroundSourceRenderNode implements BlurredBackgroundSourc
         renderNode.discardDisplayList();
     }
 
+    @Override
+    public boolean hasContent() {
+        if (renderNode.hasDisplayList()) {
+            return true;
+        }
+        return underSource != null && underSource.hasContent();
+    }
+
     public boolean isRecordingCanvas(Canvas canvas) {
         return canvas != null && canvas == recordingCanvas;
     }

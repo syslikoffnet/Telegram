@@ -2401,8 +2401,7 @@ public class ChatActivity extends BaseFragment implements
                 obj = filteredMessagesDict.get((long) mid);
             }
             if (obj != null) {
-                org.telegram.messenger.PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner);
-                obj.pengramDeleted = org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, mid);
+                obj.pengramDeleted = true;
                 any = true;
                 pengramRefreshMessage(obj, true);
             }
@@ -25575,11 +25574,6 @@ public class ChatActivity extends BaseFragment implements
                 if (jumpToMessage) {
                     int messageId = (Integer) args[1];
                     long did = (Long) args[3];
-                    if (localDeletedNavigation && messageId != 0) {
-                        localSearchHitDialogId = did;
-                        localSearchHitMessageId = messageId;
-                        updateSearchButtons((Integer) args[2], (Integer) args[4], (Integer) args[5]);
-                    }
                     if (searchingReaction != null && searchingFiltered) {
                         if (chatAdapter.isFiltered) {
                             updateFilteredMessages(true);
@@ -25607,7 +25601,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 if (searchItem != null) {
-                    searchItem.setShowSearchProgress(pendingLocalSearchIndex >= 0);
+                    searchItem.setShowSearchProgress(false);
                 }
                 if (messagesSearchAdapter != null) {
                     messagesSearchAdapter.notifyDataSetChanged();
@@ -29005,7 +28999,7 @@ public class ChatActivity extends BaseFragment implements
     // A hit that is counted but not loaded yet: remember where the user wanted
     // to go and resume as soon as the next page adds it.
     private int pendingLocalSearchIndex = -1;
-    private boolean pendingLocalSearchUp = true;
+    private int pendingLocalSearchOpenGeneration;
     // Search-only ghosts use real Telegram message cells, never the server DB.
     private final ArrayList<MessageObject> searchDeletedGhosts = new ArrayList<>();
 
@@ -29043,6 +29037,19 @@ public class ChatActivity extends BaseFragment implements
             localSearchHitDialogId = 0;
             pendingLocalSearchIndex = -1;
         }
+        // Seed the position with the first archived hit: that is the result the
+        // automatic jump below opens, so the counter and the arrows have to
+        // continue from it instead of guessing from the server position.
+        if (localSearchHitMessageId == 0) {
+            final PengramHistory.Entry first = messagesSearchAdapter.getLocalDeletedAt(0);
+            final int firstAt = first == null ? -1
+                    : messagesSearchAdapter.indexOfResult(first.dialogId, first.messageId);
+            if (firstAt >= 0) {
+                localDeletedSearchIndex = firstAt;
+                localSearchHitDialogId = first.dialogId;
+                localSearchHitMessageId = first.messageId;
+            }
+        }
         // Keep Telegram's search-in-chat view. Never open a result list or a
         // separate archive while the user is still typing.
         updateSearchButtons(getMediaDataController().getMask(), getMediaDataController().getSearchPosition(),
@@ -29050,18 +29057,16 @@ public class ChatActivity extends BaseFragment implements
         // Local hits are the only source of arrows for a chat whose history was
         // deleted on the server: show them without waiting for the next packet.
         updateSearchUpDownButtonVisibility(true);
-        final boolean wasPending = pendingLocalSearchIndex >= 0;
-        if (wasPending) {
+        if (pendingLocalSearchIndex >= 0) {
             pengramResumeLocalSearchNavigation();
-        }
-        if (wasPending) {
-            pendingDeletedSearchQuery = null;
-            pendingDeletedServerResult = false;
         }
         if (TextUtils.equals(pendingDeletedSearchQuery, query)) {
             pendingDeletedSearchQuery = null;
-            if (localSearchHitMessageId == 0) {
-                pengramOpenLocalSearchResult(0);
+            PengramHistory.Entry archived = messagesSearchAdapter.getLocalDeletedAt(0);
+            if (archived != null) {
+                navigateToDeletedSearchResult(archived);
+            } else if (pendingDeletedServerResult) {
+                getMediaDataController().jumpToSearchedMessage(classGuid, 0);
             }
             pendingDeletedServerResult = false;
         }
@@ -29082,42 +29087,52 @@ public class ChatActivity extends BaseFragment implements
                 return byId;
             }
         }
-        // После пересортировки старый индекс не доказывает идентичность попадания.
-        localDeletedSearchIndex = -1;
+        if (localDeletedSearchIndex >= 0 && localDeletedSearchIndex < messagesSearchAdapter.loadedCount) {
+            return localDeletedSearchIndex;
+        }
         return -1;
     }
 
+    /** Ordinary hits and archived snapshots are counted together. */
     private int pengramLocalSearchTotal() {
-        return messagesSearchAdapter == null ? 0 : messagesSearchAdapter.loadedCount;
+        if (messagesSearchAdapter == null) {
+            return 0;
+        }
+        return Math.max(messagesSearchAdapter.loadedCount,
+                getMediaDataController().getSearchCount() + messagesSearchAdapter.getAdditionalDeletedCount());
     }
 
-    private boolean pengramLocalSearchLoading() {
-        return messagesSearchAdapter != null && (messagesSearchAdapter.isLocalSearchLoading()
-                || !getMediaDataController().searchEndReached());
-    }
-
+    /**
+     * The target row is counted by the header but its page has not arrived yet:
+     * load it and reopen the hit once the adapter has it. Without this the
+     * arrow looks broken — the counter says 21 while only one row is loaded.
+     */
     private void pengramResumeLocalSearchNavigation() {
         if (pendingLocalSearchIndex < 0 || messagesSearchAdapter == null || !localDeletedNavigation) {
             return;
         }
-        // Пока архив не вернулся, сосед может смениться: ждём завершения слияния.
-        final int from = pengramCurrentLocalSearchIndex();
-        final int target = from < 0 ? 0 : from + (pendingLocalSearchUp ? 1 : -1);
-        if (!messagesSearchAdapter.isLocalSearchLoading() && target >= 0 && target < pengramLocalSearchTotal()) {
+        final int target = pendingLocalSearchIndex;
+        if (target < messagesSearchAdapter.loadedCount) {
             pendingLocalSearchIndex = -1;
-            onSearchLoadingUpdate(false);
             pengramOpenLocalSearchResult(target);
-        } else if (!pengramLocalSearchLoading()) {
-            pendingLocalSearchIndex = -1;
-            onSearchLoadingUpdate(false);
-            if (searchItem != null) searchItem.setShowSearchProgress(false);
-            updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
-                    getMediaDataController().getSearchCount());
-        } else {
-            onSearchLoadingUpdate(true);
-            if (searchItem != null) searchItem.setShowSearchProgress(true);
-            getMediaDataController().loadMoreSearchMessages(true);
+            return;
         }
+        if (getMediaDataController().searchEndReached() || ++pendingLocalSearchOpenGeneration > 8) {
+            // Nothing else can arrive: stop pretending the arrow can move and
+            // clamp the counter to the rows that really exist.
+            pendingLocalSearchIndex = -1;
+            pendingLocalSearchOpenGeneration = 0;
+            updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
+                    messagesSearchAdapter.loadedCount - messagesSearchAdapter.getAdditionalDeletedCount());
+            return;
+        }
+        getMediaDataController().loadMoreSearchMessages(true);
+        final int generation = pendingLocalSearchOpenGeneration;
+        AndroidUtilities.runOnUIThread(() -> {
+            if (generation == pendingLocalSearchOpenGeneration) {
+                pengramResumeLocalSearchNavigation();
+            }
+        }, 700);
     }
 
     private void pengramOpenLocalSearchResult(int position) {
@@ -29128,8 +29143,6 @@ public class ChatActivity extends BaseFragment implements
         if (result == null) {
             return;
         }
-        pendingLocalSearchIndex = -1;
-        if (searchItem != null) searchItem.setShowSearchProgress(false);
         localDeletedSearchIndex = position;
         localSearchHitDialogId = result.getDialogId();
         localSearchHitMessageId = result.getId();
@@ -29675,15 +29688,37 @@ public class ChatActivity extends BaseFragment implements
 
     private void updateSearchButtons(int mask, int num, int count) {
         localDeletedNavigation = searchType == 0 && messagesSearchAdapter != null
-                && !TextUtils.isEmpty(searchingQuery);
+                && messagesSearchAdapter.getLocalDeletedCount() > 0 && !TextUtils.isEmpty(searchingQuery)
+                && isCurrentLocalDeletedQuery(messagesSearchAdapter.getLocalQuery());
         if (localDeletedNavigation) {
-            final int current = pengramCurrentLocalSearchIndex();
-            num = Math.max(0, current);
-            count = pengramLocalSearchTotal();
-            // Строки и обещание сервера не смешиваем; крайняя стрелка может
-            // запросить страницу, но счётчик показывает лишь доступные строки.
-            final boolean canNext = current + 1 < count || pengramLocalSearchLoading();
-            final boolean canPrev = current > 0;
+            final int loaded = messagesSearchAdapter.loadedCount;
+            final int total = Math.max(loaded, count + messagesSearchAdapter.getAdditionalDeletedCount());
+            if (pengramCurrentLocalSearchIndex() < 0) {
+                // Nothing was opened for this query yet: continue from the hit
+                // Telegram itself selected, if it is part of the merged list.
+                ArrayList<MessageObject> nativeResults = getMediaDataController().getFoundMessageObjects();
+                if (num >= 0 && num < nativeResults.size()) {
+                    MessageObject nativeHit = nativeResults.get(num);
+                    final int position = messagesSearchAdapter.indexOfResult(nativeHit.getDialogId(), nativeHit.getId());
+                    if (position >= 0) {
+                        localDeletedSearchIndex = position;
+                        localSearchHitDialogId = nativeHit.getDialogId();
+                        localSearchHitMessageId = nativeHit.getId();
+                    }
+                }
+            }
+            if (localDeletedSearchIndex < 0) {
+                localDeletedSearchIndex = 0;
+            }
+            if (loaded > 0 && localDeletedSearchIndex >= loaded) {
+                localDeletedSearchIndex = loaded - 1;
+            }
+            num = Math.max(0, localDeletedSearchIndex);
+            count = Math.max(total, num + 1);
+            // Arrows are enabled by the *total* number of hits, not by the rows
+            // that happen to be paged in: the next tap loads the missing page.
+            final boolean canNext = num + 1 < count;
+            final boolean canPrev = num > 0;
             mask = (canNext ? (reversed ? 2 : 1) : 0) | (canPrev ? (reversed ? 1 : 2) : 0);
         }
         if (sideControlsButtonsLayout != null) {
@@ -29924,6 +29959,65 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private boolean pengramEnterAnimApplied;
+
+    @Override
+    public float getFragmentTransitionDuration() {
+        // Включённый тумблер удлиняет окно перехода: стоковый кроссфейд и
+        // fade/scale ниже идут в одном прогрессе260 мс вместо150 — плавнее.
+        return org.telegram.messenger.PengramConfig.isChatEnterAnim() ? 260f : 0f;
+    }
+
+    /** Тумблер «Анимация входа в чат»: дешёвые alpha/scale-свойства, без слоёв и наложений. */
+    private void applyPengramEnterAnim(boolean isOpen, float progress) {
+        if (fragmentView == null || inPreviewMode) {
+            return;
+        }
+        if (!org.telegram.messenger.PengramConfig.isChatEnterAnim()) {
+            if (pengramEnterAnimApplied) {
+                resetPengramEnterAnim();
+            }
+            return;
+        }
+        final float eased = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(
+                Math.max(0f, Math.min(1f, progress)));
+        final float alpha;
+        final float scale;
+        if (isOpen) {
+            alpha = 0.5f + 0.5f * eased;
+            scale = 0.98f + 0.02f * eased;
+        } else {
+            alpha = 1f - 0.5f * eased;
+            scale = 1f - 0.015f * eased;
+        }
+        pengramEnterAnimApplied = true;
+        fragmentView.setAlpha(alpha);
+        fragmentView.setScaleX(scale);
+        fragmentView.setScaleY(scale);
+        if (actionBar != null && actionBar.getParent() != null && actionBar.getParent() != fragmentView) {
+            // В отдельных режимах шапку выносят из экрана — её гасим отдельно.
+            actionBar.setAlpha(alpha);
+        }
+    }
+
+    private void resetPengramEnterAnim() {
+        pengramEnterAnimApplied = false;
+        if (fragmentView != null) {
+            fragmentView.setAlpha(1f);
+            fragmentView.setScaleX(1f);
+            fragmentView.setScaleY(1f);
+        }
+        if (actionBar != null) {
+            actionBar.setAlpha(1f);
+        }
+    }
+
+    @Override
+    public void onTransitionAnimationProgress(boolean isOpen, float progress) {
+        super.onTransitionAnimationProgress(isOpen, progress);
+        applyPengramEnterAnim(isOpen, progress);
+    }
+
     long startMs;
     @Override
     public void onTransitionAnimationStart(boolean isOpen, boolean backward) {
@@ -29969,6 +30063,9 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
         super.onTransitionAnimationEnd(isOpen, backward);
+        if (pengramEnterAnimApplied) {
+            resetPengramEnterAnim();
+        }
         if (isOpen) {
             if (backward) {
                 if (showPinBulletin && pinBulletin != null) {
@@ -41532,6 +41629,7 @@ public class ChatActivity extends BaseFragment implements
             localSearchHitDialogId = 0;
             localSearchHitMessageId = 0;
             pendingLocalSearchIndex = -1;
+            pendingLocalSearchOpenGeneration = 0;
             pengramCancelPendingGhost();
             clearSearchDeletedGhosts();
             localDeletedNavigation = false;
@@ -41804,14 +41902,14 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void onTextChanged(EditText editText) {
-            if (editText != null && !TextUtils.equals(localSearchIndexQuery, editText.getText().toString().trim())) {
-                localSearchIndexQuery = editText.getText().toString().trim();
+            if (editText != null && !TextUtils.equals(pendingDeletedSearchQuery, editText.getText().toString().trim())) {
                 pendingDeletedSearchQuery = null;
                 pendingDeletedServerResult = false;
                 localDeletedSearchIndex = -1;
                 localSearchHitDialogId = 0;
                 localSearchHitMessageId = 0;
                 pendingLocalSearchIndex = -1;
+                pendingLocalSearchOpenGeneration = 0;
                 pengramCancelPendingGhost();
             }
             if (editText != null && !TextUtils.equals(searchingQuery, editText.getText().toString())
@@ -50078,15 +50176,8 @@ public class ChatActivity extends BaseFragment implements
             HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex + (searchUp ? 1 : -1), searchType);
         } else if (localDeletedNavigation && messagesSearchAdapter != null) {
             final int from = pengramCurrentLocalSearchIndex();
-            final int next = from < 0 ? 0 : from + (searchUp ? 1 : -1);
+            final int next = (from < 0 ? 0 : from) + (searchUp ? 1 : -1);
             final int total = pengramLocalSearchTotal();
-            if ((messagesSearchAdapter.isLocalSearchLoading() || searchUp && next >= total)
-                    && pengramLocalSearchLoading()) {
-                pendingLocalSearchUp = searchUp;
-                pendingLocalSearchIndex = Math.max(0, next);
-                pengramResumeLocalSearchNavigation();
-                return;
-            }
             if (next < 0 || next >= total) {
                 // Boundary of the merged list: just refresh the arrows so the
                 // disabled direction is visible immediately.
@@ -50098,8 +50189,8 @@ public class ChatActivity extends BaseFragment implements
             if (result == null) {
                 // Counted but not paged in yet: load the missing page and keep
                 // the requested position instead of dropping the tap.
-                pendingLocalSearchUp = searchUp;
                 pendingLocalSearchIndex = next;
+                pendingLocalSearchOpenGeneration = 0;
                 updateSearchButtons(getMediaDataController().getMask(), localDeletedSearchIndex,
                         getMediaDataController().getSearchCount());
                 getMediaDataController().loadMoreSearchMessages(true);

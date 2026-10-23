@@ -89,7 +89,6 @@ public abstract class ViewPagerActivity extends BaseFragment {
                 }
 
                 if (!state.onCreateCalled) {
-                    bindChildAccount(fragment);
                     fragment.onFragmentCreate();
                     state.onCreateCalled = true;
                 }
@@ -128,14 +127,7 @@ public abstract class ViewPagerActivity extends BaseFragment {
         return fragmentView;
     }
 
-    private void bindChildAccount(BaseFragment fragment) {
-        // Почему: ленивое создание может совпасть с переключением selectedAccount.
-        // Контроллеры и observer-ы ребёнка должны принадлежать родителю, не глобальному слоту.
-        fragment.setCurrentAccount(currentAccount);
-    }
-
     protected void putFragmentAtPosition(int position, BaseFragment fragment) {
-        bindChildAccount(fragment);
         fragmentsArr.put(position, new FragmentState(fragment));
     }
 

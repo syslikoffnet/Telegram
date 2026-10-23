@@ -8174,13 +8174,6 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     private final SparseArray<Runnable> pengramPendingSingleSends = new SparseArray<>();
     private final SparseArray<TLObject> pengramPendingSingleRequests = new SparseArray<>();
 
-    /** Чтение диагностики не создаёт отправщик для пустого слота. */
-    public static int getPendingGhostCount(int account) {
-        if (account < 0 || account >= Instance.length) return 0;
-        SendMessagesHelper helper = Instance[account];
-        return helper == null ? 0 : helper.pengramDelayedRequests.size();
-    }
-
     private void pengramCancelPendingSend(int messageId) {
         Runnable task = pengramPendingSingleSends.get(messageId);
         if (task == null) return;

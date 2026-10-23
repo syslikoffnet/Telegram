@@ -1491,7 +1491,6 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         PengramLyrics.addListener(pengramLyricsReady);
-        pengramStartTickerPump();
         removeObservers();
 
         if (isLocation) {
@@ -2164,30 +2163,13 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private final Runnable pengramTickerPump = new Runnable() {
         @Override
         public void run() {
-            if (!isAttachedToWindow()) {
-                return;
-            }
-            // Перепланируем до проверок: выключенная настройка или другой стиль
-            // не должны лишать прикреплённую шапку возможности ожить позже.
-            AndroidUtilities.runOnUIThread(this, 500);
             if (pengramTicker == null) {
                 return;
             }
-            final MessageObject current = MediaController.getInstance().getPlayingMessageObject();
-            // События не гарантированы в списке чатов: сверяем и саму панель,
-            // но не вызываем поиск повторно для уже ожидаемого того же трека.
-            if (!isLocation && current != lastMessageObject) {
-                checkPlayer(false);
+            if (pengramTicker == null || !isMusic || currentStyle != STYLE_AUDIO_PLAYER
+                    || !PengramConfig.isHeaderLyrics()) {
+                return; // шапка другая — кадры больше не нужны
             }
-            if (current == null || !current.isMusic() || !PengramConfig.isHeaderLyrics()
-                    || currentStyle != STYLE_AUDIO_PLAYER) {
-                pengramHideTicker();
-                return;
-            }
-            if (!TextUtils.equals(PengramLyrics.keyFor(current), pengramLyricsKey)) {
-                pengramCheckTicker(current);
-            }
-            pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
             // Пауза не должна останавливать насос: после неё трек играет
             // дальше, а сообщения плеера в списке чатов приходят редко.
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
@@ -2205,16 +2187,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                     }
                 }
             }
+            AndroidUtilities.runOnUIThread(this, 500);
         }
     };
-
-    @Override
-    protected void onVisibilityChanged(View changedView, int visibility) {
-        super.onVisibilityChanged(changedView, visibility);
-        if (visibility == VISIBLE && isAttachedToWindow()) {
-            pengramStartTickerPump();
-        }
-    }
 
     private void pengramStartTickerPump() {
         AndroidUtilities.cancelRunOnUIThread(pengramTickerPump);
@@ -2283,17 +2258,11 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
     private void pengramShowTicker() {
-        if (pengramTicker == null) {
-            return;
-        }
-        pengramStartTickerPump();
-        pengramTicker.setTickerMode(true, PengramConfig.getHeaderLyricsSize(), PengramConfig.getHeaderLyricsAnim());
-        pengramTicker.setVisibility(VISIBLE);
-        pengramTicker.postInvalidateOnAnimation();
-        if (pengramTickerShown) {
+        if (pengramTicker == null || pengramTickerShown) {
             return;
         }
         pengramTickerShown = true;
+        pengramStartTickerPump();
         // быстрые переключения трека: прошлую анимацию обрываем, иначе строки
         // догоняют друг друга и остаются висеть наложенными
         pengramTicker.animate().cancel();

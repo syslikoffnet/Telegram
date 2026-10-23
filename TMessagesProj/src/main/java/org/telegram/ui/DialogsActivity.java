@@ -2231,7 +2231,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                             performSelectedDialogsAction(selectedDialogs, read, true, false);
                                         } else if (SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_MUTE) {
                                             if (!getMessagesController().isDialogMuted(dialogId, 0)) {
-                                                NotificationsController.getInstance(currentAccount).setDialogNotificationsSettings(dialogId, 0, NotificationsController.SETTING_MUTE_FOREVER);
+                                                NotificationsController.getInstance(UserConfig.selectedAccount).setDialogNotificationsSettings(dialogId, 0, NotificationsController.SETTING_MUTE_FOREVER);
                                                 if (BulletinFactory.canShowBulletin(DialogsActivity.this)) {
                                                     BulletinFactory.createMuteBulletin(DialogsActivity.this, NotificationsController.SETTING_MUTE_FOREVER).show();
                                                 }
@@ -5297,7 +5297,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 }
                                 BulletinFactory.of(DialogsActivity.this).createUsersBulletin(Arrays.asList(user), AndroidUtilities.replaceTags(LocaleController.formatString("NotificationsStoryUnmutedHint", R.string.NotificationsStoryUnmutedHint, name))).show();
                             }).makeMultiline(false).addIf(!isPremiumBlocked && dialogId > 0 && isPremium && isUnread && !isLive, R.drawable.msg_stories_stealth2, LocaleController.getString(R.string.ViewAnonymously), () -> {
-                                TL_stories.TL_storiesStealthMode stealthMode = MessagesController.getInstance(currentAccount).getStoriesController().getStealthMode();
+                                TL_stories.TL_storiesStealthMode stealthMode = MessagesController.getInstance(UserConfig.selectedAccount).getStoriesController().getStealthMode();
                                 if (stealthMode != null && ConnectionsManager.getInstance(currentAccount).getCurrentTime() < stealthMode.active_until_date) {
                                     if (view instanceof StoryCell) {
                                         dialogStoriesCell.openStoryForCell((StoryCell) view);
@@ -5897,7 +5897,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         final SelectAnimatedEmojiDialog.SelectAnimatedEmojiDialogWindow[] popup = new SelectAnimatedEmojiDialog.SelectAnimatedEmojiDialogWindow[1];
-        TLRPC.User user = UserConfig.getInstance(currentAccount).getCurrentUser();
+        TLRPC.User user = UserConfig.getInstance(UserConfig.selectedAccount).getCurrentUser();
         int xoff = 0, yoff = 0;
         boolean hasEmoji = false;
         SimpleTextView actionBarTitle = actionBar.getTitleTextView();
@@ -13980,7 +13980,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new WalletActivity());
             });
         } else {
-            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(currentAccount).getAttachMenuBots();
+            TLRPC.TL_attachMenuBots menuBots = MediaDataController.getInstance(UserConfig.selectedAccount).getAttachMenuBots();
             if (launchActivity != null && menuBots != null && menuBots.bots != null && !menuBots.bots.isEmpty()) {
                 for (TLRPC.TL_attachMenuBot attachMenuBot : menuBots.bots) {
                     if (attachMenuBot.show_in_side_menu) {

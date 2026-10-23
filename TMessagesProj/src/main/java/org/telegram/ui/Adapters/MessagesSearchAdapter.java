@@ -109,12 +109,6 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         return -1;
     }
 
-    private boolean localSearchLoading;
-
-    public boolean isLocalSearchLoading() {
-        return localSearchLoading;
-    }
-
     public void searchLocalDeleted(String query, long dialogId, long mergeDialogId,
                                    boolean allowed, Runnable onResultsChanged) {
         final String value = allowed && query != null ? query.trim() : "";
@@ -128,7 +122,6 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         final int generation = ++localGeneration;
         if (localSearchTask != null) AndroidUtilities.cancelRunOnUIThread(localSearchTask);
         localDeleted.clear();
-        localSearchLoading = !value.isEmpty();
         notifyDataSetChanged();
         if (value.isEmpty()) return;
         localSearchTask = () -> Utilities.globalQueue.postRunnable(() -> {
@@ -136,7 +129,6 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
                     currentAccount, dialogId, mergeDialogId, value, 150);
             AndroidUtilities.runOnUIThread(() -> {
                 if (generation != localGeneration) return;
-                localSearchLoading = false;
                 localDeleted.addAll(entries);
                 notifyDataSetChanged();
                 if (localResultsChanged != null) localResultsChanged.run();

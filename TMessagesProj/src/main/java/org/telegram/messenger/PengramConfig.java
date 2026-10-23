@@ -215,6 +215,10 @@ public class PengramConfig {
     public static final int SENDER_AVATAR_AFTER_NAME = 4;
     /** всегда показывать галочку «Удалить у всех» */
     public static final String KEY_FORCE_DELETE_FOR_ALL = "forceDeleteForAll";
+    /** удалённые пересылать от своего лица, без «переслано от» */
+    public static final String KEY_RESEND_AS_MINE = "resendDeletedAsMine";
+    /** пункты «отправить удалёнку» в меню сообщения */
+    public static final String KEY_RESEND_MENU = "resendDeletedMenu";
     /** одноразовые медиа тоже можно переслать от своего лица */
     public static final String KEY_RESEND_ONCE = "resendOnceMedia";
     /** спрашивать чат перед отправкой удалёнки */
@@ -236,6 +240,11 @@ public class PengramConfig {
     public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
     public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
     public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
+
+    /** Плавный вход в чат: проявление + лёгкий зум вместо чистого выезда. По умолчанию выключен. */
+    public static final String KEY_CHAT_ENTER_ANIM = "chatEnterAnim";
+    public static boolean isChatEnterAnim() { return getBool(KEY_CHAT_ENTER_ANIM, false); }
+    public static void setChatEnterAnim(boolean value) { setBool(KEY_CHAT_ENTER_ANIM, value); }
     public static final String KEY_TYPING_BLUR = "typingBlur";
     public static final String KEY_TYPING_BLUR_RADIUS = "typingBlurRadius";
     public static final String KEY_TYPING_DELETE = "typingDeleteAnim";
@@ -323,8 +332,6 @@ public class PengramConfig {
     public static final String KEY_FADE_DELETED = "fadeDeleted";
     /** метка у изменённых сообщений */
     public static final String KEY_MARK_EDITED = "markEdited";
-    public static final String KEY_HISTORY_LOCK = "historyLock";
-    public static boolean isHistoryLocked() { return getBool(KEY_HISTORY_LOCK, false); }
     /** галочка «сохранить у себя» включена по умолчанию */
     public static final String KEY_SAVE_FOR_MYSELF_DEFAULT = "saveForMyselfDefault";
     /** показывать подсказку «сохранить у себя» в меню удаления */
@@ -416,7 +423,6 @@ public class PengramConfig {
                 else if (key.equals("hideMenuSettings")) hideMenuSettings = (Boolean) value;
                 boolCache.remove(key);
                 intCache.remove(key);
-                notifyAppearanceKey(key);
             }
             return true;
         }
@@ -535,24 +541,12 @@ public class PengramConfig {
         init();
         if (visualDraft == null || !visualKey(key)) intCache.put(key, value);
         putInt(key, value);
-        if (visualDraft == null || !visualKey(key)) { notifyAppearanceKey(key); notifyTypingKey(key); }
-    }
-
-    private static void notifyAppearanceKey(String key) {
-        // Настройку меняет не только экран с галочкой: пресеты и редакторы
-        // должны будить те же поверхности после сохранения, но не в preview.
-        if (key.startsWith("md3") || key.startsWith("tabBarGlass") || KEY_TAB_GLASS.equals(key)
-                || KEY_INPUT_GLASS.equals(key) || KEY_HEADER_GLASS.equals(key)
-                || KEY_CHAT_HEADER_GLASS.equals(key) || KEY_SETTINGS_SURFACE_GLASS.equals(key)) {
-            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
-        }
     }
 
     public static void setBool(String key, boolean value) {
         init();
         if (visualDraft == null || !visualKey(key)) boolCache.put(key, value);
         putBoolean(key, value);
-        if (visualDraft == null || !visualKey(key)) { notifyAppearanceKey(key); notifyTypingKey(key); }
         if (KEY_ANTICRASH.equals(key)) {
             PengramAntiCrash.invalidateEnabled();   // его читают в onDraw, там свой кэш
         }
@@ -562,62 +556,6 @@ public class PengramConfig {
         final boolean value = !getBool(key, def);
         setBool(key, value);
         return value;
-    }
-
-    private static void notifyTypingKey(String key) {
-        if (key.startsWith("typingStats")) AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
-        if (key.startsWith("inputAnimation") || key.startsWith("typing") && !key.startsWith("typingStats")) {
-            SharedPreferences p = prefs();
-            if (p != null) p.edit().putInt("typingAnimationPreset", 4).apply();
-            intCache.remove("typingAnimationPreset");
-            AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
-        }
-    }
-
-    private static final String[] TYPING_INTS = {KEY_INPUT_ANIMATION, KEY_INPUT_ANIMATION_SPEED,
-            KEY_INPUT_ANIMATION_INTENSITY, KEY_TYPING_BLUR_RADIUS, KEY_TYPING_DELETE_STYLE,
-            KEY_TYPING_DELETE_COUNT, KEY_TYPING_DELETE_SPEED, KEY_TYPING_DELETE_SPREAD,
-            KEY_TYPING_DELETE_SIZE, KEY_TYPING_CURSOR_SPEED, KEY_TYPING_CURSOR_WIDTH, KEY_TYPING_CURSOR_LIQUID_SCALE};
-    private static final String[] TYPING_BOOLS = {KEY_INPUT_ANIMATION_HAPTIC, KEY_TYPING_BLUR,
-            KEY_TYPING_IGNORE_SPACES, KEY_TYPING_ALL_LINES, KEY_TYPING_DELETE, KEY_TYPING_CURSOR,
-            KEY_TYPING_CURSOR_LIQUID, KEY_TYPING_SELECTION};
-    private static final int[][] TYPING_PRESET_INTS = {
-            {0,1,1,0,0,0,50,50,50,25,2,0}, {1,2,1,0,0,0,40,25,30,20,2,0},
-            {2,1,2,8,0,3,50,50,50,35,2,15}, {5,0,3,14,1,8,75,75,70,45,3,30}};
-    private static final boolean[][] TYPING_PRESET_BOOLS = {
-            {false,false,true,false,false,false,false,false}, {false,false,true,false,false,true,false,false},
-            {false,true,true,false,true,true,true,false}, {true,true,true,true,true,true,true,true}};
-
-    private static final int[] TYPING_DEFAULT_INTS = {1,1,2,10,0,5,50,50,50,25,2,15};
-    private static final boolean[] TYPING_DEFAULT_BOOLS = {false,true,true,false,true,true,false,false};
-    public static int getTypingPreset() {
-        int preset = getIntCached("typingAnimationPreset", 4);
-        if (preset < 0 || preset > 3) return 4;
-        for (int i = 0; i < TYPING_INTS.length; i++) if (getIntCached(TYPING_INTS[i], TYPING_DEFAULT_INTS[i]) != TYPING_PRESET_INTS[preset][i]) return 4;
-        for (int i = 0; i < TYPING_BOOLS.length; i++) if (getBool(TYPING_BOOLS[i], TYPING_DEFAULT_BOOLS[i]) != TYPING_PRESET_BOOLS[preset][i]) return 4;
-        return preset;
-    }
-    public static void setTypingPreset(int preset) {
-        if (preset < 0 || preset > 3) return;
-        SharedPreferences p = prefs();
-        if (p == null) return;
-        SharedPreferences.Editor editor = p.edit();
-        for (int i = 0; i < TYPING_INTS.length; i++) { editor.putInt(TYPING_INTS[i], TYPING_PRESET_INTS[preset][i]); intCache.remove(TYPING_INTS[i]); }
-        for (int i = 0; i < TYPING_BOOLS.length; i++) { editor.putBoolean(TYPING_BOOLS[i], TYPING_PRESET_BOOLS[preset][i]); boolCache.remove(TYPING_BOOLS[i]); }
-        editor.putInt("typingAnimationPreset", preset).apply();
-        intCache.remove("typingAnimationPreset");
-        AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
-    }
-    public static void resetTypingAnimations() {
-        SharedPreferences p = prefs();
-        if (p == null) return;
-        SharedPreferences.Editor editor = p.edit();
-        for (String key : TYPING_INTS) { editor.remove(key); intCache.remove(key); }
-        for (String key : TYPING_BOOLS) { editor.remove(key); boolCache.remove(key); }
-        editor.remove("typingAnimationPreset").apply();
-        intCache.remove("typingAnimationPreset");
-        // Счётчики WPM, отправляемый стиль и пользовательский текст не трогаем.
-        AndroidUtilities.runOnUIThread(org.telegram.ui.Components.PengramTypingEffects::settingsChanged);
     }
 
     public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
@@ -1097,11 +1035,6 @@ public class PengramConfig {
         v = v * 31 + (isTimeWithSeconds() ? 1 : 0);
         v = v * 31 + getDeletedMark();
         v = v * 31 + getEditedMarkIconRes();
-        v = v * 31 + (isMarkingEdited() ? 1 : 0);
-        v = v * 31 + getEditedMark();
-        v = v * 31 + (isEditHistoryMarkEnabled() ? 1 : 0);
-        v = v * 31 + (isEditHistoryMenuEnabled() ? 1 : 0);
-        v = v * 31 + (isForceDeleteForAll() ? 1 : 0);
         v = v * 31 + (isFadingDeleted() ? 1 : 0);
         v = v * 31 + (isKeepingDeletedInChat(account) ? 1 : 0);
         v = v * 31 + (isSavingDeleted(account) ? 1 : 0);
@@ -1118,7 +1051,13 @@ public class PengramConfig {
 
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
-        return isMarkingEdited() ? getEditedMarkIcon(getEditedMark()) : 0;
+        // History opens with a pencil by default. If the user chooses only the
+        // long-press menu, respect the independent edited-mark appearance setting.
+        if (!isMarkingEdited()) {
+            return isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
+        }
+        int icon = getEditedMarkIcon(getEditedMark());
+        return icon != 0 ? icon : isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
     }
 
     private static boolean loaded;
@@ -2374,117 +2313,52 @@ public class PengramConfig {
         }
     }
 
-    // ------------------------------- история переходов поиска -------------------------------
+    // ------------------------------- история поиска -------------------------------
 
+    /** ключ: недавние запросы поиска по настройкам Pengram */
     private static final String KEY_SEARCH_HISTORY = "settingsSearchHistory";
-    private static final String KEY_SEARCH_DESTINATIONS = "settingsSearchDestinationsV1";
     private static final int SEARCH_HISTORY_MAX = 8;
 
-    public static final class SearchDestination {
-        public final String key;
-        public final int section;
-        public final int kind;
-
-        public SearchDestination(String key, int section, int kind) {
-            this.key = key;
-            this.section = section;
-            this.kind = kind;
+    /**
+     * Недавние запросы поиска по настройкам — как история поиска в Telegram.
+     * Храним строкой через \n: запросы короткие, отдельная таблица не нужна.
+     */
+    public static java.util.ArrayList<String> getSearchHistory() {
+        final java.util.ArrayList<String> result = new java.util.ArrayList<>();
+        final String saved = visualString(KEY_SEARCH_HISTORY);
+        if (saved == null || saved.isEmpty()) {
+            return result;
         }
-    }
-
-    public static synchronized java.util.ArrayList<SearchDestination> getSearchDestinations() {
-        final SharedPreferences p = prefs();
-        if (p == null) return new java.util.ArrayList<>();
-        // getString бросает ClassCastException при ручной порче типа prefs.
-        // Наличие нового ключа — маркер миграции даже для битого значения.
-        if (!p.contains(KEY_SEARCH_DESTINATIONS)) migrateSearchDestinations(p);
-        final Object saved = p.getAll().get(KEY_SEARCH_DESTINATIONS);
-        final java.util.ArrayList<SearchDestination> result = new java.util.ArrayList<>();
-        if (!(saved instanceof String) || ((String) saved).length() > 32768) return result;
-        try {
-            final org.json.JSONArray rows = new org.json.JSONArray((String) saved);
-            for (int i = 0; i < rows.length() && result.size() < SEARCH_HISTORY_MAX; i++) {
-                final org.json.JSONObject row = rows.optJSONObject(i);
-                if (row == null || !(row.opt("key") instanceof String)
-                        || !(row.opt("section") instanceof Integer) || !(row.opt("kind") instanceof Integer)) continue;
-                final String key = row.optString("key", "").trim();
-                if (key.isEmpty() || key.length() > 128) continue;
-                final SearchDestination candidate = new SearchDestination(key, row.optInt("section"), row.optInt("kind"));
-                final int[] entry = org.telegram.ui.PengramSearchMetadata.resolveDestination(candidate);
-                if (entry == null || !org.telegram.ui.PengramSearchMetadata.canRemember(entry)) continue;
-                final SearchDestination valid = org.telegram.ui.PengramSearchMetadata.destination(entry);
-                if (valid != null && !containsDestination(result, valid.key)) result.add(valid);
+        for (String part : saved.split("\n")) {
+            final String value = part.trim();
+            if (!value.isEmpty() && !result.contains(value) && result.size() < SEARCH_HISTORY_MAX) {
+                result.add(value);
             }
-        } catch (org.json.JSONException | RuntimeException ignored) {
-            // Не превращаем повреждённую историю в падение всего экрана настроек.
         }
         return result;
     }
 
-    private static boolean containsDestination(java.util.ArrayList<SearchDestination> rows, String key) {
-        for (SearchDestination row : rows) if (row.key.equals(key)) return true;
-        return false;
-    }
-
-    private static String encodeSearchDestinations(java.util.ArrayList<SearchDestination> rows) {
-        final org.json.JSONArray json = new org.json.JSONArray();
-        for (SearchDestination row : rows) {
-            try {
-                final org.json.JSONObject value = new org.json.JSONObject();
-                value.put("key", row.key);
-                value.put("section", row.section);
-                value.put("kind", row.kind);
-                json.put(value);
-            } catch (org.json.JSONException ignored) {
-                // Неполную запись не пишем: при чтении она всё равно недоступна.
-            }
+    public static void addSearchHistory(String query) {
+        final String value = query == null ? "" : query.trim().replace("\n", " ");
+        if (value.length() < 2 || value.length() > 80) {
+            return;
         }
-        return json.toString();
-    }
-
-    private static void migrateSearchDestinations(SharedPreferences p) {
-        final java.util.ArrayList<SearchDestination> result = new java.util.ArrayList<>();
-        final Object legacy = p.getAll().get(KEY_SEARCH_HISTORY);
-        if (legacy instanceof String && ((String) legacy).length() <= 32768) {
-            for (String query : ((String) legacy).split("\n")) {
-                if (result.size() >= SEARCH_HISTORY_MAX) break;
-                final int[] entry = org.telegram.ui.PengramSearchMetadata.migrateLegacyQuery(query);
-                final SearchDestination row = entry == null ? null : org.telegram.ui.PengramSearchMetadata.destination(entry);
-                if (row != null && !containsDestination(result, row.key)) result.add(row);
-            }
+        final java.util.ArrayList<String> history = getSearchHistory();
+        history.remove(value);
+        history.add(0, value);
+        while (history.size() > SEARCH_HISTORY_MAX) {
+            history.remove(history.size() - 1);
         }
-        // Маркер и удаление старых запросов пишем одной операцией: после сбоя
-        // процесса не должно быть повторной миграции уже очищенной истории.
-        p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(result))
-                .remove(KEY_SEARCH_HISTORY).apply();
-    }
-
-    public static synchronized void rememberSearchDestination(SearchDestination destination) {
-        if (destination == null || destination.key == null || destination.key.trim().isEmpty()) return;
-        final int[] entry = org.telegram.ui.PengramSearchMetadata.resolveDestination(destination);
-        if (entry == null || !org.telegram.ui.PengramSearchMetadata.canRemember(entry)) return;
-        final SearchDestination valid = org.telegram.ui.PengramSearchMetadata.destination(entry);
-        if (valid == null) return;
-        final java.util.ArrayList<SearchDestination> rows = getSearchDestinations();
-        for (int i = rows.size() - 1; i >= 0; i--) {
-            if (rows.get(i).key.equals(valid.key)) rows.remove(i);
+        final StringBuilder sb = new StringBuilder();
+        for (String item : history) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(item);
         }
-        rows.add(0, valid);
-        while (rows.size() > SEARCH_HISTORY_MAX) rows.remove(rows.size() - 1);
-        final SharedPreferences p = prefs();
-        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(rows)).apply();
+        putString(KEY_SEARCH_HISTORY, sb.toString());
     }
 
-    public static synchronized void removeSearchDestination(String key) {
-        final java.util.ArrayList<SearchDestination> rows = getSearchDestinations();
-        for (int i = rows.size() - 1; i >= 0; i--) if (rows.get(i).key.equals(key)) rows.remove(i);
-        final SharedPreferences p = prefs();
-        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, encodeSearchDestinations(rows)).apply();
-    }
-
-    public static synchronized void clearSearchDestinations() {
-        final SharedPreferences p = prefs();
-        if (p != null) p.edit().putString(KEY_SEARCH_DESTINATIONS, "[]").remove(KEY_SEARCH_HISTORY).apply();
+    public static void clearSearchHistory() {
+        putString(KEY_SEARCH_HISTORY, "");
     }
 
     // ------------------------------- скины пингвина -------------------------------
@@ -2818,6 +2692,8 @@ public class PengramConfig {
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
+    /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
+    public static boolean isResendDeletedAsMine() { return true; }
     public static boolean isResendMenuVisible() { return getBool("messageMenuResendHere", false) || getBool("messageMenuResendTo", false); }
     public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
     public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
@@ -2873,11 +2749,11 @@ public class PengramConfig {
     public static boolean isMusicSmartArtist() { return getBool(KEY_MUSIC_SMART_ARTIST, true); }
     public static boolean isPlayerSwipe() { return getBool(KEY_PLAYER_SWIPE, true); }
     public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
-    public static void setInputAnimation(int value) { setIntValue(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
+    public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
-    public static void setInputAnimationSpeed(int value) { setIntValue(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
+    public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
     public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
-    public static void setInputAnimationIntensity(int value) { setIntValue(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
+    public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
 
     // ------------------------------------------------- анимация ввода: детали
     public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }
@@ -3845,7 +3721,7 @@ public class PengramConfig {
     public static final String KEY_PLAYER_BEAT = "playerBeat";
 
     public static int getPlayerBeatMode() {
-        final int value = getIntCached(KEY_PLAYER_BEAT, PLAYER_BEAT_SOFT);
+        final int value = getIntCached(KEY_PLAYER_BEAT, PLAYER_BEAT_NORMAL);
         return value < 0 || value >= PLAYER_BEAT_COUNT ? PLAYER_BEAT_NORMAL : value;
     }
 
