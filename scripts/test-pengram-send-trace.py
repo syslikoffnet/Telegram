@@ -141,41 +141,17 @@ def test_every_log_call_is_guarded():
 
 
 def test_transition_records_every_frame_and_every_refusal():
-    """Перелёт: кадры с геометрией и все причины, по которым он не состоялся."""
+    """Откат: transition — официальный код мастера, трассировки в нём нет.
+
+    Сессионные записи (CTOR/START/FRAME/DRAW/FINISH) ушли вместе со схемой
+    по решению пользователя после run401. Трассировка осталась в ячейке,
+    ChatListItemAnimator и MessageObject — их проверяют соседние тесты.
+    """
     src = load(TRANSITION)
-    for token, why in (
-        ('log("CTOR", "bail=blocks', 'отказ: вёрстка не готова или слишком большая'),
-        ('log("CTOR", "bail=edit_field', 'отказ: нет поля ввода или его вёрстки'),
-        ('log("CTOR", "bail=empty_edit_text', 'отказ: пустой текст'),
-        ('log("CTOR", "ok id="', 'что захвачено в момент старта'),
-        ('unwrappedLen=', 'длина текста без нулевых пробелов — причина stock crossfade'),
-        ('zwsp=', 'сколько нулевых пробелов добавила мягкая вёрстка'),
-        ('crossfade=', 'пошла ли официальная ветка перекрёстного затухания'),
-        ('spans=', 'стили отправки дают spans'),
-        ('changeColor=', 'второй повод для crossfade: цвет текста пузыря против цвета поля ввода'),
-        ('fieldLines=', 'число строк в поле ввода'),
-        ('rowLines=', 'число строк в вёрстке сообщения — расхождение включает crossfade'),
-        ('suppressed=', 'поставлен ли флаг глушения ячейки на время перелёта'),
-        ('islandH=', 'высота стеклянного острова — из неё считается смещение низа'),
-        ('targetPad=', 'насколько ниже должен приземлиться пузырь'),
-        ('editTextLen=', 'длина текста в поле ввода — с ней сравнивается официальное условие'),
-        ('msgTextLen=', 'длина отображаемого текста сообщения'),
-        ('messageText == null || text == null', 'диагностика не должна ронять отправку на null'),
-        ('log("START"', 'запустился ли аниматор'),
-        ('log("FRAME"', 'кадры перелёта'),
-        ('nextFrame()', 'счётчик кадров — по нему видно, идёт ли анимация вообще'),
-        ('rowTop=', 'где строка на самом деле в этот кадр'),
-        ('bubL=', 'где overlay рисует пузырь'),
-        ('cellBub=', 'где пузырь строки — сравнение двух даёт расхождение координат'),
-        ('textX=', 'где overlay рисует текст'),
-        ('suppressed=', 'подавлено ли рисование строки'),
-        ('alphaP=', 'прогресс прозрачности — на нём держится crossfade'),
-        ('log("DRAW", "skip=already_finished"', 'onDraw после завершения'),
-        ('log("DRAW", "bail=object_or_generation', 'строка пересобрана во время полёта'),
-        ('log("DRAW", "bail=stable_id', 'id сообщения сменился во время полёта'),
-        ('log("FINISH"', 'чем закончился перелёт'),
-    ):
-        assert token in src, f'перелёт не пишет «{why}» ({token})'
+    assert 'PengramSendTrace' not in src, (
+        'transition откатан на официальный код мастера — трассировки в нём быть не должно')
+    assert 'boolean drawBitmaps = false;' in src
+    assert 'if (editText.length() != text.length() || containsSpans)' in src
 
 
 def test_cell_records_who_paints_the_text():
@@ -415,13 +391,16 @@ def test_tracing_does_not_change_the_send_path():
     assert 'setEnterTransitionInProgress' not in start, \
         'как в официальном Telegram: флаг ставит конструктор, а не start()'
     ctor = src[src.index('public TextMessageEnterTransition(ChatMessageCell'):]
-    ctor = ctor[:ctor.index('private void finishTransition()')]
+    ctor = ctor[:ctor.index('public void start()')]
     flag = ctor.index('messageView.setEnterTransitionInProgress(true);')
     assert 'return;' not in ctor[flag:ctor.rindex('}')], \
         'после установки флага в конструкторе нет выходов — иначе ячейка останется глухой'
-    assert 'bail=empty_edit_text' in ctor[:flag], \
-        'проверка очищенного поля ввода обязана идти до установки флага'
-    assert 'pengramUnwrappedText()' in src, 'анимация летит с текстом без нулевых пробелов'
+    assert 'bail=empty_edit_text' not in src, \
+        'bail пустого поля — сессионная схема, откатан вместе с transition'
+    assert 'CharSequence text = messageView.getMessageObject().messageText;' in src, \
+        'официальный источник текста перелёта (messageText) обязатен'
+    assert 'PengramSendTrace' not in src, \
+        'transition откатан на официальный код мастера — трассировки в нём нет'
     # записи не должны попадать в условия отрисовки
     assert re.search(r'if \([^)]*PengramSendTrace[^)]*\)\s*\{\s*(?!org\.telegram|@@|\})', src) is None, \
         'трассировка не должна управлять потоком отрисовки'

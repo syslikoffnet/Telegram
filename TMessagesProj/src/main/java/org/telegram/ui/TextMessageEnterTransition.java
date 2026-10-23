@@ -56,7 +56,6 @@ import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 
 public class TextMessageEnterTransition implements MessageEnterTransitionContainer.Transition {
-
     float fromRadius;
     float progress;
 
@@ -121,9 +120,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     int toColor;
     private final Theme.ResourcesProvider resourcesProvider;
 
-    private long enterGeneration;
-    private boolean transitionFinished;
-    private boolean transitionStarted;
     private final PointF tmpPointF = new PointF();
 
     @SuppressLint("WrongConstant")
@@ -131,10 +127,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         this.resourcesProvider = resourcesProvider;
         currentAccount = UserConfig.selectedAccount;
         if (messageView.getMessageObject().textLayoutBlocks == null || messageView.getMessageObject().textLayoutBlocks.size() > 1 || messageView.getMessageObject().textLayoutBlocks.isEmpty() || messageView.getMessageObject().textLayoutBlocks.get(0).textLayout.getLineCount() > 10) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) {
-                org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=blocks blocks=" + (messageView.getMessageObject().textLayoutBlocks == null ? -1
-                        : messageView.getMessageObject().textLayoutBlocks.size()));
-            }
             return;
         }
         this.messageView = messageView;
@@ -145,10 +137,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         ChatActivityEnterView chatActivityEnterView = chatActivity.getChatActivityEnterView();
         if (chatActivityEnterView == null || chatActivityEnterView.getEditField() == null || chatActivityEnterView.getEditField().getLayout() == null) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) {
-                org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=edit_field enterView=" + (chatActivityEnterView != null)
-                        + " field=" + (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null));
-            }
             return;
         }
 
@@ -161,35 +149,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             messageView.draw(new Canvas());
         }
 
-
-        CharSequence editText = chatActivityEnterView.getEditText();
-        // Pengram: поле уже могло очиститься после send. Проверка стоит ДО флага
-        // глушения: официальный Telegram ставит его следующим оператором, и выход
-        // после установки оставил бы ячейку глухой без перелёта — пустое место
-        // вместо сообщения.
-        if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=empty_edit_text len=" + (editText == null ? -1 : editText.length()));
-            return;
-        }
-
-        // Как в официальном Telegram: на время перелёта содержимое строки рисует
-        // overlay (официальная пара копий: полевая всегда, строковая — при
-        // crossfade), а не ячейка. Без глушения строка рисуется дважды — своя
-        // копия (альфа 1) и летящая overlay — и расхождение видно как мигание.
-        // Лог с устройства (Xiaomi 2311DRK48G, Android 14, трасса 3591 строка)
-        // показал, что overlay приземляется на строку с точностью до пикселя
-        // (bubT=1193 против 1192, textX/textY совпадают) — глушение здесь
-        // безопасно, содержимое с первого кадра рисует копия поля (обычные
-        // отправки) или пара «поле + строка» (crossfade) — ровно как в
-        // оригинальном Telegram; мастер-сборка на этом коде прошла проверку
-        // пользователем.
         messageView.setEnterTransitionInProgress(true);
 
-        // Pengram: берём текст без невидимых мест переноса, которые расставляет
-        // мягкая вёрстка (MessageObject.pengramSoftWrap). Иначе длина расходилась
-        // с полем ввода и перелёт уходил в crossfade на каждом сообщении с длинным
-        // словом или ссылкой — не так, как в официальном Telegram.
-        CharSequence text = messageView.getMessageObject().pengramUnwrappedText();
+        CharSequence editText = chatActivityEnterView.getEditText();
+        CharSequence text = messageView.getMessageObject().messageText;
 
         crossfade = false;
         int linesOffset = 0;
@@ -396,32 +359,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         listViewTargetBottomPadding = listView.getPaddingBottom()
             - (chatActivity.getInputIslandHeightTarget() - dp(44));
-        if (org.telegram.messenger.PengramSendTrace.enabled()) {
-            org.telegram.messenger.PengramSendTrace.log("CTOR", "ok id=" + messageId
-                    + " editTextLen=" + (editText == null ? -1 : editText.length())
-                    + " msgTextLen=" + (messageView.getMessageObject().messageText == null
-                    ? -1 : messageView.getMessageObject().messageText.length())
-                    + " unwrappedLen=" + (text == null ? -1 : text.length())
-                    // Диагностика не должна сама ронять отправку: длины считаем
-                    // только когда оба текста на месте.
-                    + " zwsp=" + (messageView.getMessageObject().messageText == null || text == null
-                    ? -1 : messageView.getMessageObject().messageText.length() - text.length())
-                    + " crossfade=" + crossfade
-                    + " spans=" + containsSpans
-                    // Остальные поводы уйти в crossfade, кроме spans и длин:
-                    // цвет текста пузыря против цвета поля ввода и число строк.
-                    + " changeColor=" + changeColor
-                    + " fieldLines=" + layout.getLineCount()
-                    + " rowLines=" + messageTextLayout.getLineCount()
-                    + " suppressed=" + messageView.isEnterTransitionInProgress()
-                    + " islandH=" + chatActivity.getInputIslandHeightTarget()
-                    + " listPadBottom=" + listView.getPaddingBottom()
-                    + " targetPad=" + listViewTargetBottomPadding
-                    + " bubble=[" + messageView.getBackgroundDrawableLeft() + "," + messageView.getBackgroundDrawableTop()
-                    + "," + messageView.getBackgroundDrawableRight() + "," + messageView.getBackgroundDrawableBottom() + "]"
-                    + " cellWH=" + messageView.getMeasuredWidth() + "x" + messageView.getMeasuredHeight()
-                    + " wasDraw=" + messageView.getTransitionParams().wasDraw);
-        }
 
         gradientMatrix = new Matrix();
         gradientPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -432,6 +369,8 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         messageId = messageView.getMessageObject().stableId;
 
+        chatActivityEnterView.getEditField().setAlpha(0f);
+        chatActivityEnterView.setTextTransitionIsRunning(true);
 
         if (messageView.replyNameLayout != null && messageView.replyNameLayout.getText().length() > 1) {
             if (messageView.replyNameLayout.getPrimaryHorizontal(0) != 0) {
@@ -450,16 +389,21 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         animator.setInterpolator(new LinearInterpolator());
         animator.setDuration(ChatListItemAnimator.DEFAULT_DURATION);
 
+        container.addTransition(this);
+        notificationsLocker.lock();
 
         animator.addListener(new AnimatorListenerAdapter() {
             @Override
-            public void onAnimationCancel(Animator animation) {
-                finishTransition();
-            }
-
-            @Override
             public void onAnimationEnd(Animator animation) {
-                finishTransition();
+                notificationsLocker.unlock();
+                container.removeTransition(TextMessageEnterTransition.this);
+                messageView.setEnterTransitionInProgress(false);
+                messageView.getTransitionParams().lastDrawingBackgroundRect.set(messageView.getBackgroundDrawableLeft(), messageView.getBackgroundDrawableTop(), messageView.getBackgroundDrawableRight(), messageView.getBackgroundDrawableBottom());
+                chatActivityEnterView.setTextTransitionIsRunning(false);
+                chatActivityEnterView.getEditField().setAlpha(1f);
+                chatActivity.getReplyNameTextView().setAlpha(1f);
+                chatActivity.getReplyObjectTextView().setAlpha(1f);
+                AnimatedEmojiSpan.release(null, animatedEmojiStack);
             }
         });
 
@@ -471,53 +415,8 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         }
     }
 
-    private void finishTransition() {
-        if (transitionFinished) return;
-        transitionFinished = true;
-        if (org.telegram.messenger.PengramSendTrace.enabled()) {
-            org.telegram.messenger.PengramSendTrace.log("FINISH", "progress=" + progress + " id=" + messageId
-                    + " started=" + transitionStarted);
-        }
-        notificationsLocker.unlock();
-        container.removeTransition(this);
-        messageView.finishEnterTransition(enterGeneration);
-        // Почему: старый callback не вправе сбрасывать флаг новой анимации ячейки.
-        if (messageView.getMessageObject() == currentMessageObject) {
-            messageView.getTransitionParams().lastDrawingBackgroundRect.set(messageView.getBackgroundDrawableLeft(), messageView.getBackgroundDrawableTop(), messageView.getBackgroundDrawableRight(), messageView.getBackgroundDrawableBottom());
-        }
-        if (enterView != null) {
-            enterView.setTextTransitionIsRunning(false);
-            if (enterView.getEditField() != null) enterView.getEditField().setAlpha(1f);
-        }
-        chatActivity.getReplyNameTextView().setAlpha(1f);
-        chatActivity.getReplyObjectTextView().setAlpha(1f);
-        AnimatedEmojiSpan.release(null, animatedEmojiStack);
-        if (animator != null && animator.isStarted()) animator.cancel();
-    }
-
-    @Override
-    public void onRemoved() {
-        finishTransition();
-    }
-
     public void start() {
-        if (org.telegram.messenger.PengramSendTrace.enabled()) {
-            org.telegram.messenger.PengramSendTrace.log("START", "animator=" + (animator != null) + " finished=" + transitionFinished
-                    + " started=" + transitionStarted
-                    + " willRun=" + (animator != null && !transitionFinished && !transitionStarted));
-        }
-        if (animator != null && !transitionFinished && !transitionStarted) {
-            transitionStarted = true;
-            container.addTransition(this);
-            notificationsLocker.lock();
-            if (enterView.getEditField() != null) enterView.getEditField().setAlpha(0f);
-            enterView.setTextTransitionIsRunning(true);
-            // Подавление ячейки на время перелёта ставит конструктор — как в
-            // официальном Telegram (флаг глушения выше, в ctor): строку рисует
-            // overlay официальными копиями, ячейка ждёт конца перелёта. Здесь
-            // только запускаем аниматор и фиксируем поколение для
-            // finishEnterTransition.
-            enterGeneration = messageView.getEnterTransitionGeneration();
+        if (animator != null) {
             animator.start();
         }
     }
@@ -536,18 +435,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private float listViewTargetBottomPadding;
 
     public void onDraw(Canvas canvas) {
-        if (transitionFinished) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "skip=already_finished");
-            return;
-        }
-        if (messageView.getMessageObject() != currentMessageObject
-                || messageView.getEnterTransitionGeneration() != enterGeneration) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "bail=object_or_generation gen=" + enterGeneration
-                    + " cellGen=" + messageView.getEnterTransitionGeneration()
-                    + " sameObject=" + (messageView.getMessageObject() == currentMessageObject));
-            finishTransition();
-            return;
-        }
         if (drawBitmaps && !initBitmaps && crossfadeTextBitmap != null && messageView.getTransitionParams().wasDraw) {
             initBitmaps = true;
             Canvas bitmapCanvas = new Canvas(crossfadeTextBitmap);
@@ -570,9 +457,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float messageViewY;
 
         if (messageView.getMessageObject().stableId != messageId) {
-            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "bail=stable_id captured=" + messageId
-                    + " now=" + messageView.getMessageObject().stableId);
-            finishTransition();
             return;
         } else {
             messageViewX = messageView.getX() + listView.getX() - container.getX();
@@ -609,25 +493,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float drawableH = messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop();
         float drawableBottom = (drawableFromBottom - container.getY()) * (1f - progress) + (drawableToTop + drawableH) * progress;
         int drawableRight = (int) (messageViewX + messageView.getBackgroundDrawableRight() + dp(4) * (1f - progressX));
-        if (org.telegram.messenger.PengramSendTrace.enabled()) {
-            // Кадр overlay: где он рисует пузырь и текст и совпадает ли это со строкой.
-            org.telegram.messenger.PengramSendTrace.log("FRAME", "n=" + org.telegram.messenger.PengramSendTrace.nextFrame()
-                    + " p=" + this.progress
-                    + " alphaP=" + alphaProgress
-                    + " pX=" + progressX
-                    + " crossfade=" + crossfade
-                    + " mvX=" + messageViewX + " mvY=" + messageViewY
-                    + " rowTop=" + (messageView.getTop() + messageView.getPaddingTop() + listView.getTop() - container.getY())
-                    + " bubL=" + (int) drawableX + " bubT=" + (int) drawableTop
-                    + " bubR=" + drawableRight + " bubB=" + (int) drawableBottom
-                    + " cellBub=[" + messageView.getBackgroundDrawableLeft() + "," + messageView.getBackgroundDrawableTop()
-                    + "," + messageView.getBackgroundDrawableRight() + "," + messageView.getBackgroundDrawableBottom() + "]"
-                    + " textX=" + textX + " textY=" + textY
-                    + " suppressed=" + messageView.isEnterTransitionInProgress()
-                    + " cellAlpha=" + messageView.getAlpha()
-                    + " clipBottom=" + clipBottom
-                    + " listBottom=" + listViewBottom);
-        }
         MessageDrawable drawable = null;
         if (!currentMessageObject.isAnimatedEmojiStickers()) {
             drawable = messageView.getCurrentBackgroundDrawable(true);
@@ -904,100 +769,64 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             scale2 = 1f;
         }
 
-        // Pengram: официальная пара копий восстановлена как в оригинальном
-        // Telegram. Полевая копия ниже — тот самый текст, который master-сборка
-        // (побайтово официальный код) рисует с первого кадра перелёта при
-        // обычном сообщении: пользователь подтвердил на ней «нормальную»
-        // отправку. Её содержимое в форке гарантировано: bail=empty_edit_text
-        // в конструкторе не даёт переходу создаться на уже очищенном поле, а
-        // сравнение длин идёт по pengramUnwrappedText() без U+200B мягкой
-        // вёрстки. Прежнее выключение (drawFieldCopy=false) оставляло перелёт
-        // на одну копию строки, а на устройстве она пикселей не давала —
-        // пустой пузырь до самого конца анимации (видео 2026-10-23 13:37,
-        // сборка run393). Официальная геометрия (fromX/fromY, scale, клип
-        // по пузырю) и формула alphaProgress не тронуты.
-        final boolean drawFieldCopy = true;
+        canvas.save();
+        canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+        canvas.scale(scale, scale * scale2, 0, 0);
 
-        if (drawFieldCopy) {
-            canvas.save();
-            canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
-            canvas.scale(scale, scale * scale2, 0, 0);
-
-            if (org.telegram.messenger.PengramSendTrace.enabled()) {
-                org.telegram.messenger.PengramSendTrace.log("FIELD",
-                        "crossfade=" + crossfade + " changeColor=" + changeColor + " bitmap=" + drawBitmaps
-                                + " textLen=" + (layout.getText() == null ? -1 : layout.getText().length())
-                                + " wh=" + layout.getWidth() + "x" + layout.getHeight()
-                                + " paintAlpha=" + layout.getPaint().getAlpha()
-                                + " fade=" + (crossfade ? (int) (255 * (1f - alphaProgress)) : 255)
-                                + " p=" + progress + " alphaP=" + alphaProgress);
+        if (drawBitmaps) {
+            if (crossfade) {
+                bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
             }
+            canvas.drawBitmap(textLayoutBitmap, 0, 0, bitmapPaint);
+        } else {
+            if (crossfade && changeColor) {
+                int oldColor = layout.getPaint().getColor();
+                layout.getPaint().setColor(ColorUtils.blendARGB(fromColor, toColor, alphaProgress));
+                canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                layout.draw(canvas);
+                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
+                layout.getPaint().setColor(oldColor);
+                canvas.restore();
+            } else if (crossfade) {
+                canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                layout.draw(canvas);
+                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
+                canvas.restore();
+            } else {
+                layout.draw(canvas);
+                AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f);
+            }
+        }
+        canvas.restore();
 
+        if (rtlLayout != null) {
+            canvas.save();
+            canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
+            canvas.scale(scale, scale * scale2, 0, 0);
             if (drawBitmaps) {
                 if (crossfade) {
                     bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
                 }
-                canvas.drawBitmap(textLayoutBitmap, 0, 0, bitmapPaint);
+                canvas.drawBitmap(textLayoutBitmapRtl, 0, 0, bitmapPaint);
             } else {
                 if (crossfade && changeColor) {
-                    // Затухание 1→0 — официальный приём из rtl-ветви ниже:
-                    // альфа через paint (oldAlpha * (1 - alphaProgress)) вместо
-                    // saveLayerAlpha: на устройстве (run399, crossfade-отправка)
-                    // слой не давал пикселей, а техника paint-альфы применяется
-                    // официальным кодом в этой же функции для rtl-строк.
-                    int oldColor = layout.getPaint().getColor();
+                    int oldColor = rtlLayout.getPaint().getColor();
                     int oldAlpha = Color.alpha(oldColor);
-                    layout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
-                    layout.draw(canvas);
-                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
-                    layout.getPaint().setColor(oldColor);
+                    rtlLayout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
+                    rtlLayout.draw(canvas);
+                    rtlLayout.getPaint().setColor(oldColor);
                 } else if (crossfade) {
-                    int oldAlpha = layout.getPaint().getAlpha();
-                    layout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
-                    layout.draw(canvas);
-                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
-                    layout.getPaint().setAlpha(oldAlpha);
+                    int oldAlpha = rtlLayout.getPaint().getAlpha();
+                    rtlLayout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
+                    rtlLayout.draw(canvas);
+                    rtlLayout.getPaint().setAlpha(oldAlpha);
                 } else {
-                    layout.draw(canvas);
-                    AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f);
+                    rtlLayout.draw(canvas);
                 }
             }
             canvas.restore();
-
-            if (rtlLayout != null) {
-                canvas.save();
-                canvas.translate(fromX * (1f - progressX) + (toX - toXOffsetRtl) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
-                canvas.scale(scale, scale * scale2, 0, 0);
-                if (drawBitmaps) {
-                    if (crossfade) {
-                        bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
-                    }
-                    canvas.drawBitmap(textLayoutBitmapRtl, 0, 0, bitmapPaint);
-                } else {
-                    if (crossfade && changeColor) {
-                        int oldColor = rtlLayout.getPaint().getColor();
-                        int oldAlpha = Color.alpha(oldColor);
-                        rtlLayout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
-                        rtlLayout.draw(canvas);
-                        rtlLayout.getPaint().setColor(oldColor);
-                    } else if (crossfade) {
-                        int oldAlpha = rtlLayout.getPaint().getAlpha();
-                        rtlLayout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
-                        rtlLayout.draw(canvas);
-                        rtlLayout.getPaint().setAlpha(oldAlpha);
-                    } else {
-                        rtlLayout.draw(canvas);
-                    }
-                }
-                canvas.restore();
-            }
         }
 
-        // Копия строки — официальная ветка: только при crossfade и с
-        // официальной парой альф (поле уходит 1→0, строка входит 0→1), поэтому
-        // в каждый кадр перелёта хотя бы одна копия даёт сплошные пиксели.
-        // Обход гейта viewport'а ячейки в wrapper (drawOnlyText -> drawAllBlocks)
-        // сохранён: диапазон -1/-1 при перелёте не должен гасить копию строки.
         if (crossfade) {
             canvas.save();
             canvas.translate(messageView.getLeft() + listView.getX() - container.getX() + (fromX - toX) * (1f - progressX), messageViewY + (fromY - toY) * (1f - progress));
@@ -1010,10 +839,6 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             } else {
                 int oldColor = Theme.chat_msgTextPaint.getColor();
                 Theme.chat_msgTextPaint.setColor(toColor);
-                // Официальная альфа строки (alphaProgress 0→1 за первые 100 мс):
-                // вклад в непрозрачность кадра у неё добирает полевая копия
-                // (1-alphaProgress), поэтому пустых кадров не бывает — как в
-                // оригинальном Telegram.
                 messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);
                 messageView.drawAnimatedEmojis(canvas, alphaProgress);
                 if (Theme.chat_msgTextPaint.getColor() != oldColor) {

@@ -32,9 +32,13 @@ assert 'postDelayed(pengramEnterWatchdog' in setter
 assert 'DEFAULT_DURATION + 250' in setter
 assert 'setEnterTransitionInProgress(false)' in method(cell, 'onDetachedFromWindow')
 assert 'boolean lastInChatList) {\n        setEnterTransitionInProgress(false);' in cell
-assert 'onAnimationCancel(Animator animation)' in enter
-assert 'messageView.finishEnterTransition(enterGeneration)' in method(enter, 'finishTransition')
-assert 'getEnterTransitionGeneration() != enterGeneration' in method(enter, 'onDraw')
+assert 'onAnimationCancel' not in enter, (
+    'сессионный жизненный цикл откатан: официальный onAnimationEnd')
+assert 'finishTransition' not in enter, 'сессионный finishTransition откатан'
+assert 'messageView.setEnterTransitionInProgress(false);' in method(enter, 'onAnimationEnd'), (
+    'официальное снятие флага в onAnimationEnd обязательно')
+assert 'getEnterTransitionGeneration() != enterGeneration' not in method(enter, 'onDraw'), (
+    'поколенческий bail в onDraw откатан вместе со схемой сессии')
 assert 'transition.onRemoved()' in method(container, 'removeTransition')
 assert 'removeTransition(' in method(container, 'onDetachedFromWindow')
 assert 'pengramTextChangeWatchdog' in cell

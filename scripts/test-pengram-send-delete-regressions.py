@@ -22,8 +22,13 @@ visibility = method(container, 'checkVisibility')
 assert 'else if (!transitions.isEmpty())' in visibility, 'active overlay must cancel pending hide even when already VISIBLE'
 hide = re.search(r'Runnable hideRunnable = .*;', container)[0]
 assert 'transitions.isEmpty()' in hide, 'already-dequeued idle hide must recheck ownership'
-assert 'finishTransition();' in enter.split('if (messageView.getMessageObject().stableId != messageId)',1)[1].split('}',1)[0]
-assert 'TextUtils.isEmpty(AndroidUtilities.trim(editText, null))' in enter, 'empty composer must not own message text'
+# Откат на мастер: ветка stableId официальная (return без finishTransition),
+# bail пустого поля ушёл вместе с сессионной схемой — как в master-сборке.
+stable_block = enter.split('if (messageView.getMessageObject().stableId != messageId)',1)[1].split('}',1)[0]
+assert 'finishTransition();' not in stable_block, 'session finishTransition must stay reverted'
+assert 'return;' in stable_block, 'official stableId bail must keep its return'
+assert 'TextUtils.isEmpty(AndroidUtilities.trim(editText, null))' not in enter, (
+    'empty-edit bail was part of the reverted session scheme (master has none)')
 assert 'effectsEnabled()' in method(effects,'live')
 enabled=method(effects,'effectsEnabled')
 assert 'isTypingDeleteAnim()' in enabled and 'isTypingCursorSmooth()' in enabled

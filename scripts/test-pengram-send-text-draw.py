@@ -29,22 +29,20 @@ assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not bec
 # overlay_missing_text).
 assert 'messageView.setEnterTransitionInProgress(true);' in enter, (
     'cell suppression missing: overlay and cell would both paint the text')
-# Летящий текст = официальная пара копий: полевая (drawFieldCopy = true)
-# непрозрачна с первого кадра при обычной отправке — как в master-сборке,
-# которую пользователь подтвердил; строковая — только при crossfade с
+# Летящий текст = официальная пара копий: полевая через saveLayerAlpha
+# (1-alphaProgress) без обёрток, строковая — только при crossfade с
 # официальной альфой alphaProgress (поле уходит 1→0, строка входит 0→1).
+# Сессионные правки (drawFieldCopy, paint-альфа вместо слоя, лог FIELD)
+# откатаны по требованию пользователя после run401.
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter
 assert 'messageView.drawAnimatedEmojis(canvas, alphaProgress);' in enter
-assert 'final boolean drawFieldCopy = true;' in enter
-# run399: кроссфейд поля гасит через paint-альфу (официальный приём
-# rtl-ветви), без saveLayerAlpha — слой на устройстве пикселей не давал;
-# кадровый лог FIELD показывает длину текста, alpha paint и fade.
-assert 'layout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));' in enter, (
-    'field crossfade must fade via official paint-alpha technique')
-assert 'saveLayerAlpha(0,0,layout.getWidth()' not in enter, (
-    'field crossfade went back to saveLayerAlpha — device showed no pixels (run399)')
-assert 'PengramSendTrace.log(\"FIELD\"' in enter, (
-    'no per-frame FIELD trace — device log cannot prove the field copy painted')
+assert 'final boolean drawFieldCopy' not in enter, 'session drawFieldCopy wrapper must stay reverted'
+assert 'saveLayerAlpha(0,0,layout.getWidth()' in enter, 'official saveLayerAlpha crossfade must stay'
+assert 'layout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));' not in enter, (
+    'session paint-alpha fade must stay reverted (run401 flicker)')
+assert 'PengramSendTrace.log(\"FIELD\"' not in enter, 'session FIELD trace must stay reverted'
+assert 'pengramUnwrappedText()' not in enter, 'official transition uses messageText' 
+assert 'CharSequence text = messageView.getMessageObject().messageText;' in enter
 assert 'origin, alpha, drawOnlyText, drawOnlyText, false);' in wrapper, (
     'overlay_missing_text: drawOnlyText overlay still uses the cell viewport range')
 emoji_start = cell.index('private void drawAnimatedEmojiMessageText(Canvas canvas, float alpha)')
