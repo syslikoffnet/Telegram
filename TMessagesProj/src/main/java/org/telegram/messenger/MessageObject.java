@@ -8935,6 +8935,25 @@ public class MessageObject {
         }
         // Один последующий штатный повтор, затем кэшируем безопасную деградацию.
         layoutCreated = pengramHasTextLayout() && (!(empty || failed) || pengramLayoutFailures > 1);
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            int zwsp = 0;
+            if (messageText != null) {
+                for (int i = 0; i < messageText.length(); i++) {
+                    if (messageText.charAt(i) == '\u200B') zwsp++;
+                }
+            }
+            org.telegram.messenger.PengramSendTrace.log("LAYOUT", "id=" + getId()
+                    + " softWrap=" + (pengramWrappedMessageText != null)
+                    + " zwsp=" + zwsp
+                    + " len=" + (messageText == null ? -1 : messageText.length())
+                    + " blocks=" + (textLayoutBlocks == null ? -1 : textLayoutBlocks.size())
+                    + " hasLayout=" + pengramHasTextLayout()
+                    + " layoutCreated=" + layoutCreated
+                    + " empty=" + empty + " failed=" + failed
+                    + " failures=" + pengramLayoutFailures
+                    + " fallback=" + (pengramPlainTextBlocks != null)
+                    + " spans=" + (messageText instanceof android.text.Spannable));
+        }
         if (BuildVars.LOGS_ENABLED) FileLog.d("Pengram layout id=" + getId() + " type=" + type
                 + " length=" + (messageText == null ? 0 : messageText.length())
                 + " blocks=" + (textLayoutBlocks == null ? 0 : textLayoutBlocks.size())

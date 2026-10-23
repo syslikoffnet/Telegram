@@ -95,7 +95,9 @@ assert cell.count('!(enterTransitionInProgress && !currentMessageObject.isVoice(
 assert 'public void finishEnterTransition(long generation)' in cell, 'нет снятия флага по поколению'
 assert 'DEFAULT_DURATION + 250' in cell, 'watchdog ячейки пропал'
 assert 'onRemoved()' in container, 'контейнер потерял очистку перелётов'
-assert 'if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) return;' in transition, (
+assert re.search(r'if \(TextUtils\.isEmpty\(AndroidUtilities\.trim\(editText, null\)\)\) \{'
+                 r'[^}]*?PengramSendTrace\.log\("CTOR", "bail=empty_edit_text[^}]*?return;',
+                 transition, re.S), (
     'пропал выход при уже очищенном поле ввода')
 
 

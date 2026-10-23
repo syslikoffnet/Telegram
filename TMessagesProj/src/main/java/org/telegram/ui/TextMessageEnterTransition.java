@@ -131,6 +131,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         this.resourcesProvider = resourcesProvider;
         currentAccount = UserConfig.selectedAccount;
         if (messageView.getMessageObject().textLayoutBlocks == null || messageView.getMessageObject().textLayoutBlocks.size() > 1 || messageView.getMessageObject().textLayoutBlocks.isEmpty() || messageView.getMessageObject().textLayoutBlocks.get(0).textLayout.getLineCount() > 10) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) {
+                org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=blocks blocks=" + (messageView.getMessageObject().textLayoutBlocks == null ? -1
+                        : messageView.getMessageObject().textLayoutBlocks.size()));
+            }
             return;
         }
         this.messageView = messageView;
@@ -141,6 +145,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         ChatActivityEnterView chatActivityEnterView = chatActivity.getChatActivityEnterView();
         if (chatActivityEnterView == null || chatActivityEnterView.getEditField() == null || chatActivityEnterView.getEditField().getLayout() == null) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) {
+                org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=edit_field enterView=" + (chatActivityEnterView != null)
+                        + " field=" + (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null));
+            }
             return;
         }
 
@@ -157,7 +165,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         CharSequence editText = chatActivityEnterView.getEditText();
         // Почему: поле уже могло очиститься после send. Пустой layout не вправе
         // скрывать настоящий текст ячейки на время полёта/crossfade.
-        if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) return;
+        if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=empty_edit_text len=" + (editText == null ? -1 : editText.length()));
+            return;
+        }
         // Pengram: берём текст без невидимых мест переноса, которые расставляет
         // мягкая вёрстка (MessageObject.pengramSoftWrap). Иначе длина расходилась
         // с полем ввода и перелёт уходил в crossfade на каждом сообщении с длинным
@@ -369,6 +380,22 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
         listViewTargetBottomPadding = listView.getPaddingBottom()
             - (chatActivity.getInputIslandHeightTarget() - dp(44));
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            org.telegram.messenger.PengramSendTrace.log("CTOR", "ok id=" + messageId
+                    + " editTextLen=" + editText.length()
+                    + " msgTextLen=" + messageView.getMessageObject().messageText.length()
+                    + " unwrappedLen=" + text.length()
+                    + " zwsp=" + (messageView.getMessageObject().messageText.length() - text.length())
+                    + " crossfade=" + crossfade
+                    + " spans=" + containsSpans
+                    + " islandH=" + chatActivity.getInputIslandHeightTarget()
+                    + " listPadBottom=" + listView.getPaddingBottom()
+                    + " targetPad=" + listViewTargetBottomPadding
+                    + " bubble=[" + messageView.getBackgroundDrawableLeft() + "," + messageView.getBackgroundDrawableTop()
+                    + "," + messageView.getBackgroundDrawableRight() + "," + messageView.getBackgroundDrawableBottom() + "]"
+                    + " cellWH=" + messageView.getMeasuredWidth() + "x" + messageView.getMeasuredHeight()
+                    + " wasDraw=" + messageView.getTransitionParams().wasDraw);
+        }
 
         gradientMatrix = new Matrix();
         gradientPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -421,6 +448,10 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private void finishTransition() {
         if (transitionFinished) return;
         transitionFinished = true;
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            org.telegram.messenger.PengramSendTrace.log("FINISH", "progress=" + progress + " id=" + messageId
+                    + " started=" + transitionStarted);
+        }
         notificationsLocker.unlock();
         container.removeTransition(this);
         messageView.finishEnterTransition(enterGeneration);
@@ -444,6 +475,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     }
 
     public void start() {
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            org.telegram.messenger.PengramSendTrace.log("START", "animator=" + (animator != null) + " finished=" + transitionFinished
+                    + " started=" + transitionStarted
+                    + " willRun=" + (animator != null && !transitionFinished && !transitionStarted));
+        }
         if (animator != null && !transitionFinished && !transitionStarted) {
             transitionStarted = true;
             container.addTransition(this);
@@ -481,9 +517,15 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
     private float listViewTargetBottomPadding;
 
     public void onDraw(Canvas canvas) {
-        if (transitionFinished) return;
+        if (transitionFinished) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "skip=already_finished");
+            return;
+        }
         if (messageView.getMessageObject() != currentMessageObject
                 || messageView.getEnterTransitionGeneration() != enterGeneration) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "bail=object_or_generation gen=" + enterGeneration
+                    + " cellGen=" + messageView.getEnterTransitionGeneration()
+                    + " sameObject=" + (messageView.getMessageObject() == currentMessageObject));
             finishTransition();
             return;
         }
@@ -509,6 +551,8 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float messageViewY;
 
         if (messageView.getMessageObject().stableId != messageId) {
+            if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("DRAW", "bail=stable_id captured=" + messageId
+                    + " now=" + messageView.getMessageObject().stableId);
             finishTransition();
             return;
         } else {
@@ -546,6 +590,25 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
         float drawableH = messageView.getBackgroundDrawableBottom() - messageView.getBackgroundDrawableTop();
         float drawableBottom = (drawableFromBottom - container.getY()) * (1f - progress) + (drawableToTop + drawableH) * progress;
         int drawableRight = (int) (messageViewX + messageView.getBackgroundDrawableRight() + dp(4) * (1f - progressX));
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            // Кадр overlay: где он рисует пузырь и текст и совпадает ли это со строкой.
+            org.telegram.messenger.PengramSendTrace.log("FRAME", "n=" + org.telegram.messenger.PengramSendTrace.nextFrame()
+                    + " p=" + this.progress
+                    + " alphaP=" + alphaProgress
+                    + " pX=" + progressX
+                    + " crossfade=" + crossfade
+                    + " mvX=" + messageViewX + " mvY=" + messageViewY
+                    + " rowTop=" + (messageView.getTop() + messageView.getPaddingTop() + listView.getTop() - container.getY())
+                    + " bubL=" + (int) drawableX + " bubT=" + (int) drawableTop
+                    + " bubR=" + drawableRight + " bubB=" + (int) drawableBottom
+                    + " cellBub=[" + messageView.getBackgroundDrawableLeft() + "," + messageView.getBackgroundDrawableTop()
+                    + "," + messageView.getBackgroundDrawableRight() + "," + messageView.getBackgroundDrawableBottom() + "]"
+                    + " textX=" + textX + " textY=" + textY
+                    + " suppressed=" + messageView.isEnterTransitionInProgress()
+                    + " cellAlpha=" + messageView.getAlpha()
+                    + " clipBottom=" + clipBottom
+                    + " listBottom=" + listViewBottom);
+        }
         MessageDrawable drawable = null;
         if (!currentMessageObject.isAnimatedEmojiStickers()) {
             drawable = messageView.getCurrentBackgroundDrawable(true);

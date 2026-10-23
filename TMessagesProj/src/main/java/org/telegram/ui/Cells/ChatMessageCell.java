@@ -305,8 +305,17 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return pengramEnterGeneration;
     }
 
+    /** Pengram: для трассировки отправки — флаг глушения строки на время перелёта. */
+    public boolean isEnterTransitionInProgress() {
+        return enterTransitionInProgress;
+    }
+
     public void finishEnterTransition(long generation) {
         if (generation == pengramEnterGeneration) setEnterTransitionInProgress(false);
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            org.telegram.messenger.PengramSendTrace.log("CELL", "finishEnterTransition gen=" + generation
+                    + " current=" + pengramEnterGeneration + " matched=" + (generation == pengramEnterGeneration - 1 || generation == pengramEnterGeneration));
+        }
     }
 
     public void setEnterTransitionInProgress(boolean b) {
@@ -315,6 +324,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         enterTransitionInProgress = b;
         if (b) postDelayed(pengramEnterWatchdog,
                 org.telegram.ui.recyclerview.ChatListItemAnimator.DEFAULT_DURATION + 250);
+        if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            org.telegram.messenger.PengramSendTrace.log("CELL", "setSuppressed=" + b + " gen=" + pengramEnterGeneration
+                    + " id=" + (currentMessageObject == null ? 0 : currentMessageObject.getId()));
+        }
         invalidate();
     }
 
@@ -16928,17 +16941,51 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     public void drawMessageText(float textX, float textY, Canvas canvas, ArrayList<MessageObject.TextLayoutBlock> textLayoutBlocks, float rtlOffset, boolean origin, float alpha, boolean drawAllBlocks, boolean drawOnlyText, boolean caption, boolean explanation) {
+        if (org.telegram.messenger.PengramSendTrace.enabled() && !caption && !explanation) {
+            // Каждый вызов — либо ячейка рисует свой текст, либо overlay рисует
+            // летящую копию. Различаются по drawOnlyText/origin; рядом всё, что
+            // может сделать текст невидимым в этом кадре.
+            org.telegram.messenger.PengramSendTrace.log("DRAW",
+                    "who=" + (drawOnlyText ? "overlay" : "cell")
+                    + " origin=" + origin + " alpha=" + alpha
+                    + " blocks=" + (textLayoutBlocks == null ? -1 : textLayoutBlocks.size())
+                    + " plain=" + (currentMessageObject != null && currentMessageObject.pengramPlainTextBlocks != null)
+                    + " suppressed=" + enterTransitionInProgress
+                    + " viewAlpha=" + getAlpha()
+                    + " timeAlpha=" + timeAlpha
+                    + " ignoreAlpha=" + transitionParams.ignoreAlpha
+                    + " animText=" + transitionParams.animateMessageText
+                    + " animProg=" + transitionParams.animateChangeProgress
+                    + " visible=" + (getVisibility() == VISIBLE)
+                    + " transY=" + getTranslationY()
+                    + " textXY=" + textX + "," + textY
+                    + " id=" + (currentMessageObject == null ? 0 : currentMessageObject.getId()));
+        }
         if ((textLayoutBlocks == null || textLayoutBlocks.isEmpty()) && origin && !caption && !explanation
                 && currentMessageObject != null && currentMessageObject.pengramPlainTextBlocks != null) {
             textLayoutBlocks = currentMessageObject.pengramPlainTextBlocks;
             alpha = 1f;
         }
-        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) return;
+        if (textLayoutBlocks == null || textLayoutBlocks.isEmpty()) {
+            if (org.telegram.messenger.PengramSendTrace.enabled() && !caption && !explanation) {
+                org.telegram.messenger.PengramSendTrace.log("SKIP", "reason=no_blocks origin=" + origin
+                        + " drawOnlyText=" + drawOnlyText
+                        + " id=" + (currentMessageObject == null ? 0 : currentMessageObject.getId()));
+            }
+            return;
+        }
         if (alpha == 0) {
             // Почему: явный alpha=0 у send overlay — начало crossfade, а не потерянный текст.
             if (origin && !drawOnlyText && !caption && !explanation && (transitionParams.animateOutTextBlocks == null
-                    || transitionParams.animateOutTextBlocks.isEmpty())) alpha = 1f;
-            else return;
+                    || transitionParams.animateOutTextBlocks.isEmpty())) {
+                alpha = 1f;
+            } else {
+                if (org.telegram.messenger.PengramSendTrace.enabled() && !caption && !explanation) {
+                    org.telegram.messenger.PengramSendTrace.log("SKIP", "reason=alpha_zero origin=" + origin
+                            + " drawOnlyText=" + drawOnlyText);
+                }
+                return;
+            }
         }
 
         int firstVisibleBlockNum;

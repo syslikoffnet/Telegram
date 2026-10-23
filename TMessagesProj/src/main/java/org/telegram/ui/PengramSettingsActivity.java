@@ -356,6 +356,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_MENTION_ALL_LIMIT = 1039;
     private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
     private static final int BTN_MENTION_ALL_STYLE = 1050;
+    private static final int BTN_SEND_TRACE_TOGGLE = 1070;
+    private static final int BTN_SEND_TRACE_SHARE = 1071;
+    private static final int BTN_SEND_TRACE_CLEAR = 1072;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -2291,6 +2294,33 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramLogoutHeader)));
         items.add(check(PengramConfig.KEY_SESSION_EXPORT, false, getString(R.string.PengramSessionExportSetting)));
         items.add(UItem.asShadow(getString(R.string.PengramSessionExportSettingInfo)));
+
+        // Диагностика анимации отправки: без данных с устройства причину
+        // «мигающего» текста приходится угадывать по исходникам.
+        items.add(UItem.asHeader(getString(R.string.PengramSendTraceHeader)));
+        items.add(tgCheck(BTN_SEND_TRACE_TOGGLE, getString(R.string.PengramSendTrace),
+                org.telegram.messenger.PengramSendTrace::enabled,
+                () -> {
+                    org.telegram.messenger.PengramSendTrace.setEnabled(
+                            !org.telegram.messenger.PengramSendTrace.enabled());
+                    // Рядом стоит строка «Отправить лог» с числом собранных строк:
+                    // без пересборки она останется «Выключено» при живом тумблере.
+                    updateList();
+                }));
+        items.add(UItem.asSettingsCell(BTN_SEND_TRACE_SHARE, R.drawable.msg_shareout,
+                getString(R.string.PengramSendTraceShare), sendTraceSummary()));
+        items.add(UItem.asButton(BTN_SEND_TRACE_CLEAR, R.drawable.msg_delete, getString(R.string.PengramSendTraceClear)));
+        items.add(UItem.asShadow(getString(R.string.PengramSendTraceInfo)));
+    }
+
+    /** сколько кадров уже собрано — видно, что логирование действительно идёт */
+    private CharSequence sendTraceSummary() {
+        if (!org.telegram.messenger.PengramSendTrace.enabled()) {
+            return getString(R.string.PengramSendTraceOff);
+        }
+        final int lines = org.telegram.messenger.PengramSendTrace.lineCount();
+        return lines == 0 ? getString(R.string.PengramSendTraceEmpty)
+                : LocaleController.formatString(R.string.PengramSendTraceLines, lines);
     }
 
     /** подпись к лимиту записей журнала */
@@ -5428,6 +5458,30 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_SECTION_ABOUT:
                 presentFragment(new PengramSettingsActivity(SECTION_ABOUT));
                 return;
+            case BTN_SEND_TRACE_SHARE: {
+                final android.content.Context traceContext = getContext() == null
+                        ? org.telegram.messenger.ApplicationLoader.applicationContext : getContext();
+                if (org.telegram.messenger.PengramSendTrace.lineCount() == 0) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramSendTraceNothing)).show();
+                    break;
+                }
+                final boolean shared = org.telegram.messenger.PengramSendTrace.share(traceContext);
+                if (!shared) {
+                    final String path = org.telegram.messenger.PengramSendTrace.lastFilePath(traceContext);
+                    AndroidUtilities.addToClipboard(org.telegram.messenger.PengramSendTrace.dump());
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            path == null ? getString(R.string.PengramSendTraceCopied)
+                                    : LocaleController.formatString(R.string.PengramSendTraceSavedTo, path)).show();
+                }
+                break;
+            }
+            case BTN_SEND_TRACE_CLEAR:
+                org.telegram.messenger.PengramSendTrace.reset();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.infotoast,
+                        getString(R.string.PengramSendTraceCleared)).show();
+                updateAll = true;
+                break;
             case BTN_DIAGNOSTICS:
                 PengramDiagnosticsActivity diagnostics = new PengramDiagnosticsActivity();
                 diagnostics.setCurrentAccount(currentAccount);
