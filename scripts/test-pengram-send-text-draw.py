@@ -26,7 +26,12 @@ assert '&& !drawOnlyText' in alpha_guard, 'explicit overlay alpha=0 must not bec
 # overlay добавляет летящую копию поверх. Глушение давало «пустое место»,
 # когда геометрия overlay расходилась со строкой (высота «острова» ввода
 # меняется жидким стеклом панельки).
-assert 'setEnterTransitionInProgress' not in enter, 'cell suppression is back'
+# Як в официальном Telegram: на время перелёта ячейка глушится, содержимое
+# строки рисует overlay. Поэтому overlay обязан рисовать ВСЕ блоки текста, а не
+# диапазон, оставшийся от ячейки, — иначе вместе с глушением вернётся пустая
+# строка (исторический баг overlay_missing_text).
+assert 'messageView.setEnterTransitionInProgress(true);' in enter, (
+    'cell suppression missing: overlay and cell would both paint the text')
 # Ветвь crossfade в overlay — официальная: копия строки проявляется через
 # alphaProgress. Видимость текста гарантирует ячейка, которую перелёт не глушит.
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true)' in enter

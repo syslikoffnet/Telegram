@@ -8847,7 +8847,16 @@ public class MessageObject {
      * отрисовки. Для таких сравнений нужен исходный текст.
      */
     public CharSequence pengramUnwrappedText() {
-        return pengramOriginalMessageText != null ? pengramOriginalMessageText : messageText;
+        // «Оригинал» принадлежит текущему display-тексту, только пока тот —
+        // обёрнутая версия этого же текста (та же проверка по ссылке, что в
+        // generateLayout). Иначе messageText уже заменили — стиль отправки,
+        // черновик, повторная сборка — и возврат прежней строки создаёт
+        // расхождение длин там, где его нет. На устройстве это выглядело как
+        // unwrappedLen=4 при msgTextLen=3 и zwsp=-1.
+        if (pengramOriginalMessageText != null && messageText == pengramWrappedMessageText) {
+            return pengramOriginalMessageText;
+        }
+        return messageText;
     }
 
     private boolean pengramHasTextLayout() {

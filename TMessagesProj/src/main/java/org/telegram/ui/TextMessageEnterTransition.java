@@ -163,12 +163,31 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
 
 
         CharSequence editText = chatActivityEnterView.getEditText();
-        // Почему: поле уже могло очиститься после send. Пустой layout не вправе
-        // скрывать настоящий текст ячейки на время полёта/crossfade.
+        // Pengram: поле уже могло очиститься после send. Проверка стоит ДО флага
+        // глушения: официальный Telegram ставит его следующим оператором, и выход
+        // после установки оставил бы ячейку глухой без перелёта — пустое место
+        // вместо сообщения.
         if (TextUtils.isEmpty(AndroidUtilities.trim(editText, null))) {
             if (org.telegram.messenger.PengramSendTrace.enabled()) org.telegram.messenger.PengramSendTrace.log("CTOR", "bail=empty_edit_text len=" + (editText == null ? -1 : editText.length()));
             return;
         }
+
+        // Как в официальном Telegram: на время перелёта содержимое строки рисует
+        // overlay, а не ячейка. Без этого строка рисуется дважды — своя копия
+        // (альфа 1) и летящая копия overlay (альфа 0→1) в ~30 px от неё, — и
+        // расхождение двух копий видно как мигание текста.
+        //
+        // Лог с устройства (Xiaomi 2311DRK48G, Android 14, 4 отправки, 3591
+        // строка трассы) показал ровно это: в каждом кадре перелёта who=cell
+        // alpha=1.0 и who=overlay alpha=0..1 одновременно, при том что overlay
+        // приземляется на строку с точностью до пикселя (bubT=1193 против 1192 у
+        // строки, textX/textY совпадают) — то есть передача содержимого в конце
+        // перелёта бесшовная, и глушение здесь безопасно. Пустых кадров не будет:
+        // в ветви crossfade overlay рисует копию поля ввода с альфой
+        // (1 - alphaProgress) и копию строки с альфой alphaProgress — их сумма
+        // всегда 1, а в обычной ветви копия поля ввода рисуется непрозрачной.
+        messageView.setEnterTransitionInProgress(true);
+
         // Pengram: берём текст без невидимых мест переноса, которые расставляет
         // мягкая вёрстка (MessageObject.pengramSoftWrap). Иначе длина расходилась
         // с полем ввода и перелёт уходил в crossfade на каждом сообщении с длинным
@@ -392,6 +411,12 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
                     ? -1 : messageView.getMessageObject().messageText.length() - text.length())
                     + " crossfade=" + crossfade
                     + " spans=" + containsSpans
+                    // Остальные поводы уйти в crossfade, кроме spans и длин:
+                    // цвет текста пузыря против цвета поля ввода и число строк.
+                    + " changeColor=" + changeColor
+                    + " fieldLines=" + layout.getLineCount()
+                    + " rowLines=" + messageTextLayout.getLineCount()
+                    + " suppressed=" + messageView.isEnterTransitionInProgress()
                     + " islandH=" + chatActivity.getInputIslandHeightTarget()
                     + " listPadBottom=" + listView.getPaddingBottom()
                     + " targetPad=" + listViewTargetBottomPadding

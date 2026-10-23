@@ -106,8 +106,10 @@ public final class PengramSendTrace {
             return;
         }
         final long now = SystemClock.uptimeMillis();
-        final float ms = (now - startedAt) / 1000f;
-        lines.add(String.format(Locale.US, "%9.1fms %-6s %s", ms, tag, detail));
+        // uptimeMillis уже в миллисекундах: раньше здесь было деление на 1000, и
+        // первый лог с устройства показывал «5.1ms» вместо 5100 мс — по такому
+        // логу длительность перелёта не измерить.
+        lines.add(String.format(Locale.US, "%8dms %-6s %s", now - startedAt, tag, detail));
         while (lines.size() > MAX_LINES) {
             lines.remove(0);
         }

@@ -313,8 +313,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     public void finishEnterTransition(long generation) {
         if (generation == pengramEnterGeneration) setEnterTransitionInProgress(false);
         if (org.telegram.messenger.PengramSendTrace.enabled()) {
+            // cell= — какая именно ячейка: глушение ставит перелёт одной строки,
+            // а setEnterTransitionInProgress(false) зовут ещё и переработка строк.
             org.telegram.messenger.PengramSendTrace.log("CELL", "finishEnterTransition gen=" + generation
-                    + " current=" + pengramEnterGeneration + " matched=" + (generation == pengramEnterGeneration - 1 || generation == pengramEnterGeneration));
+                    + " current=" + pengramEnterGeneration
+                    + " matched=" + (generation == pengramEnterGeneration - 1 || generation == pengramEnterGeneration)
+                    + " cell=" + System.identityHashCode(this));
         }
     }
 
@@ -329,7 +333,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             // test-pengram-text-visibility.py встраивает этот метод дословно):
             // id сообщения уже пишут DRAW, ANIM и LAYOUT.
             org.telegram.messenger.PengramSendTrace.log("CELL", "setSuppressed=" + b
-                    + " gen=" + pengramEnterGeneration);
+                    + " gen=" + pengramEnterGeneration
+                    + " cell=" + System.identityHashCode(this));
         }
         invalidate();
     }
@@ -16959,6 +16964,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     + " ignoreAlpha=" + transitionParams.ignoreAlpha
                     + " animText=" + transitionParams.animateMessageText
                     + " animProg=" + transitionParams.animateChangeProgress
+                    + " outBlocks=" + (transitionParams.animateOutTextBlocks == null
+                    ? -1 : transitionParams.animateOutTextBlocks.size())
                     + " visible=" + (getVisibility() == VISIBLE)
                     + " transY=" + getTranslationY()
                     + " textXY=" + textX + "," + textY

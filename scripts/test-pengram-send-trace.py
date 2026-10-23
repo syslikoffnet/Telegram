@@ -78,7 +78,10 @@ def test_collector():
 
     assert 'SystemClock.uptimeMillis()' in src, 'время — монотонное, иначе кадры поедут'
     assert 'Locale.US' in src, 'формат чисел не должен зависеть от локали телефона'
-    assert '%9.1fms %-6s' in src, 'строки трассы должны выравниваться для чтения'
+    assert '%8dms %-6s' in src, 'строки трассы должны выравниваться для чтения'
+    assert '/ 1000f' not in src, (
+        'uptimeMillis уже в миллисекундах: первый лог с устройства показывал '
+        '«5.1ms» вместо 5100 мс, и длительность перелёта по нему не измерить')
 
 
 def test_file_lands_where_provider_can_share_it():
@@ -149,6 +152,10 @@ def test_transition_records_every_frame_and_every_refusal():
         ('zwsp=', 'сколько нулевых пробелов добавила мягкая вёрстка'),
         ('crossfade=', 'пошла ли официальная ветка перекрёстного затухания'),
         ('spans=', 'стили отправки дают spans'),
+        ('changeColor=', 'второй повод для crossfade: цвет текста пузыря против цвета поля ввода'),
+        ('fieldLines=', 'число строк в поле ввода'),
+        ('rowLines=', 'число строк в вёрстке сообщения — расхождение включает crossfade'),
+        ('suppressed=', 'поставлен ли флаг глушения ячейки на время перелёта'),
         ('islandH=', 'высота стеклянного острова — из неё считается смещение низа'),
         ('targetPad=', 'насколько ниже должен приземлиться пузырь'),
         ('editTextLen=', 'длина текста в поле ввода — с ней сравнивается официальное условие'),
@@ -188,6 +195,7 @@ def test_cell_records_who_paints_the_text():
         ('ignoreAlpha=', 'игнорируется ли альфа из transitionParams'),
         ('animText=', 'включён ли внутристрочный crossfade текста'),
         ('animProg=', 'прогресс этого crossfade — второй кандидат на мигание'),
+        ('outBlocks=', 'есть ли старая копия текста у внутристрочного crossfade'),
         ('visible=', 'видима ли строка'),
         ('transY=', 'смещение строки'),
         ('textXY=', 'координаты текста в строке'),
@@ -197,6 +205,7 @@ def test_cell_records_who_paints_the_text():
         ('log("CELL", "setSuppressed="', 'смена подавления строки'),
         ('log("CELL", "finishEnterTransition gen="', 'кто и с каким поколением снял подавление'),
                 ('matched=', 'совпало ли поколение — иначе подавление снимет чужой перелёт'),
+        ('cell=" + System.identityHashCode(this)', 'какая именно ячейка меняет состояние'),
         ('public boolean isEnterTransitionInProgress()', 'перелёту нужно знать состояние строки'),
     ):
         assert token in src, f'строка не пишет «{why}» ({token})'
@@ -404,7 +413,14 @@ def test_tracing_does_not_change_the_send_path():
     start = src[src.index('public void start()'):]
     start = start[:start.index('private boolean isRtlLine')]
     assert 'setEnterTransitionInProgress' not in start, \
-        'перелёт по-прежнему не подавляет строку — иначе текст пропадёт'
+        'как в официальном Telegram: флаг ставит конструктор, а не start()'
+    ctor = src[src.index('public TextMessageEnterTransition(ChatMessageCell'):]
+    ctor = ctor[:ctor.index('private void finishTransition()')]
+    flag = ctor.index('messageView.setEnterTransitionInProgress(true);')
+    assert 'return;' not in ctor[flag:ctor.rindex('}')], \
+        'после установки флага в конструкторе нет выходов — иначе ячейка останется глухой'
+    assert 'bail=empty_edit_text' in ctor[:flag], \
+        'проверка очищенного поля ввода обязана идти до установки флага'
     assert 'pengramUnwrappedText()' in src, 'анимация летит с текстом без нулевых пробелов'
     # записи не должны попадать в условия отрисовки
     assert re.search(r'if \([^)]*PengramSendTrace[^)]*\)\s*\{\s*(?!org\.telegram|@@|\})', src) is None, \

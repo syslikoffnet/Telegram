@@ -39,11 +39,29 @@ on_draw = transition[transition.index('public void onDraw(Canvas canvas) {'):]
 
 # --- 1. ячейка рисует строку сама -------------------------------------------
 assert 'setEnterTransitionInProgress' not in start, (
-    'текстовый перелёт снова глушит ячейку — вернётся «пустое место» вместо сообщения')
-assert transition.count('setEnterTransitionInProgress') == 0, (
-    'в файле остался вызов глушения ячейки')
+    'в официальном Telegram флаг ставит конструктор, а не start()')
+# Официальное поведение: на время перелёта содержимое строки рисует overlay,
+# ячейка глушится. Ровно одна копия текста — иначе две копии в ~30 px друг от
+# друга с разной альфой дают то самое мигание, которое видно на устройстве.
+assert transition.count('messageView.setEnterTransitionInProgress(true);') == 1, (
+    'флаг глушения должен ставиться ровно один раз — в конструкторе')
+assert 'setEnterTransitionInProgress(false)' not in transition, (
+    'снятие флага идёт через finishEnterTransition(поколение), а не напрямую')
+ctor = transition[transition.index('public TextMessageEnterTransition(ChatMessageCell'):
+                  transition.index('private void finishTransition()')]
+flag_at = ctor.index('messageView.setEnterTransitionInProgress(true);')
+assert 'return;' not in ctor[flag_at:ctor.rindex('}')], (
+    'после установки флага в конструкторе не должно быть выходов: иначе ячейка '
+    'останется глухой без перелёта — пустое место вместо сообщения')
+assert ctor[:flag_at].count('return;') == 3, (
+    'все три отказа перелёта (блоки, поле ввода, пустой текст) обязаны идти до флага')
+assert 'messageView.finishEnterTransition(enterGeneration);' in transition, (
+    'перелёт не снимает глушение ячейки при завершении')
 assert 'enterGeneration = messageView.getEnterTransitionGeneration();' in start, (
     'поколение перелёта не запоминается: ранние выходы onDraw потеряют опору')
+# поколение снимает глушение только у своего перелёта
+assert 'if (generation == pengramEnterGeneration) setEnterTransitionInProgress(false);' in cell, (
+    'глушение снимается без проверки поколения — чужой перелёт снимет его раньше')
 assert 'enterView.setTextTransitionIsRunning(true);' in start, (
     'композитор не знает о перелёте — сбросит поле ввода посреди анимации')
 assert 'container.addTransition(this);' in start, 'overlay не добавляется в контейнер'
@@ -61,9 +79,12 @@ assert re.search(r'if \(editText\.length\(\) != text\.length\(\) \|\| containsSp
 assert 'public CharSequence pengramUnwrappedText() {' in message_object, (
     'в MessageObject нет доступа к тексту без мест переноса')
 unwrapped = message_object[message_object.index('public CharSequence pengramUnwrappedText() {'):]
-unwrapped = unwrapped[:unwrapped.index('}')]
-assert 'pengramOriginalMessageText != null ? pengramOriginalMessageText : messageText' in unwrapped, (
-    'pengramUnwrappedText() должен возвращать исходный текст, если мягкая вёрстка его не меняла')
+unwrapped = unwrapped[:unwrapped.index('\n    }')]
+assert 'pengramOriginalMessageText != null && messageText == pengramWrappedMessageText' in unwrapped, (
+    'pengramUnwrappedText() должен возвращать исходный текст только пока display-текст — '
+    'его обёрнутая версия; иначе устаревший оригинал создаёт расхождение длин')
+assert unwrapped.rstrip().endswith('return messageText;'), (
+    'без живой пары оригинал/обёртка возвращать надо текущий текст')
 # мягкая вёрстка по-прежнему чинит вылезание текста за границы пузыря
 assert 'pengramSoftWrap' in message_object, 'мягкий перенос длинных слов удалён'
 assert 'messageText = pengramWrappedMessageText = textLayout.getText();' in message_object, (
@@ -109,27 +130,48 @@ def cell_draws_row(suppress):
     return not suppress
 
 
-def overlay_text_alpha(progress, crossfade):
-    """Альфа копии строки в overlay: в crossfade она проявляется, иначе полная."""
-    if progress > 0.4:
-        return 1.0
-    return progress / 0.4 if crossfade else 1.0
+def alpha_progress(progress):
+    """Проявление содержимого overlay — официальная формула."""
+    return 1.0 if progress > 0.4 else progress / 0.4
+
+
+def overlay_field_alpha(progress, crossfade):
+    """Копия текста из поля ввода: в crossfade гаснет, иначе непрозрачная."""
+    return 1.0 - alpha_progress(progress) if crossfade else 1.0
+
+
+def overlay_row_alpha(progress, crossfade):
+    """Копия текста строки, которую overlay рисует только в ветви crossfade."""
+    return alpha_progress(progress) if crossfade else 0.0
 
 
 STEPS = 201
 for crossfade in (False, True):
-    # нынешняя схема: ячейка не глушится
-    blanks = [i for i in range(STEPS)
-              if not cell_draws_row(suppress=False)
-              and overlay_text_alpha(i / (STEPS - 1), crossfade) <= 0.02]
+    # Нынешняя схема (официальная): ячейка глушится, содержимое рисует overlay.
+    blanks, doubles = [], []
+    for i in range(STEPS):
+        p = i / (STEPS - 1)
+        ink = overlay_field_alpha(p, crossfade) + overlay_row_alpha(p, crossfade)
+        if not cell_draws_row(suppress=True) and ink <= 0.02:
+            blanks.append(i)
+        # копий текста строки на экране: своя у ячейки + у overlay
+        copies = int(cell_draws_row(suppress=True)) + int(overlay_row_alpha(p, crossfade) > 0.02)
+        if copies > 1:
+            doubles.append(i)
     assert not blanks, f'пустые кадры при crossfade={crossfade}: {blanks[:5]}'
+    assert not doubles, f'две копии текста строки одновременно при crossfade={crossfade}: {doubles[:5]}'
 
-    # прежняя схема: ячейка глушилась, строку рисовал только overlay
-    old_blanks = [i for i in range(STEPS)
-                  if not cell_draws_row(suppress=True)
-                  and overlay_text_alpha(i / (STEPS - 1), crossfade) <= 0.02]
+    # Прежняя схема форка: ячейка НЕ глушилась. Текст виден всегда, но в ветви
+    # crossfade строка рисуется дважды — своей ячейкой (альфа 1) и overlay
+    # (альфа 0→1) в другой позиции. Это и есть мигание из лога устройства.
+    old_doubles = [i for i in range(STEPS)
+                   if int(cell_draws_row(suppress=False))
+                   + int(overlay_row_alpha(i / (STEPS - 1), crossfade) > 0.02) > 1]
     if crossfade:
-        assert old_blanks, 'модель не воспроизводит прежний провал в ветви crossfade'
+        assert len(old_doubles) > STEPS * 0.5, (
+            'модель не воспроизводит двойную отрисовку прежней схемы')
+    else:
+        assert not old_doubles, 'в обычной ветви overlay не рисует текст строки'
 
 # длина текста: мягкая вёрстка не должна влиять на выбор ветви анимации
 original = 'see https://example.com/some/very/long/unbreakable/path'
@@ -141,8 +183,34 @@ edit_text = original
 assert len(edit_text) == len(original), 'unwrapped текст не должен давать crossfade'
 assert len(edit_text) != len(wrapped), 'wrapped текст давал crossfade — это и был баг'
 
+# «оригинал» мягкой вёрстки принадлежит только тому тексту, который он породил:
+# иначе сравнение с полем ввода расходится уже по другой причине (лог устройства:
+# unwrappedLen=4 при msgTextLen=3, zwsp=-1)
+class Row:
+    def __init__(self, message_text, original=None, wrapped=None):
+        self.messageText, self.pengramOriginalMessageText, self.pengramWrappedMessageText = \
+            message_text, original, wrapped
+
+    def unwrapped(self):
+        if self.pengramOriginalMessageText is not None \
+                and self.messageText is self.pengramWrappedMessageText:
+            return self.pengramOriginalMessageText
+        return self.messageText
+
+
+wrapped = 'see\u200b https://example.com'
+original = 'see https://example.com'
+assert Row(wrapped, original, wrapped).unwrapped() == original, (
+    'пока display-текст — обёрнутая версия, возвращать надо оригинал')
+replaced = 'bold text'
+assert Row(replaced, original, wrapped).unwrapped() == replaced, (
+    'устаревший оригинал не должен подменять текущий текст')
+assert len(Row(replaced, original, wrapped).unwrapped()) == len(replaced), (
+    'иначе длина расходится с полем ввода и ветвь анимации выбирается неверно')
+
 print('send-text-visible: OK')
 print(f'  кадров в перелёте: {STEPS}, длительность 250 мс')
-print('  пустых кадров: 0 в обеих ветвях (строку рисует ячейка)')
-print('  отличий от официального overlay: только источник текста и отсутствие глушения')
+print('  пустых кадров: 0 в обеих ветвях (содержимое рисует overlay)')
+print('  копий текста строки: ровно 1 в каждый кадр (прежняя схема давала 2)')
+print('  отличий от официального overlay: только источник текста и порядок проверки поля ввода')
 sys.exit(0)
