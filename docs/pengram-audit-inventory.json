@@ -4566,7 +4566,7 @@
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramTypingStats.java:24",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramPlayerSwipe.java:184"
       ],
-      "lexical_occurrences": 71,
+      "lexical_occurrences": 72,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java:8947",
@@ -25972,7 +25972,7 @@
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramSendTrace.java:104",
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramSendTrace.java:117"
       ],
-      "lexical_occurrences": 367,
+      "lexical_occurrences": 368,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/AsyncListUtil.java:78",
@@ -27732,7 +27732,7 @@
         "TMessagesProj/src/main/java/org/telegram/messenger/PengramMD3.java:276",
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramChatMusicSheet.java:626"
       ],
-      "lexical_occurrences": 5307,
+      "lexical_occurrences": 5309,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/DefaultItemAnimator.java:275",
@@ -47377,7 +47377,7 @@
       "declarations": [
         "TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTabBarGlass.java:32"
       ],
-      "lexical_occurrences": 924,
+      "lexical_occurrences": 925,
       "examples": [
         {
           "at": "TMessagesProj/src/main/java/androidx/recyclerview/widget/DefaultItemAnimator.java:253",

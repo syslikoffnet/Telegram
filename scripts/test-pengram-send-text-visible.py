@@ -21,6 +21,14 @@
    безусловна) оставляла перелёт на один путь, и на устройстве он пикселей
    не давал — пустой пузырь до конца анимации (видео 2026-10-23 13:37,
    run393).
+4. Затухание полевой копии при ``crossfade`` идёт официальным приёмом из
+   rtl-ветви той же функции (``oldAlpha * (1 - alphaProgress)`` через
+   paint), а не ``saveLayerAlpha``: в логе run399 crossfade-отправка с
+   ``fade=255`` на первом кадре не дала видимого текста, тогда как
+   обычная отправка (без слоя, та же геометрия и paint) пиксели давала —
+   слой оставался единственной немониторенной веткой. Для проверки
+   добавлен кадровый лог ``FIELD`` (длина текста, размер layout, alpha
+   paint, затухание).
 
 Всё остальное в отрисовке (формула ``alphaProgress`` и проявление пузыря,
 официальная геометрия перелёта fromX/fromY/scale, клип по пузырю, rtl-код,
@@ -104,10 +112,21 @@ assert 'float alphaProgress = this.progress > 0.4f ? 1f : this.progress / 0.4f;'
 assert 'final boolean drawFieldCopy = true;' in transition, (
     'полевая копия выключена: обычная отправка теряет текст с первого кадра — '
     'именно на полевой копии master-сборка прошла проверку пользователем')
+assert 'saveLayerAlpha(0,0,layout.getWidth()' not in transition, (
+    'кроссфейд поля снова через saveLayerAlpha: на устройстве (run399) слой '
+    'не давал пикселей при обычной паре копий')
 assert 'messageView.drawMessageText(canvas, messageView.getMessageObject().textLayoutBlocks, true, alphaProgress, true);' in transition, (
     'копия строки не использует официальную пару альф: при crossfade поле уходит '
     '1→0, строка входит 0→1 — иначе возможны пустые кадры')
 assert 'messageView.drawAnimatedEmojis(canvas, alphaProgress);' in transition
+assert 'layout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));' in transition, (
+    'затухание поля при crossfade потеряло официальную paint-альфу из '
+    'rtl-ветви — поле снова не даст пикселей на устройстве')
+assert 'int oldColor = layout.getPaint().getColor();\n                    int oldAlpha = Color.alpha(oldColor);' in transition, (
+    'changeColor-ветка поля потеряла fade через альфу цвета (приём rtl-ветви)')
+assert 'PengramSendTrace.log(\"FIELD\"' in transition, (
+    'нет кадрового лога полевой копии — следующий лог с устройства не покажет, '
+    'рисует ли поле')
 assert 'if (crossfade) {\n            canvas.save();\n            canvas.translate(messageView.getLeft()' in transition, (
     'копия строки снова безусловная: одна копия — одна точка отказа, '
     'на устройстве строковая копия пикселей не давала (run393)')
@@ -155,10 +174,11 @@ def alpha_progress(progress):
 def overlay_field_alpha(progress, crossfade):
     """Копия поля ввода — официальная: drawFieldCopy = true.
 
-    Обычная отправка (crossfade=False): копия рисуется без saveLayerAlpha,
+    Обычная отправка (crossfade=False): копия рисуется без затухания,
     полная непрозрачность каждый кадр — на этой копии работает master-сборка.
-    Crossfade: официальная пара альф поле (1-alphaProgress) + строка
-    (alphaProgress) даёт сплошные пиксели в каждый кадр.
+    Crossfade: официальная пара альф поле (1-alphaProgress, fade через
+    paint-альфу, приём rtl-ветви) + строка (alphaProgress) даёт сплошные
+    пиксели в каждый кадр.
     """
     if not crossfade:
         return 1.0
@@ -255,5 +275,6 @@ print('  пустых кадров: 0 в обеих ветвях (официал
 print('  строка при crossfade, сумма альф не падает ниже 1)')
 print('  копий текста строки: ровно 1 в каждый кадр (ячейка глушена)')
 print('  отличий от официального overlay: источник текста (unwrapped),')
-print('  bail на пустом поле, обход viewport-диапазона в wrapper, жизненный цикл')
+print('  bail на пустом поле, обход viewport-диапазона в wrapper, жизненный цикл,')
+print('  затухание поля paint-альфой вместо saveLayerAlpha (урок run399), лог FIELD')
 sys.exit(0)

@@ -923,6 +923,16 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             canvas.translate(fromX * (1f - progressX) + (toX - toXOffset) * progressX, fromY * (1f - progress) + (toY + textLayoutBlock.textYOffset(messageView.getMessageObject().textLayoutBlocks, messageView.transitionParams)) * progress);
             canvas.scale(scale, scale * scale2, 0, 0);
 
+            if (org.telegram.messenger.PengramSendTrace.enabled()) {
+                org.telegram.messenger.PengramSendTrace.log("FIELD",
+                        "crossfade=" + crossfade + " changeColor=" + changeColor + " bitmap=" + drawBitmaps
+                                + " textLen=" + (layout.getText() == null ? -1 : layout.getText().length())
+                                + " wh=" + layout.getWidth() + "x" + layout.getHeight()
+                                + " paintAlpha=" + layout.getPaint().getAlpha()
+                                + " fade=" + (crossfade ? (int) (255 * (1f - alphaProgress)) : 255)
+                                + " p=" + progress + " alphaP=" + alphaProgress);
+            }
+
             if (drawBitmaps) {
                 if (crossfade) {
                     bitmapPaint.setAlpha((int) (255 * (1f - alphaProgress)));
@@ -930,18 +940,23 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
                 canvas.drawBitmap(textLayoutBitmap, 0, 0, bitmapPaint);
             } else {
                 if (crossfade && changeColor) {
+                    // Затухание 1→0 — официальный приём из rtl-ветви ниже:
+                    // альфа через paint (oldAlpha * (1 - alphaProgress)) вместо
+                    // saveLayerAlpha: на устройстве (run399, crossfade-отправка)
+                    // слой не давал пикселей, а техника paint-альфы применяется
+                    // официальным кодом в этой же функции для rtl-строк.
                     int oldColor = layout.getPaint().getColor();
-                    layout.getPaint().setColor(ColorUtils.blendARGB(fromColor, toColor, alphaProgress));
-                    canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                    int oldAlpha = Color.alpha(oldColor);
+                    layout.getPaint().setColor(ColorUtils.setAlphaComponent(ColorUtils.blendARGB(fromColor, toColor, alphaProgress), (int) (oldAlpha * (1f - alphaProgress))));
                     layout.draw(canvas);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
                     layout.getPaint().setColor(oldColor);
-                    canvas.restore();
                 } else if (crossfade) {
-                    canvas.saveLayerAlpha(0,0,layout.getWidth(),layout.getHeight(),(int) (255 * (1f - alphaProgress)),Canvas.ALL_SAVE_FLAG);
+                    int oldAlpha = layout.getPaint().getAlpha();
+                    layout.getPaint().setAlpha((int) (oldAlpha * (1f - alphaProgress)));
                     layout.draw(canvas);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f - alphaProgress);
-                    canvas.restore();
+                    layout.getPaint().setAlpha(oldAlpha);
                 } else {
                     layout.draw(canvas);
                     AnimatedEmojiSpan.drawAnimatedEmojis(canvas, layout, animatedEmojiStack, 0, null, 0, 0, 0, 1f);
