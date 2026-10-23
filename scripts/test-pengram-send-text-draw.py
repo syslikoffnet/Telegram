@@ -95,6 +95,7 @@ public class ViewportHarness {
   check(true, false, -1, -1, 3, true, 3);
   checkAlpha(true, 0);
   checkAlpha(false, 1);
+  if (org.telegram.messenger.PengramSendTrace.calls == 0) throw new AssertionError("trace_stub_unused: диагностика не попала в харнесс");
   System.out.println("Production send forwarding/range/alpha: 11 cases PASS (counting renderer, not Android)");
  }
 }'''.replace('WRAPPER', wrapper).replace('SELECTOR', selector).replace('ALPHA_GUARD', alpha_guard)
@@ -103,12 +104,38 @@ public class ViewportHarness {
         'origin, alpha, false, drawOnlyText, false);')
     assert legacy != harness.replace('ViewportHarness', 'ViewportLegacyHarness')
     legacy_alpha = harness.replace('ViewportHarness', 'ViewportAlphaLegacyHarness').replace(' && !drawOnlyText', '')
+    # Продакшн-код встраивается в харнесс дословно, включая трассировку отправки,
+    # поэтому харнессу нужен org.telegram.messenger.PengramSendTrace. Заглушка
+    # отвечает enabled()=true и считает вызовы: так проверяется, что диагностика
+    # инертна и не меняет ни диапазон блоков, ни альфу.
+    trace_stub = '''package org.telegram.messenger;
+
+public final class PengramSendTrace {
+    public static int calls;
+
+    public static boolean enabled() {
+        return true;
+    }
+
+    public static void log(String tag, String detail) {
+        calls++;
+    }
+
+    public static void log(String tag, String key, Object value) {
+        calls++;
+    }
+}
+'''
     with tempfile.TemporaryDirectory(prefix='pengram-send-draw-') as tmp:
         tmp = Path(tmp)
+        (tmp / 'org/telegram/messenger').mkdir(parents=True)
+        (tmp / 'org/telegram/messenger/PengramSendTrace.java').write_text(trace_stub)
         (tmp/'ViewportHarness.java').write_text(harness)
         (tmp/'ViewportLegacyHarness.java').write_text(legacy)
         (tmp/'ViewportAlphaLegacyHarness.java').write_text(legacy_alpha)
-        subprocess.run(['javac', 'ViewportHarness.java', 'ViewportLegacyHarness.java', 'ViewportAlphaLegacyHarness.java'], cwd=tmp, check=True)
+        subprocess.run(['javac', 'org/telegram/messenger/PengramSendTrace.java',
+                        'ViewportHarness.java', 'ViewportLegacyHarness.java',
+                        'ViewportAlphaLegacyHarness.java'], cwd=tmp, check=True)
         red = subprocess.run(['java', '-cp', str(tmp), 'ViewportLegacyHarness'], capture_output=True, text=True)
         assert red.returncode != 0 and 'overlay_missing_text' in red.stderr, red.stdout + red.stderr
         print('Historical viewport-culling negative control: rejected as expected')

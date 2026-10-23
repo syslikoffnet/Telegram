@@ -102,6 +102,18 @@ else:
         real = (JAVA/'ui/recyclerview/ChatListItemAnimator.java').read_text()
         duration = re.search(r'public static final long DEFAULT_DURATION = (\d+);', real).group(1)
         stub.write_text('package org.telegram.ui.recyclerview; public class ChatListItemAnimator { public static final long DEFAULT_DURATION = '+duration+'; }')
+        # Продакшн-сеттер и finishEnterTransition встраиваются дословно, а в них
+        # теперь есть трассировка отправки — харнессу нужна её заглушка, иначе
+        # org.telegram.messenger не существует и модель не компилируется.
+        trace_stub = tmp/'org/telegram/messenger/PengramSendTrace.java'
+        trace_stub.parent.mkdir(parents=True, exist_ok=True)
+        trace_stub.write_text('package org.telegram.messenger;\n'
+                              'public final class PengramSendTrace {\n'
+                              '    public static int calls;\n'
+                              '    public static boolean enabled() { return true; }\n'
+                              '    public static void log(String tag, String detail) { calls++; }\n'
+                              '    public static void log(String tag, String key, Object value) { calls++; }\n'
+                              '}\n')
         harness = '''public class VisibilityHarness {
 boolean enterTransitionInProgress; long pengramEnterGeneration; int invalidations;
 Runnable queued; long delay;
@@ -129,5 +141,5 @@ public static void main(String[] args) {
 }
 }'''
         (tmp/'VisibilityHarness.java').write_text(harness)
-        subprocess.run(['javac', str(stub), str(tmp/'VisibilityHarness.java')], check=True, cwd=tmp)
+        subprocess.run(['javac', str(stub), str(trace_stub), str(tmp/'VisibilityHarness.java')], check=True, cwd=tmp)
         subprocess.run(['java', '-cp', str(tmp), 'VisibilityHarness'], check=True, cwd=tmp)

@@ -314,6 +314,60 @@ def test_strings_in_both_locales():
             assert name in present, f'{locale}: нет строки {name}'
 
 
+def _java_method(source, name):
+    """Тело метода по балансу скобок — так же его достают харнессы."""
+    match = re.search(r'(?:(?:public|private|protected)\s+)?(?:static\s+)?[\w<>]+\s+'
+                      + re.escape(name) + r'\([^{};]*\)\s*\{', source)
+    if not match:
+        return ''
+    depth, end = 1, match.end()
+    while depth and end < len(source):
+        if source[end] == '{':
+            depth += 1
+        elif source[end] == '}':
+            depth -= 1
+        end += 1
+    return source[match.start():end]
+
+
+def test_jvm_harnesses_stub_the_trace():
+    """Харнессы компилируют продакшн-код дословно — им нужна заглушка трассировки.
+
+    Ровно так сборка и упала в первый раз: ViewportHarness встраивает блок
+    ``if (alpha == 0)`` из ячейки, VisibilityHarness — сеттер подавления и
+    ``finishEnterTransition``; оба куска теперь ссылаются на PengramSendTrace,
+    которого в отдельной компиляции нет. Локально это не видно: без JDK обе
+    JVM-части пропускаются, ошибку показывает только CI.
+    """
+    java = ROOT / 'TMessagesProj/src/main/java/org/telegram'
+    checked = []
+    for script in sorted((ROOT / 'scripts').glob('test-pengram-*.py')):
+        if script.name == Path(__file__).name:
+            continue
+        text = script.read_text(encoding='utf-8')
+        if 'javac' not in text:
+            continue
+        # переменная -> файл, из которого сьют читает исходник
+        sources = {}
+        for var, rel in re.findall(r"(\w+)\s*=\s*\((?:JAVA|java|root[^)]*)\s*/\s*'([^']+)'\)\.read_text\(\)", text):
+            path = java / rel
+            if path.exists():
+                sources[var] = path.read_text(encoding='utf-8')
+        needs_stub = False
+        for var, name in re.findall(r"method\(\s*(\w+)\s*,\s*'([\w]+)'\s*\)", text):
+            if var in sources and 'PengramSendTrace' in _java_method(sources[var], name):
+                needs_stub = True
+        # срез блока alpha=0 из drawMessageText — второй способ встроить трассировку
+        if re.search(r"\.(?:index|rfind)\(\s*'[^']*if \(alpha == 0\)", text):
+            needs_stub = True
+        if needs_stub:
+            checked.append(script.name)
+            assert 'PengramSendTrace' in text, (
+                f'{script.name}: встраивает инструментированный продакшн-код, но не даёт '
+                'харнессу заглушку PengramSendTrace — CI упадёт на javac')
+    assert len(checked) >= 2, f'проверка нашла только {checked} — она больше ничего не страхует'
+
+
 def test_tracing_does_not_change_the_send_path():
     """Сбор данных не должен менять поведение: обе правки отправки остаются как есть."""
     src = load(TRANSITION)
@@ -343,6 +397,7 @@ def main():
         test_settings_rows,
         test_referenced_resources_exist,
         test_strings_in_both_locales,
+        test_jvm_harnesses_stub_the_trace,
         test_tracing_does_not_change_the_send_path,
     ]
     failed = 0
