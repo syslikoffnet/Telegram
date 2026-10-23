@@ -28,4 +28,9 @@ public class BlurredBackgroundSourceWrapped implements BlurredBackgroundSource {
             sourceInternal.draw(canvas, left, top, right, bottom);
         }
     }
+
+    @Override
+    public boolean hasContent() {
+        return sourceInternal != null && sourceInternal.hasContent();
+    }
 }

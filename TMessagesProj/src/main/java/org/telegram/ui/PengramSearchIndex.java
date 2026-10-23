@@ -178,6 +178,7 @@ public final class PengramSearchIndex {
             {R.string.LiteOptionsStickers, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.LiteOptionsEmoji, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.EnableAnimations, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
+            {R.string.PengramChatEnterAnim, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramChatEnterAnimInfo},
             {R.string.PengramChatBlur, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramSpoilerEffect, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramThanosEffect, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},

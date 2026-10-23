@@ -11,4 +11,11 @@ public interface BlurredBackgroundSource {
 
 
     default void dispatchOnDrawablesRelativePositionChange() {}
+
+    /**
+     * Есть ли у источника уже захваченное содержимое. Пока его нет, drawable
+     * не должен рисовать кадр: фон и жидкая линза по пустой сцене дают
+     * тёмную вспышку на первом кадре (видно на тёмных обоях).
+     */
+    default boolean hasContent() { return true; }
 }

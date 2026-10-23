@@ -240,6 +240,11 @@ public class PengramConfig {
     public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
     public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
     public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
+
+    /** Плавный вход в чат: проявление + лёгкий зум вместо чистого выезда. По умолчанию выключен. */
+    public static final String KEY_CHAT_ENTER_ANIM = "chatEnterAnim";
+    public static boolean isChatEnterAnim() { return getBool(KEY_CHAT_ENTER_ANIM, false); }
+    public static void setChatEnterAnim(boolean value) { setBool(KEY_CHAT_ENTER_ANIM, value); }
     public static final String KEY_TYPING_BLUR = "typingBlur";
     public static final String KEY_TYPING_BLUR_RADIUS = "typingBlurRadius";
     public static final String KEY_TYPING_DELETE = "typingDeleteAnim";

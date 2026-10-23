@@ -185,6 +185,15 @@ public class BlurredBackgroundDrawableRenderNode extends BlurredBackgroundDrawab
         }
         renderNodeInvalidated = false;
 
+        // Пока сцена не захвачена — кадр не рисуем: и полупрозрачный фон,
+        // и жидкая линза по пустой заливке дают тёмную вспышку ровно на
+        // первый кадр (заметно при входе в чат на тёмных обоях). Запись
+        // display list выше уже сделана — как только watcher наполнит
+        // источник, тот же список покажет содержимое без переигрыша.
+        if (Color.alpha(backgroundColor) != 255 && !source.hasContent()) {
+            return;
+        }
+
         int color = Theme.multAlpha(shadowColor, renderNode.getAlpha() * shadowAlpha);
         if (Color.alpha(color) != 0) {
             paintShadow.setShadowLayer(shadowLayerRadius, shadowLayerDx, shadowLayerDy, color);

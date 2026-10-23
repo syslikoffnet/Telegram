@@ -35,3 +35,9 @@
   контейнер/аниматор/`MessageObject` байт-в-байт равны мастер-тегу.
 - Преломление — только Android 13+ (`PengramGlassSkin.refractionAllowed`),
   на старых — тонированная подложка без линзы.
+- Первый кадр: пока watcher не захватил сцену, стекло не рисуется
+  (`BlurredBackgroundSource.hasContent` + guard в
+  `BlurredBackgroundDrawableRenderNode.draw`) — чёрной вспышки при
+  входе в чат нет; устоявшийся вид не меняется. Подробности —
+  `docs/pengram-chat-enter-anim.md` и
+  `scripts/test-pengram-chat-enter-anim.py`.

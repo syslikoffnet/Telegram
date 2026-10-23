@@ -3553,6 +3553,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(liteCheck(BTN_EXTRA_BASE + 10, LiteMode.FLAG_ANIMATED_STICKERS_CHAT, getString(R.string.LiteOptionsStickers)));
             items.add(liteCheck(BTN_EXTRA_BASE + 11, LiteMode.FLAG_ANIMATED_EMOJI_CHAT, getString(R.string.LiteOptionsEmoji)));
             items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
+            items.add(tgCheckInfo(BTN_EXTRA_BASE + 19, getString(R.string.PengramChatEnterAnim), getString(R.string.PengramChatEnterAnimInfo),
+                    PengramConfig::isChatEnterAnim, () -> PengramConfig.setChatEnterAnim(!PengramConfig.isChatEnterAnim())));
             items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
             items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
             items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));

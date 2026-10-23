@@ -29959,6 +29959,58 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private boolean pengramEnterAnimApplied;
+
+    /** Тумблер «Анимация входа в чат»: дешёвые alpha/scale-свойства, без слоёв и наложений. */
+    private void applyPengramEnterAnim(boolean isOpen, float progress) {
+        if (fragmentView == null || inPreviewMode) {
+            return;
+        }
+        if (!org.telegram.messenger.PengramConfig.isChatEnterAnim()) {
+            if (pengramEnterAnimApplied) {
+                resetPengramEnterAnim();
+            }
+            return;
+        }
+        final float eased = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(
+                Math.max(0f, Math.min(1f, progress)));
+        final float alpha;
+        final float scale;
+        if (isOpen) {
+            alpha = 0.45f + 0.55f * eased;
+            scale = 0.97f + 0.03f * eased;
+        } else {
+            alpha = 1f - 0.55f * eased;
+            scale = 1f - 0.02f * eased;
+        }
+        pengramEnterAnimApplied = true;
+        fragmentView.setAlpha(alpha);
+        fragmentView.setScaleX(scale);
+        fragmentView.setScaleY(scale);
+        if (actionBar != null && actionBar.getParent() != null && actionBar.getParent() != fragmentView) {
+            // В отдельных режимах шапку выносят из экрана — её гасим отдельно.
+            actionBar.setAlpha(alpha);
+        }
+    }
+
+    private void resetPengramEnterAnim() {
+        pengramEnterAnimApplied = false;
+        if (fragmentView != null) {
+            fragmentView.setAlpha(1f);
+            fragmentView.setScaleX(1f);
+            fragmentView.setScaleY(1f);
+        }
+        if (actionBar != null) {
+            actionBar.setAlpha(1f);
+        }
+    }
+
+    @Override
+    public void onTransitionAnimationProgress(boolean isOpen, float progress) {
+        super.onTransitionAnimationProgress(isOpen, progress);
+        applyPengramEnterAnim(isOpen, progress);
+    }
+
     long startMs;
     @Override
     public void onTransitionAnimationStart(boolean isOpen, boolean backward) {
@@ -30004,6 +30056,9 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
         super.onTransitionAnimationEnd(isOpen, backward);
+        if (pengramEnterAnimApplied) {
+            resetPengramEnterAnim();
+        }
         if (isOpen) {
             if (backward) {
                 if (showPinBulletin && pinBulletin != null) {
