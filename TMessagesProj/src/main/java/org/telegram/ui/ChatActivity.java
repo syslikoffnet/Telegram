@@ -4794,6 +4794,7 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
+        resetPengramSurfaceSignatures();
 
         if (dialog_id != 0 && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount)) {
             org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
@@ -5866,10 +5867,15 @@ public class ChatActivity extends BaseFragment implements
 
         contentView.setOccupyStatusBar(!inBubbleMode && !isInsideContainer && !inPreviewMode);
 
-        actionBar.setupGlass(
-            glassBackgroundDrawableFactory,
-            BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate),
-            ChatObject.isForum(currentChat));
+        if (PengramConfig.isChatHeaderGlass()) {
+            glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(
+                    org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+            actionBar.setupGlass(glassBackgroundDrawableFactory,
+                    org.telegram.ui.Components.PengramGlassSkin.provider(
+                            org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER, themeDelegate),
+                    ChatObject.isForum(currentChat));
+            actionBar.applyPengramGlassLens();
+        }
 
         if (chatMode == MODE_PINNED) {
             actionBar.setChatAvatarContainer(avatarContainer);
@@ -5888,10 +5894,7 @@ public class ChatActivity extends BaseFragment implements
         chatInputViewsContainer = new ChatInputViewsContainer(context);
         chatInputViewsContainer.setClipChildren(false);
         chatInputViewsContainer.setWindowInsetsProvider(windowInsetsStateHolder);
-        chatInputViewsContainer.setInputIslandBubbleDrawable(
-            glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider));
-        chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(
-            glassBackgroundDrawableFactoryFrosted.create(chatInputViewsContainer, blurredBackgroundColorProvider));
+        refreshPengramSurfaces();
 
 
         chatInputBubbleContainer = chatInputViewsContainer.getInputIslandBubbleContainer();
@@ -28920,6 +28923,69 @@ public class ChatActivity extends BaseFragment implements
         showInfoHint(messageObject, text, 0);
     }
 
+    private int pengramInputGlassSignature = Integer.MIN_VALUE;
+    private int pengramHeaderGlassSignature = Integer.MIN_VALUE;
+    private final Runnable pengramGlassRefresh = this::refreshPengramSurfaces;
+
+    private void resetPengramSurfaceSignatures() {
+        // Почему: при смене темы createView создаёт новые view на том же фрагменте.
+        // Старая сигнатура не означает, что новым контейнерам уже назначены drawable.
+        pengramInputGlassSignature = Integer.MIN_VALUE;
+        pengramHeaderGlassSignature = Integer.MIN_VALUE;
+    }
+
+    private void refreshPengramSurfaces() {
+        if (actionBar == null || chatInputViewsContainer == null || viewPositionWatcher == null) return;
+        final int inputSignature = org.telegram.ui.Components.PengramGlassSkin.signature(
+                org.telegram.ui.Components.PengramGlassSkin.SURFACE_INPUT);
+        if (inputSignature != pengramInputGlassSignature) {
+            pengramInputGlassSignature = inputSignature;
+            viewPositionWatcher.unsubscribe(chatInputViewsContainer);
+            final boolean enabled = PengramConfig.isInputGlass();
+            glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(enabled
+                    && org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+            glassBackgroundDrawableFactoryFrosted.setLiquidGlassEffectAllowed(enabled
+                    && org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+            final BlurredBackgroundDrawable input = glassBackgroundDrawableFactory.create(chatInputViewsContainer,
+                    enabled ? org.telegram.ui.Components.PengramGlassSkin.provider(
+                            org.telegram.ui.Components.PengramGlassSkin.SURFACE_INPUT, themeDelegate) : blurredBackgroundColorProvider);
+            final BlurredBackgroundDrawable keyboard = glassBackgroundDrawableFactoryFrosted.create(chatInputViewsContainer,
+                    enabled ? org.telegram.ui.Components.PengramGlassSkin.provider(
+                            org.telegram.ui.Components.PengramGlassSkin.SURFACE_INPUT, themeDelegate) : blurredBackgroundColorProvider);
+            chatInputViewsContainer.setInputIslandBubbleDrawable(input);
+            chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(keyboard);
+            if (enabled) {
+                org.telegram.ui.Components.PengramGlassSkin.applyLens(input);
+                org.telegram.ui.Components.PengramGlassSkin.applyLens(keyboard);
+            }
+            chatInputViewsContainer.setPengramGlass(enabled, themeDelegate);
+            chatInputViewsContainer.invalidate();
+        }
+        final int headerSignature = org.telegram.ui.Components.PengramGlassSkin.signature(
+                org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER);
+        if (headerSignature != pengramHeaderGlassSignature) {
+            pengramHeaderGlassSignature = headerSignature;
+            viewPositionWatcher.unsubscribe(actionBar);
+            if (PengramConfig.isChatHeaderGlass()) {
+                glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(
+                        org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+                actionBar.setupGlass(glassBackgroundDrawableFactory,
+                        org.telegram.ui.Components.PengramGlassSkin.provider(
+                                org.telegram.ui.Components.PengramGlassSkin.SURFACE_HEADER, themeDelegate),
+                        ChatObject.isForum(currentChat));
+                actionBar.applyPengramGlassLens();
+            } else {
+                actionBar.clearGlass();
+                actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
+            }
+        }
+        // Фабрика общая с меню и панелями: настройка ввода не меняет их политику.
+        glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(
+                org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+        glassBackgroundDrawableFactoryFrosted.setLiquidGlassEffectAllowed(
+                org.telegram.ui.Components.PengramGlassSkin.refractionAllowed());
+    }
+
     private int localDeletedSearchIndex = -1;
     private boolean localDeletedNavigation;
     private String pendingDeletedSearchQuery;
@@ -32454,6 +32520,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onResume() {
+        org.telegram.ui.Components.PengramGlassSkin.register(pengramGlassRefresh);
         super.onResume();
         checkShowBlur(false);
         pengramCheckMarksSettings();
@@ -32670,6 +32737,7 @@ public class ChatActivity extends BaseFragment implements
 
     @Override
     public void onPause() {
+        org.telegram.ui.Components.PengramGlassSkin.unregister(pengramGlassRefresh);
         super.onPause();
         pengramScheduleForwardTick(false);
         scrolling = false;

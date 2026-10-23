@@ -1474,6 +1474,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             // версия читается при старте так же, как имя устройства
             requestDeviceRestart();
         }
+        if (PengramConfig.KEY_SETTINGS_SURFACE_GLASS.equals(key)
+                || PengramConfig.KEY_INPUT_GLASS.equals(key)
+                || PengramConfig.KEY_HEADER_GLASS.equals(key)
+                || PengramConfig.KEY_CHAT_HEADER_GLASS.equals(key)
+                || PengramConfig.KEY_TAB_GLASS.equals(key)
+                || key.startsWith("tabBarGlass")) {
+            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+        }
         if (PengramConfig.KEY_TAB_GLASS.equals(key)) {
             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
         } else if (PengramConfig.KEY_GLASS_SHEEN.equals(key)
@@ -1491,6 +1499,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                     .postNotificationName(org.telegram.messenger.NotificationCenter.dialogsNeedReload, true);
         }
         if (key.startsWith("md3")) {
+            org.telegram.messenger.PengramMD3.notifyChanged();
             if (key.startsWith("md3Monet")) {
                 org.telegram.messenger.PengramMonet.update(getContext());
             }
@@ -2851,6 +2860,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** после импорта/сброса: подтянуть всё, что кэшируется в других местах */
     private void afterSettingsReplaced(CharSequence text) {
+        org.telegram.messenger.PengramMD3.notifyChanged();
         try {
             getUserConfig().pengramApplyLocalPremiumStatus();
             PengramVoiceChanger.reset();
@@ -3472,7 +3482,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
-        if (PengramConfig.isTabBarLiquidGlass()) {
+        items.add(check(PengramConfig.KEY_INPUT_GLASS, false, getString(R.string.PengramInputGlass)));
+        items.add(check(PengramConfig.KEY_HEADER_GLASS, false, getString(R.string.PengramHeaderGlass)));
+        items.add(check(PengramConfig.KEY_CHAT_HEADER_GLASS, true, getString(R.string.PengramChatHeaderGlass)));
+        if (PengramConfig.isSettingsSurfaceGlass() || PengramConfig.isTabBarLiquidGlass() || PengramConfig.isInputGlass()
+                || PengramConfig.isChatListHeaderGlass() || PengramConfig.isChatHeaderGlass()) {
             // Ползунки стекла раскрываются по требованию: включил эффект —
             // рядом появилась его тонкая настройка, выключил — не мешает.
             items.add(moreButton(GROUP_GLASS, getString(R.string.PengramGlassMore)));
@@ -3482,6 +3496,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> value + "%",
                         value -> {
                             PengramConfig.setGlassOpacity(value);
+                            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
                             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
                         }));
                 items.add(UItem.asHeader(getString(R.string.PengramGlassThickness)));
@@ -3489,6 +3504,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> value + " dp",
                         value -> {
                             PengramConfig.setGlassThicknessDp(value);
+                            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
                             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
                         }));
                 items.add(UItem.asHeader(getString(R.string.PengramGlassIntensity)));
@@ -3496,6 +3512,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> value + "%",
                         value -> {
                             PengramConfig.setGlassIntensity(value);
+                            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
                             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
                         }));
                 items.add(UItem.asHeader(getString(R.string.PengramGlassGlow)));
@@ -3503,6 +3520,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> value + "%",
                         value -> {
                             PengramConfig.setGlassGlow(value);
+                            org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
                             org.telegram.ui.MainTabsActivity.refreshPengramGlass();
                         }));
                 items.add(checkInfo(PengramConfig.KEY_GLASS_SHEEN, true,
@@ -3514,7 +3532,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
         }
         items.add(UItem.asShadow(getString(R.string.PengramTabBarInfo) + "\n\n"
-                + getString(R.string.PengramTabBarGlassInfo)));
+                + getString(R.string.PengramTabBarGlassInfo) + "\n\n"
+                + getString(R.string.PengramGlassSharedInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramTextHeader)));
         items.add(moreButton(GROUP_TEXT, getString(R.string.PengramShowMore)));

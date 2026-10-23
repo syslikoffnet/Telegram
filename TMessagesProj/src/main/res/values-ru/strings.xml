@@ -2058,4 +2058,8 @@
     <string name="PengramEditorSampleLine8">Спасибо за сообщение</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
     <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
+    <string name="PengramInputGlass">Стекло строки ввода</string>
+    <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
+    <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
+    <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
 </resources>
