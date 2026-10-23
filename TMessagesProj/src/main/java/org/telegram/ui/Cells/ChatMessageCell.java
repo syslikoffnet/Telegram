@@ -325,8 +325,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (b) postDelayed(pengramEnterWatchdog,
                 org.telegram.ui.recyclerview.ChatListItemAnimator.DEFAULT_DURATION + 250);
         if (org.telegram.messenger.PengramSendTrace.enabled()) {
-            org.telegram.messenger.PengramSendTrace.log("CELL", "setSuppressed=" + b + " gen=" + pengramEnterGeneration
-                    + " id=" + (currentMessageObject == null ? 0 : currentMessageObject.getId()));
+            // Только то, что есть в JVM-модели видимости (scripts/
+            // test-pengram-text-visibility.py встраивает этот метод дословно):
+            // id сообщения уже пишут DRAW, ANIM и LAYOUT.
+            org.telegram.messenger.PengramSendTrace.log("CELL", "setSuppressed=" + b
+                    + " gen=" + pengramEnterGeneration);
         }
         invalidate();
     }

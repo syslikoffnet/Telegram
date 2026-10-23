@@ -368,6 +368,33 @@ def test_jvm_harnesses_stub_the_trace():
     assert len(checked) >= 2, f'проверка нашла только {checked} — она больше ничего не страхует'
 
 
+def test_harness_embedded_methods_stay_compilable():
+    """Записи внутри встраиваемых методов не должны ссылаться на поля ячейки.
+
+    JVM-модель в scripts/test-pengram-text-visibility.py повторяет
+    ``setEnterTransitionInProgress`` и ``finishEnterTransition`` дословно, но
+    объявляет только свои поля. Стоит добавить в запись ``currentMessageObject``
+    — и CI падает на javac, а локально это не видно: без JDK модель
+    пропускается. Так и вышло в первый раз.
+    """
+    cell_src = load(CELL)
+    available = {'b', 'generation', 'pengramEnterGeneration', 'enterTransitionInProgress'}
+    keywords = {'org', 'telegram', 'messenger', 'PengramSendTrace', 'log', 'null',
+                'true', 'false', 'this'}
+    for name in ('setEnterTransitionInProgress', 'finishEnterTransition'):
+        body = _java_method(cell_src, name)
+        assert body, f'метод {name} не найден'
+        for call in re.findall(r'PengramSendTrace\.log\((.*?)\);', body, re.S):
+            without_literals = re.sub(r'"[^"]*"', '""', call)
+            # составные имена вида a.b.c — берём только последнее звено
+            without_qualified = re.sub(r'\w+(?:\.\w+)+', 'QUALIFIED', without_literals)
+            used = set(re.findall(r'\b([A-Za-z_]\w*)\b', without_qualified)) - keywords - {'QUALIFIED'}
+            unknown = used - available
+            assert not unknown, (
+                f'{name}: запись трассировки использует {sorted(unknown)} — '
+                'в JVM-модели этих символов нет, javac в CI упадёт')
+
+
 def test_tracing_does_not_change_the_send_path():
     """Сбор данных не должен менять поведение: обе правки отправки остаются как есть."""
     src = load(TRANSITION)
@@ -398,6 +425,7 @@ def main():
         test_referenced_resources_exist,
         test_strings_in_both_locales,
         test_jvm_harnesses_stub_the_trace,
+        test_harness_embedded_methods_stay_compilable,
         test_tracing_does_not_change_the_send_path,
     ]
     failed = 0
