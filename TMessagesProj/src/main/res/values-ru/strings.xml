@@ -451,18 +451,6 @@
     <string name="PengramLogoutHeader">Выход из аккаунта</string>
     <string name="PengramSessionExportSetting">Выгрузка сессии в экране выхода</string>
     <string name="PengramSessionExportSettingInfo">Добавляет строку на экран, где вы выходите из аккаунта. Она отдаёт ключ авторизации этого аккаунта архивом tdata для Telegram Desktop, файлом .session для Telethon/Pyrogram или строкой сессии — тот, кто её получит, войдёт как вы. По умолчанию выключено.</string>
-    <string name="PengramSendTraceHeader">Логирование</string>
-    <string name="PengramSendTrace">Логировать отправку сообщений</string>
-    <string name="PengramSendTraceOff">Выключено</string>
-    <string name="PengramSendTraceEmpty">Лог пуст — отправьте сообщение</string>
-    <string name="PengramSendTraceLines">Строк: %1$s</string>
-    <string name="PengramSendTraceShare">Отправить лог</string>
-    <string name="PengramSendTraceClear">Очистить лог</string>
-    <string name="PengramSendTraceCleared">Лог очищен</string>
-    <string name="PengramSendTraceNothing">Лог пуст: включите логирование и отправьте сообщение</string>
-    <string name="PengramSendTraceCopied">Лог скопирован в буфер обмена</string>
-    <string name="PengramSendTraceSavedTo">Лог сохранён: %1$s</string>
-    <string name="PengramSendTraceInfo">Собирает в память телефона данные о том, как сообщение улетает из поля ввода: каждый кадр анимации, где и с какой прозрачностью рисуется текст строки и перелёта, параметры вёрстки и геометрия. Нужно, чтобы находить причину мигания и пропадающего текста. По умолчанию выключено, при выключенном тумблере замеры не выполняются. Лог хранится только на устройстве.</string>
     <string name="PengramSessionExportRow">Выгрузить сессию</string>
     <string name="PengramSessionExportRowInfo">Сохранить аккаунт после выхода</string>
     <string name="PengramBackupHeader">Резервная копия настроек</string>
@@ -569,6 +557,8 @@
     <string name="PengramMarkDot">Точка</string>
     <string name="PengramEditedMark">Метка изменённых</string>
     <string name="PengramEditedMarkTitle">Метка изменённых</string>
+    <string name="PengramHeaderVersion">Версия %1$s (%2$d)</string>
+    <string name="PengramHeaderVersionShort">Версия %1$s</string>
     <string name="PengramBurnAction">Сжечь</string>
     <string name="PengramBurnTitle">Сжечь медиа?</string>
     <string name="PengramBurnPhotoMessage">Фото исчезнет у отправителя — как будто вы его только что посмотрели. У вас оно останется в чате.</string>
@@ -697,6 +687,8 @@
     <string name="PengramForwardDoneAlert">Сообщать о завершении</string>
     <string name="PengramForwardInfo">При отправке удалённых или одноразовых медиа вместо поля ввода показывается статус. Обычная отправка фото, видео и файлов не блокирует ввод. Зажмите статус — остаток уйдёт в фоне.</string>
     <string name="PengramTabsInfo2">Выключите кнопку, чтобы убрать её с панели внизу главного экрана. Без «Контактов» остаются ровно три кнопки.</string>
+    <string name="PengramTabHidden">Кнопка скрыта</string>
+    <string name="PengramTabVisible">Кнопка показывается</string>
     <string name="PengramSendStyleHeader">Отправляемый текст</string>
     <string name="PengramSendStyle">Стиль отправки</string>
     <string name="PengramSendStyleCaptions">Применять к подписям медиа</string>
@@ -1065,7 +1057,7 @@
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
     <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
-    <string name="PengramSearchRecent">Недавние переходы</string>
+    <string name="PengramSearchRecent">Недавние запросы</string>
     <string name="PengramSearchParentOff">Настройка появится после включения «%1$s»</string>
     <string name="PengramSearchHistoryClear">Очистить историю поиска</string>
         <string name="PengramTracksViewList">Списком</string>
@@ -1182,7 +1174,7 @@
     <string name="PengramHeroAI">Один сервис и одна роль для всех чатов. Обрабатывайте сообщение или набранный текст перед отправкой и сами решайте, что делать с результатом.</string>
     <string name="PengramBackupNoPasswordWarning">У файла нет пароля — собрать такой мог кто угодно. Применяйте, только если делали его сами.</string>
     <string name="PengramOriginalNameHeader">Имя в профиле</string>
-    <string name="PengramOriginalName">Второе имя жестом по имени</string>
+    <string name="PengramOriginalName">Показывать официальное имя</string>
     <string name="PengramOriginalNameInfo">Человека из контактов Telegram показывает так, как записали его вы. Жест по имени в профиле показывает, как его видят все остальные, — имя, которое он поставил себе сам, — и возвращает ваше обратно. Pengram берёт его с публичной страницы профиля, а если её нет — из имён, встреченных до добавления в контакты, и из истории профилей. В контактах ничего не меняется, номер не передаётся, число проверок не ограничено.</string>
     <string name="PengramOriginalNameOff">Выключено</string>
     <string name="PengramOriginalNameTap">По нажатию</string>
@@ -1782,8 +1774,8 @@
     <string name="PengramInputIntensitySoft">Слабо</string>
     <string name="PengramInputIntensityMedium">Средне</string>
     <string name="PengramInputIntensityStrong">Сильно</string>
-    <string name="PengramTypingBlur">Растворение при появлении</string>
-    <string name="PengramTypingBlurRadius">Сила растворения</string>
+    <string name="PengramTypingBlur">Появляться из размытия</string>
+    <string name="PengramTypingBlurRadius">Сила размытия</string>
     <string name="PengramTypingBehaviorHeader">Поведение текста</string>
     <string name="PengramTypingIgnoreSpaces">Игнорировать пробелы</string>
     <string name="PengramTypingAllLines">Анимировать каждую строку</string>
@@ -2036,7 +2028,7 @@
     <string name="PengramExportPinned">Сообщение закреплено</string>
     <string name="PengramExportCall">Звонок</string>
     <string name="PengramExportLocalTitle">Локально сохранённые удалённые</string>
-    <string name="PengramExportLocalNote">Локальные снимки могут быть неполными или без вложений; это не история с сервера. Несохранённые удалённые сообщения и версии правок нельзя восстановить. Файл содержит удалённые сообщения. Не передавайте его третьим лицам.</string>
+    <string name="PengramExportLocalNote">Локальные снимки могут быть неполными или без вложений; это не история с сервера. Несохранённые удалённые сообщения и версии правок нельзя восстановить.</string>
     <string name="PengramExportLocalLoading">Чтение локальных снимков</string>
     <string name="PengramExportForwarded">Переслано</string>
     <string name="PengramExportRootMissing">Начальное сообщение темы недоступно.</string>
@@ -2066,42 +2058,4 @@
     <string name="PengramEditorSampleLine8">Спасибо за сообщение</string>
     <string name="PengramEditorOpenSetting">Открыть настройку</string>
     <string name="PengramEditorEnableParentFirst">Сначала включите родительский параметр</string>
-    <string name="PengramSearchHistoryRemove">Удалить из истории</string>
-    <string name="PengramSearchHistoryRemoved">Запись удалена из истории</string>
-    <string name="PengramSettingsSurfaceGlass">Стекло поверх обложек и списков</string>
-    <string name="PengramSettingsSurfaceGlassInfo">Линза в шапке плеера поверх обложки и на плавающей панели редактора меню. Использует общие параметры стекла. На однотонных фонах эффект не добавляется.</string>
-    <string name="PengramMenuDoneCount">Готово · Видимых пунктов: %1$d</string>
-    <string name="PengramInputGlass">Стекло строки ввода</string>
-    <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
-    <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
-    <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
-
-    <!-- Pengram: настройки локального наложения, не самого текста. -->
-    <string name="PengramTypingEffectsOff">Эффекты выключены</string>
-    <string name="PengramTypingReducedMotion">Анимации системы или приложения отключены — эффекты набора ограничены.</string>
-    <string name="PengramTypingPreset">Пресет анимаций набора</string>
-    <string name="PengramTypingPresetCalm">Спокойно</string>
-    <string name="PengramTypingPresetLively">Живо</string>
-    <string name="PengramTypingPresetMaximum">Максимум</string>
-    <string name="PengramTypingPresetCustom">Свои настройки</string>
-    <string name="PengramTypingAdvancedHeader">Дополнительно</string>
-    <string name="PengramTypingPerformanceHint">Эффекты — локальное наложение. Растворение заменяет аппаратное размытие текста. Больше частиц — выше расход энергии; неподдерживаемые глифы заменяются пылью.</string>
-    <string name="PengramTypingStepLow">Слабо</string>
-    <string name="PengramTypingStepMedium">Средне</string>
-    <string name="PengramTypingStepHigh">Сильно</string>
-    <string name="PengramTypingStepMaximum">Максимум</string>
-    <string name="PengramTypingReset">Сбросить анимации набора</string>
-    <string name="PengramTypingResetConfirm">Вернуть стандартные эффекты набора? Стили сообщений, текст и счётчики WPM не изменятся.</string>
-    <string name="PengramHistoryReadFailed">Не удалось прочитать архив. Нажмите для повтора; записи не удалены.</string>
-    <string name="PengramHistoryLoadMore">Загрузить более старые записи</string>
-    <string name="PengramHistoryPrivacyPolicy">Архив хранится без шифрования в песочнице приложения и исключён из резервной копии Android. Секретные чаты и скрытые правки больше не архивируются; старые записи не удаляются. Локальная копия тоже сохраняет снимки удалений для достоверных меток, даже если слежка выключена. Экспорт содержит личные данные — не передавайте его третьим лицам.</string>
-    <string name="PengramHistoryLock">Замок на экранах архива</string>
-    <string name="PengramHistoryLockInfo">При открытии или возвращении на экран архива запрашивать код приложения Telegram или настроенную биометрию. Скрывать экраны архива на скриншотах и в списке задач. Это не шифрует записи, не блокирует сообщения в чате и не защищает экспортированные файлы.</string>
-    <string name="PengramHistorySetPasscode">Архив заблокирован. Нажмите, чтобы настроить код приложения Telegram, затем вернитесь сюда.</string>
-    <string name="PengramDiagnostics">Диагностика</string>
-    <string name="PengramDiagnosticsInfo">Обновляется каждую секунду, пока экран виден. Статус ключа неизвестен: текущий Java API не позволяет прочитать его. Счётчик отложки показывает маркеры запросов в памяти, а не подтверждения сервера. Копия содержит ID пользователей: проверьте её перед отправкой.</string>
-    <string name="PengramDiagnosticsCopy">Скопировать диагностический отчёт</string>
-    <string name="PengramSessionErrSlotBusy">Слот занят аккаунтом, в том числе сохранённой локальной копией. Выберите пустой слот. Заменять сессию без подтверждённого полного сброса нельзя.</string>
-    <string name="PengramSessionErrIdentity">Аккаунт, подтверждённый Telegram, не соответствует этой сессии. Импорт остановлен; существующие аккаунты и локальная история не изменены.</string>
-    <string name="PengramSessionErrAccountExists">Этот аккаунт уже существует в другом слоте, в том числе в сохранённой локальной копии. Переключитесь на него вместо повторного импорта сессии.</string>
 </resources>

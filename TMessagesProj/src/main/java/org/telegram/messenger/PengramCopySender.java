@@ -789,11 +789,6 @@ public final class PengramCopySender {
      * (промежуточные байты идут в .temp-файл).
      */
     private static void download(int account, MessageObject message, Utilities.Callback<String> callback) {
-        // Явная копия разрешена только из локального файла, не восстанавливаем архив с сервера.
-        if (message == null || message.pengramHistorySnapshot || message.pengramArchived || message.pengramDeleted) {
-            callback.run(null);
-            return;
-        }
         final TLRPC.MessageMedia media = message.messageOwner != null ? message.messageOwner.media : null;
         if (media == null) {
             callback.run(null);

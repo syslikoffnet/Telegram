@@ -29,10 +29,8 @@ for index in [i for i in range(len(message)) if message.startswith('block.maxRig
 assert 'boolean pengramOverflow = false;' in cell
 assert 'b.maxRight > maxWidth + 1' in cell
 # RTL-строки проверяются по ширине разметки: правая граница строки не видит вылет влево
-assert 'b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1' in cell
-assert 'b.isRtl() && b.textLayout' not in cell
-assert 'canvas.clipRect(bubble.left - dp(1), bubble.top - dp(1),' in cell
-assert 'bubble.right + dp(1), bubble.bottom + dp(1)' in cell
+assert 'b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1' in cell
+assert 'canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4)' in cell
 
 # --- длинные слова по-прежнему переносятся, а не растягивают пузырь ----------
 assert 'private static CharSequence pengramSoftWrap(' in message

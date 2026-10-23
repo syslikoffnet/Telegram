@@ -10,7 +10,7 @@ INDEX = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.j
 METADATA = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java'
 SETTINGS = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java'
 PROFILE = ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java'
-rows = re.findall(r'\{R\.string\.(\w+), PengramSettingsActivity\.(SECTION_\w+), (?:R\.string\.(\w+)|0), ([012]), (?:R\.string\.(\w+)|0)\}', INDEX.read_text().split("public static final int[][] ITEMS = {", 1)[1].split("};", 1)[0])
+rows = re.findall(r'\{R\.string\.(\w+), PengramSettingsActivity\.(SECTION_\w+), (?:R\.string\.(\w+)|0), ([012]), (?:R\.string\.(\w+)|0)\}', INDEX.read_text())
 assert len(rows) >= 344, len(rows)
 assert len({(name, section) for name, section, *_ in rows}) == len(rows), 'duplicate destination'
 assert not any('PENGUIN' in section or name == 'PengramSectionPenguin' for name, section, *_ in rows)
@@ -43,7 +43,7 @@ assert 'PengramSearchMetadata.matches(result.pengramEntry, pengramTerms)' in PRO
 assert 'searchRevealGroups = true' in SETTINGS.read_text()
 assert 'result.adaptiveLayout = true' in SETTINGS.read_text()
 assert 'аватарка аву' in METADATA.read_text()
-assert 'PengramSearchMetadata.open(this, found, true)' in SETTINGS.read_text()
+assert 'PengramSearchMetadata.open(this, found)' in SETTINGS.read_text()
 
 before = INDEX.read_bytes()
 subprocess.run(['python3', str(ROOT / 'scripts/gen-search-index.py')], check=True, capture_output=True)

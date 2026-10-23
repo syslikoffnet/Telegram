@@ -211,9 +211,6 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         progressView.setSize(dp(28));
         root.addView(progressView, LayoutHelper.createFrame(42, 42, Gravity.CENTER));
 
-        // Под этой шапкой лишь градиент, а не обложка: здесь нужна тональная
-        // MD3-поверхность, но не имитация преломления однотонного фона.
-        org.telegram.messenger.PengramMD3.styleSheetHeader(header, resourcesProvider, null);
         loadMore();
     }
 

@@ -223,8 +223,6 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
 
     protected boolean allowNestedScroll = true;
 
-    private Drawable pengramOriginalSheetBackground;
-    private boolean pengramSheetMd3;
     protected Drawable shadowDrawable;
     protected int backgroundPaddingTop;
     protected int backgroundPaddingLeft;
@@ -1223,10 +1221,8 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
 
         Rect padding = new Rect();
         shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
-        pengramOriginalSheetBackground = shadowDrawable;
-        pengramSheetMd3 = org.telegram.messenger.PengramMD3.sheets();
         // Pengram: в Material 3 у шторок крупное скругление сверху
-        if (pengramSheetMd3) {
+        if (org.telegram.messenger.PengramMD3.sheets()) {
             shadowDrawable = org.telegram.messenger.PengramMD3.sheetBackground(shadowDrawable, true);
         }
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(internalBackgroundColor = getThemedColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY));
@@ -1277,8 +1273,6 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
         container.setClipChildren(false);
         container.setClipToPadding(false);
         container.setBackground(backDrawable);
-        org.telegram.messenger.PengramMD3.watch(container, this::refreshPengramSheetBackground);
-
         focusable = needFocus;
         if (edgeToEdge == EdgeToEdge.NONE) {
             container.setFitsSystemWindows(true);
@@ -1570,25 +1564,6 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
     }
 
     private int internalBackgroundColor;
-    private void refreshPengramSheetBackground() {
-        final boolean md3 = org.telegram.messenger.PengramMD3.sheets();
-        if (md3 == pengramSheetMd3) return;
-        pengramSheetMd3 = md3;
-        final Drawable old = shadowDrawable;
-        shadowDrawable = md3 ? org.telegram.messenger.PengramMD3.sheetBackground(pengramOriginalSheetBackground, true)
-                : pengramOriginalSheetBackground;
-        shadowDrawable.setColorFilter(new PorterDuffColorFilter(internalBackgroundColor, PorterDuff.Mode.MULTIPLY));
-        // Кастомные фоны обложек не заменяем: меняется лишь тот контейнер,
-        // который действительно использовал стандартный shadowDrawable.
-        if (containerView != null && containerView.getBackground() == old) {
-            final int left = containerView.getPaddingLeft(), top = containerView.getPaddingTop();
-            final int right = containerView.getPaddingRight(), bottom = containerView.getPaddingBottom();
-            containerView.setBackground(shadowDrawable);
-            containerView.setPadding(left, top, right, bottom);
-        }
-        if (container != null) container.invalidate();
-    }
-
     public void setBackgroundColor(int color) {
         shadowDrawable.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
         if (internalBackgroundColor != color) {

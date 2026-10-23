@@ -7,7 +7,6 @@ Use --base-pack to reuse the verified EPK3 v2 input and skip its build stage.
 import argparse,hashlib,importlib.util,json,os,pickle,shlex,shutil,subprocess,sys,time,zipfile
 from pathlib import Path
 import numpy as np
-from image_safety import image_array, open_image, build_path
 from PIL import Image
 
 ROOT=Path(__file__).resolve().parent
@@ -19,7 +18,6 @@ def run(argv,cwd,env):
 def materialize(source,dest):
     if source.resolve()==dest.resolve():return
     dest.parent.mkdir(parents=True,exist_ok=True)
-    if dest.is_symlink(): raise ValueError('Refusing symlink output: '+str(dest))
     shutil.copyfile(source,dest)
 
 def main():
@@ -38,18 +36,10 @@ def main():
     if reference.read_bytes()[:4]==b'EPK3':ap.error('--reference must be the original PNG-based pack')
     work=Path(args.work_dir).resolve()if args.work_dir else output.parent/'emoji_build'
     if work==ROOT:ap.error('Use a separate --work-dir')
-    for d in ['upload','out/emoji-v2','work/v2','work/v3']:
-        build_path(work,d).mkdir(parents=True,exist_ok=True)
-    # Все фиксированные пути записи проверяем до подпроцессов: симлинки
-    # в переиспользуемом каталоге не должны переписать файл вне сборки.
-    for name in ['upload/emoji.pack','upload/emoji_textures-5.zip',
-                 'out/emoji-v2/emoji.pack','work/records.pkl','work/originals.npz',
-                 'work/v2/final_selected.pkl','work/v2/final_images.npz',
-                 'work/v3/joint.so','work/v3/final.pack']:
-        build_path(work,name)
+    for d in ['upload','out/emoji-v2','work/v2','work/v3']:(work/d).mkdir(parents=True,exist_ok=True)
     env=os.environ.copy();env.update(OPENBLAS_NUM_THREADS='1',OMP_NUM_THREADS='1',EMOJI_WORKERS=str(args.workers))
     started=time.monotonic()
-    for name in ['optimizer_core.py','optimizer_visual.py','verify_emoji_pack.py','quality_seams.py','image_safety.py']:
+    for name in ['optimizer_core.py','optimizer_visual.py','verify_emoji_pack.py','quality_seams.py']:
         materialize(ROOT/name,work/'out/emoji-v2'/name)
     materialize(reference,work/'upload/emoji.pack');materialize(textures,work/'upload/emoji_textures-5.zip')
     base=work/'out/emoji-v2/emoji.pack'
@@ -68,7 +58,7 @@ def main():
     records,ne,lookup,_=core.read_reference(reference,textures)
     with open(work/'work/records.pkl','wb')as f:pickle.dump(records,f,protocol=5)
     with zipfile.ZipFile(textures)as z:
-        originals=np.array([np.array(image_array(z.open(f"{r['id'] // 4096}_{r['id'] % 4096}.png"), 'RGBA'))for r in records[:ne]])
+        originals=np.array([np.array(Image.open(z.open(f"{r['id']//4096}_{r['id']%4096}.png")).convert('RGBA'))for r in records[:ne]])
     np.savez_compressed(work/'work/originals.npz',rgba=originals)
     pack=Pack(base);selected=[]
     for i,e in enumerate(pack.entries):

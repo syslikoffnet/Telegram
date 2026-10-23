@@ -26,21 +26,10 @@ public class DialogsActivityTopPanelLayout extends AnimatedLinearLayout {
         updateColors();
     }
 
-    private final PengramGlassSheen pengramSheen = new PengramGlassSheen();
-
-    public void setPengramGlass(boolean enabled, Theme.ResourcesProvider resources) {
-        pengramSheen.configure(enabled, resources);
-        invalidate();
-    }
-
     BlurredBackgroundDrawable backgroundDrawable;
 
     public void setBlurredBackground(BlurredBackgroundDrawable background) {
         backgroundDrawable = background;
-        // Новый фон получает границы сразу: до следующего layout он иначе
-        // остаётся пустым, и переключатель выглядит неработающим.
-        checkBoundsAndClipping();
-        invalidate();
     }
 
     @Override
@@ -113,7 +102,6 @@ public class DialogsActivityTopPanelLayout extends AnimatedLinearLayout {
 
         if (backgroundDrawable != null) {
             backgroundDrawable.draw(canvas);
-            pengramSheen.draw(canvas, this, backgroundDrawable.getBounds());
         }
 
         View callDrawnView = null;

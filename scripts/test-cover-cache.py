@@ -18,12 +18,7 @@ with tempfile.TemporaryDirectory(prefix="pengram-cover-test-") as directory:
     root = Path(directory)
     put(root, "android/graphics/Bitmap.java", """package android.graphics;
 public class Bitmap {
-    private final int width, height;
-    public Bitmap() { this(16, 16); }
-    public Bitmap(int width, int height) { this.width = width; this.height = height; }
     public boolean isRecycled() { return false; }
-    public int getWidth() { return width; }
-    public int getHeight() { return height; }
     public int getByteCount() { return 512; }
 }""")
     put(root, "android/text/TextUtils.java", """package android.text;
@@ -66,7 +61,6 @@ import java.io.File;
 import java.util.concurrent.CountDownLatch;
 import android.graphics.Bitmap;
 public class AudioInfo {
-    public static volatile Bitmap cover = new Bitmap();
     public static final CountDownLatch gate = new CountDownLatch(1);
     public static final CountDownLatch started = new CountDownLatch(1);
     public static AudioInfo getAudioInfo(File file) throws Exception {
@@ -74,7 +68,7 @@ public class AudioInfo {
         if (!gate.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("decoder blocked");
         return new AudioInfo();
     }
-    public Bitmap getCover() { return cover; }
+    public Bitmap getCover() { return new Bitmap(); }
     public Bitmap getSmallCover() { return null; }
 }""")
     put(root, "TestCoverCache.java", """import java.io.File;
@@ -107,30 +101,7 @@ public class TestCoverCache {
         AudioInfo.gate.countDown();
         check(received.await(5, TimeUnit.SECONDS), "new view lost its callback after trim");
         check(PengramCovers.getCached(visible) != null, "visible artwork not cached");
-        // No-file must synchronously complete with null, not abandon the sheet.
-        File previousFile = FileLoader.file;
-        FileLoader.file = null;
-        java.util.concurrent.atomic.AtomicInteger missing = new java.util.concurrent.atomic.AtomicInteger();
-        PengramCovers.request(new MessageObject(9001), (key, bitmap) -> {
-            check(bitmap == null, "missing file supplied artwork");
-            missing.incrementAndGet();
-        });
-        check(missing.get() == 1, "missing file lost callback");
-        FileLoader.file = previousFile;
-        // Decode failure and unusable dimensions must complete, but not enter cache.
-        for (int mode = 0; mode < 2; mode++) {
-            PengramCovers.clear();
-            AudioInfo.cover = mode == 0 ? null : new android.graphics.Bitmap(0, 0);
-            MessageObject unavailable = new MessageObject(9100 + mode);
-            CountDownLatch failed = new CountDownLatch(1);
-            PengramCovers.request(unavailable, (key, bitmap) -> {
-                check(bitmap == null, "invalid artwork accepted");
-                failed.countDown();
-            });
-            check(failed.await(5, TimeUnit.SECONDS), "decode failure lost callback");
-            check(PengramCovers.getCached(unavailable) == null, "failed decode cached");
-        }
-        System.out.println("cover queue: bounded prefetch, cancellation, latest callbacks, missing/null/invalid artwork OK");
+        System.out.println("cover queue: bounded prefetch, cancellation, latest callbacks OK");
     }
 }""")
     file = root / "track.mp3"

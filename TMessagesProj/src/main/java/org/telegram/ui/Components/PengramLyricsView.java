@@ -121,12 +121,6 @@ public class PengramLyricsView extends View {
      * по центру и без прокрутки, нажатия не перехватываем — ими занимается сама панель.
      */
     public void setTickerMode(boolean ticker, int textSize, int anim) {
-        // Насос перечитывает настройки, но неизменившийся режим не должен
-        // пересоздавать разметку и сбрасывать бегущую строку каждые полсекунды.
-        if (tickerMode == ticker && previewSize == textSize && animOverride == anim) {
-            buildLayouts();
-            return;
-        }
         tickerMode = ticker;
         previewSize = textSize;
         animOverride = anim;

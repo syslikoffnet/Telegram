@@ -56,8 +56,6 @@ import java.util.ArrayList;
  * только тут живут удалёнки и история правок.
  */
 public class PengramHistoryChatActivity extends BaseFragment {
-    private org.telegram.ui.Components.PengramArchiveGuard archiveGuard;
-
 
     public static final int MODE_DELETED = 0;
     public static final int MODE_EDITED = 1;
@@ -123,7 +121,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         PengramHistory.removeChangeListener(historyChanged);
-        if (archiveGuard != null) archiveGuard.destroy();
         super.onFragmentDestroy();
     }
 
@@ -234,8 +231,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             searchItem.setSearchFieldText(searchQuery, false);
         }
         reload();
-        archiveGuard = new org.telegram.ui.Components.PengramArchiveGuard(this, fragmentView);
-        return fragmentView = archiveGuard;
+        return fragmentView;
     }
 
     private CharSequence getTitleText() {
@@ -277,7 +273,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         builder.setPositiveButton(getString(R.string.Delete), (d, w) -> {
             PengramHistory.clear(currentAccount, dialogId);
             // historyChanged reloads after the queued deletion completes.
-            // Успех показывает только обновлённый список после commit, не оптимистичный bulletin.
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, getString(R.string.PengramHistoryCleared)).show();
         });
         builder.setNegativeButton(getString(R.string.Cancel), null);
         AlertDialog dialog = builder.create();
@@ -314,10 +310,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
             AndroidUtilities.runOnUIThread(() -> {
                 if (generation != loadGeneration || fragmentView == null) return;
                 loadingEntries = false;
-                if (PengramHistory.hasStorageError()) {
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete,
-                            getString(R.string.PengramHistoryReadFailed)).show();
-                }
                 hasOlderEntries = entries.size() == limit;
                 applyEntries(entries, query, keepScroll);
             });
@@ -486,7 +478,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 }
             }
             MessageObject messageObject = new MessageObject(currentAccount, message, true, true);
-            messageObject.pengramHistorySnapshot = true;
             messageObject.resetLayout();
             return messageObject;
         } catch (Throwable e) {
@@ -733,13 +724,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
     public void onResume() {
         super.onResume();
         refreshTheme();
-        if (archiveGuard != null) archiveGuard.resume();
-    }
-
-    @Override
-    public void onPause() {
-        if (archiveGuard != null) archiveGuard.pause();
-        super.onPause();
     }
 
     @Override

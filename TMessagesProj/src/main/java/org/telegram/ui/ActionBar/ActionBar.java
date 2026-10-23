@@ -193,9 +193,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         });
     }
 
-    private Drawable pengramBackgroundBeforeGlass;
-    private boolean pengramClipBeforeGlass;
-    private final org.telegram.ui.Components.PengramGlassSheen pengramSheen = new org.telegram.ui.Components.PengramGlassSheen();
     private boolean glassMode;
     private boolean glassOnlyBack;
     private boolean glassModeIsForum;
@@ -217,10 +214,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     public void setupGlass(BlurredBackgroundDrawableViewFactory factory,
                            BlurredBackgroundColorProvider colorProvider,
                            boolean isForum) {
-        if (!glassMode) {
-            pengramBackgroundBeforeGlass = getBackground();
-            pengramClipBeforeGlass = getClipChildren();
-        }
         setBackground(null);
         setClipChildren(false);
         glassMode = true;
@@ -257,31 +250,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (backButtonImageView != null) {
             backButtonImageView.setTranslationX(dp(2));
         }
-    }
-
-    public void applyPengramGlassLens() {
-        pengramSheen.configure(true, resourcesProvider);
-        if (glassDrawable != null) org.telegram.ui.Components.PengramGlassSkin.applyLens(glassDrawable);
-        if (glassDrawableBack != null) org.telegram.ui.Components.PengramGlassSkin.applyLens(glassDrawableBack);
-        if (glassDrawableMenu != null) org.telegram.ui.Components.PengramGlassSkin.applyLens(glassDrawableMenu);
-        requestLayout();
-        invalidate();
-    }
-
-    public void clearGlass() {
-        if (!glassMode) return;
-        // setupGlass меняет не только фон: без возврата геометрии меню и клипа
-        // выключение оставляет прозрачную шапку со сдвинутыми кнопками.
-        glassMode = false;
-        glassDrawable = glassDrawableBack = glassDrawableMenu = null;
-        setBackground(pengramBackgroundBeforeGlass);
-        setClipChildren(pengramClipBeforeGlass);
-        pengramBackgroundBeforeGlass = null;
-        if (menu != null) { menu.setTranslationX(0); menu.setGlassMode(false); }
-        if (actionMode != null) { actionMode.setTranslationX(0); actionMode.setGlassMode(false); }
-        if (backButtonImageView != null) backButtonImageView.setTranslationX(0);
-        requestLayout();
-        invalidate();
     }
 
     public INavigationLayout.BackButtonState getBackButtonState() {
@@ -2328,7 +2296,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
             glassDrawable.setBounds(left, t, right, b);
             glassDrawable.draw(canvas);
-            pengramSheen.draw(canvas, this, glassDrawable.getBounds());
         }
         if (glassDrawableBack != null && hasBackButton) {
             glassDrawableBack.setBounds(0, t, s + p * 2, b);

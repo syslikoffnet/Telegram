@@ -2,14 +2,11 @@ name: Android Java preflight
 on:
   push:
     branches:
-      - "arena/42ea70d0-telegram"
       - "arena/01a10249-telegram"
       - "arena/01a105ae-telegram"
       - "arena/01a10850-telegram"
       - "arena/28564dc4-telegram"
       - "arena/49b509a8-telegram"
-      - "arena/c8e4a10f-telegram"
-      - "arena/e2850801-telegram"
 permissions:
   contents: read
 jobs:
@@ -73,26 +70,30 @@ jobs:
       - name: Test artwork queue
         run: python3 scripts/test-cover-cache.py
 
-      - name: Test all Pengram regressions
+      - name: Test Pengram visual editor and settings search
         run: |
-          # Скачать лог job'а из песочницы получается не всегда (хост логов
-          # недоступен), поэтому падение suite дублируется аннотациями: javac/
-          # python traceback видно прямо в списке аннотаций проверки.
-          status=0
-          for suite in scripts/test-pengram-*.py; do
-            echo "Running $suite"
-            if ! out=$(python3 "$suite" 2>&1); then
-              status=1
-              echo "$out"
-              echo "$out" | grep -E "error:|Error|assert|Exception|Traceback|\.java:|\.py:" | head -n 15 \
-                | while IFS= read -r line; do
-                    echo "::error title=$suite::$line"
-                  done
-            else
-              echo "$out" | tail -n 2
-            fi
-          done
-          exit $status
+          python3 scripts/test-pengram-visual-editor.py
+          python3 scripts/test-pengram-search-index.py
+          python3 scripts/test-pengram-history-search.py
+          python3 scripts/test-pengram-edited-media.py
+          python3 scripts/test-pengram-edit-chain.py
+          python3 scripts/test-pengram-send-style.py
+          python3 scripts/test-pengram-forward-quotes.py
+          python3 scripts/test-pengram-security-wiring.py
+          python3 scripts/test-pengram-lyrics-wiring.py
+          python3 scripts/test-pengram-player-wiring.py
+          python3 scripts/test-pengram-name-check.py
+          python3 scripts/test-pengram-bot-login.py
+          python3 scripts/test-pengram-device-platform.py
+          python3 scripts/test-pengram-mention-all.py
+          python3 scripts/test-pengram-mention-name.py
+          python3 scripts/test-pengram-penguin-header.py
+          python3 scripts/test-pengram-local-keep.py
+          python3 scripts/test-pengram-session-login.py
+          python3 scripts/test-pengram-signer-block.py
+          python3 scripts/test-pengram-text-overflow.py
+          python3 scripts/test-pengram-lyrics-header.py
+          python3 scripts/test-pengram-protection.py
 
       - name: Test Pengram lyric timing
         run: |

@@ -42,7 +42,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_EDITED = 2;
 
     private static final String DB_NAME = "pengram_history.db";
-    private static final int DB_VERSION = 8;
+    private static final int DB_VERSION = 7;
     private static final String TABLE = "history";
     private static final String TABLE_MARKS = "deleted_marks";
     private static final String TABLE_PENDING = "pending_edits";
@@ -50,8 +50,6 @@ public class PengramHistory extends SQLiteOpenHelper {
             new java.util.concurrent.ConcurrentHashMap<>();
 
     private static volatile PengramHistory instance;
-    private static volatile boolean storageError;
-    public static boolean hasStorageError() { return storageError; }
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final java.util.concurrent.CopyOnWriteArraySet<Runnable> changeListeners =
             new java.util.concurrent.CopyOnWriteArraySet<>();
@@ -64,15 +62,10 @@ public class PengramHistory extends SQLiteOpenHelper {
         changeListeners.remove(listener);
     }
 
-    private static final java.util.concurrent.atomic.AtomicBoolean changePending = new java.util.concurrent.atomic.AtomicBoolean();
     private static void notifyChanged() {
-        if (!changePending.compareAndSet(false, true)) return;
         AndroidUtilities.runOnUIThread(() -> {
-            changePending.set(false);
-            for (Runnable listener : changeListeners) {
-                try { listener.run(); } catch (Throwable e) { FileLog.e(e); }
-            }
-        }, 16);
+            for (Runnable listener : changeListeners) listener.run();
+        });
     }
 
     /**
@@ -102,12 +95,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     private PengramHistory(android.content.Context context) {
-        super(context, DB_NAME, null, DB_VERSION, db -> {
-            storageError = true;
-            FileLog.e("Pengram archive corrupt; original database retained for recovery");
-            notifyChanged();
-        });
-        setWriteAheadLoggingEnabled(true);
+        super(context, DB_NAME, null, DB_VERSION);
     }
 
     public static PengramHistory getInstance() {
@@ -142,36 +130,6 @@ public class PengramHistory extends SQLiteOpenHelper {
         createV5(db);
         createV6(db);
         createV7(db);
-        createV8(db);
-    }
-
-    @Override
-    public void onConfigure(SQLiteDatabase db) {
-        super.onConfigure(db);
-        db.execSQL("PRAGMA synchronous = NORMAL");
-    }
-
-    @Override
-    public void onOpen(SQLiteDatabase db) {
-        super.onOpen(db);
-        final android.content.SharedPreferences preferences = ApplicationLoader.applicationContext
-                .getSharedPreferences("pengram_history_health", android.content.Context.MODE_PRIVATE);
-        final int openings = preferences.getInt("openings", 0);
-        preferences.edit().putInt("openings", openings + 1).apply();
-        if (openings % 10 != 0) return;
-        try (Cursor check = db.rawQuery("PRAGMA quick_check(1)", null)) {
-            if (!check.moveToFirst() || !"ok".equals(check.getString(0))) {
-                storageError = true;
-                throw new android.database.sqlite.SQLiteDatabaseCorruptException("History integrity check failed; original retained");
-            }
-        }
-    }
-
-    /** Аддитивные индексы: открытие базы и миграция происходят на history executor. */
-    private void createV8(SQLiteDatabase db) {
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_history_account_dialog ON history (account, dialog_id)");
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_history_account_saved ON history (account, saved_at)");
-        db.execSQL("CREATE INDEX IF NOT EXISTS idx_history_account_action_date ON history (account, action, date)");
     }
 
     private void createV7(SQLiteDatabase db) {
@@ -245,9 +203,6 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (oldVersion < 7) {
             createV7(db);
         }
-        if (oldVersion < 8) {
-            createV8(db);
-        }
         if (oldVersion < 4) {
             // старые записи лежат несжатыми — ужмём их в фоне и вернём место файлу
             pendingCompaction = true;
@@ -265,7 +220,7 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     /** Capture our own edit BEFORE Telegram optimistically overwrites the local row. */
     public static void rememberPendingEdit(int account, TLRPC.Message message) {
-        if (message == null || !isArchivableSnapshot(MessageObject.getDialogId(message), message, ACTION_EDITED)) return;
+        if (message == null || message.id == 0) return;
         final byte[] snapshot = serialize(message);
         final PengramHistory history = getInstance();
         if (snapshot == null || history == null) return;
@@ -361,18 +316,6 @@ public class PengramHistory extends SQLiteOpenHelper {
                             final int date, final int action, final String text, final String prevText,
                             final boolean out, final byte[] data, final TLRPC.Message previous,
                             final boolean keepMedia) {
-        try {
-            enqueueSave(account, dialogId, messageId, fromId, date, action, text, prevText, out, data, previous, keepMedia);
-        } catch (Throwable e) {
-            FileLog.e(e);
-        }
-    }
-
-    private static void enqueueSave(final int account, final long dialogId, final int messageId, final long fromId,
-                            final int date, final int action, final String text, final String prevText,
-                            final boolean out, final byte[] data, final TLRPC.Message previous, final boolean keepMedia) {
-        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || dialogId == 0 || messageId <= 0 || DialogObject.isEncryptedDialog(dialogId)
-                || isUserDeleted(messageId)) return;
         if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null && previous == null) {
             return;
         }
@@ -382,12 +325,10 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         executor.execute(() -> {
             try {
-                if (isUserDeleted(messageId)) return;
                 // Удаление одного и того же сообщения прилетает не один раз: из апдейта,
                 // из локальной чистки, из перезагрузки диалога. Вторая копия ничего не
                 // добавляет, а место занимает — поэтому для удалённых пишем один раз.
                 if (action == ACTION_DELETED && messageId != 0 && hasEntry(account, dialogId, messageId)) {
-                    markDeleted(account, dialogId, java.util.Collections.singletonList(messageId));
                     return;
                 }
                 if (action == ACTION_EDITED && messageId != 0
@@ -418,17 +359,11 @@ public class PengramHistory extends SQLiteOpenHelper {
                     byte[] oldData = serialize(previous);
                     if (oldData != null) cv.put("prev_data", pack(oldData));
                 }
-                final SQLiteDatabase db = history.getWritableDatabase();
-                db.beginTransaction();
-                try {
-                    if (db.insertOrThrow(TABLE, null, cv) < 0) throw new IllegalStateException("History insert failed");
-                    if (action == ACTION_DELETED) insertDeletedMark(db, account, dialogId, messageId);
-                    db.setTransactionSuccessful();
-                } finally {
-                    db.endTransaction();
+                long row = history.getWritableDatabase().insert(TABLE, null, cv);
+                if (row < 0) {
+                    FileLog.e(new IllegalStateException("Pengram history insert failed"));
+                    return;
                 }
-                // Только после COMMIT: при ENOSPC/rollback ложной метки не появится.
-                if (action == ACTION_DELETED) publishDeletedMark(account, dialogId, messageId);
                 maybeEnforceLimits();
                 invalidateCounts(dialogId);
                 notifyChanged();
@@ -601,12 +536,12 @@ public class PengramHistory extends SQLiteOpenHelper {
         try {
             inflater = new Inflater(true);
             inflater.setInput(data, PACK_MAGIC.length, data.length - PACK_MAGIC.length);
-            final ByteArrayOutputStream out = new ByteArrayOutputStream(Math.min(65536, data.length));
+            final ByteArrayOutputStream out = new ByteArrayOutputStream(data.length * 3);
             final byte[] buffer = new byte[8192];
             while (!inflater.finished()) {
                 final int read = inflater.inflate(buffer);
-                if (read <= 0 || out.size() > 32 * 1024 * 1024 - read) {
-                    return null; // Оборванный поток или zip-bomb не превращаем в частичный TL-снимок.
+                if (read <= 0) {
+                    break;
                 }
                 out.write(buffer, 0, read);
             }
@@ -758,84 +693,56 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     public static void markDeleted(final int account, final long dialogId, final java.util.Collection<Integer> ids) {
-        try {
-            if (ids == null || ids.isEmpty() || dialogId == 0 || DialogObject.isEncryptedDialog(dialogId)) return;
-            final ArrayList<Integer> copy = new ArrayList<>(ids);
-            final PengramHistory history = getInstance();
-            if (history == null) return;
-            executor.execute(() -> {
-                try {
-                    final ArrayList<Integer> committed = new ArrayList<>();
-                    final SQLiteDatabase db = history.getWritableDatabase();
-                    db.beginTransaction();
-                    try {
-                        for (Integer id : copy) {
-                            // Нет снимка — нет обещания «сохранено». Никакого чтения БД на UI.
-                            if (isRealId(id) && !isUserDeleted(id) && hasEntry(account, dialogId, id)) {
-                                insertDeletedMark(db, account, dialogId, id);
-                                committed.add(id);
-                            }
-                        }
-                        db.setTransactionSuccessful();
-                    } finally {
-                        db.endTransaction();
-                    }
-                    for (Integer id : committed) publishDeletedMark(account, dialogId, id);
-                    if (!committed.isEmpty()) notifyMarksChanged();
-                } catch (Throwable e) {
-                    FileLog.e(e);
-                }
-            });
-        } catch (Throwable e) {
-            FileLog.e(e);
+        if (ids == null || ids.isEmpty() || dialogId == 0) {
+            return;
         }
-    }
-
-    private static void insertDeletedMark(SQLiteDatabase db, int account, long dialogId, int id) {
-        ContentValues mark = new ContentValues();
-        mark.put("account", account);
-        mark.put("dialog_id", dialogId);
-        mark.put("message_id", id);
-        mark.put("date", (int) (System.currentTimeMillis() / 1000L));
-        db.insertWithOnConflict(TABLE_MARKS, null, mark, SQLiteDatabase.CONFLICT_REPLACE);
-        // insertWithOnConflict возвращает -1 вместо исключения на некоторых сбоях.
-        if (android.database.DatabaseUtils.longForQuery(db,
-                "SELECT COUNT(*) FROM deleted_marks WHERE account=? AND dialog_id=? AND message_id=?",
-                new String[]{String.valueOf(account), String.valueOf(dialogId), String.valueOf(id)}) != 1) {
-            throw new IllegalStateException("History mark insert failed");
+        final ArrayList<Integer> copy = new ArrayList<>();
+        for (Integer id : ids) {
+            if (isRealId(id)) {
+                copy.add(id);
+            }
         }
-    }
-
-    private static void publishDeletedMark(int account, long dialogId, int id) {
-        if (isUserDeleted(id)) return;
+        if (copy.isEmpty()) {
+            return;
+        }
         synchronized (marksCache) {
             java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
             if (set == null) {
                 set = new java.util.HashSet<>();
                 accountMarks(account).put(dialogId, set);
             }
-            set.add(id);
+            set.addAll(copy);
         }
+        // старые метки этого диалога могли быть ещё не прочитаны — дочитаем,
+        // память при слиянии главнее, так что новые метки не потеряются
         loadMarks(account, dialogId, null);
-    }
-
-    /** Секретные и самоуничтожающиеся сообщения не покидают своё исходное хранилище. */
-    public static boolean isArchivableSnapshot(long dialogId, TLRPC.Message message, int action) {
-        return message != null && message.id > 0 && !DialogObject.isEncryptedDialog(dialogId)
-                && message.ttl_period == 0 && (message.media == null || message.media.ttl_seconds == 0)
-                && (action != ACTION_EDITED || !message.edit_hide);
-    }
-
-    /** Снимок только из уже имеющейся памяти. Не загружает сообщения/медиа из сети. */
-    public static void saveDeletedSnapshot(int account, long dialogId, TLRPC.Message message) {
-        try {
-            if (!isArchivableSnapshot(dialogId, message, ACTION_DELETED) || isUserDeleted(message.id)) return;
-            final long from = message.from_id == null ? dialogId : DialogObject.getPeerDialogId(message.from_id);
-            save(account, dialogId, message.id, from, message.date, ACTION_DELETED,
-                    describe(message), null, message.out, serialize(message));
-        } catch (Throwable e) {
-            FileLog.e(e);
+        notifyMarksChanged();
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
         }
+        final int now = (int) (System.currentTimeMillis() / 1000L);
+        executor.execute(() -> {
+            try {
+                SQLiteDatabase db = history.getWritableDatabase();
+                db.beginTransaction();
+                try {
+                    for (int i = 0; i < copy.size(); ++i) {
+                        ContentValues cv = new ContentValues();
+                        cv.put("account", account);
+                        cv.put("dialog_id", dialogId);
+                        cv.put("message_id", copy.get(i));
+                        cv.put("date", now);
+                        db.insertWithOnConflict(TABLE_MARKS, null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
     }
 
     /** быстрая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
@@ -889,9 +796,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             Cursor c = null;
             try {
                 c = history.getReadableDatabase().rawQuery(
-                        "SELECT m.message_id FROM " + TABLE_MARKS + " m WHERE m.account = ? AND m.dialog_id = ?"
-                                + " AND EXISTS (SELECT 1 FROM history h WHERE h.account=m.account"
-                                + " AND h.dialog_id=m.dialog_id AND h.message_id=m.message_id AND h.action=0)",
+                        "SELECT message_id FROM " + TABLE_MARKS + " WHERE account = ? AND dialog_id = ?",
                         new String[]{String.valueOf(account), String.valueOf(dialogId)});
                 while (c.moveToNext()) {
                     set.add(c.getInt(0));
@@ -989,7 +894,6 @@ public class PengramHistory extends SQLiteOpenHelper {
             try {
                 SQLiteDatabase db = history.getWritableDatabase();
                 String[] args = {String.valueOf(account)};
-                final java.util.HashSet<String> files = collectMediaPaths(db, "account = ?", args);
                 db.beginTransaction();
                 try {
                     db.delete(TABLE, "account = ?", args);
@@ -1000,9 +904,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 } finally {
                     db.endTransaction();
                 }
-                cleanupUnreferencedMedia(db, files);
                 invalidateCounts(0);
-                notifyChanged();
             } catch (Throwable e) {
                 FileLog.e(e);
             }
@@ -1200,102 +1102,57 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static ArrayList<Entry> searchDeleted(int account, long dialogId, long mergeDialogId, String query, int limit) {
         ArrayList<Entry> result = new ArrayList<>();
         PengramHistory history = getInstance();
-        if (history == null || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT
-                || dialogId == 0 || TextUtils.isEmpty(query)) return result;
-        final int wanted = Math.max(1, Math.min(200, limit));
-        final String needle = query.toLowerCase(Locale.ROOT);
-        final String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        boolean unicode = false;
-        for (int i = 0; i < query.length(); i++) {
-            if (query.charAt(i) > 127) { unicode = true; break; }
-        }
-        long beforeId = Long.MAX_VALUE;
-        int beforeDate = Integer.MAX_VALUE;
+        if (history == null || dialogId == 0 || TextUtils.isEmpty(query)) return result;
+        Cursor c = null;
         try {
-            boolean more;
-            do {
-                int scanned = 0;
-                final ArrayList<String> args = new ArrayList<>();
-                args.add(String.valueOf(account));
-                args.add(String.valueOf(dialogId));
-                args.add(String.valueOf(mergeDialogId));
-                args.add(String.valueOf(ACTION_DELETED));
-                args.add(String.valueOf(beforeDate));
-                args.add(String.valueOf(beforeDate));
-                args.add(String.valueOf(beforeId));
-                if (!unicode) {
-                    args.add("%" + escaped + "%");
-                    args.add("%" + escaped + "%");
+            String escaped = query.replace("\\", "\\\\").replace("%", "\\%")
+                    .replace("_", "\\_");
+            boolean unicode = false;
+            for (int i = 0; i < query.length(); i++) {
+                if (query.charAt(i) > 127) { unicode = true; break; }
+            }
+            // Android SQLite LIKE folds ASCII only. For Cyrillic and other scripts,
+            // filter on the worker thread using Java's Unicode-aware lowercase.
+            String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out " +
+                    "FROM " + TABLE + " WHERE account = ? AND (dialog_id = ? OR dialog_id = ?) AND action = ? " +
+                    (unicode ? "" : "AND (text LIKE ? ESCAPE '\\' OR prev_text LIKE ? ESCAPE '\\') ") +
+                    "ORDER BY date DESC, id DESC" + (unicode ? "" : " LIMIT " + Math.max(1, Math.min(200, limit)));
+            ArrayList<String> arguments = new ArrayList<>();
+            arguments.add(String.valueOf(account));
+            arguments.add(String.valueOf(dialogId));
+            arguments.add(String.valueOf(mergeDialogId));
+            arguments.add(String.valueOf(ACTION_DELETED));
+            if (!unicode) {
+                arguments.add("%" + escaped + "%");
+                arguments.add("%" + escaped + "%");
+            }
+            c = history.getReadableDatabase().rawQuery(sql, arguments.toArray(new String[0]));
+            String needle = query.toLowerCase(Locale.ROOT);
+            while (c.moveToNext() && result.size() < Math.max(1, Math.min(200, limit))) {
+                if (unicode && !(c.getString(8) != null && c.getString(8).toLowerCase(Locale.ROOT).contains(needle))
+                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))) {
+                    continue;
                 }
-                final int page = unicode ? 256 : wanted;
-                final String sql = "SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out "
-                        + "FROM history WHERE account = ? AND (dialog_id = ? OR dialog_id = ?) AND action = ? "
-                        + "AND (date < ? OR (date = ? AND id < ?)) "
-                        + (unicode ? "" : "AND (text LIKE ? ESCAPE '\\' OR prev_text LIKE ? ESCAPE '\\') ")
-                        + "ORDER BY date DESC, id DESC LIMIT " + page;
-                try (Cursor c = history.getReadableDatabase().rawQuery(sql, args.toArray(new String[0]))) {
-                    while (c.moveToNext() && result.size() < wanted) {
-                        scanned++;
-                        beforeDate = c.getInt(5);
-                        beforeId = c.getLong(0);
-                        String text = c.getString(8), previous = c.getString(9);
-                        if (unicode && !(text != null && text.toLowerCase(Locale.ROOT).contains(needle))
-                                && !(previous != null && previous.toLowerCase(Locale.ROOT).contains(needle))) continue;
-                        Entry e = new Entry();
-                        e.rowId = c.getLong(0); e.account = c.getInt(1); e.dialogId = c.getLong(2);
-                        e.messageId = c.getInt(3); e.fromId = c.getLong(4); e.date = c.getInt(5);
-                        e.savedAt = c.getInt(6); e.action = c.getInt(7); e.text = text;
-                        e.prevText = previous; e.out = c.getInt(10) != 0;
-                        result.add(e);
-                    }
-                }
-                more = unicode && scanned == page && result.size() < wanted;
-            } while (more);
+                Entry e = new Entry();
+                e.rowId = c.getLong(0);
+                e.account = c.getInt(1);
+                e.dialogId = c.getLong(2);
+                e.messageId = c.getInt(3);
+                e.fromId = c.getLong(4);
+                e.date = c.getInt(5);
+                e.savedAt = c.getInt(6);
+                e.action = c.getInt(7);
+                e.text = c.getString(8);
+                e.prevText = c.getString(9);
+                e.out = c.getInt(10) != 0;
+                result.add(e);
+            }
         } catch (Throwable e) {
             FileLog.e(e);
+        } finally {
+            if (c != null) c.close();
         }
         return result;
-    }
-
-    public interface PageCallback {
-        void loaded(ArrayList<Entry> entries, int total, boolean failed);
-    }
-
-    /** Ограниченная страница лёгких строк: blob не читается для глобального списка. */
-    public static void loadArchivePage(int account, long dialogId, int filter, long beforeId, int limit, PageCallback callback) {
-        executor.execute(() -> {
-            final ArrayList<Entry> rows = new ArrayList<>();
-            int total = 0;
-            boolean failed = false;
-            try {
-                final PengramHistory history = getInstance();
-                if (history == null || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) throw new IllegalArgumentException("History account unavailable");
-                final SQLiteDatabase db = history.getReadableDatabase();
-                String where = "account = ?";
-                final ArrayList<String> args = new ArrayList<>();
-                args.add(String.valueOf(account));
-                if (dialogId != 0) { where += " AND dialog_id = ?"; args.add(String.valueOf(dialogId)); }
-                if (filter == FILTER_DELETED || filter == FILTER_EDITED) {
-                    where += " AND action = ?";
-                    args.add(String.valueOf(filter == FILTER_DELETED ? ACTION_DELETED : ACTION_EDITED));
-                }
-                total = (int) android.database.DatabaseUtils.longForQuery(db, "SELECT COUNT(*) FROM history WHERE " + where, args.toArray(new String[0]));
-                where += " AND id < ?"; args.add(String.valueOf(beforeId));
-                try (Cursor c = db.rawQuery("SELECT id, account, dialog_id, message_id, from_id, date, saved_at, action, text, prev_text, out FROM history WHERE "
-                        + where + " ORDER BY id DESC LIMIT " + Math.max(1, Math.min(200, limit)), args.toArray(new String[0]))) {
-                    while (c.moveToNext()) {
-                        Entry e = new Entry();
-                        e.rowId = c.getLong(0); e.account = c.getInt(1); e.dialogId = c.getLong(2);
-                        e.messageId = c.getInt(3); e.fromId = c.getLong(4); e.date = c.getInt(5);
-                        e.savedAt = c.getInt(6); e.action = c.getInt(7); e.text = c.getString(8);
-                        e.prevText = c.getString(9); e.out = c.getInt(10) != 0; rows.add(e);
-                    }
-                }
-            } catch (Throwable e) { FileLog.e(e); failed = true; }
-            final int count = total;
-            final boolean error = failed;
-            AndroidUtilities.runOnUIThread(() -> callback.loaded(rows, count, error));
-        });
     }
 
     /** Read one archived search hit, including its original TL snapshot, on a worker. */
@@ -1376,6 +1233,20 @@ public class PengramHistory extends SQLiteOpenHelper {
             for (Entry entry : batch) visitor.visit(entry);
             lastRow = batch.get(batch.size() - 1).rowId;
         }
+    }
+
+    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit) {
+        return getEntries(dialogId, filter, limit, null, 0, false);
+    }
+
+    /**
+     * @param messageId если != 0 — только версии конкретного сообщения
+     * @param ascending true — от старых к новым (как в чате)
+     */
+    public static ArrayList<Entry> getEntries(long dialogId, int filter, int limit, String query, int messageId, boolean ascending) {
+        // Legacy callers still see only the selected account, never the shared
+        // SQLite archive of every signed-in account.
+        return getEntries(dialogId, filter, limit, query, messageId, ascending, UserConfig.selectedAccount);
     }
 
     /** Archive queries always belong to one Telegram account. */
@@ -1487,7 +1358,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     public static int getCountForAccount(int account, long dialogId) {
-        if (account < 0) return dialogId == 0 ? getCount(0) : 0;
+        if (account < 0) return getCount(dialogId);
         final PengramHistory history = getInstance();
         if (history == null) return 0;
         Cursor c = null;
@@ -1513,8 +1384,11 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (history == null) return 0;
         Cursor c = null;
         try {
-            if (dialogId != 0) return getCountForAccount(UserConfig.selectedAccount, dialogId);
-            c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE, null);
+            if (dialogId != 0) {
+                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE dialog_id = ?", new String[]{String.valueOf(dialogId)});
+            } else {
+                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE, null);
+            }
             if (c.moveToFirst()) {
                 return c.getInt(0);
             }
@@ -1533,8 +1407,8 @@ public class PengramHistory extends SQLiteOpenHelper {
         Cursor c = null;
         try {
             if (dialogId != 0) {
-                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE account = ? AND dialog_id = ? AND action = ?",
-                        new String[]{String.valueOf(UserConfig.selectedAccount), String.valueOf(dialogId), String.valueOf(action)});
+                c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE dialog_id = ? AND action = ?",
+                        new String[]{String.valueOf(dialogId), String.valueOf(action)});
             } else {
                 c = history.getReadableDatabase().rawQuery("SELECT COUNT(*) FROM " + TABLE + " WHERE action = ?",
                         new String[]{String.valueOf(action)});
@@ -1548,15 +1422,6 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (c != null) try { c.close(); } catch (Throwable ignore) {}
         }
         return 0;
-    }
-
-    /** Глобальное обслуживание после глобального лимита; не выборка чужого чата в UI. */
-    private static void reconcilePrunedMarks(SQLiteDatabase db) {
-        db.execSQL("DELETE FROM deleted_marks WHERE NOT EXISTS (SELECT 1 FROM history h"
-                + " WHERE h.account=deleted_marks.account AND h.dialog_id=deleted_marks.dialog_id"
-                + " AND h.message_id=deleted_marks.message_id AND h.action=0)");
-        for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) forgetCommittedMarks(account, 0);
-        notifyChanged();
     }
 
     /** сколько файлов лежит в сохранённых медиа */
@@ -1581,10 +1446,6 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     /** удаляет записи старше указанного числа дней; 0 — ничего не трогаем */
     public static int deleteOlderThan(final int days) {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            executor.execute(() -> deleteOlderThan(days));
-            return 0;
-        }
         if (days <= 0) {
             return 0;
         }
@@ -1595,7 +1456,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         try {
             removed = history.getWritableDatabase().delete(TABLE, "saved_at > 0 AND saved_at < ?", new String[]{String.valueOf(edge)});
             invalidateCounts(0);
-            if (removed > 0) reconcilePrunedMarks(history.getWritableDatabase());
+            history.getWritableDatabase().delete(TABLE_MARKS, "date > 0 AND date < ?", new String[]{String.valueOf(edge)});
         } catch (Throwable e) {
             FileLog.e(e);
         }
@@ -1719,19 +1580,11 @@ public class PengramHistory extends SQLiteOpenHelper {
             return;
         }
         final long now = System.currentTimeMillis();
-        if (now - lastVacuum < VACUUM_INTERVAL) return;
+        if (!force && now - lastVacuum < VACUUM_INTERVAL) {
+            return;
+        }
+        lastVacuum = now;
         try {
-            final File database = ApplicationLoader.applicationContext.getDatabasePath(DB_NAME);
-            if (database.getUsableSpace() < Math.max(32L * 1024 * 1024, database.length() * 2)) return;
-            final android.content.Intent battery = ApplicationLoader.applicationContext.registerReceiver(null,
-                    new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
-            if (battery != null) {
-                int level = battery.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1);
-                int scale = battery.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1);
-                if (level >= 0 && scale > 0 && level * 100 / scale < 15
-                        && battery.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) == 0) return;
-            }
-            lastVacuum = now;
             history.getWritableDatabase().execSQL("VACUUM");
         } catch (Throwable e) {
             FileLog.e(e);
@@ -1746,10 +1599,6 @@ public class PengramHistory extends SQLiteOpenHelper {
      * когда записей больше лимита, самые старые уходят. Иначе база растёт вечно.
      */
     public static void enforceEntryLimit() {
-        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            executor.execute(PengramHistory::enforceEntryLimit);
-            return;
-        }
         final int limit = PengramConfig.getHistoryMaxEntries();
         if (limit <= 0) {
             return;
@@ -1767,7 +1616,6 @@ public class PengramHistory extends SQLiteOpenHelper {
             invalidateCounts(0);
             statsDirty = true;
             if (removed > 0) {
-                reconcilePrunedMarks(history.getWritableDatabase());
                 vacuum(false);
             }
             if (BuildVars.LOGS_ENABLED && removed > 0) {
@@ -1795,29 +1643,27 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     public static void clear(final int account, final long dialogId) {
         final PengramHistory history = getInstance();
+        clearMarks(account, dialogId);
         if (history == null) return;
+        // Serialize explicit deletion behind earlier saves: a queued write must
+        // never resurrect rows after the user cleared this history. Never erase
+        // another account's archive when the same peer ID appears in both.
         executor.execute(() -> {
             try {
-                SQLiteDatabase db = history.getWritableDatabase();
-                final String where = dialogId == 0 ? "account = ?" : "account = ? AND dialog_id = ?";
-                final String[] args = dialogId == 0 ? new String[]{String.valueOf(account)}
-                        : new String[]{String.valueOf(account), String.valueOf(dialogId)};
-                final java.util.HashSet<String> files = collectMediaPaths(db, where, args);
-                db.beginTransaction();
-                try {
-                    if (dialogId == 0) {
-                        db.delete(TABLE, "account = ?", new String[]{String.valueOf(account)});
-                    } else {
-                        db.delete(TABLE, "account = ? AND dialog_id = ?", new String[]{String.valueOf(account), String.valueOf(dialogId)});
-                    }
-                    db.delete(TABLE_MARKS, where, args);
-                    db.setTransactionSuccessful();
-                } finally { db.endTransaction(); }
-                forgetCommittedMarks(account, dialogId);
-                cleanupUnreferencedMedia(db, files);
-                invalidateCounts(dialogId);
+                if (dialogId != 0) {
+                    history.getWritableDatabase().delete(TABLE, "account = ? AND dialog_id = ?",
+                            new String[]{String.valueOf(account), String.valueOf(dialogId)});
+                    invalidateCounts(dialogId);
+                } else {
+                    history.getWritableDatabase().delete(TABLE, "account = ?",
+                            new String[]{String.valueOf(account)});
+                    invalidateCounts(0);
+                    vacuum(true);
+                }
                 notifyChanged();
-            } catch (Throwable e) { FileLog.e(e); }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
         });
     }
 
@@ -1826,91 +1672,21 @@ public class PengramHistory extends SQLiteOpenHelper {
         if (history == null) return;
         executor.execute(() -> {
             try {
-                SQLiteDatabase db = history.getWritableDatabase();
-                final String[] args = {String.valueOf(account), String.valueOf(rowId)};
-                final java.util.HashSet<String> files = collectMediaPaths(db, "account = ? AND id = ?", args);
-                db.beginTransaction();
-                try {
-                    db.delete(TABLE, "account = ? AND id = ?", args);
-                    // Только запись ACTION_DELETED даёт право на метку, не история правок.
-                    db.execSQL("DELETE FROM deleted_marks WHERE account = ? AND NOT EXISTS"
-                            + " (SELECT 1 FROM history h WHERE h.account=deleted_marks.account"
-                            + " AND h.dialog_id=deleted_marks.dialog_id AND h.message_id=deleted_marks.message_id AND h.action=0)",
-                            new Object[]{account});
-                    db.setTransactionSuccessful();
-                } finally { db.endTransaction(); }
-                forgetCommittedMarks(account, 0);
-                cleanupUnreferencedMedia(db, files);
+                history.getWritableDatabase().delete(TABLE, "account = ? AND id = ?",
+                        new String[]{String.valueOf(account), String.valueOf(rowId)});
                 invalidateCounts(0);
                 notifyChanged();
-            } catch (Throwable e) { FileLog.e(e); }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
         });
-    }
-
-    private static void forgetCommittedMarks(int account, long dialogId) {
-        final ArrayList<Long> reload = new ArrayList<>();
-        synchronized (marksCache) {
-            if (dialogId == 0) {
-                android.util.LongSparseArray<java.util.HashSet<Integer>> old = accountMarks(account);
-                for (int i = 0; i < old.size(); i++) reload.add(old.keyAt(i));
-                marksCache.remove(account);
-                forgetLoadedMarks(account);
-            } else {
-                reload.add(dialogId);
-                accountMarks(account).remove(dialogId);
-                marksLoadedDialogs.remove(marksKey(account, dialogId));
-            }
-        }
-        for (Long did : reload) loadMarks(account, did, null);
-    }
-
-    private static java.util.HashSet<String> collectMediaPaths(SQLiteDatabase db, String where, String[] args) {
-        final java.util.HashSet<String> paths = new java.util.HashSet<>();
-        try (Cursor c = db.rawQuery("SELECT account, data, prev_data, prev_media_path FROM history WHERE " + where, args)) {
-            while (c.moveToNext()) {
-                if (!c.isNull(3)) paths.add(c.getString(3));
-                for (int col = 1; col <= 2; col++) {
-                    final byte[] blob = c.getBlob(col);
-                    TLRPC.Message message = deserialize(blob, c.getInt(0));
-                    if (blob != null && message == null) paths.add(""); // Нельзя доказать отсутствие ссылки.
-                    if (message != null && !TextUtils.isEmpty(message.attachPath)) paths.add(message.attachPath);
-                }
-            }
-        }
-        return paths;
-    }
-
-    /** Файлы могут разделяться ревизиями и аккаунтами: глобальная проверка владения намеренна. */
-    private static void cleanupUnreferencedMedia(SQLiteDatabase db, java.util.HashSet<String> candidates) {
-        try { cleanupUnreferencedMediaInternal(db, candidates); }
-        catch (Throwable e) { FileLog.e(e); }
-    }
-
-    private static void cleanupUnreferencedMediaInternal(SQLiteDatabase db, java.util.HashSet<String> candidates) {
-        if (candidates.isEmpty()) return;
-        final java.util.HashSet<String> live = collectMediaPaths(db, "1=1", null);
-        if (live.contains("")) return; // При повреждённом снимке не рискуем удалить ещё нужный файл.
-        candidates.removeAll(live);
-        final File directory = privateMediaDir();
-        if (directory == null) return;
-        for (String path : candidates) {
-            try {
-                final File file = new File(path);
-                // Не удаляем исходный Telegram cache, чужой путь или явно экспортированную галерею.
-                if (!file.getCanonicalPath().startsWith(directory.getCanonicalPath() + File.separator)) continue;
-                if (!file.exists() || file.delete()) {
-                    db.delete("saved_media", "path = ?", new String[]{path});
-                }
-            } catch (Throwable e) { FileLog.e(e); }
-        }
     }
 
     public static long getDatabaseSize() {
         try {
             if (ApplicationLoader.applicationContext == null) return 0;
             File f = ApplicationLoader.applicationContext.getDatabasePath(DB_NAME);
-            if (f == null) return 0;
-            return f.length() + new File(f.getPath() + "-wal").length() + new File(f.getPath() + "-shm").length();
+            return f != null && f.exists() ? f.length() : 0;
         } catch (Throwable e) {
             return 0;
         }

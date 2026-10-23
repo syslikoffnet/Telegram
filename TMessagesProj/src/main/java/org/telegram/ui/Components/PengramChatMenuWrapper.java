@@ -70,9 +70,7 @@ public class PengramChatMenuWrapper {
 
     private void rebuild() {
         try {
-            // Почему: addView направляет кнопки во внутренний список popup.
-            // Удаление внешних children отсоединяет этот список вместе со swipe-back.
-            windowLayout.removeInnerViews();
+            windowLayout.removeAllViews();
             if (swipeBackLayout != null) {
                 final View backItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
                         LocaleController.getString(R.string.Back), false, resourcesProvider);

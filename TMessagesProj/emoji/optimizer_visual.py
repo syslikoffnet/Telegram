@@ -3,7 +3,6 @@ import io, zlib
 import numpy as np
 from scipy.ndimage import uniform_filter, distance_transform_edt
 from scipy.spatial import cKDTree
-from image_safety import image_array, open_image
 from PIL import Image
 
 def initialize(records, originals):
@@ -147,7 +146,7 @@ def native_webp_job(i):
  if d['mask']!=65535:encode[:,:,3]=255
  rr=metrics(ref,O[i]);out=[];chosen=None
  for q in [10,20,30,40,50,60,70,80,90,95,100]:
-  b=io.BytesIO();Image.fromarray(encode).save(b,format='WEBP',quality=q,method=6,alpha_quality=100);b=b.getvalue();a=np.array(image_array(io.BytesIO(b), 'RGBA'));a[:,:,3]=ref[:,:,3]
+  b=io.BytesIO();Image.fromarray(encode).save(b,format='WEBP',quality=q,method=6,alpha_quality=100);b=b.getvalue();a=np.array(Image.open(io.BytesIO(b)).convert('RGBA'));a[:,:,3]=ref[:,:,3]
   sc=metrics(a,O[i]);good=sc[0]<=rr[0] and sc[1]>=rr[1] and sc[2]<=rr[2]
   out.append((q,len(b),sc,good))
   if good:

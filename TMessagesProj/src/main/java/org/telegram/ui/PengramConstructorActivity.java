@@ -176,10 +176,6 @@ public class PengramConstructorActivity extends BaseFragment {
                 () -> presentFragment(new PengramPlayerStyleActivity()));
 
         fragmentView = scrollView;
-        org.telegram.messenger.PengramMD3.watch(scrollView, () -> {
-            scrollView.invalidate();
-            for (int i = 0; i < content.getChildCount(); i++) content.getChildAt(i).invalidate();
-        });
         return fragmentView;
     }
 
@@ -217,11 +213,8 @@ public class PengramConstructorActivity extends BaseFragment {
             @Override
             protected void onDraw(Canvas canvas) {
                 rect.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
-                paint.setColor(org.telegram.messenger.PengramMD3.settingsScreen()
-                        ? org.telegram.messenger.PengramMD3.surface(getResourceProvider(), .05f)
-                        : Theme.getColor(Theme.key_windowBackgroundWhite));
-                final int radius = dp(org.telegram.messenger.PengramMD3.settingsScreen() ? 16 : 14);
-                canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                canvas.drawRoundRect(rect, dp(14), dp(14), paint);
             }
         };
         card.setWillNotDraw(false);
@@ -263,11 +256,8 @@ public class PengramConstructorActivity extends BaseFragment {
             @Override
             protected void onDraw(Canvas canvas) {
                 rect.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
-                paint.setColor(org.telegram.messenger.PengramMD3.settingsScreen()
-                        ? org.telegram.messenger.PengramMD3.surface(getResourceProvider(), .05f)
-                        : Theme.getColor(Theme.key_windowBackgroundWhite));
-                final int radius = dp(org.telegram.messenger.PengramMD3.settingsScreen() ? 16 : 14);
-                canvas.drawRoundRect(rect, radius, radius, paint);
+                paint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                canvas.drawRoundRect(rect, dp(14), dp(14), paint);
             }
         };
         card.setWillNotDraw(false);

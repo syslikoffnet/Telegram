@@ -104,11 +104,6 @@ public class BlurredBackgroundSourceRenderNode implements BlurredBackgroundSourc
         recordingCanvas = null;
     }
 
-    public void releaseDisplayList() {
-        // Короткоживущая линза не должна удерживать захваченный кадр до GC.
-        renderNode.discardDisplayList();
-    }
-
     public boolean isRecordingCanvas(Canvas canvas) {
         return canvas != null && canvas == recordingCanvas;
     }

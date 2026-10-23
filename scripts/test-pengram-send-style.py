@@ -25,7 +25,7 @@ assert 'PengramTextStyle.apply(message, entities)' in send
 assert 'PengramTextStyle.apply(caption, entities, false)' in send
 assert 'retryMessageObject == null' in send[send.index('// Pengram: автоматический стиль'):send.index('if (richMessage != null', send.index('// Pengram: автоматический стиль'))]
 assert 'checkInfo(PengramConfig.KEY_SEND_STYLE_LARGE_EMOJI, true,' in settings
-assert settings.index('private void fillTyping(') < settings.index('getString(R.string.PengramSendStyleLargeEmoji)') < settings.index('private void fillMediaTime(', settings.index('private void fillTyping('))
+assert settings.index('private void fillTyping(') < settings.index('getString(R.string.PengramSendStyleLargeEmoji)') < settings.index('getString(R.string.PengramInputAnimationHeader)', settings.index('private void fillTyping('))
 assert '{R.string.PengramSendStyle, PengramSettingsActivity.SECTION_TYPING,' in index
 assert '{R.string.PengramSendStyleLargeEmoji, PengramSettingsActivity.SECTION_TYPING,' in index
 assert 'id == R.string.PengramSendStyle' in metadata and ' шрифтом писать' in metadata

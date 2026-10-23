@@ -71,12 +71,7 @@ assert 'removeView(view)' in menu.split('private void detach()', 1)[1].split('pu
 
 # --- 5. островок пересобирается без пересоздания попапа ------------------------
 assert 'public void setItems(List<Integer> newItems)' in wrapper
-# Почему: внешний removeAllViews отсоединял список popup, в который addView добавляет кнопки.
-assert 'windowLayout.removeInnerViews();' in wrapper
-assert 'windowLayout.removeAllViews();' not in wrapper
-popup = (root / 'TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarPopupWindow.java').read_text()
-inner_clear = popup.split('public void removeInnerViews()', 1)[1].split('}', 1)[0]
-assert 'linearLayout.removeAllViews();' in inner_clear
+assert 'windowLayout.removeAllViews();' in wrapper
 assert wrapper.count('ActionBarMenuItem.addItem(windowLayout') == 3, 'пункты и быстрые действия должны добавляться в одном месте'
 assert 'private void rebuild()' in wrapper
 assert 'getQuickActionCount()' in wrapper
