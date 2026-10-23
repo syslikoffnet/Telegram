@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -21,6 +22,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.LaunchActivity;
@@ -56,22 +58,24 @@ public final class PengramMusicIsland extends FrameLayout {
     private boolean lastPaused;
     private MessageObject shown;
 
-    private final Runnable tick = () -> {
+    private final Runnable tick = this::refreshLoop;
+
+    private void refreshLoop() {
         if (!active) return;
         try {
             refresh();
         } catch (Throwable ignore) {
             // опрос не должен ронять кадр даже на неожиданном состоянии плеера
         }
-        ticker.postDelayed(tick, TICK_MS);
-    };
+        ticker.postDelayed(this::refreshLoop, TICK_MS);
+    }
 
     private PengramMusicIsland(Context context) {
         super(context);
 
         final GradientDrawable background = new GradientDrawable();
         background.setCornerRadius(AndroidUtilities.dp(22));
-        background.setColor(Theme.getColor(Theme.key_inappPlayerBackground, null));
+        background.setColor(Theme.getColor(Theme.key_inappPlayerBackground, (Theme.ResourcesProvider) null));
         setBackground(background);
         setPadding(AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6), AndroidUtilities.dp(6));
 
@@ -81,15 +85,15 @@ public final class PengramMusicIsland extends FrameLayout {
         addView(row, new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
 
         playPauseDrawable = new PlayPauseDrawable(16);
-        playPauseDrawable.setColor(Theme.getColor(Theme.key_inappPlayerPlayPause, null));
+        playPauseDrawable.setColor(Theme.getColor(Theme.key_inappPlayerPlayPause, (Theme.ResourcesProvider) null));
 
         playPauseView = new ImageView(context);
         playPauseView.setScaleType(ImageView.ScaleType.CENTER);
         playPauseView.setImageDrawable(playPauseDrawable);
         playPauseView.setColorFilter(new PorterDuffColorFilter(
-                Theme.getColor(Theme.key_inappPlayerPlayPause, null), PorterDuff.Mode.MULTIPLY));
+                Theme.getColor(Theme.key_inappPlayerPlayPause, (Theme.ResourcesProvider) null), PorterDuff.Mode.MULTIPLY));
         playPauseView.setBackground(Theme.createSelectorDrawable(
-                Theme.getColor(Theme.key_inappPlayerPlayPause, null) & 0x19ffffff, 1, AndroidUtilities.dp(18)));
+                Theme.getColor(Theme.key_inappPlayerPlayPause, (Theme.ResourcesProvider) null) & 0x19ffffff, 1, AndroidUtilities.dp(18)));
         playPauseView.setContentDescription("Play or pause");
         playPauseView.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
@@ -118,7 +122,7 @@ public final class PengramMusicIsland extends FrameLayout {
         titleView.setMarqueeRepeatLimit(-1);
         titleView.setSelected(true);
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        titleView.setTextColor(Theme.getColor(Theme.key_inappPlayerTitle, null));
+        titleView.setTextColor(Theme.getColor(Theme.key_inappPlayerTitle, (Theme.ResourcesProvider) null));
         texts.addView(titleView, new LinearLayout.LayoutParams(
                 AndroidUtilities.dp(150), LayoutParams.WRAP_CONTENT));
 
@@ -128,7 +132,7 @@ public final class PengramMusicIsland extends FrameLayout {
         performerView.setMaxLines(1);
         performerView.setEllipsize(TextUtils.TruncateAt.END);
         performerView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
-        performerView.setTextColor(Theme.getColor(Theme.key_inappPlayerPerformer, null));
+        performerView.setTextColor(Theme.getColor(Theme.key_inappPlayerPerformer, (Theme.ResourcesProvider) null));
         texts.addView(performerView, new LinearLayout.LayoutParams(
                 AndroidUtilities.dp(150), LayoutParams.WRAP_CONTENT));
 
@@ -146,7 +150,7 @@ public final class PengramMusicIsland extends FrameLayout {
         closeView.setScaleType(ImageView.ScaleType.CENTER);
         closeView.setImageResource(R.drawable.miniplayer_close);
         closeView.setColorFilter(new PorterDuffColorFilter(
-                Theme.getColor(Theme.key_inappPlayerClose, null), PorterDuff.Mode.MULTIPLY));
+                Theme.getColor(Theme.key_inappPlayerClose, (Theme.ResourcesProvider) null), PorterDuff.Mode.MULTIPLY));
         closeView.setContentDescription("Close");
         closeView.setOnClickListener(v -> {
             userClosed = true;
@@ -160,7 +164,7 @@ public final class PengramMusicIsland extends FrameLayout {
             final Activity activity = AndroidUtilities.findActivity(getContext());
             final Activity target = activity != null ? activity : LaunchActivity.instance;
             if (target == null) return;
-            v.performHapticFeedback(android.view.HapticFeedbackConstants.KEY_TAP);
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
             PengramMusicPlayerSheet.create(target, null).show();
         });
 
