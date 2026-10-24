@@ -43,9 +43,9 @@ def main():
     check("agsl: между касательными — чистый identity", "s = y;" in ag)
     check("agsl: cull за валиком и за границей полотна",
           ag.count("sn > 1.0") >= 2 and "s < -1.0 || s > size.y + 1.0" in ag)
-    check("agsl: перспективное сужение при уходе за валик",
-          "back = 1.0 - cos(phi)" in ag and "scale = 1.6 / (1.6 + back)" in ag)
-    check("agsl: погасание у кромки (sn>0.94)", "sn > 0.94" in ag and "color.a * alpha" in ag)
+    check("agsl: мягкая перспектива 2.0 (без flip-щелчка)",
+          "back = 1.0 - cos(phi)" in ag and "scale = 2.0 / (2.0 + back)" in ag)
+    check("agsl: без гашения — ряды не растворяются", "alpha" not in ag and "0.94" not in ag)
     check("agsl: единственный сэмпл img.eval", ag.count("img.eval") == 1
           and "img.eval(float2(sx, s))" in ag)
     check("agsl: сигнатура как у liquid", "half4 main(in float2 fragCoord)" in ag)
@@ -53,8 +53,9 @@ def main():
     print("== Java: касательные от краёв, ползунок, наследие")
     check("cy: радиусы валиков150/340dp (сила → сочность завитка)",
           "RADIUS_TIGHT_DP = 150f" in cy and "RADIUS_GENTLE_DP = 340f" in cy)
-    check("cy: inset = min(radius, H/3) — касательные внутри экрана",
-          "Math.min(radius, targetHeight / 3f)" in cy)
+    check("cy: EDGE_K=0.8 — у края остаётся ~53°, ряды гнутся без переворота",
+          "ROLLER_EDGE_K = 0.8f" in cy
+          and "Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f)" in cy)
     check("cy: касательные локально: inset - top / (H - inset) - top",
           "localT = inset - top" in cy and "localB = (targetHeight - inset) - top" in cy)
     check("cy: top с учётом сдвига (анимации едут вместе)",

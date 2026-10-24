@@ -9,10 +9,10 @@ uniform float2 size;
 // плоское: пиксель в пиксель, без деформаций. У краёв полотно наматывается
 // на валик: экранная точка y берёт угол phi = asin((localT - y) / roller),
 // исходная координата s = localT - roller * phi (снизу — симметрично).
-// Край экрана (y ~ 0 при localT = roller) соответствует phi ~ 90° —
-// контент уходит ровно «за экран», плавно схлопываясь и сужаясь по
-// перспективе (scale = 1.6 / (1.6 + 1 - cos phi)). Все ячейки считают
-// касательные от ОДНОЙ глобальной геометрии — швы совпадают точно.
+// Касательная ставится так (Java: EDGE_K = 0.8), что у самого края экрана
+// угол ~53°: ряды НЕ схлопываются в линию (без «переворота»), а гнутся —
+// уход читается как сгиб, плюс мягкая перспектива scale = 2 / (2 + 1 - cos).
+// Все ячейки считают касательные от ОДНОЙ глобальной геометрии — швы точны.
 half4 main(in float2 fragCoord) {
     float y = fragCoord.y;
     float s;
@@ -35,18 +35,14 @@ half4 main(in float2 fragCoord) {
     if (s < -1.0 || s > size.y + 1.0) {
         return half4(0.0);
     }
+    // мягкая перспектива:2.0 — уход вглубь читается, но без «щелчка» вflip
     float phi = asin(sn);
     float back = 1.0 - cos(phi);
-    float scale = 1.6 / (1.6 + back);
+    float scale = 2.0 / (2.0 + back);
     float cx = size.x * 0.5;
     float sx = cx + (fragCoord.x - cx) / scale;
     if (sx < 0.0 || sx > size.x) {
         return half4(0.0);
     }
-    half alpha = 1.0;
-    if (sn > 0.94) {
-        alpha = half(clamp((1.0 - sn) / 0.06, 0.0, 1.0));
-    }
-    half4 color = img.eval(float2(sx, s));
-    return half4(color.rgb * alpha, color.a * alpha);
+    return img.eval(float2(sx, s));
 }

@@ -1154,6 +1154,12 @@ public class PengramConfig {
 
     private static void putBoolean(String key, boolean value) {
         if (stageVisual(key, value)) return;
+        // Прямые писатели (setGhostMode, MENU_ITEM_*, setSpyOption и пр.) идут
+        // мимо setBool: кэш ОБЯЗАН следовать за каждой реальной записью — иначе
+        // getBool отдаёт устаревшее значение, список настроек пересобирается со
+        // старым чеком, и тумблер «слетает» в выключенное после скролла.
+        // Симметрично putInt, который уже обновляет intCache.
+        boolCache.put(key, value);
         SharedPreferences p = prefs();
         if (p != null) p.edit().putBoolean(key, value).apply();
     }

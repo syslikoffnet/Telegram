@@ -47,15 +47,17 @@ def main():
     check("agsl: плоская середина — identity", "s = y;" in ag)
     check("agsl: cull за валиком (sn > 1) и за границей листа",
           ag.count("sn > 1.0") >= 2 and "s < -1.0 || s > size.y + 1.0" in ag)
-    check("agsl: перспективное сужение1.6/(1.6+1-cos)",
-          "scale = 1.6 / (1.6 + back)" in ag and "back = 1.0 - cos(phi)" in ag)
-    check("agsl: погасание у края (sn > 0.94)", "sn > 0.94" in ag and "color.a * alpha" in ag)
+    check("agsl: мягкая перспектива 2.0/(2.0+1-cos)",
+          "scale = 2.0 / (2.0 + back)" in ag and "back = 1.0 - cos(phi)" in ag)
+    check("agsl: без гашения (гнёт, не переворот — ряды не растворяются)",
+          "alpha" not in ag and "0.94" not in ag)
     check("agsl: единственный сэмпл img.eval", ag.count("img.eval") == 1)
 
     print("== Java: касательные от краёв списка")
     check("cy: радиусы валиков150/340", "RADIUS_TIGHT_DP = 150f" in cy and "RADIUS_GENTLE_DP = 340f" in cy)
-    check("cy: inset = min(radius, высота/3) — касательные у краёв",
-          "Math.min(radius, targetHeight / 3f)" in cy)
+    check("cy: inset = EDGE_K*radius — у края ~53°, сгиб без переворота",
+          "ROLLER_EDGE_K = 0.8f" in cy
+          and "Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f)" in cy)
     check("cy: локальные касательные ячейки", "localT = inset - top" in cy
           and "localB = (targetHeight - inset) - top" in cy)
     check("cy: top с учётом сдвига", "child.getTop() + child.getTranslationY()" in cy)

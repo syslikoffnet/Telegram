@@ -45,6 +45,9 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final float CAMERA_BOOST = 4f;
     /** Ось поворота старого пути не ближе этого к краю — угол остаётся мягким. */
     private static final float LEGACY_MIN_RADIUS_DP = 700f;
+    /** Доля радиуса валика до касательной: у края экрана остаётся ~53° —
+     * ряды гнутся, а не схлопываются в линию (иначе читается «переворот»). */
+    private static final float ROLLER_EDGE_K = 0.8f;
 
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
@@ -207,9 +210,9 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
         final float radius = radiusDp * AndroidUtilities.density;
         final float anchor = target.getHeight() / 2f;
-        // два валика: касательные на radius от верхнего/нижнего края списка,
-        // между ними полотно плоское (identity), края наматываются на валик
-        final float inset = Math.min(radius, targetHeight / 3f);
+        // два валика: касательная на EDGE_K*radius от края — у самой кромки
+        // остаётся ~53° намотки (сгиб без переворота), плоская середина intact
+        final float inset = Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f);
         boolean warp = ensureWarp();
         if (!warp && !bends.isEmpty()) {
             // шейдер не поднялся — снимаем эффекты и уходим на старый путь
