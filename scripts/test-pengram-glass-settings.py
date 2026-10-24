@@ -25,7 +25,7 @@ ru = (root / 'TMessagesProj/src/main/res/values-ru/strings.xml').read_text()
 for key in ('KEY_GLASS_OPACITY', 'KEY_GLASS_THICKNESS', 'KEY_GLASS_INTENSITY',
             'KEY_GLASS_GLOW', 'KEY_GLASS_SHEEN', 'KEY_GLASS_DRAG', 'KEY_GLASS_RIM'):
     assert key in config, key
-assert 'getIntCached(KEY_GLASS_OPACITY, 42)' in config
+assert 'getIntCached(KEY_GLASS_OPACITY, 56)' in config
 assert 'Math.max(4, Math.min(30' in config          # толщина линзы, dp
 assert 'Math.max(0, Math.min(150' in config          # яркость/преломление, %
 assert 'getBool(KEY_GLASS_SHEEN, true)' in config

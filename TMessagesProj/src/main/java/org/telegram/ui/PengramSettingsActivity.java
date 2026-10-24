@@ -3816,7 +3816,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramPenguinSize)));
         items.add(UItem.asIntSlideView(
                 1,
-                70, PengramConfig.getPenguinSize(), 150,
+                70, PengramConfig.getPenguinSize(), 120,
                 value -> value + "%",
                 value -> {
                     PengramConfig.setPenguinSize(value);
@@ -6778,12 +6778,13 @@ public class PengramSettingsActivity extends UniversalFragment {
     private class PengramHeaderView extends LinearLayout {
 
         /**
-         * Базовый размер пингвина при ползунке 100%. 132dp читались как
-         * иконка, 160dp всё ещё терялись на большом экране. 224dp — это уже
-         * полноценный персонаж: тело занимает ~87 % кадра (см. CAM_FILL), то
-         * есть почти 195dp по высоте на обычном телефоне.
+         * Базовый размер пингвина при ползунке 100%. 132–160dp терялись
+         * на больших экранах, 224dp читался как слишком огромный. 180dp —
+         * средний вариант: тело занимает ~87 % кадра (см. CAM_FILL), то
+         * есть ~157dp по высоте — персонаж узнаваем и не занимает
+         * половину карточки.
          */
-        private static final int BASE_SIZE_DP = 224;
+        private static final int BASE_SIZE_DP = 180;
 
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;

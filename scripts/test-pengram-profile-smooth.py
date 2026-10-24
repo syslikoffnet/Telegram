@@ -38,8 +38,8 @@ assert 'pengramRegDateIconState' in profile
 assert 'getConstantState()' in profile
 assert 'pengramRegDateIconFilter = new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN);' in profile
 
-# --- пингвин: большой базовый размер и плотный кадр ------------------------
-assert 'private static final int BASE_SIZE_DP = 224;' in settings
+# --- пингвин: средний базовый размер и плотный кадр ------------------------
+assert 'private static final int BASE_SIZE_DP = 180;' in settings
 assert 'private int clampPenguinSize(int size)' in settings
 assert 'Math.min(size, max)' in settings
 assert 'private static final float CAM_FILL = 0.97f;' in penguin

@@ -20,11 +20,11 @@ activity = (root / 'TMessagesProj/src/main/java/org/telegram/ui/MainTabsActivity
 # --- провайдер: прозрачность и кант -----------------------------------------
 assert 'public final class PengramTabBarGlass' in glass
 assert 'BlurredBackgroundProviderImpl.solveSrcColor(colorBg, colorTarget, alpha(isDark))' in glass
-# Плотность стекла теперь пользовательская: 20…90 %, по умолчанию 42 % —
+# Плотность стекла теперь пользовательская: 20…90 %, по умолчанию 56 % —
 # это по-прежнему заметно прозрачнее штатных 0.85/0.76.
 assert 'org.telegram.messenger.PengramConfig.getGlassOpacity() / 100f' in glass
 config = (root / 'TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java').read_text()
-assert 'getIntCached(KEY_GLASS_OPACITY, 42)' in config
+assert 'getIntCached(KEY_GLASS_OPACITY, 56)' in config
 assert 'Math.max(20, Math.min(90' in config
 # штатные 0.85/0.76 больше не используются для панели
 assert 'PengramTabBarGlass.provider(resourceProvider)' in activity

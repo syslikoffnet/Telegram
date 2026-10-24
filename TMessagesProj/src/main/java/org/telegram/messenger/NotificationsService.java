@@ -80,7 +80,11 @@ public class NotificationsService extends Service {
             // background activity in the lock screen or notification shade.
             final boolean penguinAwake = PengramConfig.isBackgroundMode();
             final NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-                    .setSmallIcon(PengramNotificationIcon.drawable())
+                    // Служебное уведомление поддержания активности использует
+                    // единственный незаменяемый значок (звёзды) — он не входит в
+                    // список выбираемых иконок, чтобы его нельзя было перепутать
+                    // с обычными уведомлениями Pengram.
+                    .setSmallIcon(R.drawable.pengram_notify_keepalive)
                     .setContentTitle(LocaleController.getString(penguinAwake
                             ? R.string.PengramBackgroundTitle : R.string.PengramBackgroundSleepTitle))
                     .setContentText(LocaleController.getString(penguinAwake

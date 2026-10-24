@@ -1555,7 +1555,7 @@ public class PengramConfig {
     public static final String KEY_GLASS_RIM = "tabBarGlassRim";
 
     public static int getGlassOpacity() {
-        return Math.max(20, Math.min(90, getIntCached(KEY_GLASS_OPACITY, 42)));
+        return Math.max(20, Math.min(90, getIntCached(KEY_GLASS_OPACITY, 56)));
     }
 
     public static void setGlassOpacity(int percent) {
@@ -1563,7 +1563,7 @@ public class PengramConfig {
     }
 
     public static int getGlassThicknessDp() {
-        return Math.max(4, Math.min(30, getIntCached(KEY_GLASS_THICKNESS, 16)));
+        return Math.max(4, Math.min(30, getIntCached(KEY_GLASS_THICKNESS, 20)));
     }
 
     public static void setGlassThicknessDp(int dp) {
@@ -1571,7 +1571,7 @@ public class PengramConfig {
     }
 
     public static int getGlassIntensity() {
-        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_INTENSITY, 92)));
+        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_INTENSITY, 120)));
     }
 
     public static void setGlassIntensity(int percent) {
@@ -1579,7 +1579,7 @@ public class PengramConfig {
     }
 
     public static int getGlassGlow() {
-        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_GLOW, 100)));
+        return Math.max(0, Math.min(150, getIntCached(KEY_GLASS_GLOW, 130)));
     }
 
     public static void setGlassGlow(int percent) {
@@ -2406,13 +2406,13 @@ public class PengramConfig {
     public static boolean isPenguinAutoSkin() { return getBool(KEY_PENGUIN_AUTO_SKIN, true); }
     public static boolean isPenguinSleepGhost() { return getBool(KEY_PENGUIN_SLEEP_GHOST, true); }
 
-    /** размер пингвина в процентах, 70…150 */
+    /** размер пингвина в процентах, 70…120 */
     public static int getPenguinSize() {
-        return Math.max(70, Math.min(150, getIntCached("penguinSize", 100)));
+        return Math.max(70, Math.min(120, getIntCached("penguinSize", 100)));
     }
 
     public static void setPenguinSize(int percent) {
-        putInt("penguinSize", Math.max(70, Math.min(150, percent)));
+        putInt("penguinSize", Math.max(70, Math.min(120, percent)));
     }
 
     public static int getPenguinSkin() {

@@ -67,8 +67,9 @@ public class LiteMode {
         FLAG_AUTOPLAY_VIDEOS |
         FLAG_AUTOPLAY_GIFS |
         FLAG_CHAT_THANOS |
-        FLAG_PARTICLES
-    ); // 204383
+        FLAG_PARTICLES |
+        FLAG_LIQUID_GLASS
+    ); // 466527
     public static int PRESET_HIGH = (
         FLAGS_ANIMATED_STICKERS |
         FLAGS_ANIMATED_EMOJI |
@@ -81,8 +82,9 @@ public class LiteMode {
         FLAG_CALLS_ANIMATIONS |
         FLAG_AUTOPLAY_VIDEOS |
         FLAG_AUTOPLAY_GIFS |
-        FLAG_PARTICLES
-    ); // 262143
+        FLAG_PARTICLES |
+        FLAG_LIQUID_GLASS
+    ); // 524287
     public static int PRESET_POWER_SAVER = 0;
 
     private static int BATTERY_LOW = 10;
@@ -277,7 +279,17 @@ public class LiteMode {
         }
 
         int prevValue = value;
-        value = preferences.getInt("lite_mode6", defaultValue);
+        // Однократно: полноценное «жидкое стекло» по умолчанию. Старая миграция
+        // lite_mode5→6 снимало FLAG_LIQUID_GLASS у обновляющихся — из-за этого
+        // линза (толщина и сила преломления из настроек) оставалась выключенной.
+        // Возвращаем флаг один раз; выключить его можно штатным тумблером
+        // настроек лайт-режима. Новые профили получают флаг через PRESET_MEDIUM/HIGH,
+        // на слабых устройствах (PRESET_LOW) линза по-прежнему выключена.
+        if (!preferences.contains("lite_mode7") && preferences.contains("lite_mode6")) {
+            preferences.edit().putInt("lite_mode7",
+                    preferences.getInt("lite_mode6", defaultValue) | FLAG_LIQUID_GLASS).apply();
+        }
+        value = preferences.getInt("lite_mode7", defaultValue);
         if (loaded) {
             onFlagsUpdate(prevValue, value);
         }
@@ -286,7 +298,7 @@ public class LiteMode {
     }
 
     public static void savePreference() {
-        MessagesController.getGlobalMainSettings().edit().putInt("lite_mode6", value).putInt("lite_mode_battery_level", powerSaverLevel).apply();
+        MessagesController.getGlobalMainSettings().edit().putInt("lite_mode7", value).putInt("lite_mode_battery_level", powerSaverLevel).apply();
     }
 
     public static int getPowerSaverLevel() {
