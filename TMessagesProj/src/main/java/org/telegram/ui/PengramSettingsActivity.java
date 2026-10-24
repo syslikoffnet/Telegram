@@ -3563,6 +3563,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     PengramConfig::isChatEnterAnim, () -> PengramConfig.setChatEnterAnim(!PengramConfig.isChatEnterAnim())));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 65, getString(R.string.PengramCylinderScroll), getString(R.string.PengramCylinderScrollInfo),
                     PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
+            items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
+                    PengramConfig::isCylinderScrollToBars, () -> PengramConfig.setCylinderScrollToBars(!PengramConfig.isCylinderScrollToBars())));
             items.add(UItem.asHeader(getString(R.string.PengramCylinderStrength)));
             items.add(UItem.asIntSlideView(1, 0, PengramConfig.getCylinderScrollStrength(), 100,
                     value -> value + "%",

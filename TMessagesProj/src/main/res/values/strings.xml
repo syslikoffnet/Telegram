@@ -13341,6 +13341,8 @@
     <string name="PengramChatEnterAnim">Chat open animation</string>
     <string name="PengramCylinderScroll">Cylinder scroll in chat</string>
     <string name="PengramCylinderStrength">Cylinder strength</string>
+    <string name="PengramCylinderToBars">Wrap up to header and input</string>
+    <string name="PengramCylinderToBarsInfo">Rollers start below the header and above the input: messages bend visibly right up to them and disappear behind the bars. Off — at the screen edges.</string>
     <string name="PengramCylinderScrollInfo">As you scroll, messages gently wrap around an invisible drum: the center stays flat while the edges bend back, like paper rolling over a cylinder. On by default at full strength.</string>
     <string name="PengramChatEnterAnimInfo">Opening a chat fades the screen in with a slight zoom instead of a plain slide. Only cheap property animations — no overlays or extra layers, so no flicker or lag. Off by default: the stock Telegram transition is used.</string>
     <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>

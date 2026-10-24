@@ -69,7 +69,7 @@ assert 'child.setPivotY(child.getHeight() / 2f);' in cyl
 # модель движения (то, что совпало с видео) не тронута
 assert 'child.setRotationX(angle)' in cyl
 assert 'CAMERA_BOOST = 4f' in cyl
-assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll)' in \
+assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll' in \
        (java / 'ui/ChatActivity.java').read_text()
 # строка настройки: тумблер + новый ползунок
 assert 'tgCheckInfo(BTN_EXTRA_BASE + 65' in settings

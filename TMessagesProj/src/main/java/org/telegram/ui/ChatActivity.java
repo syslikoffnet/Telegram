@@ -1949,6 +1949,10 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
             };
+    /** Переиспользуемые массивы геометрии баров цилиндра — без аллокаций в кадр. */
+    private final float[] pengramCylinderBarsTmp = new float[2];
+    private final int[] pengramCylinderScratch = new int[2];
+
     /** содержимое острова собирается при первом открытии меню, а не при входе в чат */
     private final Utilities.Callback0Return<View> pengramCreateIslandView = () -> {
         // Фабрика обязана вернуть РАБОЧУЮ страницу при ЛЮБОМ исходе: раньше
@@ -7736,7 +7740,32 @@ public class ChatActivity extends BaseFragment implements
         chatListView.setVerticalScrollBarEnabled(!SharedConfig.chatBlurEnabled());
         chatListView.setAdapter(chatAdapter = new ChatActivityAdapter(context));
         // Прокрутка-цилиндр (по умолчанию выключен): сообщения огибают валик.
-        org.telegram.ui.Components.PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll);
+        org.telegram.ui.Components.PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll,
+                PengramConfig::isCylinderScrollToBars,
+                () -> {
+                    // [0] — низ шапки, [1] — верх ввода в координатах списка;
+                    // location-математика честна к любой раскладке (шапка-оверлей
+                    // или сосед сверху — в последнем случае вернётся ноль и
+                    // поведение совпадёт с выключенным тумблером)
+                    final float[] out = pengramCylinderBarsTmp;
+                    out[0] = 0f;
+                    out[1] = chatListView.getHeight();
+                    final int[] scratch = pengramCylinderScratch;
+                    chatListView.getLocationInWindow(scratch);
+                    final float listTop = scratch[1];
+                    if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
+                        actionBar.getLocationInWindow(scratch);
+                        out[0] = Math.max(0f, (scratch[1] + actionBar.getHeight()) - listTop);
+                    }
+                    if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                        chatActivityEnterView.getLocationInWindow(scratch);
+                        final float inputTop = scratch[1] - listTop;
+                        if (inputTop > out[0] + AndroidUtilities.dp(72)) {
+                            out[1] = Math.min(out[1], inputTop);
+                        }
+                    }
+                    return out;
+                });
         chatListView.setClipToPadding(false);
         if (ChatObject.isMonoForum(currentChat) || ChatObject.areTabsEnabled(currentChat)) {
             chatListView.setClipChildren(false);

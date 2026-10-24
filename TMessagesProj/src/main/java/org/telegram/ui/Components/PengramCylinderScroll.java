@@ -67,15 +67,33 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private int lastChildCount = -1;
     private int lastTargetHeight = -1;
     private float lastLayoutSum;
+    private int lastBarsSig;
     private boolean observing;
 
-    private PengramCylinderScroll(RecyclerView target, Callable<Boolean> enabled) {
+    /** Границы баров в координатах списка: [0] — низ шапки, [1] — верх ввода. */
+    public interface BarsProvider {
+        float[] get();
+    }
+
+    private final Callable<Boolean> toBarsEnabled;
+    private final BarsProvider bars;
+
+    private PengramCylinderScroll(RecyclerView target, Callable<Boolean> enabled,
+                                  Callable<Boolean> toBarsEnabled, BarsProvider bars) {
         this.target = target;
         this.enabled = enabled;
+        this.toBarsEnabled = toBarsEnabled;
+        this.bars = bars;
     }
 
     public static PengramCylinderScroll attach(RecyclerView target, Callable<Boolean> enabled) {
-        final PengramCylinderScroll scroll = new PengramCylinderScroll(target, enabled);
+        return attach(target, enabled, null, null);
+    }
+
+    /** С тумблером «до шапки и поля ввода»: валики привязываются к барам. */
+    public static PengramCylinderScroll attach(RecyclerView target, Callable<Boolean> enabled,
+                                               Callable<Boolean> toBarsEnabled, BarsProvider bars) {
+        final PengramCylinderScroll scroll = new PengramCylinderScroll(target, enabled, toBarsEnabled, bars);
         target.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
             public void onViewAttachedToWindow(View v) {
@@ -188,6 +206,29 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         }
         final int scrollOffset = target.computeVerticalScrollOffset();
         final int targetHeight = target.getHeight();
+        // границы зоны изгиба: по умолчанию — края списка (режим как раньше);
+        // с тумблером — низ шапки и верх ввода: полоса сгиба видна целиком
+        // между барами, а исчезновение уходит ПОД бар (EDGE_K ≤ 1 гарантирует)
+        float topEdge = 0f;
+        float bottomEdge = targetHeight;
+        boolean toBars = false;
+        if (toBarsEnabled != null && bars != null) {
+            try {
+                toBars = Boolean.TRUE.equals(toBarsEnabled.call());
+            } catch (Throwable ignored) {
+            }
+            if (toBars) {
+                try {
+                    final float[] edges = bars.get();
+                    if (edges != null && edges.length >= 2 && edges[1] > edges[0] + 1f) {
+                        topEdge = Math.max(0f, Math.min(edges[0], targetHeight - 2f));
+                        bottomEdge = Math.max(topEdge + 2f, Math.min(edges[1], targetHeight));
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        final int barsSig = Float.floatToIntBits(topEdge) * 31 + Float.floatToIntBits(bottomEdge);
         // сумма «верх + сдвиг» по всем строкам: аниматоры двигают ячейки и без
         // смены скролла — такой кадр обязан пересчитать сгиб, а не пропустить
         float layoutSum = 0f;
@@ -198,21 +239,27 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             }
         }
         if (applied && scrollOffset == lastScrollOffset && count == lastChildCount
-                && targetHeight == lastTargetHeight && Math.abs(layoutSum - lastLayoutSum) < 0.5f) {
+                && targetHeight == lastTargetHeight && barsSig == lastBarsSig
+                && Math.abs(layoutSum - lastLayoutSum) < 0.5f) {
             return;
         }
         lastScrollOffset = scrollOffset;
         lastChildCount = count;
         lastTargetHeight = targetHeight;
         lastLayoutSum = layoutSum;
+        lastBarsSig = barsSig;
         // сила:100 % — сочный, но читаемый изгиб,0 % — прежняя нежная дуга
         final float strength = PengramConfig.getCylinderScrollStrength() / 100f;
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
         final float radius = radiusDp * AndroidUtilities.density;
         final float anchor = target.getHeight() / 2f;
-        // два валика: касательная на EDGE_K*radius от края — у самой кромки
-        // остаётся ~53° намотки (сгиб без переворота), плоская середина intact
-        final float inset = Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f);
+        // два валика: касательные на EDGE_K*radius внутрь от ГРАНИЦ зоны
+        // (края списка либо внутренние края баров) — у кромки остаётся ~53°
+        // намотки (сгиб без переворота), плоская середина ≥ трети зоны
+        final float span = bottomEdge - topEdge;
+        final float band = Math.min(radius * ROLLER_EDGE_K, span / 3f);
+        final float insetTop = topEdge + band;
+        final float insetBottom = bottomEdge - band;
         boolean warp = ensureWarp();
         if (!warp && !bends.isEmpty()) {
             // шейдер не поднялся — снимаем эффекты и уходим на старый путь
@@ -247,8 +294,8 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 // на весь список (инсет одинаков), поэтому швы соседних строк
                 // совпадают точно, а содержимое одного сообщения едет неразрывно.
                 final float top = child.getTop() + child.getTranslationY();
-                final float localT = inset - top;
-                final float localB = (targetHeight - inset) - top;
+                final float localT = insetTop - top;
+                final float localB = insetBottom - top;
                 Bend bend = bends.get(child);
                 if (bend == null) {
                     try {

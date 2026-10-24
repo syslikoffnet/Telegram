@@ -1542,6 +1542,18 @@ public class PengramConfig {
         setIntValue(KEY_CYLINDER_STRENGTH, Math.max(0, Math.min(100, percent)));
     }
 
+    /**
+     * Тумблер «изгиб до шапки и поля ввода»: валики привязываются к внутренним
+     * краям баров — сообщения гнутся вплоть до шапки/ввода и уходят за бары.
+     * Выключен по умолчанию — прежняя геометрия по краям экрана.
+     */
+    public static final String KEY_CYLINDER_TO_BARS = "chatCylinderToBars";
+    public static boolean isCylinderScrollToBars() { return getBool(KEY_CYLINDER_TO_BARS, false); }
+    public static void setCylinderScrollToBars(boolean value) { setBool(KEY_CYLINDER_TO_BARS, value); }
+
+    /** Локальный эмодзи-статус (картинка только на этом устройстве): Base64 TL-объекта. */
+    public static final String KEY_LOCAL_EMOJI_STATUS = "localEmojiStatus";
+
     /** Тестовый слой стекла на плашке закреплённого сообщения в чате. */
     public static final String KEY_CHAT_PINNED_GLASS = "chatPinnedGlass";
     public static boolean isChatPinnedGlass() { return getBool(KEY_CHAT_PINNED_GLASS, false); }
@@ -2998,7 +3010,7 @@ public class PengramConfig {
             "typingCursorLiquidScale", "typingCursorSmooth", "typingCursorSpeed", "typingCursorWidth",
             "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize", "typingDeleteSpeed",
             "typingDeleteSpread", "typingDeleteStyle", "typingIgnoreSpaces", "typingSelectionLiquid",
-            "keepOnceMedia", "localPremium", "localPremiumStatus", "lyricsAlign",
+            "keepOnceMedia", "localPremium", "localPremiumStatus", "localEmojiStatus", "lyricsAlign",
             "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",
             "lyricsSmooth", "lyricsSource", "lyricsSpeed", "lyricsStretch",

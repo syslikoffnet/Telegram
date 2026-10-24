@@ -391,6 +391,8 @@ public class UserConfig extends BaseController {
             if (currentUser != null) {
                 checkPremiumSelf(null, currentUser);
                 clientUserId = currentUser.id;
+                // Pengram: локальный эмодзи-статус накладываем сразу после загрузки
+                pengramApplyLocalEmojiStatus(currentUser);
             }
             configLoaded = true;
         }
@@ -642,11 +644,88 @@ public class UserConfig extends BaseController {
             }
             PengramConfig.setBool("localPremiumStatusApplied", false);
         }
+        // локальный эмодзи-статус: при включённой фиче — накладываем заново,
+        // при выключенной — снимаем только наложенную нами картинку
+        if (currentUser != null) {
+            final boolean statusBefore = currentUser.emoji_status != null;
+            pengramApplyLocalEmojiStatus(currentUser);
+            if (statusBefore != (currentUser.emoji_status != null)) {
+                NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.userEmojiStatusUpdated, currentUser);
+            }
+        }
         if (repaired) {
             NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
         }
         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
-        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS);
+        NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS | MessagesController.UPDATE_MASK_EMOJI_STATUS);
+    }
+
+    /**
+     * Pengram: сохранить выбранный эмодзи-статус локально (только картинка на
+     * этом устройстве). Сериализуем TL-объект целиком — любой тип статуса
+     * (включая «до даты» и коллекционные) переживает перезапуск без потерь.
+     */
+    public static void pengramSaveLocalEmojiStatus(TLRPC.EmojiStatus status) {
+        String blob = "";
+        try {
+            if (status != null && !(status instanceof TLRPC.TL_emojiStatusEmpty)) {
+                final org.telegram.tgnet.SerializedData data = new org.telegram.tgnet.SerializedData(status.getObjectSize());
+                status.serializeToStream(data);
+                blob = android.util.Base64.encodeToString(data.toByteArray(), android.util.Base64.NO_WRAP);
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+        PengramConfig.setStringValue(PengramConfig.KEY_LOCAL_EMOJI_STATUS, blob);
+    }
+
+    private TLRPC.EmojiStatus pengramLoadLocalEmojiStatus() {
+        final String blob = PengramConfig.getStringValue(PengramConfig.KEY_LOCAL_EMOJI_STATUS, "");
+        if (blob.isEmpty()) {
+            return null;
+        }
+        try {
+            final org.telegram.tgnet.SerializedData data = new org.telegram.tgnet.SerializedData(android.util.Base64.decode(blob, android.util.Base64.NO_WRAP));
+            return TLRPC.EmojiStatus.TLdeserialize(data, data.readInt32(false), false);
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
+        }
+    }
+
+    /**
+     * Наложить (или снять, когда фича выключена) локальный эмодзи-статус на
+     * объекте себя. Снимаем ТОЛЬКО наложенную нами картинку — чужой или
+     * серверный статус не трогаем. Вызывается из putUser, чтобы серверная
+     * заливка не затирала выбор из профиля (баг: статус «слетал» после чата).
+     */
+    public void pengramApplyLocalEmojiStatus(TLRPC.User user) {
+        if (user == null || currentUser == null || user.id != currentUser.id) {
+            return;
+        }
+        final TLRPC.EmojiStatus local = pengramLoadLocalEmojiStatus();
+        if (local == null) {
+            return;
+        }
+        if (PengramConfig.isPremiumStatusLocal()) {
+            if (user.emoji_status != local) {
+                user.emoji_status = local;
+            }
+            return;
+        }
+        if (user.emoji_status != null) {
+            try {
+                final org.telegram.tgnet.SerializedData a = new org.telegram.tgnet.SerializedData(user.emoji_status.getObjectSize());
+                user.emoji_status.serializeToStream(a);
+                final org.telegram.tgnet.SerializedData b = new org.telegram.tgnet.SerializedData(local.getObjectSize());
+                local.serializeToStream(b);
+                if (java.util.Arrays.equals(a.toByteArray(), b.toByteArray())) {
+                    user.emoji_status = null;
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
     }
 
     public Long getEmojiStatus() {

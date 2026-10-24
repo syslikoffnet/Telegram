@@ -2593,6 +2593,26 @@ public class MessagesController extends BaseController implements NotificationCe
 
         TLObject r;
         if (myself) {
+            // Pengram: локальная премка. Сервер непремиуму откажет — раньше
+            // статус применялся локально и «слетал» при следующем перечитывании
+            // профиля. При включённой фиче статус живёт только на этом
+            // устройстве: сохраняем, накладываем и НЕ шлём запрос — перехват
+            // в putUser не даст серверной заливке его затереть.
+            if (PengramConfig.isPremiumStatusLocal() && !isPremiumUser(getUserConfig().getCurrentUser())) {
+                UserConfig.pengramSaveLocalEmojiStatus(new_emoji_status);
+                final TLRPC.User me = getUserConfig().getCurrentUser();
+                if (me != null) {
+                    me.emoji_status = new_emoji_status;
+                    getNotificationCenter().postNotificationName(NotificationCenter.userEmojiStatusUpdated, me);
+                    final TLRPC.User cached = getUser(me.id);
+                    if (cached != null && cached != me) {
+                        cached.emoji_status = new_emoji_status;
+                    }
+                }
+                updateEmojiStatusUntilUpdate(0, new_emoji_status);
+                getNotificationCenter().postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_EMOJI_STATUS);
+                return;
+            }
             TL_account.updateEmojiStatus req = new TL_account.updateEmojiStatus();
             req.emoji_status = newStatus;
             r = req;
@@ -6890,6 +6910,9 @@ public class MessagesController extends BaseController implements NotificationCe
             user.first_name = PengramConfig.filterZalgo(user.first_name);
             user.last_name = PengramConfig.filterZalgo(user.last_name);
         }
+        // Pengram: локальный эмодзи-статус — накладываем на каждый входящий
+        // объект себя, иначе серверная заливка затирает выбор из профиля
+        UserConfig.getInstance(currentAccount).pengramApplyLocalEmojiStatus(user);
         fromCache = fromCache && user.id / 1000 != 333 && user.id != 777000;
         TLRPC.User oldUser = users.get(user.id);
         // Pengram: запоминаем имя, пока оно ещё не подменено на ваше из контактов

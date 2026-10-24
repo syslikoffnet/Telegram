@@ -55,9 +55,10 @@ def main():
           "RADIUS_TIGHT_DP = 150f" in cy and "RADIUS_GENTLE_DP = 340f" in cy)
     check("cy: EDGE_K=0.8 — у края остаётся ~53°, ряды гнутся без переворота",
           "ROLLER_EDGE_K = 0.8f" in cy
-          and "Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f)" in cy)
+          and "Math.min(radius * ROLLER_EDGE_K, span / 3f)" in cy
+          and "insetTop = topEdge + band" in cy and "insetBottom = bottomEdge - band" in cy)
     check("cy: касательные локально: inset - top / (H - inset) - top",
-          "localT = inset - top" in cy and "localB = (targetHeight - inset) - top" in cy)
+          "localT = insetTop - top" in cy and "localB = insetBottom - top" in cy)
     check("cy: top с учётом сдвига (анимации едут вместе)",
           "child.getTop() + child.getTranslationY()" in cy)
     check("cy: bind(localT, localB, radius, w, h)", "bind(localT, localB, radius, w, h)" in cy)

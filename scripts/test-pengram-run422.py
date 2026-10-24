@@ -50,9 +50,10 @@ def main():
     check("agsl: мягкая перспектива 2.0", "scale = 2.0 / (2.0 + back)" in ag)
     check("cy: EDGE_K=0.8 — край ~53°, не90°",
           "ROLLER_EDGE_K = 0.8f" in cy
-          and "Math.min(radius * ROLLER_EDGE_K, targetHeight / 3f)" in cy)
+          and "Math.min(radius * ROLLER_EDGE_K, span / 3f)" in cy
+          and "insetTop = topEdge + band" in cy and "insetBottom = bottomEdge - band" in cy)
     check("cy: плоская середина и касательные не тронуты",
-          "localT = inset - top" in cy and "localB = (targetHeight - inset) - top" in cy)
+          "localT = insetTop - top" in cy and "localB = insetBottom - top" in cy)
     check("cy: ползунок и legacy целы",
           "radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength" in cy
           and "legacyRadius" in cy)

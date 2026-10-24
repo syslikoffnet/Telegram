@@ -77,7 +77,7 @@ assert 'tgCheckInfo(BTN_EXTRA_BASE + 65, getString(R.string.PengramCylinderScrol
 assert 'PengramConfig::isCylinderScroll' in settings and 'setCylinderScroll(!PengramConfig.isCylinderScroll())' in settings
 
 # --- 8. Цилиндр: крепление и механика ---------------------------------------
-assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll)' in chat
+assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll' in chat
 assert 'RADIUS_TIGHT_DP' in cyl and 'OnPreDrawListener' in cyl
 assert 'child.setRotationX(angle)' in cyl and 'child.setCameraDistance' in cyl
 assert 'child.setRotationX(0f)' in cyl  # выключение возвращает ячейки в норму
