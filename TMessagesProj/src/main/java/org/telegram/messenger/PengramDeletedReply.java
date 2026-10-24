@@ -7,7 +7,7 @@ import org.telegram.tgnet.TLRPC;
 import java.util.ArrayList;
 
 /**
- * Pengram: ответ на удалённое сообщение в личке.
+ * Pengram: ответ на удалённое сообщение в чате.
  *
  * Сообщения, которые собеседник удалил, Pengram оставляет в чате — но на
  * сервере их больше нет. Если ответить на такое сообщение обычным способом,
@@ -40,23 +40,37 @@ public final class PengramDeletedReply {
             if (params == null || params.retryMessageObject != null) {
                 return;   // повтор отправки: текст уже собран, второй раз цитату не клеим
             }
-            if (TextUtils.isEmpty(params.message) || params.replyToMsg == null) {
+            if (TextUtils.isEmpty(params.message)) {
+                return;
+            }
+            // Цель ответа приходит двумя путями: штатный replyToMsg или replyQuote
+            // (быстрая ответ-панель). decorate() вызывается раньше, чем sendMessage
+            // подставляет replyQuote.message в replyToMsg, — если смотреть только
+            // replyToMsg, цитата для второго пути никогда не соберётся.
+            final MessageObject target = params.replyToMsg != null
+                    ? params.replyToMsg
+                    : (params.replyQuote != null ? params.replyQuote.message : null);
+            if (target == null) {
                 return;
             }
             if (!PengramConfig.isDeletedReplyQuote()) {
                 return;
             }
-            if (!params.replyToMsg.pengramDeleted) {
+            // Удалённость подтверждаем и флагом объекта, и меткой в архиве:
+            // сообщение, подгруженное из истории, могло ещё не получить флаг.
+            final boolean deleted = target.pengramDeleted
+                    || PengramHistory.isMarkedDeleted(target.currentAccount, params.peer, target.getId());
+            if (!deleted) {
                 return;
             }
-            if (!DialogObject.isUserDialog(params.peer) || DialogObject.isEncryptedDialog(params.peer)) {
-                return;   // только обычные личные чаты
+            if (DialogObject.isEncryptedDialog(params.peer)) {
+                return;   // секрет-чаты не трогаем: текст цитаты не должен уходить в них
             }
-            final String quote = quoteText(params.replyToMsg);
+            final String quote = quoteText(target);
             if (TextUtils.isEmpty(quote)) {
                 return;
             }
-            final String name = PengramConfig.isDeletedReplySigned() ? senderName(params.replyToMsg) : null;
+            final String name = PengramConfig.isDeletedReplySigned() ? senderName(target) : null;
             final ArrayList<TLRPC.MessageEntity> quoteEntities = new ArrayList<>();
             final String head = signedBlock(name, quote, quoteEntities);
             final String prefix = head + "\n\n";

@@ -1523,8 +1523,18 @@ public class PengramConfig {
 
     /** Прокрутка-цилиндр в чате: сообщения огибают невидимый валик. */
     public static final String KEY_CYLINDER_SCROLL = "chatCylinderScroll";
-    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }
+    /** по умолчанию включён и сразу «сочный» — см. KEY_CYLINDER_STRENGTH */
+    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }
     public static void setCylinderScroll(boolean value) { setBool(KEY_CYLINDER_SCROLL, value); }
+
+    /** сила цилиндра, %: 100 — самый сочный (валик уже, изгиб заметнее) */
+    public static final String KEY_CYLINDER_STRENGTH = "cylinderScrollStrength";
+    public static int getCylinderScrollStrength() {
+        return Math.max(0, Math.min(100, getIntCached(KEY_CYLINDER_STRENGTH, 100)));
+    }
+    public static void setCylinderScrollStrength(int percent) {
+        setIntValue(KEY_CYLINDER_STRENGTH, Math.max(0, Math.min(100, percent)));
+    }
 
     /** Тестовый слой стекла на плашке закреплённого сообщения в чате. */
     public static final String KEY_CHAT_PINNED_GLASS = "chatPinnedGlass";

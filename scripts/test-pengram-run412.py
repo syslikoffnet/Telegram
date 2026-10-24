@@ -9,7 +9,7 @@
     аудио-плеера, включается только в STYLE_AUDIO_PLAYER;
   * md3Screens (default true) — тональные подложки больших экранов:
     профиль и журнал звонков; строка есть в тонкой настройке MD3;
-  * chatCylinderScroll (default false) — поворот ячеек вокруг невидимого
+  * chatCylinderScroll (default true, run414) — поворот ячеек вокруг невидимого
     валика: строка в «Эффектах», крепление к списку чата после setAdapter;
   * строки EN+RU на все новые тумблеры.
 """
@@ -39,7 +39,7 @@ assert 'KEY_PLAYER_HEADER_GLASS = "playerHeaderLiquidGlass"' in cfg
 assert 'isPlayerHeaderGlass() { return getBool(KEY_PLAYER_HEADER_GLASS, false); }' in cfg
 assert 'PengramGlassSkin.notifyChanged();' in cfg.split('KEY_PLAYER_HEADER_GLASS', 1)[1].split('KEY_CYLINDER_SCROLL', 1)[0]
 assert 'KEY_CYLINDER_SCROLL = "chatCylinderScroll"' in cfg
-assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }' in cfg
+assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }' in cfg
 
 # --- 3. Tint-слой: шлюз вместо жёсткого ключа -------------------------------
 assert 'public interface Gate' in tint and 'boolean enabled();' in tint
@@ -78,7 +78,7 @@ assert 'PengramConfig::isCylinderScroll' in settings and 'setCylinderScroll(!Pen
 
 # --- 8. Цилиндр: крепление и механика ---------------------------------------
 assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll)' in chat
-assert 'RADIUS_DP' in cyl and 'OnPreDrawListener' in cyl
+assert 'RADIUS_TIGHT_DP' in cyl and 'OnPreDrawListener' in cyl
 assert 'child.setRotationX(angle)' in cyl and 'child.setCameraDistance' in cyl
 assert 'child.setRotationX(0f)' in cyl  # выключение возвращает ячейки в норму
 assert 'child.setScaleX(1f)' in cyl

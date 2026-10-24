@@ -572,7 +572,7 @@
     <string name="PengramHideChatShareNumber">Поделиться моим номером</string>
     <string name="PengramDeletedReplyQuote">Цитировать удалённое в ответе</string>
     <string name="PengramDeletedReplySign">Подписывать цитату именем автора</string>
-    <string name="PengramDeletedReplyInfo">Удалённого сообщения на сервере уже нет, поэтому в личных чатах Pengram подклеивает его текст к вашему ответу цитатой — иначе собеседник увидит ответ в пустоту. Подпись с именем над цитатой можно отключить.</string>
+    <string name="PengramDeletedReplyInfo">Удалённого сообщения на сервере уже нет, поэтому Pengram подклеивает его текст к вашему ответу цитатой — иначе собеседник увидит ответ в пустоту. Подпись с именем над цитатой можно отключить.</string>
     <string name="PengramPreviewIncoming">Привет! Пойдём сегодня гулять?</string>
     <string name="PengramPreviewDeleted">Это сообщение удалили, но вы его всё ещё видите.</string>
     <string name="PengramPreviewEdited">Конечно, встретимся в восемь 🙂</string>
@@ -2068,7 +2068,8 @@
     <string name="PengramChatPinnedGlass">Стекло закрепа</string>
     <string name="PengramChatEnterAnim">Анимация входа в чат</string>
     <string name="PengramCylinderScroll">Прокрутка-цилиндр в чате</string>
-    <string name="PengramCylinderScrollInfo">При прокрутке сообщения мягко огибают невидимый валик: центр остаётся плоским, края заворачиваются назад, будто бумага накатывается на цилиндр. По умолчанию выключено.</string>
+    <string name="PengramCylinderStrength">Сила цилиндра</string>
+    <string name="PengramCylinderScrollInfo">При прокрутке сообщения мягко огибают невидимый валик: центр остаётся плоским, края заворачиваются назад, будто бумага накатывается на цилиндр. По умолчанию включён на максимуме.</string>
     <string name="PengramChatEnterAnimInfo">Чат открывается плавным проявлением с лёгким зумом вместо простого выезда. Только дешёвые property-анимации — без наложений и лишних слоёв, поэтому без мерцаний и подлагиваний. По умолчанию выключено: работает штатный переход Telegram.</string>
     <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
 </resources>

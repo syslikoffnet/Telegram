@@ -6,6 +6,7 @@ import android.view.ViewTreeObserver;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.PengramConfig;
 
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
@@ -17,13 +18,19 @@ import java.util.concurrent.Callable;
  * координат ячеек (пока лист прикреплён к окну), поэтому и при инерционном
  * скролле, и в покое картинка остаётся «обнятой» валиком.
  *
- * Включается тумблером chatCylinderScroll (по умолчанию выключен); выключение
- * возвращают ячейкам исходные повороты/масштаб/камеру.
+ * Включается тумблером chatCylinderScroll (по умолчанию включён), сила —
+ * ползунком cylinderScrollStrength (по умолчанию100 %, «самый сочный»);
+ * выключение возвращает ячейкам исходные повороты/масштаб/камеру.
  */
 public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawListener {
 
-    /** Радиус «валика» в dp: больше — мягче изгиб (1400dp ≈ нежная дуга). */
-    private static final float RADIUS_DP = 1400f;
+    /** Радиус «валика» при100 % силы: меньше — сочнее изгиб (валик в ~2 экрана). */
+    private static final float RADIUS_TIGHT_DP = 480f;
+    /** Радиус при0 % силы — прежняя нежная дуга. */
+    private static final float RADIUS_GENTLE_DP = 1400f;
+    /** Дополнительное ужатие краёв: от5 % (0 силы) до15 % (максимум). */
+    private static final float EDGE_SCALE_MIN = 0.05f;
+    private static final float EDGE_SCALE_MAX = 0.15f;
     /** Удлинение камеры: перспектива без резкого «обрезания» ячеек. */
     private static final float CAMERA_BOOST = 4f;
 
@@ -104,7 +111,11 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         if (count == 0) {
             return;
         }
-        final float radius = RADIUS_DP * AndroidUtilities.density;
+        // сила:100 % — плотный «сочный» валик,0 % — прежняя нежная дуга
+        final float strength = PengramConfig.getCylinderScrollStrength() / 100f;
+        final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
+        final float edgeScale = EDGE_SCALE_MIN + (EDGE_SCALE_MAX - EDGE_SCALE_MIN) * strength;
+        final float radius = radiusDp * AndroidUtilities.density;
         final float halfHeight = target.getHeight() / 2f;
         final float anchor = halfHeight;
         final float maxAngle = Math.max(halfHeight / radius * (180f / (float) Math.PI), 1f);
@@ -125,7 +136,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 child.setRotationX(angle);
             }
             final float k = Math.min(Math.abs(angle) / maxAngle, 1f);
-            final float scale = 1f - k * 0.05f;
+            final float scale = 1f - k * edgeScale;
             if (Math.abs(child.getScaleX() - scale) > 0.002f) {
                 child.setScaleX(scale);
                 child.setScaleY(scale);
