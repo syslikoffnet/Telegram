@@ -45,6 +45,11 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     /** актуальные границы клипа каждой ячейки (снимается в reset()). */
     private final WeakHashMap<View, android.graphics.Rect> clipRects = new WeakHashMap<>();
     private boolean applied;
+    // Быстрый путь покоя: скролл/геометрия не менялись — кадр идентичен, углы заново
+    // не выставляем (перерисовки списка бывают из-за GIF/видео и resize без прокрутки).
+    private int lastScrollOffset = -1;
+    private int lastChildCount = -1;
+    private int lastTargetHeight = -1;
     private boolean observing;
 
     private PengramCylinderScroll(RecyclerView target, Callable<Boolean> enabled) {
@@ -117,6 +122,15 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         if (count == 0) {
             return;
         }
+        final int scrollOffset = target.computeVerticalScrollOffset();
+        final int targetHeight = target.getHeight();
+        if (applied && scrollOffset == lastScrollOffset && count == lastChildCount
+                && targetHeight == lastTargetHeight) {
+            return;
+        }
+        lastScrollOffset = scrollOffset;
+        lastChildCount = count;
+        lastTargetHeight = targetHeight;
         // сила:100 % — сочный, но читаемый изгиб,0 % — прежняя нежная дуга
         final float strength = PengramConfig.getCylinderScrollStrength() / 100f;
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;

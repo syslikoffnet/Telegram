@@ -18,6 +18,12 @@ public final class PengramGlassSheen {
     private final Matrix matrix = new Matrix();
     private LinearGradient shader;
     private boolean enabled;
+    private long runStart = -1;
+    /** Полный проход блика по ширине — как в исходной анимации. */
+    private static final long SWEEP_MS = 4000;
+    /** Поглощает единственный самопланируемый кадр затухания; любая поздняя внешняя
+     * перерисовка (смена вкладки, скин) тут же запускает новый проход блика. */
+    private static final long GRACE_MS = 100;
 
     public void configure(boolean enabled, Theme.ResourcesProvider resources) {
         this.enabled = enabled;
@@ -26,13 +32,25 @@ public final class PengramGlassSheen {
                 new int[]{Theme.multAlpha(color, 0), Theme.multAlpha(color, .22f), Theme.multAlpha(color, 0)},
                 new float[]{0, .5f, 1}, Shader.TileMode.CLAMP);
         paint.setShader(shader);
+        // Свежая настройка — новый проход блика (обновление скина, смена вкладки, attach).
+        runStart = SystemClock.uptimeMillis();
     }
 
     public void draw(Canvas canvas, View view, Rect bounds) {
         if (!org.telegram.messenger.SharedConfig.animationsEnabled()) return;
         if (!enabled || shader == null || !PengramConfig.isGlassSheenEnabled()
                 || PengramConfig.getGlassGlow() == 0 || bounds.isEmpty()) return;
-        final float phase = (SystemClock.uptimeMillis() % 4000) / 4000f;
+        final long now = SystemClock.uptimeMillis();
+        if (runStart < 0) runStart = now;
+        long elapsed = now - runStart;
+        if (elapsed >= SWEEP_MS) {
+            // Проход окончен: в покое блик не рисуется и цикл перерисовок НЕ планируется —
+            // иначе каждая стеклянная поверхность крутит вечный цикл ~30 fps и съедает GPU.
+            if (elapsed < SWEEP_MS + GRACE_MS) return;
+            runStart = now; // внешняя перерисовка спустя паузу — запускаем блик заново
+            elapsed = 0;
+        }
+        final float phase = elapsed / (float) SWEEP_MS;
         final float x = bounds.left - AndroidUtilities.dp(72)
                 + (bounds.width() + AndroidUtilities.dp(144)) * phase;
         matrix.setTranslate(x, bounds.top);
