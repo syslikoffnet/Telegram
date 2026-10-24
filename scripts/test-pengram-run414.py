@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """run414 — две задачи (видео + замечание):
-1. Прокрутка-цилиндр: по умолчанию включён и «сочный» — слайдер
+1. Прокрутка-цилиндр (после правки «лсда»): по умолчанию включён, слайдер
    «Сила цилиндра» (0…100, по умолчанию100 %) управляет радиусом валика
-   (1400dp ←480dp) и ужатием краёв (5 % ←15 %). Модель движения не тронута.
+   (1400dp ←760dp). Только поворот — масштаба нет; на время эффекта ячейка
+   ограничена setClipBounds, чтобы медиа не вылезал из полей сообщения.
 2. Цитирование удалённых при включённом пункте «Цитировать удалённое
    в ответе»: цель ответа берётся и из replyToMsg, и из replyQuote.message;
    удалённость подтверждается флагом ИЛИ меткой архива; работают любые
@@ -48,13 +49,18 @@ assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }' in co
 assert 'KEY_CYLINDER_STRENGTH = "cylinderScrollStrength"' in config
 assert 'getIntCached(KEY_CYLINDER_STRENGTH, 100)' in config
 assert 'Math.max(0, Math.min(100, percent))' in config   # границы ползунка
-assert 'RADIUS_TIGHT_DP = 480f' in cyl                   # максимум силы
+assert 'RADIUS_TIGHT_DP = 760f' in cyl                   # максимум силы (без «лсда»)
 assert 'RADIUS_GENTLE_DP = 1400f' in cyl                 # ноль силы — прежняя дуга
-assert 'EDGE_SCALE_MIN = 0.05f' in cyl
-assert 'EDGE_SCALE_MAX = 0.15f' in cyl
 assert 'PengramConfig.getCylinderScrollStrength() / 100f' in cyl
 assert 'radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength' in cyl
-assert '1f - k * edgeScale' in cyl
+# масштаб убран: контент гнётся вместе с сообщением, без «плавающих» зазоров
+assert 'edgeScale' not in cyl
+assert 'EDGE_SCALE' not in cyl
+assert 'setScaleX' not in cyl.replace('child.setScaleX(1f);', '')  # только сброс в reset()
+# клип-гард: дети ячейки (clipChildren выключен в ChatMessageCell) не вылезают из полей
+assert 'child.setClipBounds(clip)' in cyl
+assert 'child.setClipBounds(null)' in cyl
+assert 'clipRects' in cyl
 # модель движения (то, что совпало с видео) не тронута
 assert 'child.setRotationX(angle)' in cyl
 assert 'CAMERA_BOOST = 4f' in cyl
