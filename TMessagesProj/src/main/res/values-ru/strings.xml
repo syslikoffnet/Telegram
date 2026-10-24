@@ -2063,7 +2063,6 @@
     <string name="PengramInputGlass">Стекло строки ввода</string>
     <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
     <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
-    <string name="PengramPlayerIslandGlass">Стекло островка плеера</string>
     <string name="PengramChatPinnedGlass">Стекло закрепа</string>
     <string name="PengramChatEnterAnim">Анимация входа в чат</string>
     <string name="PengramChatEnterAnimInfo">Чат открывается плавным проявлением с лёгким зумом вместо простого выезда. Только дешёвые property-анимации — без наложений и лишних слоёв, поэтому без мерцаний и подлагиваний. По умолчанию выключено: работает штатный переход Telegram.</string>

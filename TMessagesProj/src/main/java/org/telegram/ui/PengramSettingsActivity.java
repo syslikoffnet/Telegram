@@ -1478,7 +1478,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                 || PengramConfig.KEY_INPUT_GLASS.equals(key)
                 || PengramConfig.KEY_HEADER_GLASS.equals(key)
                 || PengramConfig.KEY_CHAT_HEADER_GLASS.equals(key)
-                || PengramConfig.KEY_PLAYER_ISLAND_GLASS.equals(key)
                 || PengramConfig.KEY_CHAT_PINNED_GLASS.equals(key)
                 || PengramConfig.KEY_TAB_GLASS.equals(key)
                 || key.startsWith("tabBarGlass")) {
@@ -3487,11 +3486,10 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_INPUT_GLASS, false, getString(R.string.PengramInputGlass)));
         items.add(check(PengramConfig.KEY_HEADER_GLASS, false, getString(R.string.PengramHeaderGlass)));
         items.add(check(PengramConfig.KEY_CHAT_HEADER_GLASS, true, getString(R.string.PengramChatHeaderGlass)));
-        items.add(check(PengramConfig.KEY_PLAYER_ISLAND_GLASS, false, getString(R.string.PengramPlayerIslandGlass)));
         items.add(check(PengramConfig.KEY_CHAT_PINNED_GLASS, false, getString(R.string.PengramChatPinnedGlass)));
         if (PengramConfig.isSettingsSurfaceGlass() || PengramConfig.isTabBarLiquidGlass() || PengramConfig.isInputGlass()
                 || PengramConfig.isChatListHeaderGlass() || PengramConfig.isChatHeaderGlass()
-                || PengramConfig.isPlayerIslandGlass() || PengramConfig.isChatPinnedGlass()) {
+                || PengramConfig.isChatPinnedGlass()) {
             // Ползунки стекла раскрываются по требованию: включил эффект —
             // рядом появилась его тонкая настройка, выключил — не мешает.
             items.add(moreButton(GROUP_GLASS, getString(R.string.PengramGlassMore)));

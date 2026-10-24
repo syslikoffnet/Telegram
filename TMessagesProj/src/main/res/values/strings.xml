@@ -13335,7 +13335,6 @@
     <string name="PengramInputGlass">Input bar glass</string>
     <string name="PengramHeaderGlass">Chat list header glass</string>
     <string name="PengramChatHeaderGlass">Chat header glass</string>
-    <string name="PengramPlayerIslandGlass">Player island glass</string>
     <string name="PengramChatPinnedGlass">Pinned message glass</string>
     <string name="PengramChatEnterAnim">Chat open animation</string>
     <string name="PengramChatEnterAnimInfo">Opening a chat fades the screen in with a slight zoom instead of a plain slide. Only cheap property animations — no overlays or extra layers, so no flicker or lag. Off by default: the stock Telegram transition is used.</string>
