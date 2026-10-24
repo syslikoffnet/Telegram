@@ -1,30 +1,27 @@
 uniform shader img;
 
-uniform float radius;
-uniform float neutral;
+uniform float off;
+uniform float yscale;
+uniform float sigma;
 uniform float2 size;
-uniform float persp;
 
-// Цилиндрический сгиб строки ленты. Каждый пиксель экрана (fragCoord.y)
-// отображается обратно на плоский лист: phi = asin((d - neutral) / radius) —
-// угол точки на валике, s = neutral + radius * phi — её исходная координата.
-// В точке нейтрали (d == neutral) сгиб отсутствует — сообщение прямое ровно
-// там, где пересекает центр экрана; к краям кривизна нарастает плавно и
-// монотонно, без «переворота» целиком. Сужение по X (перспективное) имитирует
-// уход краёв вглубь. За пределами листа — прозрачность (лист кончился).
+// Кусочно-аффинная намотка строки на валик. Глобальная точка листа S
+// ложится на окружность: D(S) = axis + R * sin(clamp((S - axis)/R)).
+// Внутри ЯЧЕЙКИ отображение заменено точной аффинной интерполяцией по её
+// краям (off, yscale), поэтому текст, фото и рамка одного сообщения
+// двигаются строго вместе — как жёсткая карточка, без «уезжания» частей
+// друг от друга. Края считаются от глобальной окружности, поэтому шов
+// соседних строк совпадает точно. sigma — перспективное сужение по X.
 half4 main(in float2 fragCoord) {
-    float d = fragCoord.y;
-    float arg = (d - neutral) / radius;
-    arg = clamp(arg, -1.0, 1.0);
-    float phi = asin(arg);
-    float s = neutral + radius * phi;
+    if (yscale <= 0.0001) {
+        return half4(0.0);
+    }
+    float s = (fragCoord.y - off) / yscale;
     if (s < -1.0 || s > size.y + 1.0) {
         return half4(0.0);
     }
-    float c = cos(phi);
-    float scale = 1.0 / (1.0 + (1.0 - c) * persp);
     float cx = size.x * 0.5;
-    float sx = cx + (fragCoord.x - cx) / scale;
+    float sx = cx + (fragCoord.x - cx) / max(sigma, 0.05);
     if (sx < 0.0 || sx > size.x) {
         return half4(0.0);
     }

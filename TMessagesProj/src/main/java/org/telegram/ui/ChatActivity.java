@@ -1951,17 +1951,32 @@ public class ChatActivity extends BaseFragment implements
             };
     /** содержимое острова собирается при первом открытии меню, а не при входе в чат */
     private final Utilities.Callback0Return<View> pengramCreateIslandView = () -> {
-        final org.telegram.ui.Components.PengramChatMenuWrapper wrapper =
-                new org.telegram.ui.Components.PengramChatMenuWrapper(
-                        getContext(),
-                        headerItem != null ? headerItem.getPopupLayout().getSwipeBack() : null,
-                        currentAccount,
-                        getDialogId(),
-                        org.telegram.messenger.PengramConfig.getChatIslandItems(),
-                        themeDelegate,
-                        pengramMenuCallback);
-        pengramMenuWrapper = wrapper;
-        return wrapper.windowLayout;
+        // Фабрика обязана вернуть страницу при ЛЮБОМ исходе: исключение здесь
+        // убивало сборку всего меню «три точки» — попап оставался чёрным и
+        // мёртвым. При сбое отдаём минимальную, но корректно окрашенную страницу.
+        try {
+            final org.telegram.ui.Components.PengramChatMenuWrapper wrapper =
+                    new org.telegram.ui.Components.PengramChatMenuWrapper(
+                            getContext(),
+                            headerItem != null ? headerItem.getPopupLayout().getSwipeBack() : null,
+                            currentAccount,
+                            getDialogId(),
+                            org.telegram.messenger.PengramConfig.getChatIslandItems(),
+                            themeDelegate,
+                            pengramMenuCallback);
+            pengramMenuWrapper = wrapper;
+            return wrapper.windowLayout;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            final View fallback = new View(getContext());
+            fallback.setMinimumWidth(AndroidUtilities.dp(220));
+            int bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, themeDelegate);
+            if (bg == 0) {
+                bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
+            }
+            fallback.setBackgroundColor(bg);
+            return fallback;
+        }
     };
 
     /** Pengram: «в начало» — прыжок к самому первому сообщению переписки */

@@ -19,11 +19,12 @@ import java.util.concurrent.Callable;
  * Прокрутка-цилиндр: лента ложится на невидимый валик. Сообщение НЕ
  * поворачивается жёсткой плитой вокруг шарнира — большие ячейки так
  * «переворачивало» целиком. Шейдер (AGSL, res/raw/pengram_cylinder_bend)
- * гнёт каждую строку распределённо: ровно в точке пересечения с центром
- * экрана лист остаётся прямым, к краям кривизна нарастает плавно, дальние
- * участки сужаются в перспективу и уходят за поверхность экрана. Соседние
- * строки считаются от одной глобальной оси — общий шов всегда совпадает и
- * не расходится. Рисунок детей (clipChildren у ячеек отключён) на время
+ * кладёт края каждой строки на глобальную окружность валика, а внутри
+ * ячейки держит точный аффин: сообщение едет как жёсткая карточка — текст,
+ * фото и рамка НИКОГДА не расходятся друг от друга. Дальние карточки
+ * сужаются в перспективу и уходят за поверхность экрана, к центру шаг
+ * стягивается. Соседние строки считаются от одной глобальной окружности —
+ * общий шов совпадает точно и не расходится. Рисунок детей (clipChildren у ячеек отключён) на время
  * эффекта ограничивается границами ячейки (setClipBounds), поэтому медиа
  * не вылезает из полей сообщения. Обновление — каждый кадр из текущих
  * координат ячеек; покой и кадры без сдвига (GIF/resize) пропускаются
@@ -44,6 +45,8 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final float CAMERA_BOOST = 4f;
     /** Перспективное сужение краёв при уходе вглубь (0 — без сужения). */
     private static final float PERSPECTIVE = 0.6f;
+    /** Предел угла на валике: sin монотонен до π/2, оставляем запас. */
+    private static final float PHI_MAX = 1.35f;
 
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
@@ -126,30 +129,36 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final class Bend {
         private final RuntimeShader shader;
         private RenderEffect effect;
-        private float radius, neutral, width, height;
+        private float off, yscale, sigma, width, height;
 
         private Bend(String code) {
             shader = new RuntimeShader(code);
         }
 
         /** false — параметры не изменились, эффект ставить заново не нужно. */
-        private boolean bind(float radius, float neutral, float width, float height) {
-            if (effect != null && Math.abs(this.radius - radius) < 0.1f
-                    && Math.abs(this.neutral - neutral) < 0.1f
+        private boolean bind(float off, float yscale, float sigma, float width, float height) {
+            if (effect != null && Math.abs(this.off - off) < 0.1f
+                    && Math.abs(this.yscale - yscale) < 0.01f
+                    && Math.abs(this.sigma - sigma) < 0.01f
                     && this.width == width && this.height == height) {
                 return false;
             }
-            this.radius = radius;
-            this.neutral = neutral;
+            this.off = off;
+            this.yscale = yscale;
+            this.sigma = sigma;
             this.width = width;
             this.height = height;
-            shader.setFloatUniform("radius", radius);
-            shader.setFloatUniform("neutral", neutral);
+            shader.setFloatUniform("off", off);
+            shader.setFloatUniform("yscale", yscale);
+            shader.setFloatUniform("sigma", sigma);
             shader.setFloatUniform("size", width, height);
-            shader.setFloatUniform("persp", PERSPECTIVE);
             effect = RenderEffect.createRuntimeShaderEffect(shader, "img");
             return true;
         }
+    }
+
+    private static float clampPhi(float phi) {
+        return Math.max(-PHI_MAX, Math.min(PHI_MAX, phi));
     }
 
     private boolean ensureWarp() {
@@ -233,11 +242,19 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                     child.setClipBounds(clip);
                 }
             }
-            if (warp) {
-                // нейтраль — точка пересечения строки с центром экрана
-                // (с учётом текущего сдвига): ровно там лист остаётся прямым,
-                // сгиб распределён по всей высоте, «плитой» ничего не крутит
-                final float neutral = anchor - (child.getTop() + child.getTranslationY());
+            if (warp && w > 0 && h > 0) {
+                // Края ячейки кладём на глобальную окружность валика, внутри —
+                // точная аффинная интерполяция между ними: сообщение двигается
+                // как жёсткая карточка (текст, фото и рамка — вместе, без
+                // «уезжания» частей), а шов с соседней строкой сходится точно,
+                // потому что общий край обе считают от одной окружности.
+                final float top = child.getTop() + child.getTranslationY();
+                final float phi0 = clampPhi((top - anchor) / radius);
+                final float phi1 = clampPhi((top + h - anchor) / radius);
+                final float d0 = anchor + (float) Math.sin(phi0) * radius - top;
+                final float d1 = anchor + (float) Math.sin(phi1) * radius - top;
+                final float yscale = (d1 - d0) / h;
+                final float sigma = 1f / (1f + (1f - (float) Math.cos((phi0 + phi1) * 0.5f)) * PERSPECTIVE);
                 Bend bend = bends.get(child);
                 if (bend == null) {
                     try {
@@ -250,7 +267,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                         bends.put(child, bend);
                     }
                 }
-                if (bend != null && bend.bind(radius, neutral, w, h)) {
+                if (bend != null && bend.bind(d0, yscale, sigma, w, h)) {
                     child.setRenderEffect(bend.effect);
                 }
             }

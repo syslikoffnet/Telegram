@@ -72,7 +72,8 @@ assert 'removeView(view)' in menu.split('private void detach()', 1)[1].split('pu
 # --- 5. островок пересобирается без пересоздания попапа ------------------------
 assert 'public void setItems(List<Integer> newItems)' in wrapper
 assert 'windowLayout.removeAllViews();' in wrapper
-assert wrapper.count('ActionBarMenuItem.addItem(windowLayout') == 3, 'пункты и быстрые действия должны добавляться в одном месте'
+# run419: +1 — всегда присутствующая кнопка закрытия, когда swipeBack недоступен
+assert wrapper.count('ActionBarMenuItem.addItem(windowLayout') == 4, 'пункты и быстрые действия должны добавляться в одном месте'
 assert 'private void rebuild()' in wrapper
 assert 'getQuickActionCount()' in wrapper
 

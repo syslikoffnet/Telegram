@@ -31,13 +31,16 @@ settings = (java / 'ui/PengramSettingsActivity.java').read_text()
 assert 'applyContrastColors(backItem)' in wrapper
 assert 'applyContrastColors(item)' in wrapper
 assert 'applyContrastColors(quick)' in wrapper
-assert wrapper.count('applyContrastColors(') == 4  # определение + 3 вызова
+# run419: +1 — контраст кнопки закрытия (сборка по-элементной, без единого исключения)
+assert wrapper.count('applyContrastColors(') == 5  # определение + 4 вызова
 assert 'Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)' in wrapper
 assert 'luminance / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E' in wrapper
 assert 'item.setSubtextColor(fg)' in wrapper
 assert 'item.setColors(fg, fg)' in wrapper
 # фон страницы и текст считаются от одного ключа с одним провайдером
-assert wrapper.count('Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)') == 2
+# run419: единственный источник — pageBackground(); контраст берёт оттуда же
+assert wrapper.count('Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)') == 1
+assert 'final int bg = pageBackground();' in wrapper
 
 # --- 1: уникальный незаменяемый значок keep-alive ---------------------------
 assert 'setSmallIcon(R.drawable.pengram_notify_keepalive)' in service

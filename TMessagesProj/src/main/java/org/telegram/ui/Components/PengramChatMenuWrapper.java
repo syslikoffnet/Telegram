@@ -54,9 +54,9 @@ public class PengramChatMenuWrapper {
         // сам свайп-слой, а цвет пунктов берётся из этого resourcesProvider. Когда
         // провайдеры различались (actionbar против chat theme), пара фон/текст
         // съезжала и страница уходила в чёрное. Рисуем фон сами — тем же
-        // провайдером, что и пункты.
-        windowLayout.setBackground(new android.graphics.drawable.ColorDrawable(
-                Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)));
+        // провайдером, что и пункты, с гарантированным фолбэком на базовую тему,
+        // если ключ вдруг вернул прозрачность.
+        windowLayout.setBackground(new android.graphics.drawable.ColorDrawable(pageBackground()));
         windowLayout.setFitItems(true);
         setItems(items);
         windowLayout.setMinimumWidth(AndroidUtilities.dp(220));
@@ -76,23 +76,43 @@ public class PengramChatMenuWrapper {
     }
 
     private void rebuild() {
-        try {
-            windowLayout.removeAllViews();
-            if (swipeBackLayout != null) {
+        // Сборка по-элементно: исключение на одном пункте не должно оставлять
+        // пустую чёрную страницу — остальные пункты и кнопка закрытия обязаны
+        // присутствовать всегда.
+        windowLayout.removeAllViews();
+        if (swipeBackLayout != null) {
+            try {
                 final ActionBarMenuSubItem backItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
                         LocaleController.getString(R.string.Back), false, resourcesProvider);
                 backItem.setOnClickListener(view -> swipeBackLayout.closeForeground());
                 applyContrastColors(backItem);
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
-            for (int a = 0; a < items.size(); ++a) {
+        } else {
+            try {
+                final ActionBarMenuSubItem closeItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
+                        LocaleController.getString(R.string.Back), false, resourcesProvider);
+                closeItem.setOnClickListener(view -> callback.dismiss());
+                applyContrastColors(closeItem);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
+        for (int a = 0; a < items.size(); ++a) {
+            try {
                 addChatItem(items.get(a));
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
-            final int quickCount = PengramConfig.getQuickActionCount();
-            for (int i = 0; i < quickCount; i++) {
+        }
+        final int quickCount = PengramConfig.getQuickActionCount();
+        for (int i = 0; i < quickCount; i++) {
+            try {
                 addQuickAction(i);
+            } catch (Throwable e) {
+                FileLog.e(e);
             }
-        } catch (Throwable e) {
-            FileLog.e(e);
         }
     }
 
@@ -149,9 +169,20 @@ public class PengramChatMenuWrapper {
      * при любом разрешении темы.
      */
     private int contrastForegroundColor() {
-        final int bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider);
+        final int bg = pageBackground();
         final int luminance = ((bg >> 16) & 0xFF) * 299 + ((bg >> 8) & 0xFF) * 587 + (bg & 0xFF) * 114;
         return luminance / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E;
+    }
+
+    /** Фактический фон страницы: провайдер темы чата, а при пустом ключе —
+     * базовая тема. Один источник и для заливки, и для расчёта контраста —
+     * текст пунктов всегда виден на своём фоне. */
+    private int pageBackground() {
+        int bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider);
+        if (bg == 0) {
+            bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
+        }
+        return bg;
     }
 
     private void applyContrastColors(ActionBarMenuSubItem item) {

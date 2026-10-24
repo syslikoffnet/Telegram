@@ -2514,8 +2514,23 @@ public class ActionBarMenuItem extends FrameLayout {
                 layoutParams.height = AndroidUtilities.dp(48);
                 cell.setLayoutParams(layoutParams);
                 if (swipeBackViewFactory != null) {
-                    viewToSwipeBack = swipeBackViewFactory.run();
+                    try {
+                        viewToSwipeBack = swipeBackViewFactory.run();
+                    } catch (Throwable e) {
+                        org.telegram.messenger.FileLog.e(e);
+                    }
                     swipeBackViewFactory = null;
+                }
+                if (viewToSwipeBack == null) {
+                    // Фабрика упала: страница всё равно должна существовать —
+                    // иначе addViewToSwipeBack упадёт по null и меню снова
+                    // превратится в чёрный экран без пунктов.
+                    viewToSwipeBack = new android.view.View(parent.getContext());
+                    int fallbackBg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, parent.resourcesProvider);
+                    if (fallbackBg == 0) {
+                        fallbackBg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
+                    }
+                    viewToSwipeBack.setBackgroundColor(fallbackBg);
                 }
                 int swipeBackIndex = parent.popupLayout.addViewToSwipeBack(viewToSwipeBack);
                 cell.openSwipeBackLayout = () -> {
@@ -2686,7 +2701,14 @@ public class ActionBarMenuItem extends FrameLayout {
             return;
         }
         for (int i = 0; i < lazyList.size(); ++i) {
-            lazyList.get(i).add(this);
+            try {
+                lazyList.get(i).add(this);
+            } catch (Throwable e) {
+                // Один сбойный пункт (исключение при сборке) не должен убивать
+                // всё меню целиком — иначе «три точки» открываются пустыми
+                // и чёрными, и перестают реагировать.
+                org.telegram.messenger.FileLog.e(e);
+            }
         }
         lazyList.clear();
     }
