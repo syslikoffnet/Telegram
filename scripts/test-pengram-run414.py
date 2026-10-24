@@ -61,6 +61,11 @@ assert 'setScaleX' not in cyl.replace('child.setScaleX(1f);', '')  # тольк�
 assert 'child.setClipBounds(clip)' in cyl
 assert 'child.setClipBounds(null)' in cyl
 assert 'clipRects' in cyl
+# «за экран»: пивот — ребро строки, ближнее к центру, общий шов не рвётся
+assert 'child.setPivotY(centerY <= anchor ? child.getHeight() : 0f)' in cyl
+assert 'child.setPivotX(child.getWidth() / 2f);' in cyl
+# сброс пивота в центр при выключении
+assert 'child.setPivotY(child.getHeight() / 2f);' in cyl
 # модель движения (то, что совпало с видео) не тронута
 assert 'child.setRotationX(angle)' in cyl
 assert 'CAMERA_BOOST = 4f' in cyl
