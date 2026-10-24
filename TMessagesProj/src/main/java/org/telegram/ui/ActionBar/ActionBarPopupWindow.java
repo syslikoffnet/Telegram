@@ -577,6 +577,7 @@ public class ActionBarPopupWindow extends PopupWindow {
                     canvas.restoreToCount(saveCount);
                 }
             }
+            ensureItemsContrast();
             if (reactionsEnterProgress != 1f) {
                 canvas.saveLayerAlpha((float) AndroidUtilities.rectTmp2.left, (float) AndroidUtilities.rectTmp2.top, AndroidUtilities.rectTmp2.right, AndroidUtilities.rectTmp2.bottom, (int) (255 * reactionsEnterProgress), Canvas.ALL_SAVE_FLAG);
                 float scale = 0.5f + reactionsEnterProgress * 0.5f;
@@ -585,6 +586,36 @@ public class ActionBarPopupWindow extends PopupWindow {
                 canvas.restore();
             } else {
                 super.dispatchDraw(canvas);
+            }
+        }
+
+        /**
+         * Последний рубеж видимости пунктов: сверяем цвета каждого текстового
+         * пункта с ФАКТИЧЕСКИМ фоном подменю (ColorDrawable страницы или ключ
+         * темы) — слипшиеся красим в контрастные. Так «три точки» и остров
+         * Pengram не могут уйти в полную невидимость ни при каком расхождении
+         * провайдеров темы. Идемпотентно: после перекраски проверка проходит.
+         */
+        private void ensureItemsContrast() {
+            final int bg;
+            if (getBackground() instanceof android.graphics.drawable.ColorDrawable) {
+                bg = ((android.graphics.drawable.ColorDrawable) getBackground()).getColor();
+            } else {
+                bg = getThemedColor(Theme.key_actionBarDefaultSubmenuBackground);
+            }
+            final int lumBg = ((bg >> 16) & 0xFF) * 299 + ((bg >> 8) & 0xFF) * 587 + (bg & 0xFF) * 114;
+            for (int i = 0; i < linearLayout.getChildCount(); i++) {
+                final View child = linearLayout.getChildAt(i);
+                if (child instanceof ActionBarMenuSubItem) {
+                    ((ActionBarMenuSubItem) child).ensureVisibleContrast(bg);
+                } else if (child instanceof android.widget.TextView) {
+                    final android.widget.TextView textView = (android.widget.TextView) child;
+                    final int textColor = textView.getCurrentTextColor();
+                    final int lumText = ((textColor >> 16) & 0xFF) * 299 + ((textColor >> 8) & 0xFF) * 587 + (textColor & 0xFF) * 114;
+                    if (Math.abs(lumBg - lumText) < 96) {
+                        textView.setTextColor(lumBg / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E);
+                    }
+                }
             }
         }
 

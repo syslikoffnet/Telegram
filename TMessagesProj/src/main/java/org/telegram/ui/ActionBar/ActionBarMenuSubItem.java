@@ -248,6 +248,23 @@ public class ActionBarMenuSubItem extends FrameLayout {
     }
 
 
+    /**
+     * Последний рубеж видимости пункта: если цвет текста/иконки слился с
+     * фактическим фоном подменю (провайдеры или ветки темы разъехались),
+     * красим в контрастный. Идемпотентно — после перекраски проверка проходит,
+     * повторная отрисовка ничего не меняет.
+     */
+    public void ensureVisibleContrast(int bg) {
+        final int lumBg = ((bg >> 16) & 0xFF) * 299 + ((bg >> 8) & 0xFF) * 587 + (bg & 0xFF) * 114;
+        final int lumText = ((textColor >> 16) & 0xFF) * 299 + ((textColor >> 8) & 0xFF) * 587 + (textColor & 0xFF) * 114;
+        if (Math.abs(lumBg - lumText) >= 96) {
+            return;
+        }
+        final int fix = lumBg / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E;
+        setColors(fix, fix);
+        setSubtextColor(fix);
+    }
+
     public ActionBarMenuSubItem setColors(int textColor, int iconColor) {
         setTextColor(textColor);
         setIconColor(iconColor);

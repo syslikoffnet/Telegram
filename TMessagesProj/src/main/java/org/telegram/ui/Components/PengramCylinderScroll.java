@@ -44,9 +44,12 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     /** Удлинение камеры для старого пути (API < 33): перспектива без обрезания. */
     private static final float CAMERA_BOOST = 4f;
     /** Перспективное сужение краёв при уходе вглубь (0 — без сужения). */
-    private static final float PERSPECTIVE = 0.6f;
+    private static final float PERSPECTIVE = 0.75f;
     /** Предел угла на валике: sin монотонен до π/2, оставляем запас. */
     private static final float PHI_MAX = 1.35f;
+    /** Сила перспективного наклона внутри карточки:0 — ровный аффин,
+     * дальше — сильнее «уход» дальней половины вглубь (без переворота). */
+    private static final float KAPPA_MAX = 0.35f;
 
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
@@ -129,28 +132,34 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final class Bend {
         private final RuntimeShader shader;
         private RenderEffect effect;
-        private float off, yscale, sigma, width, height;
+        private float off, span, kappa, sigmaTop, sigmaBottom, width, height;
 
         private Bend(String code) {
             shader = new RuntimeShader(code);
         }
 
         /** false — параметры не изменились, эффект ставить заново не нужно. */
-        private boolean bind(float off, float yscale, float sigma, float width, float height) {
+        private boolean bind(float off, float span, float kappa, float sigmaTop, float sigmaBottom,
+                             float width, float height) {
             if (effect != null && Math.abs(this.off - off) < 0.1f
-                    && Math.abs(this.yscale - yscale) < 0.01f
-                    && Math.abs(this.sigma - sigma) < 0.01f
+                    && Math.abs(this.span - span) < 0.1f
+                    && Math.abs(this.kappa - kappa) < 0.005f
+                    && Math.abs(this.sigmaTop - sigmaTop) < 0.005f
+                    && Math.abs(this.sigmaBottom - sigmaBottom) < 0.005f
                     && this.width == width && this.height == height) {
                 return false;
             }
             this.off = off;
-            this.yscale = yscale;
-            this.sigma = sigma;
+            this.span = span;
+            this.kappa = kappa;
+            this.sigmaTop = sigmaTop;
+            this.sigmaBottom = sigmaBottom;
             this.width = width;
             this.height = height;
             shader.setFloatUniform("off", off);
-            shader.setFloatUniform("yscale", yscale);
-            shader.setFloatUniform("sigma", sigma);
+            shader.setFloatUniform("span", span);
+            shader.setFloatUniform("kappa", kappa);
+            shader.setFloatUniform("sigmas", sigmaTop, sigmaBottom);
             shader.setFloatUniform("size", width, height);
             effect = RenderEffect.createRuntimeShaderEffect(shader, "img");
             return true;
@@ -159,6 +168,11 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
 
     private static float clampPhi(float phi) {
         return Math.max(-PHI_MAX, Math.min(PHI_MAX, phi));
+    }
+
+    /** Сужение по X для точки под углом phi: дальше от центра — уже (уход). */
+    private static float edgeSigma(float phi) {
+        return 1f / (1f + (1f - (float) Math.cos(phi)) * PERSPECTIVE);
     }
 
     private boolean ensureWarp() {
@@ -251,10 +265,16 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 final float top = child.getTop() + child.getTranslationY();
                 final float phi0 = clampPhi((top - anchor) / radius);
                 final float phi1 = clampPhi((top + h - anchor) / radius);
+                final float phiMid = clampPhi((top + h / 2f - anchor) / radius);
+                // края — от глобальной окружности: швы соседних карточек точны
                 final float d0 = anchor + (float) Math.sin(phi0) * radius - top;
                 final float d1 = anchor + (float) Math.sin(phi1) * radius - top;
-                final float yscale = (d1 - d0) / h;
-                final float sigma = 1f / (1f + (1f - (float) Math.cos((phi0 + phi1) * 0.5f)) * PERSPECTIVE);
+                // наклон: знак от положения карточки (дальняя половина — к центру
+                // валика), трапеция — сужение дальнего края. Внутри — одна карта
+                // на всю ячейку: содержимое едет неразрывно.
+                final float kappa = phiMid / PHI_MAX * KAPPA_MAX;
+                final float sigmaTop = edgeSigma(phi0);
+                final float sigmaBottom = edgeSigma(phi1);
                 Bend bend = bends.get(child);
                 if (bend == null) {
                     try {
@@ -267,7 +287,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                         bends.put(child, bend);
                     }
                 }
-                if (bend != null && bend.bind(d0, yscale, sigma, w, h)) {
+                if (bend != null && bend.bind(d0, d1 - d0, kappa, sigmaTop, sigmaBottom, w, h)) {
                     child.setRenderEffect(bend.effect);
                 }
             }
