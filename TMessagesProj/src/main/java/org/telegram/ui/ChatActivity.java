@@ -1951,31 +1951,27 @@ public class ChatActivity extends BaseFragment implements
             };
     /** содержимое острова собирается при первом открытии меню, а не при входе в чат */
     private final Utilities.Callback0Return<View> pengramCreateIslandView = () -> {
-        // Фабрика обязана вернуть страницу при ЛЮБОМ исходе: исключение здесь
-        // убивало сборку всего меню «три точки» — попап оставался чёрным и
-        // мёртвым. При сбое отдаём минимальную, но корректно окрашенную страницу.
+        // Фабрика обязана вернуть РАБОЧУЮ страницу при ЛЮБОМ исходе: раньше
+        // исключение здесь превращало остров в пустую чёрную заглушку
+        // («нету меню, всё чёрное»). Любая ошибка — в лог, на экран идёт
+        // полноценная неуязвимая страница с кнопками.
         try {
             final org.telegram.ui.Components.PengramChatMenuWrapper wrapper =
                     new org.telegram.ui.Components.PengramChatMenuWrapper(
                             getContext(),
-                            headerItem != null ? headerItem.getPopupLayout().getSwipeBack() : null,
                             currentAccount,
                             getDialogId(),
                             org.telegram.messenger.PengramConfig.getChatIslandItems(),
                             themeDelegate,
                             pengramMenuCallback);
             pengramMenuWrapper = wrapper;
-            return wrapper.windowLayout;
+            return wrapper.page;
         } catch (Throwable e) {
             FileLog.e(e);
-            final View fallback = new View(getContext());
-            fallback.setMinimumWidth(AndroidUtilities.dp(220));
-            int bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, themeDelegate);
-            if (bg == 0) {
-                bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
-            }
-            fallback.setBackgroundColor(bg);
-            return fallback;
+            return org.telegram.ui.Components.PengramChatMenuWrapper.buildEmergencyPage(
+                    getContext(), themeDelegate,
+                    org.telegram.messenger.PengramConfig.getChatIslandItems(),
+                    pengramMenuCallback);
         }
     };
 

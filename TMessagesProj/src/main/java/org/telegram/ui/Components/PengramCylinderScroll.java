@@ -18,13 +18,13 @@ import java.util.concurrent.Callable;
 /**
  * Прокрутка-цилиндр: лента ложится на невидимый валик. Сообщение НЕ
  * поворачивается жёсткой плитой вокруг шарнира — большие ячейки так
- * «переворачивало» целиком. Шейдер (AGSL, res/raw/pengram_cylinder_bend)
- * кладёт края каждой строки на глобальную окружность валика, а внутри
- * ячейки держит точный аффин: сообщение едет как жёсткая карточка — текст,
- * фото и рамка НИКОГДА не расходятся друг от друга. Дальние карточки
- * сужаются в перспективу и уходят за поверхность экрана, к центру шаг
- * стягивается. Соседние строки считаются от одной глобальной окружности —
- * общий шов совпадает точно и не расходится. Рисунок детей (clipChildren у ячеек отключён) на время
+ * «переворачивало» целиком. Модель — ДВА ВАЛИКА, сверху и снизу, как на
+ * эталонном видео: между касательными (radius от краёв) полотно полностью
+ * плоское (сообщения не деформируются в центре), у краёв экрана оно
+ * наматывается на валик — перспективное сужение и плавное погасание у самой
+ * кромки, «как за экран». Касательные считаются от ОДНОЙ глобальной
+ * геометрии — швы соседних строк совпадают точно, содержимое одного
+ * сообщения движется неразрывно. Рисунок детей (clipChildren у ячеек отключён) на время
  * эффекта ограничивается границами ячейки (setClipBounds), поэтому медиа
  * не вылезает из полей сообщения. Обновление — каждый кадр из текущих
  * координат ячеек; покой и кадры без сдвига (GIF/resize) пропускаются
@@ -37,19 +37,14 @@ import java.util.concurrent.Callable;
  */
 public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawListener {
 
-    /** Радиус «валика» при100 % силы: меньше — сочнее изгиб, но без «лсда». */
-    private static final float RADIUS_TIGHT_DP = 760f;
-    /** Радиус при0 % силы — прежняя нежная дуга. */
-    private static final float RADIUS_GENTLE_DP = 1400f;
+    /** Радиус валика при100 % силы: меньше — сочнее завиток у края экрана. */
+    private static final float RADIUS_TIGHT_DP = 150f;
+    /** Радиус валика при0 % силы — мягкий, почти прямой край. */
+    private static final float RADIUS_GENTLE_DP = 340f;
     /** Удлинение камеры для старого пути (API < 33): перспектива без обрезания. */
     private static final float CAMERA_BOOST = 4f;
-    /** Перспективное сужение краёв при уходе вглубь (0 — без сужения). */
-    private static final float PERSPECTIVE = 0.75f;
-    /** Предел угла на валике: sin монотонен до π/2, оставляем запас. */
-    private static final float PHI_MAX = 1.35f;
-    /** Сила перспективного наклона внутри карточки:0 — ровный аффин,
-     * дальше — сильнее «уход» дальней половины вглубь (без переворота). */
-    private static final float KAPPA_MAX = 0.35f;
+    /** Ось поворота старого пути не ближе этого к краю — угол остаётся мягким. */
+    private static final float LEGACY_MIN_RADIUS_DP = 700f;
 
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
@@ -132,47 +127,32 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final class Bend {
         private final RuntimeShader shader;
         private RenderEffect effect;
-        private float off, span, kappa, sigmaTop, sigmaBottom, width, height;
+        private float localT, localB, roller, width, height;
 
         private Bend(String code) {
             shader = new RuntimeShader(code);
         }
 
         /** false — параметры не изменились, эффект ставить заново не нужно. */
-        private boolean bind(float off, float span, float kappa, float sigmaTop, float sigmaBottom,
-                             float width, float height) {
-            if (effect != null && Math.abs(this.off - off) < 0.1f
-                    && Math.abs(this.span - span) < 0.1f
-                    && Math.abs(this.kappa - kappa) < 0.005f
-                    && Math.abs(this.sigmaTop - sigmaTop) < 0.005f
-                    && Math.abs(this.sigmaBottom - sigmaBottom) < 0.005f
+        private boolean bind(float localT, float localB, float roller, float width, float height) {
+            if (effect != null && Math.abs(this.localT - localT) < 0.1f
+                    && Math.abs(this.localB - localB) < 0.1f
+                    && Math.abs(this.roller - roller) < 0.1f
                     && this.width == width && this.height == height) {
                 return false;
             }
-            this.off = off;
-            this.span = span;
-            this.kappa = kappa;
-            this.sigmaTop = sigmaTop;
-            this.sigmaBottom = sigmaBottom;
+            this.localT = localT;
+            this.localB = localB;
+            this.roller = roller;
             this.width = width;
             this.height = height;
-            shader.setFloatUniform("off", off);
-            shader.setFloatUniform("span", span);
-            shader.setFloatUniform("kappa", kappa);
-            shader.setFloatUniform("sigmas", sigmaTop, sigmaBottom);
+            shader.setFloatUniform("localT", localT);
+            shader.setFloatUniform("localB", localB);
+            shader.setFloatUniform("roller", roller);
             shader.setFloatUniform("size", width, height);
             effect = RenderEffect.createRuntimeShaderEffect(shader, "img");
             return true;
         }
-    }
-
-    private static float clampPhi(float phi) {
-        return Math.max(-PHI_MAX, Math.min(PHI_MAX, phi));
-    }
-
-    /** Сужение по X для точки под углом phi: дальше от центра — уже (уход). */
-    private static float edgeSigma(float phi) {
-        return 1f / (1f + (1f - (float) Math.cos(phi)) * PERSPECTIVE);
     }
 
     private boolean ensureWarp() {
@@ -227,6 +207,9 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
         final float radius = radiusDp * AndroidUtilities.density;
         final float anchor = target.getHeight() / 2f;
+        // два валика: касательные на radius от верхнего/нижнего края списка,
+        // между ними полотно плоское (identity), края наматываются на валик
+        final float inset = Math.min(radius, targetHeight / 3f);
         boolean warp = ensureWarp();
         if (!warp && !bends.isEmpty()) {
             // шейдер не поднялся — снимаем эффекты и уходим на старый путь
@@ -257,24 +240,12 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 }
             }
             if (warp && w > 0 && h > 0) {
-                // Края ячейки кладём на глобальную окружность валика, внутри —
-                // точная аффинная интерполяция между ними: сообщение двигается
-                // как жёсткая карточка (текст, фото и рамка — вместе, без
-                // «уезжания» частей), а шов с соседней строкой сходится точно,
-                // потому что общий край обе считают от одной окружности.
+                // Касательные валиков в локальных координатах ячейки: карта одна
+                // на весь список (инсет одинаков), поэтому швы соседних строк
+                // совпадают точно, а содержимое одного сообщения едет неразрывно.
                 final float top = child.getTop() + child.getTranslationY();
-                final float phi0 = clampPhi((top - anchor) / radius);
-                final float phi1 = clampPhi((top + h - anchor) / radius);
-                final float phiMid = clampPhi((top + h / 2f - anchor) / radius);
-                // края — от глобальной окружности: швы соседних карточек точны
-                final float d0 = anchor + (float) Math.sin(phi0) * radius - top;
-                final float d1 = anchor + (float) Math.sin(phi1) * radius - top;
-                // наклон: знак от положения карточки (дальняя половина — к центру
-                // валика), трапеция — сужение дальнего края. Внутри — одна карта
-                // на всю ячейку: содержимое едет неразрывно.
-                final float kappa = phiMid / PHI_MAX * KAPPA_MAX;
-                final float sigmaTop = edgeSigma(phi0);
-                final float sigmaBottom = edgeSigma(phi1);
+                final float localT = inset - top;
+                final float localB = (targetHeight - inset) - top;
                 Bend bend = bends.get(child);
                 if (bend == null) {
                     try {
@@ -287,7 +258,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                         bends.put(child, bend);
                     }
                 }
-                if (bend != null && bend.bind(d0, d1 - d0, kappa, sigmaTop, sigmaBottom, w, h)) {
+                if (bend != null && bend.bind(localT, localB, radius, w, h)) {
                     child.setRenderEffect(bend.effect);
                 }
             }
@@ -301,7 +272,10 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 final float centerY = child.getTop() + child.getHeight() / 2f;
                 child.setPivotX(child.getWidth() / 2f);
                 child.setPivotY(centerY <= anchor ? child.getHeight() : 0f);
-                final float angle = (anchor - centerY) / radius * (180f / (float) Math.PI);
+                // старый путь масштабируется отдельно: радиус валиков мал,
+                // а дуге старого пути нужен мягкий знаменатель
+                final float legacyRadius = Math.max(radius, AndroidUtilities.dp(LEGACY_MIN_RADIUS_DP));
+                final float angle = (anchor - centerY) / legacyRadius * (180f / (float) Math.PI);
                 if (Math.abs(child.getRotationX() - angle) > 0.04f) {
                     child.setRotationX(angle);
                 }

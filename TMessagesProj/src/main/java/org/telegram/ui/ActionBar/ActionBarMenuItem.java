@@ -418,10 +418,16 @@ public class ActionBarMenuItem extends FrameLayout {
         popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getContext(), R.drawable.popup_fixed_alert4, resourcesProvider, ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_USE_SWIPEBACK);
 
         if (subMenuFactory != null) {
-            popupLayout.setBackground(subMenuFactory.create(popupLayout, true)
-                    .setColorProvider(subMenuProvider)
-                    .setRadius(dp(12))
-                    .setPadding(dp(8)));
+            try {
+                popupLayout.setBackground(subMenuFactory.create(popupLayout, true)
+                        .setColorProvider(subMenuProvider)
+                        .setRadius(dp(12))
+                        .setPadding(dp(8)));
+            } catch (Throwable e) {
+                // фон-блик не должен ронять построение меню: без него остаётся
+                // штатный девятипатч — меню собирается и показывается
+                org.telegram.messenger.FileLog.e(e);
+            }
         }
 
         popupLayout.setOnTouchListener((v, event) -> {
@@ -758,10 +764,14 @@ public class ActionBarMenuItem extends FrameLayout {
         this.subMenuFactory = subMenuFactory;
         this.subMenuProvider = subMenuProvider;
         if (popupLayout != null && subMenuFactory != null) {
-            popupLayout.setBackground(subMenuFactory.create(popupLayout, true)
-                    .setColorProvider(subMenuProvider)
-                    .setRadius(dp(12))
-                    .setPadding(dp(8)));
+            try {
+                popupLayout.setBackground(subMenuFactory.create(popupLayout, true)
+                        .setColorProvider(subMenuProvider)
+                        .setRadius(dp(12))
+                        .setPadding(dp(8)));
+            } catch (Throwable e) {
+                org.telegram.messenger.FileLog.e(e);
+            }
         }
     }
 
@@ -2532,16 +2542,19 @@ public class ActionBarMenuItem extends FrameLayout {
                     }
                     viewToSwipeBack.setBackgroundColor(fallbackBg);
                 }
-                int swipeBackIndex = parent.popupLayout.addViewToSwipeBack(viewToSwipeBack);
+                // getPopupLayout() создаёт layout при необходимости — прямое
+                // поле здесь когда-то давало NPE на ещё не собранном меню
+                final ActionBarPopupWindow.ActionBarPopupWindowLayout parentLayout = parent.getPopupLayout();
+                int swipeBackIndex = parentLayout.addViewToSwipeBack(viewToSwipeBack);
                 cell.openSwipeBackLayout = () -> {
-                    if (parent.popupLayout.getSwipeBack() != null) {
-                        parent.popupLayout.getSwipeBack().openForeground(swipeBackIndex);
+                    if (parentLayout.getSwipeBack() != null) {
+                        parentLayout.getSwipeBack().openForeground(swipeBackIndex);
                     }
                 };
                 cell.setOnClickListener(view -> {
                     cell.openSwipeBack();
                 });
-                parent.popupLayout.swipeBackGravityRight = true;
+                parentLayout.swipeBackGravityRight = true;
                 if (textColor != null && iconColor != null) {
                     cell.setColors(textColor, iconColor);
                 }

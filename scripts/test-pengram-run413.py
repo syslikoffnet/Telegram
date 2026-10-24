@@ -28,11 +28,11 @@ settings = (java / 'ui/PengramSettingsActivity.java').read_text()
 # --- 4: остров — гарантированный контраст пунктов ---------------------------
 # цвет каждого пункта (назад, пункты меню, быстрые действия) считается
 # от фактического фона страницы
-assert 'applyContrastColors(backItem)' in wrapper
+assert 'applyContrastColors(closeItem)' in wrapper  # run421: одна кнопка «Назад/закрыть»
 assert 'applyContrastColors(item)' in wrapper
 assert 'applyContrastColors(quick)' in wrapper
-# run419: +1 — контраст кнопки закрытия (сборка по-элементной, без единого исключения)
-assert wrapper.count('applyContrastColors(') == 5  # определение + 4 вызова
+# run421: закрытие+пункты+быстрые = три вызова + определение
+assert wrapper.count('applyContrastColors(') == 4  # определение + 3 вызова
 assert 'Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)' in wrapper
 assert 'luminance / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E' in wrapper
 assert 'item.setSubtextColor(fg)' in wrapper

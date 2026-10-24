@@ -49,8 +49,8 @@ assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }' in co
 assert 'KEY_CYLINDER_STRENGTH = "cylinderScrollStrength"' in config
 assert 'getIntCached(KEY_CYLINDER_STRENGTH, 100)' in config
 assert 'Math.max(0, Math.min(100, percent))' in config   # границы ползунка
-assert 'RADIUS_TIGHT_DP = 760f' in cyl                   # максимум силы (без «лсда»)
-assert 'RADIUS_GENTLE_DP = 1400f' in cyl                 # ноль силы — прежняя дуга
+assert 'RADIUS_TIGHT_DP = 150f' in cyl                   # run421: радиус валика, максимум силы (без «лсда»)
+assert 'RADIUS_GENTLE_DP = 340f' in cyl                  # run421: мягкий валик при нуле силы
 assert 'PengramConfig.getCylinderScrollStrength() / 100f' in cyl
 assert 'radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength' in cyl
 # масштаб убран: контент гнётся вместе с сообщением, без «плавающих» зазоров

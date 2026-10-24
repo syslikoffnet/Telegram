@@ -1,45 +1,52 @@
 uniform shader img;
 
-uniform float off;
-uniform float span;
-uniform float kappa;
-uniform float2 sigmas;
+uniform float localT;
+uniform float localB;
+uniform float roller;
 uniform float2 size;
 
-// Карточка на валике. Края ячейки заданы снаружи (off, span) — швы с соседями
-// совпадают точно. Внутри карточки:
-//  1) рациональная карта q = t(1+k)/((1+k) - k q) — перспективный наклон:
-//     дальняя половина сжимается сильнее, ближняя тянется — читается как
-//     УХОД плоскости вглубь, а не схлопывание;
-//  2) трапеция по X (sigmas) — дальний край уже, ближний шире: главный
-//     визуальный признак «ухода».
-// Текст, фото и рамка одного сообщения связаны ОДНОЙ картой — двигаются
-// неразрывно, без «уезжания» частей друг от друга.
+// Два валика — сверху и снизу. Между касательными (localT..localB) полотно
+// плоское: пиксель в пиксель, без деформаций. У краёв полотно наматывается
+// на валик: экранная точка y берёт угол phi = asin((localT - y) / roller),
+// исходная координата s = localT - roller * phi (снизу — симметрично).
+// Край экрана (y ~ 0 при localT = roller) соответствует phi ~ 90° —
+// контент уходит ровно «за экран», плавно схлопываясь и сужаясь по
+// перспективе (scale = 1.6 / (1.6 + 1 - cos phi)). Все ячейки считают
+// касательные от ОДНОЙ глобальной геометрии — швы совпадают точно.
 half4 main(in float2 fragCoord) {
-    if (span <= 0.0001) {
-        return half4(0.0);
+    float y = fragCoord.y;
+    float s;
+    float sn = 0.0;
+    if (y < localT) {
+        sn = (localT - y) / roller;
+        if (sn > 1.0) {
+            return half4(0.0);
+        }
+        s = localT - roller * asin(sn);
+    } else if (y > localB) {
+        sn = (y - localB) / roller;
+        if (sn > 1.0) {
+            return half4(0.0);
+        }
+        s = localB + roller * asin(sn);
+    } else {
+        s = y;
     }
-    float q = (fragCoord.y - off) / span;
-    if (q < -0.004 || q > 1.004) {
-        return half4(0.0);
-    }
-    float denom = (1.0 + kappa) - kappa * q;
-    if (denom <= 0.05) {
-        return half4(0.0);
-    }
-    float t = q / denom;
-    float s = t * size.y;
     if (s < -1.0 || s > size.y + 1.0) {
         return half4(0.0);
     }
-    float sigma = sigmas.x + (sigmas.y - sigmas.x) * t;
-    if (sigma < 0.05) {
-        return half4(0.0);
-    }
+    float phi = asin(sn);
+    float back = 1.0 - cos(phi);
+    float scale = 1.6 / (1.6 + back);
     float cx = size.x * 0.5;
-    float sx = cx + (fragCoord.x - cx) / sigma;
+    float sx = cx + (fragCoord.x - cx) / scale;
     if (sx < 0.0 || sx > size.x) {
         return half4(0.0);
     }
-    return img.eval(float2(sx, s));
+    half alpha = 1.0;
+    if (sn > 0.94) {
+        alpha = half(clamp((1.0 - sn) / 0.06, 0.0, 1.0));
+    }
+    half4 color = img.eval(float2(sx, s));
+    return half4(color.rgb * alpha, color.a * alpha);
 }

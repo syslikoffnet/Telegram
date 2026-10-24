@@ -67,10 +67,10 @@ def main():
     print("== ChatActivity: фабрика острова не бросает наружу")
     fac = chat.split("pengramCreateIslandView = () -> {", 1)[1].split("\n    };", 1)[0]
     check("chat: тело фабрики под try/catch", "try {" in fac and "catch (Throwable e)" in fac)
-    check("chat: возврат существующей страницы при сбое",
-          "final View fallback = new View(getContext());" in fac and "return fallback;" in fac)
-    check("chat: фон фолбэка темы чата с базовым фолбэком",
-          "Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, themeDelegate)" in fac)
+    check("chat: при сбое — полноценная неуязвимая страница, не пустышка",
+          "PengramChatMenuWrapper.buildEmergencyPage(" in fac and "return org.telegram.ui.Components.PengramChatMenuWrapper.buildEmergencyPage(" in fac)
+    check("chat: emergency получает пункты и колбэк",
+          "org.telegram.messenger.PengramConfig.getChatIslandItems()," in fac and "pengramMenuCallback);" in fac)
     check("chat: wrapper-поле не затирается при сбое",
           "pengramMenuWrapper = wrapper;" in fac and "pengramMenuWrapper = wrapper;" in fac.split("catch (Throwable e)")[0])
 

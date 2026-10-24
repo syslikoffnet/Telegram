@@ -1,7 +1,12 @@
 package org.telegram.ui.Components;
 
 import android.content.Context;
+import android.util.TypedValue;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
@@ -11,7 +16,6 @@ import org.telegram.messenger.PengramHistory;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
-import org.telegram.ui.ActionBar.ActionBarPopupWindow;
 import org.telegram.ui.ActionBar.Theme;
 
 import java.util.ArrayList;
@@ -22,47 +26,51 @@ import java.util.List;
  * Что именно внутри — решает пользователь: любой наш пункт можно перетащить
  * из основного меню в остров и обратно (Настройки → Pengram → Пункты меню чата).
  *
- * <p>Состав острова пересобирается прямо на открытом чате: настройки меняются
- * на другом экране, а список внутри попапа уже создан — поэтому содержимое
- * обновляется через {@link #setItems(List)}, а не пересозданием меню.
+ * <p>Страница — САМАЯ ПРОСТАЯ вёрстка: ScrollView → вертикальный LinearLayout
+ * с обычными пунктами. Никаких ActionBarPopupWindowLayout/fitItems/вложенных
+ * scrollView — весь этот слой чужой механики уже один раз оставил страницу
+ * пустой и чёрной. Фон и цвета пунктов считаются от одного источника
+ * ({@link #pageBackground()}) — текст виден при любом разрешении темы.
+ *
+ * <p>Состав пересобирается прямо на открытом чате через {@link #setItems(List)},
+ * а если штатная сборка вдруг упадёт — {@link #buildEmergencyPage} отдаёт
+ * полноценную (пусть простую) страницу, но НИКОГДА не пустую.
  */
 public class PengramChatMenuWrapper {
 
-    public final ActionBarPopupWindow.ActionBarPopupWindowLayout windowLayout;
+    /** Корень страницы — то, что уходит в swipe-back попапа. */
+    public final ScrollView page;
+    /** Контент страницы (тёлка для пунктов) — поле сохранено для контрактов. */
+    public final LinearLayout windowLayout;
 
     public interface Callback {
         void dismiss();
         void onItem(int itemId);
     }
 
-    private final PopupSwipeBackLayout swipeBackLayout;
     private final int account;
     private final long dialogId;
     private final Theme.ResourcesProvider resourcesProvider;
     private final Callback callback;
     private final ArrayList<Integer> items = new ArrayList<>();
 
-    public PengramChatMenuWrapper(Context context, PopupSwipeBackLayout swipeBackLayout, int account, long dialogId,
+    public PengramChatMenuWrapper(Context context, int account, long dialogId,
                                   List<Integer> items, Theme.ResourcesProvider resourcesProvider, Callback callback) {
-        this.swipeBackLayout = swipeBackLayout;
         this.account = account;
         this.dialogId = dialogId;
         this.resourcesProvider = resourcesProvider;
         this.callback = callback;
-        windowLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, 0, resourcesProvider);
-        // Страница острова — foreground внутри PopupSwipeBackLayout: её фон рисует
-        // сам свайп-слой, а цвет пунктов берётся из этого resourcesProvider. Когда
-        // провайдеры различались (actionbar против chat theme), пара фон/текст
-        // съезжала и страница уходила в чёрное. Рисуем фон сами — тем же
-        // провайдером, что и пункты, с гарантированным фолбэком на базовую тему,
-        // если ключ вдруг вернул прозрачность.
+        page = new ScrollView(context);
+        windowLayout = new LinearLayout(context);
+        windowLayout.setOrientation(LinearLayout.VERTICAL);
         windowLayout.setBackground(new android.graphics.drawable.ColorDrawable(pageBackground()));
-        windowLayout.setFitItems(true);
-        setItems(items);
         windowLayout.setMinimumWidth(AndroidUtilities.dp(220));
+        page.addView(windowLayout, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        setItems(items);
     }
 
-    /** новый набор пунктов: пересобираем содержимое на месте */
+    /** новый набор пунктов: пересобираемся содержимое на месте */
     public void setItems(List<Integer> newItems) {
         items.clear();
         if (newItems != null) {
@@ -80,24 +88,13 @@ public class PengramChatMenuWrapper {
         // пустую чёрную страницу — остальные пункты и кнопка закрытия обязаны
         // присутствовать всегда.
         windowLayout.removeAllViews();
-        if (swipeBackLayout != null) {
-            try {
-                final ActionBarMenuSubItem backItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
-                        LocaleController.getString(R.string.Back), false, resourcesProvider);
-                backItem.setOnClickListener(view -> swipeBackLayout.closeForeground());
-                applyContrastColors(backItem);
-            } catch (Throwable e) {
-                FileLog.e(e);
-            }
-        } else {
-            try {
-                final ActionBarMenuSubItem closeItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
-                        LocaleController.getString(R.string.Back), false, resourcesProvider);
-                closeItem.setOnClickListener(view -> callback.dismiss());
-                applyContrastColors(closeItem);
-            } catch (Throwable e) {
-                FileLog.e(e);
-            }
+        try {
+            final ActionBarMenuSubItem closeItem = ActionBarMenuItem.addItem(windowLayout, R.drawable.msg_arrow_back,
+                    LocaleController.getString(R.string.Back), false, resourcesProvider);
+            closeItem.setOnClickListener(view -> callback.dismiss());
+            applyContrastColors(closeItem);
+        } catch (Throwable e) {
+            FileLog.e(e);
         }
         for (int a = 0; a < items.size(); ++a) {
             try {
@@ -162,11 +159,8 @@ public class PengramChatMenuWrapper {
      * Контрастный цвет текста и иконки пункта страницы острова.
      * Фон страницы задан в конструкторе цветом key_actionBarDefaultSubmenuBackground
      * с тем же resourcesProvider; по этому же фону выбираем белый или почти-чёрный
-     * цвет пункта. Раньше цвета пунктов падали из отдельной ветки темы
-     * (key_actionBarDefaultSubmenuItem) и могли не совпасть с фоном — пункты
-     * становились полностью невидимыми («текста вообще нет»). Считаем контраст
-     * прямо от фактического фона, чтобы видимость была гарантирована
-     * при любом разрешении темы.
+     * цвет пункта. Считаем контраст прямо от фактического фона, чтобы
+     * видимость была гарантирована при любом разрешении темы.
      */
     private int contrastForegroundColor() {
         final int bg = pageBackground();
@@ -189,5 +183,57 @@ public class PengramChatMenuWrapper {
         final int fg = contrastForegroundColor();
         item.setColors(fg, fg);
         item.setSubtextColor(fg);
+    }
+
+    /**
+     * Неуязвимая страница на чистых TextView: её отдаёт фабрика, если штатная
+     * сборка по какой-то причине упала. Раньше фабрика возвращала пустую
+     * заглушку — пользователь видел «пусто, всё чёрное». Теперь даже сбой даёт
+     * рабочие кнопки закрытия и пунктов.
+     */
+    public static View buildEmergencyPage(Context context, Theme.ResourcesProvider provider,
+                                          List<Integer> islandItems, Callback callback) {
+        final LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setMinimumWidth(AndroidUtilities.dp(220));
+        int bg = provider != null ? Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, provider) : 0;
+        if (bg == 0) {
+            bg = Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground);
+        }
+        root.setBackgroundColor(bg);
+        final int lumBg = ((bg >> 16) & 0xFF) * 299 + ((bg >> 8) & 0xFF) * 587 + (bg & 0xFF) * 114;
+        final int fg = lumBg / 1000 < 140 ? 0xFFFFFFFF : 0xFF1C1C1E;
+        addSimpleRow(context, root, LocaleController.getString(R.string.Back), fg,
+                v -> callback.dismiss());
+        if (islandItems != null) {
+            for (Integer id : islandItems) {
+                if (id == null) {
+                    continue;
+                }
+                try {
+                    final int itemId = id;
+                    addSimpleRow(context, root,
+                            LocaleController.getString(PengramConfig.getChatItemTitle(itemId)), fg, v -> {
+                                callback.dismiss();
+                                callback.onItem(itemId);
+                            });
+                } catch (Throwable e) {
+                    FileLog.e(e);
+                }
+            }
+        }
+        return root;
+    }
+
+    private static void addSimpleRow(Context context, LinearLayout root, String text, int fg, View.OnClickListener listener) {
+        final TextView row = new TextView(context);
+        row.setText(text);
+        row.setTextColor(fg);
+        row.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        final int pad = AndroidUtilities.dp(16);
+        row.setPadding(pad, AndroidUtilities.dp(14), pad, AndroidUtilities.dp(14));
+        row.setOnClickListener(listener);
+        root.addView(row, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 }
