@@ -30,6 +30,7 @@ public final class PengramMD3 {
     public static final String KEY_ALERTS = "md3Alerts";
     /** экран настроек Pengram в тональных тонах */
     public static final String KEY_SETTINGS = "md3Settings";
+    public static final String KEY_SCREENS = "md3Screens";
     /** строка поиска в стиле M3 Search Bar */
     public static final String KEY_SEARCH_BAR = "md3SearchBar";
     /** мягкая тень под строкой поиска (M3 elevated) */
@@ -175,6 +176,11 @@ public final class PengramMD3 {
 
     public static boolean settingsScreen() {
         return isEnabled() && PengramConfig.getBool(KEY_SETTINGS, true);
+    }
+
+    /** Тональные подложки больших экранов: профиль, журнал звонков. */
+    public static boolean screens() {
+        return isEnabled() && PengramConfig.getBool(KEY_SCREENS, true);
     }
 
     /**

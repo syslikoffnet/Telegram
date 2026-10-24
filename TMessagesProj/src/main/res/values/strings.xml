@@ -12088,6 +12088,7 @@
     <string name="PengramMD3Alerts">Rounded dialogs</string>
     <string name="PengramMD3Menus">Material 3 for the whole popup menu, island included</string>
     <string name="PengramMD3Settings">Tonal settings screen</string>
+    <string name="PengramMD3Screens">Tonal big screens (profile, call log)</string>
     <string name="PengramMD3PreviewChat1">Design team</string>
     <string name="PengramMD3PreviewChat2">Nina</string>
     <string name="PengramMD3PreviewChat3">Saved messages</string>
@@ -13335,8 +13336,11 @@
     <string name="PengramInputGlass">Input bar glass</string>
     <string name="PengramHeaderGlass">Chat list header glass</string>
     <string name="PengramChatHeaderGlass">Chat header glass</string>
+    <string name="PengramPlayerHeaderGlass">Now-playing header glass</string>
     <string name="PengramChatPinnedGlass">Pinned message glass</string>
     <string name="PengramChatEnterAnim">Chat open animation</string>
+    <string name="PengramCylinderScroll">Cylinder scroll in chat</string>
+    <string name="PengramCylinderScrollInfo">As you scroll, messages gently wrap around an invisible drum: the center stays flat while the edges bend back, like paper rolling over a cylinder. Off by default.</string>
     <string name="PengramChatEnterAnimInfo">Opening a chat fades the screen in with a slight zoom instead of a plain slide. Only cheap property animations — no overlays or extra layers, so no flicker or lag. Off by default: the stock Telegram transition is used.</string>
     <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>
 </resources>

@@ -1084,6 +1084,7 @@
     <string name="PengramMD3Alerts">Скруглённые диалоги</string>
     <string name="PengramMD3Menus">Material 3 для всего меню, включая островок</string>
     <string name="PengramMD3Settings">Тональный экран настроек</string>
+    <string name="PengramMD3Screens">Тональные большие экраны (профиль, звонки)</string>
     <string name="PengramMD3PreviewChat1">Команда дизайна</string>
     <string name="PengramMD3PreviewChat2">Нина</string>
     <string name="PengramMD3PreviewChat3">Избранное</string>
@@ -2063,8 +2064,11 @@
     <string name="PengramInputGlass">Стекло строки ввода</string>
     <string name="PengramHeaderGlass">Стекло шапки списка чатов</string>
     <string name="PengramChatHeaderGlass">Стекло шапки чата</string>
+    <string name="PengramPlayerHeaderGlass">Стекло шапки «сейчас играет»</string>
     <string name="PengramChatPinnedGlass">Стекло закрепа</string>
     <string name="PengramChatEnterAnim">Анимация входа в чат</string>
+    <string name="PengramCylinderScroll">Прокрутка-цилиндр в чате</string>
+    <string name="PengramCylinderScrollInfo">При прокрутке сообщения мягко огибают невидимый валик: центр остаётся плоским, края заворачиваются назад, будто бумага накатывается на цилиндр. По умолчанию выключено.</string>
     <string name="PengramChatEnterAnimInfo">Чат открывается плавным проявлением с лёгким зумом вместо простого выезда. Только дешёвые property-анимации — без наложений и лишних слоёв, поэтому без мерцаний и подлагиваний. По умолчанию выключено: работает штатный переход Telegram.</string>
     <string name="PengramGlassSharedInfo">Параметры стекла общие для вкладок, строки ввода, шапок и плавающих поверхностей. Преломление требует Android 13 и включённого системного эффекта стекла.</string>
 </resources>

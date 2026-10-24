@@ -1513,6 +1513,19 @@ public class PengramConfig {
         org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
     }
 
+    /** Шапка «сейчас играет» в чате (плеер свёрнут): жидкое стекло. */
+    public static final String KEY_PLAYER_HEADER_GLASS = "playerHeaderLiquidGlass";
+    public static boolean isPlayerHeaderGlass() { return getBool(KEY_PLAYER_HEADER_GLASS, false); }
+    public static void setPlayerHeaderGlass(boolean value) {
+        setBool(KEY_PLAYER_HEADER_GLASS, value);
+        org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+    }
+
+    /** Прокрутка-цилиндр в чате: сообщения огибают невидимый валик. */
+    public static final String KEY_CYLINDER_SCROLL = "chatCylinderScroll";
+    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }
+    public static void setCylinderScroll(boolean value) { setBool(KEY_CYLINDER_SCROLL, value); }
+
     /** Тестовый слой стекла на плашке закреплённого сообщения в чате. */
     public static final String KEY_CHAT_PINNED_GLASS = "chatPinnedGlass";
     public static boolean isChatPinnedGlass() { return getBool(KEY_CHAT_PINNED_GLASS, false); }

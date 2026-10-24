@@ -751,7 +751,9 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 		otherItem.setOnClickListener(v -> showItemOptions());
 
 		listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
-		listView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, resourceProvider));
+		listView.setBackgroundColor(org.telegram.messenger.PengramMD3.screens()
+				? org.telegram.messenger.PengramMD3.surface(resourceProvider, 0.08f)
+				: Theme.getColor(Theme.key_windowBackgroundGray, resourceProvider));
 		listView.setSections();
 		listView.adapter.setApplyBackground(false);
 		contentView = new SizeNotifierFrameLayout(context) {

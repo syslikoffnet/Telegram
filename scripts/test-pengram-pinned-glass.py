@@ -39,10 +39,11 @@ assert 'isChatPinnedGlass()' in more
 assert 'isPlayerIslandGlass()' not in settings
 
 # --- 3. Плашка закрепа: слой лежит под контентом, состояние синхронно -------
-assert 'PengramGlassTintView(getContext(), themeDelegate, 14)' in chat
+assert 'PengramGlassTintView(getContext(), themeDelegate, 14,' in chat
 assert 'pinnedMessageView.addView(pinnedGlassTint, 0,' in chat
 assert 'pinnedGlassTint.syncState();' in chat
-assert 'PengramConfig.isChatPinnedGlass()' in tint
+assert 'public interface Gate' in tint  # шлюз вместо жёсткого ключа внутри слоя
+assert '() -> PengramConfig.isChatPinnedGlass());' in chat  # ключ передаётся снаружи
 assert 'PengramConfig.getGlassOpacity()' in tint
 assert 'PengramConfig.isGlassSheenEnabled()' in tint
 assert 'PengramGlassSkin.register(skinUpdate)' in tint and 'PengramGlassSkin.unregister(skinUpdate)' in tint

@@ -4240,7 +4240,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         };
         listView.setSections();
         listView.applyPaddingToSections = false;
-        listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        // Тональная подложка больших экранов (md3Screens); иначе — штатный серый.
+        listView.setBackgroundColor(org.telegram.messenger.PengramMD3.screens()
+                ? org.telegram.messenger.PengramMD3.surface(resourcesProvider, 0.08f)
+                : getThemedColor(Theme.key_windowBackgroundGray));
         listView.setVerticalScrollBarEnabled(false);
         final IBlur3Capture listViewCapture = new ViewGroupPartRenderer(listView, (ViewGroup) fragmentView, (canvas, child, drawingTime) -> {
             if (child == sharedMediaLayout) {

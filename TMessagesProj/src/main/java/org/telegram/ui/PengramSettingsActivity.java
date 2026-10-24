@@ -1478,6 +1478,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 || PengramConfig.KEY_INPUT_GLASS.equals(key)
                 || PengramConfig.KEY_HEADER_GLASS.equals(key)
                 || PengramConfig.KEY_CHAT_HEADER_GLASS.equals(key)
+                || PengramConfig.KEY_PLAYER_HEADER_GLASS.equals(key)
                 || PengramConfig.KEY_CHAT_PINNED_GLASS.equals(key)
                 || PengramConfig.KEY_TAB_GLASS.equals(key)
                 || key.startsWith("tabBarGlass")) {
@@ -3392,6 +3393,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_ALERTS, true, getString(R.string.PengramMD3Alerts)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_MENUS, true, getString(R.string.PengramMD3Menus)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SETTINGS, true, getString(R.string.PengramMD3Settings)));
+                items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_SCREENS, true, getString(R.string.PengramMD3Screens)));
                 items.add(subCheck(org.telegram.messenger.PengramMD3.KEY_FAB, true, getString(R.string.PengramMD3Fab)));
             }
             items.add(moreButton(GROUP_MD3, getString(R.string.PengramMD3Tune)));
@@ -3486,10 +3488,11 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(check(PengramConfig.KEY_INPUT_GLASS, false, getString(R.string.PengramInputGlass)));
         items.add(check(PengramConfig.KEY_HEADER_GLASS, false, getString(R.string.PengramHeaderGlass)));
         items.add(check(PengramConfig.KEY_CHAT_HEADER_GLASS, true, getString(R.string.PengramChatHeaderGlass)));
+        items.add(check(PengramConfig.KEY_PLAYER_HEADER_GLASS, false, getString(R.string.PengramPlayerHeaderGlass)));
         items.add(check(PengramConfig.KEY_CHAT_PINNED_GLASS, false, getString(R.string.PengramChatPinnedGlass)));
         if (PengramConfig.isSettingsSurfaceGlass() || PengramConfig.isTabBarLiquidGlass() || PengramConfig.isInputGlass()
                 || PengramConfig.isChatListHeaderGlass() || PengramConfig.isChatHeaderGlass()
-                || PengramConfig.isChatPinnedGlass()) {
+                || PengramConfig.isPlayerHeaderGlass() || PengramConfig.isChatPinnedGlass()) {
             // Ползунки стекла раскрываются по требованию: включил эффект —
             // рядом появилась его тонкая настройка, выключил — не мешает.
             items.add(moreButton(GROUP_GLASS, getString(R.string.PengramGlassMore)));
@@ -3558,6 +3561,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 19, getString(R.string.PengramChatEnterAnim), getString(R.string.PengramChatEnterAnimInfo),
                     PengramConfig::isChatEnterAnim, () -> PengramConfig.setChatEnterAnim(!PengramConfig.isChatEnterAnim())));
+            items.add(tgCheckInfo(BTN_EXTRA_BASE + 65, getString(R.string.PengramCylinderScroll), getString(R.string.PengramCylinderScrollInfo),
+                    PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
             items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
             items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
             items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));

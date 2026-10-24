@@ -130,6 +130,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
 
     private final CapsuleBlobDrawable capsuleBlobDrawable = new CapsuleBlobDrawable();
     private ImageView playButton;
+    private PengramGlassTintView pengramGlassTint;
     private PlayPauseDrawable playPauseDrawable;
     private PengramLyricsView pengramTicker;   // Pengram: строка песни прямо в шапке
     private PengramPlayerSwipe pengramSwipe;   // Pengram: смена трека свайпом по шапке
@@ -319,6 +320,10 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         }
 
         final Context context = getContext();
+        // Слой «жидкого стекла» на шапке «сейчас играет» (playerHeaderLiquidGlass):
+        // лежит под содержимым и включается только в музыкальном стиле.
+        pengramGlassTint = new PengramGlassTintView(context, resourcesProvider, 0,
+                () -> PengramConfig.isPlayerHeaderGlass() && currentStyle == STYLE_AUDIO_PLAYER);
         frameLayout = new FrameLayout(context) {
 
             @Override
@@ -400,6 +405,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 return who == notifyText || super.verifyDrawable(who);
             }
         };
+
+        frameLayout.addView(pengramGlassTint, 0, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         notifyButtonBounce = new ButtonBounce(frameLayout);
         notifyText.setOverrideFullWidth(AndroidUtilities.displaySize.x);
         notifyText.setScaleProperty(.4f);
@@ -1037,6 +1045,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     }
 
     public void updateColors() {
+        if (pengramGlassTint != null) {
+            pengramGlassTint.syncState();
+        }
         float currentPlaybackSpeed = MediaController.getInstance().getPlaybackSpeed(isMusic);
         final int color = getThemedColor(!equals(currentPlaybackSpeed, 1.0f) ? Theme.key_featuredStickers_addButtonPressed : Theme.key_inappPlayerClose);
         if (speedIcon != null) {
@@ -1210,6 +1221,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
         currentStyle = style;
+        if (pengramGlassTint != null) {
+            pengramGlassTint.syncState();
+        }
         if (pengramSwipe != null) {
             pengramSwipe.reset();   // Pengram: смена режима шапки — содержимое на место
         }

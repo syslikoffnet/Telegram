@@ -7724,6 +7724,8 @@ public class ChatActivity extends BaseFragment implements
         chatListView.setTag(1);
         chatListView.setVerticalScrollBarEnabled(!SharedConfig.chatBlurEnabled());
         chatListView.setAdapter(chatAdapter = new ChatActivityAdapter(context));
+        // Прокрутка-цилиндр (по умолчанию выключен): сообщения огибают валик.
+        org.telegram.ui.Components.PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll);
         chatListView.setClipToPadding(false);
         if (ChatObject.isMonoForum(currentChat) || ChatObject.areTabsEnabled(currentChat)) {
             chatListView.setClipChildren(false);
@@ -12820,7 +12822,8 @@ public class ChatActivity extends BaseFragment implements
         // Тестовый слой жидкого стекла на плашке закрепа (chatPinnedGlass):
         // тон по плотности стекла + световой кант + блик; выключен по умолчанию.
         final org.telegram.ui.Components.PengramGlassTintView pinnedGlassTint =
-                new org.telegram.ui.Components.PengramGlassTintView(getContext(), themeDelegate, 14);
+                new org.telegram.ui.Components.PengramGlassTintView(getContext(), themeDelegate, 14,
+                        () -> PengramConfig.isChatPinnedGlass());
         pinnedMessageView.addView(pinnedGlassTint, 0, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         pinnedGlassTint.syncState();

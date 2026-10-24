@@ -20,8 +20,14 @@ import org.telegram.ui.ActionBar.Theme;
  */
 public final class PengramGlassTintView extends View {
 
+    /** Когда слой разрешён: свой ключ поверхности. */
+    public interface Gate {
+        boolean enabled();
+    }
+
     private final PengramGlassSheen sheen = new PengramGlassSheen();
     private final Theme.ResourcesProvider resources;
+    private final Gate gate;
     private final float radius;
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -29,9 +35,10 @@ public final class PengramGlassTintView extends View {
     private final Rect sheenBounds = new Rect();
     private final Runnable skinUpdate = this::syncState;
 
-    public PengramGlassTintView(Context context, Theme.ResourcesProvider resourcesProvider, float radiusDp) {
+    public PengramGlassTintView(Context context, Theme.ResourcesProvider resourcesProvider, float radiusDp, Gate gate) {
         super(context);
         resources = resourcesProvider;
+        this.gate = gate;
         radius = AndroidUtilities.dp(radiusDp);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(AndroidUtilities.dp(1));
@@ -56,7 +63,7 @@ public final class PengramGlassTintView extends View {
 
     /** Состояние тумблера читается снаружи: вкладка/скрытие + перерисовка. */
     public void syncState() {
-        final boolean enabled = PengramConfig.isChatPinnedGlass();
+        final boolean enabled = gate.enabled();
         if (getVisibility() != (enabled ? VISIBLE : GONE)) {
             setVisibility(enabled ? VISIBLE : GONE);
         }
@@ -68,7 +75,7 @@ public final class PengramGlassTintView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        if (!PengramConfig.isChatPinnedGlass()) return;
+        if (!gate.enabled()) return;
 
         final int window = Theme.getColor(Theme.key_windowBackgroundWhite, resources);
         final boolean lightBackground = (window & 0xff) > 128 && ((window >> 8) & 0xff) > 128 && ((window >> 16) & 0xff) > 128;

@@ -50,6 +50,13 @@ public class PengramChatMenuWrapper {
         this.resourcesProvider = resourcesProvider;
         this.callback = callback;
         windowLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, 0, resourcesProvider);
+        // Страница острова — foreground внутри PopupSwipeBackLayout: её фон рисует
+        // сам свайп-слой, а цвет пунктов берётся из этого resourcesProvider. Когда
+        // провайдеры различались (actionbar против chat theme), пара фон/текст
+        // съезжала и страница уходила в чёрное. Рисуем фон сами — тем же
+        // провайдером, что и пункты.
+        windowLayout.setBackground(new android.graphics.drawable.ColorDrawable(
+                Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider)));
         windowLayout.setFitItems(true);
         setItems(items);
         windowLayout.setMinimumWidth(AndroidUtilities.dp(220));
