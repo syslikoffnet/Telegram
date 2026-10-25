@@ -60,8 +60,8 @@ def main():
     check("cyl: fast-path ДО вычисления strength/radius", fp_i != -1 and st_i > fp_i)
     check("cyl: полный сброс при !wants()/reset сохранился",
           "if (!wants()) {" in cy and "if (applied) {\n                reset();\n            }" in cy)
-    check("cyl: центр восстановления в reset (pivot h/2)",
-          "setPivotY(child.getHeight() / 2f)" in cy)
+    check("cyl: полный сброс в reset (клипы + mesh-захваты)",
+          "child.setClipBounds(null)" in cy and "warp.clear();" in cy)
 
     print()
     if fails:

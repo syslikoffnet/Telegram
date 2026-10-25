@@ -79,9 +79,12 @@ assert 'PengramConfig::isCylinderScroll' in settings and 'setCylinderScroll(!Pen
 # --- 8. Цилиндр: крепление и механика ---------------------------------------
 assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll' in chat
 assert 'RADIUS_TIGHT_DP' in cyl and 'OnPreDrawListener' in cyl
-assert 'child.setRotationX(angle)' in cyl and 'child.setCameraDistance' in cyl
-assert 'child.setRotationX(0f)' in cyl  # выключение возвращает ячейки в норму
-assert 'child.setScaleX(1f)' in cyl
+# API<33 гнёт mesh-варп (захват + drawVertices); поворота/камеры больше нет
+assert 'PengramCylinderWarp warp = new PengramCylinderWarp()' in cyl
+assert 'warp.setGeometry(insetTop, insetBottom, radius)' in cyl
+assert 'child.setRotationX' not in cyl and 'setCameraDistance' not in cyl
+# выключение возвращает ячейки в норму: клипы снимаются, захваты выпускаются
+assert 'child.setClipBounds(null)' in cyl and 'warp.clear();' in cyl
 
 # --- 9. Строки EN+RU ---------------------------------------------------------
 for locale in ('values', 'values-ru'):

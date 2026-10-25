@@ -54,9 +54,10 @@ def main():
           and "insetTop = topEdge + band" in cy and "insetBottom = bottomEdge - band" in cy)
     check("cy: плоская середина и касательные не тронуты",
           "localT = insetTop - top" in cy and "localB = insetBottom - top" in cy)
-    check("cy: ползунок и legacy целы",
+    check("cy: ползунок цел, legacy заменён mesh-варпом",
           "radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength" in cy
-          and "legacyRadius" in cy)
+          and "legacyRadius" not in cy
+          and "warp.setGeometry(insetTop, insetBottom, radius)" in cy)
 
     print()
     if fails:

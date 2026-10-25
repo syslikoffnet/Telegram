@@ -68,9 +68,9 @@ def main():
           and 'setFloatUniform("roller", roller)' in cy)
     check("cy: формула ползунка сохранена",
           "radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength" in cy)
-    check("cy: legacy-путь с мягким знаменателем",
-          "LEGACY_MIN_RADIUS_DP" in cy and "legacyRadius" in cy
-          and "child.setRotationX(angle)" in cy)
+    check("cy: путь API<33 — mesh-варп с той же картой",
+          "warp.setGeometry(insetTop, insetBottom, radius)" in cy
+          and "setChildWarp(scroll.warp)" in cy and "child.setRotationX" not in cy)
 
     print("== Меню: страница без чужой механики + неуязвимая фабрика")
     check("wrap: корень — ScrollView, контент — простой LinearLayout",

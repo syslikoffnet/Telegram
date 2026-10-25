@@ -2669,8 +2669,58 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
 
     private boolean ignoreClipChild;
 
+    /**
+     * Опциональный воин-рендерер детей (прокрутка-цилиндр на API < 33):
+     * пока установлен, drawChild сначала предлагает нарисовать ребёнка ему.
+     * Вне списка с эффектом (или при выключенном эффекте) ссылка == null и
+     * поведение списка остаётся ровно штатным.
+     */
+    public interface ChildWarp {
+        /** true — воин нарисовал ребёнка сам; false — рисует список. */
+        boolean draw(Canvas canvas, View child);
+
+        /** Ребёнок запросил перерисовку (контент или позиция). */
+        void onChildInvalidate(View child);
+
+        /** Ребёнок откреплён от списка — освободить захваты. */
+        void onChildDetached(View child);
+    }
+
+    private ChildWarp childWarp;
+
+    public void setChildWarp(ChildWarp warp) {
+        this.childWarp = warp;
+    }
+
+    @Override
+    public void onDescendantInvalidated(View child, View target) {
+        if (childWarp != null) {
+            childWarp.onChildInvalidate(child);
+        }
+        super.onDescendantInvalidated(child, target);
+    }
+
+    @Override
+    public void invalidateChild(View child, Rect dirty) {
+        if (childWarp != null) {
+            childWarp.onChildInvalidate(child);
+        }
+        super.invalidateChild(child, dirty);
+    }
+
+    @Override
+    protected void onChildDetachedFromWindow(View child) {
+        if (childWarp != null) {
+            childWarp.onChildDetached(child);
+        }
+        super.onChildDetachedFromWindow(child);
+    }
+
     @Override
     public boolean drawChild(Canvas canvas, View child, long drawingTime) {
+        if (childWarp != null && childWarp.draw(canvas, child)) {
+            return true;
+        }
         if (hasSections() && !ignoreClipChild) {
             canvas.save();
             clipChild(canvas, child);

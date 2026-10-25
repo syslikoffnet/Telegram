@@ -61,14 +61,14 @@ assert 'setScaleX' not in cyl.replace('child.setScaleX(1f);', '')  # тольк�
 assert 'child.setClipBounds(clip)' in cyl
 assert 'child.setClipBounds(null)' in cyl
 assert 'clipRects' in cyl
-# «за экран»: пивот — ребро строки, ближнее к центру, общий шов не рвётся
-assert 'child.setPivotY(centerY <= anchor ? child.getHeight() : 0f)' in cyl
-assert 'child.setPivotX(child.getWidth() / 2f);' in cyl
-# сброс пивота в центр при выключении
-assert 'child.setPivotY(child.getHeight() / 2f);' in cyl
-# модель движения (то, что совпало с видео) не тронута
-assert 'child.setRotationX(angle)' in cyl
-assert 'ORTHO_CAMERA_DISTANCE = 1000000f' in cyl
+# «за экран»: геометрия зоны публикуется воину — швы по касательным, без пивота
+assert 'warp.setGeometry(insetTop, insetBottom, radius)' in cyl
+assert 'setChildWarp(scroll.warp)' in cyl
+# выключение: захваты и клипы сняты
+assert 'warp.clear();' in cyl and 'child.setClipBounds(null)' in cyl
+# legacy-поворот полностью заменён mesh-варпом
+assert 'child.setRotationX' not in cyl and 'ORTHO_CAMERA' not in cyl
+assert 'shader = ensureWarp()' in cyl
 assert 'PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll' in \
        (java / 'ui/ChatActivity.java').read_text()
 # строка настройки: тумблер + новый ползунок

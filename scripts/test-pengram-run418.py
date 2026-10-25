@@ -67,7 +67,7 @@ def main():
           'setFloatUniform("roller", roller)', 'setFloatUniform("size", width, height)')))
     check("cy: формула ползунка не тронута",
           "radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength" in cy)
-    check("cy: ноль размера не считаем", "if (warp && w > 0 && h > 0)" in cy)
+    check("cy: ноль размера не считаем", "if (shader && w > 0 && h > 0)" in cy)
 
     print("== Наследие run415/417/419")
     check("cy: clipBounds на ячейке (run415)",
@@ -82,14 +82,14 @@ def main():
           and "new RuntimeShader(code)" in cy and "catch (Throwable t)" in cy)
     check("cy: снятие эффекта", cy.count("setRenderEffect(null)") >= 2 and "bends.clear();" in cy)
 
-    print("== Legacy API<33")
-    check("legacy: поворот вокруг ребра у центра",
-          "child.setPivotY(centerY <= anchor ? child.getHeight() : 0f)" in cy
-          and "child.setRotationX(angle)" in cy)
-    check("legacy: мягкий знаменатель (радиус валиков мал)",
-          "LEGACY_MIN_RADIUS_DP" in cy and "legacyRadius" in cy)
-    check("legacy: камера и возврат в reset", "ORTHO_CAMERA_DISTANCE = 1000000f" in cy
-          and "child.setRotationX(0f)" in cy and "setPivotY(child.getHeight() / 2f)" in cy)
+    print("== Mesh на API<33 (вместо legacy-поворота)")
+    check("mesh: воин зарегистрирован, геометрия публикуется",
+          "setChildWarp(scroll.warp)" in cy
+          and "warp.setGeometry(insetTop, insetBottom, radius)" in cy)
+    check("mesh: поворота и камеры не осталось",
+          "setRotationX" not in cy and "setCameraDistance" not in cy)
+    check("mesh: сброс в reset (клипы + захваты)",
+          "child.setClipBounds(null)" in cy and "warp.clear();" in cy)
 
     print()
     if fails:

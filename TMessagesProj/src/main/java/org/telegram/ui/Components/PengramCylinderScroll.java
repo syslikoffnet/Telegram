@@ -28,8 +28,10 @@ import java.util.concurrent.Callable;
  * эффекта ограничивается границами ячейки (setClipBounds), поэтому медиа
  * не вылезает из полей сообщения. Обновление — каждый кадр из текущих
  * координат ячеек; покой и кадры без сдвига (GIF/resize) пропускаются
- * быстрым путём. На API &lt; 33 (нет RuntimeShader) работает прежний путь —
- * поворот вокруг ребра, ближнего к центру.
+ * быстрым путём. На API &lt; 33 (нет RuntimeShader) и при сбое шейдера ту же
+ * самую карту исполняет PengramCylinderWarp: содержимое ячейки захватывается
+ * в bitmap на изменение контента и гнётся через Canvas.drawVertices —
+ * настоящий сгиб «по валику», а не наклон плитой.
  *
  * Включается тумблером chatCylinderScroll (по умолчанию включён), сила —
  * ползунком cylinderScrollStrength (по умолчанию100 %, «самый сочный»);
@@ -41,23 +43,14 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final float RADIUS_TIGHT_DP = 150f;
     /** Радиус валика при0 % силы — мягкий, почти прямой край. */
     private static final float RADIUS_GENTLE_DP = 340f;
-    /** Удлинение камеры для старого пути (API < 33): перспектива без обрезания. */
-    // Ортографическая камера legacy-пути: при перспективе (старый boost ×4)
-    // точки на разном удалении от пивота проецируются с разным x-масштабом —
-    // фото внутри сообщения «уезжает» от собственной обводки, строки текста
-    // разъезжаются. При этой дистанции ошибка проекции на z ≤ 2000px < 1px:
-    // поворот становится аффинным, как и шейдерный варп.
-    private static final float ORTHO_CAMERA_DISTANCE = 1000000f;
-    /** Ось поворота старого пути не ближе этого к краю — угол остаётся мягким. */
-    private static final float LEGACY_MIN_RADIUS_DP = 700f;
     /** Доля радиуса валика до касательной: у края экрана остаётся ~53° —
      * ряды гнутся, а не схлопываются в линию (иначе читается «переворот»). */
     private static final float ROLLER_EDGE_K = 0.8f;
 
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
-    /** камера уже удлинена (WeakHashMap — не держим ячейки после GC списка). */
-    private final WeakHashMap<View, Float> cameraBackup = new WeakHashMap<>();
+    /** Mesh-варп для API < 33: захват контента + drawVertices вместо поворота. */
+    private final PengramCylinderWarp warp = new PengramCylinderWarp();
     /** актуальные границы клипа каждой ячейки (снимается в reset()). */
     private final WeakHashMap<View, android.graphics.Rect> clipRects = new WeakHashMap<>();
     /** шейдер сгиба на ячейку: uniforms у RuntimeShader общие для всех его эффектов. */
@@ -99,6 +92,11 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     public static PengramCylinderScroll attach(RecyclerView target, Callable<Boolean> enabled,
                                                Callable<Boolean> toBarsEnabled, BarsProvider bars) {
         final PengramCylinderScroll scroll = new PengramCylinderScroll(target, enabled, toBarsEnabled, bars);
+        if (target instanceof RecyclerListView) {
+            // воин рисует детей сам только пока эффект включён; в обычных
+            // списках (childWarp == null) хук остаётся пустым
+            ((RecyclerListView) target).setChildWarp(scroll.warp);
+        }
         target.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
             public void onViewAttachedToWindow(View v) {
@@ -257,10 +255,6 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float strength = PengramConfig.getCylinderScrollStrength() / 100f;
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
         final float radius = radiusDp * AndroidUtilities.density;
-        // Якорь legacy-пути — центр ЗОНЫ изгиба: с тумблером «до шапки и
-        // поля ввода» кромка намотки уходит к барам, при выключенном
-        // тумблере topEdge=0/bottomEdge=height — якорь прежний height/2.
-        final float anchor = (topEdge + bottomEdge) / 2f;
         // два валика: касательные на EDGE_K*radius внутрь от ГРАНИЦ зоны
         // (края списка либо внутренние края баров) — у кромки остаётся ~53°
         // намотки (сгиб без переворота), плоская середина ≥ трети зоны
@@ -268,9 +262,15 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float band = Math.min(radius * ROLLER_EDGE_K, span / 3f);
         final float insetTop = topEdge + band;
         final float insetBottom = bottomEdge - band;
-        boolean warp = ensureWarp();
-        if (!warp && !bends.isEmpty()) {
-            // шейдер не поднялся — снимаем эффекты и уходим на старый путь
+        final boolean shader = ensureWarp();
+        if (shader) {
+            warp.deactivate();
+        } else {
+            // шейдера нет (API < 33 или сбой) — ту же карту исполняет mesh-варп
+            warp.setGeometry(insetTop, insetBottom, radius);
+        }
+        if (!shader && !bends.isEmpty()) {
+            // шейдер не поднялся — снимаем остатки эффектов
             for (final View view : bends.keySet()) {
                 view.setRenderEffect(null);
             }
@@ -297,7 +297,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                     child.setClipBounds(clip);
                 }
             }
-            if (warp && w > 0 && h > 0) {
+            if (shader && w > 0 && h > 0) {
                 // Касательные валиков в локальных координатах ячейки: карта одна
                 // на весь список (инсет одинаков), поэтому швы соседних строк
                 // совпадают точно, а содержимое одного сообщения едет неразрывно.
@@ -310,7 +310,6 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                         bend = new Bend(shaderCode);
                     } catch (Throwable t) {
                         shaderFailed = true;
-                        warp = false;
                     }
                     if (bend != null) {
                         bends.put(child, bend);
@@ -320,30 +319,13 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                     child.setRenderEffect(bend.effect);
                 }
             }
-            if (!warp) {
-                // старый путь (API < 33): поворот вокруг ребра, ближнего к центру —
-                // общий край соседних строк остаётся «прибит» к валику
-                if (!cameraBackup.containsKey(child)) {
-                    cameraBackup.put(child, child.getCameraDistance());
-                    child.setCameraDistance(ORTHO_CAMERA_DISTANCE);
-                }
-                final float centerY = child.getTop() + child.getHeight() / 2f;
-                child.setPivotX(child.getWidth() / 2f);
-                child.setPivotY(centerY <= anchor ? child.getHeight() : 0f);
-                // старый путь масштабируется отдельно: радиус валиков мал,
-                // а дуге старого пути нужен мягкий знаменатель
-                final float legacyRadius = Math.max(radius, AndroidUtilities.dp(LEGACY_MIN_RADIUS_DP));
-                final float angle = (anchor - centerY) / legacyRadius * (180f / (float) Math.PI);
-                if (Math.abs(child.getRotationX() - angle) > 0.04f) {
-                    child.setRotationX(angle);
-                }
-            }
         }
         applied = true;
     }
 
     private void reset() {
         applied = false;
+        warp.clear();
         if (!bends.isEmpty()) {
             for (final View view : bends.keySet()) {
                 view.setRenderEffect(null);
@@ -356,20 +338,10 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             if (child == null) {
                 continue;
             }
-            child.setRotationX(0f);
-            child.setScaleX(1f);
-            child.setScaleY(1f);
-            child.setPivotX(child.getWidth() / 2f);
-            child.setPivotY(child.getHeight() / 2f);
             if (clipRects.remove(child) != null) {
                 child.setClipBounds(null);
             }
-            final Float originalDistance = cameraBackup.remove(child);
-            if (originalDistance != null) {
-                child.setCameraDistance(originalDistance);
-            }
         }
-        cameraBackup.clear();
         clipRects.clear();
     }
 }
