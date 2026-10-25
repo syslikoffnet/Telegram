@@ -117,6 +117,10 @@ public class TextSettingsCell extends FrameLayout {
 
     /** Pengram's text/value rows use vertical layout rather than overlapping at large font scale. */
     public void setAdaptiveLayout(boolean adaptive, CharSequence value) {
+        // Длинное значение (описание/сводка) складываем под заголовок всегда,
+        // даже если позиционный флаг почему-то не дошёл: наложение пары
+        // title/value на узком экране недопустимо ни при каком состоянии.
+        adaptive = adaptive || value != null && value.length() > 26;
         adaptiveLayout = adaptive;
         textView.setSingleLine(!adaptive);
         textView.setMaxLines(adaptive ? Integer.MAX_VALUE : 1);

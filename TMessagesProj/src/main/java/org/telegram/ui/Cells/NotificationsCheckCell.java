@@ -190,7 +190,12 @@ public class NotificationsCheckCell extends FrameLayout {
             imageView.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogIcon), PorterDuff.Mode.MULTIPLY));
         }
         checkBox.setChecked(checked, iconType, animationsEnabled);
-        setMultiline(multiline || adaptiveLayout);
+        // Длинная подпись обязана уходить под заголовок независимо от флагов:
+        // иначе valueTextView (MATCH_PARENT, вторая строка той же зоны) на
+        // узких экранах наезжает на заголовок — «два текста в одном пункте».
+        final boolean stackValue = multiline || adaptiveLayout
+                || value != null && value.length() > 26;
+        setMultiline(stackValue);
         if (isMultiline) {
             multilineValueTextView.setText(value);
         } else {

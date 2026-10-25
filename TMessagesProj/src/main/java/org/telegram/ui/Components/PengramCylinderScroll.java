@@ -42,7 +42,12 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     /** Радиус валика при0 % силы — мягкий, почти прямой край. */
     private static final float RADIUS_GENTLE_DP = 340f;
     /** Удлинение камеры для старого пути (API < 33): перспектива без обрезания. */
-    private static final float CAMERA_BOOST = 4f;
+    // Ортографическая камера legacy-пути: при перспективе (старый boost ×4)
+    // точки на разном удалении от пивота проецируются с разным x-масштабом —
+    // фото внутри сообщения «уезжает» от собственной обводки, строки текста
+    // разъезжаются. При этой дистанции ошибка проекции на z ≤ 2000px < 1px:
+    // поворот становится аффинным, как и шейдерный варп.
+    private static final float ORTHO_CAMERA_DISTANCE = 1000000f;
     /** Ось поворота старого пути не ближе этого к краю — угол остаётся мягким. */
     private static final float LEGACY_MIN_RADIUS_DP = 700f;
     /** Доля радиуса валика до касательной: у края экрана остаётся ~53° —
@@ -52,7 +57,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private final RecyclerView target;
     private final Callable<Boolean> enabled;
     /** камера уже удлинена (WeakHashMap — не держим ячейки после GC списка). */
-    private final WeakHashMap<View, Boolean> cameraBoosted = new WeakHashMap<>();
+    private final WeakHashMap<View, Float> cameraBackup = new WeakHashMap<>();
     /** актуальные границы клипа каждой ячейки (снимается в reset()). */
     private final WeakHashMap<View, android.graphics.Rect> clipRects = new WeakHashMap<>();
     /** шейдер сгиба на ячейку: uniforms у RuntimeShader общие для всех его эффектов. */
@@ -252,7 +257,10 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float strength = PengramConfig.getCylinderScrollStrength() / 100f;
         final float radiusDp = RADIUS_GENTLE_DP + (RADIUS_TIGHT_DP - RADIUS_GENTLE_DP) * strength;
         final float radius = radiusDp * AndroidUtilities.density;
-        final float anchor = target.getHeight() / 2f;
+        // Якорь legacy-пути — центр ЗОНЫ изгиба: с тумблером «до шапки и
+        // поля ввода» кромка намотки уходит к барам, при выключенном
+        // тумблере topEdge=0/bottomEdge=height — якорь прежний height/2.
+        final float anchor = (topEdge + bottomEdge) / 2f;
         // два валика: касательные на EDGE_K*radius внутрь от ГРАНИЦ зоны
         // (края списка либо внутренние края баров) — у кромки остаётся ~53°
         // намотки (сгиб без переворота), плоская середина ≥ трети зоны
@@ -315,9 +323,9 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             if (!warp) {
                 // старый путь (API < 33): поворот вокруг ребра, ближнего к центру —
                 // общий край соседних строк остаётся «прибит» к валику
-                if (!cameraBoosted.containsKey(child)) {
-                    child.setCameraDistance(child.getCameraDistance() * CAMERA_BOOST);
-                    cameraBoosted.put(child, Boolean.TRUE);
+                if (!cameraBackup.containsKey(child)) {
+                    cameraBackup.put(child, child.getCameraDistance());
+                    child.setCameraDistance(ORTHO_CAMERA_DISTANCE);
                 }
                 final float centerY = child.getTop() + child.getHeight() / 2f;
                 child.setPivotX(child.getWidth() / 2f);
@@ -356,11 +364,12 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             if (clipRects.remove(child) != null) {
                 child.setClipBounds(null);
             }
-            if (cameraBoosted.remove(child) != null) {
-                child.setCameraDistance(child.getCameraDistance() / CAMERA_BOOST);
+            final Float originalDistance = cameraBackup.remove(child);
+            if (originalDistance != null) {
+                child.setCameraDistance(originalDistance);
             }
         }
-        cameraBoosted.clear();
+        cameraBackup.clear();
         clipRects.clear();
     }
 }

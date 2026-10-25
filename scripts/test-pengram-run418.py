@@ -88,7 +88,7 @@ def main():
           and "child.setRotationX(angle)" in cy)
     check("legacy: мягкий знаменатель (радиус валиков мал)",
           "LEGACY_MIN_RADIUS_DP" in cy and "legacyRadius" in cy)
-    check("legacy: камера и возврат в reset", "CAMERA_BOOST = 4f" in cy
+    check("legacy: камера и возврат в reset", "ORTHO_CAMERA_DISTANCE = 1000000f" in cy
           and "child.setRotationX(0f)" in cy and "setPivotY(child.getHeight() / 2f)" in cy)
 
     print()
