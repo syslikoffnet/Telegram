@@ -90,10 +90,11 @@ def main():
     check("rlv: drawChild предлагает воину первым делом",
           "childWarp != null && childWarp.draw(canvas, child)" in rlv)
     check("rlv: инвалидации и открепление доходят до воина",
-          "onDescendantInvalidated" in rlv and "invalidateChild(View child, Rect dirty)" in rlv
-          and "onChildDetachedFromWindow" in rlv
+          "onDescendantInvalidated" in rlv
+          and "public void onChildDetachedFromWindow(View child)" in rlv
           and "childWarp.onChildInvalidate(child)" in rlv
-          and "childWarp.onChildDetached(child)" in rlv)
+          and "childWarp.onChildDetached(child)" in rlv
+          and "invalidateChild(View child, Rect dirty)" not in rlv)
 
     print("== Регрессия run423: тумблер и лямбда баров целы")
     check("chat:4-арг attach с лямбдой баров", "pengramCylinderBars" in chat)

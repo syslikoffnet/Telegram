@@ -2700,16 +2700,12 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         super.onDescendantInvalidated(child, target);
     }
 
-    @Override
-    public void invalidateChild(View child, Rect dirty) {
-        if (childWarp != null) {
-            childWarp.onChildInvalidate(child);
-        }
-        super.invalidateChild(child, dirty);
-    }
+    // invalidateChild в ViewGroup объявлен final — сигнал инвалидаций
+    // берём через onDescendantInvalidated (API 24+; ниже у варпа кадровый
+    // резерв в самом PengramCylinderWarp).
 
     @Override
-    protected void onChildDetachedFromWindow(View child) {
+    public void onChildDetachedFromWindow(View child) {
         if (childWarp != null) {
             childWarp.onChildDetached(child);
         }

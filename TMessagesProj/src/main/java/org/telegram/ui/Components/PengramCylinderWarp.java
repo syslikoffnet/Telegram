@@ -1,6 +1,7 @@
 package org.telegram.ui.Components;
 
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -143,6 +144,15 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         final float alpha = child.getAlpha();
         if (alpha <= 0.004f) {
             return true; // невидима: рисовать нечего, контент не захватываем
+        }
+        if (Build.VERSION.SDK_INT < 24) {
+            // Android 6/7: onDescendantInvalidated ещё нет, а invalidateChild
+            // финален — «уехала» от «перерисовалась» отличить нечем:
+            // на этих редких версиях капчим зону каждый кадр (верность превыше)
+            final Capture watched = captures.get(child);
+            if (watched != null) {
+                watched.stale = true;
+            }
         }
         final Capture capture = capture(child, w, h);
         if (capture == null) {
@@ -301,8 +311,10 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         }
         paint.setShader(capture.shader);
         paint.setAlpha(Math.round(alpha * 255f));
+        // полная сигнатура со сдвигами существует с API 23; короткая
+        //8-арг вырезана из современного SDK
         canvas.drawVertices(Canvas.VertexMode.TRIANGLES, capture.vertexCount,
-                positions, texs, null, indices, capture.indexCount, paint);
+                positions, 0, texs, 0, null, 0, indices, 0, capture.indexCount, paint);
     }
 
     // ---- ряды: равномерная сетка по ROW_STEP + точные узлы кривой ----

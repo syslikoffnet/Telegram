@@ -83,9 +83,16 @@ def main():
           < rlv.find("hasSections() && !ignoreClipChild"))
     check("rlv: старые пути суперкласса не тронуты (вызовы super сохранены)",
           "super.onDescendantInvalidated(child, target);" in rlv
-          and "super.invalidateChild(child, dirty);" in rlv
           and "super.onChildDetachedFromWindow(child);" in rlv
           and "super.drawChild(canvas, child, drawingTime)" in rlv)
+    check("rlv: invalidateChild не переопределяем (final в ViewGroup), "
+          "detach — public как в androidx",
+          "invalidateChild(View child, Rect dirty)" not in rlv
+          and "public void onChildDetachedFromWindow(View child)" in rlv)
+    check("warp: кадровый резерв инвалидаций для API<24 (до onDescendantInvalidated)",
+          "Build.VERSION.SDK_INT < 24" in w and "watched.stale = true;" in w)
+    check("warp: drawVertices — полная сигнатура со сдвигами (есть с API 23)",
+          "positions, 0, texs, 0, null, 0, indices, 0, capture.indexCount, paint" in w)
 
     print()
     if fails:
