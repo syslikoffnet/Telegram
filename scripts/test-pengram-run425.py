@@ -78,9 +78,9 @@ def main():
     check("warp: захват — один раз на изменение контента, позиции не перезахватываем",
           "child.draw(onto)" in warp and "capture.stale" in warp
           and "transformMatches(child)" in warp and "capture.snapshot(child)" in warp)
-    check("warp: каждый кадр — один drawVertices, сетка кэшируется по размеру",
+    check("warp: каждый кадр — один drawVertices, сетка кэшируется по размаху окна",
           "Canvas.VertexMode.TRIANGLES" in warp and "drawVertices(" in warp
-          and "ensureGrid(capture, rows)" in warp)
+          and "ensureGrid(capture, rows, yHi - yLo)" in warp)
     check("warp: центр списка рисует список сам (вне зоны — без нагрузки)",
           "return false" in warp and "localT <= 0f && localB >= h" in warp)
 

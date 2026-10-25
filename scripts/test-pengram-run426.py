@@ -59,8 +59,8 @@ def main():
           "alpha <= 0.004f" in w and "return true; // невидима" in w)
     check("сбой захвата — ядро с гибом, без повторов",
           "catch (Throwable t)" in w and "capture.failed = true;" in w)
-    check("сетка выделяется один раз на размер ячейки (maxRows-запас)",
-          "private void ensureGrid(Capture capture, int rows)" in w
+    check("сетка выделяется с запасом на размах окна (maxRows)",
+          "private void ensureGrid(Capture capture, int rows, float span)" in w
           and "maxRows * 4" in w and "ROW_SLOTS" in w)
     check("ряды: равномерный шаг + точные узлы касательных и sn=1",
           "ROW_STEP = 2f" in w and "kinks[0] = localT" in w
@@ -93,6 +93,22 @@ def main():
           "Build.VERSION.SDK_INT < 24" in w and "watched.stale = true;" in w)
     check("warp: drawVertices — полная сигнатура со сдвигами (есть с API 23)",
           "positions, 0, texs, 0, null, 0, indices, 0, capture.indexCount, paint" in w)
+
+    print("== Разметка окон: обратный образ источника без мёртвых полос")
+    check("warp: обратная карта через синус (экранный ряд из исходного)",
+          "private float yOfSource(float s, float localT, float localB)" in w
+          and "Math.sin((localT - s) / roller)" in w
+          and "Math.sin((s - localB) / roller)" in w)
+    check("warp: окно ячейки = домен источника (sn<=1), не [0,h]",
+          "srcLo = Math.max(0f, localT - curlDepth)" in w
+          and "srcHi = Math.min(h, localB + curlDepth)" in w
+          and "yOfSource(srcLo, localT, localB)" in w
+          and "yOfSource(srcHi, localT, localB)" in w)
+    check("warp: ряды строятся по окну (швы соседей сходятся точно)",
+          "buildRows(yLo, yHi, localT, localB)" in w
+          and "for (float y = yLo; y < yHi" in w)
+    check("warp: ячейка вне домена — рисуем пустоту, не кривизну",
+          "srcHi - srcLo < 0.5f" in w)
 
     print()
     if fails:

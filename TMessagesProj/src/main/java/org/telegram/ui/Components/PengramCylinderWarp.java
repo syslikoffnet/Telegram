@@ -245,20 +245,51 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         capture.indexCount = 0;
     }
 
+    /** Обратная карта варпа: исходная строка s -> экранная (локальная) строка y.
+     * Прямая карта s(y) монотонна и биективна на своём домене, поэтому
+     * обратная считается через синус: верх y = localT - R*sin((localT-s)/R),
+     * низ симметрично, плоская середина y = s. Клетки по этой функции
+     * размечаются вплотную — швы идеальны, мёртвых полос на границах зон нет. */
+    private float yOfSource(float s, float localT, float localB) {
+        if (s < localT) {
+            return localT - roller * (float) Math.sin((localT - s) / roller);
+        }
+        if (s > localB) {
+            return localB + roller * (float) Math.sin((s - localB) / roller);
+        }
+        return s;
+    }
+
     /** Рисует варп: сетка рядов высотой ROW_STEP с точными узлами у касательных. */
     private void drawMesh(Canvas canvas, Capture capture, float localT, float localB, float alpha) {
         final int w = capture.width;
         final int h = capture.height;
-        // rows: равномерная сетка + точные узлы кривой (касательные и sn=1)
-        int rows = buildRows(localT, localB, h);
-        ensureGrid(capture, rows);
+        // Домен источника ячейки: всё, до чего доходит карта (sn <= 1).
+        // Дальше — контента нет: у самой кромки экрана это «как за экран»
+        // (паритет с шейдером), а полосы ПОД шапкой/НАД вводом покрывает
+        // сосед сверху/снизу своим расширенным окном — разрывов не остаётся.
+        final float curlDepth = (float) (Math.PI / 2) * roller;
+        final float srcLo = Math.max(0f, localT - curlDepth);
+        final float srcHi = Math.min(h, localB + curlDepth);
+        if (srcHi - srcLo < 0.5f) {
+            return; // ячейка целиком вне домена карты — рисовать нечего
+        }
+        final float yLo = yOfSource(srcLo, localT, localB);
+        final float yHi = yOfSource(srcHi, localT, localB);
+        if (yHi - yLo < 0.5f) {
+            return;
+        }
+        // rows: равномерная сетка по окну + точные узлы кривой (касательные и sn=1)
+        int rows = buildRows(yLo, yHi, localT, localB);
+        ensureGrid(capture, rows, yHi - yLo);
         final float[] positions = capture.positions;
         final float[] texs = capture.texs;
         final short[] indices = capture.indices;
         final float invRoller = 1f / roller;
         final float cx = w * 0.5f;
-        // позиции — сам прямоугольник ячейки (сдвигает матрица ребёнка);
-        // текстура — обратная карта варпа, ровно как img.eval в шейдере
+        // позиции — окно рисования ячейки (может выходить за [0,h]: швы
+        // соседей сходятся точно, clipChildren в списке отключён);
+        // текстура — прямая карта варпа, ровно как img.eval в шейдере
         for (int r = 0; r < rows; r++) {
             final float y = rowY(r);
             positions[r * 4] = 0f;
@@ -325,20 +356,21 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         return rowsBuf[index];
     }
 
-    private int buildRows(float localT, float localB, int h) {
-        int cap = h / (int) ROW_STEP + 2 + ROW_SLOTS;
+    private int buildRows(float yLo, float yHi, float localT, float localB) {
+        final float span = yHi - yLo;
+        final float step = Math.max(ROW_STEP, span / (float) MAX_ROWS);
+        int cap = (int) (span / ROW_STEP) + 3 + ROW_SLOTS;
         if (cap > MAX_ROWS + ROW_SLOTS) {
             cap = MAX_ROWS + ROW_SLOTS;
         }
         if (rowsBuf.length < cap) {
             rowsBuf = new float[cap];
         }
-        final float step = Math.max(ROW_STEP, h / (float) MAX_ROWS);
         int n = 0;
-        for (float y = 0f; y < h; y += step) {
+        for (float y = yLo; y < yHi; y += step) {
             rowsBuf[n++] = y;
         }
-        rowsBuf[n++] = h;
+        rowsBuf[n++] = yHi;
         // узлы кривой: касательные (излом наклона) и sn=1 (граница прозрачности)
         kinks[0] = localT;
         kinks[1] = localB;
@@ -346,7 +378,7 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         kinks[3] = localB + roller;
         for (int i = 0; i < 4; i++) {
             final float k = kinks[i];
-            if (k > 0f && k < h) {
+            if (k > yLo && k < yHi) {
                 rowsBuf[n++] = k;
             }
         }
@@ -361,11 +393,11 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         return m;
     }
 
-    /** Сетка выделяется один раз на размер ячейки: число рядов за кадр
-     * гуляет только на узлах кривой, массивы берутся с запасом. */
-    private void ensureGrid(Capture capture, int rows) {
-        final int maxRows = (int) Math.ceil(capture.height
-                / Math.max(ROW_STEP, capture.height / (float) MAX_ROWS)) + ROW_SLOTS;
+    /** Сетка выделяется с запасом на размах окна (высота ячейки + глубина
+     * намотки): число рядов за кадр гуляет только на узлах кривой. */
+    private void ensureGrid(Capture capture, int rows, float span) {
+        final int maxRows = (int) Math.ceil(span
+                / Math.max(ROW_STEP, span / (float) MAX_ROWS)) + ROW_SLOTS;
         if (capture.positions == null || capture.positions.length < maxRows * 4
                 || capture.texs == null || capture.texs.length < maxRows * 4
                 || capture.indices == null || capture.indices.length < (maxRows - 1) * 6) {
