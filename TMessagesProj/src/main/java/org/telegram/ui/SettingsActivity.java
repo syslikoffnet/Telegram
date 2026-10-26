@@ -650,14 +650,6 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         }
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        if (listView.adapter != null) {
-            listView.adapter.notifyDataSetChanged();
-        }
-    }
-
     private ArrayList<Integer> accountNumbers = new ArrayList<>();
     /** id reorder-секции со строками аккаунтов; -1, когда блока нет */
     private int accountsReorderSection = -1;
