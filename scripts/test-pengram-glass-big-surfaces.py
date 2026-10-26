@@ -12,11 +12,18 @@ ROOT = Path(__file__).resolve().parent.parent
 BASE = 'build-master-20261023-1345'
 SEND_FILES = [
     'TMessagesProj/src/main/java/org/telegram/ui/TextMessageEnterTransition.java',
-    'TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java',
     'TMessagesProj/src/main/java/org/telegram/ui/MessageEnterTransitionContainer.java',
     'TMessagesProj/src/main/java/org/telegram/ui/recyclerview/ChatListItemAnimator.java',
-    'TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java',
 ]
+# ChatMessageCell и MessageObject обновлены апстримом13.1.1: байт-паритет с
+# мастер-тегом заменён маркерной контрактурой — золотые патчи Pengram и новые
+# строки13.1.1 обязаны присутствовать в файле (любая потеря при будущих мержах = фейл).
+SEND_MARKER_FILES = {
+    'TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java':
+        'scripts/testdata/send_gold_chat_message_cell.txt',
+    'TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java':
+        'scripts/testdata/send_gold_message_object.txt',
+}
 
 
 def read(path):
@@ -93,6 +100,11 @@ def main():
     for path in SEND_FILES:
         res = subprocess.run(['git', 'diff', '--quiet', BASE, '--', path], cwd=ROOT)
         assert res.returncode == 0, f'файл отправки отличается от мастера: {path}'
+    for path, mf in SEND_MARKER_FILES.items():
+        text = (ROOT / path).read_text(encoding='utf-8')
+        missing = [l for l in (ROOT / mf).read_text(encoding='utf-8').splitlines()
+                   if l.strip() and not l.startswith('#') and l not in text]
+        assert not missing, f'{path}: потеряны маркеры {mf}: {missing[:3]}'
 
     print('Pengram glass/MD3 big-surface wiring: OK')
 

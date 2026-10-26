@@ -1,0 +1,186 @@
+import org.telegram.messenger.PengramAntiCrash;
+import org.telegram.messenger.PengramConfig;
+/** Pengram: рисуем маленькую аватарку рядом с ником вместо столбика слева */
+private boolean pengramInlineAvatar() {
+if (currentMessageObject == null || currentMessageObject.isOutOwner() || currentMessageObject.isRepostPreview) {
+if (!isChat && !currentMessageObject.forceAvatar) {
+return org.telegram.messenger.PengramConfig.isInlineAvatar();
+/** Pengram: аватарка после ника — сдвигаем её за текст имени */
+private float pengramNameAvatarOffset() {
+&& org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME) {
+return nameLayoutWidth + dp(6);
+/** Pengram: если аватарка после ника, имя двигать не нужно */
+private float pengramNameAvatarShift() {
+if (isAvatarVisible || pengramInlineAvatar()) {
+/** Pengram: нажатие на значок удалённого/изменённого сообщения у времени */
+default void didPressPengramMark(ChatMessageCell cell) {
+private static final float PENGRAM_MARK_SCALE = 0.95f;
+public boolean pengramMarkDrawn;
+private int pengramMarkWidth;
+private boolean pengramMarkPressed;
+private boolean checkPengramMarkMotionEvent(MotionEvent event) {
+if (!pengramMarkDrawn || currentMessageObject == null || delegate == null) {
+if (x >= drawTimeX - dp(4) && x <= drawTimeX + timeWidth + dp(4) && y >= drawTimeY - dp(6) && y <= drawTimeY + dp(22)) {
+pengramMarkPressed = true;
+if (pengramMarkPressed) {
+pengramMarkPressed = false;
+delegate.didPressPengramMark(this);
+if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+result = checkPengramMarkMotionEvent(event);
+pengramUpdateFade();
+// The search highlight belongs to one concrete message id. A
+// recycled cell must not keep it: a stale flag kept the next
+// deleted bubble fully opaque (or blink the wrong row).
+isHighlighted = false;
+if (org.telegram.messenger.PengramConfig.isHidingBubbleTail()) {
+// Pengram: пузырь без «хвостика» — рисуем его как продолжение серии
+drawPinnedBottom = true;
+// Pengram: аватарки авторов в чате можно убрать совсем
+final int pengramAvatarPos = org.telegram.messenger.PengramConfig.getGroupAvatarPos();
+if (isAvatarVisible && !messageObject.isOutOwner() && !messageObject.isRepostPreview && !messageObject.forceAvatar
+&& (pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_HIDE
+|| pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_BEFORE_NAME
+|| pengramAvatarPos == org.telegram.messenger.PengramConfig.AVATAR_POS_AFTER_NAME)) {
+isAvatarVisible = false;
+if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+if (currentMessageObject != null && (currentMessageObject.pengramDeleted
+|| currentMessageObject.pengramArchived)) {
+// The search highlight is shown at full opacity; put the fade back
+// as soon as the highlight goes away.
+/** антикраш: ячейку нельзя ни сверстать, ни нарисовать — рисуем плашку */
+private boolean pengramBlockedStub;
+private long pengramLastStubReport;
+if (!PengramAntiCrash.isEnabled()) {
+pengramMeasure(widthMeasureSpec, heightMeasureSpec);
+} catch (Throwable e) {
+// сломанное сообщение заменяется системной плашкой, остальной чат цел
+pengramBlockedStub = true;
+pengramReportStub("cell measure", e);
+setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), AndroidUtilities.dp(62));
+private void pengramReportStub(String where, Throwable e) {
+final long now = System.currentTimeMillis();
+if (now - pengramLastStubReport > 10000) {
+pengramLastStubReport = now;
+PengramAntiCrash.report(where + ": " + e.getClass().getSimpleName());
+private void pengramMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+pengramBlockedStub = false;
+final int pengramAvatarSize = dp(currentMessageObject.isRepostPreview ? 36 : 42);
+int pengramAvatarX = dp(currentMessageObject.isRepostPreview ? 15 : 6);
+// Pengram: аватарку автора можно поставить после сообщения, а не до него
+if (!currentMessageObject.isRepostPreview
+&& org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_RIGHT) {
+pengramAvatarX = Math.max(pengramAvatarX, getMeasuredWidth() - pengramAvatarSize - dp(6));
+avatarImage.setImageCoords(pengramAvatarX, avatarImage.getImageY(), pengramAvatarSize, pengramAvatarSize);
+// Pengram: последняя страховка от символов, вылезающих из пузыря.
+// Включается только там, где блок реально шире отведённого места,
+// поэтому на обычных сообщениях ничего не меняется.
+// maxRight теперь считается для всех блоков (раньше — только для
+// цитат), иначе страховка не срабатывала ни на одном обычном
+// сообщении. Для RTL блок дополнительно сверяем ширину разметки:
+// у право-лево-строк правая граница строки не показывает вылет влево.
+boolean pengramOverflow = false;
+for (int a = firstVisibleBlockNum; a <= lastVisibleBlockNum && a < textLayoutBlocks.size(); a++) {
+MessageObject.TextLayoutBlock b = textLayoutBlocks.get(a);
+if (b == null) {
+if (b.maxRight > maxWidth + 1
+|| (b.isRtl() && b.textLayout != null && b.textLayout.getWidth() > maxWidth + 1)) {
+pengramOverflow = true;
+int pengramClipRestore = Integer.MIN_VALUE;
+if (pengramOverflow) {
+pengramClipRestore = canvas.save();
+canvas.clipRect(Math.min(textX - rtlOffset, textX) - dp(4), -getMeasuredHeight(),
+right + dp(4), getMeasuredHeight() * 2f);
+// The quote card follows the bubble: square bubbles keep
+// crisp corners, fully rounded ones get a soft 10dp cap.
+final float quoteRad = Math.max(6f, Math.min(10f, SharedConfig.bubbleRadius * 0.7f));
+quoteLine.drawBackground(canvas, AndroidUtilities.rectTmp, 5, quoteRad, quoteRad, alpha);
+if (pengramClipRestore != Integer.MIN_VALUE) {
+canvas.restoreToCount(pengramClipRestore);
+} else if (edited && org.telegram.messenger.PengramConfig.shouldHideEditedLabel()) {
+// Pengram: надпись «изменено» убрана, остаётся только метка
+pengramMarkDrawn = false;
+pengramMarkWidth = 0;
+int pengramMarkRes = 0;
+if (currentMessageObject.pengramDeleted || currentMessageObject.pengramArchived) {
+pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();
+pengramMarkRes = org.telegram.messenger.PengramConfig.getEditedMarkIconRes();
+if (pengramMarkRes != 0) {
+final android.text.SpannableStringBuilder markBuilder = new android.text.SpannableStringBuilder("\u200B");
+markBuilder.setSpan(
+new org.telegram.ui.Components.PengramMarkSpan(getContext(), pengramMarkRes, PENGRAM_MARK_SCALE, 0f),
+0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+currentTimeString = TextUtils.concat(markBuilder, " ", currentTimeString);
+pengramMarkDrawn = true;
+pengramMarkWidth = org.telegram.ui.Components.PengramMarkSpan.widthFor(Theme.chat_timePaint, PENGRAM_MARK_SCALE);
+if (pengramMarkDrawn) {
+// measureText не умеет считать значок-спан, добавляем его ширину руками
+timeTextWidth += pengramMarkWidth;
+timeWidth += pengramMarkWidth;
+drawNameAvatar = !messageObject.isOutOwner() && ((isForum || isMonoForum) && isSideMenuEnabled || pengramInlineAvatar()) && (currentPosition == null || (currentPosition.flags & MessageObject.POSITION_FLAG_TOP) != 0) && !(messageObject.type == MessageObject.TYPE_ROUND_VIDEO || messageObject.type == MessageObject.TYPE_STICKER || messageObject.type == MessageObject.TYPE_ANIMATED_STICKER);
+if (pengramBlockedStub) {
+PengramAntiCrash.drawStub(canvas, resourcesProvider, getMeasuredWidth(), getMeasuredHeight());
+// отрисовка может упасть посреди save() — счётчик холста возвращаем сами,
+// иначе поедут все соседние сообщения
+final int restoreTo = canvas.save();
+pengramReportStub("cell draw", e);
+canvas.restoreToCount(restoreTo);
+} catch (Throwable ignore) {
+// The bubble was drawn opaque for the blink; return the deleted
+// fade now instead of waiting for the next recycle.
+nx += dp(32.33f) * avatarAlpha * pengramNameAvatarShift();
+// Pengram: сюда приходит общий фон группы (музыка и файлы пачкой, альбомы),
+// и он рисуется в обход drawPinnedBottom — иначе у таких сообщений
+// «хвостик» оставался, даже когда его попросили убрать
+pinnedBottom = true;
+float avatarX = nx + pengramNameAvatarOffset();
+* Pengram: плашка времени (и статус рядом с ней) лежит прямо поверх стикера/медиа и закрывает картинку.
+* Пользователь может выключить её целиком — отдельно для стикеров, кружков и остальных медиа.
+public boolean isPengramTimeHidden() {
+final MessageObject msg = currentMessageObject;
+final int mode = PengramConfig.getMediaTimeMode();
+if (mode == PengramConfig.MEDIA_TIME_DEFAULT) {
+// пока сообщение не ушло, часики и крестик ошибки важнее красоты
+if (PengramConfig.isMediaTimeKeptWhileSending() && (msg.isSending() || msg.isSendError())) {
+// в плашке времени живёт метка «удалено»/«изменено» — без неё удалённый стикер
+// ничем не отличается от обычного, поэтому такие сообщения не трогаем
+if (pengramMarkDrawn || msg.pengramDeleted || msg.pengramArchived) {
+if (msg.isRoundVideo()) {
+return PengramConfig.isMediaTimeRoundHidden();
+if (msg.isAnyKindOfSticker()) {
+return mode == PengramConfig.MEDIA_TIME_HIDE_MEDIA && shouldDrawTimeOnMedia();
+if (isPengramTimeHidden()) {
+/** Pengram: прозрачность удалённого сообщения (его нельзя «засветлить» анимациями) */
+public static final float PENGRAM_DELETED_ALPHA = 0.55f;
+private boolean pengramFaded() {
+// A search hit is highlighted in full opacity: the standard blink would
+// otherwise be almost invisible on a 55%-transparent deleted bubble.
+final MessageObject message = currentMessageObject;
+if (message == null || !(message.pengramDeleted || message.pengramArchived)) {
+if (!org.telegram.messenger.PengramConfig.isFadingDeleted()) {
+// The blink itself has to be readable: brighten the bubble while the
+// standard search highlight runs, then fade it back.
+return !isHighlighted && highlightProgress <= 0;
+* Pengram: держим удалённые сообщения полупрозрачными при любом раскладе —
+* ячейки переиспользуются и аниматор списка любит сбрасывать alpha в 1.
+public void pengramUpdateFade() {
+final float target = pengramFaded() ? PENGRAM_DELETED_ALPHA : 1f;
+if (Math.abs(getAlpha() - target) > 0.001f) {
+// анимации списка не трогаем — setAlpha сам ограничит значение сверху
+setAlpha(target);
+if (pengramFaded()) {
+alpha = Math.min(alpha, PENGRAM_DELETED_ALPHA);
+import org.telegram.messenger.RichQuote;
+if (quote && messageObject.richLayout != null) {
+messageObject.richLayout.openDetails(RichQuote.findCollapsedDetails(messageObject, text, quote_offset));
+final int[] range = RichQuote.findQuote(messageObject, text, quote_offset);
+if (range == null) {
+if (quoteHighlight == null || quoteHighlight.todo || quoteHighlight.poll || quoteHighlight.id != messageObject.getId() || quoteHighlight.start != range[0] || quoteHighlight.end != range[1]) {
+final QuoteHighlight prev = quoteHighlight;
+quoteHighlight = new QuoteHighlight(this, getParent(), messageObject.getId(), messageObject.richLayout, range[0], range[1]);
+quoteHighlight.continueFrom(prev);
+// drawn on top, so block backgrounds (table headers, code) don't cover them
+canvas.translate(-textX, -textY);
+if (quoteHighlight != null && !quoteHighlight.todo && !quoteHighlight.poll && currentBackgroundDrawable != null) {
+canvas.clipPath(currentBackgroundDrawable.makePath());
+quoteHighlight.paint.setColor(Theme.multAlpha(getThemedColor(currentMessageObject.isOutOwner() && !currentMessageObject.preview ? Theme.key_chat_outReplyLine : Theme.key_chat_inReplyLine), .2f));
+quoteHighlight.draw(canvas, textX, textY, currentBackgroundDrawable.getBounds(), getHighlightAlpha(true));

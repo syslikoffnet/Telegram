@@ -3594,9 +3594,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
                 oldSendButton.setVisibility(View.GONE);
             }
-            if (paidMessagesPrice > 0 || isLiveComment) {
-                sendButton.setStarsPrice(paidMessagesPrice, 1);
-            }
+            sendButton.setStarsPrice(paidMessagesPrice, 1);
             updateFieldRight(lastAttachVisible);
         }
         if (isLiveComment) {
@@ -5352,7 +5350,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         final long now = SystemClock.uptimeMillis();
         if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && count <= 2 && now - pengramLastTypingHaptic >= 90) {
             pengramLastTypingHaptic = now;
-            messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         }
     }
 
@@ -13252,6 +13250,13 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     public boolean isPopupShowing() {
         return emojiViewVisible || botKeyboardViewVisible;
+    }
+
+    public boolean canHidePopupByBackButton() {
+        if (!isPopupShowing()) {
+            return false;
+        }
+        return !(currentPopupContentType == POPUP_CONTENT_BOT_KEYBOARD && botReplyMarkup != null && botReplyMarkup.is_persistent && botButtonsMessageObject != null);
     }
 
     public boolean closeCreationLinkDialog(boolean invoked) {

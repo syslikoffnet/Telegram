@@ -61,9 +61,10 @@ settext = pill[pill.index('public void setText(CharSequence author'):]
 settext = settext[:settext.index('private ProfileActivity.AvatarImageView avatarView;')]
 assert 'invalidate();' in settext
 # у названия всегда остаётся место, даже если автор длинный
-assert 'available * 0.55f' in pill
-assert 'available - dp(48)' in pill
-assert 'this.title.ellipsize(Math.max(0, available - this.author.getWidth()));' in pill
+assert 'textWidth * 0.55f' in pill
+assert 'textWidth - dp(48)' in pill
+assert 'this.title.ellipsize(Math.max(0, textWidth - this.author.getWidth()));' in pill
+assert 'getContentWidth' in pill  # логика баланса теперь в их getContentWidth
 # позиционирование подписи не зависит от наличия onlineTextView[1]
 assert 'if (musicView == null || onlineTextView[1] == null) {' not in profile
 assert 'if (musicView == null || actionBar == null) {' in profile
@@ -71,6 +72,6 @@ assert 'if (musicView == null || actionBar == null) {' in profile
 # иначе alpha подписи остаётся нулевой до первого скролла
 assert 'musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);' in profile
 block = profile[profile.index('musicView.setVisibility(hasMusic ? View.VISIBLE : View.GONE);'):]
-assert 'updateMusicPosition();' in block[:400]
+assert 'updateMusicPosition();' in block[:900]
 
 print('lyrics header: frames keep coming, late text picked up, profile pill text safe: OK')

@@ -1,0 +1,117 @@
+/** Pengram: сообщение удалено собеседником, но оставлено локально */
+public boolean pengramDeleted;
+/** Pengram: снимок из архива удалёнок — удалён по определению, даже если
+* метка ещё не подгружена в кэш (иначе такой пузырь «светлеет») */
+public boolean pengramArchived;
+/** Pengram: к какому архивному id относится снимок (для навигации поиска) */
+public long pengramArchiveRowId;
+if (PengramConfig.isZalgoFilter() && messageText != null) {
+// длину не меняем, иначе поедут entity
+messageText = PengramConfig.filterZalgoKeepLength(messageText.toString());
+if (PengramConfig.isZalgoFilter() && !TextUtils.isEmpty(text)) {
+// Pengram: подписи чистим так же, как и тексты — длину не меняем, иначе поедут entity
+text = PengramConfig.filterZalgoKeepLength(text.toString());
+} else if (messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions()) {
+* Pengram: ширина пузыря под строку, которая не влезла.
+* Раньше ширина жёстко обрезалась по лимиту, а текст рисовался настоящей
+* длины — отсюда буквы и значки, торчащие наружу. Теперь пузырю разрешено
+* чуть подрасти (не больше 18dp и 12% лимита), чего хватает на огрехи
+* измерения ширины: эмодзи, спаны, межбуквенные интервалы.
+private static int pengramFitWidth(int maxWidth, int linesMaxWidth) {
+if (linesMaxWidth <= maxWidth) {
+return linesMaxWidth;
+final int extra = Math.min(AndroidUtilities.dp(32), (int) (maxWidth * 0.2f));
+return Math.min(linesMaxWidth, maxWidth + Math.max(0, extra));
+/** есть ли строки, которые не влезли в заданную ширину */
+private static boolean pengramLinesWider(Layout layout, int width) {
+if (layout == null) {
+if (layout.getLineRight(l) > width + 0.5f) {
+* Pengram: вставляет мягкие переносы (U+200B) внутрь слов, которые шире строки.
+* Спаны при этом едут вместе с текстом, поэтому ссылка остаётся ссылкой —
+* просто переносится на следующую строку вместо того, чтобы торчать из пузыря.
+private static float pengramWidthOf(CharSequence text, int start, int end, TextPaint paint) {
+return Layout.getDesiredWidth(text, start, end, paint);
+return paint.measureText(text, start, end);
+private static CharSequence pengramSoftWrap(CharSequence text, TextPaint paint, int width) {
+if (text == null || width <= 0 || text.length() == 0 || text.length() > 10000) {
+SpannableStringBuilder sb = null;
+int inserted = 0;
+while (i < (sb != null ? sb.length() : text.length()) && inserted < 128) {
+final CharSequence current = sb != null ? sb : text;
+while (start < current.length() && Character.isWhitespace(current.charAt(start))) {
+int end = start;
+while (end < current.length() && !Character.isWhitespace(current.charAt(end))) {
+if (end <= start) {
+// ширину меряем с учётом спанов (моноширинный код, другой кегль),
+// иначе длинная ссылка внутри такого спана кажется уже, чем рисуется
+if (pengramWidthOf(current, start, end, paint) <= width) {
+if (sb == null) {
+sb = new SpannableStringBuilder(text);
+int chunk = start;
+while (chunk < end && inserted < 128) {
+int fit = paint.breakText(sb, chunk, end, true, width, null);
+int next = chunk + fit;
+if (next >= end) {
+// не разрываем суррогатную пару (эмодзи и редкие символы)
+if (Character.isHighSurrogate(sb.charAt(next - 1))) {
+sb.insert(next, "\u200B");
+chunk = next + 1;
+return sb != null ? sb : text;
+if (pengramLinesWider(layout, width)) {
+// Pengram: длинная ссылка (или любое слово без пробелов) иногда не
+// переносится ни одной из стратегий и вылезает за края пузыря —
+// ширина сообщения считается по ограничению, а текст рисуется шире.
+// Расставляем в таком слове невидимые места переноса и верстаем заново.
+// Иногда одного захода мало: ширина символов, посчитанная краской, чуть
+// меньше реальной (спаны, эмодзи, letter spacing), и слово всё равно
+// вылезает. Тогда рубим с запасом — 6 и 14 процентов.
+final float[] targets = {1f, 0.94f, 0.86f, 0.76f, 0.64f};
+for (int attempt = 0; attempt < targets.length && pengramLinesWider(layout, width); ++attempt) {
+final int target = (int) (width * targets[attempt]);
+final CharSequence soft = pengramSoftWrap(text, paint, Math.max(1, target));
+if (soft != text) {
+builder = StaticLayout.Builder.obtain(soft, 0, soft.length(), paint, width)
+* Pengram: вёрстка текста сообщения целиком под ловушкой.
+* <p>Сообщения, собранные ради падения, прилетают с сетевого потока и
+* убивают приложение ещё до показа чата. Любой отказ здесь должен стоить
+* максимум одного кривого сообщения, а не всего клиента.
+if (!PengramAntiCrash.isEnabled()) {
+pengramGenerateLayout(fromUser);
+PengramAntiCrash.report("message layout: " + e.getClass().getSimpleName());
+if (textLayoutBlocks == null) {
+private void pengramGenerateLayout(TLRPC.User fromUser) {
+RichMessageLayout created = null;
+if (PengramAntiCrash.isEnabled()) {
+// последний рубеж: если вёрстка всё-таки упала, остаётся
+// прежний вариант сообщения, а не падение клиента
+created = new RichMessageLayout(this, maxWidth, old);
+PengramAntiCrash.report("rich layout: " + e.getClass().getSimpleName());
+if (created != null) {
+richLayout = created;
+PengramAntiCrash.sanitizeEntities(messageOwner);
+boolean noforwards = messageOwner != null && messageOwner.noforwards && !PengramConfig.isBypassingForwardRestrictions();
+// Pengram: правая граница блока нужна не только цитатам —
+// по ней страховка при отрисовке ловит текст, вылезший из пузыря.
+textWidth = Math.max(textWidth, pengramFitWidth(maxWidth, linesMaxWidth));
+textWidth = Math.max(textWidth, pengramFitWidth(width, linesMaxWidth));
+// Pengram: «Пошлая Молли — Нимфоманка» показываем как название без имени
+if (TextUtils.isEmpty(attribute.performer)) {
+title = PengramMusicMeta.titleFrom(title);
+if (TextUtils.isEmpty(performer)) {
+// Pengram: имя часто написано прямо в названии трека
+performer = PengramMusicMeta.artistFrom(pengramRawAudioTitle(document, attribute));
+/** строка, в которой может прятаться имя исполнителя: тег названия или имя файла */
+private static String pengramRawAudioTitle(TLRPC.Document document, TLRPC.DocumentAttribute attribute) {
+String title = attribute == null ? null : attribute.title;
+if (TextUtils.isEmpty(title)) {
+if (PengramConfig.isBypassingForwardRestrictions()) {
+// Одноразовые медиа (ttl_seconds) с обходом пересылать можно:
+// SendMessagesHelper перехватит их и отправит копией с диска.
+// Запрещены лишь секретные объекты и превью, размытые не по ttl.
+final boolean onceMedia = media != null && media.ttl_seconds != 0;
+return !(messageOwner instanceof TLRPC.TL_message_secret) && (!needDrawBluredPreview() || onceMedia)
+&& !isLiveLocation() && type != MessageObject.TYPE_PHONE_CALL && !isSponsored();
+} else if (messageOwner.action instanceof TLRPC.TL_messageActionNoPaidMessagesTokenUsed) {
+// sent by the one who used a free messaging link (QR code) of the other
+messageText = replaceWithLink(getString(R.string.NoPaidMessagesTokenUsedOut), "un1", user);
+messageText = replaceWithLink(getString(R.string.NoPaidMessagesTokenUsed), "un1", fromObject);

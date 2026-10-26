@@ -172,7 +172,7 @@ android {
                 // Отпечаток сертификата уходит в нативную часть байтами: в DEX
                 // его нет, в .so он не читается как строка, а патч Java-проверки
                 // ничего не даёт — сверка происходит в libtmessages.
-                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-21',
+                arguments '-DANDROID_STL=c++_static', '-DANDROID_PLATFORM=android-23',
                         '-DPENGRAM_CERT_SHA256_BYTES=' + pengramCertSha256Bytes() //, '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
                 targets 'tmessages.49'
             }
