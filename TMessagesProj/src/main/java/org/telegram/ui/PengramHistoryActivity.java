@@ -168,6 +168,9 @@ public class PengramHistoryActivity extends UniversalFragment {
         final UItem edited = UItem.asRadio(12, getString(R.string.PengramHistoryFilterEdited)).setChecked(filter == PengramHistory.FILTER_EDITED);
         edited.hideDivider = org.telegram.messenger.PengramMD3.hideDividers();
         items.add(edited);
+        final UItem saved = UItem.asRadio(13, getString(R.string.PengramHistoryFilterMessages)).setChecked(filter == PengramHistory.FILTER_SAVED);
+        saved.hideDivider = org.telegram.messenger.PengramMD3.hideDividers();
+        items.add(saved);
         items.add(UItem.asShadow(null));
 
         if (failed) {
@@ -202,12 +205,17 @@ public class PengramHistoryActivity extends UniversalFragment {
         } else if (item.id == 12) {
             filter = PengramHistory.FILTER_EDITED;
             reload();
+        } else if (item.id == 13) {
+            filter = PengramHistory.FILTER_SAVED;
+            reload();
         } else if (item.id >= 1000) {
             final int index = item.id - 1000;
             if (index >= 0 && index < entries.size()) {
                 final PengramHistory.Entry entry = entries.get(index);
                 PengramHistoryChatActivity detail = entry.action == PengramHistory.ACTION_EDITED
                         ? new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_EDITED, entry.messageId)
+                        : entry.action == PengramHistory.ACTION_SAVED
+                        ? new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_SAVED)
                         : new PengramHistoryChatActivity(entry.dialogId, PengramHistoryChatActivity.MODE_DELETED);
                 detail.setCurrentAccount(currentAccount);
                 presentFragment(detail);
@@ -271,11 +279,15 @@ public class PengramHistoryActivity extends UniversalFragment {
 
         public void set(PengramHistory.Entry entry) {
             final boolean deleted = entry.action == PengramHistory.ACTION_DELETED;
+            final boolean saved = entry.action == PengramHistory.ACTION_SAVED;
             headerText.setTextColor(Theme.getColor(deleted ? Theme.key_text_RedBold : Theme.key_windowBackgroundWhiteBlueText, getResourceProvider()));
 
             String who = peerName(entry.fromId != 0 ? entry.fromId : entry.dialogId);
             String when = LocaleController.getInstance().getFormatterStats().format(new Date(entry.savedAt * 1000L));
-            headerText.setText((deleted ? getString(R.string.PengramHistoryDeletedMark) : getString(R.string.PengramHistoryEditedMark)) + " · " + who + " · " + when);
+            final String mark = deleted ? getString(R.string.PengramHistoryDeletedMark)
+                    : saved ? getString(R.string.PengramHistorySavedMark)
+                    : getString(R.string.PengramHistoryEditedMark);
+            headerText.setText(mark + " · " + who + " · " + when);
 
             if (!deleted && entry.prevText != null) {
                 prevText.setVisibility(VISIBLE);

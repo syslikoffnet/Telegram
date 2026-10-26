@@ -302,7 +302,7 @@ public class SharedConfig {
     public static boolean streamMkv = false;
     public static boolean saveStreamMedia = true;
     public static boolean pauseMusicOnRecord = false;
-    public static boolean pauseMusicOnMedia = false;
+    public static boolean pauseMusicOnMedia = true;
     public static boolean noiseSupression;
     public static boolean debugWebView;
     public static boolean sortContactsByName;
@@ -627,7 +627,7 @@ public class SharedConfig {
             streamMedia = preferences.getBoolean("streamMedia", true);
             saveStreamMedia = preferences.getBoolean("saveStreamMedia", true);
             pauseMusicOnRecord = preferences.getBoolean("pauseMusicOnRecord", true);
-            pauseMusicOnMedia = preferences.getBoolean("pauseMusicOnMedia", false);
+            pauseMusicOnMedia = preferences.getBoolean("pauseMusicOnMedia", true);
             forceDisableTabletMode = preferences.getBoolean("forceDisableTabletMode", false);
             forceEnableTabletMode = preferences.getBoolean("forceEnableTabletMode", false);
             streamAllVideo = preferences.getBoolean("streamAllVideo", BuildVars.DEBUG_VERSION);

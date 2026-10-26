@@ -60,6 +60,8 @@ public class PengramHistoryChatActivity extends BaseFragment {
     public static final int MODE_DELETED = 0;
     public static final int MODE_EDITED = 1;
     public static final int MODE_ALL = 2;
+    /** полная история переписки из собственной базы */
+    public static final int MODE_SAVED = 3;
 
     private static final int MENU_CLEAR = 10;
 
@@ -241,6 +243,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         switch (mode) {
             case MODE_DELETED: return getString(R.string.PengramDeletedTitle);
             case MODE_EDITED: return getString(R.string.PengramEditedTitle);
+            case MODE_SAVED: return getString(R.string.PengramMessagesTitle);
             default: return getString(R.string.PengramHistoryTitle);
         }
     }
@@ -299,6 +302,8 @@ public class PengramHistoryChatActivity extends BaseFragment {
             filter = PengramHistory.FILTER_DELETED;
         } else if (mode == MODE_EDITED) {
             filter = PengramHistory.FILTER_EDITED;
+        } else if (mode == MODE_SAVED) {
+            filter = PengramHistory.FILTER_SAVED;
         } else {
             filter = PengramHistory.FILTER_ALL;
         }

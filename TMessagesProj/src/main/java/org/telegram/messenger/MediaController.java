@@ -3183,8 +3183,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         } else {
             neededAudioFocus = 1;
         }
-        if (hasAudioFocus != neededAudioFocus) {
-            hasAudioFocus = neededAudioFocus;
+        if (hasAudioFocus != neededAudioFocus || audioFocus != AUDIO_FOCUSED) {
             int result;
             if (neededAudioFocus == 3) {
                 result = NotificationsController.audioManager.requestAudioFocus(this, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN);
@@ -3192,7 +3191,10 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 result = NotificationsController.audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, neededAudioFocus == 2 && !SharedConfig.pauseMusicOnMedia ? AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK : AudioManager.AUDIOFOCUS_GAIN);
             }
             if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                hasAudioFocus = neededAudioFocus;
                 audioFocus = AUDIO_FOCUSED;
+            } else {
+                hasAudioFocus = 0;
             }
         }
     }

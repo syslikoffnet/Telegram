@@ -823,7 +823,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
      * скользит голубой контровой свет.
      */
     private static final String FRAGMENT_SHADER =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+            "precision highp float;\n" +
+            "#else\n" +
             "precision mediump float;\n" +
+            "#endif\n" +
             "uniform float uAlpha;\n" +
             "uniform vec3 uLight;\n" +
             "uniform float uTime;\n" +
@@ -872,7 +876,11 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             "}\n";
 
     private static final String SHADOW_FRAGMENT_SHADER =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" +
+            "precision highp float;\n" +
+            "#else\n" +
             "precision mediump float;\n" +
+            "#endif\n" +
             "uniform float uAlpha;\n" +
             "varying vec2 vLocal;\n" +
             "void main() {\n" +
@@ -982,52 +990,52 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final ArrayList<Float> body = new ArrayList<>();
 
         // туловище: чёрная спина + белое пузо (граница размыта, чтобы не было «лесенки»)
-        addEllipsoid(body, 0f, -0.18f, 0f, 0.64f, 0.80f, 0.60f, 0f, 0f, 64, 44, (ux, uy, uz) -> {
+        addEllipsoid(body, 0f, -0.18f, 0f, 0.64f, 0.80f, 0.60f, 0f, 0f, 76, 52, (ux, uy, uz) -> {
             final float front = uz - uy * 0.28f;
             final float t = smoothstep(0.38f, 0.46f, front) * (1f - smoothstep(0.70f, 0.78f, uy));
             return mix(BLACK, WHITE, t);
         });
 
         // голова с белой «маской» на лице
-        addEllipsoid(body, 0f, 0.70f, 0.015f, 0.505f, 0.475f, 0.475f, 0f, 0f, 56, 38, (ux, uy, uz) -> {
+        addEllipsoid(body, 0f, 0.70f, 0.015f, 0.505f, 0.475f, 0.475f, 0f, 0f, 68, 46, (ux, uy, uz) -> {
             final float front = uz - uy * 0.35f - Math.abs(ux) * 0.25f;
             final float t = smoothstep(0.36f, 0.44f, front) * (1f - smoothstep(0.50f, 0.60f, uy));
             return mix(BLACK, WHITE, t);
         });
 
         // клюв
-        addCone(body, 0f, 0.655f, 0.40f, 0.145f, 0.30f, 20, ORANGE);
+        addCone(body, 0f, 0.655f, 0.40f, 0.145f, 0.30f, 28, ORANGE);
 
         // лапки
-        addEllipsoid(body, -0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 18, 12, (ux, uy, uz) -> ORANGE);
-        addEllipsoid(body, 0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 18, 12, (ux, uy, uz) -> ORANGE);
+        addEllipsoid(body, -0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 22, 14, (ux, uy, uz) -> ORANGE);
+        addEllipsoid(body, 0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 22, 14, (ux, uy, uz) -> ORANGE);
 
         // хвостик
-        addEllipsoid(body, 0f, -0.58f, -0.52f, 0.20f, 0.13f, 0.22f, -24f, 0f, 16, 12, (ux, uy, uz) -> BLACK);
+        addEllipsoid(body, 0f, -0.58f, -0.52f, 0.20f, 0.13f, 0.22f, -24f, 0f, 20, 14, (ux, uy, uz) -> BLACK);
 
         bodyMesh = new Mesh(body);
 
         final ArrayList<Float> eyes = new ArrayList<>();
         // центры глаз вынесены почти на поверхность головы, иначе сферы тонут внутри неё
-        addEllipsoid(eyes, -0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, 0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 16, 12, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, -0.215f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
-        addEllipsoid(eyes, 0.173f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 10, 8, (ux, uy, uz) -> SHINE);
+        addEllipsoid(eyes, -0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 20, 16, (ux, uy, uz) -> DARK);
+        addEllipsoid(eyes, 0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 20, 16, (ux, uy, uz) -> DARK);
+        addEllipsoid(eyes, -0.215f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 12, 10, (ux, uy, uz) -> SHINE);
+        addEllipsoid(eyes, 0.173f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 12, 10, (ux, uy, uz) -> SHINE);
         eyesMesh = new Mesh(eyes);
 
         // крылья — отдельными сетками, чтобы ими можно было махать
         final ArrayList<Float> left = new ArrayList<>();
-        addEllipsoid(left, -WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, 16f, 20, 14, (ux, uy, uz) -> BLACK);
+        addEllipsoid(left, -WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, 16f, 26, 18, (ux, uy, uz) -> BLACK);
         wingLeftMesh = new Mesh(left);
 
         final ArrayList<Float> right = new ArrayList<>();
-        addEllipsoid(right, WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 20, 14, (ux, uy, uz) -> BLACK);
+        addEllipsoid(right, WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 26, 18, (ux, uy, uz) -> BLACK);
         wingRightMesh = new Mesh(right);
 
         // контактная тень: диск радиуса 1 в плоскости XY, гаснет к краю в шейдере
         final ArrayList<Float> shadow = new ArrayList<>();
         final float[] shadowNormal = {0f, 0f, 1f};
-        final int segments = 48;
+        final int segments = 64;
         for (int i = 0; i < segments; ++i) {
             final double a0 = 2 * Math.PI * i / segments;
             final double a1 = 2 * Math.PI * (i + 1) / segments;
@@ -1411,23 +1419,41 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 EGL10.EGL_DEPTH_SIZE, 16,
                 EGL10.EGL_STENCIL_SIZE, 0,
                 EGL10.EGL_SAMPLE_BUFFERS, 1,
+                // без явного EGL_SAMPLES драйвер мог выдать буфер с одним сэмплом —
+                // рёбра силуэта оставались ступенчатыми; просим 4x
+                EGL10.EGL_SAMPLES, 4,
                 EGL10.EGL_NONE
         };
         final int[] configsCount = new int[1];
         final EGLConfig[] configs = new EGLConfig[1];
         if (!egl.eglChooseConfig(eglDisplay, configSpec, configs, 1, configsCount) || configsCount[0] <= 0) {
-            // без мультисэмплинга — для совсем простых GPU
-            final int[] simpleSpec = {
+            // 4x не выдали — пробуем 2x, совсем простые GPU уйдут в simpleSpec
+            final int[] msaa2Spec = {
                     EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
                     EGL10.EGL_RED_SIZE, 8,
                     EGL10.EGL_GREEN_SIZE, 8,
                     EGL10.EGL_BLUE_SIZE, 8,
                     EGL10.EGL_ALPHA_SIZE, 8,
                     EGL10.EGL_DEPTH_SIZE, 16,
+                    EGL10.EGL_STENCIL_SIZE, 0,
+                    EGL10.EGL_SAMPLE_BUFFERS, 1,
+                    EGL10.EGL_SAMPLES, 2,
                     EGL10.EGL_NONE
             };
-            if (!egl.eglChooseConfig(eglDisplay, simpleSpec, configs, 1, configsCount) || configsCount[0] <= 0) {
-                throw new RuntimeException("eglChooseConfig failed");
+            if (!egl.eglChooseConfig(eglDisplay, msaa2Spec, configs, 1, configsCount) || configsCount[0] <= 0) {
+                // без мультисэмплинга — для совсем простых GPU
+                final int[] simpleSpec = {
+                        EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                        EGL10.EGL_RED_SIZE, 8,
+                        EGL10.EGL_GREEN_SIZE, 8,
+                        EGL10.EGL_BLUE_SIZE, 8,
+                        EGL10.EGL_ALPHA_SIZE, 8,
+                        EGL10.EGL_DEPTH_SIZE, 16,
+                        EGL10.EGL_NONE
+                };
+                if (!egl.eglChooseConfig(eglDisplay, simpleSpec, configs, 1, configsCount) || configsCount[0] <= 0) {
+                    throw new RuntimeException("eglChooseConfig failed");
+                }
             }
         }
         eglConfig = configs[0];

@@ -11897,6 +11897,15 @@ public class MessagesStorage extends BaseController {
             }
         }
 
+        // Pengram: полная история переписки живёт в собственной базе — дублируем
+        // всё, что Telegram пишет в свой кэш (загрузки истории, апдейты,
+        // отправленные сообщения). Сериализация и вставка идут на потоке
+        // истории, здесь только лёгкий отсев и постановка батча.
+        if (messages != null && !messages.isEmpty() && mode != ChatActivity.MODE_SCHEDULED
+                && mode != ChatActivity.MODE_WELCOME_MESSAGES && !MessageObject.isWelcomeMessage(messages.get(0))) {
+            pengramArchiveMessages(messages);
+        }
+
         boolean databaseInTransaction = false;
         SQLitePreparedStatement state_messages = null;
         SQLitePreparedStatement state_messages_topic = null;
@@ -14655,6 +14664,79 @@ public class MessagesStorage extends BaseController {
      * ВАЖНО: dialogId здесь может быть 0 (обычные чаты и группы), поэтому реальный uid
      * всегда берём из самой таблицы — иначе удалёнки сохранялись бы только в каналах.
      */
+    /**
+     * Pengram: собственная база истории (не кэш Telegram). Лёгкий отсев на
+     * storage-потоке, всё тяжёлое — на потоке истории (см. saveSavedBatch).
+     */
+    private void pengramArchiveMessages(ArrayList<TLRPC.Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        ArrayList<TLRPC.Message> copy = null;
+        for (int i = 0, size = messages.size(); i < size; i++) {
+            final TLRPC.Message message = messages.get(i);
+            if (message == null || message instanceof TLRPC.TL_messageEmpty || message.id <= 0) {
+                continue;
+            }
+            if (copy == null) {
+                copy = new ArrayList<>(size - i);
+            }
+            copy.add(message);
+        }
+        if (copy != null) {
+            PengramHistory.saveSavedBatch(currentAccount, copy, false);
+        }
+    }
+
+    /**
+     * Pengram: полная копия чата в собственную базу в момент бана/кика.
+     * Сервер перестаёт отдавать историю, а кэш Telegram можно очистить —
+     * копия в files/ переживает и то, и другое. Вызывается только когда
+     * локальная копия включена (диалог остаётся в списке).
+     */
+    public void pengramArchiveDialog(long dialogId) {
+        if (dialogId == 0 || !PengramLocalKeep.keepDialog()) {
+            return;
+        }
+        storageQueue.postRunnable(() -> {
+            SQLiteCursor cursor = null;
+            try {
+                final long selfId = getUserConfig().getClientUserId();
+                cursor = database.queryFinalized("SELECT data FROM messages_v2 WHERE uid = ?", dialogId);
+                ArrayList<TLRPC.Message> list = null;
+                while (cursor.next()) {
+                    NativeByteBuffer data = cursor.byteBufferValue(0);
+                    if (data == null) {
+                        continue;
+                    }
+                    try {
+                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        if (message != null) {
+                            message.readAttachPath(data, selfId);
+                            if (list == null) {
+                                list = new ArrayList<>();
+                            }
+                            list.add(message);
+                        }
+                    } finally {
+                        data.reuse();
+                    }
+                }
+                if (list != null) {
+                    PengramHistory.saveSavedBatch(currentAccount, list, true);
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            } finally {
+                if (cursor != null) {
+                    try {
+                        cursor.dispose();
+                    } catch (Throwable ignore) {}
+                }
+            }
+        });
+    }
+
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
         // Архив «слежки» пишем только по настройке, но метку «удалено» ставим
         // всегда, когда сообщение остаётся в чате (локальная копия включена по
@@ -16315,6 +16397,9 @@ public class MessagesStorage extends BaseController {
                 final boolean scheduled = mode == ChatActivity.MODE_SCHEDULED;
                 final boolean quickReplies = mode == ChatActivity.MODE_QUICK_REPLIES;
                 final boolean welcomeMessages = mode == ChatActivity.MODE_WELCOME_MESSAGES;
+                if (!scheduled && !welcomeMessages) {
+                    pengramArchiveMessages(messages.messages);
+                }
                 if (welcomeMessages) {
                     state_messages = database.executeFast("REPLACE INTO welcome_messages VALUES(?, ?, ?, ?, ?, ?, NULL, 0)");
                     int count = messages.messages.size();

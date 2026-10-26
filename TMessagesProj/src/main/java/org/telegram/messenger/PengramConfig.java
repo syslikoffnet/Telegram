@@ -76,6 +76,8 @@ public class PengramConfig {
     // --- история удалённых/изменённых ---
     public static boolean saveDeleted = true;
     public static boolean saveEdited = true;
+    /** полная история переписки в собственной базе (не кэш Telegram) */
+    public static boolean saveMessages = true;
     public static boolean saveEditedMedia = false;
     public static boolean saveOutgoing = true;       // сохранять и свои сообщения (удалённые собеседником)
     public static boolean historyRowInProfile = true;
@@ -1084,6 +1086,7 @@ public class PengramConfig {
             tabBarSize = p.getInt("tabBarSize", 100);
             saveDeleted = p.getBoolean("saveDeleted", true);
             saveEdited = p.getBoolean("saveEdited", true);
+            saveMessages = p.getBoolean("saveMessages", true);
             saveEditedMedia = p.getBoolean("saveEditedMedia", false);
             saveOutgoing = p.getBoolean("saveOutgoing2", true);
             historyRowInProfile = p.getBoolean("historyRowInProfile", true);
@@ -1278,6 +1281,12 @@ public class PengramConfig {
         putBoolean("saveEdited", saveEdited);
     }
 
+    public static void toggleSaveMessages() {
+        init();
+        saveMessages = !saveMessages;
+        putBoolean("saveMessages", saveMessages);
+    }
+
     public static void toggleSaveOutgoing() {
         init();
         saveOutgoing = !saveOutgoing;
@@ -1307,7 +1316,7 @@ public class PengramConfig {
     /** Account slot reuse must never inherit a previous user's spy collection preferences. */
     public static void clearSpyProfile(int account) {
         if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) return;
-        final String[] keys = {"saveDeleted", "saveEdited", "saveEditedMedia", "saveOutgoing2", "saveInBots",
+        final String[] keys = {"saveDeleted", "saveEdited", "saveMessages", "saveEditedMedia", "saveOutgoing2", "saveInBots",
                 "saveReadDate", "saveLastOnline"};
         final SharedPreferences p = prefs();
         if (p == null) return;
@@ -1326,6 +1335,7 @@ public class PengramConfig {
         switch (key) {
             case "saveDeleted": global = saveDeleted; break;
             case "saveEdited": global = saveEdited; break;
+            case "saveMessages": global = saveMessages; break;
             case "saveEditedMedia": global = saveEditedMedia; break;
             case "saveOutgoing2": global = saveOutgoing; break;
             case "saveInBots": global = saveInBots; break;
@@ -1345,6 +1355,7 @@ public class PengramConfig {
 
     public static boolean isSavingDeleted(int account) { return getSpyOption(account, "saveDeleted"); }
     public static boolean isSavingEdited(int account) { return getSpyOption(account, "saveEdited"); }
+    public static boolean isSavingMessages(int account) { return getSpyOption(account, "saveMessages"); }
     public static boolean isSavingOutgoing(int account) { return getSpyOption(account, "saveOutgoing2"); }
     public static boolean isSavingInBots(int account) { return getSpyOption(account, "saveInBots"); }
     public static boolean isSavingReadDate(int account) { return getSpyOption(account, "saveReadDate"); }
@@ -1359,6 +1370,12 @@ public class PengramConfig {
     public static boolean isSavingEdited() {
         init();
         return saveEdited;
+    }
+
+    /** сохранять ли полную историю переписки в собственной базе */
+    public static boolean isSavingMessages() {
+        init();
+        return saveMessages;
     }
 
     /**
@@ -3031,7 +3048,7 @@ public class PengramConfig {
             "profileHistoryScope", "profileHistoryStorage", "quickActionCount", "quickTiles",
             "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",
             "resendAskChat", "resendDeletedAsMine", "resendDeletedMenu", "resendOnceMedia",
-            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia",
+            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia", "saveMessages",
             "editHistoryOpenMark", "editHistoryOpenMenu", "saveForMyselfDefault",
             "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
             "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",

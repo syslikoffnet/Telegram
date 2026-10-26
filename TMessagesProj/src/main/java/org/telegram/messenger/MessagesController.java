@@ -20514,7 +20514,11 @@ public class MessagesController extends BaseController implements NotificationCe
                             } else if (ChatObject.isNotInChat(chat) && dialog != null && (promoDialog == null || promoDialog.id != dialog.id)) {
                                 // Pengram: локальная копия — чат остаётся в списке
                                 // и открывается только на чтение из кэша
-                                if (!PengramLocalKeep.keepDialog()) {
+                                if (PengramLocalKeep.keepDialog()) {
+                                    // Бан/кик: сервер больше не отдаёт историю —
+                                    // снимаем полную копию чата в собственную базу.
+                                    getMessagesStorage().pengramArchiveDialog(dialog.id);
+                                } else {
                                     deleteDialog(dialog.id, 0);
                                 }
                             }
@@ -20554,8 +20558,14 @@ public class MessagesController extends BaseController implements NotificationCe
                                 }
                             }
                             TLRPC.Dialog dialog = dialogs_dict.get(-chat.id);
-                            if (dialog != null && !PengramLocalKeep.keepDialog()) {
-                                deleteDialog(dialog.id, 0);
+                            if (dialog != null) {
+                                if (PengramLocalKeep.keepDialog()) {
+                                    // Кик из основной группы: копия чата в собственную базу,
+                                    // чтобы переписка переживала очистку кэша Telegram.
+                                    getMessagesStorage().pengramArchiveDialog(dialog.id);
+                                } else {
+                                    deleteDialog(dialog.id, 0);
+                                }
                             }
                         }
                         updateMask |= UPDATE_MASK_CHAT;

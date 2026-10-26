@@ -99,6 +99,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private static final int BTN_HIST_DELETED = 400;
     private static final int BTN_HIST_EDITED = 401;
+    private static final int BTN_HIST_MESSAGES = 409;
     private static final int BTN_HIST_EDITED_MEDIA = 408;
     private static final int BTN_HIST_OUTGOING = 402;
     private static final int BTN_HIST_PROFILE = 403;
@@ -1741,7 +1742,8 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     /** «Вкл · 128» — сколько всего сохранено */
     private CharSequence spySectionValue() {
-        final boolean on = PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited();
+        final boolean on = PengramConfig.isSavingDeleted() || PengramConfig.isSavingEdited()
+                || PengramConfig.isSavingMessages();
         if (!on) {
             return onOff(false);
         }
@@ -3122,6 +3124,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             }
             items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
+            items.add(UItem.asCheck(BTN_HIST_MESSAGES, getString(R.string.PengramHistorySaveMessages))
+                    .setChecked(PengramConfig.isSavingMessages(account)));
             items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted))
                     .setChecked(PengramConfig.isSavingDeleted(account)));
             items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited))
@@ -3131,6 +3135,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                         .setChecked(PengramConfig.getSpyOption(account, "saveEditedMedia")));
                 items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
             }
+            // «свои»/«боты» относятся только к журналу удалённых/изменённых:
+            // полная история пишется целиком, включая свои сообщения.
             if (PengramConfig.isSavingDeleted(account) || PengramConfig.isSavingEdited(account)) {
                 items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
                         .setChecked(PengramConfig.isSavingOutgoing(account)));
@@ -3147,6 +3153,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramHistoryHeader)));
+        items.add(UItem.asCheck(BTN_HIST_MESSAGES, getString(R.string.PengramHistorySaveMessages)).setChecked(PengramConfig.saveMessages));
         items.add(UItem.asCheck(BTN_HIST_DELETED, getString(R.string.PengramHistorySaveDeleted)).setChecked(PengramConfig.saveDeleted));
         items.add(UItem.asCheck(BTN_HIST_EDITED, getString(R.string.PengramHistorySaveEdited)).setChecked(PengramConfig.saveEdited));
         if (PengramConfig.saveEdited) {
@@ -3741,6 +3748,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(tgCheck(BTN_EXTRA_BASE + 62, getString(R.string.PengramPauseOnRecord), () -> SharedConfig.pauseMusicOnRecord, SharedConfig::togglePauseMusicOnRecord));
         items.add(tgCheck(BTN_EXTRA_BASE + 63, getString(R.string.PengramNoiseSuppression), () -> SharedConfig.noiseSupression, SharedConfig::toggleNoiseSupression));
         items.add(tgCheck(BTN_EXTRA_BASE + 64, getString(R.string.PengramVoiceEffectsOff), () -> SharedConfig.disableVoiceAudioEffects, SharedConfig::toggleDisableVoiceAudioEffects));
+        items.add(tgCheck(BTN_EXTRA_BASE + 67, getString(R.string.PauseMusicOnMedia), () -> SharedConfig.pauseMusicOnMedia, SharedConfig::togglePauseMusicOnMedia));
         items.add(UItem.asShadow(getString(R.string.PengramAudioInfo)));
 
     }
@@ -5709,6 +5717,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 PengramConfig.setRegDateStyle(PengramConfig.REG_STYLE_DATE_AGE);
                 updateAll = true;
                 break;
+            case BTN_HIST_MESSAGES:
+                if (spySelectedAccount >= 0) {
+                    PengramConfig.setSpyOption(spySelectedAccount, "saveMessages", !PengramConfig.isSavingMessages(spySelectedAccount));
+                } else PengramConfig.toggleSaveMessages();
+                updateAll = true;
+                break;
             case BTN_HIST_DELETED:
                 if (spySelectedAccount >= 0) {
                     PengramConfig.setSpyOption(spySelectedAccount, "saveDeleted", !PengramConfig.isSavingDeleted(spySelectedAccount));
@@ -6790,7 +6804,9 @@ public class PengramSettingsActivity extends UniversalFragment {
          * есть ~157dp по высоте — персонаж узнаваем и не занимает
          * половину карточки.
          */
-        private static final int BASE_SIZE_DP = 180;
+        /** база превью пингвина: было 180dp — крупно и шумно; 150dp остаётся
+         *  заметным, но не забивает шапку. Слайдер 70..120 % идёт от этой базы. */
+        private static final int BASE_SIZE_DP = 150;
 
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;

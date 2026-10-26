@@ -285,7 +285,7 @@
     <string name="PengramGhostDontStory">Не отмечать просмотр историй</string>
     <string name="PengramGhostInfo">Пока включён режим призрака, другие не увидят, что вы онлайн, что прочитали их сообщения и что печатаете.</string>
     <string name="PengramIdCopied">ID скопирован в буфер обмена</string>
-    <string name="PengramHistoryTitle">Удалённые и изменённые</string>
+    <string name="PengramHistoryTitle">История</string>
     <string name="PengramSpyAccount">Настройки шпиона для</string>
     <string name="PengramSpyAccountNumber">Аккаунт</string>
     <string name="PengramSpyAllAccounts">Все аккаунты · общие настройки</string>
@@ -302,6 +302,7 @@
     <string name="PengramHistoryEditedMediaInfo">Сохранится только ранее загруженное медиа.</string>
     <string name="PengramHistorySaveEditedMedia">Сохранять прежние фото и видео при правке</string>
     <string name="PengramHistorySaveEdited">Сохранять изменённые</string>
+    <string name="PengramHistorySaveMessages">Сохранять всю историю сообщений</string>
     <string name="PengramHistorySaveOutgoing">Сохранять и свои сообщения</string>
     <string name="PengramHistoryShowInProfile">Показывать в профиле</string>
     <string name="PengramHistoryOpen">Удалённые и изменённые</string>
@@ -311,12 +312,14 @@
     <string name="PengramHistoryOnlyLocal">Это сообщение осталось только в локальном архиве, в чате его копии уже нет.</string>
     <string name="PengramHistoryFilterDeleted">Только удалённые</string>
     <string name="PengramHistoryFilterEdited">Только изменённые</string>
+    <string name="PengramHistoryFilterMessages">Только сообщения</string>
     <string name="PengramHistoryNoMatches">В сохранённой истории ничего не найдено.</string>
     <string name="PengramHistoryNoVersions">Предыдущая версия не сохранилась на этом устройстве.</string>
     <string name="PengramHistoryEmpty">Пока ничего не сохранено.</string>
     <string name="PengramHistoryInfo">Хранится в отдельной базе — очистка кэша Telegram её не удаляет.</string>
     <string name="PengramHistoryDeletedMark">Удалено</string>
     <string name="PengramHistoryEditedMark">Изменено</string>
+    <string name="PengramHistorySavedMark">Сохранено</string>
     <string name="PengramHistoryClearTitle">Очистить историю</string>
     <string name="PengramHistoryClearChat">Удалить все сохранённые сообщения этого чата?</string>
     <string name="PengramHistoryClearAll">Удалить все сохранённые удалённые и изменённые сообщения?</string>
@@ -583,6 +586,7 @@
     <string name="PengramOpenEditedChat">Изменённые сообщения</string>
     <string name="PengramDeletedTitle">Удалённые сообщения</string>
     <string name="PengramEditedTitle">Изменённые сообщения</string>
+    <string name="PengramMessagesTitle">История сообщений</string>
     <string name="PengramEditHistoryTitle">История изменений</string>
     <string name="PengramVersionBeforeEdit">до правки</string>
     <string name="PengramVersionOriginal">оригинал</string>

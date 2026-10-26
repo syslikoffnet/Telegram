@@ -34,14 +34,25 @@ assert 'public static boolean isLocalOnly(int account)' in keep
 assert 'phone' not in keep.lower()                              # номер не трогаем
 assert 'sendRequest' not in keep                                # и в сеть не ходим
 
-# --- бан/выход: диалог остаётся ---------------------------------------------
+# --- бан/выход: диалог остаётся, чат копируется в собственную базу ----------
+import re
 assert messages.count('PengramLocalKeep.keepDialog()') == 4
-assert '''if (!PengramLocalKeep.keepDialog()) {
-                                    deleteDialog(dialog.id, 0);
-                                }''' in messages
-assert 'if (dialog != null && !PengramLocalKeep.keepDialog()) {' in messages
+assert messages.count('getMessagesStorage().pengramArchiveDialog(dialog.id);') == 2
+assert messages.count('deleteDialog(dialog.id, 0);') == 2
+# каждая бан/кик-ветка: при включённой локальной копии — полная копия чата
+# в собственную базу, иначе — штатное удаление диалога
+guard = re.compile(
+    r'if \(PengramLocalKeep\.keepDialog\(\)\) \{'
+    r'\s*(?://[^\n]*\n\s*)*getMessagesStorage\(\)\.pengramArchiveDialog\(dialog\.id\);'
+    r'\s*\} else \{\s*deleteDialog\(dialog\.id, 0\);\s*\}'
+)
+assert len(guard.findall(messages)) == 2, 'ban/kick guard must archive then fall back to deleteDialog'
+assert 'if (dialog != null && !PengramLocalKeep.keepDialog()) {' not in messages
 assert 'if (!PengramLocalKeep.keepDialog()) {\n                                        deleteDialog(dialog.id, 3);' in messages
 assert 'if (currentDialog.top_message == 0 && !PengramLocalKeep.keepDialog()) {' in messages
+# флеш-снимок существует и пишет принудительно (независимо от тумблера истории)
+assert 'public void pengramArchiveDialog(long dialogId)' in storage
+assert 'PengramHistory.saveSavedBatch(currentAccount, list, true)' in storage
 
 # --- удалённые сообщения остаются -------------------------------------------
 # Обработку удалений локальная копия больше НЕ выключает: иначе сообщение

@@ -11322,7 +11322,7 @@
     <string name="PengramGhostDontStory">Don\'t mark stories as viewed</string>
     <string name="PengramGhostInfo">While ghost mode is on, others will not see that you are online, that you read their messages or that you are typing.</string>
     <string name="PengramIdCopied">ID copied to clipboard</string>
-    <string name="PengramHistoryTitle">Deleted and edited</string>
+    <string name="PengramHistoryTitle">History</string>
     <string name="PengramSpyAccount">Spy settings for</string>
     <string name="PengramSpyAccountNumber">Account</string>
     <string name="PengramSpyAllAccounts">All accounts · shared defaults</string>
@@ -11339,6 +11339,7 @@
     <string name="PengramHistoryEditedMediaInfo">Only already-downloaded media can be kept.</string>
     <string name="PengramHistorySaveEditedMedia">Keep previous photos and videos on edit</string>
     <string name="PengramHistorySaveEdited">Save edited messages</string>
+    <string name="PengramHistorySaveMessages">Save full message history</string>
     <string name="PengramHistorySaveOutgoing">Save my own messages too</string>
     <string name="PengramHistoryShowInProfile">Show in profile</string>
     <string name="PengramHistoryOpen">Deleted and edited messages</string>
@@ -11347,12 +11348,14 @@
     <string name="PengramHistoryOnlyLocal">This message is only in the local archive; its copy is no longer in the chat.</string>
     <string name="PengramHistoryFilterDeleted">Deleted only</string>
     <string name="PengramHistoryFilterEdited">Edited only</string>
+    <string name="PengramHistoryFilterMessages">Messages only</string>
     <string name="PengramHistoryNoMatches">No saved messages match this search.</string>
     <string name="PengramHistoryNoVersions">No earlier version was saved on this device.</string>
     <string name="PengramHistoryEmpty">Nothing saved yet.</string>
     <string name="PengramHistoryInfo">Saved in a separate database, clearing Telegram cache does not delete it.</string>
     <string name="PengramHistoryDeletedMark">Deleted</string>
     <string name="PengramHistoryEditedMark">Edited</string>
+    <string name="PengramHistorySavedMark">Saved</string>
     <string name="PengramHistoryClearTitle">Clear history</string>
     <string name="PengramHistoryClearChat">Delete all saved messages of this chat?</string>
     <string name="PengramHistoryClearAll">Delete all saved deleted and edited messages?</string>
@@ -11619,6 +11622,7 @@
     <string name="PengramOpenEditedChat">Edited messages</string>
     <string name="PengramDeletedTitle">Deleted messages</string>
     <string name="PengramEditedTitle">Edited messages</string>
+    <string name="PengramMessagesTitle">Message history</string>
     <string name="PengramEditHistoryTitle">Edit history</string>
     <string name="PengramVersionBeforeEdit">before edit</string>
     <string name="PengramVersionOriginal">original</string>

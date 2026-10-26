@@ -79,7 +79,7 @@ assert 'org.telegram.ui.Components.PengramGlassSkin.notifyChanged();' in setting
 assert 'org.telegram.ui.MainTabsActivity.refreshPengramGlass();' in settings
 
 # --- 3: пингвин — средний размер --------------------------------------------
-assert 'private static final int BASE_SIZE_DP = 180;' in settings  # был 224
+assert 'private static final int BASE_SIZE_DP = 150;' in settings  # был 224, потом 180, стал 150
 assert '70, PengramConfig.getPenguinSize(), 120' in settings        # максимум 150→120
 assert 'Math.max(70, Math.min(120, getIntCached("penguinSize", 100))' in config
 assert 'Math.max(70, Math.min(120, percent))' in config             # сеттер в тех же границах
@@ -88,7 +88,7 @@ assert 'BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f' in settings
 assert 'headerView.applySize();' in settings
 # компактная шапка корня (72dp) не тронута
 assert 'final int size = dp(72);' in settings
-# старое сохранённое 150% ужимается до 120% → 216dp, а не 336dp
+# старое сохранённое 150% ужимается до 120% → 180dp, а не 336dp
 assert 'Math.min(150, getIntCached("penguinSize"' not in config
 
 print('run413: ALL OK')
