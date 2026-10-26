@@ -150,6 +150,10 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
             return false; // захват невозможен — штатная отрисовка без сгиба
         }
         canvas.save();
+        // позиция ячейки ВНЕ getMatrix() (AOSP View.draw: translate(mLeft, mTop)
+        // отдельно, getMatrix — только трансформ): без неё варп рисовал копию
+        // у начала списка, а на месте ячейки оставалась лишь неподвижная обводка
+        canvas.translate(child.getLeft() - child.getScrollX(), child.getTop() - child.getScrollY());
         canvas.concat(child.getMatrix());
         drawMesh(canvas, capture, localT, localB, alpha);
         canvas.restore();
@@ -184,6 +188,9 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
                 surface.eraseColor(0);
             }
             final Canvas onto = new Canvas(surface);
+            // клип как у штатной отрисовки (setClipBounds держится на RenderNode):
+            // медиа/декорации не вылезают за границы ячейки и в захвате
+            onto.clipRect(0, 0, w, h);
             child.draw(onto);
             capture.width = w;
             capture.height = h;

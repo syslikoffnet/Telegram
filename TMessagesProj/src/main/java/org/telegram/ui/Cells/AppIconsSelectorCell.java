@@ -39,7 +39,6 @@ import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.ColoredImageSpan;
 import org.telegram.ui.Components.Easings;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.Premium.PremiumFeatureBottomSheet;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.LauncherIconController;
 import org.telegram.ui.PremiumPreviewFragment;
@@ -109,11 +108,7 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
         setOnItemClickListener((view, position) -> {
             IconHolderView holderView = (IconHolderView) view;
             LauncherIconController.LauncherIcon icon = availableIcons.get(position);
-            if (icon.premium && !UserConfig.hasPremiumOnAccounts()) {
-                fragment.showDialog(new PremiumFeatureBottomSheet(fragment, PremiumPreviewFragment.PREMIUM_FEATURE_APPLICATION_ICONS, true));
-                return;
-            }
-
+            // Pengram: все иконки приложения доступны без премиум-подписки
             if (LauncherIconController.isEnabled(icon)) {
                 return;
             }
@@ -150,15 +145,8 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
     @SuppressLint("NotifyDataSetChanged")
     private void updateIconsVisibility() {
         availableIcons.clear();
+        // Pengram: без премиум-фильтра — показываем все иконки всегда
         availableIcons.addAll(Arrays.asList(LauncherIconController.LauncherIcon.values()));
-        if (MessagesController.getInstance(currentAccount).premiumFeaturesBlocked()) {
-            for (int i = 0; i < availableIcons.size(); i++) {
-                if (availableIcons.get(i).premium) {
-                    availableIcons.remove(i);
-                    i--;
-                }
-            }
-        }
         getAdapter().notifyDataSetChanged();
         invalidateItemDecorations();
 
@@ -275,19 +263,9 @@ public class AppIconsSelectorCell extends RecyclerListView implements Notificati
             iconView.setImageResource(icon.background);
 
             MarginLayoutParams params = (MarginLayoutParams) titleView.getLayoutParams();
-            if (icon.premium && !UserConfig.hasPremiumOnAccounts()) {
-                SpannableString str = new SpannableString("d " + LocaleController.getString(icon.title));
-                ColoredImageSpan span = new ColoredImageSpan(R.drawable.msg_mini_premiumlock);
-                span.setTopOffset(1);
-                span.setSize(AndroidUtilities.dp(13));
-                str.setSpan(span, 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
-
-                params.rightMargin = AndroidUtilities.dp(4);
-                titleView.setText(str);
-            } else {
-                params.rightMargin = 0;
-                titleView.setText(LocaleController.getString(icon.title));
-            }
+            // Pengram: замок премиума не показываем — иконки бесплатны
+            params.rightMargin = 0;
+            titleView.setText(LocaleController.getString(icon.title));
             setSelected(LauncherIconController.isEnabled(icon), false);
         }
     }

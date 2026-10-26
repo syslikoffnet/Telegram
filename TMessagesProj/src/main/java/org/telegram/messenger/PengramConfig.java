@@ -1460,7 +1460,9 @@ public class PengramConfig {
             case TITLE_MODE_CUSTOM:
                 return android.text.TextUtils.isEmpty(titleCustom) ? "Pengram" : titleCustom;
             default:
-                return telegramTitle;
+                // свежая база/«как в Telegram»: показываем бренд Pengram —
+                // на новой установке везде стоит Pengram
+                return "Pengram";
         }
     }
     public static void setTitleCustom(String text) {

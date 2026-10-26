@@ -12879,7 +12879,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     return TextUtils.isEmpty(custom) ? "Pengram" : custom;
                 }
                 default:
-                    return null;
+                    // «как в Telegram»/свежая база: везде Pengram, логотип TG в шапке не показываем
+                    return "Pengram";
             }
         } catch (Throwable e) {
             FileLog.e(e);
