@@ -63,24 +63,26 @@ def main():
           and "shader = ensureWarp()" in cy and "bind(localT, localB, radius, w, h)" in cy)
 
     print("== Варп: карта шейдера, перенесённая попиксельно")
-    check("warp: asin-намотка у касательной — та же формула",
-          "localT - roller * phi" in warp and "(float) Math.asin(sn)" in warp
-          and "s = localB + roller * phi" in warp)
-    check("warp: x-перспектива от центра — 2/(2+1-cos) как в .agsl",
-          "float scale = 2f / (2f + back)" in warp
-          and "cx + (0f - cx) / scale" in warp and "cx + (w - cx) / scale" in warp)
-    check("warp: вне домена — прозрачность (в рамку захвата, как half4(0))",
-          "sn > 1f" in warp and "texs[r * 4] = OUT" in warp
-          and "Shader.TileMode.CLAMP" in warp)
+    check("warp: намотка — та же карта, прямой вид через синус",
+          "localT - roller * (float) Math.sin(phi)" in warp
+          and "localB + roller * (float) Math.sin(phi)" in warp
+          and "Math.sin" in warp)
+    check("warp: x-перспектива от центра — 2/(2+1-cos), сжатие к центру",
+          "return 2f / (2f + back)" in warp
+          and "cx + (0f - cx) * scale" in warp and "cx + (w - cx) * scale" in warp)
+    check("warp: вне домена — схлопывание на касательную (прозрачность half4(0))",
+          "phi >= Math.PI / 2" in warp
+          and "return localT - roller;" in warp
+          and "return localB + roller;" in warp)
     check("шпаргалка шейдера не изменилась (паритет гарантирован формулой)",
           "s = localT - roller * asin(sn)" in shader
           and "scale = 2.0 / (2.0 + back)" in shader)
     check("warp: захват — один раз на изменение контента, позиции не перезахватываем",
           "child.draw(onto)" in warp and "capture.stale" in warp
           and "transformMatches(child)" in warp and "capture.snapshot(child)" in warp)
-    check("warp: каждый кадр — один drawVertices, сетка кэшируется по размаху окна",
-          "Canvas.VertexMode.TRIANGLES" in warp and "drawVertices(" in warp
-          and "ensureGrid(capture, rows, yHi - yLo)" in warp)
+    check("warp: каждый кадр — один drawBitmapMesh (HW с API18), сетка кэшируется",
+          "drawBitmapMesh(capture.bitmap, 1, rows - 1, verts, 0, null, 0, paint)" in warp
+          and "ensureGrid(capture, rows)" in warp)
     check("warp: центр списка рисует список сам (вне зоны — без нагрузки)",
           "return false" in warp and "localT <= 0f && localB >= h" in warp)
 

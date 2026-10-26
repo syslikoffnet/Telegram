@@ -59,19 +59,19 @@ def main():
           "alpha <= 0.004f" in w and "return true; // невидима" in w)
     check("сбой захвата — ядро с гибом, без повторов",
           "catch (Throwable t)" in w and "capture.failed = true;" in w)
-    check("сетка выделяется с запасом на размах окна (maxRows)",
-          "private void ensureGrid(Capture capture, int rows, float span)" in w
-          and "maxRows * 4" in w and "ROW_SLOTS" in w)
-    check("ряды: равномерный шаг + точные узлы касательных и sn=1",
-          "ROW_STEP = 2f" in w and "kinks[0] = localT" in w
-          and "localT - roller" in w and "localB + roller" in w
-          and "Arrays.sort(rowsBuf, 0, n)" in w)
+    check("кэш вершин на размер ячейки (capRows с запасом)",
+          "private float[] ensureGrid(Capture capture, int rows)" in w
+          and "capRows * 4" in w and "ROW_SLOTS" in w)
+    check("сетка источника СТРОГО равномерна (привязка текстуры drawBitmapMesh)",
+          "ROW_STEP = 2f" in w and "countRows" in w
+          and "final float stepS = h / (float) (rows - 1)" in w
+          and "final float s = r * stepS" in w)
     check("матрица ребёнка и альфа применяются при рисовке (без перезахвата)",
           "canvas.concat(child.getMatrix())" in w
           and "paint.setAlpha(Math.round(alpha * 255f))" in w)
-    check("текстура: фильтрация и CLAMP к прозрачной рамке",
+    check("текстура: фильтрация и дизеринг (холст ровно содержимое ячейки)",
           "FILTER_BITMAP_FLAG" in w and "DITHER_FLAG" in w
-          and "Shader.TileMode.CLAMP, Shader.TileMode.CLAMP" in w)
+          and "Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)" in w)
 
     print("== Цилиндр и список: связка цела")
     check("scroll: шейдер >=33, иначе варп — режимы не пересекаются",
@@ -91,24 +91,21 @@ def main():
           and "public void onChildDetachedFromWindow(View child)" in rlv)
     check("warp: кадровый резерв инвалидаций для API<24 (до onDescendantInvalidated)",
           "Build.VERSION.SDK_INT < 24" in w and "watched.stale = true;" in w)
-    check("warp: drawVertices — полная сигнатура со сдвигами (есть с API 23)",
-          "positions, 0, texs, 0, null, 0, indices, 0, capture.indexCount, paint" in w)
+    check("warp: канон drawBitmapMesh (HW-поддержка с API 18 — все устройства)",
+          "canvas.drawBitmapMesh(capture.bitmap, 1, rows - 1, verts, 0, null, 0, paint)" in w
+          and "canvas.drawVertices" not in w)
 
     print("== Разметка окон: обратный образ источника без мёртвых полос")
-    check("warp: обратная карта через синус (экранный ряд из исходного)",
+    check("warp: карта s→y через синус (прямой вид цилиндра)",
           "private float yOfSource(float s, float localT, float localB)" in w
-          and "Math.sin((localT - s) / roller)" in w
-          and "Math.sin((s - localB) / roller)" in w)
-    check("warp: окно ячейки = домен источника (sn<=1), не [0,h]",
-          "srcLo = Math.max(0f, localT - curlDepth)" in w
-          and "srcHi = Math.min(h, localB + curlDepth)" in w
-          and "yOfSource(srcLo, localT, localB)" in w
-          and "yOfSource(srcHi, localT, localB)" in w)
-    check("warp: ряды строятся по окну (швы соседей сходятся точно)",
-          "buildRows(yLo, yHi, localT, localB)" in w
-          and "for (float y = yLo; y < yHi" in w)
-    check("warp: ячейка вне домена — рисуем пустоту, не кривизну",
-          "srcHi - srcLo < 0.5f" in w)
+          and "phi = (localT - s) / roller" in w
+          and "phi = (s - localB) / roller" in w
+          and "Math.sin(phi)" in w)
+    check("warp: ячейка покрывает обратный образ своих источников (швы вплотную)",
+          "final float y = yOfSource(s, localT, localB);" in w
+          and "final float scale = xScaleAt(s, localT, localB);" in w)
+    check("warp: дегенеративные строки схлопываются — пустота, не кривизна",
+          "rows < 2" in w and "if (verts == null)" in w)
 
     print()
     if fails:
