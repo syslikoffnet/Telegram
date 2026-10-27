@@ -54,8 +54,25 @@ def main():
     chat = read('TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java')
     assert 'PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner)' in chat, \
         'keep-ветка обязана сохранять снимок'
-    assert 'obj.pengramDeleted = org.telegram.messenger.PengramHistory.isMarkedDeleted(' in chat, \
-        'флаг читается из меток, а не ставится вслепую'
+    # порядок: снимки ВСЕХ id сохраняются до markDeleted — иначе hasEntry ложно
+    # отсекает первую волну удаления (метка вставляется только на дубле события,
+    # а анимация эффекта при дубле переигрывается — дефект «иногда повторно»)
+    keep_start = chat.index('private boolean pengramKeepDeletedMessages')
+    keep_body = chat[keep_start:chat.index('private void pengramUnselect', keep_start)]
+    assert keep_body.index('saveDeletedSnapshot') < keep_body.index('markDeleted('), \
+        'keep: снимки обязаны сохраняться до markDeleted'
+    # флаг ставится синхронно по решению «оставляем призрака», а не читается из
+    # кэша меток до асинхронной публикации (там всегда false на первой волне)
+    assert 'obj.pengramDeleted = true;' in keep_body, \
+        'флаг pengramDeleted ставится синхронно в keep-ветке'
+    assert 'obj.pengramDeleted = org.telegram.messenger.PengramHistory.isMarkedDeleted(' not in keep_body, \
+        'keep не должен читать кэш меток до публикации'
+    # эффект идемпотентен: повтор события удаления не переигрывает анимацию
+    eff_start = chat.index('private void pengramPlayDeleteEffect')
+    eff_body = chat[eff_start:chat.index('private android.graphics.RectF pengramEffectBounds', eff_start)]
+    for token in ('object.pengramDeleted', 'object.pengramArchived',
+                  'PengramHistory.isMarkedDeleted(currentAccount, dialog_id, object.getId())'):
+        assert token in eff_body, f'pengramPlayDeleteEffect: нет гарда «{token}»'
     assert 'pengramApplyDeletedState' in chat, 'нет переживания состояния при перерисовке'
     assert 'PengramHistory.marksLoaded(currentAccount, dialog_id)' in chat, \
         'недогруженные метки не должны обнулять прозрачность'

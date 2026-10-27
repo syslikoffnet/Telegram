@@ -2408,8 +2408,14 @@ public class ChatActivity extends BaseFragment implements
         if (!org.telegram.messenger.PengramHistory.keepInChat(currentAccount, ids)) {
             return false;
         }
-        org.telegram.messenger.PengramHistory.markDeleted(currentAccount, dialog_id, ids);
         boolean any = false;
+        // Сначала снимки для всех id, и только потом метки: markDeleted работает
+        // по кэшу отметок, которому нужен сохранённый снимок (hasEntry) — при
+        // обратном порядке первая волна удаления теряла метку, и анимация
+        // переигрывалась на дубле события. Затем — метки и только после этого
+        // флаг: он должен отражать уже принятое решение «оставляем призрака».
+        final java.util.ArrayList<org.telegram.messenger.MessageObject> kept =
+                new java.util.ArrayList<>(ids.size());
         for (int a = 0; a < ids.size(); ++a) {
             final Integer mid = ids.get(a);
             if (mid == null) continue;
@@ -2419,10 +2425,17 @@ public class ChatActivity extends BaseFragment implements
             }
             if (obj != null) {
                 org.telegram.messenger.PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner);
-                obj.pengramDeleted = org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, mid);
+                kept.add(obj);
                 any = true;
-                pengramRefreshMessage(obj, true);
             }
+        }
+        org.telegram.messenger.PengramHistory.markDeleted(currentAccount, dialog_id, ids);
+        for (int a = 0; a < kept.size(); ++a) {
+            final MessageObject obj = kept.get(a);
+            // синхронно: сообщение удалено и оставлено — флаг не ждёт асинхронной
+            // публикации метки (читая кэш до неё, мы ложно получали false)
+            obj.pengramDeleted = true;
+            pengramRefreshMessage(obj, true);
         }
         if (!any && chatListView != null) {
             chatListView.invalidateViews();
@@ -47782,6 +47795,13 @@ public class ChatActivity extends BaseFragment implements
                 object = ((ChatActionCell) child).getMessageObject();
             }
             if (object == null || !ids.contains(object.getId())) {
+                continue;
+            }
+            // Дубль события удаления (сервер эхо, чистка стораджа, перезагрузка
+            // диалога): сообщение уже помечено или призрак из архива — анимацию
+            // повторно не играем, keep ниже идемпотентен.
+            if (object.pengramDeleted || object.pengramArchived
+                    || org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, object.getId())) {
                 continue;
             }
             if (!object.isOutOwner() && !org.telegram.messenger.PengramConfig.isDeleteEffectIncoming()) {
