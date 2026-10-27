@@ -2781,10 +2781,23 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             final int total = count;
+            final boolean[] noLocalCopy = new boolean[]{false};
+            final FrameLayout noLocalFrame = new FrameLayout(getContext());
+            noLocalFrame.setPadding(AndroidUtilities.dp(24), 0, AndroidUtilities.dp(24), 0);
+            final CheckBoxCell noLocalCell = new CheckBoxCell(getContext(), 1, themeDelegate);
+            noLocalCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
+            noLocalCell.setText(LocaleController.getString(R.string.PengramDeleteMyMessagesNoLocal), "", false, false);
+            noLocalCell.setPadding(LocaleController.isRTL ? AndroidUtilities.dp(16) : AndroidUtilities.dp(8), 0, LocaleController.isRTL ? AndroidUtilities.dp(8) : AndroidUtilities.dp(16), 0);
+            noLocalFrame.addView(noLocalCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 0, 0, 0, 0));
+            noLocalCell.setOnClickListener(v -> {
+                noLocalCopy[0] = !noLocalCopy[0];
+                ((CheckBoxCell) v).setChecked(noLocalCopy[0], true);
+            });
             new AlertDialog.Builder(getContext(), themeDelegate)
                     .setTitle(LocaleController.getString(R.string.PengramDeleteMyMessages))
                     .setMessage(LocaleController.formatString(R.string.PengramDeleteMyMessagesAsk, total))
-                    .setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> pengramStartDeleteMyMessages(total))
+                    .setView(noLocalFrame)
+                    .setPositiveButton(LocaleController.getString(R.string.Delete), (d, w) -> pengramStartDeleteMyMessages(total, noLocalCopy[0]))
                     .setNegativeButton(LocaleController.getString(R.string.Cancel), null)
                     .show();
         }));
@@ -2793,10 +2806,13 @@ public class ChatActivity extends BaseFragment implements
     /** крутилка на время зачистки — её можно отменить, уже удалённое останется удалённым */
     private AlertDialog pengramDeleteProgress;
     private boolean pengramDeleteCancelled;
+    /** галочка «не сохранять локально» в диалоге подтверждения: чистить копии в своей базе */
+    private boolean pengramDeleteNoLocalCopy;
 
-    private void pengramStartDeleteMyMessages(int total) {
+    private void pengramStartDeleteMyMessages(int total, boolean noLocalCopy) {
         if (getContext() == null) return;
         pengramDeleteCancelled = false;
+        pengramDeleteNoLocalCopy = noLocalCopy;
         pengramDeleteProgress = new AlertDialog(getContext(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
         pengramDeleteProgress.setCanCancel(true);
         pengramDeleteProgress.setOnCancelListener(dialog -> pengramDeleteCancelled = true);
@@ -2832,6 +2848,13 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
             if (!ids.isEmpty()) {
+                if (pengramDeleteNoLocalCopy) {
+                    // «удалить не сохраняя локально»: запрещаем новые записи в свою базу,
+                    // вычищаем копии, если они уже успели попасть в архив, и только потом
+                    // удаляем на сервере
+                    PengramHistory.guardUserDeleted(ids);
+                    PengramHistory.purgeMessages(getCurrentAccount(), getDialogId(), ids);
+                }
                 getMessagesController().deleteMessages(ids, null, null, getDialogId(), 0, true, 0);
             }
             final int total = deleted + ids.size();

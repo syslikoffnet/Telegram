@@ -12174,6 +12174,7 @@
     <string name="PengramTrackForwardHeader">Track forwarding</string>
     <string name="PengramDeleteMyMessagesAsk">Found %1$d of your messages. Delete all of them in this chat? This cannot be undone.</string>
     <string name="PengramDeleteMyMessagesNothing">No messages of yours in this chat</string>
+    <string name="PengramDeleteMyMessagesNoLocal">Do not keep local copies</string>
     <string name="PengramBackupToSaved">Send to Saved Messages</string>
     <string name="PengramBackupToFile">Save as a file</string>
     <string name="PengramBackupToClipboard">Copy as text</string>

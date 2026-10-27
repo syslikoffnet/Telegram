@@ -1203,6 +1203,59 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     /**
+     * Удаляет все локальные копии указанных сообщений из собственной истории
+     * и из очереди незакоммиченных правок. Вызывается, когда пользователь явно
+     * попросил удалить «не сохраняя локально»: архив не должен ни пополняться
+     * этими id (гард {@link #guardUserDeleted}), ни хранить копии, если они
+     * уже были записаны раньше — например, при прошлых синхронизациях.
+     */
+    public static void purgeMessages(final int account, final long dialogId, final java.util.Collection<Integer> messageIds) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || messageIds == null || messageIds.isEmpty()) return;
+        if (dialogId == 0) return;
+        final PengramHistory history = getInstance();
+        if (history == null) return;
+        final java.util.ArrayList<Integer> ids = new java.util.ArrayList<>(messageIds.size());
+        for (Integer id : messageIds) {
+            if (id != null && id > 0) {
+                ids.add(id);
+            }
+        }
+        if (ids.isEmpty()) return;
+        executor.execute(() -> {
+            try {
+                final SQLiteDatabase db = history.getWritableDatabase();
+                db.beginTransaction();
+                try {
+                    final int chunkSize = 400;
+                    for (int offset = 0; offset < ids.size(); offset += chunkSize) {
+                        final int end = Math.min(offset + chunkSize, ids.size());
+                        final StringBuilder placeholders = new StringBuilder();
+                        final String[] whereArgs = new String[end - offset + 2];
+                        whereArgs[0] = String.valueOf(account);
+                        whereArgs[1] = String.valueOf(dialogId);
+                        for (int i = offset; i < end; i++) {
+                            if (i > offset) {
+                                placeholders.append(',');
+                            }
+                            placeholders.append('?');
+                            whereArgs[i - offset + 2] = String.valueOf(ids.get(i));
+                        }
+                        final String where = "account = ? AND dialog_id = ? AND message_id IN (" + placeholders + ")";
+                        db.delete(TABLE, where, whereArgs);
+                        db.delete(TABLE_PENDING, where, whereArgs);
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+                notifyChanged();
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        });
+    }
+
+    /**
      * Pengram: оставлять ли сообщения видимыми в чате.
      *
      * <p>Кроме «слежки» за удалёнными есть локальная копия: пока она включена,

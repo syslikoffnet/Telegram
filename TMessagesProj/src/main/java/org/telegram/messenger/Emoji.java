@@ -640,6 +640,19 @@ public class Emoji {
                     span = new EmojiSpan(drawable, alignment, fontMetrics);
                     span.emoji = emojiRange.code == null ? null : emojiRange.code.toString();
                     span.scale = scale;
+                    // Снимаем старые EmojiSpan того же диапазона: исходный текст сообщения
+                    // может уже содержать глиф с другим FontMetrics (например, из шрифта
+                    // основного текста). Без снятия рядом висели бы два эмодзи-глифа с разной
+                    // величиной — в узких строках (цитаты, панель ответа) эмодзи выглядело
+                    // крупнее строки и перекрывало соседей.
+                    final EmojiSpan[] oldSpans = s.getSpans(emojiRange.start, emojiRange.end, EmojiSpan.class);
+                    if (oldSpans != null) {
+                        for (EmojiSpan oldSpan : oldSpans) {
+                            if (oldSpan != null && s.getSpanStart(oldSpan) == emojiRange.start && s.getSpanEnd(oldSpan) == emojiRange.end) {
+                                s.removeSpan(oldSpan);
+                            }
+                        }
+                    }
                     s.setSpan(span, emojiRange.start, emojiRange.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
             } catch (Exception e) {
