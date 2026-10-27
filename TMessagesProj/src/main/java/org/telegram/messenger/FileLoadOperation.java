@@ -309,7 +309,12 @@ public class FileLoadOperation {
         }
         final int boost = PengramConfig.getSpeedBoostMultiplier();
         if (boost > 1 && !forceSmallChunk) {
-            downloadChunkSizeBig = 1024 * 512;
+            // Чанк 512KB НЕ форсируем: он включается только когда его разрешил
+            // сам сервер (getfileExperimentalParams выше) — иначе upload.getFile
+            // отвечает LIMIT_INVALID, операция падает в forceSmallChunk (32KB × 4)
+            // и теряет byteBudget. Ускорение даёт множитель окна в
+            // updateDownloadByteBudget(): там бюджет × boost, т.е. ровно «2x/4x
+            // streams» из настроек относительно апстрима при том же чанке.
             maxDownloadRequests = Math.min(32, 4 * boost);
             maxDownloadRequestsBig = Math.min(32, 4 * boost);
             maxDownloadRequestsAnimation = Math.min(16, 4 * boost);
@@ -854,6 +859,16 @@ public class FileLoadOperation {
             boolean premium = UserConfig.getInstance(currentAccount).isPremium();
             downloadConnectionsCount = premium ? ConnectionsManager.DownloadConnectionsCount : 2;
             int byteBudget = (premium ? 16 : 2) * 1024 * 1024;
+            // Boost масштабирует ОКНО (байты в полёте), а не чанк: boost перетирает
+            // maxDownloadRequests только когда byteBudget выключен, а включён он по
+            // умолчанию — поэтому множитель здесь и есть реальное ускорение.
+            // При boost=OFF множитель 1 → байт-в-байт формула апстрима.
+            // Пример: non-premium 128KB-чанк, апстрим = 2MB/128KB = 16 потоков;
+            // FAST = 4MB/128KB = 32 (ровно 2x), EXTREME = 8MB = 64 (4x).
+            final int boost = PengramConfig.getSpeedBoostMultiplier();
+            if (boost > 1 && !forceSmallChunk) {
+                byteBudget *= boost;
+            }
             currentMaxDownloadRequests = byteBudget / currentDownloadChunkSize;
         }
     }

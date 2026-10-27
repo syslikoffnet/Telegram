@@ -11480,7 +11480,7 @@
     <string name="PengramBoostOff">Default</string>
     <string name="PengramBoostFast">Fast (2x streams)</string>
     <string name="PengramBoostExtreme">Extreme (4x streams)</string>
-    <string name="PengramBoostInfo">Increases the number of parallel chunks for downloads and uploads and forces big 512 KB chunks. Extreme mode is best on fast Wi-Fi; on weak mobile networks use Default.</string>
+    <string name="PengramBoostInfo">Increases the download and upload window — how many chunks are kept in flight at once — by 2x or 4x compared to the original. Extreme mode is best on fast Wi-Fi; on weak mobile networks use Default.</string>
     <string name="PengramShowMore">Show more</string>
     <string name="PengramShowLess">Show less</string>
     <string name="PengramVoiceMore">%1$d more effects</string>

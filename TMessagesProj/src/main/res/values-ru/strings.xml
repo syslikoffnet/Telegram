@@ -444,7 +444,7 @@
     <string name="PengramBoostOff">Как в оригинале</string>
     <string name="PengramBoostFast">Быстро (2x потоков)</string>
     <string name="PengramBoostExtreme">Максимум (4x потоков)</string>
-    <string name="PengramBoostInfo">Увеличивает число параллельных частей при скачивании и отправке и включает большие куски по 512 КБ. «Максимум» лучше всего на быстром Wi-Fi; на слабой мобильной сети выбирайте «Как в оригинале».</string>
+    <string name="PengramBoostInfo">Увеличивает окно загрузки и отправки — сколько частей одновременно в полёте — в 2 или 4 раза относительно оригинала. «Максимум» лучше всего на быстром Wi-Fi; на слабой мобильной сети выбирайте «Как в оригинале».</string>
     <string name="PengramShowMore">Показать ещё</string>
     <string name="PengramShowLess">Свернуть</string>
     <string name="PengramVoiceMore">Ещё %1$d эффектов</string>
