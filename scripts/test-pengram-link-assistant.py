@@ -28,13 +28,26 @@ def check(cond: bool, message: str) -> None:
     print(f"ok: {message}")
 
 
+def java_string_const(source: str, const_name: str) -> str:
+    """Достаёт String CONST = "..." (с тем же разбором экранирования)."""
+    m = re.search(rf'String {const_name}\s*=\s*"((?:[^"\\]|\\.)*)"', source)
+    assert m, f"нет строковой константы {const_name}"
+    return m.group(1).replace('\\\\', '\x00').replace('\\"', '"').replace('\\/', '/').replace('\x00', '\\')
+
+
 def java_string_pattern(source: str, const_name: str) -> str:
-    """Достаёт Pattern.compile("..." + "...") и склеивает литералы как в Java."""
+    """Достаёт Pattern.compile("..." + CONST + "...") и склеивает как в Java."""
     anchor = source.find(f"Pattern {const_name} = Pattern.compile(")
     assert anchor >= 0, f"нет паттерна {const_name}"
     tail = source[anchor:]
     end = tail.find(");")
     block = tail[:end]
+    # Ссылки на строковые константы подставляем в исходном литерал-виде
+    # (raw из исходника — парсер ниже сам раскодирует экранирование).
+    for cid in set(re.findall(r'\b([A-Z][A-Z0-9_]{3,})\b', block)):
+        m = re.search(rf'String {cid}\s*=\s*"((?:[^"\\]|\\.)*)"', source)
+        if m:
+            block = re.sub(rf'\b{cid}\b', lambda _m, v=m.group(1): f'"{v}"', block)
     literals = re.findall(r'"((?:[^"\\]|\\.)*)"', block)
     assert literals, f"пустой литерал {const_name}"
     out = []
@@ -61,6 +74,27 @@ def trim_url(raw: str) -> str:
 resolver = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramLinkResolver.java")
 yt_pat = java_string_pattern(resolver, "YOUTUBE")
 tt_pat = java_string_pattern(resolver, "TIKTOK")
+
+# ---------------------------------------------------------------- guards ----
+# Android-рантайм отвергает Pattern.UNICODE_CHARACTER_CLASS: IllegalArgumentException
+# прямо в <clinit> → ExceptionInInitializerError при первом вводе текста (краш
+# run441 на Android 14). javac такой флаг проглатывает (константа есть в
+# android.jar), поэтому защищаемся именно тут: флаг не должен появиться нигде.
+import glob as _glob
+_banned = []
+for _path in _glob.glob(str(ROOT / "TMessagesProj/src/main/java/org/telegram/**/*.java"), recursive=True):
+    _src = open(_path, encoding="utf-8", errors="replace").read()
+    # комментарии и строковые литералы не исполняются — режем их перед проверкой
+    _code = re.sub(r'"(?:[^"\\]|\\.)*"', '""', _src)
+    _code = re.sub(r'//[^\n]*', '', _code)
+    _code = re.sub(r'/\*.*?\*/', '', _code, flags=re.S)
+    if "Pattern.UNICODE_CHARACTER_CLASS" in _code or "(?U)" in _code:
+        _banned.append(_path)
+check(not _banned, f"нет UNICODE_CHARACTER_CLASS в дереве (найдено: {_banned})")
+# Семантика «\s = любые Unicode-пробелы» обязана остаться явной: NBSP и friends
+# должны рвать URL, иначе после ссылки будет слипаться мусор.
+for _c in ("\\\\u00A0", "\\\\u2000-\\\\u200A", "\\\\u3000", "\\\\u2028"):
+    check(_c in resolver, f"resolver: явный Unicode-пробел {_c} в наборе остановки")
 
 # ---------------------------------------------------------------- behavior ---
 
@@ -102,6 +136,14 @@ for bad in [
 check(trim_url("https://youtube.com/shorts/AbC123.") == "https://youtube.com/shorts/AbC123", "trim: точка")
 check(trim_url("https://youtu.be/dQw4w9WgXcQ,") == "https://youtu.be/dQw4w9WgXcQ", "trim: запятая")
 check(trim_url("https://youtu.be/dQw4w9WgXcQ?si=X)") == "https://youtu.be/dQw4w9WgXcQ?si=X", "trim: скобка не трогает query")
+
+# Unicode-пробелы рвут URL (NBSP из буфера/веба) — без явного набора на Android
+# после снятия UNICODE_CHARACTER_CLASS они бы слипались с хвостом.
+nb = "https://youtu.be/AbC123DeF\u00a0и\u3000ещё"
+m = re.search(yt_pat, nb, re.IGNORECASE)
+check(m is not None and m.group(0) == "https://youtu.be/AbC123DeF", "NBSP/Ogham-пробел рвут URL")
+m = re.search(tt_pat, "https://vm.tiktok.com/ZM8abcDEF/\u2028хвост", re.IGNORECASE)
+check(m is not None and m.group(0) == "https://vm.tiktok.com/ZM8abcDEF/", "Line-separator рвёт TikTok-URL")
 
 # Вставка в середину текста: находится и позиция, и последняя ссылка побеждает.
 text = "го вот https://youtube.com/shorts/AAAAAAAAAA и ещё https://vm.tiktok.com/ZM111111/"

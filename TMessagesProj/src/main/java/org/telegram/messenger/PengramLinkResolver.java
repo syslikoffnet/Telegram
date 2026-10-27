@@ -74,13 +74,19 @@ public final class PengramLinkResolver {
     public static final int PLATFORM_YOUTUBE = 1;
     public static final int PLATFORM_TIKTOK = 2;
 
+    // ВАЖНО: Pattern.UNICODE_CHARACTER_CLASS на Android отвергается рантаймом
+    // (IllegalArgumentException в <clinit> → ExceptionInInitializerError при
+    // первом вводе текста). Его семантику «\s = любые Unicode-пробелы» держим
+    // явным набором ниже: \s + NEL(0085) NBSP(00A0) OGHAM(1680) EN/EM quads
+    // (2000-200A) LS/PS(2028/2029) NNBSP(202F) MMTSP(205F) IDSP(3000) —
+    // ровно тот же White_Space-набор, что и при флаге.
+    private static final String URL_STOP = "\\s\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000<>()\\[\\]{}\"'";
     private static final Pattern YOUTUBE = Pattern.compile(
             "(?i)(?:https?://)?(?:www\\.|m\\.)?(?:youtube\\.com/(?:shorts/|watch\\?(?:.*&)?v=|live/|embed/)|youtu\\.be/)"
-                    + "([A-Za-z0-9_-]{6,20})[^\\s<>()\\[\\]{}\"']*", Pattern.UNICODE_CHARACTER_CLASS);
+                    + "([A-Za-z0-9_-]{6,20})[^" + URL_STOP + "]*");
     private static final Pattern TIKTOK = Pattern.compile(
             "(?i)(?:https?://)?(?:www\\.|vm\\.|vt\\.|m\\.)?tiktok\\.com/"
-                    + "(?:@[^\\s<>()\\[\\]{}\"']+/video/\\d+|t/[A-Za-z0-9]+|[A-Za-z0-9]{6,20})[^\\s<>()\\[\\]{}\"']*",
-            Pattern.UNICODE_CHARACTER_CLASS);
+                    + "(?:@[^" + URL_STOP + "]+/video/\\d+|t/[A-Za-z0-9]+|[A-Za-z0-9]{6,20})[^" + URL_STOP + "]*");
 
     private PengramLinkResolver() {
     }
