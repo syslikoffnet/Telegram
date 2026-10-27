@@ -572,7 +572,7 @@ public final class PengramLinkResolver {
     /** Скачивает поток в файл; возвращает число байт (или бросает при отмене/лимите). */
     public static long download(String url, java.io.File target, long maxBytes,
                                 Map<String, String> cookies, String referer,
-                                volatile boolean[] cancel, Progress progress) throws Exception {
+                                boolean[] cancel, Progress progress) throws Exception {
         final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(15000);
         conn.setReadTimeout(30000);

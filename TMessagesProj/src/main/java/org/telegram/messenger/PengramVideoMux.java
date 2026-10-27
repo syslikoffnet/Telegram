@@ -20,7 +20,7 @@ public final class PengramVideoMux {
     }
 
     /** Бросает Exception при ошибке; out удаляется неудачным. */
-    public static void mux(File videoFile, File audioFile, File outFile, volatile boolean[] cancel) throws Exception {
+    public static void mux(File videoFile, File audioFile, File outFile, boolean[] cancel) throws Exception {
         final MediaExtractor videoExtractor = new MediaExtractor();
         final MediaExtractor audioExtractor = new MediaExtractor();
         MediaMuxer muxer = null;
@@ -108,7 +108,7 @@ public final class PengramVideoMux {
     }
 
     private static void copySamples(MediaExtractor extractor, MediaMuxer muxer, int outTrack, int extractorTrack,
-                                    volatile boolean[] cancel) throws Exception {
+                                    boolean[] cancel) throws Exception {
         final MediaFormat format = extractor.getTrackFormat(extractorTrack);
         final int maxInputSize = format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)
                 ? format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) : 1024 * 1024;
