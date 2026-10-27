@@ -257,7 +257,7 @@ public final class PengramLinkAssistant {
                 0,      // mode
                 false,  // updateStickersOrder
                 null,   // inputContent
-                SendMessagesHelper.SendMessageChatArguments.EMPTY,
+                SendMessageChatArguments.EMPTY,
                 0,      // effectId
                 false,  // invertMedia
                 0,      // payStars
