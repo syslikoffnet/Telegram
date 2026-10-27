@@ -3572,6 +3572,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                     PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
                     PengramConfig::isCylinderScrollToBars, () -> PengramConfig.setCylinderScrollToBars(!PengramConfig.isCylinderScrollToBars())));
+            // Помощник ссылок: предложение «видео вместо ссылки» над полем ввода.
+            items.add(check(PengramConfig.KEY_LINK_ASSISTANT, true, getString(R.string.PengramLinkAssistant)));
+            items.add(UItem.asShadow(getString(R.string.PengramLinkAssistantInfo)));
             items.add(UItem.asHeader(getString(R.string.PengramCylinderStrength)));
             items.add(UItem.asIntSlideView(1, 0, PengramConfig.getCylinderScrollStrength(), 100,
                     value -> value + "%",

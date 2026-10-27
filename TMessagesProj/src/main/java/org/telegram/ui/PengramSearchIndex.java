@@ -185,6 +185,7 @@ public final class PengramSearchIndex {
             {R.string.PengramChatEnterAnim, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramChatEnterAnimInfo},
             {R.string.PengramCylinderScroll, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderScrollInfo},
             {R.string.PengramCylinderToBars, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderToBarsInfo},
+            {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramLinkAssistantInfo},
             {R.string.PengramCylinderStrength, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramChatBlur, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramSpoilerEffect, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},

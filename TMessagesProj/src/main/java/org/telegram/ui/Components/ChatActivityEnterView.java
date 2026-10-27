@@ -6146,6 +6146,23 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
         });
         messageEditText.addTextChangedListener(new EditTextSuggestionsFix());
+        // Pengram: помощник ссылок — предложение «видео вместо ссылки» при вставке
+        // TikTok/YouTube-ссылки; реакция на весь текст (вставка/печать) одинакова.
+        messageEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                updatePengramLinkSuggestion(s);
+            }
+        });
+        PengramLinkAssistant.setListener(pengramLinkListener);
         messageEditText.setEnabled(messageEditTextEnabled);
         if (messageEditTextWatchers != null) {
             for (TextWatcher textWatcher : messageEditTextWatchers) {
@@ -6358,14 +6375,309 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
     }
 
+    // --- Pengram: помощник ссылок — бар «отправить видео вместо ссылки» ---
+
+    private View pengramLinkBar;
+    private TextView pengramLinkBarTitle;
+    private TextView pengramLinkBarChip;
+    private boolean pengramLinkShown;
+    /** Слот занят панелью (ответ/превью/редактирование) — бар живёт над/вместе с ней. */
+    private boolean topViewShownByPanel;
+    private int pengramLinkSlotBaseHeight;
+    private String pengramLinkUrl;
+    private String pengramLinkDismissedUrl;
+    private String pengramLinkRestoreUrl;
+    private int pengramLinkRestoreIndex;
+    private boolean pengramLinkProgressMode;
+
+    private final PengramLinkAssistant.Listener pengramLinkListener = new PengramLinkAssistant.Listener() {
+        @Override
+        public void onPhase(int phase, int percent) {
+            if (!pengramLinkShown || pengramLinkBarTitle == null) {
+                return;
+            }
+            switch (phase) {
+                case PengramLinkAssistant.PHASE_RESOLVE:
+                default:
+                    setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1);
+                    break;
+                case PengramLinkAssistant.PHASE_DOWNLOAD:
+                    setPengramLinkProgress(getString(R.string.PengramLinkDownloading), percent);
+                    break;
+                case PengramLinkAssistant.PHASE_MUX:
+                    setPengramLinkProgress(getString(R.string.PengramLinkDownloading), -1);
+                    break;
+                case PengramLinkAssistant.PHASE_SEND:
+                    setPengramLinkProgress(getString(R.string.PengramLinkSending), -1);
+                    break;
+            }
+        }
+
+        @Override
+        public void onFinished(boolean videoSent) {
+            finishPengramLinkTask();
+        }
+
+        @Override
+        public void onFailed(String reason, boolean fallbackLinkSent) {
+            finishPengramLinkTask();
+            try {
+                android.widget.Toast.makeText(
+                        ApplicationLoader.applicationContext != null
+                                ? ApplicationLoader.applicationContext : getContext(),
+                        reason, android.widget.Toast.LENGTH_SHORT).show();
+            } catch (Throwable ignore) {
+            }
+        }
+    };
+
+    private void setPengramLinkProgress(String text, int percent) {
+        pengramLinkProgressMode = true;
+        if (pengramLinkBarTitle != null) {
+            pengramLinkBarTitle.setText(percent >= 0 ? text + " " + percent + "%" : text);
+        }
+        if (pengramLinkBarChip != null) {
+            pengramLinkBarChip.setVisibility(GONE);
+        }
+    }
+
+    private void finishPengramLinkTask() {
+        pengramLinkUrl = null;
+        pengramLinkRestoreUrl = null;
+        pengramLinkProgressMode = false;
+        hidePengramLinkBar();
+    }
+
+    private void ensurePengramLinkBarAttached() {
+        if (pengramLinkBar != null || !(topView instanceof ChatActivityEnterTopView)) {
+            return;
+        }
+        final LinearLayout bar = new LinearLayout(getContext());
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(10), 0, dp(4), 0);
+        bar.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+
+        final ImageView icon = new ImageView(getContext());
+        icon.setImageResource(R.drawable.ic_action_play);
+        icon.setColorFilter(getThemedColor(Theme.key_chat_replyPanelIcons), android.graphics.PorterDuff.Mode.MULTIPLY);
+        icon.setScaleType(ImageView.ScaleType.CENTER);
+        bar.addView(icon, LayoutHelper.createLinear(28, 40));
+
+        pengramLinkBarTitle = new TextView(getContext());
+        pengramLinkBarTitle.setText(getString(R.string.PengramLinkSuggestTitle));
+        pengramLinkBarTitle.setTextSize(14);
+        pengramLinkBarTitle.setMaxLines(1);
+        pengramLinkBarTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        pengramLinkBarTitle.setTextColor(getThemedColor(Theme.key_chat_replyPanelName));
+        bar.addView(pengramLinkBarTitle, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 8, 0, 6, 0));
+
+        pengramLinkBarChip = new TextView(getContext());
+        pengramLinkBarChip.setText(getString(R.string.PengramLinkSuggestAction));
+        pengramLinkBarChip.setTextSize(13);
+        pengramLinkBarChip.setTypeface(AndroidUtilities.bold());
+        pengramLinkBarChip.setTextColor(0xFFFFFFFF);
+        pengramLinkBarChip.setGravity(Gravity.CENTER);
+        pengramLinkBarChip.setBackground(Theme.createRoundRectDrawable(dp(13),
+                getThemedColor(Theme.key_windowBackgroundWhiteBlueText)));
+        bar.addView(pengramLinkBarChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 6, 0));
+
+        final ImageView close = new ImageView(getContext());
+        close.setImageResource(R.drawable.ic_ab_close);
+        close.setColorFilter(getThemedColor(Theme.key_chat_replyPanelIcons), android.graphics.PorterDuff.Mode.MULTIPLY);
+        close.setScaleType(ImageView.ScaleType.CENTER);
+        close.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+        bar.addView(close, LayoutHelper.createLinear(34, 40));
+
+        bar.setOnClickListener(v -> onPengramLinkAction());
+        close.setOnClickListener(v -> onPengramLinkClose());
+        close.setOnLongClickListener(v -> {
+            onPengramLinkClose();
+            return true;
+        });
+
+        pengramLinkBar = bar;
+        ((ChatActivityEnterTopView) topView).setLinkView(bar,
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, dp(40), Gravity.BOTTOM));
+    }
+
+    /** Тап «Видео»: вырезаем ссылку из поля и запускаем конвейер. */
+    private void onPengramLinkAction() {
+        if (pengramLinkProgressMode || pengramLinkUrl == null || PengramLinkAssistant.isBusy()) {
+            return;
+        }
+        final String url = pengramLinkUrl;
+        final PengramLinkAssistant.SendRequest request = new PengramLinkAssistant.SendRequest(
+                currentAccount, dialog_id, url, replyingMessageObject, getThreadMessage());
+        if (!PengramLinkAssistant.start(request)) {
+            return;
+        }
+        try {
+            final android.text.Editable editable = messageEditText.getText();
+            if (editable != null) {
+                final int idx = editable.toString().indexOf(url);
+                if (idx >= 0) {
+                    pengramLinkRestoreUrl = url;
+                    pengramLinkRestoreIndex = idx;
+                    editable.delete(idx, idx + url.length());
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        pengramLinkShown = true;
+        setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1);
+        updatePengramLinkSlot();
+    }
+
+    /** ✕: при задаче — отмена + возврат ссылки в поле; без задачи — «закрыто для этой ссылки». */
+    private void onPengramLinkClose() {
+        if (pengramLinkProgressMode && PengramLinkAssistant.isBusy()) {
+            PengramLinkAssistant.cancel();
+            restorePengramLinkUrl();
+            finishPengramLinkTask();
+            return;
+        }
+        pengramLinkDismissedUrl = pengramLinkUrl;
+        pengramLinkUrl = null;
+        hidePengramLinkBar();
+    }
+
+    private void restorePengramLinkUrl() {
+        final String url = pengramLinkRestoreUrl;
+        pengramLinkRestoreUrl = null;
+        if (url == null) {
+            return;
+        }
+        try {
+            final android.text.Editable editable = messageEditText.getText();
+            if (editable == null || editable.toString().contains(url)) {
+                return;
+            }
+            final int idx = Math.min(Math.max(pengramLinkRestoreIndex, 0), editable.length());
+            editable.insert(idx, url);
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private void updatePengramLinkSuggestion(CharSequence text) {
+        if (PengramLinkAssistant.isBusy()) {
+            return; // идёт задача — баром рулит прогресс
+        }
+        if (!PengramConfig.isLinkAssistantEnabled() || editingMessageObject != null
+                || (topView instanceof ChatActivityEnterTopView && ((ChatActivityEnterTopView) topView).isEditMode())) {
+            hidePengramLinkBar();
+            return;
+        }
+        final PengramLinkResolver.FoundLink link = PengramLinkResolver.findLink(text);
+        if (link == null) {
+            pengramLinkDismissedUrl = null;
+            pengramLinkUrl = null;
+            pengramLinkProgressMode = false;
+            hidePengramLinkBar();
+            return;
+        }
+        if (link.url.equals(pengramLinkDismissedUrl)) {
+            return;
+        }
+        if (link.url.equals(pengramLinkUrl) && pengramLinkShown) {
+            return;
+        }
+        pengramLinkUrl = link.url;
+        pengramLinkDismissedUrl = null;
+        pengramLinkProgressMode = false;
+        ensurePengramLinkBarAttached();
+        if (pengramLinkBarTitle != null) {
+            pengramLinkBarTitle.setText(getString(R.string.PengramLinkSuggestTitle));
+        }
+        if (pengramLinkBarChip != null) {
+            pengramLinkBarChip.setVisibility(VISIBLE);
+        }
+        showPengramLinkBar();
+    }
+
+    private void showPengramLinkBar() {
+        pengramLinkShown = true;
+        if (topView == null) {
+            return; // подключится в addTopView (флаг уже поднят — слот откроется там)
+        }
+        ensurePengramLinkBarAttached();
+        updatePengramLinkSlot();
+        if (topViewShowed) {
+            return;
+        }
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) {
+            animatorTopViewVisibility.setValue(true, true);
+        }
+    }
+
+    private void hidePengramLinkBar() {
+        if (!pengramLinkShown) {
+            return;
+        }
+        pengramLinkShown = false;
+        if (topView == null) {
+            return;
+        }
+        if (topViewShownByPanel) {
+            updatePengramLinkSlot();
+        } else if (topViewShowed) {
+            hideTopView(true);
+        }
+    }
+
+    /** Пересчёт высоты слота: база (48 панели) + 40 бара; без панели — только бар. */
+    private void updatePengramLinkSlot() {
+        if (topView == null) {
+            return;
+        }
+        final ChatActivityEnterTopView top = (topView instanceof ChatActivityEnterTopView)
+                ? (ChatActivityEnterTopView) topView : null;
+        final boolean barVisible = pengramLinkShown && (top == null || !top.isEditMode());
+        if (top != null) {
+            top.setLinkVisible(barVisible);
+        }
+        final int base = pengramLinkSlotBaseHeight > 0 ? pengramLinkSlotBaseHeight : dp(48);
+        // Без панели слот сжимается ровно до бара (база не занимает место):
+        final int slotHeight = barVisible ? (topViewShownByPanel ? base + dp(40) : dp(40)) : base;
+        final ViewGroup.LayoutParams lp = topView.getLayoutParams();
+        if (lp != null && lp.height != slotHeight) {
+            lp.height = slotHeight;
+            topView.setLayoutParams(lp);
+            if (resizeForTopViewLastShow) {
+                resizeForTopViewLastShow = false;
+                resizeForTopView(true);
+            }
+        }
+        checkUi_TopViewVisibility();
+        checkUi_IslandTotalHeight();
+    }
+
     public void addTopView(View view, int height) {
         if (view == null) {
             return;
         }
 
         topView = view;
+        topViewShownByPanel = false;
         addView(topView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, height, Gravity.TOP | Gravity.LEFT));
+        pengramLinkSlotBaseHeight = topView.getLayoutParams() != null ? topView.getLayoutParams().height : 0;
+        if (view instanceof ChatActivityEnterTopView) {
+            ((ChatActivityEnterTopView) view).setLinkLayoutCallback(this::updatePengramLinkSlot);
+        }
         needShowTopView = false;
+
+        if (pengramLinkShown) {
+            // Ссылку вставили раньше, чем слот подключили — показываем сейчас.
+            ensurePengramLinkBarAttached();
+            updatePengramLinkSlot();
+            needShowTopView = true;
+            topViewShowed = true;
+            if (allowShowTopView) {
+                animatorTopViewVisibility.setValue(true, false);
+            }
+        }
 
         checkUi_TopViewVisibility();
     }
@@ -6413,6 +6725,10 @@ public class ChatActivityEnterView extends FrameLayout implements
     /** Show the persistent target indicator without unexpectedly opening the keyboard. */
     public void showTargetTopView() {
         if (topView == null || topViewShowed || getVisibility() != VISIBLE) return;
+        topViewShownByPanel = true;
+        if (pengramLinkShown) {
+            updatePengramLinkSlot();
+        }
         needShowTopView = true;
         topViewShowed = true;
         if (allowShowTopView) animatorTopViewVisibility.setValue(true, false);
@@ -6423,6 +6739,11 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     private void showTopView(boolean animated, final boolean openKeyboard, boolean skipAwait) {
+        topViewShownByPanel = true;
+        if (pengramLinkShown && topView != null) {
+            // Бар помощника уже держит слот — панель добавляет свою строку сверху.
+            updatePengramLinkSlot();
+        }
         if (topView == null || topViewShowed || getVisibility() != VISIBLE) {
             if ((recordedAudioPanel == null || recordedAudioPanel.getVisibility() != VISIBLE) && (!forceShowSendButton && (replyingQuote == null && replyingMessageObject == null) || openKeyboard)) {
                 openKeyboard();
@@ -6478,6 +6799,17 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     public void hideTopView(final boolean animated) {
         if (topView == null || !topViewShowed) {
+            return;
+        }
+
+        topViewShownByPanel = false;
+        if (pengramLinkShown) {
+            // Панель закрылась, но бар помощника активен — слот остаётся под ним.
+            if (showTopViewRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(showTopViewRunnable);
+                showTopViewRunnable = null;
+            }
+            updatePengramLinkSlot();
             return;
         }
 
@@ -6587,6 +6919,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void onDestroy() {
+        PengramLinkAssistant.detachListenerIf(pengramLinkListener);
         removeCallbacks(pengramWpmIdle);
         org.telegram.messenger.PengramTypingStats.finishSession();
         if (audioTimelineView != null) {

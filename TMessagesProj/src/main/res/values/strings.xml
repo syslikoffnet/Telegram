@@ -13001,6 +13001,15 @@
     <string name="PengramVoiceRound">Round video messages</string>
     <string name="PengramVoiceCalls">Calls and group voice chats</string>
     <string name="PengramVoiceSourcesInfo">All sources are on by default. Pitch shift adds about 16–32 ms of buffering; device and network delay varies. Screen-share audio is unchanged.</string>
+    <string name="PengramLinkAssistant">Link assistant</string>
+    <string name="PengramLinkAssistantInfo">When a TikTok or YouTube link is pasted into the message box, offer to send the video itself instead of the link. Ignoring the offer sends the link as usual.</string>
+    <string name="PengramLinkSuggestTitle">Send as video instead of the link?</string>
+    <string name="PengramLinkSuggestAction">Video</string>
+    <string name="PengramLinkResolving">Fetching the video link…</string>
+    <string name="PengramLinkDownloading">Downloading video…</string>
+    <string name="PengramLinkSending">Sending…</string>
+    <string name="PengramLinkFailed">Couldn\'t fetch the video — sending the link instead</string>
+    <string name="PengramLinkTooLong">The video is longer than 10 minutes — sending the link instead</string>
     <string name="PengramVoiceGate">Noise gate · 0 = off</string>
     <string name="PengramVoiceFormant">Timbre · 0 = neutral</string>
     <string name="PengramVoiceEcho">Echo · 0 = off</string>

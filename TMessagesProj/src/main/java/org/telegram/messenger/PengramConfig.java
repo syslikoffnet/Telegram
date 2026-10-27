@@ -180,6 +180,8 @@ public class PengramConfig {
     public static final String KEY_VOICE_ROUND = "voiceChangerRound";
     public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
     public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
+    /** Помощник ссылок: предложение «отправить видео вместо ссылки» (TikTok/YouTube). */
+    public static final String KEY_LINK_ASSISTANT = "linkAssistant";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
@@ -2700,6 +2702,10 @@ public class PengramConfig {
     public static boolean isVoiceMessagesEnabled() { return getBool(KEY_VOICE_MESSAGES, true); }
     public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, true); }
     public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, true); }
+
+    /** Помощник ссылок включён: бар-предложение над полем ввода при вставке TikTok/YouTube. */
+    public static boolean isLinkAssistantEnabled() { return getBool(KEY_LINK_ASSISTANT, true); }
+    public static void setLinkAssistantEnabled(boolean value) { setBool(KEY_LINK_ASSISTANT, value); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }

@@ -13,6 +13,9 @@ public class ChatActivityEnterTopView extends FrameLayout {
     private View replyView;
     private EditView editView;
     private boolean editMode;
+    private View linkView;
+    private boolean linkVisible;
+    private Runnable linkLayoutCallback;
 
     public ChatActivityEnterTopView(Context context) {
         super(context);
@@ -22,6 +25,40 @@ public class ChatActivityEnterTopView extends FrameLayout {
         if (this.replyView == null) {
             addView(this.replyView = replyView, layoutParams);
         }
+    }
+
+    /** Колбэк EnterView: пересчитать высоту слота при смене видимости бара. */
+    public void setLinkLayoutCallback(Runnable callback) {
+        this.linkLayoutCallback = callback;
+    }
+
+    /** Бар «Помощник ссылок» живёт в этом же слоте, прижат к низу (над полем ввода). */
+    public void setLinkView(View linkView, LayoutParams layoutParams) {
+        if (this.linkView == null && linkView != null) {
+            this.linkView = linkView;
+            linkView.setVisibility(GONE);
+            addView(linkView, layoutParams);
+        }
+    }
+
+    public void setLinkVisible(boolean visible) {
+        if (this.linkVisible == visible) {
+            return;
+        }
+        this.linkVisible = visible;
+        applyLinkVisibility();
+    }
+
+    public boolean isLinkVisible() {
+        return linkVisible && linkView != null && linkView.getVisibility() == VISIBLE;
+    }
+
+    private void applyLinkVisibility() {
+        if (linkView == null) {
+            return;
+        }
+        final boolean show = linkVisible && !editMode;
+        linkView.setVisibility(show ? VISIBLE : GONE);
     }
 
     public void addEditView(EditView editView, LayoutParams layoutParams) {
@@ -36,6 +73,10 @@ public class ChatActivityEnterTopView extends FrameLayout {
         this.editMode = editMode;
         replyView.setVisibility(editMode ? GONE : VISIBLE);
         editView.setVisibility(editMode ? VISIBLE : GONE);
+        applyLinkVisibility();
+        if (linkLayoutCallback != null) {
+            linkLayoutCallback.run();
+        }
     }
 
     public void setEditSuggestionMode(boolean editMode) {
