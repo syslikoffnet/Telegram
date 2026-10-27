@@ -1203,11 +1203,13 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     /**
-     * Удаляет все локальные копии указанных сообщений из собственной истории
-     * и из очереди незакоммиченных правок. Вызывается, когда пользователь явно
-     * попросил удалить «не сохраняя локально»: архив не должен ни пополняться
-     * этими id (гард {@link #guardUserDeleted}), ни хранить копии, если они
-     * уже были записаны раньше — например, при прошлых синхронизациях.
+     * Умная выборочная зачистка «не сохраняя локально»: удаляет ВСЕ записи своих БД
+     * об указанных сообщениях — архив (ACTION_SAVED/DELETED/EDITED: удалённые версии,
+     * старые редакции с prev-данными), очередь pending_edits и метки deleted_marks —
+     * по чанкам, а затем дочищает файлы копий вложений (prev_media_path/attach_path),
+     * счётчики и кэш меток. Вызывается, когда пользователь явно попросил удалить
+     * «не сохраняя локально»: ни новым записям (гард {@link #guardUserDeleted}),
+     * ни уже накопленным копиям не остаться в локальной истории.
      */
     public static void purgeMessages(final int account, final long dialogId, final java.util.Collection<Integer> messageIds) {
         if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || messageIds == null || messageIds.isEmpty()) return;
@@ -1224,6 +1226,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         executor.execute(() -> {
             try {
                 final SQLiteDatabase db = history.getWritableDatabase();
+                final java.util.HashSet<String> files = new java.util.HashSet<>();
                 db.beginTransaction();
                 try {
                     final int chunkSize = 400;
@@ -1241,13 +1244,28 @@ public class PengramHistory extends SQLiteOpenHelper {
                             whereArgs[i - offset + 2] = String.valueOf(ids.get(i));
                         }
                         final String where = "account = ? AND dialog_id = ? AND message_id IN (" + placeholders + ")";
+                        // Кандидатов на удаление файлов собираем ДО вырезания строк —
+                        // после удаления пути уже не прочитать.
+                        files.addAll(collectMediaPaths(db, where, whereArgs));
+                        try (Cursor c = db.rawQuery("SELECT attach_path FROM " + TABLE_PENDING + " WHERE " + where, whereArgs)) {
+                            while (c.moveToNext()) {
+                                final String path = c.getString(0);
+                                if (!TextUtils.isEmpty(path)) {
+                                    files.add(path);
+                                }
+                            }
+                        }
                         db.delete(TABLE, where, whereArgs);
                         db.delete(TABLE_PENDING, where, whereArgs);
+                        db.delete(TABLE_MARKS, where, whereArgs);
                     }
                     db.setTransactionSuccessful();
                 } finally {
                     db.endTransaction();
                 }
+                forgetCommittedMarks(account, dialogId);
+                cleanupUnreferencedMedia(db, files);
+                invalidateCounts(dialogId);
                 notifyChanged();
             } catch (Throwable e) {
                 FileLog.e(e);
