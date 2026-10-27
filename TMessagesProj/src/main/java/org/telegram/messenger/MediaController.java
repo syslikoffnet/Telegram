@@ -4563,8 +4563,14 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
 
         audioRecorderV2StartRunnable = () -> {
             audioRecorderV2StartRunnable = null;
-            if (!audioRecorderV2Active) return;
+                if (!audioRecorderV2Active) return;
             setBluetoothScoOn(true);
+
+            // Pengram: каждая запись начинается с чистого состояния эффекта
+            // (зеркало recordStartRunnable/startRecordingInternal legacy-пути).
+            if (PengramVoiceChanger.isEnabled()) {
+                PengramVoiceChanger.reset();
+            }
 
             recordingAudio = new TLRPC.TL_document();
             recordingAudio.file_reference = new byte[0];

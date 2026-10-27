@@ -3716,8 +3716,8 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
         items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
-        items.add(check(PengramConfig.KEY_VOICE_ROUND, false, getString(R.string.PengramVoiceRound)));
-        items.add(check(PengramConfig.KEY_VOICE_CALLS, false, getString(R.string.PengramVoiceCalls)));
+        items.add(check(PengramConfig.KEY_VOICE_ROUND, true, getString(R.string.PengramVoiceRound)));
+        items.add(check(PengramConfig.KEY_VOICE_CALLS, true, getString(R.string.PengramVoiceCalls)));
         items.add(UItem.asShadow(getString(R.string.PengramVoiceSourcesInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramVoiceGate)));
         items.add(UItem.asIntSlideView(1, 0, PengramConfig.getVoiceGate(), 3,

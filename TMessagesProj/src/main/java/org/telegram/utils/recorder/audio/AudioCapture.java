@@ -11,6 +11,8 @@ import android.os.SystemClock;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.telegram.messenger.PengramVoiceChanger;
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -178,6 +180,11 @@ final class AudioCapture {
                 throw new IllegalStateException("AudioRecord read failed: " + bytesRead);
             }
             chunk.limit(bytesRead);
+            // Pengram: новый рекордер 13.1.1 пишет голосовые через этот цикл —
+            // зеркало хука recordRunnable (обработанный PCM уходит в RMS и Opus).
+            if (PengramVoiceChanger.isEnabled()) {
+                PengramVoiceChanger.processForSource(chunk, bytesRead, SAMPLE_RATE, PengramVoiceChanger.SOURCE_VOICE);
+            }
             long sum = 0L;
             int sampleCount = bytesRead / 2;
             for (int offset = 0; offset + 1 < bytesRead; offset += 2) {

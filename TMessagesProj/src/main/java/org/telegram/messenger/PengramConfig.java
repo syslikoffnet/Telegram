@@ -2698,8 +2698,8 @@ public class PengramConfig {
     public static float getParticleSpeed() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_SPEED, 10))) / 10f; }
     public static float getParticleRotation() { return Math.max(2, Math.min(30, getIntCached(KEY_PARTICLE_ROTATION, 10))) / 10f; }
     public static boolean isVoiceMessagesEnabled() { return getBool(KEY_VOICE_MESSAGES, true); }
-    public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, false); }
-    public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, false); }
+    public static boolean isVoiceRoundEnabled() { return getBool(KEY_VOICE_ROUND, true); }
+    public static boolean isVoiceCallsEnabled() { return getBool(KEY_VOICE_CALLS, true); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }

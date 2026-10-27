@@ -13000,7 +13000,7 @@
     <string name="PengramVoiceMessages">Voice messages</string>
     <string name="PengramVoiceRound">Round video messages</string>
     <string name="PengramVoiceCalls">Calls and group voice chats</string>
-    <string name="PengramVoiceSourcesInfo">Calls and video messages are off by default. Pitch shift adds about 16–32 ms of buffering; device and network delay varies. Screen-share audio is unchanged.</string>
+    <string name="PengramVoiceSourcesInfo">All sources are on by default. Pitch shift adds about 16–32 ms of buffering; device and network delay varies. Screen-share audio is unchanged.</string>
     <string name="PengramVoiceGate">Noise gate · 0 = off</string>
     <string name="PengramVoiceFormant">Timbre · 0 = neutral</string>
     <string name="PengramVoiceEcho">Echo · 0 = off</string>

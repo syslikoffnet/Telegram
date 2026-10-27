@@ -1964,7 +1964,7 @@
     <string name="PengramVoiceMessages">Голосовые сообщения</string>
     <string name="PengramVoiceRound">Кружочки</string>
     <string name="PengramVoiceCalls">Звонки и групповые голосовые чаты</string>
-    <string name="PengramVoiceSourcesInfo">Звонки и кружочки изначально выключены. Сдвиг тона добавляет около 16–32 мс буферизации; задержка устройства и сети зависит от условий. Звук демонстрации экрана не меняется.</string>
+    <string name="PengramVoiceSourcesInfo">Все источники включены по умолчанию. Сдвиг тона добавляет около 16–32 мс буферизации; задержка устройства и сети зависит от условий. Звук демонстрации экрана не меняется.</string>
     <string name="PengramVoiceGate">Шумоподавитель · 0 = выкл.</string>
     <string name="PengramVoiceFormant">Тембр · 0 = без изменений</string>
     <string name="PengramVoiceEcho">Эхо · 0 = выкл.</string>

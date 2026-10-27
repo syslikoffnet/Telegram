@@ -14,6 +14,8 @@ import android.view.Surface;
 
 import androidx.annotation.NonNull;
 
+import org.telegram.messenger.PengramVoiceChanger;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -361,6 +363,11 @@ final class RoundVideoCodecRecorder implements RoundVideoGlProcessor.FrameTiming
                     audioCodec.queueInputBuffer(index, 0, 0, ptsUs, 0);
                     continue;
                 }
+                // Pengram: кружочки на новом рекордере 13.1.1 — зеркало хука
+                // InstantCameraView (обработанный PCM уходит в MediaCodec).
+                if (bytesRead > 1 && PengramVoiceChanger.isEnabledFor(PengramVoiceChanger.SOURCE_ROUND)) {
+                    PengramVoiceChanger.processForSource(buffer, bytesRead, AUDIO_SAMPLE_RATE, PengramVoiceChanger.SOURCE_ROUND);
+                }
                 int framesRead = bytesRead / AUDIO_BYTES_PER_FRAME;
                 if (audioBasePtsUs == Long.MIN_VALUE) {
                     audioBasePtsUs = resolveAudioBasePtsUs(framesRead);
@@ -694,7 +701,13 @@ final class RoundVideoCodecRecorder implements RoundVideoGlProcessor.FrameTiming
         started = false;
         audioReadyListener = null;
         videoReadyListener = null;
-        if (audioRecord != null) { audioRecord.release(); audioRecord = null; }
+        if (audioRecord != null) {
+            audioRecord.release();
+            audioRecord = null;
+            // Pengram: состояние эффекта кружка закрывается вместе с ресурсом
+            // записи — зеркало release()-пути InstantCameraView.
+            PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_ROUND);
+        }
         if (videoInputSurface != null) { videoInputSurface.release(); videoInputSurface = null; }
         releaseCodec(videoCodec);
         releaseCodec(audioCodec);

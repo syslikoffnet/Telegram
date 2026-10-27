@@ -8,7 +8,7 @@ public final class AudioEffectBridge {
 
     /** Called before allocating a direct ByteBuffer for each WebRTC packet. */
     public static boolean isCallAudioEnabled() {
-        // No JNI buffer for the default OFF call; gain-only is a valid opt-in.
+        // On by default (sources opt-out, not opt-in); gain-only is a valid state.
         return PengramConfig.isVoiceCallsEnabled()
                 && PengramVoiceChanger.isEnabledFor(PengramVoiceChanger.SOURCE_CALL);
     }
