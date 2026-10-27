@@ -2,8 +2,6 @@ package org.telegram.messenger;
 
 import android.text.TextUtils;
 
-import org.telegram.ui.ActionBar.LocaleController;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -259,7 +257,7 @@ public final class PengramLinkAssistant {
                 0,      // mode
                 false,  // updateStickersOrder
                 null,   // inputContent
-                SendMessageChatArguments.EMPTY,
+                SendMessagesHelper.SendMessageChatArguments.EMPTY,
                 0,      // effectId
                 false,  // invertMedia
                 0,      // payStars
