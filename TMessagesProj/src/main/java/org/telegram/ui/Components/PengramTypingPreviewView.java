@@ -79,7 +79,7 @@ public class PengramTypingPreviewView extends LinearLayout {
         caption.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         caption.setText(LocaleController.formatString(R.string.PengramInputPreviewCurrent,
                 LocaleController.getString(names[PengramConfig.getInputAnimation()])));
-        PengramTypingEffects.clear(input);
+        PengramTypingEffects.clearGlyphsOnly(input);
         // Re-apply theme colors because this view can survive a live day/night theme switch.
         input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         input.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));

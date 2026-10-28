@@ -13467,6 +13467,11 @@
     <string name="PengramPlayerHeaderGlass">Now-playing header glass</string>
     <string name="PengramChatPinnedGlass">Pinned message glass</string>
     <string name="PengramChatEnterAnim">Chat open animation</string>
+    <string name="PengramChatEnterStyle">Chat open style</string>
+    <string name="PengramChatEnterStyleDepth">Depth &amp; cascade</string>
+    <string name="PengramChatEnterStyleZoom">Center zoom</string>
+    <string name="PengramChatEnterStyleVertical">Vertical flow</string>
+    <string name="PengramChatEnterStyleWave">Message wave</string>
     <string name="PengramCylinderScroll">Cylinder scroll in chat</string>
     <string name="PengramCylinderStrength">Cylinder strength</string>
     <string name="PengramCylinderToBars">Wrap up to header and input</string>

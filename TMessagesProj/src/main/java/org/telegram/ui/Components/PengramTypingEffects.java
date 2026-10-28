@@ -175,18 +175,44 @@ public final class PengramTypingEffects {
             state.clearAll();
         }
         if (edit != null) {
+            syncNativeCursor(edit, false);
             edit.invalidate();
         }
     }
 
+    /** Сбросить только летящие глифы (например, при переключении слайдеров превью), не убивая живой курсор. */
+    public static void clearGlyphsOnly(EditText edit) {
+        if (edit == null) {
+            return;
+        }
+        final State state = states.get(edit);
+        if (state != null) {
+            state.clearGlyphs();
+        }
+        edit.invalidate();
+    }
+
     // -------------------------------------------------------------- отрисовка
+
+    private static boolean wantsCustomCursor(EditText edit) {
+        return edit != null
+                && PengramConfig.isTypingCursorSmooth()
+                && org.telegram.messenger.SharedConfig.animationsEnabled()
+                && edit.isFocused()
+                && edit.isShown();
+    }
 
     /** вызывается из onDraw поля ввода сразу после super.onDraw */
     public static void drawOverlay(EditText edit, Canvas canvas) {
-        final State state = states.get(edit);
+        State state = states.get(edit);
         if (state == null) {
-            syncNativeCursor(edit, false);
-            return;
+            if (wantsCustomCursor(edit)) {
+                state = new State(edit);
+                states.put(edit, state);
+            } else {
+                syncNativeCursor(edit, false);
+                return;
+            }
         }
         state.draw(canvas);
     }
@@ -221,6 +247,7 @@ public final class PengramTypingEffects {
         final TextPaint paint = new TextPaint();
         final android.graphics.Paint shapePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         final android.graphics.Paint cursorPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        final android.graphics.Path liquidPath = new android.graphics.Path();
         final HashMap<Integer, MaskFilter> blurCache = new HashMap<>();
         final Random random = new Random();
         boolean scheduled;
@@ -237,6 +264,8 @@ public final class PengramTypingEffects {
 
         // ---------------------------------------------------------- курсор
         float cursorX = -1, cursorY;
+        float tailX = -1, tailY;             // жидкий хвост капли, догоняющий головку курсора
+        long lastAdvanceMs;                  // точный dt без двойного шага в run() + draw()
         long lastCursorMove;                 // последнее изменение позиции/текста
         long lastTextEdit;                   // реальная правка IME, не кадр анимации
         long forceVisibleUntil;              // не мигаем сразу после набора
@@ -510,10 +539,34 @@ public final class PengramTypingEffects {
 
         boolean cursorActive() {
             final EditText edit = ref.get();
-            return edit != null
-                    && PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE
-                    && PengramConfig.isTypingCursorSmooth()
-                    && edit.isFocused() && edit.isShown();
+            return wantsCustomCursor(edit);
+        }
+
+        private boolean isCursorMoving() {
+            return Math.abs(targetX - cursorX) > 0.25f
+                    || Math.abs(targetY - cursorY) > 0.25f
+                    || (PengramConfig.isTypingCursorLiquid()
+                        && (Math.abs(cursorX - tailX) > 0.25f || Math.abs(cursorY - tailY) > 0.25f))
+                    || cursorBounce != 0
+                    || cursorEvent != CURSOR_EVENT_NONE;
+        }
+
+        /** Задержка до следующей фазы плавного дыхания каретки (0 — нужен следующий VSync-кадр). */
+        private long nextBlinkDelayMs(long now) {
+            if (now < forceVisibleUntil) {
+                return Math.max(16L, forceVisibleUntil - now);
+            }
+            final long cycle = (now - forceVisibleUntil) % 1060L;
+            if (cycle < 420L) {
+                return Math.max(16L, 420L - cycle);
+            }
+            if (cycle < 560L) {
+                return 0L; // фаза плавного затухания — рисуем по VSync
+            }
+            if (cycle < 920L) {
+                return Math.max(16L, 920L - cycle);
+            }
+            return 0L; // фаза плавного проявления — рисуем по VSync
         }
 
         @Override
@@ -544,22 +597,16 @@ public final class PengramTypingEffects {
                 return;
             }
             if (cursorActive()) {
-                // Пока курсор скользит/пульсирует — полный FPS не нужен.
-                // У движущегося курсора кадры плавные, а просто мигающий
-                // достаточно дёргать на границах своего 500-мс такта.
-                final boolean moving = Math.abs(targetX - cursorX) > .4f
-                        || Math.abs(targetY - cursorY) > .4f
-                        || cursorBounce != 0
-                        || cursorEvent != CURSOR_EVENT_NONE;
-                if (moving) {
-                    edit.invalidate();
+                edit.invalidate();
+                if (isCursorMoving()) {
                     schedule();
                 } else {
-                    edit.invalidate();
-                    scheduleAfter(500 - now % 500);
+                    scheduleAfter(nextBlinkDelayMs(now));
                 }
                 return;
             }
+            cursorX = tailX = -1;
+            lastAdvanceMs = 0;
             idleFrom = now;
         }
 
@@ -639,6 +686,8 @@ public final class PengramTypingEffects {
 
         void advanceCursor(long now) {
             if (!cursorActive()) {
+                cursorX = tailX = -1;
+                lastAdvanceMs = 0;
                 return;
             }
             final EditText edit = ref.get();
@@ -659,35 +708,84 @@ public final class PengramTypingEffects {
                 forceVisibleUntil = now + 1400;
             }
 
-            final float speed = PengramConfig.getTypingCursorSpeed() / 100f;
-            if (cursorX < 0) {
+            if (cursorX < 0 || tailX < 0) {
+                cursorX = tailX = targetX;
+                cursorY = tailY = targetY;
+                lastAdvanceMs = now;
+                return;
+            }
+
+            final float lineH = Math.max(dp(16), targetBottom - targetTop);
+            final float rawDx = targetX - cursorX;
+            final float rawDy = targetY - cursorY;
+            // Мгновенно переносим каретку только при огромном прыжке (вставка большого абзаца
+            // или переход через >4 строк). Обычный набор, удаление, перенос строки и тап по слову
+            // всегда скользят плавно по экспоненциальной пружине без зависимости от герцовки экрана.
+            final float maxJumpX = Math.max(dp(240), edit.getWidth() * 0.85f);
+            if (Math.abs(rawDy) > lineH * 4.2f || Math.abs(rawDx) > maxJumpX) {
+                cursorX = tailX = targetX;
+                cursorY = tailY = targetY;
+                lastAdvanceMs = now;
+                return;
+            }
+
+            if (lastAdvanceMs == now) {
+                return;
+            }
+            final float dt = lastAdvanceMs <= 0
+                    ? 0.008f
+                    : Math.min(0.05f, Math.max(0.001f, (now - lastAdvanceMs) / 1000f));
+            lastAdvanceMs = now;
+
+            final int speedSlider = PengramConfig.getTypingCursorSpeed(); // 1..60 (по умолч. 25)
+            // Быстрая отзывчивая головка без эффекта «вязкой клавиатуры»:
+            // при дефолте 25 — ~40 1/с (~58 мс до цели), при 1 — мягкое скольжение, при 60 — молниеносно.
+            final float headRate = 11f + speedSlider * 1.15f;
+            final float headAlpha = 1f - (float) Math.exp(-headRate * dt);
+
+            // При пулемётном наборе (>10 симв/с) не даём головке отстать дальше 3 символов
+            if (now - lastTextEdit < 160 && Math.abs(rawDy) < dp(6) && Math.abs(rawDx) > dp(30)) {
+                cursorX = targetX - Math.copySign(dp(30), rawDx);
+            }
+
+            cursorX += (targetX - cursorX) * headAlpha;
+            cursorY += (targetY - cursorY) * headAlpha;
+            if (Math.abs(targetX - cursorX) < 0.2f) {
                 cursorX = targetX;
+            }
+            if (Math.abs(targetY - cursorY) < 0.2f) {
                 cursorY = targetY;
             }
-            float dx = targetX - cursorX;
-            float dy = targetY - cursorY;
-            // The caret must point at the actual insertion/selection position on
-            // the very first draw after an edit, tap or IME correction. Smoothing
-            // a whole character at 25% per frame looks like keyboard input lag.
-            if (now - lastTextEdit < 180 || selectionChanged
-                    || Math.abs(dy) > dp(12) || Math.abs(dx) > dp(12)) {
-                cursorX = targetX;
-                cursorY = targetY;
+
+            if (PengramConfig.isTypingCursorLiquid()) {
+                final int stretchSlider = PengramConfig.getTypingCursorLiquidScale(); // 0..40 (по умолч. 15)
+                final float tailRate = headRate * Math.max(0.22f, 0.58f - stretchSlider * 0.0085f);
+                final float tailAlpha = 1f - (float) Math.exp(-tailRate * dt);
+                tailX += (cursorX - tailX) * tailAlpha;
+                tailY += (cursorY - tailY) * tailAlpha;
+                final float maxTail = dp(6f + stretchSlider * 1.45f);
+                final float tdx = cursorX - tailX;
+                final float tdy = cursorY - tailY;
+                final float dist = (float) Math.hypot(tdx, tdy);
+                if (dist > maxTail && dist > 0.001f) {
+                    final float k = maxTail / dist;
+                    tailX = cursorX - tdx * k;
+                    tailY = cursorY - tdy * k;
+                }
+                if (Math.abs(cursorX - tailX) < 0.2f) {
+                    tailX = cursorX;
+                }
+                if (Math.abs(cursorY - tailY) < 0.2f) {
+                    tailY = cursorY;
+                }
             } else {
-                // Only ease tiny layout/scroll adjustments, never full glyphs.
-                float ease = Math.max(.65f, Math.min(.95f, speed * 2.5f));
-                cursorX += dx * ease;
-                cursorY += dy * ease;
+                tailX = cursorX;
+                tailY = cursorY;
             }
-            if (Math.abs(dx) < .4f) {
-                cursorX = targetX;
-            }
-            if (Math.abs(dy) < .4f) {
-                cursorY = targetY;
-            }
+
             if (cursorBounce != 0) {
-                cursorBounce *= .82f;
-                if (Math.abs(cursorBounce) < .5f) {
+                cursorBounce *= (float) Math.pow(0.82, dt * 60f);
+                if (Math.abs(cursorBounce) < 0.4f) {
                     cursorBounce = 0;
                 }
             }
@@ -971,50 +1069,124 @@ public final class PengramTypingEffects {
             if (!cursorActive() || !targetValid) {
                 return false;
             }
-            // мигание: 500 мс горит / 500 мс пусто, но сразу после набора
-            // и движения курсор просто горит (нервирует мигание под пальцем)
-            final boolean blinkOn = now < forceVisibleUntil || (now / 500) % 2 == 0;
-            float alpha = blinkOn ? 1f : 0f;
+            // Плавное дыхание каретки вместо резкого квадратного мигания 0/1:
+            // сразу после ввода и во время скольжения каретка горит ровно (1.0).
+            float alpha;
+            if (now < forceVisibleUntil || isCursorMoving()) {
+                alpha = 1f;
+            } else {
+                final long cycle = (now - forceVisibleUntil) % 1060L;
+                if (cycle < 420L) {
+                    alpha = 1f;
+                } else if (cycle < 560L) {
+                    alpha = 0.5f + 0.5f * (float) Math.cos(Math.PI * (cycle - 420L) / 140.0);
+                } else if (cycle < 920L) {
+                    alpha = 0f;
+                } else {
+                    alpha = 0.5f - 0.5f * (float) Math.cos(Math.PI * (cycle - 920L) / 140.0);
+                }
+            }
 
-            final float width = dp(PengramConfig.getTypingCursorWidth());
-            float h = targetBottom - targetTop;
-            float x = cursorX + cursorBounce;
+            final float width = Math.max(dp(1.5f), dp(PengramConfig.getTypingCursorWidth()));
+            final float h = targetBottom - targetTop;
+            final float x = cursorX + cursorBounce;
             float yTop = cursorY - h * .86f;
             float yBottom = cursorY + h * .12f;
 
-            // пульс на бэкспейсе: секундный «вдох» ширины
+            // пульс на бэкспейсе: мягкий «вдох» каретки
+            float pulseWidth = 0f;
             if (cursorEvent == CURSOR_EVENT_PULSE) {
-                final float k = 1f - Math.min(1f, (now - cursorEventTime) / 300f);
-                yTop -= dp(2f) * k;
-                yBottom += dp(2f) * k;
+                final float k = Math.max(0f, 1f - (now - cursorEventTime) / 280f);
+                final float eased = k * k;
+                yTop -= dp(2f) * eased;
+                yBottom += dp(2f) * eased;
+                pulseWidth = dp(0.8f) * eased;
+            } else if (cursorEvent == CURSOR_EVENT_DIVE) {
+                final float k = Math.max(0f, 1f - (now - cursorEventTime) / 260f);
+                final float s = (float) Math.sin(k * Math.PI);
+                yTop += dp(1.8f) * s;
+                yBottom += dp(1.2f) * s;
             }
 
-            // жидкость: пока курсор скользит к цели, он слегка вытягивается
-            if (PengramConfig.isTypingCursorLiquid()) {
-                final float stretch = Math.min(dp(8), Math.abs(targetX - cursorX) * .12f)
-                        * PengramConfig.getTypingCursorLiquidScale() / 15f;
-                yTop -= stretch * .5f;
-                yBottom += stretch * .5f;
-            }
-
-            int color = Theme.getColor(Theme.key_chat_messagePanelCursor);
+            final int color = Theme.getColor(Theme.key_chat_messagePanelCursor);
             cursorPaint.setColor(color);
-            cursorPaint.setAlpha(Math.round(255 * alpha));
+            final int paintAlpha = Math.round(255 * alpha);
+            if (paintAlpha > 0) {
+                cursorPaint.setAlpha(paintAlpha);
+                final float barW = width + pulseWidth;
+                final float rHead = barW * .5f;
+                final int liquidScale = PengramConfig.getTypingCursorLiquidScale();
+                final boolean liquid = PengramConfig.isTypingCursorLiquid() && liquidScale > 0;
+                final float stretchBoost = 0.55f + liquidScale / 18f;
+                final float rawTailDx = (tailX - cursorX) * stretchBoost;
+                final float rawTailDy = (tailY - cursorY) * Math.min(1.25f, stretchBoost * 0.75f);
+                final float maxSpan = dp(5f + liquidScale * 1.4f);
+                final float spanDist = (float) Math.hypot(rawTailDx, rawTailDy);
+                final float clampK = spanDist > maxSpan && spanDist > 0.001f ? maxSpan / spanDist : 1f;
+                final float tx = x + rawTailDx * clampK;
+                final float tyCenter = (yTop + yBottom) * .5f + rawTailDy * clampK;
+                final float spanX = Math.abs(tx - x);
+                final float spanY = Math.abs(rawTailDy * clampK);
 
-            final float radius = width * .5f;
-            canvas.drawRoundRect(x - width * .5f, yTop, x + width * .5f, yBottom, radius, radius, cursorPaint);
+                if (liquid && (spanX > dp(0.75f) || spanY > dp(0.9f))) {
+                    // Настоящая жидкая капля (сохранение объёма): головка слегка сжимается
+                    // по вертикали, а к хвосту тянется упругая перемычка с вогнутой талией.
+                    final float barH = Math.max(dp(6f), yBottom - yTop);
+                    final float headCenterY = (yTop + yBottom) * .5f;
+                    final float squash = Math.min(barH * 0.16f, (spanX + spanY * 0.5f) * 0.09f);
+                    final float headHalfH = Math.max(rHead, (barH - squash) * .5f);
+                    final float tailRatio = Math.max(0.22f, 0.48f - Math.min(0.24f, spanX / Math.max(1f, dp(42))));
+                    final float tailHalfH = Math.max(dp(1.2f), headHalfH * tailRatio);
+                    final float rTail = Math.min(tailHalfH, Math.max(dp(0.9f), rHead * 0.72f));
+
+                    final boolean tailLeft = tx < x;
+                    final float leftX = tailLeft ? tx : x;
+                    final float rightX = tailLeft ? x : tx;
+                    final float leftCY = tailLeft ? tyCenter : headCenterY;
+                    final float rightCY = tailLeft ? headCenterY : tyCenter;
+                    final float leftHH = tailLeft ? tailHalfH : headHalfH;
+                    final float rightHH = tailLeft ? headHalfH : tailHalfH;
+                    final float leftR = tailLeft ? rTail : rHead;
+                    final float rightR = tailLeft ? rHead : rTail;
+
+                    // Вогнутая талия капли посередине траектории
+                    final float midX = (leftX + rightX) * .5f;
+                    final float midCY = (leftCY + rightCY) * .5f;
+                    final float pinch = Math.min(0.38f, spanX / Math.max(1f, dp(52)) * 0.34f);
+                    final float waistHalfH = Math.max(dp(0.85f), ((leftHH + rightHH) * .5f) * (1f - pinch));
+
+                    // Мягкое полупрозрачное свечение шлейфа + основное тело капли
+                    liquidPath.reset();
+                    liquidPath.moveTo(leftX, leftCY - leftHH);
+                    liquidPath.quadTo(midX, midCY - waistHalfH, rightX, rightCY - rightHH);
+                    liquidPath.quadTo(rightX + rightR * 1.18f, rightCY, rightX, rightCY + rightHH);
+                    liquidPath.quadTo(midX, midCY + waistHalfH, leftX, leftCY + leftHH);
+                    liquidPath.quadTo(leftX - leftR * 1.18f, leftCY, leftX, leftCY - leftHH);
+                    liquidPath.close();
+
+                    cursorPaint.setAlpha(Math.round(paintAlpha * 0.42f));
+                    canvas.drawPath(liquidPath, cursorPaint);
+
+                    // Плотная головка каретки всегда чётко отмечает точку ввода
+                    cursorPaint.setAlpha(paintAlpha);
+                    canvas.drawRoundRect(x - rHead, headCenterY - headHalfH,
+                            x + rHead, headCenterY + headHalfH, rHead, rHead, cursorPaint);
+                } else {
+                    canvas.drawRoundRect(x - rHead, yTop, x + rHead, yBottom, rHead, rHead, cursorPaint);
+                }
+            }
 
             // жидкие края выделения: зажатое выделение обрамляется каплями
             if (PengramConfig.isTypingSelectionLiquid() && lastSelStart != lastSelEnd
-                    && lastSelStart >= 0 && edit.getLayout() != null) {
+                    && lastSelStart >= 0 && edit.getLayout() != null && alpha > 0.01f) {
                 final Layout layout = edit.getLayout();
-                drawSelectionEdge(canvas, edit, layout, lastSelStart, color, alpha);
-                drawSelectionEdge(canvas, edit, layout, lastSelEnd, color, alpha);
+                drawSelectionEdge(canvas, edit, layout, lastSelStart, color, alpha, true);
+                drawSelectionEdge(canvas, edit, layout, lastSelEnd, color, alpha, false);
             }
             return true;
         }
 
-        private void drawSelectionEdge(Canvas canvas, EditText edit, Layout layout, int offset, int color, float alpha) {
+        private void drawSelectionEdge(Canvas canvas, EditText edit, Layout layout, int offset, int color, float alpha, boolean startEdge) {
             final int line;
             try {
                 line = layout.getLineForOffset(Math.min(offset, Math.max(0, edit.length())));
@@ -1027,9 +1199,12 @@ public final class PengramTypingEffects {
             final float top = layout.getLineTop(line) + paddingTop;
             final float bottom = layout.getLineBottom(line) + paddingTop;
             cursorPaint.setColor(color);
-            cursorPaint.setAlpha(Math.round(110 * alpha));
-            final float w = dp(1.4f);
+            cursorPaint.setAlpha(Math.round(165 * alpha));
+            final float w = dp(1.8f);
             canvas.drawRoundRect(ex - w * .5f, top, ex + w * .5f, bottom, w * .5f, w * .5f, cursorPaint);
+            final float dropR = dp(2.7f);
+            final float dropCy = startEdge ? top + dropR * 0.4f : bottom - dropR * 0.4f;
+            canvas.drawCircle(ex, dropCy, dropR, cursorPaint);
         }
 
         /**

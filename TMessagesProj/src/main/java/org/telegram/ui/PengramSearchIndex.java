@@ -179,6 +179,7 @@ public final class PengramSearchIndex {
             {R.string.LiteOptionsEmoji, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.EnableAnimations, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramChatEnterAnim, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramChatEnterAnimInfo},
+            {R.string.PengramChatEnterStyle, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramCylinderScroll, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderScrollInfo},
             {R.string.PengramCylinderToBars, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderToBarsInfo},
             {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramLinkAssistantInfo},
@@ -591,6 +592,7 @@ public final class PengramSearchIndex {
             0x17ede4cf, // LiteOptionsEmoji (SECTION_APPEARANCE)
             0x3067317f, // EnableAnimations (SECTION_APPEARANCE)
             0x3396b087, // PengramChatEnterAnim (SECTION_APPEARANCE)
+            0x14faab14, // PengramChatEnterStyle (SECTION_APPEARANCE)
             0x1ebf9c5a, // PengramCylinderScroll (SECTION_APPEARANCE)
             0x30b283f3, // PengramCylinderToBars (SECTION_APPEARANCE)
             0x36e9d0b1, // PengramLinkAssistant (SECTION_APPEARANCE)

@@ -97,6 +97,16 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             // списках (childWarp == null) хук остаётся пустым
             ((RecyclerListView) target).setChildWarp(scroll.warp);
         }
+        target.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override
+            public void onChildViewAttachedToWindow(View view) {
+            }
+
+            @Override
+            public void onChildViewDetachedFromWindow(View view) {
+                scroll.detachChild(view);
+            }
+        });
         target.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
             @Override
             public void onViewAttachedToWindow(View v) {
@@ -151,15 +161,24 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private static final class Bend {
         private final RuntimeShader shader;
         private RenderEffect effect;
+        private boolean active;
         private float localT, localB, roller, width, height;
 
         private Bend(String code) {
             shader = new RuntimeShader(code);
         }
 
+        private boolean detachIfActive() {
+            if (!active) {
+                return false;
+            }
+            active = false;
+            return true;
+        }
+
         /** false — параметры не изменились, эффект ставить заново не нужно. */
         private boolean bind(float localT, float localB, float roller, float width, float height) {
-            if (effect != null && Math.abs(this.localT - localT) < 0.1f
+            if (active && effect != null && Math.abs(this.localT - localT) < 0.1f
                     && Math.abs(this.localB - localB) < 0.1f
                     && Math.abs(this.roller - roller) < 0.1f
                     && this.width == width && this.height == height) {
@@ -175,7 +194,21 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             shader.setFloatUniform("roller", roller);
             shader.setFloatUniform("size", width, height);
             effect = RenderEffect.createRuntimeShaderEffect(shader, "img");
+            active = true;
             return true;
+        }
+    }
+
+    private void detachChild(View child) {
+        if (child == null) {
+            return;
+        }
+        final Bend bend = bends.get(child);
+        if (bend != null && bend.detachIfActive() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            child.setRenderEffect(null);
+        }
+        if (clipRects.remove(child) != null) {
+            child.setClipBounds(null);
         }
     }
 
@@ -304,6 +337,15 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 final float top = child.getTop() + child.getTranslationY();
                 final float localT = insetTop - top;
                 final float localB = insetBottom - top;
+                // В плоской середине между валиками шейдер — тождественное 1:1 копирование:
+                // снимаем RenderEffect, чтобы HWUI не выделял offscreen FBO на плоские ячейки.
+                if (localT <= 0f && localB >= h) {
+                    final Bend existing = bends.get(child);
+                    if (existing != null && existing.detachIfActive()) {
+                        child.setRenderEffect(null);
+                    }
+                    continue;
+                }
                 Bend bend = bends.get(child);
                 if (bend == null) {
                     try {

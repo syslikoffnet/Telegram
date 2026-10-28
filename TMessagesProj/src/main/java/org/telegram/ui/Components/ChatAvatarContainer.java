@@ -412,8 +412,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         } else if (action == MotionEvent.ACTION_MOVE && pengramSwipeTracking && !pengramSwiped) {
             final float dx = ev.getX() - pengramDownX;
             final float dy = ev.getY() - pengramDownY;
-            if (Math.abs(dx) > dp(22) && Math.abs(dx) > Math.abs(dy) * 1.25f) {
-                pengramSwiped = true;
+            if (Math.abs(dx) > dp(6) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
                 pressed = false;
                 bounce.setPressed(false);
                 setPressed(false);
@@ -421,17 +420,36 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(true);
                 }
+                if (titleTextView != null) {
+                    titleTextView.pengramSetSwipeOffset(dx);
+                }
+            }
+            if (Math.abs(dx) > dp(22) && Math.abs(dx) > Math.abs(dy) * 1.25f) {
+                pengramSwiped = true;
+                org.telegram.messenger.PengramOriginalName.noteGestureDirection(dx >= 0 ? 1 : -1);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) {
+                    try {
+                        performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                    } catch (Throwable ignore) {
+                    }
+                }
                 parentFragment.pengramToggleHeaderOriginalName();
                 return true;
             }
-        } else if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && pengramSwiped) {
-            pengramSwiped = false;
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (titleTextView != null) {
+                titleTextView.pengramReleaseSwipe();
+            }
+            if (pengramSwiped) {
+                pengramSwiped = false;
+                pengramSwipeTracking = false;
+                pressed = false;
+                bounce.setPressed(false);
+                setPressed(false);
+                AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
+                return true;
+            }
             pengramSwipeTracking = false;
-            pressed = false;
-            bounce.setPressed(false);
-            setPressed(false);
-            AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
-            return true;
         }
         if (ev.getAction() == MotionEvent.ACTION_DOWN && canSearch()) {
             pressed = true;

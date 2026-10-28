@@ -268,6 +268,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_REG_PLACE = 1411;
     private static final int BTN_REG_ICON = 1412;
     private static final int BTN_PARTICLE_MODE = 1460;
+    private static final int BTN_CHAT_ENTER_STYLE = 1468;
     private static final int BTN_TITLE_MODE = 1413;
     private static final int BTN_TITLE_CUSTOM = 1414;
     private static final int BTN_TABBAR_SIZE = 1415;
@@ -3619,6 +3620,10 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(tgCheck(BTN_EXTRA_BASE + 18, getString(R.string.EnableAnimations), SharedConfig::animationsEnabled, this::toggleInterfaceAnimations));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 19, getString(R.string.PengramChatEnterAnim), getString(R.string.PengramChatEnterAnimInfo),
                     PengramConfig::isChatEnterAnim, () -> PengramConfig.setChatEnterAnim(!PengramConfig.isChatEnterAnim())));
+            if (PengramConfig.isChatEnterAnim()) {
+                items.add(UItem.asSettingsCell(BTN_CHAT_ENTER_STYLE, R.drawable.msg_customize,
+                        getString(R.string.PengramChatEnterStyle), chatEnterStyleName()));
+            }
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 65, getString(R.string.PengramCylinderScroll), getString(R.string.PengramCylinderScrollInfo),
                     PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
@@ -3648,6 +3653,20 @@ public class PengramSettingsActivity extends UniversalFragment {
                         R.string.PengramTabletAuto, R.string.PengramTabletOff, R.string.PengramTabletOn
                 }[SharedConfig.getTabletMode()])));
         items.add(UItem.asShadow(getString(R.string.PengramInterfaceInfo)));
+    }
+
+    private CharSequence chatEnterStyleName() {
+        switch (PengramConfig.getChatEnterStyle()) {
+            case PengramConfig.CHAT_ENTER_SPRING_ZOOM:
+                return getString(R.string.PengramChatEnterStyleZoom);
+            case PengramConfig.CHAT_ENTER_VERTICAL_FLOW:
+                return getString(R.string.PengramChatEnterStyleVertical);
+            case PengramConfig.CHAT_ENTER_BUBBLE_WAVE:
+                return getString(R.string.PengramChatEnterStyleWave);
+            case PengramConfig.CHAT_ENTER_DEPTH_CASCADE:
+            default:
+                return getString(R.string.PengramChatEnterStyleDepth);
+        }
     }
 
     private String voiceGainPresetName(int preset) {
@@ -4575,27 +4594,27 @@ public class PengramSettingsActivity extends UniversalFragment {
                         value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SIZE, value)));
             }
-            items.add(UItem.asShadow(null));
-            items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
-            items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
-            if (PengramConfig.isTypingCursorSmooth()) {
-                items.add(UItem.asHeader(getString(R.string.PengramTypingCursorSpeed)));
-                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
+        }
+        items.add(UItem.asShadow(null));
+        items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
+        items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
+        if (PengramConfig.isTypingCursorSmooth()) {
+            items.add(UItem.asHeader(getString(R.string.PengramTypingCursorSpeed)));
+            items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
+                    value -> "" + value,
+                    value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_SPEED, value)));
+            items.add(UItem.asHeader(getString(R.string.PengramTypingCursorWidth)));
+            items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
+                    value -> value + " dp",
+                    value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
+            items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
+            if (PengramConfig.isTypingCursorLiquid()) {
+                items.add(UItem.asHeader(getString(R.string.PengramTypingCursorStretch)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
                         value -> "" + value,
-                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_SPEED, value)));
-                items.add(UItem.asHeader(getString(R.string.PengramTypingCursorWidth)));
-                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
-                        value -> value + " dp",
-                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
-                items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
-                if (PengramConfig.isTypingCursorLiquid()) {
-                    items.add(UItem.asHeader(getString(R.string.PengramTypingCursorStretch)));
-                    items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
-                            value -> "" + value,
-                            value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
-                }
-                items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));
+                        value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
             }
+            items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));
         }
         items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramTypingStatsTitle)));
@@ -5102,6 +5121,20 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_MONET_STRENGTH:
                 showMonetStrengthPicker();
                 return;
+            case BTN_CHAT_ENTER_STYLE: {
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramChatEnterStyleDepth),
+                        getString(R.string.PengramChatEnterStyleZoom),
+                        getString(R.string.PengramChatEnterStyleVertical),
+                        getString(R.string.PengramChatEnterStyleWave)
+                };
+                showChoicePicker(getString(R.string.PengramChatEnterStyle), options,
+                        PengramConfig.getChatEnterStyle(), value -> {
+                            PengramConfig.setChatEnterStyle(value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
+                return;
+            }
             case BTN_PARTICLE_MODE: {
                 showChoicePicker(getString(R.string.PengramParticleType), particleNames(),
                         PengramConfig.getParticleMode(), value -> {

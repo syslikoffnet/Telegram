@@ -274,8 +274,15 @@ public class PengramConfig {
 
     /** Плавный вход в чат: проявление + лёгкий зум вместо чистого выезда. По умолчанию выключен. */
     public static final String KEY_CHAT_ENTER_ANIM = "chatEnterAnim";
+    public static final String KEY_CHAT_ENTER_STYLE = "chatEnterStyle";
+    public static final int CHAT_ENTER_DEPTH_CASCADE = 0;
+    public static final int CHAT_ENTER_SPRING_ZOOM = 1;
+    public static final int CHAT_ENTER_VERTICAL_FLOW = 2;
+    public static final int CHAT_ENTER_BUBBLE_WAVE = 3;
     public static boolean isChatEnterAnim() { return getBool(KEY_CHAT_ENTER_ANIM, false); }
     public static void setChatEnterAnim(boolean value) { setBool(KEY_CHAT_ENTER_ANIM, value); }
+    public static int getChatEnterStyle() { return Math.max(0, Math.min(3, getIntCached(KEY_CHAT_ENTER_STYLE, CHAT_ENTER_DEPTH_CASCADE))); }
+    public static void setChatEnterStyle(int style) { setIntValue(KEY_CHAT_ENTER_STYLE, Math.max(0, Math.min(3, style))); }
     public static final String KEY_TYPING_BLUR = "typingBlur";
     public static final String KEY_TYPING_BLUR_RADIUS = "typingBlurRadius";
     public static final String KEY_TYPING_DELETE = "typingDeleteAnim";
@@ -3133,7 +3140,7 @@ public class PengramConfig {
             "autoRecentContext", "autoRecentContextLimit", "autoRules", "autoSpamPauseMinutes",
             "autoSpamThreshold", "autoStyle",
             "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
-            "chatCylinderScroll", "chatCylinderToBars", "chatEnterAnim", "chatHeaderLiquidGlass",
+            "chatCylinderScroll", "chatCylinderToBars", "chatEnterAnim", "chatEnterStyle", "chatHeaderLiquidGlass",
             "chatItemsOrder", "chatListHeaderGlass", "chatMenuEnabled", "chatMenuPosition", "chatPinnedGlass",
             "copyIdOnTap", "copySignAuthor", "copyToClipboard", "coverShape", "cylinderScrollStrength",
             "deleteEffect", "deleteEffectIncoming", "deletedMark", "deletedReplyQuote", "deletedReplySign",

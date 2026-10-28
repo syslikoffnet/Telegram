@@ -11579,9 +11579,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (cached != null) {
                     pengramShowOriginalName(cached, seq);
                 } else if (!refresh) {
+                    final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+                    for (int a = 0; a < 2; a++) {
+                        if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameNothing)).show();
                 } else {
+                    final int dir = org.telegram.messenger.PengramOriginalName.peekDirection(1);
+                    for (int a = 0; a < 2; a++) {
+                        if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameProbing)).show();
                 }
@@ -11621,13 +11629,24 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             pengramOriginalNameHideRunnable = null;
         }
         if (other.sameAsShown) {
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
+            }
             BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                     LocaleController.formatString(R.string.PengramOriginalNameSame, other.name)).show();
             return;
         }
+        final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+        for (int a = 0; a < 2; a++) {
+            if (nameTextView[a] != null) nameTextView[a].pengramPrepareSwap(dir);
+        }
         pengramOriginalNameShown = true;
         pengramOriginalNameValue = other.name;
         updateProfileData(false);
+        for (int a = 0; a < 2; a++) {
+            if (nameTextView[a] != null) nameTextView[a].pengramCommitSwap();
+        }
         BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                 getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
     }
@@ -11639,9 +11658,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         pengramNameCheckSeq++;
         if (pengramOriginalNameShown) {
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(-1);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramPrepareSwap(dir);
+            }
             pengramOriginalNameShown = false;
             pengramOriginalNameValue = null;
             updateProfileData(false);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramCommitSwap();
+            }
         }
     }
 

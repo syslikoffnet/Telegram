@@ -704,6 +704,34 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                 MediaDataController.MEDIA_MUSIC, 0, 0, chatTracksGuid, 0, null, null);
     }
 
+    private long lastQueueSignature = Long.MIN_VALUE;
+
+    private static long computePlaylistSignature(int tab, int mode, int accent, boolean reverse,
+                                                 MessageObject playing, java.util.List<MessageObject> list,
+                                                 int from, int to, boolean loading) {
+        long h = 1125899906842597L;
+        h = h * 31 + tab;
+        h = h * 31 + mode;
+        h = h * 31 + accent;
+        h = h * 31 + (reverse ? 1 : 0);
+        h = h * 31 + (loading ? 1 : 0);
+        h = h * 31 + (playing != null ? playing.getId() : 0);
+        h = h * 31 + (playing != null ? playing.getDialogId() : 0L);
+        if (list != null) {
+            h = h * 31 + list.size();
+            h = h * 31 + from;
+            h = h * 31 + to;
+            for (int i = from; i < to; i++) {
+                final MessageObject m = list.get(reverse ? list.size() - 1 - i : i);
+                if (m != null) {
+                    h = h * 31 + m.getId();
+                    h = h * 31 + m.getDialogId();
+                }
+            }
+        }
+        return h;
+    }
+
     private void updateQueue() {
         if (queueList == null) {
             return;
@@ -712,10 +740,15 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             updateChatTracks();
             return;
         }
-        queueList.removeAllViews();
         final java.util.ArrayList<MessageObject> playlist = MediaController.getInstance().getPlaybackPlaylist();
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (playlist == null || playlist.isEmpty()) {
+            final long emptySig = computePlaylistSignature(0, PengramConfig.getTracksView(), accentColor, false, null, null, 0, 0, false);
+            if (emptySig == lastQueueSignature && queueList.getChildCount() > 0) {
+                return;
+            }
+            lastQueueSignature = emptySig;
+            queueList.removeAllViews();
             final TextView empty = new TextView(getContext());
             empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             empty.setTextColor(0x99FFFFFF);
@@ -743,6 +776,12 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             to = Math.min(playlist.size(), from + max);
             from = Math.max(0, to - max);
         }
+        final long sig = computePlaylistSignature(0, PengramConfig.getTracksView(), accentColor, reverse, playing, playlist, from, to, false);
+        if (sig == lastQueueSignature && queueList.getChildCount() > 0) {
+            return;
+        }
+        lastQueueSignature = sig;
+        queueList.removeAllViews();
         View activeRow = null;
         for (int a = from; a < to; ++a) {
             final MessageObject messageObject = playlist.get(reverse ? playlist.size() - 1 - a : a);
@@ -766,9 +805,14 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
 
     /** музыка чата в той же панели */
     private void updateChatTracks() {
-        queueList.removeAllViews();
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (chatTracks.isEmpty()) {
+            final long emptySig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, null, null, 0, 0, chatTracksLoading);
+            if (emptySig == lastQueueSignature && queueList.getChildCount() > 0) {
+                return;
+            }
+            lastQueueSignature = emptySig;
+            queueList.removeAllViews();
             final TextView empty = new TextView(getContext());
             empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             empty.setTextColor(0x99FFFFFF);
@@ -778,7 +822,29 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             return;
         }
         final java.util.ArrayList<MessageObject> list = new java.util.ArrayList<>(chatTracks);
+        int current = 0;
         for (int a = 0; a < list.size(); ++a) {
+            final MessageObject track = list.get(a);
+            if (playing != null && track.getId() == playing.getId()
+                    && track.getDialogId() == playing.getDialogId()) {
+                current = a;
+                break;
+            }
+        }
+        final int max = 120;
+        int from = 0, to = list.size();
+        if (list.size() > max) {
+            from = Math.max(0, current - max / 3);
+            to = Math.min(list.size(), from + max);
+            from = Math.max(0, to - max);
+        }
+        final long sig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, playing, list, from, to, false);
+        if (sig == lastQueueSignature && queueList.getChildCount() > 0) {
+            return;
+        }
+        lastQueueSignature = sig;
+        queueList.removeAllViews();
+        for (int a = from; a < to; ++a) {
             final MessageObject track = list.get(a);
             final boolean active = playing != null && track.getId() == playing.getId()
                     && track.getDialogId() == playing.getDialogId();
@@ -1068,6 +1134,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         private final Rect crop = new Rect();
         private Bitmap blurred;
         private Bitmap unblurred;
+        private Bitmap prevBlurred;
+        private Bitmap prevUnblurred;
+        private long coverFadeStartMs;
+        private int coverToken;
         private LinearGradient gradient;
         private int gradientHeight;
 
@@ -1076,35 +1146,83 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         }
 
         void setCover(Bitmap bitmap) {
-            blurred = null;
-            unblurred = null;
-            if (bitmap != null && !bitmap.isRecycled()) {
+            final int token = ++coverToken;
+            if (bitmap == null || bitmap.isRecycled()) {
+                prevBlurred = blurred;
+                prevUnblurred = unblurred;
+                blurred = null;
+                unblurred = null;
+                gradient = null;
+                coverFadeStartMs = android.os.SystemClock.uptimeMillis();
+                invalidate();
+                return;
+            }
+            // Копируем лёгкий сэмпл на UI-потоке за ~0.1 мс (ImageReceiver может переиспользовать свой Bitmap),
+            // а тяжёлые stackBlurBitmap + accent выносим на фоновую очередь без блокировки UI.
+            final Bitmap sourceSnapshot;
+            try {
+                final int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
+                final float scale = Math.min(1f, 512f / Math.max(1, maxSide));
+                final int bw = Math.max(1, Math.round(bitmap.getWidth() * scale));
+                final int bh = Math.max(1, Math.round(bitmap.getHeight() * scale));
+                final Bitmap scaled = Bitmap.createScaledBitmap(bitmap, bw, bh, true);
+                sourceSnapshot = scaled == bitmap ? bitmap.copy(Bitmap.Config.ARGB_8888, false) : scaled;
+            } catch (Throwable ignore) {
+                blurred = null;
+                unblurred = null;
+                gradient = null;
+                invalidate();
+                return;
+            }
+            final int accentMode = PengramConfig.getPlayerAccentMode();
+            final int bgMode = PengramConfig.getPlayerBg();
+            Utilities.globalQueue.postRunnable(() -> {
+                Bitmap nextBlurred = null;
+                Bitmap nextUnblurred = null;
+                Integer nextAccent = null;
                 try {
-                    final Bitmap small = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
-                    if (PengramConfig.getPlayerAccentMode() == PengramConfig.PLAYER_ACCENT_COVER) {
-                        accentColor = pickAccent(small);
-                        AndroidUtilities.runOnUIThread(PengramMusicPlayerSheet.this::applyAccentToViews);
+                    final Bitmap small = Bitmap.createScaledBitmap(sourceSnapshot, 48, 48, true);
+                    if (accentMode == PengramConfig.PLAYER_ACCENT_COVER) {
+                        nextAccent = pickAccent(small);
                     }
-                    if (PengramConfig.getPlayerBg() == PengramConfig.PLAYER_BG_COVER) {
+                    if (bgMode == PengramConfig.PLAYER_BG_COVER) {
                         // The blur switch selects between two images, not between
                         // artwork and a fallback gradient. Keep copies independent of
                         // the image receiver (which can recycle its bitmap).
                         final Bitmap blurredCopy = small.copy(Bitmap.Config.ARGB_8888, true);
                         Utilities.stackBlurBitmap(blurredCopy, 6);
-                        blurred = blurredCopy;
-                        final int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
-                        final float scale = Math.min(1f, 512f / Math.max(1, maxSide));
-                        final int bw = Math.max(1, Math.round(bitmap.getWidth() * scale));
-                        final int bh = Math.max(1, Math.round(bitmap.getHeight() * scale));
-                        final Bitmap scaled = Bitmap.createScaledBitmap(bitmap, bw, bh, true);
-                        unblurred = scaled == bitmap ? bitmap.copy(Bitmap.Config.ARGB_8888, false) : scaled;
+                        nextBlurred = blurredCopy;
+                        nextUnblurred = sourceSnapshot;
+                    }
+                    if (small != sourceSnapshot && !small.isRecycled()) {
+                        small.recycle();
                     }
                 } catch (Throwable ignore) {
                     // Missing or unreadable artwork still gets the gradient.
                 }
-            }
-            gradient = null;
-            invalidate();
+                final Bitmap readyBlurred = nextBlurred;
+                final Bitmap readyUnblurred = nextUnblurred;
+                final Integer readyAccent = nextAccent;
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (token != coverToken) {
+                        if (readyBlurred != null && !readyBlurred.isRecycled()) readyBlurred.recycle();
+                        if (readyUnblurred != null && !readyUnblurred.isRecycled()) readyUnblurred.recycle();
+                        return;
+                    }
+                    if (readyAccent != null) {
+                        accentColor = readyAccent;
+                        lastQueueSignature = Long.MIN_VALUE;
+                        PengramMusicPlayerSheet.this.applyAccentToViews();
+                    }
+                    prevBlurred = blurred;
+                    prevUnblurred = unblurred;
+                    blurred = readyBlurred;
+                    unblurred = readyUnblurred;
+                    gradient = null;
+                    coverFadeStartMs = android.os.SystemClock.uptimeMillis();
+                    invalidate();
+                });
+            });
         }
 
         private int pickAccent(Bitmap bitmap) {
@@ -1149,8 +1267,22 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             if (bg == PengramConfig.PLAYER_BG_COVER) {
                 final boolean blur = PengramConfig.getBool(PengramConfig.KEY_PLAYER_BLUR, true);
                 final Bitmap artwork = blur ? blurred : unblurred;
+                final Bitmap prevArtwork = blur ? prevBlurred : prevUnblurred;
                 if (artwork != null && !artwork.isRecycled()) {
+                    float fade = 1f;
+                    if (coverFadeStartMs > 0L && prevArtwork != null && !prevArtwork.isRecycled() && prevArtwork != artwork) {
+                        final long elapsed = android.os.SystemClock.uptimeMillis() - coverFadeStartMs;
+                        if (elapsed < 240L) {
+                            fade = CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(Math.max(0f, elapsed / 240f));
+                            drawArtworkLayer(canvas, prevArtwork, blur, w, h, 255);
+                        } else {
+                            coverFadeStartMs = 0L;
+                            prevBlurred = null;
+                            prevUnblurred = null;
+                        }
+                    }
                     paint.setFilterBitmap(true);
+                    paint.setAlpha(Math.max(0, Math.min(255, Math.round(255f * fade))));
                     if (blur) {
                         canvas.save();
                         canvas.scale(w / (float) artwork.getWidth(), h / (float) artwork.getHeight());
@@ -1166,7 +1298,11 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                         rect.set(0, 0, w, h);
                         canvas.drawBitmap(artwork, crop, rect, paint);
                     }
+                    paint.setAlpha(255);
                     canvas.drawColor(0x77000000);
+                    if (fade < 1f) {
+                        postInvalidateOnAnimation();
+                    }
                     return;
                 }
             }
@@ -1179,6 +1315,25 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             overlay.setShader(gradient);
             rect.set(0, 0, w, h);
             canvas.drawRect(rect, overlay);
+        }
+
+        private void drawArtworkLayer(Canvas canvas, Bitmap artwork, boolean blur, int w, int h, int alpha) {
+            paint.setFilterBitmap(true);
+            paint.setAlpha(alpha);
+            if (blur) {
+                canvas.save();
+                canvas.scale(w / (float) artwork.getWidth(), h / (float) artwork.getHeight());
+                canvas.drawBitmap(artwork, 0, 0, paint);
+                canvas.restore();
+            } else {
+                final int bw = artwork.getWidth(), bh = artwork.getHeight();
+                final float aspect = w / (float) Math.max(1, h);
+                final int cw = Math.min(bw, Math.max(1, Math.round(bh * aspect)));
+                final int ch = Math.min(bh, Math.max(1, Math.round(bw / Math.max(0.001f, aspect))));
+                crop.set((bw - cw) / 2, (bh - ch) / 2, (bw + cw) / 2, (bh + ch) / 2);
+                rect.set(0, 0, w, h);
+                canvas.drawBitmap(artwork, crop, rect, paint);
+            }
         }
     }
 

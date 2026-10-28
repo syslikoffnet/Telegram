@@ -21675,9 +21675,17 @@ public class ChatActivity extends BaseFragment implements
         }
         if (pengramHeaderOriginalNameShown) {
             pengramHeaderNameSeq++;
+            final SimpleTextView titleView = avatarContainer.getTitleTextView();
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(-1);
+            if (titleView != null) {
+                titleView.pengramPrepareSwap(dir);
+            }
             pengramHeaderOriginalNameShown = false;
             pengramHeaderOriginalNameValue = null;
             updateTitle(true);
+            if (titleView != null) {
+                titleView.pengramCommitSwap();
+            }
             return;
         }
         final int seq = ++pengramHeaderNameSeq;
@@ -21690,12 +21698,21 @@ public class ChatActivity extends BaseFragment implements
                 if (seq != pengramHeaderNameSeq || avatarContainer == null) {
                     return;
                 }
+                final SimpleTextView titleView = avatarContainer.getTitleTextView();
                 if (cached != null) {
                     pengramApplyHeaderOriginalName(cached);
                 } else if (!refresh) {
+                    final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+                    if (titleView != null) {
+                        titleView.pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameNothing)).show();
                 } else {
+                    final int dir = org.telegram.messenger.PengramOriginalName.peekDirection(1);
+                    if (titleView != null) {
+                        titleView.pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameProbing)).show();
                 }
@@ -21726,16 +21743,27 @@ public class ChatActivity extends BaseFragment implements
         if (other == null || TextUtils.isEmpty(other.name) || avatarContainer == null) {
             return;
         }
-        final CharSequence currentShown = avatarContainer.getTitleTextView() != null
-                ? avatarContainer.getTitleTextView().getText() : null;
+        final SimpleTextView titleView = avatarContainer.getTitleTextView();
+        final CharSequence currentShown = titleView != null ? titleView.getText() : null;
         if (other.sameAsShown && currentShown != null && TextUtils.equals(currentShown.toString().trim(), other.name.trim())) {
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+            if (titleView != null) {
+                titleView.pengramNudge(dir);
+            }
             BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                     LocaleController.formatString(R.string.PengramOriginalNameSame, other.name)).show();
             return;
         }
+        final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+        if (titleView != null) {
+            titleView.pengramPrepareSwap(dir);
+        }
         pengramHeaderOriginalNameShown = true;
         pengramHeaderOriginalNameValue = other.name;
         updateTitle(true);
+        if (titleView != null) {
+            titleView.pengramCommitSwap();
+        }
         BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                 getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
     }
@@ -30307,6 +30335,23 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean pengramEnterAnimApplied;
 
+    private final java.util.WeakHashMap<View, Boolean> pengramCascadedCells = new java.util.WeakHashMap<>();
+    private boolean pengramCascadeWatcherAttached;
+    private final androidx.recyclerview.widget.RecyclerView.OnChildAttachStateChangeListener pengramEnterChildWatcher =
+            new androidx.recyclerview.widget.RecyclerView.OnChildAttachStateChangeListener() {
+                @Override
+                public void onChildViewAttachedToWindow(@androidx.annotation.NonNull View view) {
+                }
+
+                @Override
+                public void onChildViewDetachedFromWindow(@androidx.annotation.NonNull View view) {
+                    if (pengramCascadedCells.remove(view) != null) {
+                        view.setTranslationX(0f);
+                        view.setTranslationY(0f);
+                    }
+                }
+            };
+
     @Override
     public float getFragmentTransitionDuration() {
         // Включённый тумблер удлиняет окно перехода: стоковый кроссфейд и
@@ -30314,7 +30359,10 @@ public class ChatActivity extends BaseFragment implements
         return org.telegram.messenger.PengramConfig.isChatEnterAnim() ? 260f : 0f;
     }
 
-    /** Тумблер «Анимация входа в чат»: дешёвые alpha/scale-свойства, без слоёв и наложений. */
+    /**
+     * Тумблер «Анимация входа в чат»: многослойная GPU-хореография через RenderNode-свойства
+     * (без вложенных offscreen alpha-слоёв на fragmentView — прозрачность ведёт containerView).
+     */
     private void applyPengramEnterAnim(boolean isOpen, float progress) {
         if (fragmentView == null || inPreviewMode) {
             return;
@@ -30325,36 +30373,164 @@ public class ChatActivity extends BaseFragment implements
             }
             return;
         }
-        final float eased = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(
-                Math.max(0f, Math.min(1f, progress)));
-        final float alpha;
-        final float scale;
-        if (isOpen) {
-            alpha = 0.5f + 0.5f * eased;
-            scale = 0.98f + 0.02f * eased;
-        } else {
-            alpha = 1f - 0.5f * eased;
-            scale = 1f - 0.015f * eased;
+        final float p = Math.max(0f, Math.min(1f, progress));
+        final float eased = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(p);
+        final int style = org.telegram.messenger.PengramConfig.getChatEnterStyle();
+        final int w = fragmentView.getMeasuredWidth() > 0 ? fragmentView.getMeasuredWidth() : fragmentView.getWidth();
+        final int h = fragmentView.getMeasuredHeight() > 0 ? fragmentView.getMeasuredHeight() : fragmentView.getHeight();
+        if (w > 0 && h > 0) {
+            fragmentView.setPivotX(w * 0.5f);
+            fragmentView.setPivotY(h * 0.52f);
+        }
+
+        if (!pengramCascadeWatcherAttached && chatListView != null) {
+            pengramCascadeWatcherAttached = true;
+            chatListView.addOnChildAttachStateChangeListener(pengramEnterChildWatcher);
         }
         pengramEnterAnimApplied = true;
-        fragmentView.setAlpha(alpha);
-        fragmentView.setScaleX(scale);
-        fragmentView.setScaleY(scale);
-        if (actionBar != null && actionBar.getParent() != null && actionBar.getParent() != fragmentView) {
-            // В отдельных режимах шапку выносят из экрана — её гасим отдельно.
-            actionBar.setAlpha(alpha);
+
+        if (isOpen) {
+            final float rem = 1f - eased;
+            float scale = 1f;
+            float tx = 0f;
+            float ty = 0f;
+            float headerTy = 0f;
+            float inputTy = 0f;
+
+            switch (style) {
+                case org.telegram.messenger.PengramConfig.CHAT_ENTER_SPRING_ZOOM: {
+                    // iOS-подобный вылет из центра: компенсируем боковой сдвиг контейнера
+                    scale = 0.895f + 0.105f * eased;
+                    tx = -dp(36) * rem;
+                    headerTy = -dp(16) * rem;
+                    inputTy = dp(24) * rem;
+                    break;
+                }
+                case org.telegram.messenger.PengramConfig.CHAT_ENTER_VERTICAL_FLOW: {
+                    // Material 3 Shared-Y: подъём полотна снизу вверх без бокового рывка
+                    scale = 0.965f + 0.035f * eased;
+                    tx = -dp(42) * rem;
+                    ty = dp(26) * rem;
+                    headerTy = -dp(12) * rem;
+                    inputTy = dp(18) * rem;
+                    break;
+                }
+                case org.telegram.messenger.PengramConfig.CHAT_ENTER_BUBBLE_WAVE: {
+                    scale = 0.955f + 0.045f * eased;
+                    tx = -dp(20) * rem;
+                    headerTy = -dp(14) * rem;
+                    inputTy = dp(24) * rem;
+                    break;
+                }
+                case org.telegram.messenger.PengramConfig.CHAT_ENTER_DEPTH_CASCADE:
+                default: {
+                    scale = 0.94f + 0.06f * eased;
+                    tx = -dp(16) * rem;
+                    headerTy = -dp(14) * rem;
+                    inputTy = dp(22) * rem;
+                    break;
+                }
+            }
+
+            fragmentView.setScaleX(scale);
+            fragmentView.setScaleY(scale);
+            fragmentView.setTranslationX(tx);
+            fragmentView.setTranslationY(ty);
+
+            if (actionBar != null && !actionBar.isSearchFieldVisible()) {
+                actionBar.setTranslationY(headerTy);
+                if (actionBar.getParent() != null && actionBar.getParent() != fragmentView) {
+                    actionBar.setAlpha(0.35f + 0.65f * eased);
+                }
+            }
+            if (chatInputViewsContainer != null) {
+                chatInputViewsContainer.setTranslationY(inputTy);
+            }
+
+            // Каскад видимых пузырей снизу вверх (только если сам список сейчас не крутит itemAnimator)
+            if (chatListView != null && !chatListView.isAnimating()
+                    && (style == org.telegram.messenger.PengramConfig.CHAT_ENTER_DEPTH_CASCADE
+                        || style == org.telegram.messenger.PengramConfig.CHAT_ENTER_BUBBLE_WAVE)) {
+                final int count = chatListView.getChildCount();
+                final int listH = Math.max(1, chatListView.getHeight());
+                final boolean wave = style == org.telegram.messenger.PengramConfig.CHAT_ENTER_BUBBLE_WAVE;
+                for (int i = 0; i < count; i++) {
+                    final View child = chatListView.getChildAt(i);
+                    if (child == null || child.getVisibility() != View.VISIBLE) {
+                        continue;
+                    }
+                    final float fromBottom = Math.max(0f, Math.min(1f, (listH - child.getBottom()) / (float) listH));
+                    final float delay = fromBottom * (wave ? 0.34f : 0.24f);
+                    final float localRaw = Math.max(0f, Math.min(1f, (p - delay) / Math.max(0.2f, 1f - delay)));
+                    final float rowEase = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(localRaw);
+                    final float rowRem = 1f - rowEase;
+                    child.setTranslationY(dp(wave ? 22 : 14) * rowRem);
+                    if (wave && child instanceof ChatMessageCell) {
+                        final MessageObject msg = ((ChatMessageCell) child).getMessageObject();
+                        final boolean out = msg != null && msg.isOutOwner();
+                        child.setTranslationX((out ? dp(10) : -dp(10)) * rowRem);
+                    }
+                    pengramCascadedCells.put(child, Boolean.TRUE);
+                }
+            }
+        } else {
+            // Закрытие чата: мягкий отход в глубину без двойного alpha-слоя
+            final float closeScale = style == org.telegram.messenger.PengramConfig.CHAT_ENTER_SPRING_ZOOM
+                    ? (1f - 0.065f * eased)
+                    : (1f - 0.035f * eased);
+            fragmentView.setScaleX(closeScale);
+            fragmentView.setScaleY(closeScale);
+            fragmentView.setTranslationY(style == org.telegram.messenger.PengramConfig.CHAT_ENTER_VERTICAL_FLOW
+                    ? dp(18) * eased : 0f);
+            if (chatInputViewsContainer != null) {
+                chatInputViewsContainer.setTranslationY(dp(14) * eased);
+            }
+            if (actionBar != null && actionBar.getParent() != null && actionBar.getParent() != fragmentView) {
+                actionBar.setAlpha(1f - 0.65f * eased);
+            }
         }
     }
 
     private void resetPengramEnterAnim() {
         pengramEnterAnimApplied = false;
+        if (pengramCascadeWatcherAttached && chatListView != null) {
+            chatListView.removeOnChildAttachStateChangeListener(pengramEnterChildWatcher);
+            pengramCascadeWatcherAttached = false;
+        }
+        if (!pengramCascadedCells.isEmpty()) {
+            for (View cell : pengramCascadedCells.keySet()) {
+                if (cell != null) {
+                    cell.setTranslationX(0f);
+                    cell.setTranslationY(0f);
+                }
+            }
+            pengramCascadedCells.clear();
+        }
+        if (chatListView != null) {
+            final int count = chatListView.getChildCount();
+            for (int i = 0; i < count; i++) {
+                final View child = chatListView.getChildAt(i);
+                if (child != null) {
+                    child.setTranslationX(0f);
+                    child.setTranslationY(0f);
+                }
+            }
+        }
         if (fragmentView != null) {
             fragmentView.setAlpha(1f);
             fragmentView.setScaleX(1f);
             fragmentView.setScaleY(1f);
+            fragmentView.setTranslationX(0f);
+            fragmentView.setTranslationY(0f);
+        }
+        if (chatInputViewsContainer != null) {
+            chatInputViewsContainer.setTranslationY(0f);
         }
         if (actionBar != null) {
             actionBar.setAlpha(1f);
+            if (!actionBar.isSearchFieldVisible()) {
+                actionBar.setTranslationY(0f);
+            }
         }
     }
 

@@ -166,6 +166,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // маленький «переодевающийся» прыжок, чтобы обновка была заметна
         doJump();
         wave = 1.1f;
+        wakeRender();
     }
 
     public int getSkin() {
@@ -178,12 +179,14 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             flipping = true;
             flip = 0f;
             jumpVelocity = Math.max(jumpVelocity, 3.9f);
+            wakeRender();
         }
     }
 
     /** потанцевать несколько секунд */
     public void doDance() {
         dance = Math.max(dance, 2.8f);
+        wakeRender();
     }
 
     /** танцевать без остановки, пока играет музыка */
@@ -195,6 +198,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         if (value) {
             sleeping = false;
             dance = Math.max(dance, 1.5f);
+            wakeRender();
         }
     }
 
@@ -215,6 +219,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         } else {
             doJump();
         }
+        wakeRender();
     }
 
     public boolean isSleeping() {
@@ -224,6 +229,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     /** помахать крылом */
     public void doWave() {
         wave = Math.max(wave, 1.6f);
+        wakeRender();
     }
 
     /**
@@ -247,6 +253,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         if (p > 0.75f) {
             wave = Math.max(wave, 0.45f);   // на сильной доле ещё и крыльями
         }
+        wakeRender();
         sleeping = false;
     }
 
@@ -302,6 +309,23 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     }
 
     @Override
+    private final Object wakeLock = new Object();
+    private volatile boolean hiddenByView;
+
+    private void wakeRender() {
+        synchronized (wakeLock) {
+            wakeLock.notifyAll();
+        }
+    }
+
+    private boolean isActivelyMoving() {
+        return !settled || dragging || flipping
+                || jump > 0.002f || Math.abs(jumpVelocity) > 0.02f || Math.abs(squash) > 0.002f
+                || danceLoop || dance > 0.01f || wave > 0.01f
+                || beat > 0.01f || energy > 0.02f || blink > 0.02f;
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         pausedByWindow = true;
@@ -312,6 +336,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         pausedByWindow = getWindowVisibility() != VISIBLE;
+        hiddenByView = !isShown() || getAlpha() <= 0.01f;
         applyPaused();
     }
 
@@ -323,13 +348,35 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         applyPaused();
     }
 
+    @Override
+    protected void onVisibilityChanged(android.view.View changedView, int visibility) {
+        super.onVisibilityChanged(changedView, visibility);
+        hiddenByView = visibility != VISIBLE || !isShown() || getAlpha() <= 0.01f;
+        applyPaused();
+    }
+
+    @Override
+    public void setAlpha(float alpha) {
+        super.setAlpha(alpha);
+        final boolean hide = alpha <= 0.01f || !isShown();
+        if (hiddenByView != hide) {
+            hiddenByView = hide;
+            applyPaused();
+        }
+    }
+
     public void setPaused(boolean value) {
         pausedByScreen = value;
         applyPaused();
     }
 
     private void applyPaused() {
-        paused = pausedByScreen || pausedByWindow;
+        final boolean next = pausedByScreen || pausedByWindow || hiddenByView;
+        final boolean wasPaused = paused;
+        paused = next;
+        if (wasPaused && !next) {
+            wakeRender();
+        }
     }
 
     // ---------------------------------------------------------------- touch
@@ -342,6 +389,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 dragging = true;
                 settled = false;
                 velocity = 0;
+                wakeRender();
                 lastTouchX = event.getX();
                 downX = event.getX();
                 downY = event.getY();
@@ -477,6 +525,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private void doJump() {
         if (jump <= 0.001f) {
             jumpVelocity = 3.4f;
+            wakeRender();
         }
     }
 
@@ -484,6 +533,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     public void resetRotation() {
         targetAngle = Math.round(angle / 360f) * 360f;
         settled = false;
+        wakeRender();
     }
 
     // ---------------------------------------------------------------- physics
@@ -1614,14 +1664,32 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 }
             }
 
-            final int targetFps = Math.max(30, (int) AndroidUtilities.screenRefreshRate);
-            final long frameTime = Math.max(1, 1000L / targetFps);
-            long last = android.os.SystemClock.elapsedRealtime();
+            final int maxFps = Math.max(60, Math.min(120, Math.round(AndroidUtilities.screenRefreshRate)));
+            final long activeFrameNs = 1_000_000_000L / maxFps;
+            final long calmIdleFrameNs = 1_000_000_000L / 30L;
+            long lastNs = System.nanoTime();
 
             while (alive()) {
-                final long now = android.os.SystemClock.elapsedRealtime();
-                final float dt = Math.max(0.001f, (now - last) / 1000f);
-                last = now;
+                if (paused || surfaceWidth <= 0 || surfaceHeight <= 0) {
+                    synchronized (wakeLock) {
+                        if (!alive()) {
+                            break;
+                        }
+                        if (paused || surfaceWidth <= 0 || surfaceHeight <= 0) {
+                            try {
+                                wakeLock.wait(250L);
+                            } catch (InterruptedException ignore) {
+                                break;
+                            }
+                            lastNs = System.nanoTime();
+                            continue;
+                        }
+                    }
+                }
+
+                final long frameStartNs = System.nanoTime();
+                final float dt = Math.max(0.001f, Math.min(0.05f, (frameStartNs - lastNs) * 1e-9f));
+                lastNs = frameStartNs;
                 boolean broken = false;
                 // кадр тоже под замком: пока мы читаем общие EGL-поля, никто
                 // не должен их переинициализировать
@@ -1630,7 +1698,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                         break;
                     }
                     try {
-                        if (!paused) {
+                        if (!paused && surfaceWidth > 0 && surfaceHeight > 0) {
                             drawFrame(dt);
                             egl.eglSwapBuffers(eglDisplay, eglSurface);
                             if (!ready) {
@@ -1650,15 +1718,20 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
                 if (broken) {
                     break;
                 }
-                try {
-                    final long spent = android.os.SystemClock.elapsedRealtime() - now;
-                    if (paused) {
-                        Thread.sleep(120);
-                    } else if (spent < frameTime) {
-                        Thread.sleep(frameTime - spent);
+                final long targetNs = (!ready || isActivelyMoving()) ? activeFrameNs : calmIdleFrameNs;
+                final long spentNs = System.nanoTime() - frameStartNs;
+                final long waitTotalNs = targetNs - spentNs;
+                if (waitTotalNs > 250_000L) {
+                    synchronized (wakeLock) {
+                        if (!alive()) {
+                            break;
+                        }
+                        try {
+                            wakeLock.wait(waitTotalNs / 1_000_000L, (int) (waitTotalNs % 1_000_000L));
+                        } catch (InterruptedException ignore) {
+                            break;
+                        }
                     }
-                } catch (InterruptedException ignore) {
-                    break;
                 }
             }
             synchronized (glLock) {

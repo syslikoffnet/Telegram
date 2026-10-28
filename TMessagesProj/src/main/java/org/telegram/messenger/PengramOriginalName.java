@@ -535,6 +535,33 @@ public final class PengramOriginalName {
 
     // ------------------------------------------------------------------ жест
 
+    /** направление последнего жеста: +1 вправо, -1 влево, 0 — тап (автовыбор) */
+    private static volatile int lastGestureDirection = 0;
+
+    public static void noteGestureDirection(int direction) {
+        lastGestureDirection = direction > 0 ? 1 : (direction < 0 ? -1 : 0);
+    }
+
+    public static int peekDirection(int fallback) {
+        final int dir = lastGestureDirection;
+        return dir != 0 ? dir : fallback;
+    }
+
+    public static int consumeDirection(int fallback) {
+        final int dir = lastGestureDirection;
+        lastGestureDirection = 0;
+        return dir != 0 ? dir : fallback;
+    }
+
+    private static void performHaptic(View view) {
+        if (view != null && PengramConfig.isVibrationEnabled()) {
+            try {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
     /**
      * Повесить жест (нажатие и/или горизонтальный свайп) на имя в профиле.
      *
@@ -560,6 +587,8 @@ public final class PengramOriginalName {
                 if (!tapEnabled() || state[0]) {
                     return false;
                 }
+                noteGestureDirection(0);
+                performHaptic(view);
                 onToggle.run();
                 return true;
             }
@@ -572,6 +601,8 @@ public final class PengramOriginalName {
                 final float dx = e2.getX() - e1.getX();
                 if (Math.abs(dx) > slop * 1.4f && Math.abs(dx) > Math.abs(e2.getY() - e1.getY())) {
                     state[0] = true;
+                    noteGestureDirection(dx >= 0 ? 1 : -1);
+                    performHaptic(view);
                     onToggle.run();
                     return true;
                 }
@@ -601,13 +632,24 @@ public final class PengramOriginalName {
             if (action == MotionEvent.ACTION_MOVE && swipeEnabled() && !state[0]) {
                 final float dx = event.getX() - start[0];
                 final float dy = event.getY() - start[1];
-                if (Math.abs(dx) > slop * 1.4f && Math.abs(dx) > Math.abs(dy) * 1.15f) {
-                    state[0] = true;
+                if (Math.abs(dx) > slop * 0.35f && Math.abs(dx) > Math.abs(dy) * 1.15f) {
                     if (v.getParent() != null) {
                         v.getParent().requestDisallowInterceptTouchEvent(true);
                     }
+                    if (v instanceof org.telegram.ui.ActionBar.SimpleTextView) {
+                        ((org.telegram.ui.ActionBar.SimpleTextView) v).pengramSetSwipeOffset(dx);
+                    }
+                }
+                if (Math.abs(dx) > slop * 1.4f && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                    state[0] = true;
+                    noteGestureDirection(dx >= 0 ? 1 : -1);
+                    performHaptic(v);
                     onToggle.run();
                     return true;
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (v instanceof org.telegram.ui.ActionBar.SimpleTextView) {
+                    ((org.telegram.ui.ActionBar.SimpleTextView) v).pengramReleaseSwipe();
                 }
             }
             if (!state[0]) {

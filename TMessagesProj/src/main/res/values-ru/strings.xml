@@ -2147,6 +2147,11 @@
     <string name="PengramPlayerHeaderGlass">Стекло шапки «сейчас играет»</string>
     <string name="PengramChatPinnedGlass">Стекло закрепа</string>
     <string name="PengramChatEnterAnim">Анимация входа в чат</string>
+    <string name="PengramChatEnterStyle">Стиль входа в чат</string>
+    <string name="PengramChatEnterStyleDepth">Глубина и каскад</string>
+    <string name="PengramChatEnterStyleZoom">Зум из центра</string>
+    <string name="PengramChatEnterStyleVertical">Вертикальный поток</string>
+    <string name="PengramChatEnterStyleWave">Живая волна сообщений</string>
     <string name="PengramCylinderScroll">Прокрутка-цилиндр в чате</string>
     <string name="PengramCylinderStrength">Сила цилиндра</string>
     <string name="PengramCylinderToBars">Изгиб до шапки и поля ввода</string>
