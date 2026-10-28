@@ -228,16 +228,33 @@ check("detachListenerIf" in assistant and "detachListenerIf(pengramLinkListener)
       "assistant: слушатель отвязывается в onDestroy")
 check("1_500_000_000L" in assistant, "assistant: лимит файла 1.5 ГБ")
 
-# YouTube: InnerTube без шифрования (ANDROId/IOS/VR), TikTok: SSR + cookie.
-for client in ('"ANDROID"', '"IOS"', '"ANDROID_VR"'):
+# YouTube: InnerTube без шифрования. Цепочка = yt-dlp master (окт-2026):
+# VISIONOS — no-JS дефолт без PO-token; ANDROID/IOS — запасные; ANDROID_VR
+# УДАЛЁН (все форматы 403 с 2026-08-17, yt-dlp #17348) — бывший дефект.
+for client in ('"VISIONOS"', '"ANDROID"', '"IOS"'):
     check(client in resolver, f"resolver: клиент {client} в цепочке")
+check('"ANDROID_VR"' not in resolver,
+      "resolver: мёртвый ANDROID_VR (403 с 2026-08-17) удалён из цепочки")
+check('"1.02"' in resolver and "RealityDevice17,1" in resolver,
+      "resolver: константы visionos как в INNERTUBE_CLIENTS")
 check("youtubei/v1/player" in resolver, "resolver: InnerTube player endpoint")
 check("signatureCipher" not in resolver or "directUrl" in resolver,
       "resolver: прямые URL (cipher → следующий клиент)")
 check("__UNIVERSAL_DATA_FOR_REHYDRATION__" in resolver, "resolver: TikTok SSR-данные")
+# Многослойный фоллбэк TikTok: SSR → og:video → сырой playAddr.
+check("resolveTikTokLayered" in resolver, "resolver: слои 2/3 для TikTok")
+check('og:video' in resolver and "extractMetaContent" in resolver,
+      "resolver: og:video-мета как слой 2")
+check('playAddr\\"\\\\s*:' in resolver or '"playAddr"' in resolver,
+      "resolver: сырой playAddr как слой 3")
 check("followRedirects" in resolver, "resolver: vm/vt редиректы")
 check("applyCookies" in resolver and "storeCookies" in resolver, "resolver: cookie-континуитет для CDN")
 check("MAX_DURATION_SEC = 600" in resolver, "resolver: потолок 10 минут")
+# minSdk 23: List.of (Java 9) без desugar-гарантий — только Arrays.asList.
+check("List.of(" not in resolver, "resolver: нет List.of (minSdk 23)")
+check("Arrays.asList" in resolver, "resolver: Arrays.asList для Resolved-списков")
+# Отказ конвейера обязан логироваться — иначе «просто ссылка» не диагностируется.
+check("PengramLink pipeline failed" in assistant, "assistant: техпричина отказа в логе")
 
 # Мультиплексор: копирование семплов без перекодирования.
 check("MediaMuxer" in mux and "MediaExtractor" in mux, "mux: MediaExtractor+MediaMuxer")

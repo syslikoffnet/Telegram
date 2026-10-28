@@ -11,6 +11,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,16 +167,32 @@ public final class PengramLinkResolver {
         if (videoId == null) {
             throw new Exception("bad url");
         }
+        // Цепочка соответствует yt-dlp master (октябрь 2026), константы взяты
+        // из INNERTUBE_CLIENTS:
+        //  - VISIONOS — дефолтный no-JS клиент yt-dlp: прямые DASH-URL, БЕЗ
+        //    PO-token (политики GVS/PLAYER в таблице нет) — основа фичи.
+        //  - ANDROID 21.26.364 — запасной: player отдаёт форматы без токена,
+        //    но GVS может требовать PO-token (403 на скачивании) — тогда
+        //    остаётся фоллбэк текстом.
+        //  - IOS 21.26.4 — последний шанс (прогрессивные mp4).
+        // ANDROID_VR удалён: с 2026-08-17 YouTube 403-ит ВСЕ его форматы,
+        // включая itag 18 (yt-dlp #17348) — клиент мёртв.
         final String[][] clients = {
-                // {clientName, clientVersion, userAgent}
-                {"ANDROID", "21.02.35", "com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip"},
-                {"IOS", "21.26.4", "com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 17_7_2 like Mac OS X;)"},
-                {"ANDROID_VR", "1.65.10", "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 11) gzip"},
+                // {clientName, clientVersion, userAgent, deviceMake, deviceModel, osName, osVersion}
+                {"VISIONOS", "1.02",
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+                        "Apple", "RealityDevice17,1", "visionOS", "26.5.23O471"},
+                {"ANDROID", "21.26.364",
+                        "com.google.android.youtube/21.26.364 (Linux; U; Android 11) gzip",
+                        "", "", "Android", "11"},
+                {"IOS", "21.26.4",
+                        "com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+                        "Apple", "iPhone16,2", "iPhone", "18.3.2.22D82"},
         };
         Exception last = null;
         for (String[] client : clients) {
             try {
-                return playerRequest(videoId, client[0], client[1], client[2]);
+                return playerRequest(videoId, client);
             } catch (Exception e) {
                 last = e;
             }
@@ -183,16 +200,33 @@ public final class PengramLinkResolver {
         throw last != null ? last : new Exception("youtube failed");
     }
 
-    private static Resolved playerRequest(String videoId, String clientName, String clientVersion, String userAgent)
-            throws Exception {
+    private static Resolved playerRequest(String videoId, String[] client) throws Exception {
+        final String clientName = client[0];
         final JSONObject contextClient = new JSONObject()
                 .put("clientName", clientName)
-                .put("clientVersion", clientVersion)
+                .put("clientVersion", client[1])
                 .put("hl", "en")
                 .put("gl", "US");
         if (clientName.startsWith("ANDROID")) {
             contextClient.put("androidSdkVersion", 30);
         }
+        // Необязательные поля контекста — поимённо, как в INNERTUBE_CLIENTS yt-dlp
+        // (android: osName/osVersion есть, deviceMake нет — поэтому не группой).
+        if (client.length > 3) {
+            if (!client[3].isEmpty()) {
+                contextClient.put("deviceMake", client[3]);
+            }
+            if (!client[4].isEmpty()) {
+                contextClient.put("deviceModel", client[4]);
+            }
+            if (!client[5].isEmpty()) {
+                contextClient.put("osName", client[5]);
+            }
+            if (!client[6].isEmpty()) {
+                contextClient.put("osVersion", client[6]);
+            }
+        }
+        final String userAgent = client[2];
         final JSONObject payload = new JSONObject()
                 .put("context", new JSONObject().put("client", contextClient))
                 .put("videoId", videoId)
@@ -291,10 +325,10 @@ public final class PengramLinkResolver {
         }
 
         if (muxedUrl != null) {
-            return new Resolved(List.of(muxedUrl), false, title, author, lengthSec * 1000, null, "");
+            return new Resolved(Arrays.asList(muxedUrl), false, title, author, lengthSec * 1000, null, "");
         }
         if (videoUrl != null && audioUrl != null) {
-            return new Resolved(List.of(videoUrl, audioUrl), true, title, author, lengthSec * 1000, null, "");
+            return new Resolved(Arrays.asList(videoUrl, audioUrl), true, title, author, lengthSec * 1000, null, "");
         }
         throw new Exception("no direct formats");
     }
@@ -342,13 +376,25 @@ public final class PengramLinkResolver {
                 "Mozilla/5.0 (Linux; Android 11; RMX3263) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
                 cookies, canonical);
 
+        // Слой 2/3 (og:video → сырой playAddr) используется и при отсутствии
+        // SSR-блока (challenge/региональная вариация), и когда SSR есть, но
+        // без пригодного video-объекта — любой из этих отказов раньше вёл к
+        // фоллбэку ссылкой вместо видео.
         final JSONObject item = extractTikTokItem(page);
         if (item == null) {
+            final Resolved layered = resolveTikTokLayered(page, cookies, canonical);
+            if (layered != null) {
+                return layered;
+            }
             throw new Exception("no item");
         }
 
         final JSONObject video = item.optJSONObject("video");
         if (video == null) {
+            final Resolved layered = resolveTikTokLayered(page, cookies, canonical);
+            if (layered != null) {
+                return layered;
+            }
             throw new Exception("no video");
         }
 
@@ -382,6 +428,10 @@ public final class PengramLinkResolver {
             }
         }
         if (play.isEmpty()) {
+            final Resolved layered = resolveTikTokLayered(page, cookies, canonical);
+            if (layered != null) {
+                return layered;
+            }
             throw new Exception("no playAddr");
         }
 
@@ -396,8 +446,52 @@ public final class PengramLinkResolver {
         final String caption = buildTikTokCaption(authorId, desc);
 
         // Cookie страницы обязательны для CDN.
-        return new Resolved(List.of(play), false, caption, authorId,
+        return new Resolved(Arrays.asList(play), false, caption, authorId,
                 durationSec > 0 ? durationSec * 1000 : 0, new HashMap<>(cookies), canonical);
+    }
+
+    /** Слойы 2/3: страница без SSR-блока — og:video-мета, затем сырой playAddr. */
+    static Resolved resolveTikTokLayered(String page, Map<String, String> cookies, String referer) {
+        // Слой 2: <meta property="og:video" content="https://..."> — есть и на
+        // облегчённых/challenge-страницах, ведёт прямо на CDN-файл.
+        String play = extractMetaContent(page, "og:video");
+        if (play == null || !play.startsWith("http")) {
+            play = extractMetaContent(page, "og:video:secure_url");
+        }
+        String title = extractMetaContent(page, "og:title");
+        if (play == null || !play.startsWith("http")) {
+            // Слой 3: сырой поиск playAddr в разметке (другие SSR-контейнеры).
+            final Matcher m = Pattern.compile("\"playAddr\"\\s*:\\s*\"(https:[^\"]+)\"").matcher(page);
+            if (m.find()) {
+                play = m.group(1).replace("\\/", "/").replace("\\u002F", "/").replace("\\u0026", "&");
+            }
+        }
+        if (play == null || !play.startsWith("http")) {
+            return null;
+        }
+        if (title == null) {
+            title = "";
+        }
+        // Длительность слоями неизвестна — потолок задаёт лимит файла (1.5 ГБ)
+        // в конвейере; caption строим из og:title.
+        return new Resolved(Arrays.asList(play), false, title, "", 0,
+                new HashMap<>(cookies), referer);
+    }
+
+    static String extractMetaContent(String page, String property) {
+        final int at = page.indexOf("property=\"" + property + "\"");
+        if (at < 0) {
+            return null;
+        }
+        // content= может стоять до или после property — ищем в окне ±300 символов.
+        final int from = Math.max(0, at - 300);
+        final int to = Math.min(page.length(), at + 300);
+        final String window = page.substring(from, to);
+        final Matcher m = Pattern.compile("content=\"([^\"]+)\"").matcher(window);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
     }
 
     static JSONObject extractTikTokItem(String page) throws Exception {

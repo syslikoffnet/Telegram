@@ -197,6 +197,10 @@ public final class PengramLinkAssistant {
                 return;
             }
             final String reason = humanReason(t);
+            // Техническая причина отказа — в лог: без неё будущие отчёты
+            // «отправилась просто ссылка» невозможно различить (403 GVS vs
+            // challenge TikTok vs сбой мультиплексора).
+            FileLog.e(new Exception("PengramLink pipeline failed: " + t, t));
             final boolean linkSent = sendFallbackLink(request);
             notifyFailed(listener, reason, linkSent);
         } finally {
