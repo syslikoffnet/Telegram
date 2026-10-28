@@ -1,0 +1,36 @@
+name: Publish APK Pre-release
+on:
+  push:
+    branches:
+      - "arena/11c384e3-telegram"
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    if: contains(github.event.head_commit.message, '[publish-only]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download signed APK artifact from run #445
+        uses: actions/download-artifact@v4
+        with:
+          run-id: "40717851961"
+          name: "Pengram-ARM64-standalone-run-445"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+
+      - name: Publish GitHub Pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ls -lh dist/
+          TAG="build-$(date -u +%Y%m%d-%H%M)"
+          gh release create "$TAG" dist/*.apk dist/*.idsig \
+            --target "b258b7a225749cde2a75a21c9966c12804c92d4f" \
+            --title "Pengram $TAG" \
+            --notes "Подписанная standalone-сборка Pengram (\`arm64-v8a\`, run #445) с обновлённым Помощником ссылок (YouTube / Shorts / TikTok фото и слайд-шоу, интерактивный предпросмотр и настройки)." \
+            --prerelease

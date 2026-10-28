@@ -52,6 +52,7 @@ env:
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[publish-only]')"
     runs-on: ubuntu-latest
     timeout-minutes: 350
 
@@ -386,6 +387,18 @@ jobs:
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
           prerelease: true
+
+      - name: Publish branch preview release
+        if: startsWith(github.ref_name, 'arena/') && env.BUILD_TYPE == 'standalone'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-$(date -u +%Y%m%d-%H%M)-run${{ github.run_number }}"
+          gh release create "$TAG" out/*.apk out/*.idsig \
+            --target "${{ github.sha }}" \
+            --title "Pengram $TAG" \
+            --notes "Signed standalone arm64-v8a build #${{ github.run_number }} from branch \`${{ github.ref_name }}\`." \
+            --prerelease
 
       - name: Report build errors
         if: failure() && hashFiles('build.log') != ''
