@@ -35,6 +35,7 @@ on:
       - "build-*"
 
 permissions:
+  actions: read
   contents: write
 
 env:
@@ -51,6 +52,41 @@ env:
   CMAKE_CXX_COMPILER_LAUNCHER: ccache
 
 jobs:
+  publish_artifact:
+    if: contains(github.event.head_commit.message, '[publish-only]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download signed APK artifact from run #445
+        uses: actions/download-artifact@v4
+        with:
+          run-id: "40717851961"
+          name: "Pengram-ARM64-standalone-run-445"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+
+      - name: Publish GitHub Pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="build-$(date -u +%Y%m%d-%H%M)"
+          RESP=$(curl -sS -D /tmp/hdr.txt -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"b258b7a225749cde2a75a21c9966c12804c92d4f\",\"name\":\"Pengram $TAG\",\"body\":\"Подписанная standalone-сборка Pengram (arm64-v8a, run #445) с обновлённым Помощником ссылок: исправлены островок и кнопка закрытия, добавлена поддержка фото-постов и слайд-шоу со звуком из TikTok, обновлён резолвер YouTube / Shorts / TikTok, добавлены интерактивный предпросмотр и экран настроек.\",\"draft\":false,\"prerelease\":true}")
+          STATUS=$(head -n 1 /tmp/hdr.txt | tr -d '\r')
+          if ! echo "$STATUS" | grep -q " 201"; then
+            PERM=$(grep -i "x-accepted-github-permissions" /tmp/hdr.txt | tr -d '\r' || true)
+            MSG=$(echo "$RESP" | tr '\n' ' ')
+            echo "::error::Release create failed ($STATUS) [$PERM]: $MSG"
+            exit 1
+          fi
+          find dist -type f \( -name '*.apk' -o -name '*.idsig' \) | sort | while IFS= read -r f; do
+            gh release upload "$TAG" "$f" --repo "${{ github.repository }}" --clobber
+          done
+
   build:
     if: "!contains(github.event.head_commit.message, '[publish-only]')"
     runs-on: ubuntu-latest
