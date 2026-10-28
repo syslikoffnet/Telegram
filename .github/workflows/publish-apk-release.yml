@@ -22,21 +22,22 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: dist
 
-      - name: Publish GitHub Pre-release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare tag
+        id: meta
         run: |
-          set -euo pipefail
+          echo "tag=build-$(date -u +%Y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
           find dist -maxdepth 3 -ls
-          mapfile -t FILES < <(find dist -type f \( -name '*.apk' -o -name '*.idsig' \) | sort)
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "::error::No APK files found in downloaded artifact"
-            exit 1
-          fi
-          TAG="build-$(date -u +%Y%m%d-%H%M)"
-          gh release create "$TAG" "${FILES[@]}" \
-            --repo "${{ github.repository }}" \
-            --target "b258b7a225749cde2a75a21c9966c12804c92d4f" \
-            --title "Pengram $TAG" \
-            --notes "Подписанная standalone-сборка Pengram (\`arm64-v8a\`, run #445) с обновлённым Помощником ссылок (YouTube / Shorts / TikTok фото и слайд-шоу, интерактивный предпросмотр и настройки)." \
-            --prerelease
+
+      - name: Publish GitHub Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.apk
+            dist/*.idsig
+            dist/**/*.apk
+            dist/**/*.idsig
+          name: "Pengram ${{ steps.meta.outputs.tag }}"
+          tag_name: "${{ steps.meta.outputs.tag }}"
+          target_commitish: "b258b7a225749cde2a75a21c9966c12804c92d4f"
+          body: "Подписанная standalone-сборка Pengram (arm64-v8a, run #445) с обновлённым Помощником ссылок: исправлены островок и кнопка закрытия, добавлена поддержка фото-постов и слайд-шоу со звуком из TikTok, обновлён резолвер YouTube / Shorts / TikTok, добавлены интерактивный предпросмотр и экран настроек."
+          prerelease: true

@@ -390,15 +390,15 @@ jobs:
 
       - name: Publish branch preview release
         if: startsWith(github.ref_name, 'arena/') && env.BUILD_TYPE == 'standalone'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="build-$(date -u +%Y%m%d-%H%M)-run${{ github.run_number }}"
-          gh release create "$TAG" out/*.apk out/*.idsig \
-            --target "${{ github.sha }}" \
-            --title "Pengram $TAG" \
-            --notes "Signed standalone arm64-v8a build #${{ github.run_number }} from branch \`${{ github.ref_name }}\`." \
-            --prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.apk
+            out/*.idsig
+          name: "Pengram build-run${{ github.run_number }}"
+          tag_name: "build-run${{ github.run_number }}"
+          generate_release_notes: true
+          prerelease: true
 
       - name: Report build errors
         if: failure() && hashFiles('build.log') != ''
