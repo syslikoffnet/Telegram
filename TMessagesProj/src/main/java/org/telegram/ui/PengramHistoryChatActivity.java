@@ -510,7 +510,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             final PengramHistory.Entry entry = items.get(position).entry;
             actions.add(() -> viewInSourceChat(entry));
         }
-        if ((!restricted || org.telegram.messenger.PengramConfig.isAllowingForwards()) && !TextUtils.isEmpty(message.messageText)) {
+        if ((!restricted || org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()) && !TextUtils.isEmpty(message.messageText)) {
             labels.add(getString(R.string.Copy));
             actions.add(() -> AndroidUtilities.addToClipboard(message.messageText));
         }
