@@ -3241,6 +3241,25 @@ public class ChatActivity extends BaseFragment implements
         boolean isEditTextItemVisibilitySuppressed;
 
         @Override
+        public void onLinkAssistantOpenSettings() {
+            presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_LINK_ASSISTANT));
+        }
+
+        @Override
+        public void onLinkAssistantActive() {
+            if (fieldPanelShown == 4) {
+                showFieldPanelForWebPage(false, null, false);
+            }
+        }
+
+        @Override
+        public void onLinkAssistantDismissed() {
+            if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
+                searchLinks(chatActivityEnterView.getEditField().getText(), true);
+            }
+        }
+
+        @Override
         public int getContentViewHeight() {
             return contentView.getHeight();
         }
@@ -15758,6 +15777,9 @@ public class ChatActivity extends BaseFragment implements
             final int myId = ++waitingForWebpageId;
             requestLinkPreviewCached(req, (success, webpage) -> AndroidUtilities.runOnUIThread(() -> {
                 if (waitingForWebpageId != myId) {
+                    return;
+                }
+                if (chatActivityEnterView != null && chatActivityEnterView.isPengramLinkSuggestionActive()) {
                     return;
                 }
                 if (success) {

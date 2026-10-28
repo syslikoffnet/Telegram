@@ -30,6 +30,7 @@ on:
       - "arena/01a10850-telegram"
       - "arena/28564dc4-telegram"
       - "arena/49b509a8-telegram"
+      - "arena/11c384e3-telegram"
     tags:
       - "build-*"
 

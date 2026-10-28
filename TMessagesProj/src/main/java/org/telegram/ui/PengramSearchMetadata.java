@@ -85,7 +85,8 @@ public final class PengramSearchMetadata {
                 || section == PengramSettingsActivity.SECTION_CHAT_INTERFACE
                 || section == PengramSettingsActivity.SECTION_CHAT_MENUS
                 || section == PengramSettingsActivity.SECTION_TYPING
-                || section == PengramSettingsActivity.SECTION_QUOTES;
+                || section == PengramSettingsActivity.SECTION_QUOTES
+                || section == PengramSettingsActivity.SECTION_LINK_ASSISTANT;
     }
 
     /** Every indexed setting has its own localized title, group and path tags;
@@ -167,7 +168,9 @@ public final class PengramSearchMetadata {
         if (has(own, "профил", "profile")) tags.append(" страница аккаунта пользователь профиль account bio");
         if (has(own, "имя", "ник", "username", "name")) tags.append(" никнейм юзернейм название nickname handle name");
         if (has(own, "телефон", "номер", "phone")) tags.append(" мобила контакт номер телефона mobile phone");
-        if (has(own, "ссылк", "link", "url")) tags.append(" адрес url линк ссылка hyperlink");
+        if (has(own, "ссылк", "link", "url")) tags.append(" адрес url линк ссылка hyperlink tiktok тикток youtube ютуб shorts шортс");
+        if (has(own, "предпросмотр", "preview")) tags.append(" превью выбор просмотр фото видео preview picker");
+        if (has(own, "скле", "stitch", "кадр", "slide")) tags.append(" склеить слайдшоу карусель фото в видео slideshow carousel stitch");
         if (has(own, "истори", "history")) tags.append(" архив журнал версии лог история log archive");
         if (has(own, "измен", "правк", "edit")) tags.append(" редакция исправления отредактировано edit edited version");
         if (has(own, "медиа", "media")) tags.append(" фото видео файлы вложение attachment photo video");

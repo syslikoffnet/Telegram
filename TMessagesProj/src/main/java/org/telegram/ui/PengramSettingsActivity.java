@@ -170,6 +170,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_LYRICS = 18;
     public static final int SECTION_TYPING = 19;
     public static final int SECTION_QUOTES = 20;
+    public static final int SECTION_LINK_ASSISTANT = 21;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -357,6 +358,11 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_MENTION_ALL_LIMIT = 1039;
     private static final int BTN_MENTION_ALL_COOLDOWN = 1040;
     private static final int BTN_MENTION_ALL_STYLE = 1050;
+    private static final int BTN_SECTION_LINK_ASSISTANT = 1051;
+    private static final int BTN_LINK_PREVIEW_MODE = 1052;
+    private static final int BTN_LINK_PHOTO_STITCH = 1053;
+    private static final int BTN_LINK_FALLBACK_MODE = 1054;
+    private static final int BTN_LINK_CAPTION_MODE = 1055;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -612,7 +618,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS:
             case SECTION_TYPING:
-            case SECTION_QUOTES: return IconBackgroundColors.BLUE_ALT;
+            case SECTION_QUOTES:
+            case SECTION_LINK_ASSISTANT: return IconBackgroundColors.BLUE_ALT;
             case SECTION_GHOST: return IconBackgroundColors.GREEN;
             case SECTION_HISTORY: return IconBackgroundColors.RED;
             case SECTION_MEDIA: return IconBackgroundColors.BLUE_DEEP;
@@ -647,6 +654,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_ABOUT: return R.string.PengramHeroAbout;
             case SECTION_AI: return R.string.PengramHeroAI;
             case SECTION_LYRICS: return R.string.PengramHeroLyrics;
+            case SECTION_LINK_ASSISTANT: return R.string.PengramLinkSectionDesc;
             default: return 0;
         }
     }
@@ -665,6 +673,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_MENUS: return R.drawable.settings_chat;
             case SECTION_TYPING: return R.drawable.msg_customize;
             case SECTION_QUOTES: return R.drawable.msg_copy;
+            case SECTION_LINK_ASSISTANT: return R.drawable.msg_link2;
             case SECTION_GHOST: return R.drawable.msg_secret;
             case SECTION_HISTORY: return R.drawable.msg_viewchats;
             case SECTION_MEDIA: return R.drawable.settings_data;
@@ -690,6 +699,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_MESSAGES: return getString(R.string.PengramSubsectionMessages);
             case SECTION_TYPING: return getString(R.string.PengramTypingSection);
             case SECTION_QUOTES: return getString(R.string.PengramQuoteSection);
+            case SECTION_LINK_ASSISTANT: return getString(R.string.PengramLinkAssistant);
             case SECTION_CHAT_INTERFACE: return getString(R.string.PengramSubsectionInterface);
             case SECTION_CHAT_MENUS: return getString(R.string.PengramSubsectionMenus);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
@@ -948,6 +958,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_MESSAGES: fillChatMessages(items); break;
             case SECTION_TYPING: fillTyping(items); break;
             case SECTION_QUOTES: fillQuotes(items); break;
+            case SECTION_LINK_ASSISTANT: fillLinkAssistant(items); break;
             case SECTION_CHAT_INTERFACE: fillChatInterface(items); break;
             case SECTION_CHAT_MENUS: fillChatMenus(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
@@ -1054,6 +1065,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
+            case SECTION_LINK_ASSISTANT:
+                return new String[]{"linkAssistant*"};
             case SECTION_CHATS:
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
@@ -3572,8 +3585,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                     PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
                     PengramConfig::isCylinderScrollToBars, () -> PengramConfig.setCylinderScrollToBars(!PengramConfig.isCylinderScrollToBars())));
-            // Помощник ссылок: предложение «видео вместо ссылки» над полем ввода.
-            items.add(check(PengramConfig.KEY_LINK_ASSISTANT, true, getString(R.string.PengramLinkAssistant)));
+            // Помощник ссылок: переход в подробные настройки (предпросмотр, склейка фото, поведение при ошибке).
+            items.add(UItem.asSettingsCell(BTN_SECTION_LINK_ASSISTANT, R.drawable.msg_link2,
+                    getString(R.string.PengramLinkAssistant), linkAssistantStateValue()));
             items.add(UItem.asShadow(getString(R.string.PengramLinkAssistantInfo)));
             items.add(UItem.asHeader(getString(R.string.PengramCylinderStrength)));
             items.add(UItem.asIntSlideView(1, 0, PengramConfig.getCylinderScrollStrength(), 100,
@@ -4066,11 +4080,87 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramTypingSection), inputAnimationName()));
         items.add(sectionRow(BTN_SECTION_QUOTES, IconBackgroundColors.BLUE, R.drawable.msg_copy,
                 getString(R.string.PengramQuoteSection), ""));
+        items.add(sectionRow(BTN_SECTION_LINK_ASSISTANT, IconBackgroundColors.BLUE_ALT, R.drawable.msg_link2,
+                getString(R.string.PengramLinkAssistant), linkAssistantStateValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
                 getString(R.string.PengramSubsectionInterface), hiddenCountValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
                 getString(R.string.PengramSubsectionMenus), hiddenChatItemsValue()));
         items.add(UItem.asShadow(getString(R.string.PengramChatsHubInfo)));
+    }
+
+    private CharSequence linkAssistantStateValue() {
+        return getString(PengramConfig.isLinkAssistantEnabled()
+                ? R.string.PengramLinkRowSubOn : R.string.PengramLinkRowSubOff);
+    }
+
+    private CharSequence linkPreviewModeValue() {
+        switch (PengramConfig.getLinkPreviewMode()) {
+            case PengramConfig.LINK_PREVIEW_OFF: return getString(R.string.PengramLinkPreviewOff);
+            case PengramConfig.LINK_PREVIEW_VIDEOS: return getString(R.string.PengramLinkPreviewVideos);
+            case PengramConfig.LINK_PREVIEW_ALL: return getString(R.string.PengramLinkPreviewAll);
+            case PengramConfig.LINK_PREVIEW_PHOTOS:
+            default: return getString(R.string.PengramLinkPreviewPhotos);
+        }
+    }
+
+    private CharSequence linkPhotoStitchValue() {
+        switch (PengramConfig.getLinkPhotoStitchMode()) {
+            case PengramConfig.LINK_STITCH_NEVER: return getString(R.string.PengramLinkStitchNever);
+            case PengramConfig.LINK_STITCH_ALWAYS: return getString(R.string.PengramLinkStitchAlways);
+            case PengramConfig.LINK_STITCH_ASK:
+            default: return getString(R.string.PengramLinkStitchAsk);
+        }
+    }
+
+    private CharSequence linkFallbackModeValue() {
+        switch (PengramConfig.getLinkFallbackMode()) {
+            case PengramConfig.LINK_FALLBACK_NONE: return getString(R.string.PengramLinkFallbackNone);
+            case PengramConfig.LINK_FALLBACK_SEND: return getString(R.string.PengramLinkFallbackSend);
+            case PengramConfig.LINK_FALLBACK_ASK:
+            default: return getString(R.string.PengramLinkFallbackAsk);
+        }
+    }
+
+    private CharSequence linkCaptionModeValue() {
+        switch (PengramConfig.getLinkCaptionMode()) {
+            case PengramConfig.LINK_CAPTION_AUTHOR: return getString(R.string.PengramLinkCaptionAuthor);
+            case PengramConfig.LINK_CAPTION_NONE: return getString(R.string.PengramLinkCaptionNone);
+            case PengramConfig.LINK_CAPTION_FULL:
+            default: return getString(R.string.PengramLinkCaptionFull);
+        }
+    }
+
+    private void fillLinkAssistant(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderGeneral)));
+        items.add(check(PengramConfig.KEY_LINK_ASSISTANT, true, getString(R.string.PengramLinkAssistant)));
+        items.add(UItem.asShadow(getString(R.string.PengramLinkAssistantInfo)));
+
+        if (PengramConfig.isLinkAssistantEnabled()) {
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPreview)));
+            items.add(UItem.asSettingsCell(BTN_LINK_PREVIEW_MODE, R.drawable.msg_view_file,
+                    getString(R.string.PengramLinkPreviewMode), linkPreviewModeValue()));
+            items.add(UItem.asShadow(getString(R.string.PengramLinkPreviewInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPhotos)));
+            items.add(UItem.asSettingsCell(BTN_LINK_PHOTO_STITCH, R.drawable.msg_photos,
+                    getString(R.string.PengramLinkPhotoStitchMode), linkPhotoStitchValue()));
+            if (PengramConfig.getLinkPhotoStitchMode() != PengramConfig.LINK_STITCH_NEVER) {
+                items.add(check(PengramConfig.KEY_LINK_SLIDE_AUDIO, true, getString(R.string.PengramLinkSlideAudio)));
+                items.add(UItem.asHeader(getString(R.string.PengramLinkSlideDuration)));
+                items.add(UItem.asIntSlideView(1, 1, PengramConfig.getLinkSlideSeconds(), 6,
+                        value -> value + " s",
+                        value -> PengramConfig.setLinkSlideSeconds(value)));
+            }
+            items.add(UItem.asShadow(getString(R.string.PengramLinkPhotosInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderFallback)));
+            items.add(UItem.asSettingsCell(BTN_LINK_FALLBACK_MODE, R.drawable.msg_retry,
+                    getString(R.string.PengramLinkFallbackMode), linkFallbackModeValue()));
+            items.add(UItem.asSettingsCell(BTN_LINK_CAPTION_MODE, R.drawable.msg_edit,
+                    getString(R.string.PengramLinkCaptionMode), linkCaptionModeValue()));
+            items.add(UItem.asShadow(getString(R.string.PengramLinkFallbackInfo)));
+        }
     }
 
     private void fillChatActions(ArrayList<UItem> items) {
@@ -5228,6 +5318,50 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_QUOTES:
                 presentFragment(new PengramSettingsActivity(SECTION_QUOTES));
+                return;
+            case BTN_SECTION_LINK_ASSISTANT:
+                presentFragment(new PengramSettingsActivity(SECTION_LINK_ASSISTANT));
+                return;
+            case BTN_LINK_PREVIEW_MODE:
+                showChoicePicker(getString(R.string.PengramLinkPreviewMode), new CharSequence[]{
+                        getString(R.string.PengramLinkPreviewOff),
+                        getString(R.string.PengramLinkPreviewPhotos),
+                        getString(R.string.PengramLinkPreviewVideos),
+                        getString(R.string.PengramLinkPreviewAll)
+                }, PengramConfig.getLinkPreviewMode(), value -> {
+                    PengramConfig.setLinkPreviewMode(value);
+                    updateList();
+                });
+                return;
+            case BTN_LINK_PHOTO_STITCH:
+                showChoicePicker(getString(R.string.PengramLinkPhotoStitchMode), new CharSequence[]{
+                        getString(R.string.PengramLinkStitchNever),
+                        getString(R.string.PengramLinkStitchAlways),
+                        getString(R.string.PengramLinkStitchAsk)
+                }, PengramConfig.getLinkPhotoStitchMode(), value -> {
+                    PengramConfig.setLinkPhotoStitchMode(value);
+                    updateList();
+                });
+                return;
+            case BTN_LINK_FALLBACK_MODE:
+                showChoicePicker(getString(R.string.PengramLinkFallbackMode), new CharSequence[]{
+                        getString(R.string.PengramLinkFallbackNone),
+                        getString(R.string.PengramLinkFallbackSend),
+                        getString(R.string.PengramLinkFallbackAsk)
+                }, PengramConfig.getLinkFallbackMode(), value -> {
+                    PengramConfig.setLinkFallbackMode(value);
+                    updateList();
+                });
+                return;
+            case BTN_LINK_CAPTION_MODE:
+                showChoicePicker(getString(R.string.PengramLinkCaptionMode), new CharSequence[]{
+                        getString(R.string.PengramLinkCaptionFull),
+                        getString(R.string.PengramLinkCaptionAuthor),
+                        getString(R.string.PengramLinkCaptionNone)
+                }, PengramConfig.getLinkCaptionMode(), value -> {
+                    PengramConfig.setLinkCaptionMode(value);
+                    updateList();
+                });
                 return;
             case BTN_QUOTE_RESET_APPEARANCE:
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);

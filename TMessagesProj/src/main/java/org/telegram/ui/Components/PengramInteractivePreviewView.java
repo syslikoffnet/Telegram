@@ -1038,7 +1038,8 @@ public class PengramInteractivePreviewView extends LinearLayout {
             final int[] children = {
                     PengramSettingsActivity.SECTION_CHAT_INTERFACE, PengramSettingsActivity.SECTION_CHAT_MESSAGES,
                     PengramSettingsActivity.SECTION_CHAT_MENUS, PengramSettingsActivity.SECTION_CHAT_ACTIONS,
-                    PengramSettingsActivity.SECTION_TYPING, PengramSettingsActivity.SECTION_QUOTES
+                    PengramSettingsActivity.SECTION_TYPING, PengramSettingsActivity.SECTION_QUOTES,
+                    PengramSettingsActivity.SECTION_LINK_ASSISTANT
             };
             for (int child : children) {
                 body.addView(settingsRow(PengramSettingsActivity.sectionTitle(child).toString(),

@@ -180,8 +180,33 @@ public class PengramConfig {
     public static final String KEY_VOICE_ROUND = "voiceChangerRound";
     public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
     public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
-    /** Помощник ссылок: предложение «отправить видео вместо ссылки» (TikTok/YouTube). */
+    /** Помощник ссылок: предложение «отправить медиа вместо ссылки» (TikTok/YouTube). */
     public static final String KEY_LINK_ASSISTANT = "linkAssistant";
+    /** При ошибке загрузки медиа: 0 — не отправлять ссылку, 1 — отправить ссылку, 2 — экран выбора (по умолчанию). */
+    public static final String KEY_LINK_FALLBACK_MODE = "linkAssistantFallback";
+    public static final int LINK_FALLBACK_NONE = 0;
+    public static final int LINK_FALLBACK_SEND = 1;
+    public static final int LINK_FALLBACK_ASK = 2;
+    /** Если фото несколько: 0 — отправлять фотографиями, 1 — склеивать в видео, 2 — экран выбора (по умолчанию). */
+    public static final String KEY_LINK_PHOTO_STITCH = "linkAssistantPhotoStitch";
+    public static final int LINK_STITCH_NEVER = 0;
+    public static final int LINK_STITCH_ALWAYS = 1;
+    public static final int LINK_STITCH_ASK = 2;
+    /** Предпросмотр контента: 0 — не показывать, 1 — только для фото (по умолчанию), 2 — только для видео, 3 — для фото и видео. */
+    public static final String KEY_LINK_PREVIEW_MODE = "linkAssistantPreview";
+    public static final int LINK_PREVIEW_OFF = 0;
+    public static final int LINK_PREVIEW_PHOTOS = 1;
+    public static final int LINK_PREVIEW_VIDEOS = 2;
+    public static final int LINK_PREVIEW_ALL = 3;
+    /** Подпись к отправляемому медиа: 0 — автор и описание, 1 — только автор, 2 — без подписи. */
+    public static final String KEY_LINK_CAPTION_MODE = "linkAssistantCaption";
+    public static final int LINK_CAPTION_FULL = 0;
+    public static final int LINK_CAPTION_AUTHOR = 1;
+    public static final int LINK_CAPTION_NONE = 2;
+    /** Длительность одного кадра при склейке фото в видео (1..6 сек, по умолчанию 3). */
+    public static final String KEY_LINK_SLIDE_SEC = "linkAssistantSlideSec";
+    /** Накладывать оригинальный звук TikTok при склейке фото в видео. */
+    public static final String KEY_LINK_SLIDE_AUDIO = "linkAssistantSlideAudio";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
@@ -2706,6 +2731,18 @@ public class PengramConfig {
     /** Помощник ссылок включён: бар-предложение над полем ввода при вставке TikTok/YouTube. */
     public static boolean isLinkAssistantEnabled() { return getBool(KEY_LINK_ASSISTANT, true); }
     public static void setLinkAssistantEnabled(boolean value) { setBool(KEY_LINK_ASSISTANT, value); }
+    public static int getLinkFallbackMode() { return Math.max(LINK_FALLBACK_NONE, Math.min(LINK_FALLBACK_ASK, getIntCached(KEY_LINK_FALLBACK_MODE, LINK_FALLBACK_ASK))); }
+    public static void setLinkFallbackMode(int mode) { setIntValue(KEY_LINK_FALLBACK_MODE, Math.max(LINK_FALLBACK_NONE, Math.min(LINK_FALLBACK_ASK, mode))); }
+    public static int getLinkPhotoStitchMode() { return Math.max(LINK_STITCH_NEVER, Math.min(LINK_STITCH_ASK, getIntCached(KEY_LINK_PHOTO_STITCH, LINK_STITCH_ASK))); }
+    public static void setLinkPhotoStitchMode(int mode) { setIntValue(KEY_LINK_PHOTO_STITCH, Math.max(LINK_STITCH_NEVER, Math.min(LINK_STITCH_ASK, mode))); }
+    public static int getLinkPreviewMode() { return Math.max(LINK_PREVIEW_OFF, Math.min(LINK_PREVIEW_ALL, getIntCached(KEY_LINK_PREVIEW_MODE, LINK_PREVIEW_PHOTOS))); }
+    public static void setLinkPreviewMode(int mode) { setIntValue(KEY_LINK_PREVIEW_MODE, Math.max(LINK_PREVIEW_OFF, Math.min(LINK_PREVIEW_ALL, mode))); }
+    public static int getLinkCaptionMode() { return Math.max(LINK_CAPTION_FULL, Math.min(LINK_CAPTION_NONE, getIntCached(KEY_LINK_CAPTION_MODE, LINK_CAPTION_FULL))); }
+    public static void setLinkCaptionMode(int mode) { setIntValue(KEY_LINK_CAPTION_MODE, Math.max(LINK_CAPTION_FULL, Math.min(LINK_CAPTION_NONE, mode))); }
+    public static int getLinkSlideSeconds() { return Math.max(1, Math.min(6, getIntCached(KEY_LINK_SLIDE_SEC, 3))); }
+    public static void setLinkSlideSeconds(int seconds) { setIntValue(KEY_LINK_SLIDE_SEC, Math.max(1, Math.min(6, seconds))); }
+    public static boolean isLinkSlideAudioEnabled() { return getBool(KEY_LINK_SLIDE_AUDIO, true); }
+    public static void setLinkSlideAudioEnabled(boolean value) { setBool(KEY_LINK_SLIDE_AUDIO, value); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
@@ -3035,7 +3072,9 @@ public class PengramConfig {
             "typingCursorLiquidScale", "typingCursorSmooth", "typingCursorSpeed", "typingCursorWidth",
             "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize", "typingDeleteSpeed",
             "typingDeleteSpread", "typingDeleteStyle", "typingIgnoreSpaces", "typingSelectionLiquid",
-            "keepOnceMedia", "localPremium", "localPremiumStatus", "localEmojiStatus", "lyricsAlign",
+            "keepOnceMedia", "linkAssistant", "linkAssistantFallback", "linkAssistantPhotoStitch",
+            "linkAssistantPreview", "linkAssistantCaption", "linkAssistantSlideSec", "linkAssistantSlideAudio",
+            "localPremium", "localPremiumStatus", "localEmojiStatus", "lyricsAlign",
             "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",
             "lyricsSmooth", "lyricsSource", "lyricsSpeed", "lyricsStretch",

@@ -297,6 +297,12 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         default void onContextMenuClose() {}
 
+        default void onLinkAssistantOpenSettings() {}
+
+        default void onLinkAssistantDismissed() {}
+
+        default void onLinkAssistantActive() {}
+
         void onMessageSend(CharSequence message, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars);
 
         void needSendTyping();
@@ -6162,10 +6168,11 @@ public class ChatActivityEnterView extends FrameLayout implements
 
             @Override
             public void afterTextChanged(android.text.Editable s) {
-                updatePengramLinkSuggestion(s);
+                if (!pengramLinkSuppressWatcher) {
+                    updatePengramLinkSuggestion(s);
+                }
             }
         });
-        PengramLinkAssistant.setListener(pengramLinkListener);
         messageEditText.setEnabled(messageEditTextEnabled);
         if (messageEditTextWatchers != null) {
             for (TextWatcher textWatcher : messageEditTextWatchers) {
@@ -6378,76 +6385,127 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
     }
 
-    // --- Pengram: помощник ссылок — бар «отправить видео вместо ссылки» ---
+    // --- Pengram: помощник ссылок — островок отправки медиа (видео / фото / карусели) ---
+
+    private static final int PENGRAM_LINK_BAR_DP = 44;
 
     private View pengramLinkBar;
+    private ImageView pengramLinkBarIcon;
+    private FrameLayout pengramLinkBarIconWrap;
+    private TextView pengramLinkBarBadge;
     private TextView pengramLinkBarTitle;
+    private TextView pengramLinkBarPreviewBtn;
     private TextView pengramLinkBarChip;
+    private ImageView pengramLinkBarClose;
+    private View pengramLinkProgressLine;
+    private float pengramLinkProgressFraction;
     private boolean pengramLinkShown;
-    /** Слот занят панелью (ответ/превью/редактирование) — бар живёт над/вместе с ней. */
+    /** Слот занят панелью (ответ/превью/редактирование) — бар живёт вместе с ней. */
     private boolean topViewShownByPanel;
     private int pengramLinkSlotBaseHeight;
     private String pengramLinkUrl;
     private String pengramLinkDismissedUrl;
-    private String pengramLinkRestoreUrl;
-    private int pengramLinkRestoreIndex;
+    private String pengramLinkSavedFullText;
     private boolean pengramLinkProgressMode;
+    private boolean pengramLinkSuppressWatcher;
+    private PengramLinkAssistant.Handle pengramLinkHandle;
+    private org.telegram.ui.ActionBar.BottomSheet pengramLinkSheet;
 
-    private final PengramLinkAssistant.Listener pengramLinkListener = new PengramLinkAssistant.Listener() {
-        @Override
-        public void onPhase(int phase, int percent) {
-            if (!pengramLinkShown || pengramLinkBarTitle == null) {
-                return;
-            }
-            switch (phase) {
-                case PengramLinkAssistant.PHASE_RESOLVE:
-                default:
-                    setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1);
-                    break;
-                case PengramLinkAssistant.PHASE_DOWNLOAD:
-                    setPengramLinkProgress(getString(R.string.PengramLinkDownloading), percent);
-                    break;
-                case PengramLinkAssistant.PHASE_MUX:
-                    setPengramLinkProgress(getString(R.string.PengramLinkDownloading), -1);
-                    break;
-                case PengramLinkAssistant.PHASE_SEND:
-                    setPengramLinkProgress(getString(R.string.PengramLinkSending), -1);
-                    break;
-            }
+    public boolean isPengramLinkSuggestionActive() {
+        return pengramLinkShown || pengramLinkProgressMode || pengramLinkHandle != null;
+    }
+
+    public void refreshPengramLinkSuggestion() {
+        if (messageEditText != null && !pengramLinkProgressMode) {
+            pengramLinkDismissedUrl = null;
+            updatePengramLinkSuggestion(messageEditText.getText());
         }
+    }
 
-        @Override
-        public void onFinished(boolean videoSent) {
-            finishPengramLinkTask();
-        }
-
-        @Override
-        public void onFailed(String reason, boolean fallbackLinkSent) {
-            finishPengramLinkTask();
-            try {
-                android.widget.Toast.makeText(
-                        ApplicationLoader.applicationContext != null
-                                ? ApplicationLoader.applicationContext : getContext(),
-                        reason, android.widget.Toast.LENGTH_SHORT).show();
-            } catch (Throwable ignore) {
-            }
-        }
-    };
-
-    private void setPengramLinkProgress(String text, int percent) {
+    private void setPengramLinkProgress(String text, float progress) {
         pengramLinkProgressMode = true;
+        final int percent = progress >= 0f ? Math.max(0, Math.min(100, Math.round(progress * 100f))) : -1;
+        pengramLinkProgressFraction = progress >= 0f ? Math.max(0.04f, Math.min(1f, progress)) : 0f;
         if (pengramLinkBarTitle != null) {
             pengramLinkBarTitle.setText(percent >= 0 ? text + " " + percent + "%" : text);
+        }
+        if (pengramLinkBarPreviewBtn != null) {
+            pengramLinkBarPreviewBtn.setVisibility(GONE);
         }
         if (pengramLinkBarChip != null) {
             pengramLinkBarChip.setVisibility(GONE);
         }
+        if (pengramLinkProgressLine != null) {
+            pengramLinkProgressLine.setVisibility(percent >= 0 ? VISIBLE : GONE);
+            pengramLinkProgressLine.invalidate();
+        }
+    }
+
+    private void resetPengramLinkBarToIdle(String url) {
+        pengramLinkProgressMode = false;
+        pengramLinkProgressFraction = 0f;
+        if (pengramLinkProgressLine != null) {
+            pengramLinkProgressLine.setVisibility(GONE);
+        }
+        final int platform = PengramLinkResolver.platformOf(url);
+        final boolean isTikTok = platform == PengramLinkResolver.PLATFORM_TIKTOK;
+        final boolean isPhotoHint = isTikTok && PengramLinkResolver.isTikTokPhotoHintUrl(url);
+        final boolean isShorts = !isTikTok && PengramLinkResolver.isYouTubeShortsUrl(url);
+        final int accent = getThemedColor(Theme.key_chat_replyPanelName);
+        final int badgeTone = isTikTok ? 0xFFFF2D55 : (platform == PengramLinkResolver.PLATFORM_YOUTUBE ? 0xFFFF3B30 : accent);
+
+        if (pengramLinkBarIcon != null) {
+            pengramLinkBarIcon.setImageResource(isPhotoHint ? R.drawable.msg_photos : R.drawable.ic_action_play);
+            pengramLinkBarIcon.setColorFilter(new PorterDuffColorFilter(badgeTone, PorterDuff.Mode.SRC_IN));
+        }
+        if (pengramLinkBarIconWrap != null) {
+            pengramLinkBarIconWrap.setBackground(Theme.createRoundRectDrawable(
+                    dp(8), ColorUtils.setAlphaComponent(badgeTone, 30)));
+        }
+        if (pengramLinkBarBadge != null) {
+            final String label = isTikTok
+                    ? "TikTok"
+                    : (isShorts ? "YouTube Shorts" : "YouTube");
+            pengramLinkBarBadge.setText(label);
+            pengramLinkBarBadge.setTextColor(badgeTone);
+        }
+        if (pengramLinkBarTitle != null) {
+            final int titleRes = isPhotoHint
+                    ? R.string.PengramLinkSuggestPhotosTitle
+                    : (platform == PengramLinkResolver.PLATFORM_YOUTUBE
+                    ? R.string.PengramLinkSuggestVideoTitle
+                    : R.string.PengramLinkSuggestTitle);
+            pengramLinkBarTitle.setText(getString(titleRes));
+            pengramLinkBarTitle.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+        }
+        if (pengramLinkBarPreviewBtn != null) {
+            pengramLinkBarPreviewBtn.setVisibility(VISIBLE);
+            final int secText = getThemedColor(Theme.key_chat_replyPanelIcons);
+            pengramLinkBarPreviewBtn.setTextColor(secText);
+            pengramLinkBarPreviewBtn.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(13), ColorUtils.setAlphaComponent(secText, 24), ColorUtils.setAlphaComponent(secText, 48)));
+        }
+        if (pengramLinkBarChip != null) {
+            pengramLinkBarChip.setVisibility(VISIBLE);
+            final int btnColor = getThemedColor(Theme.key_windowBackgroundWhiteBlueText);
+            pengramLinkBarChip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(14), btnColor, ColorUtils.blendARGB(btnColor, Color.BLACK, 0.16f)));
+        }
+        if (pengramLinkBarClose != null) {
+            final int closeColor = getThemedColor(Theme.key_chat_replyPanelIcons);
+            pengramLinkBarClose.setColorFilter(new PorterDuffColorFilter(closeColor, PorterDuff.Mode.SRC_IN));
+        }
     }
 
     private void finishPengramLinkTask() {
+        pengramLinkHandle = null;
         pengramLinkUrl = null;
-        pengramLinkRestoreUrl = null;
+        pengramLinkSavedFullText = null;
         pengramLinkProgressMode = false;
+        pengramLinkProgressFraction = 0f;
+        if (pengramLinkProgressLine != null) {
+            pengramLinkProgressLine.setVisibility(GONE);
+        }
         hidePengramLinkBar();
     }
 
@@ -6455,116 +6513,459 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (pengramLinkBar != null || !(topView instanceof ChatActivityEnterTopView)) {
             return;
         }
-        final LinearLayout bar = new LinearLayout(getContext());
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(10), 0, dp(4), 0);
-        bar.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+        final FrameLayout container = new FrameLayout(getContext());
+        container.setClickable(true);
+        container.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
 
-        final ImageView icon = new ImageView(getContext());
-        icon.setImageResource(R.drawable.ic_action_play);
-        icon.setColorFilter(getThemedColor(Theme.key_chat_replyPanelIcons), android.graphics.PorterDuff.Mode.MULTIPLY);
-        icon.setScaleType(ImageView.ScaleType.CENTER);
-        bar.addView(icon, LayoutHelper.createLinear(28, 40));
+        final LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), 0, dp(4), 0);
+
+        pengramLinkBarIconWrap = new FrameLayout(getContext());
+        pengramLinkBarIcon = new ImageView(getContext());
+        pengramLinkBarIcon.setImageResource(R.drawable.ic_action_play);
+        pengramLinkBarIcon.setScaleType(ImageView.ScaleType.CENTER);
+        pengramLinkBarIconWrap.addView(pengramLinkBarIcon, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
+        row.addView(pengramLinkBarIconWrap, LayoutHelper.createLinear(28, 28));
+
+        final LinearLayout textCol = new LinearLayout(getContext());
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setGravity(Gravity.CENTER_VERTICAL);
+
+        pengramLinkBarBadge = new TextView(getContext());
+        pengramLinkBarBadge.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+        pengramLinkBarBadge.setTypeface(AndroidUtilities.bold());
+        pengramLinkBarBadge.setSingleLine(true);
+        pengramLinkBarBadge.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(pengramLinkBarBadge, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         pengramLinkBarTitle = new TextView(getContext());
         pengramLinkBarTitle.setText(getString(R.string.PengramLinkSuggestTitle));
-        pengramLinkBarTitle.setTextSize(14);
-        pengramLinkBarTitle.setMaxLines(1);
-        pengramLinkBarTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        pengramLinkBarTitle.setTextColor(getThemedColor(Theme.key_chat_replyPanelName));
-        bar.addView(pengramLinkBarTitle, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 8, 0, 6, 0));
+        pengramLinkBarTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        pengramLinkBarTitle.setSingleLine(true);
+        pengramLinkBarTitle.setEllipsize(TextUtils.TruncateAt.END);
+        pengramLinkBarTitle.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+        textCol.addView(pengramLinkBarTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        row.addView(textCol, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 9, 0, 6, 0));
+
+        pengramLinkBarPreviewBtn = new TextView(getContext());
+        pengramLinkBarPreviewBtn.setText(getString(R.string.PengramLinkSuggestPreviewBtn));
+        pengramLinkBarPreviewBtn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        pengramLinkBarPreviewBtn.setTypeface(AndroidUtilities.bold());
+        pengramLinkBarPreviewBtn.setGravity(Gravity.CENTER);
+        pengramLinkBarPreviewBtn.setSingleLine(true);
+        pengramLinkBarPreviewBtn.setPadding(dp(10), 0, dp(10), 0);
+        row.addView(pengramLinkBarPreviewBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 5, 0));
 
         pengramLinkBarChip = new TextView(getContext());
         pengramLinkBarChip.setText(getString(R.string.PengramLinkSuggestAction));
-        pengramLinkBarChip.setTextSize(13);
+        pengramLinkBarChip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12.5f);
         pengramLinkBarChip.setTypeface(AndroidUtilities.bold());
         pengramLinkBarChip.setTextColor(0xFFFFFFFF);
         pengramLinkBarChip.setGravity(Gravity.CENTER);
-        pengramLinkBarChip.setBackground(Theme.createRoundRectDrawable(dp(13),
-                getThemedColor(Theme.key_windowBackgroundWhiteBlueText)));
-        bar.addView(pengramLinkBarChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 6, 0));
+        pengramLinkBarChip.setSingleLine(true);
+        pengramLinkBarChip.setPadding(dp(12), 0, dp(12), 0);
+        row.addView(pengramLinkBarChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 2, 0));
 
-        final ImageView close = new ImageView(getContext());
-        close.setImageResource(R.drawable.ic_ab_close);
-        close.setColorFilter(getThemedColor(Theme.key_chat_replyPanelIcons), android.graphics.PorterDuff.Mode.MULTIPLY);
-        close.setScaleType(ImageView.ScaleType.CENTER);
-        close.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
-        bar.addView(close, LayoutHelper.createLinear(34, 40));
+        pengramLinkBarClose = new ImageView(getContext());
+        pengramLinkBarClose.setImageResource(R.drawable.ic_ab_close);
+        pengramLinkBarClose.setColorFilter(new PorterDuffColorFilter(
+                getThemedColor(Theme.key_chat_replyPanelIcons), PorterDuff.Mode.SRC_IN));
+        pengramLinkBarClose.setScaleType(ImageView.ScaleType.CENTER);
+        pengramLinkBarClose.setContentDescription(LocaleController.getString(R.string.Close));
+        pengramLinkBarClose.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(18)));
+        row.addView(pengramLinkBarClose, LayoutHelper.createLinear(40, PENGRAM_LINK_BAR_DP));
 
-        bar.setOnClickListener(v -> onPengramLinkAction());
-        close.setOnClickListener(v -> onPengramLinkClose());
-        close.setOnLongClickListener(v -> {
+        container.addView(row, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP));
+
+        pengramLinkProgressLine = new View(getContext()) {
+            private final Paint progressPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                if (pengramLinkProgressFraction <= 0f) {
+                    return;
+                }
+                progressPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhiteBlueText));
+                canvas.drawRect(0, 0, getWidth() * pengramLinkProgressFraction, getHeight(), progressPaint);
+            }
+        };
+        pengramLinkProgressLine.setVisibility(GONE);
+        container.addView(pengramLinkProgressLine, LayoutHelper.createFrame(
+                LayoutHelper.MATCH_PARENT, 2, Gravity.BOTTOM));
+
+        container.setOnClickListener(v -> {
+            if (!pengramLinkProgressMode) {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                startPengramLinkExecution(PengramLinkAssistant.ExecutionOptions.auto());
+            }
+        });
+        pengramLinkBarChip.setOnClickListener(v -> {
+            if (!pengramLinkProgressMode) {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                startPengramLinkExecution(PengramLinkAssistant.ExecutionOptions.auto());
+            }
+        });
+        pengramLinkBarPreviewBtn.setOnClickListener(v -> {
+            if (!pengramLinkProgressMode) {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                startPengramLinkExecution(PengramLinkAssistant.ExecutionOptions.previewOnly());
+            }
+        });
+        pengramLinkBarClose.setOnClickListener(v -> {
+            v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            onPengramLinkClose();
+        });
+        pengramLinkBarClose.setOnLongClickListener(v -> {
             onPengramLinkClose();
             return true;
         });
 
-        pengramLinkBar = bar;
-        ((ChatActivityEnterTopView) topView).setLinkView(bar,
-                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, dp(40), Gravity.BOTTOM));
+        pengramLinkBar = container;
+        // ВАЖНО: LayoutHelper.createFrame принимает размеры в DP, НЕ в px (dp(...))!
+        ((ChatActivityEnterTopView) topView).setLinkView(container,
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP, Gravity.BOTTOM));
     }
 
-    /** Тап «Видео»: вырезаем ссылку из поля и запускаем конвейер. */
-    private void onPengramLinkAction() {
-        if (pengramLinkProgressMode || pengramLinkUrl == null || PengramLinkAssistant.isBusy()) {
-            return;
-        }
+    private PengramLinkAssistant.Request buildAndCutPengramRequest() {
         final String url = pengramLinkUrl;
-        final PengramLinkAssistant.SendRequest request = new PengramLinkAssistant.SendRequest(
-                currentAccount, dialog_id, url, replyingMessageObject, getThreadMessage());
-        if (!PengramLinkAssistant.start(request)) {
-            return;
+        if (url == null || url.isEmpty()) {
+            return null;
         }
+        String fullText = url;
+        String extraCaption = "";
         try {
-            final android.text.Editable editable = messageEditText.getText();
-            if (editable != null) {
-                final int idx = editable.toString().indexOf(url);
-                if (idx >= 0) {
-                    pengramLinkRestoreUrl = url;
-                    pengramLinkRestoreIndex = idx;
-                    editable.delete(idx, idx + url.length());
+            final Editable editable = messageEditText != null ? messageEditText.getText() : null;
+            if (editable != null && editable.length() > 0) {
+                fullText = editable.toString();
+                final PengramLinkResolver.FoundLink found = PengramLinkResolver.findLink(fullText);
+                if (found != null && found.start >= 0 && found.end <= fullText.length()) {
+                    final String before = fullText.substring(0, found.start);
+                    final String after = fullText.substring(found.end);
+                    extraCaption = (before + " " + after).replaceAll("\\s{2,}", " ").trim();
+                }
+                pengramLinkSavedFullText = fullText;
+                pengramLinkSuppressWatcher = true;
+                try {
+                    editable.clear();
+                } finally {
+                    pengramLinkSuppressWatcher = false;
                 }
             }
         } catch (Throwable ignore) {
         }
-        pengramLinkShown = true;
-        setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1);
-        updatePengramLinkSlot();
+        return new PengramLinkAssistant.Request(
+                currentAccount, dialog_id, url, fullText, extraCaption,
+                replyingMessageObject, getThreadMessage());
     }
 
-    /** ✕: при задаче — отмена + возврат ссылки в поле; без задачи — «закрыто для этой ссылки». */
+    private void startPengramLinkExecution(PengramLinkAssistant.ExecutionOptions options) {
+        if (pengramLinkProgressMode || pengramLinkHandle != null || pengramLinkUrl == null) {
+            return;
+        }
+        final PengramLinkAssistant.Request req = buildAndCutPengramRequest();
+        if (req == null) {
+            return;
+        }
+        runPengramRequest(req, options);
+    }
+
+    private void runPengramRequest(final PengramLinkAssistant.Request req,
+                                   final PengramLinkAssistant.ExecutionOptions options) {
+        pengramLinkUrl = req.url;
+        pengramLinkSavedFullText = req.originalText;
+        pengramLinkShown = true;
+        setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1f);
+        showPengramLinkBar();
+        if (delegate != null) {
+            delegate.onLinkAssistantActive();
+        }
+
+        final PengramLinkAssistant.Handle[] holder = new PengramLinkAssistant.Handle[1];
+        holder[0] = PengramLinkAssistant.start(req, options, new PengramLinkAssistant.Callback() {
+            @Override
+            public void onPhase(int phase, float progress) {
+                if (pengramLinkHandle != holder[0] || !pengramLinkShown) {
+                    return;
+                }
+                switch (phase) {
+                    case PengramLinkAssistant.PHASE_RESOLVE:
+                    default:
+                        setPengramLinkProgress(getString(R.string.PengramLinkResolving), -1f);
+                        break;
+                    case PengramLinkAssistant.PHASE_DOWNLOAD:
+                        setPengramLinkProgress(getString(R.string.PengramLinkDownloading), progress);
+                        break;
+                    case PengramLinkAssistant.PHASE_MUX:
+                        setPengramLinkProgress(getString(R.string.PengramLinkMuxing), -1f);
+                        break;
+                    case PengramLinkAssistant.PHASE_STITCH:
+                        setPengramLinkProgress(getString(R.string.PengramLinkStitching), progress);
+                        break;
+                    case PengramLinkAssistant.PHASE_SEND:
+                        setPengramLinkProgress(getString(R.string.PengramLinkSending), -1f);
+                        break;
+                }
+            }
+
+            @Override
+            public void onSent() {
+                if (pengramLinkHandle != holder[0]) {
+                    return;
+                }
+                finishPengramLinkTask();
+            }
+
+            @Override
+            public void onPreviewRequested(PengramLinkAssistant.Request request,
+                                           PengramLinkResolver.Resolved resolved) {
+                if (pengramLinkHandle != holder[0] || destroyed) {
+                    return;
+                }
+                pengramLinkHandle = null;
+                pengramLinkProgressMode = false;
+                hidePengramLinkBar();
+                openPengramPreviewSheet(request, resolved);
+            }
+
+            @Override
+            public void onFallbackSent(String reason) {
+                if (pengramLinkHandle != holder[0]) {
+                    return;
+                }
+                finishPengramLinkTask();
+                final boolean tooLong = reason != null && reason.contains("too long");
+                showPengramToast(getString(tooLong ? R.string.PengramLinkTooLong : R.string.PengramLinkFailed));
+            }
+
+            @Override
+            public void onFailedNoSend(PengramLinkAssistant.Request request, String reason) {
+                if (pengramLinkHandle != holder[0]) {
+                    return;
+                }
+                pengramLinkHandle = null;
+                pengramLinkDismissedUrl = request.url;
+                restorePengramLinkText(request.originalText);
+                finishPengramLinkTask();
+                final boolean tooLong = reason != null && reason.contains("too long");
+                showPengramToast(getString(tooLong ? R.string.PengramLinkTooLongNoSend : R.string.PengramLinkFailedNoSend));
+                if (delegate != null) {
+                    delegate.onLinkAssistantDismissed();
+                }
+            }
+
+            @Override
+            public void onFallbackChoiceRequested(PengramLinkAssistant.Request request, String reason) {
+                if (pengramLinkHandle != holder[0] || destroyed) {
+                    return;
+                }
+                pengramLinkHandle = null;
+                pengramLinkProgressMode = false;
+                hidePengramLinkBar();
+                openPengramFallbackSheet(request, reason);
+            }
+
+            @Override
+            public void onCancelled() {
+                if (pengramLinkHandle == holder[0]) {
+                    pengramLinkHandle = null;
+                }
+            }
+        });
+        pengramLinkHandle = holder[0];
+    }
+
+    private void openPengramPreviewSheet(final PengramLinkAssistant.Request request,
+                                         final PengramLinkResolver.Resolved resolved) {
+        dismissPengramSheetSilently();
+        pengramLinkSheet = PengramLinkPreviewSheet.showPreview(
+                getContext(),
+                resourcesProvider,
+                request,
+                resolved,
+                new PengramLinkPreviewSheet.PreviewCallbacks() {
+                    @Override
+                    public void onSendPhotos(@Nullable java.util.List<Integer> indices, int captionMode) {
+                        pengramLinkSheet = null;
+                        runPengramRequest(request, new PengramLinkAssistant.ExecutionOptions(
+                                false, resolved, PengramLinkAssistant.ACTION_SEND_PHOTOS,
+                                indices, captionMode, null));
+                    }
+
+                    @Override
+                    public void onStitchPhotos(@Nullable java.util.List<Integer> indices,
+                                               int captionMode, boolean withAudio) {
+                        pengramLinkSheet = null;
+                        runPengramRequest(request, new PengramLinkAssistant.ExecutionOptions(
+                                false, resolved, PengramLinkAssistant.ACTION_STITCH_VIDEO,
+                                indices, captionMode, withAudio));
+                    }
+
+                    @Override
+                    public void onSendVideo(int captionMode) {
+                        pengramLinkSheet = null;
+                        runPengramRequest(request, new PengramLinkAssistant.ExecutionOptions(
+                                false, resolved, PengramLinkAssistant.ACTION_SEND_VIDEO,
+                                null, captionMode, null));
+                    }
+
+                    @Override
+                    public void onSendPlainLink() {
+                        pengramLinkSheet = null;
+                        PengramLinkAssistant.sendPlainLink(request);
+                        finishPengramLinkTask();
+                    }
+
+                    @Override
+                    public void onCancelKeepInField() {
+                        pengramLinkSheet = null;
+                        restorePengramLinkText(request.originalText);
+                        if (messageEditText != null) {
+                            updatePengramLinkSuggestion(messageEditText.getText());
+                        }
+                    }
+
+                    @Override
+                    public void onOpenSettings() {
+                        pengramLinkSheet = null;
+                        restorePengramLinkText(request.originalText);
+                        if (delegate != null) {
+                            delegate.onLinkAssistantOpenSettings();
+                        }
+                    }
+                });
+    }
+
+    private void openPengramFallbackSheet(final PengramLinkAssistant.Request request, final String reason) {
+        dismissPengramSheetSilently();
+        pengramLinkSheet = PengramLinkPreviewSheet.showFallbackChoice(
+                getContext(),
+                resourcesProvider,
+                request,
+                reason,
+                new PengramLinkPreviewSheet.FallbackCallbacks() {
+                    @Override
+                    public void onSendPlainLink() {
+                        pengramLinkSheet = null;
+                        PengramLinkAssistant.sendPlainLink(request);
+                        finishPengramLinkTask();
+                    }
+
+                    @Override
+                    public void onRetry() {
+                        pengramLinkSheet = null;
+                        runPengramRequest(request, PengramLinkAssistant.ExecutionOptions.auto());
+                    }
+
+                    @Override
+                    public void onKeepInField() {
+                        pengramLinkSheet = null;
+                        pengramLinkDismissedUrl = request.url;
+                        restorePengramLinkText(request.originalText);
+                        finishPengramLinkTask();
+                        if (delegate != null) {
+                            delegate.onLinkAssistantDismissed();
+                        }
+                    }
+
+                    @Override
+                    public void onOpenSettings() {
+                        pengramLinkSheet = null;
+                        restorePengramLinkText(request.originalText);
+                        finishPengramLinkTask();
+                        if (delegate != null) {
+                            delegate.onLinkAssistantOpenSettings();
+                        }
+                    }
+                });
+    }
+
+    private void dismissPengramSheetSilently() {
+        if (pengramLinkSheet != null) {
+            try {
+                pengramLinkSheet.setOnDismissListener(null);
+                pengramLinkSheet.dismiss();
+            } catch (Throwable ignore) {
+            }
+            pengramLinkSheet = null;
+        }
+    }
+
+    private void showPengramToast(String message) {
+        if (message == null || message.isEmpty()) {
+            return;
+        }
+        try {
+            if (parentFragment != null) {
+                BulletinFactory.of(parentFragment).createSimpleBulletin(R.drawable.msg_link2, message).show();
+                return;
+            }
+        } catch (Throwable ignore) {
+        }
+        try {
+            android.widget.Toast.makeText(
+                    ApplicationLoader.applicationContext != null
+                            ? ApplicationLoader.applicationContext : getContext(),
+                    message, android.widget.Toast.LENGTH_SHORT).show();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** ✕: при активной задаче — отмена + возврат текста в поле; в покое — скрытие островка для этой ссылки. */
     private void onPengramLinkClose() {
-        if (pengramLinkProgressMode && PengramLinkAssistant.isBusy()) {
-            PengramLinkAssistant.cancel();
-            restorePengramLinkUrl();
+        if (pengramLinkHandle != null || pengramLinkProgressMode) {
+            final String savedText = pengramLinkSavedFullText;
+            final String activeUrl = pengramLinkUrl;
+            if (pengramLinkHandle != null) {
+                pengramLinkHandle.cancel();
+                pengramLinkHandle = null;
+            }
+            pengramLinkDismissedUrl = activeUrl;
+            restorePengramLinkText(savedText);
             finishPengramLinkTask();
+            if (delegate != null) {
+                delegate.onLinkAssistantDismissed();
+            }
             return;
         }
         pengramLinkDismissedUrl = pengramLinkUrl;
         pengramLinkUrl = null;
         hidePengramLinkBar();
+        if (delegate != null) {
+            delegate.onLinkAssistantDismissed();
+        }
     }
 
-    private void restorePengramLinkUrl() {
-        final String url = pengramLinkRestoreUrl;
-        pengramLinkRestoreUrl = null;
-        if (url == null) {
+    private void restorePengramLinkText(String textToRestore) {
+        if (textToRestore == null || textToRestore.isEmpty() || messageEditText == null) {
             return;
         }
         try {
-            final android.text.Editable editable = messageEditText.getText();
-            if (editable == null || editable.toString().contains(url)) {
+            final Editable editable = messageEditText.getText();
+            if (editable == null) {
                 return;
             }
-            final int idx = Math.min(Math.max(pengramLinkRestoreIndex, 0), editable.length());
-            editable.insert(idx, url);
+            pengramLinkSuppressWatcher = true;
+            try {
+                if (editable.length() == 0) {
+                    editable.append(textToRestore);
+                    messageEditText.setSelection(editable.length());
+                } else if (!editable.toString().contains(textToRestore)) {
+                    editable.append(" ").append(textToRestore);
+                    messageEditText.setSelection(editable.length());
+                }
+            } finally {
+                pengramLinkSuppressWatcher = false;
+            }
         } catch (Throwable ignore) {
         }
     }
 
     private void updatePengramLinkSuggestion(CharSequence text) {
-        if (PengramLinkAssistant.isBusy()) {
-            return; // идёт задача — баром рулит прогресс
+        if (pengramLinkProgressMode || pengramLinkHandle != null) {
+            return; // идёт задача — островок показывает прогресс
         }
         if (!PengramConfig.isLinkAssistantEnabled() || editingMessageObject != null
                 || (topView instanceof ChatActivityEnterTopView && ((ChatActivityEnterTopView) topView).isEditMode())) {
@@ -6589,13 +6990,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         pengramLinkDismissedUrl = null;
         pengramLinkProgressMode = false;
         ensurePengramLinkBarAttached();
-        if (pengramLinkBarTitle != null) {
-            pengramLinkBarTitle.setText(getString(R.string.PengramLinkSuggestTitle));
-        }
-        if (pengramLinkBarChip != null) {
-            pengramLinkBarChip.setVisibility(VISIBLE);
-        }
+        resetPengramLinkBarToIdle(link.url);
         showPengramLinkBar();
+        if (delegate != null) {
+            delegate.onLinkAssistantActive();
+        }
     }
 
     private void showPengramLinkBar() {
@@ -6625,12 +7024,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         if (topViewShownByPanel) {
             updatePengramLinkSlot();
-        } else if (topViewShowed) {
-            hideTopView(true);
+        } else {
+            updatePengramLinkSlot();
+            if (topViewShowed) {
+                hideTopView(true);
+            }
         }
     }
 
-    /** Пересчёт высоты слота: база (48 панели) + 40 бара; без панели — только бар. */
+    /** Пересчёт высоты и видимости слота: база (48dp панели) + 44dp островка; без панели — только островок. */
     private void updatePengramLinkSlot() {
         if (topView == null) {
             return;
@@ -6640,17 +7042,18 @@ public class ChatActivityEnterView extends FrameLayout implements
         final boolean barVisible = pengramLinkShown && (top == null || !top.isEditMode());
         if (top != null) {
             top.setLinkVisible(barVisible);
+            top.setPanelVisible(topViewShownByPanel || !barVisible);
         }
         final int base = pengramLinkSlotBaseHeight > 0 ? pengramLinkSlotBaseHeight : dp(48);
-        // Без панели слот сжимается ровно до бара (база не занимает место):
-        final int slotHeight = barVisible ? (topViewShownByPanel ? base + dp(40) : dp(40)) : base;
+        final int barPx = dp(PENGRAM_LINK_BAR_DP);
+        final int slotHeight = barVisible ? (topViewShownByPanel ? base + barPx : barPx) : base;
         final ViewGroup.LayoutParams lp = topView.getLayoutParams();
         if (lp != null && lp.height != slotHeight) {
             lp.height = slotHeight;
             topView.setLayoutParams(lp);
             if (resizeForTopViewLastShow) {
                 resizeForTopViewLastShow = false;
-                resizeForTopView(true);
+                resizeForTopView(animatorTopViewVisibility.getFloatValue() > 0f);
             }
         }
         checkUi_TopViewVisibility();
@@ -6674,6 +7077,9 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (pengramLinkShown) {
             // Ссылку вставили раньше, чем слот подключили — показываем сейчас.
             ensurePengramLinkBarAttached();
+            if (pengramLinkUrl != null && !pengramLinkProgressMode) {
+                resetPengramLinkBarToIdle(pengramLinkUrl);
+            }
             updatePengramLinkSlot();
             needShowTopView = true;
             topViewShowed = true;
@@ -6729,9 +7135,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     public void showTargetTopView() {
         if (topView == null || topViewShowed || getVisibility() != VISIBLE) return;
         topViewShownByPanel = true;
-        if (pengramLinkShown) {
-            updatePengramLinkSlot();
-        }
+        updatePengramLinkSlot();
         needShowTopView = true;
         topViewShowed = true;
         if (allowShowTopView) animatorTopViewVisibility.setValue(true, false);
@@ -6743,8 +7147,7 @@ public class ChatActivityEnterView extends FrameLayout implements
 
     private void showTopView(boolean animated, final boolean openKeyboard, boolean skipAwait) {
         topViewShownByPanel = true;
-        if (pengramLinkShown && topView != null) {
-            // Бар помощника уже держит слот — панель добавляет свою строку сверху.
+        if (topView != null) {
             updatePengramLinkSlot();
         }
         if (topView == null || topViewShowed || getVisibility() != VISIBLE) {
@@ -6815,6 +7218,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             updatePengramLinkSlot();
             return;
         }
+        updatePengramLinkSlot();
 
         if (showTopViewRunnable != null) {
             AndroidUtilities.cancelRunOnUIThread(showTopViewRunnable);
@@ -6922,7 +7326,11 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     public void onDestroy() {
-        PengramLinkAssistant.detachListenerIf(pengramLinkListener);
+        if (pengramLinkHandle != null) {
+            pengramLinkHandle.cancel();
+            pengramLinkHandle = null;
+        }
+        dismissPengramSheetSilently();
         removeCallbacks(pengramWpmIdle);
         org.telegram.messenger.PengramTypingStats.finishSession();
         if (audioTimelineView != null) {

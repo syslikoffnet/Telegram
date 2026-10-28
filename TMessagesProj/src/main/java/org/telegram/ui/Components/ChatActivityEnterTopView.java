@@ -11,10 +11,14 @@ import android.widget.TextView;
 public class ChatActivityEnterTopView extends FrameLayout {
 
     private View replyView;
+    private View replyCloseView;
     private EditView editView;
     private boolean editMode;
+    private boolean editSuggestionMode;
+    private boolean panelVisible = true;
     private View linkView;
     private boolean linkVisible;
+    private int linkBarHeightPx;
     private Runnable linkLayoutCallback;
 
     public ChatActivityEnterTopView(Context context) {
@@ -24,6 +28,21 @@ public class ChatActivityEnterTopView extends FrameLayout {
     public void addReplyView(View replyView, LayoutParams layoutParams) {
         if (this.replyView == null) {
             addView(this.replyView = replyView, layoutParams);
+            syncVisibilityAndMargins();
+        }
+    }
+
+    @Override
+    public void addView(View child, int index, android.view.ViewGroup.LayoutParams params) {
+        super.addView(child, index, params);
+        // Крестик отмены ответа добавляется в ChatActivity напрямую в ChatActivityEnterTopView.
+        if (replyCloseView == null && child != replyView && child != editView && child != linkView
+                && child instanceof ImageView) {
+            replyCloseView = child;
+            syncVisibilityAndMargins();
+        }
+        if (linkView != null && child != linkView) {
+            linkView.bringToFront();
         }
     }
 
@@ -36,9 +55,24 @@ public class ChatActivityEnterTopView extends FrameLayout {
     public void setLinkView(View linkView, LayoutParams layoutParams) {
         if (this.linkView == null && linkView != null) {
             this.linkView = linkView;
+            this.linkBarHeightPx = layoutParams != null && layoutParams.height > 0 ? layoutParams.height : 0;
             linkView.setVisibility(GONE);
             addView(linkView, layoutParams);
+            linkView.bringToFront();
+            syncVisibilityAndMargins();
         }
+    }
+
+    public void setPanelVisible(boolean visible) {
+        if (this.panelVisible == visible) {
+            return;
+        }
+        this.panelVisible = visible;
+        syncVisibilityAndMargins();
+    }
+
+    public boolean isPanelVisible() {
+        return panelVisible;
     }
 
     public void setLinkVisible(boolean visible) {
@@ -46,7 +80,7 @@ public class ChatActivityEnterTopView extends FrameLayout {
             return;
         }
         this.linkVisible = visible;
-        applyLinkVisibility();
+        syncVisibilityAndMargins();
     }
 
     public boolean isLinkVisible() {
@@ -54,11 +88,48 @@ public class ChatActivityEnterTopView extends FrameLayout {
     }
 
     private void applyLinkVisibility() {
-        if (linkView == null) {
-            return;
+        final boolean showLink = linkVisible && !editMode;
+        if (linkView != null) {
+            linkView.setVisibility(showLink ? VISIBLE : GONE);
+            if (showLink) {
+                linkView.bringToFront();
+            }
         }
-        final boolean show = linkVisible && !editMode;
-        linkView.setVisibility(show ? VISIBLE : GONE);
+    }
+
+    private void syncVisibilityAndMargins() {
+        final boolean showLink = linkVisible && !editMode;
+        applyLinkVisibility();
+
+        if (!panelVisible) {
+            if (replyView != null) {
+                replyView.setVisibility(GONE);
+            }
+            if (replyCloseView != null) {
+                replyCloseView.setVisibility(GONE);
+            }
+            if (editView != null) {
+                editView.setVisibility(GONE);
+            }
+        } else {
+            if (replyView != null) {
+                replyView.setVisibility((editMode && !editSuggestionMode) ? GONE : VISIBLE);
+                if (replyView.getLayoutParams() instanceof MarginLayoutParams) {
+                    final MarginLayoutParams mlp = (MarginLayoutParams) replyView.getLayoutParams();
+                    final int targetBottom = (showLink && linkBarHeightPx > 0) ? linkBarHeightPx : 0;
+                    if (mlp.bottomMargin != targetBottom) {
+                        mlp.bottomMargin = targetBottom;
+                        replyView.setLayoutParams(mlp);
+                    }
+                }
+            }
+            if (replyCloseView != null) {
+                replyCloseView.setVisibility(editMode ? GONE : VISIBLE);
+            }
+            if (editView != null) {
+                editView.setVisibility(editMode ? VISIBLE : GONE);
+            }
+        }
     }
 
     public void addEditView(EditView editView, LayoutParams layoutParams) {
@@ -66,26 +137,28 @@ public class ChatActivityEnterTopView extends FrameLayout {
             this.editView = editView;
             editView.setVisibility(GONE);
             addView(editView, layoutParams);
+            syncVisibilityAndMargins();
         }
     }
 
     public void setEditMode(boolean editMode) {
         this.editMode = editMode;
-        replyView.setVisibility(editMode ? GONE : VISIBLE);
-        editView.setVisibility(editMode ? VISIBLE : GONE);
-        applyLinkVisibility();
+        if (!editMode) {
+            this.editSuggestionMode = false;
+        }
+        syncVisibilityAndMargins();
         if (linkLayoutCallback != null) {
             linkLayoutCallback.run();
         }
     }
 
     public void setEditSuggestionMode(boolean editMode) {
+        this.editSuggestionMode = editMode;
         setEditMode(editMode);
-        if (editMode) {
-            replyView.setVisibility(VISIBLE);
+        if (editView != null && editView.buttons[0] != null && editView.buttons[1] != null) {
+            editView.buttons[0].setOnlyIconMode(editMode);
+            editView.buttons[1].setOnlyIconMode(editMode);
         }
-        editView.buttons[0].setOnlyIconMode(editMode);
-        editView.buttons[1].setOnlyIconMode(editMode);
     }
 
     public boolean isEditMode() {

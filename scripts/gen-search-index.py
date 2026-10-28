@@ -38,6 +38,7 @@ FILL_TO_SECTION = {
     "fillChatMessages": "SECTION_CHAT_MESSAGES",
     "fillTyping": "SECTION_TYPING",
     "fillQuotes": "SECTION_QUOTES",
+    "fillLinkAssistant": "SECTION_LINK_ASSISTANT",
     "fillMediaTime": "SECTION_CHAT_MESSAGES",
     "fillChatInterface": "SECTION_CHAT_INTERFACE",
     "fillChatMenus": "SECTION_CHAT_MENUS",
