@@ -1063,7 +1063,8 @@
     <string name="PengramPenguinTipHold">Подержи палец — станцую</string>
     <string name="PengramPenguinSleeping">Тс-с, я сплю…</string>
     <string name="PengramSearchHint">Начните вводить название функции — найду её в любом разделе.</string>
-    <string name="PengramSearchRecent">Недавние запросы</string>
+    <string name="PengramSearchRecent">Недавние</string>
+    <string name="PengramSearchRemoveRecent">Удалить из недавних</string>
     <string name="PengramSearchParentOff">Настройка появится после включения «%1$s»</string>
     <string name="PengramSearchHistoryClear">Очистить историю поиска</string>
         <string name="PengramTracksViewList">Списком</string>

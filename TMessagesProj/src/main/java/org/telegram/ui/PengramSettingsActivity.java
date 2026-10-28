@@ -320,10 +320,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_SEARCH = 1447;
     /** строки результатов поиска: BTN_SEARCH_BASE + номер в списке найденного */
     private static final int BTN_SEARCH_BASE = 7000;
-    /** недавние запросы в поиске по настройкам — как история поиска в Telegram */
-    private static final int BTN_SEARCH_HISTORY_BASE = 7400;
-    private static final int BTN_SEARCH_HISTORY_CLEAR = 7500;
-    private static final int SEARCH_HISTORY_LIMIT = 8;
+    /** недавние переходы в поиске по настройкам — как в поиске настроек Telegram */
+    private static final int BTN_SEARCH_HISTORY_BASE = 7800;
+    private static final int BTN_SEARCH_HISTORY_CLEAR = 7900;
+    private static final int SEARCH_HISTORY_LIMIT = PengramConfig.SEARCH_HISTORY_MAX;
     private static final int BTN_PENGUIN_FLIP = 1443;
     private static final int BTN_PENGUIN_DANCE = 1444;
     private static final int BTN_PENGUIN_STRAIGHTEN = 1445;
@@ -723,6 +723,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private java.util.HashMap<String, Integer> searchTitleRes;
     /** что сейчас показано в выдаче: разделы по номерам строк */
     private final ArrayList<int[]> searchResults = new ArrayList<>();
+    /** недавние переходы, показанные при пустом поле поиска */
+    private final ArrayList<int[]> recentSearchEntries = new ArrayList<>();
 
     @Override
     public View createView(Context context) {
@@ -741,6 +743,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                     @Override
                     public void onSearchCollapse() {
                         searchQuery = null;
+                        searchResults.clear();
+                        recentSearchEntries.clear();
                         updateList();
                     }
 
@@ -752,8 +756,8 @@ public class PengramSettingsActivity extends UniversalFragment {
 
                     @Override
                     public void onSearchPressed(EditText editText) {
-                        // Enter — это осознанный запрос: сохраняем его в историю
-                        pengramRememberSearch();
+                        // Как в поиске настроек Telegram: сохраняется сам переход при выборе пункта, а не сырой текст запроса.
+                        AndroidUtilities.hideKeyboard(editText);
                     }
                 });
         searchItem.setSearchFieldHint(getString(R.string.Search));
@@ -870,17 +874,27 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** выдача поиска по всем разделам сразу */
     private void fillSearch(ArrayList<UItem> items) {
         searchResults.clear();
+        recentSearchEntries.clear();
         final String query = searchQuery == null ? "" : searchQuery.trim();
         if (query.length() == 0) {
-            // Пустое поле — как в Telegram: недавние запросы и подсказка.
-            final ArrayList<String> history = PengramConfig.getSearchHistory();
-            if (!history.isEmpty()) {
+            // Пустое поле — как в поиске настроек Telegram: недавние переходы (сам пункт + путь) и подсказка.
+            final ArrayList<int[]> recent = PengramSearchMetadata.recentEntries();
+            if (!recent.isEmpty()) {
                 items.add(UItem.asHeader(getString(R.string.PengramSearchRecent)));
-                for (int i = 0; i < history.size(); i++) {
-                    items.add(UItem.asSettingsCell(BTN_SEARCH_HISTORY_BASE + i,
-                            R.drawable.msg_search, history.get(i)));
+                final int count = Math.min(recent.size(), SEARCH_HISTORY_LIMIT);
+                for (int i = 0; i < count; i++) {
+                    final int[] entry = recent.get(i);
+                    final UItem row = UItem.asSettingsCell(
+                            BTN_SEARCH_HISTORY_BASE + recentSearchEntries.size(),
+                            sectionIcon(entry[1]),
+                            getString(entry[0]),
+                            PengramSearchMetadata.emphasizedPath(entry, ""));
+                    row.adaptiveLayout = true;
+                    row.object = entry[0];
+                    items.add(row);
+                    recentSearchEntries.add(entry);
                 }
-                items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_delete,
+                items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_clear_recent,
                         getString(R.string.PengramSearchHistoryClear)).red());
             }
             items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
@@ -905,6 +919,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             return byScore != 0 ? byScore : Integer.compare(a, b);
         });
         for (int index : order) {
+            if (searchResults.size() >= BTN_SEARCH_HISTORY_BASE - BTN_SEARCH_BASE) {
+                break;
+            }
             final int[] entry = matched.get(index);
             final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
                     sectionIcon(entry[1]), getString(entry[0]), PengramSearchMetadata.emphasizedPath(entry, query));
@@ -920,24 +937,54 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
-    /** запомнить текущий запрос в истории поиска */
-    private void pengramRememberSearch() {
-        final String query = searchQuery == null ? "" : searchQuery.trim();
-        if (query.length() >= 2) {
-            PengramConfig.addSearchHistory(query);
+    /** открыть найденный или недавний пункт настройки и сохранить сам переход (как в Telegram) */
+    private void pengramOpenSearchEntry(int[] found) {
+        if (found == null || found.length < 2) {
+            return;
+        }
+        PengramSearchMetadata.rememberEntry(found);
+        if (fragmentView != null) {
+            AndroidUtilities.hideKeyboard(fragmentView);
+        }
+        final int targetSection = found[1];
+        final int targetRes = found[0];
+        if (targetSection == section && (found.length < 4 || found[3] == 0)) {
+            // мы уже здесь — закрываем поиск и прыгаем к самой строке
+            if (actionBar != null && actionBar.isSearchFieldVisible()) {
+                actionBar.closeSearchField();
+            } else {
+                searchQuery = null;
+            }
+            searchRevealGroups = true;
+            searchFallbackRes = found.length > 2 ? found[2] : 0;
+            updateList();
+            AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
+        } else {
+            PengramSearchMetadata.open(this, found);
         }
     }
 
-    /** подставить запрос из истории в поле поиска */
-    private void pengramApplySearch(String query) {
-        if (query == null || searchItem == null) return;
-        final android.widget.EditText field = searchItem.getSearchField();
-        if (field != null) {
-            field.setText(query);
-            field.setSelection(field.length());
+    private void confirmClearSearchHistory() {
+        final Context context = getContext();
+        if (context == null) {
+            PengramConfig.clearSearchHistory();
+            updateList();
+            return;
         }
-        searchQuery = query;
-        updateList();
+        final AlertDialog dialog = new AlertDialog.Builder(context, resourceProvider)
+                .setTitle(getString(R.string.ClearSearchAlertTitle))
+                .setMessage(getString(R.string.ClearSearchAlert))
+                .setPositiveButton(getString(R.string.ClearButton), (d, which) -> {
+                    PengramConfig.clearSearchHistory();
+                    updateList();
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .create();
+        showDialog(dialog);
+        final View positive = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE);
+        if (positive instanceof TextView) {
+            ((TextView) positive).setTextColor(Theme.getColor(Theme.key_text_RedBold, resourceProvider));
+        }
     }
 
     @Override
@@ -4791,34 +4838,19 @@ public class PengramSettingsActivity extends UniversalFragment {
             return;
         }
         if (item.id >= BTN_SEARCH_HISTORY_BASE && item.id < BTN_SEARCH_HISTORY_BASE + SEARCH_HISTORY_LIMIT) {
-            final ArrayList<String> history = PengramConfig.getSearchHistory();
             final int index = item.id - BTN_SEARCH_HISTORY_BASE;
-            if (index >= 0 && index < history.size()) {
-                pengramApplySearch(history.get(index));
+            if (index >= 0 && index < recentSearchEntries.size()) {
+                pengramOpenSearchEntry(recentSearchEntries.get(index));
             }
             return;
         }
         if (item.id == BTN_SEARCH_HISTORY_CLEAR) {
-            PengramConfig.clearSearchHistory();
-            updateList();
+            confirmClearSearchHistory();
             return;
         }
         if (item.id >= BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE
                 && item.id - BTN_SEARCH_BASE < searchResults.size()) {
-            final int[] found = searchResults.get(item.id - BTN_SEARCH_BASE);
-            pengramRememberSearch();
-            final int targetSection = found[1];
-            final int targetRes = found[0];
-            if (targetSection == section && (found.length < 4 || found[3] == 0)) {
-                // мы уже здесь — закрываем поиск и прыгаем к самой строке
-                actionBar.closeSearchField();
-                searchRevealGroups = true;
-                searchFallbackRes = found.length > 2 ? found[2] : 0;
-                updateList();
-                AndroidUtilities.runOnUIThread(() -> pengramJumpTo(targetRes), 160);
-            } else {
-                PengramSearchMetadata.open(this, found);
-            }
+            pengramOpenSearchEntry(searchResults.get(item.id - BTN_SEARCH_BASE));
             return;
         }
         if (item.id == BTN_PENGUIN_FLIP || item.id == BTN_PENGUIN_DANCE || item.id == BTN_PENGUIN_STRAIGHTEN) {
@@ -6036,6 +6068,21 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     @Override
     protected boolean onLongClick(UItem item, View view, int position, float x, float y) {
+        if (item.id >= BTN_SEARCH_HISTORY_BASE && item.id < BTN_SEARCH_HISTORY_BASE + SEARCH_HISTORY_LIMIT) {
+            final int index = item.id - BTN_SEARCH_HISTORY_BASE;
+            if (index >= 0 && index < recentSearchEntries.size()) {
+                final int[] entry = recentSearchEntries.get(index);
+                ItemOptions.makeOptions(this, view)
+                        .add(R.drawable.msg_delete, getString(R.string.PengramSearchRemoveRecent), true, () -> {
+                            PengramSearchMetadata.removeRecentEntry(entry);
+                            updateList();
+                        })
+                        .add(R.drawable.msg_clear_recent, getString(R.string.PengramSearchHistoryClear), this::confirmClearSearchHistory)
+                        .setGravity(android.view.Gravity.RIGHT)
+                        .show();
+                return true;
+            }
+        }
         // Долгое нажатие на строку модели — сразу ввод своего значения, без
         // пролистывания списка пресетов.
         if (item.id == BTN_DEVICE_MODEL) {

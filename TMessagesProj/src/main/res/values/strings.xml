@@ -12099,7 +12099,8 @@
     <string name="PengramPenguinTipHold">Hold me and I will dance</string>
     <string name="PengramPenguinSleeping">Shh, I am asleep…</string>
     <string name="PengramSearchHint">Start typing a feature name — it will be found in any section.</string>
-    <string name="PengramSearchRecent">Recent searches</string>
+    <string name="PengramSearchRecent">Recent</string>
+    <string name="PengramSearchRemoveRecent">Remove from recent</string>
     <string name="PengramSearchParentOff">This setting appears after you turn on “%1$s”</string>
     <string name="PengramSearchHistoryClear">Clear search history</string>
         <string name="PengramTracksViewList">List</string>

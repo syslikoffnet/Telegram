@@ -15380,7 +15380,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         all.removeIf(result -> result.guid >= 9000 && result.guid < 10000
                                 && title.equals(result.searchTitle));
                     }
-                    final SearchResult indexed = new SearchResult(generatedId++, title,
+                    final int stableGuid = PengramSearchMetadata.stableId(entry);
+                    final SearchResult indexed = new SearchResult(stableGuid > 0 ? stableGuid : generatedId++, title,
                             PengramSearchMetadata.path(entry), R.drawable.settings_features,
                             () -> PengramSearchMetadata.open(f, entry));
                     indexed.pengramEntry = entry;

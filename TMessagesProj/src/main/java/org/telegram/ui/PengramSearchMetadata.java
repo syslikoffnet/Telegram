@@ -3,11 +3,15 @@ package org.telegram.ui;
 import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.StyleSpan;
+import android.util.SparseArray;
 
+import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.BaseFragment;
 
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -29,6 +33,93 @@ public final class PengramSearchMetadata {
     }
 
     private static volatile Corpus cachedCorpus;
+    private static volatile IdentityHashMap<int[], Integer> cachedEntryIds;
+    private static volatile SparseArray<int[]> cachedIdEntries;
+
+    private static void ensureIdMaps() {
+        if (cachedEntryIds != null && cachedIdEntries != null) {
+            return;
+        }
+        synchronized (PengramSearchMetadata.class) {
+            if (cachedEntryIds == null || cachedIdEntries == null) {
+                final int count = Math.min(PengramSearchIndex.ITEMS.length, PengramSearchIndex.IDS.length);
+                final IdentityHashMap<int[], Integer> toId = new IdentityHashMap<>(count);
+                final SparseArray<int[]> toEntry = new SparseArray<>(count);
+                for (int i = 0; i < count; i++) {
+                    final int[] entry = PengramSearchIndex.ITEMS[i];
+                    final int id = PengramSearchIndex.IDS[i];
+                    toId.put(entry, id);
+                    toEntry.put(id, entry);
+                }
+                cachedEntryIds = toId;
+                cachedIdEntries = toEntry;
+            }
+        }
+    }
+
+    /** Стабильный ID перехода для сохранения в «Недавние» (как guid в поиске Telegram). */
+    public static int stableId(int[] entry) {
+        if (entry == null || entry.length < 2) {
+            return 0;
+        }
+        ensureIdMaps();
+        final Integer fast = cachedEntryIds.get(entry);
+        if (fast != null) {
+            return fast;
+        }
+        final int count = Math.min(PengramSearchIndex.ITEMS.length, PengramSearchIndex.IDS.length);
+        final int ext = entry.length > 3 ? entry[3] : 0;
+        for (int i = 0; i < count; i++) {
+            final int[] candidate = PengramSearchIndex.ITEMS[i];
+            final int candExt = candidate.length > 3 ? candidate[3] : 0;
+            if (candidate[0] == entry[0] && candidate[1] == entry[1] && candExt == ext) {
+                return PengramSearchIndex.IDS[i];
+            }
+        }
+        return 0;
+    }
+
+    public static int[] entryByStableId(int stableId) {
+        if (stableId <= 0) {
+            return null;
+        }
+        ensureIdMaps();
+        return cachedIdEntries.get(stableId);
+    }
+
+    /** Запомнить сам переход к настройке в списке недавних (MRU). */
+    public static void rememberEntry(int[] entry) {
+        final int id = stableId(entry);
+        if (id > 0) {
+            PengramConfig.addRecentSearchId(id);
+        }
+    }
+
+    /** Удалить конкретный переход из списка недавних. */
+    public static void removeRecentEntry(int[] entry) {
+        final int id = stableId(entry);
+        if (id > 0) {
+            PengramConfig.removeRecentSearchId(id);
+        }
+    }
+
+    /** Актуальный список недавних переходов в порядке последнего открытия. */
+    public static ArrayList<int[]> recentEntries() {
+        final ArrayList<Integer> ids = PengramConfig.getRecentSearchIds();
+        final ArrayList<int[]> out = new ArrayList<>(ids.size());
+        for (int i = 0; i < ids.size(); i++) {
+            final int[] entry = entryByStableId(ids.get(i));
+            if (entry == null || entry.length < 2) {
+                continue;
+            }
+            final String title = getString(entry[0]);
+            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) {
+                continue;
+            }
+            out.add(entry);
+        }
+        return out;
+    }
 
     private static Corpus corpus() {
         Locale locale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
@@ -53,6 +144,7 @@ public final class PengramSearchMetadata {
     }
 
     public static void open(BaseFragment fragment, int[] entry) {
+        rememberEntry(entry);
         if (entry.length > 3 && entry[3] == 1) {
             fragment.presentFragment(new PengramChatLookActivity(entry[0]));
         } else if (entry.length > 3 && entry[3] == 2) {

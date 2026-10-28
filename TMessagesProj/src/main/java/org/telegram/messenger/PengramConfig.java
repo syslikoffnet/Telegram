@@ -2410,50 +2410,81 @@ public class PengramConfig {
 
     // ------------------------------- история поиска -------------------------------
 
-    /** ключ: недавние запросы поиска по настройкам Pengram */
-    private static final String KEY_SEARCH_HISTORY = "settingsSearchHistory";
-    private static final int SEARCH_HISTORY_MAX = 8;
+    /** ключ: недавние переходы по настройкам Pengram (стабильные ID пунктов, как в поиске Telegram) */
+    private static final String KEY_SEARCH_RECENT = "settingsSearchRecentEntries";
+    /** устаревший ключ текстовых запросов — очищается автоматически */
+    private static final String KEY_SEARCH_HISTORY_LEGACY = "settingsSearchHistory";
+    public static final int SEARCH_HISTORY_MAX = 20;
 
     /**
-     * Недавние запросы поиска по настройкам — как история поиска в Telegram.
-     * Храним строкой через \n: запросы короткие, отдельная таблица не нужна.
+     * Недавние переходы в поиске по настройкам Pengram — сохраняется сам целевой
+     * пункт настройки (стабильный ID из PengramSearchIndex.IDS), а не сырой текст запроса.
      */
-    public static java.util.ArrayList<String> getSearchHistory() {
-        final java.util.ArrayList<String> result = new java.util.ArrayList<>();
-        final String saved = visualString(KEY_SEARCH_HISTORY);
+    public static java.util.ArrayList<Integer> getRecentSearchIds() {
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        if (!visualString(KEY_SEARCH_HISTORY_LEGACY).isEmpty()) {
+            putString(KEY_SEARCH_HISTORY_LEGACY, "");
+        }
+        final String saved = visualString(KEY_SEARCH_RECENT);
         if (saved == null || saved.isEmpty()) {
             return result;
         }
-        for (String part : saved.split("\n")) {
-            final String value = part.trim();
-            if (!value.isEmpty() && !result.contains(value) && result.size() < SEARCH_HISTORY_MAX) {
-                result.add(value);
+        for (String part : saved.split("[,\\n]")) {
+            final String token = part.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            try {
+                final int id = Integer.parseInt(token);
+                if (id > 0 && !result.contains(id) && result.size() < SEARCH_HISTORY_MAX) {
+                    result.add(id);
+                }
+            } catch (NumberFormatException ignore) {
             }
         }
         return result;
     }
 
-    public static void addSearchHistory(String query) {
-        final String value = query == null ? "" : query.trim().replace("\n", " ");
-        if (value.length() < 2 || value.length() > 80) {
+    public static void addRecentSearchId(int stableId) {
+        if (stableId <= 0) {
             return;
         }
-        final java.util.ArrayList<String> history = getSearchHistory();
-        history.remove(value);
-        history.add(0, value);
+        final java.util.ArrayList<Integer> history = getRecentSearchIds();
+        history.remove(Integer.valueOf(stableId));
+        history.add(0, stableId);
         while (history.size() > SEARCH_HISTORY_MAX) {
             history.remove(history.size() - 1);
         }
-        final StringBuilder sb = new StringBuilder();
-        for (String item : history) {
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(item);
+        saveRecentSearchIds(history);
+    }
+
+    public static void removeRecentSearchId(int stableId) {
+        if (stableId <= 0) {
+            return;
         }
-        putString(KEY_SEARCH_HISTORY, sb.toString());
+        final java.util.ArrayList<Integer> history = getRecentSearchIds();
+        if (history.remove(Integer.valueOf(stableId))) {
+            saveRecentSearchIds(history);
+        }
+    }
+
+    private static void saveRecentSearchIds(java.util.List<Integer> ids) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ids.size(); i++) {
+            final Integer id = ids.get(i);
+            if (id == null || id <= 0) continue;
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id.intValue());
+        }
+        putString(KEY_SEARCH_RECENT, sb.toString());
+        if (!visualString(KEY_SEARCH_HISTORY_LEGACY).isEmpty()) {
+            putString(KEY_SEARCH_HISTORY_LEGACY, "");
+        }
     }
 
     public static void clearSearchHistory() {
-        putString(KEY_SEARCH_HISTORY, "");
+        putString(KEY_SEARCH_RECENT, "");
+        putString(KEY_SEARCH_HISTORY_LEGACY, "");
     }
 
     // ------------------------------- скины пингвина -------------------------------
