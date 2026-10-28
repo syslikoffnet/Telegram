@@ -335,7 +335,7 @@ public final class PengramLinkPreviewSheet {
             if (count == 1) {
                 final PhotoTileView singleTile = new PhotoTileView(context, 0, cardBg, accentColor, false);
                 singleTile.loadThumb(
-                        PengramLinkAssistant.getCachedTikTokPhotoFile(request.url, 0),
+                        PengramLinkAssistant.getCachedTikTokPhotoFile(req.url, 0),
                         resolved.photos.get(0).thumbUrl, resolved.cookies, resolved.referer);
                 singleTile.setOnClickListener(v -> {
                     actionTaken[0] = true;
@@ -359,7 +359,7 @@ public final class PengramLinkPreviewSheet {
                         if (photoIndex < count) {
                             final PhotoTileView tile = new PhotoTileView(context, photoIndex, cardBg, accentColor, true);
                             tile.loadThumb(
-                                    PengramLinkAssistant.getCachedTikTokPhotoFile(request.url, photoIndex),
+                                    PengramLinkAssistant.getCachedTikTokPhotoFile(req.url, photoIndex),
                                     resolved.photos.get(photoIndex).thumbUrl, resolved.cookies, resolved.referer);
                             tile.setTileInteraction(new PhotoTileView.Interaction() {
                                 @Override
