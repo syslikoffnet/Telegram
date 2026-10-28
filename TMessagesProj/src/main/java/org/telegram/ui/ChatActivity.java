@@ -2003,7 +2003,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openPengramHistory() {
-        presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+        PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL);
+        fragment.setCurrentAccount(currentAccount);
+        fragment.setResourceProvider(themeDelegate);
+        presentFragment(fragment);
     }
 
     /** Pengram: помечаем удалённое сообщение (прозрачность + метка у времени) */
@@ -2023,12 +2026,18 @@ public class ChatActivity extends BaseFragment implements
             }
             return;
         }
+        final boolean wasDeleted = message.pengramDeleted;
         boolean deleted = false;
         boolean known = false;
         try {
             final boolean enabled = chatMode == MODE_DEFAULT && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount);
-            known = !enabled || org.telegram.messenger.PengramHistory.marksLoaded(currentAccount, dialog_id);
-            deleted = enabled && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, message.getId());
+            final long msgDid = message.getDialogId() != 0 ? message.getDialogId() : dialog_id;
+            final boolean mainLoaded = org.telegram.messenger.PengramHistory.marksLoaded(currentAccount, dialog_id);
+            final boolean msgLoaded = msgDid == dialog_id || org.telegram.messenger.PengramHistory.marksLoaded(currentAccount, msgDid);
+            known = !enabled || (mainLoaded && msgLoaded);
+            deleted = enabled && (org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, dialog_id, message.getId())
+                    || (msgDid != dialog_id && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, msgDid, message.getId()))
+                    || (mergeDialogId != 0 && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, mergeDialogId, message.getId())));
         } catch (Throwable ignore) {}
         // пока метки диалога не подгружены, «не удалено» ещё ничего не значит —
         // раньше из-за этого сообщения теряли прозрачность до перезахода в чат
@@ -2036,7 +2045,11 @@ public class ChatActivity extends BaseFragment implements
             message.pengramDeleted = deleted;
         }
         if (cell instanceof ChatMessageCell) {
-            ((ChatMessageCell) cell).pengramUpdateFade();
+            final ChatMessageCell messageCell = (ChatMessageCell) cell;
+            if (message.pengramDeleted != wasDeleted && messageCell.getMessageObject() == message) {
+                messageCell.forceResetMessageObject();
+            }
+            messageCell.pengramUpdateFade();
         } else if (cell != null) {
             final float alpha = pengramAlphaFor(message);
             if (cell.getAlpha() != alpha) {
@@ -4870,7 +4883,7 @@ public class ChatActivity extends BaseFragment implements
         resetPengramSurfaceSignatures();
 
         if (dialog_id != 0 && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount)) {
-            org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, () -> AndroidUtilities.runOnUIThread(() -> {
+            final Runnable refreshMarksUi = () -> AndroidUtilities.runOnUIThread(() -> {
                 try {
                     if (chatAdapter != null) {
                         chatAdapter.notifyDataSetChanged();
@@ -4878,7 +4891,11 @@ public class ChatActivity extends BaseFragment implements
                         chatListView.invalidateViews();
                     }
                 } catch (Throwable ignore) {}
-            }, 50));
+            }, 50);
+            org.telegram.messenger.PengramHistory.loadMarks(currentAccount, dialog_id, refreshMarksUi);
+            if (mergeDialogId != 0) {
+                org.telegram.messenger.PengramHistory.loadMarks(currentAccount, mergeDialogId, refreshMarksUi);
+            }
         }
 
         blurredBackgroundColorProvider = new BlurredBackgroundColorProviderThemed(themeDelegate, Theme.key_chat_messagePanelBackground) {
@@ -5022,7 +5039,7 @@ public class ChatActivity extends BaseFragment implements
                     pengramCopyChatId();
                     return;
                 } else if (id == pengram_saved_media) {
-                    presentFragment(new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL));
+                    openPengramHistory();
                     return;
                 } else if (id == pengram_delete_my_messages) {
                     pengramConfirmDeleteMyMessages();
@@ -21631,6 +21648,8 @@ public class ChatActivity extends BaseFragment implements
         } else if (currentUser != null) {
             if (currentUser.self) {
                 avatarContainer.setTitle(LocaleController.getString(R.string.SavedMessages));
+            } else if (pengramHeaderOriginalNameShown && !TextUtils.isEmpty(pengramHeaderOriginalNameValue)) {
+                avatarContainer.setTitle(AndroidUtilities.removeRTL(AndroidUtilities.removeDiacritics(pengramHeaderOriginalNameValue)), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUserForDisplay(currentUser), !MessagesController.isSupportUser(currentUser) ? currentUser.emoji_status : null, animated);
             } else if (!MessagesController.isSupportUser(currentUser) && getContactsController().contactsDict.get(currentUser.id) == null && (getContactsController().contactsDict.size() != 0 || !getContactsController().isLoadingContacts())) {
                 if (!TextUtils.isEmpty(currentUser.phone)) {
                     avatarContainer.setTitle(PhoneFormat.getInstance().format("+" + currentUser.phone), currentUser.scam, currentUser.fake, currentUser.verified, getMessagesController().isPremiumUserForDisplay(currentUser), currentUser.emoji_status, animated);
@@ -21643,6 +21662,82 @@ public class ChatActivity extends BaseFragment implements
         }
         setParentActivityTitle(avatarContainer.getTitleTextView().getText());
         updateTitleIcons();
+    }
+
+    private boolean pengramHeaderOriginalNameShown;
+    private String pengramHeaderOriginalNameValue;
+    private int pengramHeaderNameSeq;
+
+    public void pengramToggleHeaderOriginalName() {
+        final TLRPC.User user = currentUser;
+        if (user == null || user.self || user.bot || avatarContainer == null) {
+            return;
+        }
+        if (pengramHeaderOriginalNameShown) {
+            pengramHeaderNameSeq++;
+            pengramHeaderOriginalNameShown = false;
+            pengramHeaderOriginalNameValue = null;
+            updateTitle(true);
+            return;
+        }
+        final int seq = ++pengramHeaderNameSeq;
+        final int account = currentAccount;
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            final org.telegram.messenger.PengramOriginalName.Result cached =
+                    org.telegram.messenger.PengramOriginalName.other(account, user);
+            final boolean refresh = org.telegram.messenger.PengramOriginalName.canRefresh(account, user);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (seq != pengramHeaderNameSeq || avatarContainer == null) {
+                    return;
+                }
+                if (cached != null) {
+                    pengramApplyHeaderOriginalName(cached);
+                } else if (!refresh) {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameNothing)).show();
+                } else {
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                            getString(R.string.PengramOriginalNameProbing)).show();
+                }
+            });
+            if (!refresh) {
+                return;
+            }
+            org.telegram.messenger.PengramOriginalName.refresh(account, user, result ->
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (seq != pengramHeaderNameSeq || avatarContainer == null) {
+                            return;
+                        }
+                        if (result != null) {
+                            if (cached == null || !result.name.equals(cached.name) || result.sameAsShown != cached.sameAsShown) {
+                                pengramApplyHeaderOriginalName(result);
+                            }
+                            return;
+                        }
+                        if (cached == null) {
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                                    getString(R.string.PengramOriginalNameNothing)).show();
+                        }
+                    }));
+        });
+    }
+
+    private void pengramApplyHeaderOriginalName(org.telegram.messenger.PengramOriginalName.Result other) {
+        if (other == null || TextUtils.isEmpty(other.name) || avatarContainer == null) {
+            return;
+        }
+        final CharSequence currentShown = avatarContainer.getTitleTextView() != null
+                ? avatarContainer.getTitleTextView().getText() : null;
+        if (other.sameAsShown && currentShown != null && TextUtils.equals(currentShown.toString().trim(), other.name.trim())) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    LocaleController.formatString(R.string.PengramOriginalNameSame, other.name)).show();
+            return;
+        }
+        pengramHeaderOriginalNameShown = true;
+        pengramHeaderOriginalNameValue = other.name;
+        updateTitle(true);
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
     }
 
     public void updateTopicTitleIcon() {
@@ -29568,6 +29663,10 @@ public class ChatActivity extends BaseFragment implements
                 ghost.pengramArchived = true;
                 ghost.pengramArchiveRowId = saved.rowId;
                 ghost.stableId = lastStableId++;
+                if (themeDelegate != null) {
+                    ghost.resetLayout();
+                    ghost.generateLayout(themeDelegate);
+                }
                 if (chatAdapter.isFiltered) setFilterMessages(false);
                 // Newest first: skip messages newer than the snapshot, but step
                 // over the day separator of its own day — otherwise the ghost
@@ -36583,8 +36682,11 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_PENGRAM_EDIT_HISTORY: {
-                presentFragment(new PengramHistoryChatActivity(selectedObject.getDialogId(),
-                        PengramHistoryChatActivity.MODE_EDITED, selectedObject.getId()));
+                PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(selectedObject.getDialogId(),
+                        PengramHistoryChatActivity.MODE_EDITED, selectedObject.getId());
+                fragment.setCurrentAccount(currentAccount);
+                fragment.setResourceProvider(themeDelegate);
+                presentFragment(fragment);
                 break;
             }
             case OPTION_PENGRAM_RESEND: {
@@ -41086,8 +41188,9 @@ public class ChatActivity extends BaseFragment implements
                     //}
 
                     messageCell.setShowTopic(true);
-                    pengramApplyDeletedState(message, messageCell);
+                    pengramApplyDeletedState(message, null);
                     messageCell.setMessageObject(message, groupedMessages, pinnedBottom, pinnedTop, firstInChat, lastInChatList);
+                    pengramApplyDeletedState(message, messageCell);
                     messageCell.setSpoilersSuppressed(chatListView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE);
                     messageCell.setHighlighted(highlightMessageId != Integer.MAX_VALUE && message.getId() == highlightMessageId);
                     if (messageCell.isHighlighted() && highlightMessageQuote != null) {
@@ -42883,10 +42986,16 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             if (messageObject.pengramDeleted || messageObject.pengramArchived) {
-                presentFragment(new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_DELETED));
+                PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(dialog_id, PengramHistoryChatActivity.MODE_DELETED);
+                fragment.setCurrentAccount(currentAccount);
+                fragment.setResourceProvider(themeDelegate);
+                presentFragment(fragment);
             } else if (PengramConfig.isEditHistoryMarkEnabled()) {
-                presentFragment(new PengramHistoryChatActivity(messageObject.getDialogId(),
-                        PengramHistoryChatActivity.MODE_EDITED, messageObject.getId()));
+                PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(messageObject.getDialogId(),
+                        PengramHistoryChatActivity.MODE_EDITED, messageObject.getId());
+                fragment.setCurrentAccount(currentAccount);
+                fragment.setResourceProvider(themeDelegate);
+                presentFragment(fragment);
             }
         }
 
@@ -49427,13 +49536,8 @@ public class ChatActivity extends BaseFragment implements
             icons.add(R.drawable.msg_copy);
         }
 
-        // Pengram: удалёнки и одноразки отправляем копией от своего лица
-        if (pengramCanResend(message) && PengramConfig.getBool("messageMenuResendHere", false)) {
-            items.add(LocaleController.getString(R.string.PengramResendHere));
-            options.add(OPTION_PENGRAM_RESEND);
-            icons.add(R.drawable.msg_send);
-        }
-        if (pengramCanResend(message) && PengramConfig.getBool("messageMenuResendTo", false)) {
+        // Pengram: удалённые, одноразовые и защищённые сообщения всегда можно переслать копией от своего лица
+        if (pengramCanResend(message)) {
             items.add(LocaleController.getString(R.string.PengramResendTo));
             options.add(OPTION_PENGRAM_RESEND_TO);
             icons.add(R.drawable.msg_forward);

@@ -14628,6 +14628,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markMentionMessageAsRead(int mid, long channelId, long did) {
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
+        if (PengramConfig.isNotSendingRead() || PengramConfig.isNotSendingVoiceRead()) {
+            return;
+        }
         if (channelId != 0) {
             TLRPC.TL_channels_readMessageContents req = new TLRPC.TL_channels_readMessageContents();
             req.channel = getInputChannel(channelId);
@@ -14665,6 +14668,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void doDeleteShowOnceTask(long taskId, long dialogId, int mid) {
         getMessagesStorage().removePendingTask(taskId);
+        if (PengramConfig.isKeepingOnceMedia()) {
+            return;
+        }
         ArrayList<Integer> mids = new ArrayList<>();
         mids.add(mid);
         getMessagesStorage().emptyMessagesMedia(dialogId, mids);
@@ -14732,6 +14738,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void markMessageAsRead(long dialogId, long randomId, int ttl) {
+        if (PengramConfig.isNotSendingRead()) {
+            return;
+        }
         if (randomId == 0 || dialogId == 0 || ttl <= 0 && ttl != Integer.MIN_VALUE) {
             return;
         }
@@ -14752,7 +14761,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void completeReadTask(ReadTask task) {
-        if (PengramConfig.isNotSendingRead() && !DialogObject.isEncryptedDialog(task.dialogId)) {
+        if (PengramConfig.isNotSendingRead()) {
             // режим призрака: локально прочитано, но серверу об этом не сообщаем
             return;
         }
@@ -14862,6 +14871,9 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingRead()) {
+            return;
+        }
         TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
         req.peer = getInputPeer(dialogId);
         if (topicId != 0) {
@@ -21888,6 +21900,10 @@ public class MessagesController extends BaseController implements NotificationCe
             topicsController.markAllPollVotesAsRead(-dialogId, topicId);
         }
         getMessagesStorage().updateUnreadPollVotesCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingRead()) {
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_REACTIONS_READ);
+            return;
+        }
         TLRPC.TL_messages_readPollVotes req = new TLRPC.TL_messages_readPollVotes();
         req.peer = getInputPeer(dialogId);
 

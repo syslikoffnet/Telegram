@@ -18698,6 +18698,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         pengramMarkDrawn = false;
         pengramMarkWidth = 0;
         int pengramMarkRes = 0;
+        if (!currentMessageObject.pengramDeleted && !currentMessageObject.pengramArchived
+                && org.telegram.messenger.PengramHistory.marksEnabled(currentAccount)
+                && org.telegram.messenger.PengramHistory.isMarkedDeleted(currentAccount, currentMessageObject.getDialogId(), currentMessageObject.getId())) {
+            currentMessageObject.pengramDeleted = true;
+        }
         if (currentMessageObject.pengramDeleted || currentMessageObject.pengramArchived) {
             pengramMarkRes = org.telegram.messenger.PengramConfig.getDeletedMarkIcon();
         } else if (edited) {
@@ -18712,6 +18717,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             currentTimeString = TextUtils.concat(markBuilder, " ", currentTimeString);
             pengramMarkDrawn = true;
             pengramMarkWidth = org.telegram.ui.Components.PengramMarkSpan.widthFor(Theme.chat_timePaint, PENGRAM_MARK_SCALE);
+        } else if (edited && org.telegram.messenger.PengramConfig.isEditHistoryMarkEnabled()) {
+            pengramMarkDrawn = true;
         }
         if (currentMessageObject.isStakedDice()) {
             currentTimeString = TextUtils.concat("💎", StarsIntroActivity.formatTON(currentMessageObject.getStakedDiceAmount()), "  ", currentTimeString);
@@ -21079,6 +21086,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         drawable.setAlpha(255);
                         canvas.restore();
                     }
+                }
+            }
+            if (alphaInternal != 1f) {
+                currentBackgroundDrawable.setAlpha(255);
+                if (currentBackgroundSelectedDrawable != null) {
+                    currentBackgroundSelectedDrawable.setAlpha(255);
+                }
+                if (currentBackgroundShadowDrawable != null) {
+                    currentBackgroundShadowDrawable.setAlpha(255);
                 }
             }
         }

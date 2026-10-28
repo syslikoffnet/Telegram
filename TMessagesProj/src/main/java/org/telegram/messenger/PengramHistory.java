@@ -843,8 +843,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     db.beginTransaction();
                     try {
                         for (Integer id : copy) {
-                            // Нет снимка — нет обещания «сохранено». Никакого чтения БД на UI.
-                            if (isRealId(id) && !isUserDeleted(id) && hasEntry(account, dialogId, id)) {
+                            if (isRealId(id) && !isUserDeleted(id)) {
                                 insertDeletedMark(db, account, dialogId, id);
                                 committed.add(id);
                             }

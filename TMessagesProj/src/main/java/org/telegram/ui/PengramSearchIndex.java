@@ -58,7 +58,6 @@ public final class PengramSearchIndex {
             {R.string.PengramDeletedMark, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeletedLookHeader, 0, 0},
             {R.string.PengramEditedMark, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeletedLookHeader, 0, 0},
             {R.string.PengramFadeDeleted, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeletedLookHeader, 0, 0},
-            {R.string.PengramMarkEditedOption, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeletedLookHeader, 0, 0},
             {R.string.PengramDeleteEffect, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeleteEffectHeader, 0, 0},
             {R.string.PengramDeleteEffectIncoming, PengramSettingsActivity.SECTION_CUSTOM, R.string.PengramDeleteEffectHeader, 0, R.string.PengramDeleteEffectIncomingInfo},
             {R.string.PengramIdFormatPicker, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramIdHeader, 0, 0},
@@ -88,13 +87,10 @@ public final class PengramSearchIndex {
             {R.string.PengramSaveInBots, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryHeader, 0, 0},
             {R.string.PengramSaveReadDate, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramTrackHeader, 0, 0},
             {R.string.PengramSaveLastOnline, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramTrackHeader, 0, 0},
-            {R.string.PengramHistoryOpenPencil, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
-            {R.string.PengramHistoryOpenLongPress, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
-            {R.string.PengramSaveForMyselfOption, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
-            {R.string.PengramSaveForMyselfDefault, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryOpenMethod, 0, 0},
+            {R.string.PengramSaveForMyselfOption, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryHeader, 0, 0},
+            {R.string.PengramSaveForMyselfDefault, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryHeader, 0, 0},
             {R.string.PengramLocalKeep, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramLocalKeepHeader, 0, R.string.PengramLocalKeepInfo},
             {R.string.PengramProfileHistory, PengramSettingsActivity.SECTION_HISTORY, 0, 0, 0},
-            {R.string.PengramKeepDeleted, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramInChatHeader, 0, R.string.PengramKeepDeletedInfo},
             {R.string.PengramDeletedReplyQuote, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramInChatHeader, 0, 0},
             {R.string.PengramDeletedReplySign, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramInChatHeader, 0, 0},
             {R.string.PengramKeepDays, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryStorage, 0, 0},
@@ -282,21 +278,16 @@ public final class PengramSearchIndex {
             {R.string.PengramLinkFallbackMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderFallback, 0, 0},
             {R.string.PengramLinkCaptionMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderFallback, 0, 0},
             {R.string.PengramQuickAdd, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramQuickActions, 0, 0},
-            {R.string.PengramResendOnce, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramDeletedSendHeader, 0, 0},
-            {R.string.PengramResendAsk, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramDeletedSendHeader, 0, 0},
             {R.string.PengramCopySignAuthor, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramDeletedSendHeader, 0, R.string.PengramCopySignAuthorInfo},
             {R.string.PengramForwardLock, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramForwardHeader, 0, R.string.PengramForwardLockInfo},
             {R.string.PengramForwardDoneAlert, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramForwardHeader, 0, 0},
             {R.string.PengramChatLook, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessagesHeader, 0, R.string.PengramChatLookInfo},
             {R.string.PengramKeepFormatting, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessagesHeader, 0, R.string.PengramKeepFormattingInfo},
             {R.string.PengramHideTail, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubblesHeader, 0, R.string.PengramHideTailInfo},
-            {R.string.PengramHideEditedLabel, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubblesHeader, 0, R.string.PengramHideEditedLabelInfo},
             {R.string.PengramForceDeleteForAll, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramSelectionLimit, 0, R.string.PengramForceDeleteForAllInfo},
             {R.string.PengramMenuCopyMessageId, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
             {R.string.PengramMenuSaveToSaved, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
-            {R.string.PengramResendHere, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
             {R.string.PengramAIMenu, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
-            {R.string.PengramResendTo, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
             {R.string.PengramMessageIslandEnable, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageIsland, 0, 0},
             {R.string.PengramMessageIslandButtons, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageIsland, 0, 0},
             {R.string.PengramMessageIslandLabels, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageIsland, 0, 0},
@@ -381,6 +372,7 @@ public final class PengramSearchIndex {
             {R.string.PengramChatMenuTop, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramChatMenu, 0, 0},
             {R.string.PengramChatMenuBottom, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramChatMenu, 0, 0},
             {R.string.PengramMenuItemsTitle, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramHideMenuHeader, 0, 0},
+            {R.string.PengramMenuReadAll, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramHideMenuHeader, 0, 0},
             {R.string.PengramSettingsItemsTitle, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramHideMenuHeader, 0, 0},
             {R.string.PengramChatItemsTitle, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramHideMenuHeader, 0, 0},
             {R.string.PengramCardOnTop, PengramSettingsActivity.SECTION_CHAT_MENUS, R.string.PengramHideMenuHeader, 0, R.string.PengramCardOnTopInfo},
@@ -478,7 +470,6 @@ public final class PengramSearchIndex {
             0x153f7ad2, // PengramDeletedMark (SECTION_CUSTOM)
             0x19934033, // PengramEditedMark (SECTION_CUSTOM)
             0x1cb722eb, // PengramFadeDeleted (SECTION_CUSTOM)
-            0x1a50235f, // PengramMarkEditedOption (SECTION_CUSTOM)
             0x145cbc47, // PengramDeleteEffect (SECTION_CUSTOM)
             0x1033aec8, // PengramDeleteEffectIncoming (SECTION_CUSTOM)
             0x3cb5df4f, // PengramIdFormatPicker (SECTION_PROFILE)
@@ -508,13 +499,10 @@ public final class PengramSearchIndex {
             0x382a3b12, // PengramSaveInBots (SECTION_HISTORY)
             0x31803414, // PengramSaveReadDate (SECTION_HISTORY)
             0x140e00e8, // PengramSaveLastOnline (SECTION_HISTORY)
-            0x16568a68, // PengramHistoryOpenPencil (SECTION_HISTORY)
-            0x1779f87d, // PengramHistoryOpenLongPress (SECTION_HISTORY)
             0x3bb0d277, // PengramSaveForMyselfOption (SECTION_HISTORY)
             0x32c52a6c, // PengramSaveForMyselfDefault (SECTION_HISTORY)
             0x1f5a80d7, // PengramLocalKeep (SECTION_HISTORY)
             0x15d9da00, // PengramProfileHistory (SECTION_HISTORY)
-            0x17afc923, // PengramKeepDeleted (SECTION_HISTORY)
             0x3cf9eac5, // PengramDeletedReplyQuote (SECTION_HISTORY)
             0x124d3ac1, // PengramDeletedReplySign (SECTION_HISTORY)
             0x37e2b282, // PengramKeepDays (SECTION_HISTORY)
@@ -702,21 +690,16 @@ public final class PengramSearchIndex {
             0x151c1c6d, // PengramLinkFallbackMode (SECTION_LINK_ASSISTANT)
             0x3c27d54b, // PengramLinkCaptionMode (SECTION_LINK_ASSISTANT)
             0x152e8766, // PengramQuickAdd (SECTION_CHAT_ACTIONS)
-            0x157e3ffd, // PengramResendOnce (SECTION_CHAT_ACTIONS)
-            0x161edc82, // PengramResendAsk (SECTION_CHAT_ACTIONS)
             0x11d47eb8, // PengramCopySignAuthor (SECTION_CHAT_ACTIONS)
             0x35e5b650, // PengramForwardLock (SECTION_CHAT_ACTIONS)
             0x1f227930, // PengramForwardDoneAlert (SECTION_CHAT_ACTIONS)
             0x3fdf2e36, // PengramChatLook (SECTION_CHAT_MESSAGES)
             0x309c900f, // PengramKeepFormatting (SECTION_CHAT_MESSAGES)
             0x3aba5269, // PengramHideTail (SECTION_CHAT_MESSAGES)
-            0x3d189c89, // PengramHideEditedLabel (SECTION_CHAT_MESSAGES)
             0x33746d5b, // PengramForceDeleteForAll (SECTION_CHAT_MESSAGES)
             0x3d59d9a4, // PengramMenuCopyMessageId (SECTION_CHAT_MESSAGES)
             0x373b3f66, // PengramMenuSaveToSaved (SECTION_CHAT_MESSAGES)
-            0x10de9ab0, // PengramResendHere (SECTION_CHAT_MESSAGES)
             0x1d304733, // PengramAIMenu (SECTION_CHAT_MESSAGES)
-            0x117f25fe, // PengramResendTo (SECTION_CHAT_MESSAGES)
             0x3943cd78, // PengramMessageIslandEnable (SECTION_CHAT_MESSAGES)
             0x10aa6fa1, // PengramMessageIslandButtons (SECTION_CHAT_MESSAGES)
             0x1228f607, // PengramMessageIslandLabels (SECTION_CHAT_MESSAGES)
@@ -801,6 +784,7 @@ public final class PengramSearchIndex {
             0x1e13e0df, // PengramChatMenuTop (SECTION_CHAT_MENUS)
             0x324fd549, // PengramChatMenuBottom (SECTION_CHAT_MENUS)
             0x3184b510, // PengramMenuItemsTitle (SECTION_CHAT_MENUS)
+            0x176bc91c, // PengramMenuReadAll (SECTION_CHAT_MENUS)
             0x1d821a1f, // PengramSettingsItemsTitle (SECTION_CHAT_MENUS)
             0x331c82d3, // PengramChatItemsTitle (SECTION_CHAT_MENUS)
             0x390793f8, // PengramCardOnTop (SECTION_CHAT_MENUS)

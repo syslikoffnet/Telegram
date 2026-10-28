@@ -4756,6 +4756,9 @@ public class MessagesStorage extends BaseController {
     }
 
     public void emptyMessagesMedia(long dialogId, ArrayList<Integer> mids) {
+        if (PengramConfig.isKeepingOnceMedia()) {
+            return;
+        }
         storageQueue.postRunnable(() -> {
             SQLiteCursor cursor = null;
             SQLitePreparedStatement state = null;
@@ -14769,24 +14772,28 @@ public class MessagesStorage extends BaseController {
                         if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
                             continue; // «Избранное» — там ничего не пропадает
                         }
-                        if (!PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)
-                                || PengramHistory.isUserDeleted(message.id)) continue;
+                        if (PengramHistory.isUserDeleted(message.id)) continue;
+                        final boolean archivable = PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED);
                         final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
                         final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
-                        final boolean archived = saveArchive
+                        final boolean archived = saveArchive && archivable
                                 && !(!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did))
                                 && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave);
                         if (archived || keepVisible) {
-                            final String text = PengramHistory.describe(message);
-                            // Сначала переносим голосовое во внутреннее постоянное хранилище и
-                            // обновляем attachPath, затем сериализуем сообщение в историю.
-                            if (archived) pengramSaveDeletedMedia(did, message);
-                            PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
-                                    PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                            if (archivable) {
+                                final String text = PengramHistory.describe(message);
+                                // Сначала переносим голосовое во внутреннее постоянное хранилище и
+                                // обновляем attachPath, затем сериализуем сообщение в историю.
+                                if (archived) pengramSaveDeletedMedia(did, message);
+                                PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
+                                        PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                            }
                         }
                         if (!archived && !keepVisible) {
-                            // ни в архив, ни в чате не остаётся — метка не нужна
-                            continue;
+                            if (!saveArchive) {
+                                // ни в архив, ни в чате не остаётся — метка не нужна
+                                continue;
+                            }
                         }
                         ArrayList<Integer> marks = marksByDialog.get(did);
                         if (marks == null) {

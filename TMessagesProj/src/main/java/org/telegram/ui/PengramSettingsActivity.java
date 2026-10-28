@@ -191,6 +191,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     // AI: сервисы, роли и поведение ответа
     private static final int BTN_ORIGINAL_NAME = 1710;
+    private static final int BTN_MENU_READ_ALL = 1711;
     private static final int BTN_MONET_STRENGTH = 1720;
     private static final int BTN_AI_ADD_SERVICE = 1700;
     private static final int BTN_AI_ADD_ROLE = 1701;
@@ -1843,7 +1844,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.MARK_EDIT_PENCIL: text = getString(R.string.PengramMarkPencil); break;
             case PengramConfig.MARK_EDIT_CLOCK: text = getString(R.string.PengramMarkClock); break;
             case PengramConfig.MARK_EDIT_DOT: text = getString(R.string.PengramMarkDot); break;
-            default: return getString(R.string.PengramMarkNone);
+            case PengramConfig.MARK_EDIT_HIDDEN: return getString(R.string.PengramMarkEditHidden);
+            default: return getString(R.string.PengramMarkEditStandard);
         }
         return withMarkIcon(text, PengramConfig.getEditedMarkIcon(mark));
     }
@@ -1875,7 +1877,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         final LinearLayout linearLayout = new LinearLayout(context);
         linearLayout.setOrientation(LinearLayout.VERTICAL);
-        final int count = edited ? 4 : 5;
+        final int count = 5;
         final org.telegram.ui.Cells.RadioColorCell[] cells = new org.telegram.ui.Cells.RadioColorCell[count];
         for (int a = 0; a < cells.length; ++a) {
             final int mark = a;
@@ -1888,9 +1890,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             cells[a].setOnClickListener(v -> {
                 if (edited) {
                     PengramConfig.setEditedMark(mark);
-                    if (mark != PengramConfig.MARK_EDIT_NONE && !PengramConfig.isMarkingEdited()) {
-                        PengramConfig.setBool(PengramConfig.KEY_MARK_EDITED, true);
-                    }
                 } else {
                     PengramConfig.setDeletedMark(mark);
                 }
@@ -3041,7 +3040,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_DELETED_MARK, R.drawable.msg_delete, getString(R.string.PengramDeletedMark), markName(PengramConfig.getDeletedMark())));
         items.add(UItem.asSettingsCell(BTN_EDITED_MARK, R.drawable.msg_edit, getString(R.string.PengramEditedMark), editedMarkName(PengramConfig.getEditedMark())));
         items.add(check(PengramConfig.KEY_FADE_DELETED, true, getString(R.string.PengramFadeDeleted)));
-        items.add(check(PengramConfig.KEY_MARK_EDITED, false, getString(R.string.PengramMarkEditedOption)));
         items.add(UItem.asShadow(getString(R.string.PengramDeletedLookInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeleteEffectHeader)));
@@ -3221,9 +3219,6 @@ public class PengramSettingsActivity extends UniversalFragment {
                     .setChecked(PengramConfig.saveEditedMedia));
             items.add(UItem.asShadow(getString(R.string.PengramHistoryEditedMediaInfo)));
         }
-        items.add(UItem.asHeader(getString(R.string.PengramHistoryOpenMethod)));
-        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MARK, true, getString(R.string.PengramHistoryOpenPencil)));
-        items.add(check(PengramConfig.KEY_EDIT_HISTORY_MENU, false, getString(R.string.PengramHistoryOpenLongPress)));
         final boolean saving = PengramConfig.saveDeleted || PengramConfig.saveEdited;
         if (saving) {
             items.add(UItem.asCheck(BTN_HIST_OUTGOING, getString(R.string.PengramHistorySaveOutgoing))
@@ -3256,15 +3251,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 onOff(org.telegram.messenger.PengramProfileHistory.enabled())));
         items.add(UItem.asShadow(getString(R.string.PengramProfileHistoryDisabledInfo)));
 
-        if (PengramConfig.saveDeleted) {
+        if (PengramConfig.isKeepingDeletedInChat()) {
             items.add(UItem.asHeader(getString(R.string.PengramInChatHeader)));
-            items.add(check(PengramConfig.KEY_KEEP_DELETED, true, getString(R.string.PengramKeepDeleted)));
-            if (PengramConfig.isKeepingDeletedInChat()) {
-                // отвечать на удалённое можно только там, где оно осталось видимым
-                items.add(check(PengramConfig.KEY_DELETED_REPLY_QUOTE, true, getString(R.string.PengramDeletedReplyQuote)));
-                if (PengramConfig.isDeletedReplyQuote()) {
-                    items.add(check(PengramConfig.KEY_DELETED_REPLY_SIGN, true, getString(R.string.PengramDeletedReplySign)));
-                }
+            items.add(check(PengramConfig.KEY_DELETED_REPLY_QUOTE, true, getString(R.string.PengramDeletedReplyQuote)));
+            if (PengramConfig.isDeletedReplyQuote()) {
+                items.add(check(PengramConfig.KEY_DELETED_REPLY_SIGN, true, getString(R.string.PengramDeletedReplySign)));
             }
             items.add(UItem.asShadow(getString(PengramConfig.isDeletedReplyQuote()
                     ? R.string.PengramDeletedReplyInfo
@@ -4229,10 +4220,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramQuickActionsInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramDeletedSendHeader)));
-        // Базовые пункты отправки удалёнки и отправка без чужой подписи всегда включены.
-        // Пользователю остаются только действительно значимые варианты поведения.
-        items.add(check(PengramConfig.KEY_RESEND_ONCE, true, getString(R.string.PengramResendOnce)));
-        items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT, false, getString(R.string.PengramResendAsk)));
+        // Отправка удалённых, одноразовых и защищённых сообщений копией всегда включена.
         items.add(checkInfo(PengramConfig.KEY_COPY_SIGN_AUTHOR, false,
                 getString(R.string.PengramCopySignAuthor), getString(R.string.PengramCopySignAuthorInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramResendAlwaysOnInfo)));
@@ -4251,7 +4239,6 @@ public class PengramSettingsActivity extends UniversalFragment {
         // --- вид пузырей (переехало сюда из «Оформления»: это про сообщения, а не про тему) ---
         items.add(UItem.asHeader(getString(R.string.PengramBubblesHeader)));
         items.add(checkInfo(PengramConfig.KEY_HIDE_TAIL, false, getString(R.string.PengramHideTail), getString(R.string.PengramHideTailInfo)));
-        items.add(checkInfo(PengramConfig.KEY_HIDE_EDITED_LABEL, false, getString(R.string.PengramHideEditedLabel), getString(R.string.PengramHideEditedLabelInfo)));
         items.add(UItem.asShadow(null));
 
         // --- время, которое лежит поверх стикера/медиа ---
@@ -4264,9 +4251,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramMessageMenuHeader)));
         items.add(check(PengramConfig.KEY_MENU_COPY_MESSAGE_ID, true, getString(R.string.PengramMenuCopyMessageId)));
         items.add(check(PengramConfig.KEY_MENU_SAVE_TO_SAVED, true, getString(R.string.PengramMenuSaveToSaved)));
-        items.add(check("messageMenuResendHere", false, getString(R.string.PengramResendHere)));
         items.add(check("messageMenuAskAI", false, getString(R.string.PengramAIMenu)));
-        items.add(check("messageMenuResendTo", false, getString(R.string.PengramResendTo)));
         items.add(UItem.asShadow(getString(R.string.PengramMessageMenuInfo)));
 
         // --- островок действий: короткая полоса быстрых кнопок внутри того же меню ---
@@ -4685,6 +4670,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramHideMenuHeader)));
         items.add(UItem.asSettingsCell(BTN_MENU_ITEMS, R.drawable.msg_viewchats, getString(R.string.PengramMenuItemsTitle), hiddenMenuValue()));
+        items.add(UItem.asCheck(BTN_MENU_READ_ALL, getString(R.string.PengramMenuReadAll)).setChecked(PengramConfig.isReadAllMenuShown()));
         items.add(UItem.asSettingsCell(BTN_SETTINGS_ITEMS, R.drawable.msg_settings_old, getString(R.string.PengramSettingsItemsTitle), hiddenSettingsValue()));
         items.add(UItem.asSettingsCell(BTN_CHAT_ITEMS, R.drawable.msg_message, getString(R.string.PengramChatItemsTitle), hiddenChatItemsValue()));
         items.add(checkInfo(PengramConfig.KEY_PENGRAM_CARD, true, getString(R.string.PengramCardOnTop), getString(R.string.PengramCardOnTopInfo)));
@@ -4939,10 +4925,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (item.id == boolId(PengramConfig.KEY_BACKGROUND_MODE)) {
                 org.telegram.messenger.PengramBackgroundService.update(getContext());
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
-            } else if (item.id == boolId(PengramConfig.KEY_KEEP_DELETED)
+            } else if (item.id == boolId(org.telegram.messenger.PengramLocalKeep.KEY_ENABLED)
                     || item.id == boolId(PengramConfig.KEY_DELETED_REPLY_QUOTE)
-                    || item.id == boolId(PengramConfig.KEY_FADE_DELETED)
-                    || item.id == boolId(PengramConfig.KEY_MARK_EDITED)) {
+                    || item.id == boolId(PengramConfig.KEY_FADE_DELETED)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
             }
             return;
@@ -5163,6 +5148,12 @@ public class PengramSettingsActivity extends UniversalFragment {
             }
             case BTN_MENU_ITEMS:
                 presentFragment(new PengramMenuItemsActivity(PengramMenuItemsActivity.MODE_MENU));
+                return;
+            case BTN_MENU_READ_ALL:
+                PengramConfig.setReadAllMenuShown(!PengramConfig.isReadAllMenuShown());
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
                 return;
             case BTN_FONT_SIZE: {
                 final int[] sizes = new int[]{12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28, 30};

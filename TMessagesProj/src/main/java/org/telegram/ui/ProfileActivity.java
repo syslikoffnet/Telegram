@@ -5633,10 +5633,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             nameTextView[a].setFocusable(a == 0);
-            // Pengram: жест по имени показывает вторую известную версию имени
-            if (a == 1) {
-                org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
-            }
+            // Pengram: жест по имени показывает настоящее имя контакта в Telegram
+            org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
@@ -11551,18 +11549,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private MessagesController.PeerColor peerColor;
 
-    /** показано ли сейчас «второе» имя вместо обычного */
+    /** показано ли сейчас настоящее имя в Telegram вместо контактного */
     private boolean pengramOriginalNameShown;
+    private String pengramOriginalNameValue;
 
     /**
-     * Жест по имени: показать, как человека видят остальные, и вернуть вашу
-     * запись обратно. Ни диалогов, ни ограничений на число проверок: экран
-     * сначала показывает то, что уже известно, и только потом, если запись
-     * устарела, тихо перечитывает публичную страницу профиля.
+     * Жест по имени: визуально показать настоящее имя человека в Telegram и
+     * вернуть вашу запись обратно по повторному жесту или при выходе с экрана.
      */
     private void pengramToggleOriginalName() {
         final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
-        if (user == null || nameTextView[1] == null) {
+        if (user == null || user.self || user.bot || nameTextView[1] == null) {
             return;
         }
         if (pengramOriginalNameShown) {
@@ -11571,7 +11568,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         final int seq = ++pengramNameCheckSeq;
         final int account = currentAccount;
-        // история профилей живёт в SQLite — ищем в фоне, чтобы не дёргать интерфейс
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final org.telegram.messenger.PengramOriginalName.Result cached =
                     org.telegram.messenger.PengramOriginalName.other(account, user);
@@ -11583,8 +11579,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (cached != null) {
                     pengramShowOriginalName(cached, seq);
                 } else if (!refresh) {
-                    // узнать неоткуда: у человека нет публичной страницы, а
-                    // других источников для этого профиля нет
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameNothing)).show();
                 } else {
@@ -11593,7 +11587,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             });
             if (!refresh) {
-                // известно всё, что можно знать: повторный жест не стоит запроса
                 return;
             }
             org.telegram.messenger.PengramOriginalName.refresh(account, user, result ->
@@ -11602,7 +11595,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             return;
                         }
                         if (result != null) {
-                            if (cached == null || !result.name.equalsIgnoreCase(cached.name)) {
+                            if (cached == null || !result.name.equals(cached.name) || result.sameAsShown != cached.sameAsShown) {
                                 pengramShowOriginalName(result, seq);
                             }
                             return;
@@ -11620,23 +11613,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private Runnable pengramOriginalNameHideRunnable;
 
     private void pengramShowOriginalName(org.telegram.messenger.PengramOriginalName.Result other, int seq) {
-        if (nameTextView[1] == null || other == null) {
+        if (nameTextView[1] == null || other == null || TextUtils.isEmpty(other.name)) {
+            return;
+        }
+        if (pengramOriginalNameHideRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
+            pengramOriginalNameHideRunnable = null;
+        }
+        if (other.sameAsShown) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    LocaleController.formatString(R.string.PengramOriginalNameSame, other.name)).show();
             return;
         }
         pengramOriginalNameShown = true;
-        nameTextView[1].setText(other.name);
+        pengramOriginalNameValue = other.name;
+        updateProfileData(false);
         BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                 getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
-        if (pengramOriginalNameHideRunnable != null) {
-            AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
-        }
-        pengramOriginalNameHideRunnable = () -> {
-            pengramOriginalNameHideRunnable = null;
-            if (seq == pengramNameCheckSeq) {
-                pengramHideOriginalName();
-            }
-        };
-        AndroidUtilities.runOnUIThread(pengramOriginalNameHideRunnable, 6000);
     }
 
     private void pengramHideOriginalName() {
@@ -11647,6 +11640,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         pengramNameCheckSeq++;
         if (pengramOriginalNameShown) {
             pengramOriginalNameShown = false;
+            pengramOriginalNameValue = null;
             updateProfileData(false);
         }
     }
@@ -11757,7 +11751,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 getFileLoader().loadFile(imageLocation, user, null, FileLoader.PRIORITY_LOW, 1);
             }
 
-            CharSequence newString = UserObject.getUserName(user);
+            CharSequence newString = pengramOriginalNameShown && !TextUtils.isEmpty(pengramOriginalNameValue)
+                    ? pengramOriginalNameValue
+                    : UserObject.getUserName(user);
             String newString2;
             boolean hiddenStatusButton = false;
             if (user.id == getUserConfig().getClientUserId()) {
