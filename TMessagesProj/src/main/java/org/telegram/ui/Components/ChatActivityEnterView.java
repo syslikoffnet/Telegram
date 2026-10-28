@@ -6885,7 +6885,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void dismissPengramSheetSilently() {
         if (pengramLinkSheet != null) {
             try {
-                pengramLinkSheet.setOnDismissListener(null);
+                pengramLinkSheet.setOnDismissListener((android.content.DialogInterface.OnDismissListener) null);
                 pengramLinkSheet.dismiss();
             } catch (Throwable ignore) {
             }
