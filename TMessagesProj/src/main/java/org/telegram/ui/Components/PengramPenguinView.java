@@ -308,7 +308,6 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     public void onSurfaceTextureUpdated(SurfaceTexture surface) {
     }
 
-    @Override
     private final Object wakeLock = new Object();
     private volatile boolean hiddenByView;
 
