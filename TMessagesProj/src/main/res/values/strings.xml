@@ -13029,6 +13029,8 @@
     <string name="PengramLinkPreviewPhotos">Photos only</string>
     <string name="PengramLinkPreviewVideos">Videos only</string>
     <string name="PengramLinkPreviewAll">Photos and videos</string>
+    <string name="PengramLinkIslandPreviewBtn">Preview button on link bar</string>
+    <string name="PengramLinkIslandPreviewBtnInfo">Show a quick preview button on the link bar when auto-preview does not open automatically</string>
     <string name="PengramLinkPreviewInfo">Tap a photo to send it right away, long-press to select multiple photos, or send as a plain link.</string>
     <string name="PengramLinkHeaderPhotos">MULTIPLE PHOTOS (TIKTOK CAROUSEL)</string>
     <string name="PengramLinkPhotoStitchMode">Multiple photos in link</string>

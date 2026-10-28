@@ -275,6 +275,7 @@ public final class PengramSearchIndex {
             {R.string.PengramSubsectionMenus, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderGeneral, 0, R.string.PengramLinkAssistantInfo},
             {R.string.PengramLinkPreviewMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, 0},
+            {R.string.PengramLinkIslandPreviewBtn, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, R.string.PengramLinkIslandPreviewBtnInfo},
             {R.string.PengramLinkPhotoStitchMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
             {R.string.PengramLinkSlideAudio, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
             {R.string.PengramLinkSlideDuration, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
@@ -346,12 +347,20 @@ public final class PengramSearchIndex {
             {R.string.PengramInputAnimationIntensity, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramInputAnimationHaptic, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramTypingBlur, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
+            {R.string.PengramTypingBlurRadius, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramTypingIgnoreSpaces, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingBehaviorHeader, 0, 0},
             {R.string.PengramTypingAllLines, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingBehaviorHeader, 0, 0},
             {R.string.PengramTypingDelete, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
             {R.string.PengramTypingDeleteStyle, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
+            {R.string.PengramTypingDeleteCount, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
+            {R.string.PengramTypingDeleteSpeed, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
+            {R.string.PengramTypingDeleteSpread, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
+            {R.string.PengramTypingDeleteSize, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingDeleteHeader, 0, 0},
             {R.string.PengramTypingCursorSmooth, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
+            {R.string.PengramTypingCursorSpeed, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
+            {R.string.PengramTypingCursorWidth, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
             {R.string.PengramTypingCursorLiquid, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
+            {R.string.PengramTypingCursorStretch, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
             {R.string.PengramTypingSelectionLiquid, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingCursorHeader, 0, 0},
             {R.string.PengramTypingStatsEnable, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
             {R.string.PengramTypingStatsBadge, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
@@ -686,6 +695,7 @@ public final class PengramSearchIndex {
             0x38e80bc3, // PengramSubsectionMenus (SECTION_CHATS)
             0x19fa1f8b, // PengramLinkAssistant (SECTION_LINK_ASSISTANT)
             0x1d7dcd31, // PengramLinkPreviewMode (SECTION_LINK_ASSISTANT)
+            0x3b85fcfe, // PengramLinkIslandPreviewBtn (SECTION_LINK_ASSISTANT)
             0x12abf83a, // PengramLinkPhotoStitchMode (SECTION_LINK_ASSISTANT)
             0x3c0992cf, // PengramLinkSlideAudio (SECTION_LINK_ASSISTANT)
             0x30cfb07d, // PengramLinkSlideDuration (SECTION_LINK_ASSISTANT)
@@ -757,12 +767,20 @@ public final class PengramSearchIndex {
             0x15dbc560, // PengramInputAnimationIntensity (SECTION_TYPING)
             0x1299115d, // PengramInputAnimationHaptic (SECTION_TYPING)
             0x3ca42a88, // PengramTypingBlur (SECTION_TYPING)
+            0x3e7188eb, // PengramTypingBlurRadius (SECTION_TYPING)
             0x36b5fd1a, // PengramTypingIgnoreSpaces (SECTION_TYPING)
             0x1e9f54ec, // PengramTypingAllLines (SECTION_TYPING)
             0x1c598b32, // PengramTypingDelete (SECTION_TYPING)
             0x3e8cbf88, // PengramTypingDeleteStyle (SECTION_TYPING)
+            0x3400bd53, // PengramTypingDeleteCount (SECTION_TYPING)
+            0x3e9406c1, // PengramTypingDeleteSpeed (SECTION_TYPING)
+            0x1bf713c4, // PengramTypingDeleteSpread (SECTION_TYPING)
+            0x1afd1847, // PengramTypingDeleteSize (SECTION_TYPING)
             0x16434f02, // PengramTypingCursorSmooth (SECTION_TYPING)
+            0x15334a33, // PengramTypingCursorSpeed (SECTION_TYPING)
+            0x1560b829, // PengramTypingCursorWidth (SECTION_TYPING)
             0x3af846be, // PengramTypingCursorLiquid (SECTION_TYPING)
+            0x3356109b, // PengramTypingCursorStretch (SECTION_TYPING)
             0x1ac9318f, // PengramTypingSelectionLiquid (SECTION_TYPING)
             0x103210b3, // PengramTypingStatsEnable (SECTION_TYPING)
             0x364ff4df, // PengramTypingStatsBadge (SECTION_TYPING)

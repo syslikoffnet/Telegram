@@ -42,6 +42,7 @@ import org.telegram.ui.ActionBar.BottomSheet;
 import org.telegram.ui.ActionBar.Theme;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -202,10 +203,8 @@ public final class PengramLinkPreviewSheet {
 
         root.addView(header, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 10));
 
-        // --- Quick chips row (caption mode + sound toggle + select-all) ---
-        final LinearLayout chipsRow = new LinearLayout(context);
-        chipsRow.setOrientation(LinearLayout.HORIZONTAL);
-        chipsRow.setGravity(Gravity.CENTER_VERTICAL);
+        // --- Quick chips row (caption mode + sound toggle; wraps cleanly on narrow screens) ---
+        final FlowChipsLayout chipsRow = new FlowChipsLayout(context, dp(6), dp(6));
 
         final TextView captionChip = createChipView(context, textColor, cardBg);
         updateCaptionChipText(captionChip, captionMode[0]);
@@ -214,7 +213,8 @@ public final class PengramLinkPreviewSheet {
             captionMode[0] = (captionMode[0] + 1) % 3;
             updateCaptionChipText(captionChip, captionMode[0]);
         });
-        chipsRow.addView(captionChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
+        chipsRow.addView(captionChip, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
 
         if (hasSoundTrack && resolved.photos.size() > 1) {
             final TextView soundChip = createChipView(context, soundEnabled[0] ? accentColor : subColor, cardBg);
@@ -229,31 +229,42 @@ public final class PengramLinkPreviewSheet {
                         ? R.string.PengramLinkPreviewSoundChipOn
                         : R.string.PengramLinkPreviewSoundChipOff));
             });
-            chipsRow.addView(soundChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
-        }
-
-        final View spacer = new View(context);
-        chipsRow.addView(spacer, LayoutHelper.createLinear(0, 1, 1f));
-
-        final TextView selectAllBtn = new TextView(context);
-        if (resolved.isPhotos() && resolved.photos.size() > 1) {
-            selectAllBtn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            selectAllBtn.setTypeface(AndroidUtilities.bold());
-            selectAllBtn.setTextColor(accentColor);
-            selectAllBtn.setPadding(dp(8), dp(4), dp(4), dp(4));
-            selectAllBtn.setText(LocaleController.getString(R.string.PengramLinkPreviewSelectAll));
-            chipsRow.addView(selectAllBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+            chipsRow.addView(soundChip, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
         }
 
         root.addView(chipsRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
 
-        // --- Hint bar for multi-photo interaction ---
+        // --- Hint + Select-All bar for multi-photo interaction (selectAllBtn guaranteed inside bounds) ---
         final TextView hintView = new TextView(context);
+        final TextView selectAllBtn = new TextView(context);
         if (resolved.isPhotos() && resolved.photos.size() > 1) {
+            final LinearLayout selectionRow = new LinearLayout(context);
+            selectionRow.setOrientation(LinearLayout.HORIZONTAL);
+            selectionRow.setGravity(Gravity.CENTER_VERTICAL);
+
             hintView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
             hintView.setTextColor(subColor);
             hintView.setText(LocaleController.getString(R.string.PengramLinkPreviewTapHint));
-            root.addView(hintView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
+            selectionRow.addView(hintView, LayoutHelper.createLinear(
+                    0, LayoutHelper.WRAP_CONTENT, 1f, Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
+
+            selectAllBtn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12.5f);
+            selectAllBtn.setTypeface(AndroidUtilities.bold());
+            selectAllBtn.setTextColor(accentColor);
+            selectAllBtn.setSingleLine(true);
+            selectAllBtn.setGravity(Gravity.CENTER);
+            selectAllBtn.setPadding(dp(10), dp(5), dp(10), dp(5));
+            selectAllBtn.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(12),
+                    ColorUtils.setAlphaComponent(accentColor, isDark ? 36 : 20),
+                    ColorUtils.setAlphaComponent(accentColor, 56)));
+            selectAllBtn.setText(LocaleController.getString(R.string.PengramLinkPreviewSelectAll));
+            selectionRow.addView(selectAllBtn, LayoutHelper.createLinear(
+                    LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
+
+            root.addView(selectionRow, LayoutHelper.createLinear(
+                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
         }
 
         // --- Action buttons (declared before tiles so selection listeners update them live) ---
@@ -323,7 +334,9 @@ public final class PengramLinkPreviewSheet {
             final int count = resolved.photos.size();
             if (count == 1) {
                 final PhotoTileView singleTile = new PhotoTileView(context, 0, cardBg, accentColor, false);
-                singleTile.loadThumb(resolved.photos.get(0).thumbUrl, resolved.cookies, resolved.referer);
+                singleTile.loadThumb(
+                        PengramLinkAssistant.getCachedTikTokPhotoFile(request.url, 0),
+                        resolved.photos.get(0).thumbUrl, resolved.cookies, resolved.referer);
                 singleTile.setOnClickListener(v -> {
                     actionTaken[0] = true;
                     sheet.dismiss();
@@ -345,7 +358,9 @@ public final class PengramLinkPreviewSheet {
                         final int photoIndex = idx + c;
                         if (photoIndex < count) {
                             final PhotoTileView tile = new PhotoTileView(context, photoIndex, cardBg, accentColor, true);
-                            tile.loadThumb(resolved.photos.get(photoIndex).thumbUrl, resolved.cookies, resolved.referer);
+                            tile.loadThumb(
+                                    PengramLinkAssistant.getCachedTikTokPhotoFile(request.url, photoIndex),
+                                    resolved.photos.get(photoIndex).thumbUrl, resolved.cookies, resolved.referer);
                             tile.setTileInteraction(new PhotoTileView.Interaction() {
                                 @Override
                                 public void onTapBody(int index) {
@@ -616,9 +631,78 @@ public final class PengramLinkPreviewSheet {
         tv.setTypeface(AndroidUtilities.bold());
         tv.setTextColor(textColor);
         tv.setSingleLine(true);
+        tv.setEllipsize(TextUtils.TruncateAt.END);
         tv.setPadding(dp(10), 0, dp(10), 0);
         tv.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(15), bg, ColorUtils.setAlphaComponent(textColor, 26)));
         return tv;
+    }
+
+    private static final class FlowChipsLayout extends ViewGroup {
+        private final int hGap;
+        private final int vGap;
+
+        FlowChipsLayout(Context context, int hGap, int vGap) {
+            super(context);
+            this.hGap = hGap;
+            this.vGap = vGap;
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            final int maxWidth = MeasureSpec.getSize(widthMeasureSpec);
+            final int availWidth = Math.max(0, maxWidth - getPaddingLeft() - getPaddingRight());
+            int x = 0;
+            int y = getPaddingTop();
+            int rowHeight = 0;
+            final int count = getChildCount();
+            for (int i = 0; i < count; i++) {
+                final View child = getChildAt(i);
+                if (child.getVisibility() == GONE) {
+                    continue;
+                }
+                final LayoutParams lp = child.getLayoutParams();
+                final int childHeightSpec = lp != null && lp.height > 0
+                        ? MeasureSpec.makeMeasureSpec(lp.height, MeasureSpec.EXACTLY)
+                        : MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
+                child.measure(MeasureSpec.makeMeasureSpec(availWidth, MeasureSpec.AT_MOST), childHeightSpec);
+                final int cw = child.getMeasuredWidth();
+                final int ch = child.getMeasuredHeight();
+                if (x > 0 && x + cw > availWidth) {
+                    y += rowHeight + vGap;
+                    x = 0;
+                    rowHeight = 0;
+                }
+                x += cw + hGap;
+                rowHeight = Math.max(rowHeight, ch);
+            }
+            final int totalHeight = y + rowHeight + getPaddingBottom();
+            setMeasuredDimension(maxWidth, resolveSize(totalHeight, heightMeasureSpec));
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            final int availWidth = Math.max(0, (r - l) - getPaddingLeft() - getPaddingRight());
+            int x = getPaddingLeft();
+            int y = getPaddingTop();
+            int rowHeight = 0;
+            final int count = getChildCount();
+            for (int i = 0; i < count; i++) {
+                final View child = getChildAt(i);
+                if (child.getVisibility() == GONE) {
+                    continue;
+                }
+                final int cw = child.getMeasuredWidth();
+                final int ch = child.getMeasuredHeight();
+                if (x > getPaddingLeft() && (x - getPaddingLeft()) + cw > availWidth) {
+                    y += rowHeight + vGap;
+                    x = getPaddingLeft();
+                    rowHeight = 0;
+                }
+                child.layout(x, y, x + cw, y + ch);
+                x += cw + hGap;
+                rowHeight = Math.max(rowHeight, ch);
+            }
+        }
     }
 
     private static TextView createActionButton(Context context, int bg, int fg, boolean bold) {
@@ -651,76 +735,128 @@ public final class PengramLinkPreviewSheet {
 
     // --- Асинхронная загрузка миниатюр с дисковым/RAM-кешированием ---
 
-    private static void fetchBitmapAsync(String url, Map<String, String> cookies, String referer,
+    private static void fetchBitmapAsync(@Nullable File localFile, String url,
+                                         Map<String, String> cookies, String referer,
                                          int maxPx, BitmapReceiver receiver) {
-        if (url == null || url.isEmpty()) {
+        final String cacheKey = (url != null && !url.isEmpty())
+                ? url
+                : (localFile != null ? "file:" + localFile.getAbsolutePath() : "");
+        if (cacheKey.isEmpty()) {
             return;
         }
-        final Bitmap cached = THUMB_CACHE.get(url);
+        final Bitmap cached = THUMB_CACHE.get(cacheKey);
         if (cached != null && !cached.isRecycled()) {
             receiver.onBitmap(cached);
             return;
         }
-        THUMB_EXECUTOR.execute(() -> {
-            HttpURLConnection conn = null;
-            try {
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(10_000);
-                conn.setReadTimeout(12_000);
-                conn.setRequestProperty("User-Agent", PengramLinkResolver.UA_DESKTOP);
-                if (referer != null && !referer.isEmpty()) {
-                    conn.setRequestProperty("Referer", referer);
-                }
-                if (cookies != null && !cookies.isEmpty()) {
-                    final StringBuilder sb = new StringBuilder();
-                    for (Map.Entry<String, String> e : cookies.entrySet()) {
-                        if (sb.length() > 0) {
-                            sb.append("; ");
-                        }
-                        sb.append(e.getKey()).append('=').append(e.getValue());
+        if (localFile != null && localFile.exists() && localFile.length() > 128L) {
+            THUMB_EXECUTOR.execute(() -> {
+                try {
+                    final Bitmap bmp = decodeSampledFile(localFile, maxPx);
+                    if (bmp != null) {
+                        THUMB_CACHE.put(cacheKey, bmp);
+                        AndroidUtilities.runOnUIThread(() -> receiver.onBitmap(bmp));
+                        return;
                     }
-                    conn.setRequestProperty("Cookie", sb.toString());
+                } catch (Throwable ignore) {
                 }
-                if (conn.getResponseCode() / 100 != 2) {
-                    return;
-                }
-                final ByteArrayOutputStream bos = new ByteArrayOutputStream(32 * 1024);
-                try (InputStream in = conn.getInputStream()) {
-                    final byte[] buf = new byte[8192];
-                    int n;
-                    while ((n = in.read(buf)) > 0) {
-                        if (bos.size() + n > 8 * 1024 * 1024) {
-                            return;
-                        }
-                        bos.write(buf, 0, n);
+                fetchBitmapFromNetwork(cacheKey, url, cookies, referer, maxPx, receiver);
+            });
+            return;
+        }
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+        THUMB_EXECUTOR.execute(() -> fetchBitmapFromNetwork(cacheKey, url, cookies, referer, maxPx, receiver));
+    }
+
+    private static void fetchBitmapAsync(String url, Map<String, String> cookies, String referer,
+                                         int maxPx, BitmapReceiver receiver) {
+        fetchBitmapAsync(null, url, cookies, referer, maxPx, receiver);
+    }
+
+    @Nullable
+    private static Bitmap decodeSampledFile(File file, int maxPx) {
+        final BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null;
+        }
+        int sample = 1;
+        while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) {
+            sample *= 2;
+        }
+        final BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inSampleSize = sample;
+        opts.inPreferredConfig = Bitmap.Config.RGB_565;
+        return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+    }
+
+    private static void fetchBitmapFromNetwork(String cacheKey, String url,
+                                               Map<String, String> cookies, String referer,
+                                               int maxPx, BitmapReceiver receiver) {
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(12_000);
+            conn.setRequestProperty("User-Agent", PengramLinkResolver.UA_DESKTOP);
+            if (referer != null && !referer.isEmpty()) {
+                conn.setRequestProperty("Referer", referer);
+            }
+            if (cookies != null && !cookies.isEmpty()) {
+                final StringBuilder sb = new StringBuilder();
+                for (Map.Entry<String, String> e : cookies.entrySet()) {
+                    if (sb.length() > 0) {
+                        sb.append("; ");
                     }
+                    sb.append(e.getKey()).append('=').append(e.getValue());
                 }
-                final byte[] bytes = bos.toByteArray();
-                final BitmapFactory.Options bounds = new BitmapFactory.Options();
-                bounds.inJustDecodeBounds = true;
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                    return;
-                }
-                int sample = 1;
-                while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) {
-                    sample *= 2;
-                }
-                final BitmapFactory.Options opts = new BitmapFactory.Options();
-                opts.inSampleSize = sample;
-                opts.inPreferredConfig = Bitmap.Config.RGB_565;
-                final Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
-                if (bmp != null) {
-                    THUMB_CACHE.put(url, bmp);
-                    AndroidUtilities.runOnUIThread(() -> receiver.onBitmap(bmp));
-                }
-            } catch (Throwable ignore) {
-            } finally {
-                if (conn != null) {
-                    conn.disconnect();
+                conn.setRequestProperty("Cookie", sb.toString());
+            }
+            if (conn.getResponseCode() / 100 != 2) {
+                return;
+            }
+            final ByteArrayOutputStream bos = new ByteArrayOutputStream(32 * 1024);
+            try (InputStream in = conn.getInputStream()) {
+                final byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    if (bos.size() + n > 8 * 1024 * 1024) {
+                        return;
+                    }
+                    bos.write(buf, 0, n);
                 }
             }
-        });
+            final byte[] bytes = bos.toByteArray();
+            final BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                return;
+            }
+            int sample = 1;
+            while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) {
+                sample *= 2;
+            }
+            final BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            opts.inPreferredConfig = Bitmap.Config.RGB_565;
+            final Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
+            if (bmp != null) {
+                THUMB_CACHE.put(cacheKey, bmp);
+                AndroidUtilities.runOnUIThread(() -> receiver.onBitmap(bmp));
+            }
+        } catch (Throwable ignore) {
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
     }
 
     private interface BitmapReceiver {
@@ -798,8 +934,8 @@ public final class PengramLinkPreviewSheet {
             return super.onTouchEvent(event);
         }
 
-        void loadThumb(String url, Map<String, String> cookies, String referer) {
-            fetchBitmapAsync(url, cookies, referer, 420, bmp -> {
+        void loadThumb(@Nullable File localFile, String url, Map<String, String> cookies, String referer) {
+            fetchBitmapAsync(localFile, url, cookies, referer, 420, bmp -> {
                 this.bitmap = bmp;
                 invalidate();
             });

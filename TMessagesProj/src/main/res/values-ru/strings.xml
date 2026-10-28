@@ -1972,7 +1972,7 @@
     <string name="PengramLinkSuggestVideoTitle">Отправить видео вместо ссылки</string>
     <string name="PengramLinkSuggestPhotosTitle">Отправить фото вместо ссылки</string>
     <string name="PengramLinkSuggestAction">Отправить</string>
-    <string name="PengramLinkSuggestPreviewBtn">Выбрать</string>
+    <string name="PengramLinkSuggestPreviewBtn">Предпросмотр</string>
     <string name="PengramLinkResolving">Проверяю ссылку…</string>
     <string name="PengramLinkDownloading">Загружаю медиа…</string>
     <string name="PengramLinkMuxing">Собираю видео и звук…</string>
@@ -1993,6 +1993,8 @@
     <string name="PengramLinkPreviewPhotos">Только для фото</string>
     <string name="PengramLinkPreviewVideos">Только для видео</string>
     <string name="PengramLinkPreviewAll">Для фото и видео</string>
+    <string name="PengramLinkIslandPreviewBtn">Кнопка предпросмотра на островке</string>
+    <string name="PengramLinkIslandPreviewBtnInfo">Быстрый вызов окна параметров с островка ссылки, если автопредпросмотр не открывается сам</string>
     <string name="PengramLinkPreviewInfo">В окне предпросмотра можно отправить нужное фото в одно касание, зажать для выбора нескольких кадров или переключиться на обычную ссылку.</string>
     <string name="PengramLinkHeaderPhotos">НЕСКОЛЬКО ФОТО (КАРУСЕЛЬ TIKTOK)</string>
     <string name="PengramLinkPhotoStitchMode">Если в посте несколько фото</string>

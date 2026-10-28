@@ -4187,6 +4187,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPreview)));
             items.add(UItem.asSettingsCell(BTN_LINK_PREVIEW_MODE, R.drawable.msg_view_file,
                     getString(R.string.PengramLinkPreviewMode), linkPreviewModeValue()));
+            items.add(checkInfo(PengramConfig.KEY_LINK_ISLAND_PREVIEW_BTN, true,
+                    getString(R.string.PengramLinkIslandPreviewBtn),
+                    getString(R.string.PengramLinkIslandPreviewBtnInfo)));
             items.add(UItem.asShadow(getString(R.string.PengramLinkPreviewInfo)));
 
             items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPhotos)));
@@ -4547,7 +4550,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
         if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
-        if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, 90)); }
+        if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, LayoutHelper.WRAP_CONTENT)); }
         items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION, R.drawable.msg_customize,
                 getString(R.string.PengramInputAnimation), inputAnimationName()));
         if (PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE) {
@@ -4556,43 +4559,54 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(check(PengramConfig.KEY_INPUT_ANIMATION_HAPTIC, false, getString(R.string.PengramInputAnimationHaptic)));
             items.add(check(PengramConfig.KEY_TYPING_BLUR, true, getString(R.string.PengramTypingBlur)));
             if (PengramConfig.isTypingBlur()) {
+                items.add(UItem.asHeader(getString(R.string.PengramTypingBlurRadius)));
                 items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingBlurRadius(), 30,
-                        value -> getString(R.string.PengramTypingBlurRadius) + ": " + value,
+                        value -> value + " px",
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_BLUR_RADIUS, value)));
             }
+            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramTypingBehaviorHeader)));
             items.add(check(PengramConfig.KEY_TYPING_IGNORE_SPACES, true, getString(R.string.PengramTypingIgnoreSpaces)));
             items.add(check(PengramConfig.KEY_TYPING_ALL_LINES, false, getString(R.string.PengramTypingAllLines)));
+            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteHeader)));
             items.add(check(PengramConfig.KEY_TYPING_DELETE, true, getString(R.string.PengramTypingDelete)));
             if (PengramConfig.isTypingDeleteAnim()) {
                 items.add(UItem.asSettingsCell(BTN_TYPING_DELETE_STYLE, getString(R.string.PengramTypingDeleteStyle), typingDeleteStyleName()));
+                items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteCount)));
                 items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteCount(), 12,
-                        value -> getString(R.string.PengramTypingDeleteCount) + ": " + value,
+                        value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_COUNT, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteSpeed)));
                 items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpeed(), 120,
-                        value -> getString(R.string.PengramTypingDeleteSpeed) + ": " + value,
+                        value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPEED, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteSpread)));
                 items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingDeleteSpread(), 120,
-                        value -> getString(R.string.PengramTypingDeleteSpread) + ": " + value,
+                        value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SPREAD, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteSize)));
                 items.add(UItem.asIntSlideView(1, 10, PengramConfig.getTypingDeleteSize(), 120,
-                        value -> getString(R.string.PengramTypingDeleteSize) + ": " + value,
+                        value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_DELETE_SIZE, value)));
             }
+            items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
             items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
             if (PengramConfig.isTypingCursorSmooth()) {
+                items.add(UItem.asHeader(getString(R.string.PengramTypingCursorSpeed)));
                 items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
-                        value -> getString(R.string.PengramTypingCursorSpeed) + ": " + value,
+                        value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_SPEED, value)));
+                items.add(UItem.asHeader(getString(R.string.PengramTypingCursorWidth)));
                 items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
-                        value -> getString(R.string.PengramTypingCursorWidth) + ": " + value,
+                        value -> value + " dp",
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
                 items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
                 if (PengramConfig.isTypingCursorLiquid()) {
+                    items.add(UItem.asHeader(getString(R.string.PengramTypingCursorStretch)));
                     items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
-                            value -> getString(R.string.PengramTypingCursorStretch) + ": " + value,
+                            value -> "" + value,
                             value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
                 }
                 items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));

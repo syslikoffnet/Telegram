@@ -283,15 +283,57 @@ check("getIntCached(KEY_LINK_PHOTO_STITCH, LINK_STITCH_ASK)" in config,
 check("getIntCached(KEY_LINK_PREVIEW_MODE, LINK_PREVIEW_PHOTOS)" in config,
       "config: по умолчанию предпросмотр — для фото (LINK_PREVIEW_PHOTOS)")
 for exp_key in ("linkAssistant", "linkAssistantFallback", "linkAssistantPhotoStitch",
-                "linkAssistantPreview", "linkAssistantCaption", "linkAssistantSlideSec", "linkAssistantSlideAudio"):
+                "linkAssistantPreview", "linkAssistantCaption", "linkAssistantSlideSec",
+                "linkAssistantSlideAudio", "linkAssistantIslandPreviewBtn"):
     check(f'"{exp_key}"' in config, f"config: ключ {exp_key} включён в экспорт .pen")
 
 check("SECTION_LINK_ASSISTANT = 21" in settings and "fillLinkAssistant(" in settings,
       "settings: выделенный подраздел SECTION_LINK_ASSISTANT")
 check('check(PengramConfig.KEY_LINK_ASSISTANT, true, getString(R.string.PengramLinkAssistant))' in settings,
       "settings: главный тумблер помощника ссылок")
+check("KEY_LINK_ISLAND_PREVIEW_BTN" in settings and "isLinkIslandPreviewButtonEnabled()" in config,
+      "settings: тумблер отключения кнопки предпросмотра на островке ссылки")
 check("SECTION_LINK_ASSISTANT" in search_meta and "SECTION_LINK_ASSISTANT" in preview_view,
       "settings: подраздел подключён к хлебным крошкам поиска и интерактивному превью")
+
+# --- 9b. LRU-кэш последних 3 запросов TikTok + фоновые сессии по чатам + вёрстка ---
+check("MAX_TIKTOK_CACHE_ENTRIES = 3" in assistant
+      and "MAX_TIKTOK_CACHE_ENTRY_BYTES" in assistant
+      and "MAX_TIKTOK_CACHE_TOTAL_BYTES" in assistant,
+      "assistant: LRU-кэш последних 3 запросов TikTok с потолками размера")
+for cache_fn in ("peekCachedTikTok", "getCachedTikTokPhotoFile", "prefetchTikTokMetadata",
+                 "copyCachedPhotoIfPresent", "copyCachedAudioIfPresent", "copyCachedVideoIfPresent"):
+    check(cache_fn in assistant, f"assistant: кэш-метод {cache_fn}")
+
+for sess_fn in ("startSession", "attachSession", "detachSession", "cancelSession", "chatKey("):
+    check(sess_fn in assistant, f"assistant: пер-чат сессия {sess_fn}")
+check("req.sendMessageChatArguments" in assistant and "req.monoForumPeer" in assistant,
+      "assistant: сохранение контекста чата/топика/отправителя при фоновой отправке")
+check("detachPengramSessionUi();" in enter and "syncPengramActiveSession(" in enter,
+      "enter: уход из чата не убивает фоновую загрузку, возврат восстанавливает статус")
+on_destroy_block = enter[enter.index("public void onDestroy()"):enter.index("public void onDestroy()") + 260]
+check("pengramLinkHandle.cancel()" not in on_destroy_block,
+      "enter: onDestroy() отвязывает UI вместо отмены фоновой отправки")
+
+check("shouldShowPengramPreviewBtn" in enter and "private ImageView pengramLinkBarPreviewBtn;" in enter,
+      "enter: аккуратная иконка предпросмотра и автоскрытие при включённом предпросмотре по дефолту")
+check("FlowChipsLayout" in preview_sheet and "selectionRow" in preview_sheet,
+      "preview_sheet: адаптивный перенос чипов и отдельная строка для «Выбрать все» без вылета за экран")
+
+slide_int = read("TMessagesProj/src/main/java/org/telegram/ui/Cells/SlideIntChooseView.java")
+typing_preview = read("TMessagesProj/src/main/java/org/telegram/ui/Components/PengramTypingPreviewView.java")
+fill_typing = settings[settings.index("private void fillTyping("):settings.index("private void fillMediaTime(") if "private void fillMediaTime(" in settings else len(settings)]
+check('": " + value' not in fill_typing,
+      "typing: ни один слайдер в SECTION_TYPING не передаёт длинный заголовок в min/value/max")
+for typing_hdr in ("PengramTypingBlurRadius", "PengramTypingDeleteCount", "PengramTypingDeleteSpeed",
+                   "PengramTypingDeleteSpread", "PengramTypingDeleteSize", "PengramTypingCursorSpeed",
+                   "PengramTypingCursorWidth", "PengramTypingCursorStretch"):
+    check(f"UItem.asHeader(getString(R.string.{typing_hdr}))" in fill_typing,
+          f"typing: отдельный заголовок над слайдером {typing_hdr}")
+check("extends LinearLayout" in typing_preview and "asCustom(typingPreview, LayoutHelper.WRAP_CONTENT)" in fill_typing,
+      "typing: превью набора на вертикальном LinearLayout с WRAP_CONTENT без наложения и обрезки")
+check("type != 0 && formatted != null && formatted.length() > 10" in slide_int,
+      "SlideIntChooseView: защита min/max подписей от длинных строк")
 
 # --- 10. Строки EN/RU синхронны и тени не обрезаются лимитом 150 символов ---
 en_map = {el.attrib["name"]: (el.text or "") for el in ET.fromstring(strings_en).findall("string")}

@@ -207,6 +207,8 @@ public class PengramConfig {
     public static final String KEY_LINK_SLIDE_SEC = "linkAssistantSlideSec";
     /** Накладывать оригинальный звук TikTok при склейке фото в видео. */
     public static final String KEY_LINK_SLIDE_AUDIO = "linkAssistantSlideAudio";
+    /** Показывать на островке ссылки отдельную кнопку вызова окна предпросмотра (когда автопредпросмотр выключен). */
+    public static final String KEY_LINK_ISLAND_PREVIEW_BTN = "linkAssistantIslandPreviewBtn";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
@@ -2774,6 +2776,8 @@ public class PengramConfig {
     public static void setLinkSlideSeconds(int seconds) { setIntValue(KEY_LINK_SLIDE_SEC, Math.max(1, Math.min(6, seconds))); }
     public static boolean isLinkSlideAudioEnabled() { return getBool(KEY_LINK_SLIDE_AUDIO, true); }
     public static void setLinkSlideAudioEnabled(boolean value) { setBool(KEY_LINK_SLIDE_AUDIO, value); }
+    public static boolean isLinkIslandPreviewButtonEnabled() { return getBool(KEY_LINK_ISLAND_PREVIEW_BTN, true); }
+    public static void setLinkIslandPreviewButtonEnabled(boolean value) { setBool(KEY_LINK_ISLAND_PREVIEW_BTN, value); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
@@ -3105,6 +3109,7 @@ public class PengramConfig {
             "typingDeleteSpread", "typingDeleteStyle", "typingIgnoreSpaces", "typingSelectionLiquid",
             "keepOnceMedia", "linkAssistant", "linkAssistantFallback", "linkAssistantPhotoStitch",
             "linkAssistantPreview", "linkAssistantCaption", "linkAssistantSlideSec", "linkAssistantSlideAudio",
+            "linkAssistantIslandPreviewBtn",
             "localPremium", "localPremiumStatus", "localEmojiStatus", "lyricsAlign",
             "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",

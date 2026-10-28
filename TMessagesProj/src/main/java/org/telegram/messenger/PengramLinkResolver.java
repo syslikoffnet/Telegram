@@ -231,6 +231,14 @@ public final class PengramLinkResolver {
         return url != null && url.toLowerCase().contains("/photo/");
     }
 
+    public static boolean isTikTokVideoHintUrl(String url) {
+        if (url == null) {
+            return false;
+        }
+        final String lower = url.toLowerCase();
+        return lower.contains("/video/") || lower.contains("/v/");
+    }
+
     /** Полный конвейер: платформа → прямые URL видео или фото. */
     public static Resolved resolve(String url) throws Exception {
         final String normalized = (url != null && !url.startsWith("http")) ? "https://" + url : url;
@@ -631,7 +639,7 @@ public final class PengramLinkResolver {
         throw new Exception("no item");
     }
 
-    static String extractTikTokPostId(String url) {
+    public static String extractTikTokPostId(String url) {
         if (url == null) {
             return null;
         }

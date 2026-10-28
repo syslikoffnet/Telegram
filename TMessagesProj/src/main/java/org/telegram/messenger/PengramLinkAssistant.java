@@ -9,15 +9,23 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Оркестратор «Помощника ссылок»: фоновое разрешение ссылки TikTok / YouTube,
  * маршрутизация в интерактивный предпросмотр (фото, карусели, видео), выборочная
  * отправка 1..N фотографий альбомом, аппаратная склейка фото в MP4-видео со звуком
- * ({@link PengramPhotoSlideshow}), склейка адаптивных потоков ({@link PengramVideoMux})
- * и настраиваемое поведение при ошибке (экран выбора / отправка ссылки / отмена).
+ * ({@link PengramPhotoSlideshow}), склейка адаптивных потоков ({@link PengramVideoMux}),
+ * LRU-кэш последних 3 запросов TikTok и реестр фоновых задач по чатам.
  */
 public final class PengramLinkAssistant {
 
@@ -28,14 +36,110 @@ public final class PengramLinkAssistant {
     /** Старые временные файлы старше 30 минут зачищаются при следующем старте задачи. */
     private static final long TEMP_TTL_MS = 30L * 60L * 1000L;
 
+    /** LRU-кэш последних 3 запросов TikTok (только для разумных по объёму файлов). */
+    public static final int MAX_TIKTOK_CACHE_ENTRIES = 3;
+    public static final long MAX_TIKTOK_CACHE_ENTRY_BYTES = 45L * 1024L * 1024L;
+    public static final long MAX_TIKTOK_CACHE_TOTAL_BYTES = 90L * 1024L * 1024L;
+    private static final long TIKTOK_CACHE_TTL_MS = 45L * 60L * 1000L;
+
     public static final int ACTION_AUTO = 0;
     public static final int ACTION_SEND_PHOTOS = 1;
     public static final int ACTION_STITCH_VIDEO = 2;
     public static final int ACTION_SEND_VIDEO = 3;
 
+    public static final int PHASE_RESOLVE = 1;
+    public static final int PHASE_DOWNLOAD = 2;
+    public static final int PHASE_MUX = 3;
+    public static final int PHASE_STITCH = 4;
+    public static final int PHASE_SEND = 5;
+
+    private static final ExecutorService TASK_EXECUTOR = Executors.newFixedThreadPool(3, r -> {
+        final Thread t = new Thread(r, "PengramLinkTask");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private static final ExecutorService PREFETCH_EXECUTOR = Executors.newFixedThreadPool(2, r -> {
+        final Thread t = new Thread(r, "PengramLinkPrefetch");
+        t.setDaemon(true);
+        return t;
+    });
+
+    private static final Object CACHE_LOCK = new Object();
+    private static boolean orphanCacheSwept = false;
+    private static final LinkedHashMap<String, String> TIKTOK_URL_ALIASES =
+            new LinkedHashMap<String, String>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+                    return size() > 24;
+                }
+            };
+    private static final LinkedHashMap<String, TikTokCacheEntry> TIKTOK_CACHE =
+            new LinkedHashMap<>(8, 0.75f, true);
+    private static final Map<String, List<Utilities.Callback<PengramLinkResolver.Resolved>>> INFLIGHT_PREFETCH =
+            new HashMap<>();
+
+    private static final Map<String, ActiveSession> ACTIVE_SESSIONS = new ConcurrentHashMap<>();
+
+    private static final class TikTokCacheEntry {
+        final String cacheKey;
+        PengramLinkResolver.Resolved resolved;
+        long resolvedAtMs;
+        final Map<Integer, File> photoFiles = new HashMap<>();
+        File audioFile;
+        File videoFile;
+
+        TikTokCacheEntry(String cacheKey, PengramLinkResolver.Resolved resolved, long now) {
+            this.cacheKey = cacheKey;
+            this.resolved = resolved;
+            this.resolvedAtMs = now;
+        }
+
+        boolean isExpired(long now) {
+            return now - resolvedAtMs > TIKTOK_CACHE_TTL_MS;
+        }
+
+        long totalBytes() {
+            long sum = 0L;
+            for (File f : photoFiles.values()) {
+                if (f != null && f.exists()) {
+                    sum += f.length();
+                }
+            }
+            if (audioFile != null && audioFile.exists()) {
+                sum += audioFile.length();
+            }
+            if (videoFile != null && videoFile.exists()) {
+                sum += videoFile.length();
+            }
+            return sum;
+        }
+
+        void destroyFiles() {
+            for (File f : photoFiles.values()) {
+                if (f != null && f.exists()) {
+                    //noinspection ResultOfMethodCallIgnored
+                    f.delete();
+                }
+            }
+            photoFiles.clear();
+            if (audioFile != null && audioFile.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                audioFile.delete();
+            }
+            audioFile = null;
+            if (videoFile != null && videoFile.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                videoFile.delete();
+            }
+            videoFile = null;
+        }
+    }
+
     public static final class Request {
         public final int currentAccount;
         public final long dialogId;
+        public final long topicId;
         public final String url;
         /** Оригинальный текст из поля ввода — для восстановления при отмене или отправки ссылкой. */
         public final String originalText;
@@ -43,16 +147,33 @@ public final class PengramLinkAssistant {
         public final String extraCaption;
         public final MessageObject replyToMsg;
         public final MessageObject replyToTopMsg;
+        @Nullable
+        public final SendMessageChatArguments sendMessageChatArguments;
+        public final long monoForumPeer;
 
         public Request(int currentAccount, long dialogId, String url, String originalText,
                        String extraCaption, MessageObject replyToMsg, MessageObject replyToTopMsg) {
+            this(currentAccount, dialogId, 0L, url, originalText, extraCaption,
+                    replyToMsg, replyToTopMsg, null, 0L);
+        }
+
+        public Request(int currentAccount, long dialogId, long topicId, String url, String originalText,
+                       String extraCaption, MessageObject replyToMsg, MessageObject replyToTopMsg,
+                       @Nullable SendMessageChatArguments sendMessageChatArguments, long monoForumPeer) {
             this.currentAccount = currentAccount;
             this.dialogId = dialogId;
+            this.topicId = topicId;
             this.url = url;
             this.originalText = originalText != null ? originalText : url;
             this.extraCaption = extraCaption != null ? extraCaption.trim() : "";
             this.replyToMsg = replyToMsg;
             this.replyToTopMsg = replyToTopMsg;
+            this.sendMessageChatArguments = sendMessageChatArguments;
+            this.monoForumPeer = monoForumPeer;
+        }
+
+        public String sessionKey() {
+            return chatKey(currentAccount, dialogId, topicId);
         }
     }
 
@@ -90,12 +211,6 @@ public final class PengramLinkAssistant {
         }
     }
 
-    public static final int PHASE_RESOLVE = 1;
-    public static final int PHASE_DOWNLOAD = 2;
-    public static final int PHASE_MUX = 3;
-    public static final int PHASE_STITCH = 4;
-    public static final int PHASE_SEND = 5;
-
     public interface Callback {
         void onPhase(int phase, float progress);
         void onSent();
@@ -123,7 +238,39 @@ public final class PengramLinkAssistant {
         }
     }
 
+    /** Фоновая сессия отправки медиа, привязанная к конкретному чату/топику. */
+    public static final class ActiveSession {
+        static final int PENDING_NONE = 0;
+        static final int PENDING_PREVIEW = 1;
+        static final int PENDING_FALLBACK_CHOICE = 2;
+        static final int PENDING_FAILED_NO_SEND = 3;
+
+        public final String key;
+        public final Request request;
+        public final Handle handle;
+        public final long startedAtMs;
+        public int phase = PHASE_RESOLVE;
+        public float progress = -1f;
+
+        int pendingEvent = PENDING_NONE;
+        PengramLinkResolver.Resolved pendingResolved;
+        String pendingReason;
+        @Nullable
+        Callback attachedCallback;
+
+        ActiveSession(String key, Request request, Handle handle) {
+            this.key = key;
+            this.request = request;
+            this.handle = handle;
+            this.startedAtMs = System.currentTimeMillis();
+        }
+    }
+
     private PengramLinkAssistant() {
+    }
+
+    public static String chatKey(int currentAccount, long dialogId, long topicId) {
+        return currentAccount + ":" + dialogId + ":" + topicId;
     }
 
     public static Handle start(final Request req, final Callback cb) {
@@ -133,8 +280,587 @@ public final class PengramLinkAssistant {
     public static Handle start(final Request req, final ExecutionOptions opts, final Callback cb) {
         final Handle handle = new Handle();
         final ExecutionOptions options = opts != null ? opts : ExecutionOptions.auto();
-        Utilities.globalQueue.postRunnable(() -> execute(req, options, handle, cb));
+        TASK_EXECUTOR.execute(() -> execute(req, options, handle, cb));
         return handle;
+    }
+
+    /**
+     * Запускает задачу отправки медиа с привязкой к чату {@code req.sessionKey()}.
+     * Если пользователь выйдет в другой чат, загрузка и отправка продолжатся в исходный чат,
+     * а при возврате в чат островок автоматически переподключится к живому прогрессу.
+     */
+    public static ActiveSession startSession(final Request req,
+                                             final ExecutionOptions opts,
+                                             @Nullable final Callback initialUiCallback) {
+        final String key = req.sessionKey();
+        final ActiveSession prev = ACTIVE_SESSIONS.remove(key);
+        if (prev != null && !prev.handle.isCancelled()) {
+            prev.handle.cancel();
+        }
+
+        final Handle handle = new Handle();
+        final ActiveSession session = new ActiveSession(key, req, handle);
+        session.attachedCallback = initialUiCallback;
+        ACTIVE_SESSIONS.put(key, session);
+
+        final ExecutionOptions options = opts != null ? opts : ExecutionOptions.auto();
+        final Callback dispatcher = new Callback() {
+            @Override
+            public void onPhase(int phase, float progress) {
+                if (handle.isCancelled() || ACTIVE_SESSIONS.get(key) != session) {
+                    return;
+                }
+                session.phase = phase;
+                session.progress = progress;
+                if (session.attachedCallback != null) {
+                    session.attachedCallback.onPhase(phase, progress);
+                }
+            }
+
+            @Override
+            public void onSent() {
+                ACTIVE_SESSIONS.remove(key, session);
+                if (session.attachedCallback != null) {
+                    session.attachedCallback.onSent();
+                }
+            }
+
+            @Override
+            public void onPreviewRequested(Request request, PengramLinkResolver.Resolved resolved) {
+                if (handle.isCancelled() || ACTIVE_SESSIONS.get(key) != session) {
+                    return;
+                }
+                if (session.attachedCallback != null) {
+                    ACTIVE_SESSIONS.remove(key, session);
+                    session.attachedCallback.onPreviewRequested(request, resolved);
+                } else {
+                    session.pendingEvent = ActiveSession.PENDING_PREVIEW;
+                    session.pendingResolved = resolved;
+                }
+            }
+
+            @Override
+            public void onFallbackSent(String reason) {
+                ACTIVE_SESSIONS.remove(key, session);
+                if (session.attachedCallback != null) {
+                    session.attachedCallback.onFallbackSent(reason);
+                }
+            }
+
+            @Override
+            public void onFailedNoSend(Request request, String reason) {
+                if (handle.isCancelled() || ACTIVE_SESSIONS.get(key) != session) {
+                    return;
+                }
+                if (session.attachedCallback != null) {
+                    ACTIVE_SESSIONS.remove(key, session);
+                    session.attachedCallback.onFailedNoSend(request, reason);
+                } else {
+                    session.pendingEvent = ActiveSession.PENDING_FAILED_NO_SEND;
+                    session.pendingReason = reason;
+                }
+            }
+
+            @Override
+            public void onFallbackChoiceRequested(Request request, String reason) {
+                if (handle.isCancelled() || ACTIVE_SESSIONS.get(key) != session) {
+                    return;
+                }
+                if (session.attachedCallback != null) {
+                    ACTIVE_SESSIONS.remove(key, session);
+                    session.attachedCallback.onFallbackChoiceRequested(request, reason);
+                } else {
+                    session.pendingEvent = ActiveSession.PENDING_FALLBACK_CHOICE;
+                    session.pendingReason = reason;
+                }
+            }
+
+            @Override
+            public void onCancelled() {
+                ACTIVE_SESSIONS.remove(key, session);
+                if (session.attachedCallback != null) {
+                    session.attachedCallback.onCancelled();
+                }
+            }
+        };
+
+        TASK_EXECUTOR.execute(() -> execute(req, options, handle, dispatcher));
+        return session;
+    }
+
+    /**
+     * Подключает UI чата к активной фоновой сессии (если она выполняется или ждёт показа шторки).
+     * Вызывать на UI-потоке при входе/возврате в чат.
+     */
+    @Nullable
+    public static ActiveSession attachSession(final String key, final Callback uiCallback) {
+        if (key == null) {
+            return null;
+        }
+        final ActiveSession session = ACTIVE_SESSIONS.get(key);
+        if (session == null) {
+            return null;
+        }
+        if (session.handle.isCancelled()
+                || System.currentTimeMillis() - session.startedAtMs > TEMP_TTL_MS) {
+            ACTIVE_SESSIONS.remove(key, session);
+            return null;
+        }
+        session.attachedCallback = uiCallback;
+        if (session.pendingEvent != ActiveSession.PENDING_NONE) {
+            ACTIVE_SESSIONS.remove(key, session);
+            final int ev = session.pendingEvent;
+            session.pendingEvent = ActiveSession.PENDING_NONE;
+            if (uiCallback != null) {
+                if (ev == ActiveSession.PENDING_PREVIEW && session.pendingResolved != null) {
+                    uiCallback.onPreviewRequested(session.request, session.pendingResolved);
+                } else if (ev == ActiveSession.PENDING_FALLBACK_CHOICE) {
+                    uiCallback.onFallbackChoiceRequested(session.request,
+                            session.pendingReason != null ? session.pendingReason : "error");
+                } else if (ev == ActiveSession.PENDING_FAILED_NO_SEND) {
+                    uiCallback.onFailedNoSend(session.request,
+                            session.pendingReason != null ? session.pendingReason : "error");
+                }
+            }
+            return null;
+        }
+        if (uiCallback != null) {
+            uiCallback.onPhase(session.phase, session.progress);
+        }
+        return session;
+    }
+
+    /** Отвязывает UI при уходе из чата, НЕ отменяя саму фоновую загрузку и отправку. */
+    public static void detachSession(@Nullable String key, @Nullable Callback uiCallback) {
+        if (key == null) {
+            return;
+        }
+        final ActiveSession session = ACTIVE_SESSIONS.get(key);
+        if (session != null && (uiCallback == null || session.attachedCallback == uiCallback)) {
+            session.attachedCallback = null;
+        }
+    }
+
+    /** Явная отмена задачи пользователем (нажатие ✕ на островке). */
+    public static void cancelSession(@Nullable String key) {
+        if (key == null) {
+            return;
+        }
+        final ActiveSession session = ACTIVE_SESSIONS.remove(key);
+        if (session != null) {
+            session.handle.cancel();
+            if (session.attachedCallback != null) {
+                final Callback cb = session.attachedCallback;
+                session.attachedCallback = null;
+                cb.onCancelled();
+            }
+        }
+    }
+
+    @Nullable
+    public static ActiveSession getActiveSession(@Nullable String key) {
+        if (key == null) {
+            return null;
+        }
+        final ActiveSession session = ACTIVE_SESSIONS.get(key);
+        if (session != null && session.handle.isCancelled()) {
+            ACTIVE_SESSIONS.remove(key, session);
+            return null;
+        }
+        return session;
+    }
+
+    // --- Кэш последних 3 запросов TikTok ---
+
+    private static String normalizeUrlForAlias(String url) {
+        if (url == null) {
+            return "";
+        }
+        String s = url.trim();
+        if (!s.startsWith("http://") && !s.startsWith("https://")) {
+            s = "https://" + s;
+        }
+        final int hashIdx = s.indexOf('#');
+        if (hashIdx >= 0) {
+            s = s.substring(0, hashIdx);
+        }
+        final int qIdx = s.indexOf('?');
+        if (qIdx >= 0 && !s.toLowerCase(Locale.US).contains("item_id=")) {
+            s = s.substring(0, qIdx);
+        }
+        while (s.endsWith("/")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
+    }
+
+    @Nullable
+    private static String deriveTikTokCacheKey(@Nullable String url,
+                                               @Nullable PengramLinkResolver.Resolved resolved) {
+        String postId = PengramLinkResolver.extractTikTokPostId(url);
+        if (postId == null && resolved != null) {
+            postId = PengramLinkResolver.extractTikTokPostId(resolved.referer);
+        }
+        if (postId != null && !postId.isEmpty()) {
+            return "tt:" + postId;
+        }
+        final String norm = normalizeUrlForAlias(url);
+        return norm.isEmpty() ? null : "tturl:" + norm;
+    }
+
+    @Nullable
+    private static TikTokCacheEntry lookupTikTokEntryLocked(@Nullable String url,
+                                                            @Nullable PengramLinkResolver.Resolved resolved) {
+        final long now = System.currentTimeMillis();
+        String key = null;
+        final String postId = PengramLinkResolver.extractTikTokPostId(url);
+        if (postId != null) {
+            key = "tt:" + postId;
+        }
+        if (key == null && url != null) {
+            key = TIKTOK_URL_ALIASES.get(normalizeUrlForAlias(url));
+        }
+        if (key == null && resolved != null) {
+            key = deriveTikTokCacheKey(url, resolved);
+        }
+        if (key == null) {
+            return null;
+        }
+        final TikTokCacheEntry entry = TIKTOK_CACHE.get(key);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.isExpired(now)) {
+            TIKTOK_CACHE.remove(key);
+            entry.destroyFiles();
+            return null;
+        }
+        return entry;
+    }
+
+    private static void trimTikTokCacheLocked(@Nullable String protectedKey) {
+        final long now = System.currentTimeMillis();
+        final Iterator<Map.Entry<String, TikTokCacheEntry>> expIt = TIKTOK_CACHE.entrySet().iterator();
+        while (expIt.hasNext()) {
+            final Map.Entry<String, TikTokCacheEntry> e = expIt.next();
+            if (e.getValue().isExpired(now)) {
+                e.getValue().destroyFiles();
+                expIt.remove();
+            }
+        }
+        while (TIKTOK_CACHE.size() > MAX_TIKTOK_CACHE_ENTRIES) {
+            final Iterator<Map.Entry<String, TikTokCacheEntry>> it = TIKTOK_CACHE.entrySet().iterator();
+            if (!it.hasNext()) {
+                break;
+            }
+            final Map.Entry<String, TikTokCacheEntry> eldest = it.next();
+            if (protectedKey != null && protectedKey.equals(eldest.getKey()) && it.hasNext()) {
+                final Map.Entry<String, TikTokCacheEntry> second = it.next();
+                second.getValue().destroyFiles();
+                it.remove();
+            } else {
+                eldest.getValue().destroyFiles();
+                it.remove();
+            }
+        }
+        long total = 0L;
+        for (TikTokCacheEntry entry : TIKTOK_CACHE.values()) {
+            total += entry.totalBytes();
+        }
+        if (total > MAX_TIKTOK_CACHE_TOTAL_BYTES) {
+            final Iterator<Map.Entry<String, TikTokCacheEntry>> it = TIKTOK_CACHE.entrySet().iterator();
+            while (it.hasNext() && total > MAX_TIKTOK_CACHE_TOTAL_BYTES) {
+                final Map.Entry<String, TikTokCacheEntry> eldest = it.next();
+                if (protectedKey != null && protectedKey.equals(eldest.getKey()) && TIKTOK_CACHE.size() > 1) {
+                    continue;
+                }
+                total -= eldest.getValue().totalBytes();
+                eldest.getValue().destroyFiles();
+                it.remove();
+            }
+        }
+    }
+
+    private static TikTokCacheEntry registerTikTokResolved(String url, PengramLinkResolver.Resolved resolved) {
+        if (resolved == null || resolved.platform != PengramLinkResolver.PLATFORM_TIKTOK) {
+            return null;
+        }
+        synchronized (CACHE_LOCK) {
+            final long now = System.currentTimeMillis();
+            final String key = deriveTikTokCacheKey(url, resolved);
+            if (key == null) {
+                return null;
+            }
+            final String normUrl = normalizeUrlForAlias(url);
+            if (!normUrl.isEmpty()) {
+                TIKTOK_URL_ALIASES.put(normUrl, key);
+            }
+            TikTokCacheEntry entry = TIKTOK_CACHE.get(key);
+            if (entry == null) {
+                entry = new TikTokCacheEntry(key, resolved, now);
+                TIKTOK_CACHE.put(key, entry);
+            } else {
+                entry.resolved = resolved;
+                entry.resolvedAtMs = now;
+            }
+            trimTikTokCacheLocked(key);
+            return entry;
+        }
+    }
+
+    @Nullable
+    public static PengramLinkResolver.Resolved peekCachedTikTok(@Nullable String url) {
+        if (url == null || PengramLinkResolver.platformOf(url) != PengramLinkResolver.PLATFORM_TIKTOK) {
+            return null;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = lookupTikTokEntryLocked(url, null);
+            return entry != null ? entry.resolved : null;
+        }
+    }
+
+    @Nullable
+    public static File getCachedTikTokPhotoFile(@Nullable String url, int photoIndex) {
+        if (url == null || photoIndex < 0) {
+            return null;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = lookupTikTokEntryLocked(url, null);
+            if (entry == null) {
+                return null;
+            }
+            final File f = entry.photoFiles.get(photoIndex);
+            if (f != null && f.exists() && f.length() > 128L) {
+                return f;
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Фоновое предразрешение ссылки TikTok для мгновенного открытия предпросмотра
+     * и точного определения типа поста (фото/видео) на островке.
+     */
+    public static void prefetchTikTokMetadata(@Nullable final String url,
+                                              @Nullable final Utilities.Callback<PengramLinkResolver.Resolved> onResolved) {
+        if (url == null || PengramLinkResolver.platformOf(url) != PengramLinkResolver.PLATFORM_TIKTOK) {
+            return;
+        }
+        final PengramLinkResolver.Resolved existing = peekCachedTikTok(url);
+        if (existing != null) {
+            if (onResolved != null) {
+                AndroidUtilities.runOnUIThread(() -> onResolved.run(existing));
+            }
+            return;
+        }
+        final String norm = normalizeUrlForAlias(url);
+        if (norm.isEmpty()) {
+            return;
+        }
+        synchronized (CACHE_LOCK) {
+            List<Utilities.Callback<PengramLinkResolver.Resolved>> waiters = INFLIGHT_PREFETCH.get(norm);
+            if (waiters != null) {
+                if (onResolved != null) {
+                    waiters.add(onResolved);
+                }
+                return;
+            }
+            waiters = new ArrayList<>(2);
+            if (onResolved != null) {
+                waiters.add(onResolved);
+            }
+            INFLIGHT_PREFETCH.put(norm, waiters);
+        }
+        PREFETCH_EXECUTOR.execute(() -> {
+            PengramLinkResolver.Resolved resolved = null;
+            try {
+                resolved = PengramLinkResolver.resolve(url);
+                registerTikTokResolved(url, resolved);
+            } catch (Throwable ignore) {
+            }
+            final PengramLinkResolver.Resolved result = resolved;
+            final List<Utilities.Callback<PengramLinkResolver.Resolved>> callbacks;
+            synchronized (CACHE_LOCK) {
+                callbacks = INFLIGHT_PREFETCH.remove(norm);
+            }
+            if (result != null && callbacks != null && !callbacks.isEmpty()) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    for (Utilities.Callback<PengramLinkResolver.Resolved> cb : callbacks) {
+                        if (cb != null) {
+                            cb.run(result);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private static File ensureTikTokCacheDir(File workDir) {
+        final File dir = new File(workDir, "tt_cache");
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        synchronized (CACHE_LOCK) {
+            if (!orphanCacheSwept) {
+                orphanCacheSwept = true;
+                final File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File f : files) {
+                        if (f != null && f.isFile()) {
+                            //noinspection ResultOfMethodCallIgnored
+                            f.delete();
+                        }
+                    }
+                }
+            }
+        }
+        return dir;
+    }
+
+    @Nullable
+    private static File copyCachedPhotoIfPresent(String url, PengramLinkResolver.Resolved resolved,
+                                                 int photoIndex, File dstFile) {
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = lookupTikTokEntryLocked(url, resolved);
+            if (entry == null) {
+                return null;
+            }
+            final File cached = entry.photoFiles.get(photoIndex);
+            if (cached == null || !cached.exists() || cached.length() <= 128L) {
+                return null;
+            }
+            try {
+                copyFile(cached, dstFile);
+                return dstFile;
+            } catch (Throwable ignore) {
+                return null;
+            }
+        }
+    }
+
+    private static void cacheTikTokPhoto(File cacheDir, String url, PengramLinkResolver.Resolved resolved,
+                                         int photoIndex, File jpgFile) {
+        if (resolved.platform != PengramLinkResolver.PLATFORM_TIKTOK
+                || jpgFile == null || !jpgFile.exists()
+                || jpgFile.length() <= 128L
+                || jpgFile.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+            return;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = registerTikTokResolved(url, resolved);
+            if (entry == null) {
+                return;
+            }
+            final File prev = entry.photoFiles.get(photoIndex);
+            final long prevLen = (prev != null && prev.exists()) ? prev.length() : 0L;
+            if (entry.totalBytes() - prevLen + jpgFile.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+                return;
+            }
+            final String safeName = entry.cacheKey.replaceAll("[^a-zA-Z0-9_-]", "_") + "_p" + photoIndex + ".jpg";
+            final File cached = new File(cacheDir, safeName);
+            try {
+                copyFile(jpgFile, cached);
+                entry.photoFiles.put(photoIndex, cached);
+                trimTikTokCacheLocked(entry.cacheKey);
+            } catch (Throwable ignore) {
+                //noinspection ResultOfMethodCallIgnored
+                cached.delete();
+            }
+        }
+    }
+
+    @Nullable
+    private static File copyCachedAudioIfPresent(String url, PengramLinkResolver.Resolved resolved, File dstFile) {
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = lookupTikTokEntryLocked(url, resolved);
+            if (entry == null || entry.audioFile == null
+                    || !entry.audioFile.exists() || entry.audioFile.length() <= 1024L) {
+                return null;
+            }
+            try {
+                copyFile(entry.audioFile, dstFile);
+                return dstFile;
+            } catch (Throwable ignore) {
+                return null;
+            }
+        }
+    }
+
+    private static void cacheTikTokAudio(File cacheDir, String url, PengramLinkResolver.Resolved resolved, File audioSrc) {
+        if (resolved.platform != PengramLinkResolver.PLATFORM_TIKTOK
+                || audioSrc == null || !audioSrc.exists()
+                || audioSrc.length() <= 1024L
+                || audioSrc.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+            return;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = registerTikTokResolved(url, resolved);
+            if (entry == null) {
+                return;
+            }
+            final long prevLen = (entry.audioFile != null && entry.audioFile.exists()) ? entry.audioFile.length() : 0L;
+            if (entry.totalBytes() - prevLen + audioSrc.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+                return;
+            }
+            final String safeName = entry.cacheKey.replaceAll("[^a-zA-Z0-9_-]", "_") + "_aud.m4a";
+            final File cached = new File(cacheDir, safeName);
+            try {
+                copyFile(audioSrc, cached);
+                entry.audioFile = cached;
+                trimTikTokCacheLocked(entry.cacheKey);
+            } catch (Throwable ignore) {
+                //noinspection ResultOfMethodCallIgnored
+                cached.delete();
+            }
+        }
+    }
+
+    @Nullable
+    private static File copyCachedVideoIfPresent(String url, PengramLinkResolver.Resolved resolved, File dstFile) {
+        if (resolved.platform != PengramLinkResolver.PLATFORM_TIKTOK) {
+            return null;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = lookupTikTokEntryLocked(url, resolved);
+            if (entry == null || entry.videoFile == null
+                    || !entry.videoFile.exists() || entry.videoFile.length() < 4096L) {
+                return null;
+            }
+            try {
+                copyFile(entry.videoFile, dstFile);
+                return dstFile;
+            } catch (Throwable ignore) {
+                return null;
+            }
+        }
+    }
+
+    private static void cacheTikTokVideo(File cacheDir, String url, PengramLinkResolver.Resolved resolved, File videoSrc) {
+        if (resolved.platform != PengramLinkResolver.PLATFORM_TIKTOK
+                || videoSrc == null || !videoSrc.exists()
+                || videoSrc.length() < 4096L
+                || videoSrc.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+            return;
+        }
+        synchronized (CACHE_LOCK) {
+            final TikTokCacheEntry entry = registerTikTokResolved(url, resolved);
+            if (entry == null) {
+                return;
+            }
+            final long prevLen = (entry.videoFile != null && entry.videoFile.exists()) ? entry.videoFile.length() : 0L;
+            if (entry.totalBytes() - prevLen + videoSrc.length() > MAX_TIKTOK_CACHE_ENTRY_BYTES) {
+                return;
+            }
+            final String safeName = entry.cacheKey.replaceAll("[^a-zA-Z0-9_-]", "_") + "_vid.mp4";
+            final File cached = new File(cacheDir, safeName);
+            try {
+                copyFile(videoSrc, cached);
+                entry.videoFile = cached;
+                trimTikTokCacheLocked(entry.cacheKey);
+            } catch (Throwable ignore) {
+                //noinspection ResultOfMethodCallIgnored
+                cached.delete();
+            }
+        }
     }
 
     /** Отправляет исходный текст как обычное текстовое сообщение со ссылкой (с превью страницы). */
@@ -147,6 +873,8 @@ public final class PengramLinkAssistant {
             final SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(
                     text, req.dialogId, req.replyToMsg, req.replyToTopMsg,
                     null, true, null, null, null, true, 0, 0, null, false);
+            params.sendMessageChatArguments = req.sendMessageChatArguments;
+            params.monoForumPeer = req.monoForumPeer;
             SendMessagesHelper.getInstance(req.currentAccount).sendMessage(params);
         });
     }
@@ -193,6 +921,7 @@ public final class PengramLinkAssistant {
         final File workDir = new File(ApplicationLoader.getFilesDirFixed(), "pengram_links");
         //noinspection ResultOfMethodCallIgnored
         workDir.mkdirs();
+        final File cacheDir = ensureTikTokCacheDir(workDir);
         sweepStaleFiles(workDir);
 
         final List<File> scratchToClean = new ArrayList<>();
@@ -200,11 +929,22 @@ public final class PengramLinkAssistant {
             final PengramLinkResolver.Resolved resolved;
             if (opts.preResolved != null) {
                 resolved = opts.preResolved;
+                if (resolved.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
+                    registerTikTokResolved(req.url, resolved);
+                }
             } else {
-                notifyPhase(cb, PHASE_RESOLVE, 0f);
-                checkCancelled(handle);
-                resolved = PengramLinkResolver.resolve(req.url);
-                checkCancelled(handle);
+                final PengramLinkResolver.Resolved cached = peekCachedTikTok(req.url);
+                if (cached != null) {
+                    resolved = cached;
+                } else {
+                    notifyPhase(cb, PHASE_RESOLVE, 0f);
+                    checkCancelled(handle);
+                    resolved = PengramLinkResolver.resolve(req.url);
+                    checkCancelled(handle);
+                    if (resolved.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
+                        registerTikTokResolved(req.url, resolved);
+                    }
+                }
             }
 
             if (shouldOpenPreview(resolved, opts)) {
@@ -217,9 +957,9 @@ public final class PengramLinkAssistant {
             }
 
             if (resolved.isPhotos()) {
-                deliverPhotos(req, resolved, opts, workDir, scratchToClean, handle, cb);
+                deliverPhotos(req, resolved, opts, workDir, cacheDir, scratchToClean, handle, cb);
             } else {
-                deliverVideo(req, resolved, opts, workDir, scratchToClean, handle, cb);
+                deliverVideo(req, resolved, opts, workDir, cacheDir, scratchToClean, handle, cb);
             }
         } catch (CancellationException ce) {
             cleanFiles(scratchToClean);
@@ -235,7 +975,7 @@ public final class PengramLinkAssistant {
         }
     }
 
-    private static boolean shouldOpenPreview(PengramLinkResolver.Resolved resolved, ExecutionOptions opts) {
+    public static boolean shouldOpenPreview(PengramLinkResolver.Resolved resolved, ExecutionOptions opts) {
         if (opts.forcePreview) {
             return true;
         }
@@ -247,7 +987,6 @@ public final class PengramLinkAssistant {
             if (previewMode == PengramConfig.LINK_PREVIEW_PHOTOS || previewMode == PengramConfig.LINK_PREVIEW_ALL) {
                 return true;
             }
-            // Если фото больше одного, а в настройках стоит «вызывать выбор» — открываем предпросмотр!
             if (resolved.photos.size() > 1 && PengramConfig.getLinkPhotoStitchMode() == PengramConfig.LINK_STITCH_ASK) {
                 return true;
             }
@@ -257,20 +996,23 @@ public final class PengramLinkAssistant {
         }
     }
 
-    private static void deliverPhotos(Request req, PengramLinkResolver.Resolved resolved,
-                                      ExecutionOptions opts, File workDir,
+    private static void deliverPhotos(Request req, PengramLinkResolver.Resolved initialResolved,
+                                      ExecutionOptions opts, File workDir, File cacheDir,
                                       List<File> scratchToClean, Handle handle, Callback cb) throws Exception {
-        final List<PengramLinkResolver.PhotoItem> chosen = new ArrayList<>();
+        PengramLinkResolver.Resolved resolved = initialResolved;
+        final List<Integer> chosenIndices = new ArrayList<>();
         if (opts.selectedPhotoIndices != null && !opts.selectedPhotoIndices.isEmpty()) {
             for (Integer idx : opts.selectedPhotoIndices) {
                 if (idx != null && idx >= 0 && idx < resolved.photos.size()) {
-                    chosen.add(resolved.photos.get(idx));
+                    chosenIndices.add(idx);
                 }
             }
         } else {
-            chosen.addAll(resolved.photos);
+            for (int i = 0; i < resolved.photos.size(); i++) {
+                chosenIndices.add(i);
+            }
         }
-        if (chosen.isEmpty()) {
+        if (chosenIndices.isEmpty()) {
             throw new Exception("no photos selected");
         }
 
@@ -280,35 +1022,75 @@ public final class PengramLinkAssistant {
         } else if (opts.action == ACTION_SEND_PHOTOS) {
             stitchIntoVideo = false;
         } else {
-            stitchIntoVideo = chosen.size() > 1
+            stitchIntoVideo = chosenIndices.size() > 1
                     && PengramConfig.getLinkPhotoStitchMode() == PengramConfig.LINK_STITCH_ALWAYS;
         }
 
         final long stamp = System.currentTimeMillis();
-        final List<File> normalizedJpegs = new ArrayList<>(chosen.size());
+        final List<File> normalizedJpegs = new ArrayList<>(chosenIndices.size());
         notifyPhase(cb, PHASE_DOWNLOAD, 0f);
+        boolean refreshedOnce = false;
 
-        for (int i = 0; i < chosen.size(); i++) {
+        for (int i = 0; i < chosenIndices.size(); i++) {
             checkCancelled(handle);
-            final PengramLinkResolver.PhotoItem item = chosen.get(i);
+            final int origIdx = chosenIndices.get(i);
+            final File jpgFile = new File(workDir, "link_" + stamp + "_" + i + ".jpg");
+
+            if (copyCachedPhotoIfPresent(req.url, resolved, origIdx, jpgFile) != null) {
+                if (stitchIntoVideo) {
+                    scratchToClean.add(jpgFile);
+                }
+                normalizedJpegs.add(jpgFile);
+                notifyPhase(cb, PHASE_DOWNLOAD, (i + 1f) / chosenIndices.size());
+                continue;
+            }
+
             final File rawFile = new File(workDir, "link_" + stamp + "_p" + i + ".raw");
             scratchToClean.add(rawFile);
 
             final int photoIdx = i;
-            final int totalPhotos = chosen.size();
-            PengramLinkResolver.download(
-                    item.imageUrl, rawFile, MAX_PHOTO_BYTES,
-                    resolved.cookies, resolved.referer, resolved.userAgent, false,
-                    handle.cancel,
-                    (written, total) -> {
-                        final float sub = total > 0 ? Math.min(1f, (float) written / total) : 0.5f;
-                        notifyPhase(cb, PHASE_DOWNLOAD, (photoIdx + sub) / totalPhotos);
-                    });
+            final int totalPhotos = chosenIndices.size();
+            try {
+                final PengramLinkResolver.PhotoItem item = resolved.photos.get(origIdx);
+                PengramLinkResolver.download(
+                        item.imageUrl, rawFile, MAX_PHOTO_BYTES,
+                        resolved.cookies, resolved.referer, resolved.userAgent, false,
+                        handle.cancel,
+                        (written, total) -> {
+                            final float sub = total > 0 ? Math.min(1f, (float) written / total) : 0.5f;
+                            notifyPhase(cb, PHASE_DOWNLOAD, (photoIdx + sub) / totalPhotos);
+                        });
+            } catch (CancellationException ce) {
+                throw ce;
+            } catch (Exception dlErr) {
+                if (!refreshedOnce && resolved.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
+                    refreshedOnce = true;
+                    rawFile.delete();
+                    final PengramLinkResolver.Resolved fresh = PengramLinkResolver.resolve(req.url);
+                    if (fresh.isPhotos() && origIdx < fresh.photos.size()) {
+                        resolved = fresh;
+                        registerTikTokResolved(req.url, resolved);
+                        final PengramLinkResolver.PhotoItem item = resolved.photos.get(origIdx);
+                        PengramLinkResolver.download(
+                                item.imageUrl, rawFile, MAX_PHOTO_BYTES,
+                                resolved.cookies, resolved.referer, resolved.userAgent, false,
+                                handle.cancel,
+                                (written, total) -> {
+                                    final float sub = total > 0 ? Math.min(1f, (float) written / total) : 0.5f;
+                                    notifyPhase(cb, PHASE_DOWNLOAD, (photoIdx + sub) / totalPhotos);
+                                });
+                    } else {
+                        throw dlErr;
+                    }
+                } else {
+                    throw dlErr;
+                }
+            }
             checkCancelled(handle);
 
-            final File jpgFile = new File(workDir, "link_" + stamp + "_" + i + ".jpg");
             normalizePhotoToJpeg(rawFile, jpgFile);
             rawFile.delete();
+            cacheTikTokPhoto(cacheDir, req.url, resolved, origIdx, jpgFile);
             if (stitchIntoVideo) {
                 scratchToClean.add(jpgFile);
             }
@@ -325,18 +1107,23 @@ public final class PengramLinkAssistant {
             if (wantAudio && resolved.audioUrl != null && !resolved.audioUrl.isEmpty()) {
                 final File rawAudio = new File(workDir, "link_" + stamp + "_aud.m4a");
                 scratchToClean.add(rawAudio);
-                try {
-                    PengramLinkResolver.download(
-                            resolved.audioUrl, rawAudio, MAX_AUDIO_BYTES,
-                            resolved.cookies, resolved.referer, resolved.userAgent, false,
-                            handle.cancel, null);
-                    if (rawAudio.exists() && rawAudio.length() > 1024L) {
-                        audioFile = rawAudio;
+                if (copyCachedAudioIfPresent(req.url, resolved, rawAudio) != null) {
+                    audioFile = rawAudio;
+                } else {
+                    try {
+                        PengramLinkResolver.download(
+                                resolved.audioUrl, rawAudio, MAX_AUDIO_BYTES,
+                                resolved.cookies, resolved.referer, resolved.userAgent, false,
+                                handle.cancel, null);
+                        if (rawAudio.exists() && rawAudio.length() > 1024L) {
+                            audioFile = rawAudio;
+                            cacheTikTokAudio(cacheDir, req.url, resolved, rawAudio);
+                        }
+                    } catch (CancellationException ce) {
+                        throw ce;
+                    } catch (Throwable ignoreAudioErr) {
+                        rawAudio.delete();
                     }
-                } catch (CancellationException ce) {
-                    throw ce;
-                } catch (Throwable ignoreAudioErr) {
-                    rawAudio.delete();
                 }
             }
 
@@ -376,8 +1163,19 @@ public final class PengramLinkAssistant {
     }
 
     private static void deliverVideo(Request req, PengramLinkResolver.Resolved primary,
-                                     ExecutionOptions opts, File workDir,
+                                     ExecutionOptions opts, File workDir, File cacheDir,
                                      List<File> scratchToClean, Handle handle, Callback cb) throws Exception {
+        if (primary.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
+            final File fastOut = new File(workDir, "link_" + System.currentTimeMillis() + ".mp4");
+            if (copyCachedVideoIfPresent(req.url, primary, fastOut) != null) {
+                checkCancelled(handle);
+                notifyPhase(cb, PHASE_SEND, 1f);
+                final String caption = buildCaption(req, primary, opts.captionModeOverride);
+                sendVideoFile(req, fastOut, caption, cb);
+                return;
+            }
+        }
+
         final List<PengramLinkResolver.Resolved> candidates = new ArrayList<>();
         candidates.add(primary);
         candidates.addAll(primary.fallbacks);
@@ -450,9 +1248,34 @@ public final class PengramLinkAssistant {
             }
         }
 
+        if (finalFile == null && primary.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
+            // Если URL-адреса в закэшированном Resolved успели протухнуть — обновляем метаданные один раз.
+            try {
+                final PengramLinkResolver.Resolved fresh = PengramLinkResolver.resolve(req.url);
+                registerTikTokResolved(req.url, fresh);
+                if (!fresh.isPhotos() && !fresh.urls.isEmpty()) {
+                    final File out = new File(workDir, "link_" + System.currentTimeMillis() + ".mp4");
+                    try {
+                        PengramLinkResolver.download(
+                                fresh.urls.get(0), out, MAX_VIDEO_BYTES,
+                                fresh.cookies, fresh.referer,
+                                fresh.userAgent, fresh.rangeChunked, handle.cancel,
+                                (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                        validateDownloadedVideo(out);
+                        finalFile = out;
+                    } catch (Throwable dlErr) {
+                        out.delete();
+                    }
+                }
+            } catch (Throwable ignore) {
+            }
+        }
+
         if (finalFile == null) {
             throw lastErr != null ? lastErr : new Exception("empty output");
         }
+
+        cacheTikTokVideo(cacheDir, req.url, primary, finalFile);
 
         checkCancelled(handle);
         notifyPhase(cb, PHASE_SEND, 1f);
@@ -552,11 +1375,11 @@ public final class PengramLinkAssistant {
                     0,
                     false,
                     null,
-                    null,
+                    req.sendMessageChatArguments,
                     0L,
                     false,
                     0L,
-                    0L,
+                    req.monoForumPeer,
                     null);
             if (cb != null) {
                 cb.onSent();
@@ -597,11 +1420,11 @@ public final class PengramLinkAssistant {
                         0,
                         false,
                         null,
-                        null,
+                        req.sendMessageChatArguments,
                         0L,
                         false,
                         0L,
-                        0L,
+                        req.monoForumPeer,
                         null);
             }
             if (cb != null) {
