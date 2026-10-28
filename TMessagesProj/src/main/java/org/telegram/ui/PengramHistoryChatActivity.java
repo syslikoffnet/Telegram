@@ -177,8 +177,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
 
         contentView = new SizeNotifierFrameLayout(context);
-        android.graphics.drawable.Drawable themedWallpaper = getResourceProvider() != null ? getResourceProvider().getDrawable(Theme.key_chat_wallpaper) : null;
-        contentView.setBackgroundImage(themedWallpaper != null ? themedWallpaper : Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
+        applyWallpaper();
         fragmentView = contentView;
 
         listView = new RecyclerListView(context);
@@ -490,7 +489,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
             }
             MessageObject messageObject = new MessageObject(currentAccount, message, true, true);
             messageObject.resetLayout();
-            messageObject.generateLayout(getResourceProvider());
             return messageObject;
         } catch (Throwable e) {
             return null;
@@ -520,7 +518,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             labels.add(getString(R.string.PengramPhotoCopy));
             actions.add(() -> org.telegram.ui.Components.PengramPhotoClipboard.copy(this, message));
         }
-        if (PengramCopySender.canCopy(currentAccount, message)) {
+        if (!DialogObject.isEncryptedDialog(message.getDialogId()) && !message.isSponsored()) {
             labels.add(getString(R.string.PengramHistoryResendCopy));
             actions.add(() -> forwardCopy(message));
         }
@@ -705,11 +703,21 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
     }
 
+    private void applyWallpaper() {
+        if (contentView == null) return;
+        android.graphics.drawable.Drawable themedWallpaper = getResourceProvider() instanceof org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate
+                ? ((org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate) getResourceProvider()).getWallpaperDrawable()
+                : null;
+        boolean motion = getResourceProvider() instanceof org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate
+                ? ((org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate) getResourceProvider()).isWallpaperMotion()
+                : Theme.isWallpaperMotion();
+        contentView.setBackgroundImage(themedWallpaper != null ? themedWallpaper : Theme.getCachedWallpaper(), motion);
+    }
+
     private void refreshTheme() {
         if (contentView == null) return;
         Theme.createChatResources(contentView.getContext(), false);
-        android.graphics.drawable.Drawable themedWallpaper = getResourceProvider() != null ? getResourceProvider().getDrawable(Theme.key_chat_wallpaper) : null;
-        contentView.setBackgroundImage(themedWallpaper != null ? themedWallpaper : Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
+        applyWallpaper();
         if (actionBar != null) {
             actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
         }
@@ -721,7 +729,6 @@ public class PengramHistoryChatActivity extends BaseFragment {
             Item item = items.get(i);
             if (item != null && item.message != null) {
                 item.message.resetLayout();
-                item.message.generateLayout(getResourceProvider());
             }
         }
         if (adapter != null) {

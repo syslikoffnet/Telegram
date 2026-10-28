@@ -84,7 +84,7 @@ assert 'Drawable.ConstantState' in mark_span and '.mutate()' in mark_span
 assert 'currentBackgroundDrawable.setAlpha(255);' in msg_cell
 assert 'hasEntry(account, dialogId, id)' not in history.split('public static void markDeleted(', 1)[1].split('public static', 1)[0]
 assert 'mergeDialogId != 0 && org.telegram.messenger.PengramHistory.isMarkedDeleted' in chat
-assert 'messageObject.generateLayout(getResourceProvider());' in hist_chat
+assert 'new ChatMessageCell(context, currentAccount, false, null, getResourceProvider())' in hist_chat
 
 # 5. Privacy leak guards (Ghost Mode / No-Screenshot / No-Typing / Keep-Once-Media)
 assert 'if (PengramConfig.isNoScreenshotNotify())' in send_helper.split('public void sendScreenshotMessage(', 1)[1].split('TLRPC.TL_messages_sendScreenshotNotification', 1)[0]

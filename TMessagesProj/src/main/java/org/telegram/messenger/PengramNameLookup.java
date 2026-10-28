@@ -86,11 +86,11 @@ public final class PengramNameLookup {
 
     private static boolean hasSocksProxy() {
         try {
-            return SharedConfig.proxyEnabled
+            return SharedConfig.isProxyEnabled()
                     && SharedConfig.currentProxy != null
-                    && TextUtils.isEmpty(SharedConfig.currentProxy.secret)
-                    && !TextUtils.isEmpty(SharedConfig.currentProxy.address)
-                    && SharedConfig.currentProxy.port > 0;
+                    && SharedConfig.currentProxy.settings.getType() == org.telegram.utils.proxy.ProxySettings.Type.SOCKS5
+                    && !TextUtils.isEmpty(SharedConfig.currentProxy.settings.getAddress())
+                    && SharedConfig.currentProxy.settings.getPort() > 0;
         } catch (Throwable ignore) {
             return false;
         }
@@ -103,7 +103,7 @@ public final class PengramNameLookup {
             final URL url = new URL(urlString);
             if (useProxy && hasSocksProxy()) {
                 Proxy proxy = new Proxy(Proxy.Type.SOCKS,
-                        new InetSocketAddress(SharedConfig.currentProxy.address, SharedConfig.currentProxy.port));
+                        new InetSocketAddress(SharedConfig.currentProxy.settings.getAddress(), SharedConfig.currentProxy.settings.getPort()));
                 connection = (HttpURLConnection) url.openConnection(proxy);
             } else {
                 connection = (HttpURLConnection) url.openConnection();

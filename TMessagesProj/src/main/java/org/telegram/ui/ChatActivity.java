@@ -29663,10 +29663,7 @@ public class ChatActivity extends BaseFragment implements
                 ghost.pengramArchived = true;
                 ghost.pengramArchiveRowId = saved.rowId;
                 ghost.stableId = lastStableId++;
-                if (themeDelegate != null) {
-                    ghost.resetLayout();
-                    ghost.generateLayout(themeDelegate);
-                }
+                ghost.resetLayout();
                 if (chatAdapter.isFiltered) setFilterMessages(false);
                 // Newest first: skip messages newer than the snapshot, but step
                 // over the day separator of its own day — otherwise the ghost
