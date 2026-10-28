@@ -74,7 +74,7 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
     private int aShadowPosition;
     private int uShadowMvp, uShadowAlpha;
 
-    private Mesh bodyMesh, eyesMesh, wingLeftMesh, wingRightMesh, accessoryMesh, shadowMesh;
+    private Mesh bodyMesh, crownTuftMesh, eyesMesh, wingLeftMesh, wingRightMesh, accessoryMesh, shadowMesh;
 
     /** выбранный скин; перестраиваем сетку аксессуаров прямо в рендер-потоке */
     private volatile int skin;
@@ -642,7 +642,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         // третей кадра — в шапке он выглядел и вовсе игрушечным. Теперь кадр
         // считается от настоящего содержимого: сверху только высота прыжка и
         // пара сантиметров воздуха, снизу — лапки.
-        final float contentTop = Math.max(bodyMesh == null ? 1.18f : bodyMesh.maxY,
+        final boolean showTuft = crownTuftMesh != null && skin != 1 && skin != 3 && skin != 8;
+        final float contentTop = Math.max(
+                Math.max(bodyMesh == null ? 1.18f : bodyMesh.maxY, showTuft ? crownTuftMesh.maxY : 0f),
                 accessoryMesh == null ? 0f : accessoryMesh.maxY);
         final float fitTop = contentTop + CAM_JUMP_LIMIT + CAM_MARGIN;
         final float fitBottom = CONTENT_BOTTOM + CAM_MARGIN;
@@ -705,13 +707,17 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         drawContactShadow(idleBob);
 
         drawMesh(bodyMesh);
+        if (showTuft) {
+            drawMesh(crownTuftMesh);
+        }
         if (accessoryMesh != null) {
             drawMesh(accessoryMesh);
         }
 
-        // крылья живут отдельно: их можно поднимать и махать
-        drawWing(wingLeftMesh, -WING_PIVOT_X, wingAngle);
-        drawWing(wingRightMesh, WING_PIVOT_X, -(wave > 0 ? wingAngle * 0.25f : wingAngle));
+        // крылья живут отдельно: их можно поднимать и махать (отрицательный угол
+        // поднимает левое крыло наружу, положительный — правое)
+        drawWing(wingLeftMesh, -WING_PIVOT_X, -wingAngle);
+        drawWing(wingRightMesh, WING_PIVOT_X, wave > 0 ? wingAngle * 0.25f : wingAngle);
 
         // глаза живут отдельной сеткой: их можно «прикрыть» при моргании и
         // сдвинуть микродвижением взгляда
@@ -720,9 +726,9 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             Matrix.translateM(model, 0, eyeX, eyeY, 0);
         }
         if (blink > 0.01f) {
-            Matrix.translateM(model, 0, 0, 0.827f, 0);
+            Matrix.translateM(model, 0, 0, 0.822f, 0);
             Matrix.scaleM(model, 0, 1f, Math.max(0.08f, 1f - blink), 1f);
-            Matrix.translateM(model, 0, 0, -0.827f, 0);
+            Matrix.translateM(model, 0, 0, -0.822f, 0);
         }
         Matrix.multiplyMM(tmp, 0, view, 0, model, 0);
         Matrix.multiplyMM(mvp, 0, projection, 0, tmp, 0);
@@ -732,8 +738,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         drawMesh(eyesMesh);
     }
 
-    private static final float WING_PIVOT_X = 0.60f;
-    private static final float WING_PIVOT_Y = 0.16f;
+    private static final float WING_PIVOT_X = 0.51f;
+    private static final float WING_PIVOT_Y = 0.20f;
     private final float[] baseModel = new float[16];
 
     /** крыло крутится вокруг «плеча» */
@@ -858,6 +864,8 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
             "  vec3 color = vColor * (ambient * 0.55 + diff * 0.74 * (1.0 - 0.25 * lum) + fill * 0.10);\n" +
             "  color += sky * fres * (0.58 - 0.30 * lum);\n" +
             "  color += vec3(1.0, 0.97, 0.90) * spec * (0.26 + 0.24 * (1.0 - lum));\n" +
+            "  float backRim = pow(1.0 - clamp(dot(n, viewDir), 0.0, 1.0), 2.4) * clamp(-n.x * 0.45 + n.y * 0.55 + 0.35, 0.0, 1.0);\n" +
+            "  color += vec3(0.46, 0.64, 0.95) * backRim * 0.20 * (1.0 - lum);\n" +
             // микроворс перьев: почти незаметная рябь убирает «пластик»
             "  float feather = sin(vPos.x * 46.0 + sin(vPos.z * 31.0)) * sin(vPos.y * 38.0 + 1.7);\n" +
             "  color *= 1.0 + feather * 0.014;\n" +
@@ -968,11 +976,34 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         float[] color(float ux, float uy, float uz);
     }
 
-    private static final float[] BLACK = {0.102f, 0.121f, 0.153f};
-    private static final float[] WHITE = {0.972f, 0.976f, 0.988f};
-    private static final float[] ORANGE = {0.976f, 0.639f, 0.149f};
-    private static final float[] DARK = {0.051f, 0.063f, 0.086f};
+    /** параметрическая поверхность P(u, v), u ∈ [0..1], v ∈ [0..1] */
+    private interface ParamSurface {
+        void eval(float u, float v, float[] outPos);
+    }
+
+    /** раскраска параметрической поверхности с доступом к мировой позиции */
+    private interface SurfacePainter {
+        float[] color(float u, float v, float px, float py, float pz);
+    }
+
+    private static final float[] BLACK = {0.092f, 0.116f, 0.168f};
+    private static final float[] CROWN_DARK = {0.062f, 0.080f, 0.122f};
+    private static final float[] WHITE = {0.976f, 0.980f, 0.992f};
+    private static final float[] CREAM = {0.952f, 0.934f, 0.896f};
+    private static final float[] COLLAR = {0.995f, 0.830f, 0.440f};
+    private static final float[] BLUSH = {0.988f, 0.640f, 0.665f};
+    private static final float[] EYE_SOCKET = {0.850f, 0.880f, 0.940f};
+    private static final float[] ORANGE = {0.995f, 0.635f, 0.125f};
+    private static final float[] BEAK_TIP = {1.000f, 0.770f, 0.265f};
+    private static final float[] BEAK_LOWER = {0.925f, 0.490f, 0.105f};
+    private static final float[] BEAK_CREASE = {0.460f, 0.185f, 0.075f};
+    private static final float[] FOOT_TOP = {0.988f, 0.618f, 0.135f};
+    private static final float[] FOOT_BOT = {0.875f, 0.440f, 0.090f};
+    private static final float[] DARK = {0.022f, 0.028f, 0.046f};
+    private static final float[] IRIS_DEEP = {0.042f, 0.062f, 0.118f};
+    private static final float[] IRIS_GLOW = {0.185f, 0.425f, 0.775f};
     private static final float[] SHINE = {1f, 1f, 1f};
+    private static final float[] SHINE_SOFT = {0.88f, 0.95f, 1f};
 
     private static float smoothstep(float edge0, float edge1, float x) {
         float t = (x - edge0) / (edge1 - edge0);
@@ -986,50 +1017,217 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         return new float[]{a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t};
     }
 
+    private void addParamSurface(ArrayList<Float> out, int slices, int stacks,
+                                 ParamSurface surface, SurfacePainter painter) {
+        final float eps = 0.0025f;
+        final float[] pu1 = new float[3], pu2 = new float[3];
+        final float[] pv1 = new float[3], pv2 = new float[3];
+        final float[][] quad = new float[4][3];
+        final float[][] quadN = new float[4][3];
+        final float[][] quadC = new float[4][];
+
+        for (int i = 0; i < stacks; ++i) {
+            for (int j = 0; j < slices; ++j) {
+                for (int k = 0; k < 4; ++k) {
+                    final int si = i + (k == 2 || k == 3 ? 1 : 0);
+                    final int sj = j + (k == 1 || k == 2 ? 1 : 0);
+                    final float u = (float) si / stacks;
+                    final float v = (float) sj / slices;
+                    surface.eval(u, v, quad[k]);
+
+                    final float uc = Math.min(1f - eps, Math.max(eps, u));
+                    surface.eval(Math.max(0f, uc - eps), v, pu1);
+                    surface.eval(Math.min(1f, uc + eps), v, pu2);
+                    surface.eval(uc, v - eps, pv1);
+                    surface.eval(uc, v + eps, pv2);
+
+                    final float dux = pu2[0] - pu1[0], duy = pu2[1] - pu1[1], duz = pu2[2] - pu1[2];
+                    final float dvx = pv2[0] - pv1[0], dvy = pv2[1] - pv1[1], dvz = pv2[2] - pv1[2];
+                    quadN[k][0] = duy * dvz - duz * dvy;
+                    quadN[k][1] = duz * dvx - dux * dvz;
+                    quadN[k][2] = dux * dvy - duy * dvx;
+                    normalize(quadN[k]);
+                    quadC[k] = painter.color(u, v, quad[k][0], quad[k][1], quad[k][2]);
+                }
+                addVertex(out, quad[0], quadN[0], quadC[0]);
+                addVertex(out, quad[1], quadN[1], quadC[1]);
+                addVertex(out, quad[2], quadN[2], quadC[2]);
+
+                addVertex(out, quad[0], quadN[0], quadC[0]);
+                addVertex(out, quad[2], quadN[2], quadC[2]);
+                addVertex(out, quad[3], quadN[3], quadC[3]);
+            }
+        }
+    }
+
     private void buildMeshes() {
         final ArrayList<Float> body = new ArrayList<>();
 
-        // туловище: чёрная спина + белое пузо (граница размыта, чтобы не было «лесенки»)
-        addEllipsoid(body, 0f, -0.18f, 0f, 0.64f, 0.80f, 0.60f, 0f, 0f, 76, 52, (ux, uy, uz) -> {
-            final float front = uz - uy * 0.28f;
-            final float t = smoothstep(0.38f, 0.46f, front) * (1f - smoothstep(0.70f, 0.78f, uy));
-            return mix(BLACK, WHITE, t);
+        // 1. Туловище грушевидной формы: уютный животик, мягкая грудка и тёплый золотистый воротничок
+        addParamSurface(body, 68, 46, (u, v, out) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float bellyCurve = (uy + 0.24f) / 0.44f;
+            final float pear = 1f - 0.095f * smoothstep(-0.05f, 0.88f, uy)
+                    + 0.062f * (float) Math.exp(-(bellyCurve * bellyCurve));
+            final float chestCurve = (uy - 0.08f) / 0.50f;
+            final float chestPuff = 0.042f * Math.max(0f, uz) * (float) Math.exp(-(chestCurve * chestCurve));
+            out[0] = ux * 0.635f * pear;
+            out[1] = -0.175f + uy * 0.800f;
+            out[2] = uz * 0.595f * pear + chestPuff;
+        }, (u, v, px, py, pz) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float arch = uz - uy * 0.20f - (ux * ux) * 0.20f;
+            final float bellyT = smoothstep(0.32f, 0.40f, arch) * (1f - smoothstep(0.68f, 0.78f, uy));
+            float[] bellyCol = mix(WHITE, CREAM, smoothstep(-0.22f, -0.85f, uy) * 0.40f);
+            final float collarArg = (uy - 0.55f) / 0.13f;
+            final float collarBand = (float) Math.exp(-(collarArg * collarArg)) * smoothstep(0.30f, 0.68f, uz);
+            bellyCol = mix(bellyCol, COLLAR, collarBand * 0.34f);
+            final float[] backCol = mix(BLACK, CROWN_DARK, smoothstep(0.30f, 0.88f, uy) * 0.40f);
+            return mix(backCol, bellyCol, bellyT);
         });
 
-        // голова с белой «маской» на лице
-        addEllipsoid(body, 0f, 0.70f, 0.015f, 0.505f, 0.475f, 0.475f, 0f, 0f, 68, 46, (ux, uy, uz) -> {
-            final float front = uz - uy * 0.35f - Math.abs(ux) * 0.25f;
-            final float t = smoothstep(0.36f, 0.44f, front) * (1f - smoothstep(0.50f, 0.60f, uy));
-            return mix(BLACK, WHITE, t);
+        // 2. Голова с пухлыми щёчками, сердечком лицевой маски и лёгким румянцем
+        addParamSurface(body, 68, 46, (u, v, out) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float cxArg = (Math.abs(ux) - 0.55f) / 0.32f;
+            final float cyArg = (uy + 0.20f) / 0.30f;
+            final float cheek = (float) Math.exp(-(cxArg * cxArg + cyArg * cyArg)) * Math.max(0f, uz + 0.15f);
+            final float fhArg = (uy - 0.35f) / 0.35f;
+            final float forehead = (float) Math.exp(-(fhArg * fhArg)) * Math.max(0f, uz) * 0.016f;
+            out[0] = ux * 0.518f * (1f + 0.058f * cheek);
+            out[1] = 0.692f + uy * 0.482f;
+            out[2] = 0.016f + uz * 0.482f * (1f + 0.034f * cheek) + forehead;
+        }, (u, v, px, py, pz) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float dl = (float) Math.hypot((ux + 0.355f) * 1.10f, (uy - 0.22f) * 1.24f);
+            final float dr = (float) Math.hypot((ux - 0.355f) * 1.10f, (uy - 0.22f) * 1.24f);
+            final float dChin = (float) Math.hypot(ux * 0.84f, (uy + 0.24f) * 1.14f);
+            final float maskT = (1f - smoothstep(0.46f, 0.53f, Math.min(dl, Math.min(dr, dChin))))
+                    * smoothstep(0.24f, 0.35f, uz);
+            float[] faceCol = mix(WHITE, CREAM, smoothstep(-0.18f, -0.70f, uy) * 0.24f);
+            final float bl = (float) Math.hypot((Math.abs(ux) - 0.50f) / 0.165f, (uy + 0.04f) / 0.115f);
+            final float blushT = (1f - smoothstep(0.20f, 1.0f, bl)) * smoothstep(0.45f, 0.72f, uz) * maskT;
+            faceCol = mix(faceCol, BLUSH, blushT * 0.38f);
+            final float eyeRim = Math.min(
+                    (float) Math.hypot((ux + 0.365f) / 0.20f, (uy - 0.26f) / 0.22f),
+                    (float) Math.hypot((ux - 0.365f) / 0.20f, (uy - 0.26f) / 0.22f));
+            final float socketT = (1f - smoothstep(0.75f, 1.05f, eyeRim)) * smoothstep(0.55f, 0.80f, uz);
+            faceCol = mix(faceCol, EYE_SOCKET, socketT * 0.30f);
+            final float[] darkCol = mix(BLACK, CROWN_DARK, smoothstep(0.10f, 0.75f, uy) * 0.55f);
+            return mix(darkCol, faceCol, maskT);
         });
 
-        // клюв
-        addCone(body, 0f, 0.655f, 0.40f, 0.145f, 0.30f, 28, ORANGE);
+        // 3. Двухчастный изогнутый улыбающийся клюв (верхнее и нижнее надклювье без острых углов)
+        addParamSurface(body, 34, 18, (u, v, out) -> {
+            final double psi = u * (Math.PI * 0.50);
+            final double theta = 2.0 * Math.PI * v;
+            final float rad = Math.max(0f, (float) Math.sin(psi));
+            final float fwd = Math.max(0f, (float) Math.cos(psi));
+            final float ct = (float) Math.cos(theta);
+            final float st = (float) Math.sin(theta);
+            final float w = 0.146f * (float) Math.pow(rad, 0.88);
+            final float hBase = st >= 0f ? (0.082f * (1f - 0.16f * ct * ct)) : 0.020f;
+            final float h = hBase * (float) Math.pow(rad, 0.85);
+            final float smile = 0.020f * (ct * ct) * (float) Math.pow(rad, 1.2);
+            final float yCenter = 0.660f + 0.014f * (float) Math.sin(fwd * Math.PI)
+                    - 0.024f * fwd * fwd + smile;
+            out[0] = ct * w;
+            out[1] = yCenter + st * h;
+            out[2] = 0.390f + 0.238f * fwd;
+        }, (u, v, px, py, pz) -> {
+            final float[] top = mix(ORANGE, BEAK_TIP,
+                    smoothstep(0.46f, 0.62f, pz) * 0.60f + smoothstep(0.66f, 0.73f, py) * 0.25f);
+            return mix(top, BEAK_CREASE, smoothstep(0.660f, 0.640f, py) * 0.50f);
+        });
 
-        // лапки
-        addEllipsoid(body, -0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 22, 14, (ux, uy, uz) -> ORANGE);
-        addEllipsoid(body, 0.26f, -0.93f, 0.16f, 0.21f, 0.075f, 0.29f, 0f, 0f, 22, 14, (ux, uy, uz) -> ORANGE);
+        addParamSurface(body, 28, 14, (u, v, out) -> {
+            final double psi = u * (Math.PI * 0.50);
+            final double theta = 2.0 * Math.PI * v;
+            final float rad = Math.max(0f, (float) Math.sin(psi));
+            final float fwd = Math.max(0f, (float) Math.cos(psi));
+            final float ct = (float) Math.cos(theta);
+            final float st = (float) Math.sin(theta);
+            final float w = 0.104f * (float) Math.pow(rad, 0.90);
+            final float h = (st >= 0f ? 0.012f : 0.036f) * (float) Math.pow(rad, 0.88);
+            final float smile = 0.014f * (ct * ct) * (float) Math.pow(rad, 1.2);
+            out[0] = ct * w;
+            out[1] = 0.642f - 0.010f * (float) Math.pow(fwd, 1.8) + smile + st * h;
+            out[2] = 0.395f + 0.172f * fwd;
+        }, (u, v, px, py, pz) -> mix(BEAK_LOWER, BEAK_CREASE, smoothstep(0.630f, 0.646f, py) * 0.58f));
 
-        // хвостик
-        addEllipsoid(body, 0f, -0.58f, -0.52f, 0.20f, 0.13f, 0.22f, -24f, 0f, 20, 14, (ux, uy, uz) -> BLACK);
+        // 4. Перепончатые лапки с тремя пухлыми пальчиками и голеностопом
+        for (int side = -1; side <= 1; side += 2) {
+            final float sx = side;
+            addEllipsoid(body, sx * 0.245f, -0.875f, 0.065f, 0.108f, 0.090f, 0.110f, 0f, 0f, 16, 10,
+                    (ux, uy, uz) -> mix(FOOT_TOP, BLACK, smoothstep(-0.10f, 0.45f, uy)));
+            addEllipsoid(body, sx * 0.252f, -0.922f, 0.145f, 0.155f, 0.064f, 0.160f, 0f, 0f, 20, 12,
+                    (ux, uy, uz) -> mix(FOOT_BOT, FOOT_TOP, smoothstep(-0.4f, 0.5f, uy)));
+            addEllipsoid(body, sx * 0.255f, -0.932f, 0.238f, 0.165f, 0.044f, 0.125f, 2f, 0f, 20, 10,
+                    (ux, uy, uz) -> mix(FOOT_BOT, FOOT_TOP, smoothstep(-0.3f, 0.6f, uy) * 0.85f));
+            addFootToe(body, sx * 0.170f, -0.926f, 0.285f, 0.058f, 0.056f, 0.130f, sx * -14f);
+            addFootToe(body, sx * 0.255f, -0.924f, 0.312f, 0.064f, 0.060f, 0.146f, sx * 2f);
+            addFootToe(body, sx * 0.340f, -0.928f, 0.278f, 0.056f, 0.054f, 0.124f, sx * 17f);
+        }
+
+        // 5. Двухцветный приподнятый хвостик с пёрышком на кончике
+        addEllipsoid(body, 0f, -0.575f, -0.515f, 0.195f, 0.118f, 0.225f, -26f, 0f, 22, 14,
+                (ux, uy, uz) -> mix(WHITE, BLACK, smoothstep(-0.45f, 0.10f, uy)));
+        addEllipsoid(body, 0f, -0.515f, -0.605f, 0.118f, 0.072f, 0.132f, -34f, 0f, 16, 10,
+                (ux, uy, uz) -> CROWN_DARK);
 
         bodyMesh = new Mesh(body);
 
+        // Хохолок на макушке (прячется под закрытыми шапками)
+        final ArrayList<Float> tuft = new ArrayList<>();
+        addEllipsoid(tuft, 0.015f, 1.162f, 0.005f, 0.036f, 0.072f, 0.046f, -16f, -20f, 14, 10, (ux, uy, uz) -> BLACK);
+        addEllipsoid(tuft, -0.032f, 1.152f, -0.010f, 0.030f, 0.058f, 0.040f, -20f, 22f, 12, 8, (ux, uy, uz) -> CROWN_DARK);
+        crownTuftMesh = new Mesh(tuft);
+
+        // 6. Глубокие глянцевые глаза с сапфировым полумесяцем радужки и двойным бликом
         final ArrayList<Float> eyes = new ArrayList<>();
-        // центры глаз вынесены почти на поверхность головы, иначе сферы тонут внутри неё
-        addEllipsoid(eyes, -0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 20, 16, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, 0.194f, 0.827f, 0.413f, 0.082f, 0.088f, 0.082f, 0f, 0f, 20, 16, (ux, uy, uz) -> DARK);
-        addEllipsoid(eyes, -0.215f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 12, 10, (ux, uy, uz) -> SHINE);
-        addEllipsoid(eyes, 0.173f, 0.854f, 0.463f, 0.030f, 0.030f, 0.030f, 0f, 0f, 12, 10, (ux, uy, uz) -> SHINE);
+        for (int side = -1; side <= 1; side += 2) {
+            final float sx = side;
+            final float ex = sx * 0.186f, ey = 0.822f, ez = 0.420f;
+            addEllipsoid(eyes, ex, ey, ez, 0.088f, 0.096f, 0.068f, 0f, sx * -4f, 34, 26, (ux, uy, uz) -> {
+                final float gx = ux + sx * 0.08f;
+                final float r = (float) Math.hypot(gx, uy);
+                final float lowerGlow = smoothstep(0.18f, -0.68f, uy)
+                        * smoothstep(0.92f, 0.36f, r) * smoothstep(0.35f, 0.85f, uz);
+                float[] c = mix(IRIS_DEEP, IRIS_GLOW, lowerGlow * 0.90f);
+                final float pupilR = (float) Math.hypot(gx * 1.02f, (uy - 0.04f) * 0.98f);
+                c = mix(c, DARK, (1f - smoothstep(0.38f, 0.56f, pupilR)) * 0.95f);
+                return mix(c, DARK, smoothstep(0.76f, 0.94f, r) * 0.85f);
+            });
+            addEllipsoid(eyes, ex - 0.025f, ey + 0.030f, ez + 0.056f, 0.027f, 0.029f, 0.016f, -12f, 10f, 14, 10,
+                    (ux, uy, uz) -> SHINE);
+            addEllipsoid(eyes, ex + 0.025f, ey - 0.028f, ez + 0.055f, 0.013f, 0.013f, 0.011f, 10f, -10f, 10, 8,
+                    (ux, uy, uz) -> SHINE_SOFT);
+        }
         eyesMesh = new Mesh(eyes);
 
-        // крылья — отдельными сетками, чтобы ими можно было махать
+        // 7. Контурные двухцветные крылья-ласты (снаружи тёмные, изнутри белоснежные)
         final ArrayList<Float> left = new ArrayList<>();
-        addEllipsoid(left, -WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, 16f, 26, 18, (ux, uy, uz) -> BLACK);
+        addFlipper(left, -1f);
         wingLeftMesh = new Mesh(left);
 
         final ArrayList<Float> right = new ArrayList<>();
-        addEllipsoid(right, WING_PIVOT_X, -0.12f, 0f, 0.115f, 0.40f, 0.28f, 0f, -16f, 26, 18, (ux, uy, uz) -> BLACK);
+        addFlipper(right, 1f);
         wingRightMesh = new Mesh(right);
 
         // контактная тень: диск радиуса 1 в плоскости XY, гаснет к краю в шейдере
@@ -1046,13 +1244,68 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         shadowMesh = new Mesh(shadow);
     }
 
+    private void addFootToe(ArrayList<Float> out, float tx, float ty, float tz,
+                            float rx, float ry, float rz, float yawDeg) {
+        final float yawRad = (float) Math.toRadians(yawDeg);
+        final float cy = (float) Math.cos(yawRad);
+        final float sy = (float) Math.sin(yawRad);
+        addParamSurface(out, 16, 10, (u, v, pos) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float lx = ux * rx;
+            final float ly = uy * ry * (0.86f + 0.14f * uz);
+            final float lz = uz * rz;
+            pos[0] = tx + lx * cy + lz * sy;
+            pos[1] = ty + ly;
+            pos[2] = tz - lx * sy + lz * cy;
+        }, (u, v, px, py, pz) -> mix(FOOT_BOT, BEAK_TIP, smoothstep(-0.96f, -0.88f, py) * 0.78f));
+    }
+
+    private void addFlipper(ArrayList<Float> out, float sx) {
+        final float rxRad = (float) Math.toRadians(5f);
+        final float rzRad = (float) Math.toRadians(sx * 13f);
+        final float[] local = new float[3];
+        addParamSurface(out, 30, 22, (u, v, pos) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uy = (float) Math.cos(phi);
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float t = 0.5f - 0.5f * uy;
+            final float taperZ = 0.82f + 0.26f * (float) Math.sin(t * Math.PI * 0.78)
+                    - 0.22f * (float) Math.pow(t, 1.6);
+            final float taperX = 1f - 0.30f * (float) Math.pow(t, 1.4);
+            final float sweepBack = -0.055f * (float) Math.pow(t, 1.5);
+            local[0] = ux * 0.098f * taperX;
+            local[1] = uy * 0.405f;
+            local[2] = uz * 0.245f * taperZ + sweepBack;
+            rotate(local, rxRad, rzRad);
+            pos[0] = sx * 0.575f + local[0];
+            pos[1] = -0.145f + local[1];
+            pos[2] = 0.010f + local[2];
+        }, (u, v, px, py, pz) -> {
+            final double phi = Math.PI * u;
+            final double theta = 2.0 * Math.PI * v;
+            final float ux = (float) (Math.sin(phi) * Math.sin(theta));
+            final float uz = (float) (Math.sin(phi) * Math.cos(theta));
+            final float inner = -sx * ux + uz * 0.22f;
+            return mix(BLACK, WHITE, smoothstep(0.16f, 0.44f, inner) * 0.90f);
+        });
+    }
+
     // ---------------------------------------------------------------- скины
 
-    private static final float[] RED = {0.847f, 0.173f, 0.192f};
-    private static final float[] GOLD = {0.965f, 0.792f, 0.259f};
+    private static final float[] RED = {0.855f, 0.176f, 0.200f};
+    private static final float[] RED_DARK = {0.680f, 0.115f, 0.145f};
+    private static final float[] GOLD = {0.972f, 0.804f, 0.265f};
     private static final float[] PURPLE = {0.439f, 0.282f, 0.780f};
     private static final float[] BLUE = {0.231f, 0.525f, 0.925f};
+    private static final float[] BLUE_DARK = {0.155f, 0.385f, 0.765f};
     private static final float[] GRAY = {0.188f, 0.204f, 0.239f};
+    private static final float[] LENS = {0.065f, 0.095f, 0.145f};
     private static final float[] CYAN = {0.329f, 0.800f, 0.871f};
 
     /** собрать «одежду» пингвина — вызывается в рендер-потоке при смене скина */
@@ -1064,57 +1317,73 @@ public class PengramPenguinView extends TextureView implements TextureView.Surfa
         final ArrayList<Float> out = new ArrayList<>();
         switch (value) {
             case 1: { // колпак Санты
-                addConeY(out, 0f, 1.03f, -0.02f, 0.40f, 0.62f, 0.10f, 0.30f, 24, RED);
-                addTorus(out, 0f, 1.02f, -0.02f, 0.395f, 0.085f, 1, 26, 10, WHITE);
-                addEllipsoid(out, 0.10f, 1.60f, 0.26f, 0.115f, 0.115f, 0.115f, 0f, 0f, 16, 12, (ux, uy, uz) -> WHITE);
+                addConeY(out, 0f, 1.03f, -0.02f, 0.415f, 0.62f, 0.10f, 0.30f, 28, RED);
+                addTorus(out, 0f, 1.02f, -0.02f, 0.410f, 0.088f, 1, 30, 12, WHITE);
+                addEllipsoid(out, 0.10f, 1.60f, 0.26f, 0.118f, 0.118f, 0.118f, 0f, 0f, 18, 14, (ux, uy, uz) -> WHITE);
                 break;
             }
-            case 2: { // шарф
-                addTorus(out, 0f, 0.34f, 0f, 0.44f, 0.105f, 1, 30, 12, BLUE);
-                addEllipsoid(out, 0.17f, 0.06f, 0.37f, 0.095f, 0.26f, 0.065f, 14f, -8f, 14, 12, (ux, uy, uz) -> BLUE);
+            case 2: { // вязаный двойной шарф с узлом и двумя концами
+                addTorus(out, 0f, 0.355f, 0f, 0.448f, 0.086f, 1, 32, 14, BLUE);
+                addTorus(out, 0f, 0.285f, 0f, 0.475f, 0.080f, 1, 32, 14, BLUE_DARK);
+                addEllipsoid(out, 0.17f, 0.26f, 0.49f, 0.085f, 0.085f, 0.072f, 0f, 0f, 14, 10, (ux, uy, uz) -> BLUE);
+                addEllipsoid(out, 0.19f, 0.03f, 0.515f, 0.088f, 0.235f, 0.052f, -12f, -8f, 16, 12, (ux, uy, uz) -> BLUE);
+                addEllipsoid(out, 0.08f, 0.07f, 0.530f, 0.074f, 0.180f, 0.048f, -10f, 6f, 14, 10, (ux, uy, uz) -> BLUE_DARK);
                 break;
             }
             case 3: { // кепка
-                addEllipsoid(out, 0f, 0.90f, 0.01f, 0.52f, 0.33f, 0.50f, 0f, 0f, 30, 20, (ux, uy, uz) -> RED);
-                addEllipsoid(out, 0f, 0.92f, 0.52f, 0.34f, 0.035f, 0.28f, -10f, 0f, 20, 8, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, 0f, 1.22f, 0.01f, 0.065f, 0.065f, 0.065f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0f, 0.90f, 0.01f, 0.535f, 0.335f, 0.510f, 0f, 0f, 32, 22, (ux, uy, uz) -> RED);
+                addEllipsoid(out, 0f, 0.92f, 0.53f, 0.345f, 0.036f, 0.285f, -10f, 0f, 22, 10, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0f, 1.225f, 0.01f, 0.065f, 0.065f, 0.065f, 0f, 0f, 12, 10, (ux, uy, uz) -> WHITE);
                 break;
             }
-            case 4: { // очки
-                addEllipsoid(out, -0.195f, 0.830f, 0.425f, 0.145f, 0.105f, 0.055f, 0f, 0f, 18, 12, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, 0.195f, 0.830f, 0.425f, 0.145f, 0.105f, 0.055f, 0f, 0f, 18, 12, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, 0f, 0.830f, 0.430f, 0.085f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, -0.40f, 0.845f, 0.21f, 0.135f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, 0.40f, 0.845f, 0.21f, 0.135f, 0.022f, 0.022f, 0f, 0f, 10, 8, (ux, uy, uz) -> GRAY);
+            case 4: { // очки с оправой и бликующими тёмными линзами
+                for (int side = -1; side <= 1; side += 2) {
+                    final float sx = side;
+                    addEllipsoid(out, sx * 0.195f, 0.826f, 0.448f, 0.152f, 0.110f, 0.042f, 0f, sx * -3f, 22, 14,
+                            (ux, uy, uz) -> GRAY);
+                    addEllipsoid(out, sx * 0.195f, 0.826f, 0.464f, 0.132f, 0.092f, 0.038f, 0f, sx * -3f, 20, 14,
+                            (ux, uy, uz) -> mix(LENS, CYAN, smoothstep(0.25f, 0.85f, uy - ux * 0.35f) * 0.28f));
+                    addEllipsoid(out, sx * 0.355f, 0.840f, 0.280f, 0.022f, 0.022f, 0.165f, 0f, 0f, 12, 8,
+                            (ux, uy, uz) -> GRAY);
+                }
+                addEllipsoid(out, 0f, 0.845f, 0.468f, 0.078f, 0.022f, 0.025f, 0f, 0f, 12, 8, (ux, uy, uz) -> GRAY);
                 break;
             }
-            case 5: { // корона
-                addTorus(out, 0f, 1.035f, 0f, 0.345f, 0.065f, 1, 26, 10, GOLD);
+            case 5: { // корона с самоцветами и жемчужинами
+                addTorus(out, 0f, 1.045f, 0f, 0.345f, 0.062f, 1, 30, 12, GOLD);
                 for (int a = 0; a < 5; ++a) {
                     final double angleRad = 2 * Math.PI * a / 5;
-                    addConeY(out, (float) Math.sin(angleRad) * 0.33f, 1.05f, (float) Math.cos(angleRad) * 0.33f,
-                            0.085f, 0.21f, 0f, 0f, 12, GOLD);
+                    final float sx = (float) Math.sin(angleRad);
+                    final float sz = (float) Math.cos(angleRad);
+                    addConeY(out, sx * 0.33f, 1.055f, sz * 0.33f, 0.082f, 0.21f, 0f, 0f, 14, GOLD);
+                    addEllipsoid(out, sx * 0.33f, 1.270f, sz * 0.33f, 0.032f, 0.032f, 0.032f, 0f, 0f, 10, 8,
+                            (ux, uy, uz) -> WHITE);
+                    final float[] gem = (a % 2 == 0) ? RED : CYAN;
+                    addEllipsoid(out, sx * 0.395f, 1.045f, sz * 0.395f, 0.028f, 0.028f, 0.028f, 0f, 0f, 10, 8,
+                            (ux, uy, uz) -> gem);
                 }
                 break;
             }
             case 6: { // наушники
-                addTorus(out, 0f, 0.80f, 0f, 0.56f, 0.055f, 2, 26, 10, GRAY);
-                addEllipsoid(out, -0.545f, 0.80f, 0f, 0.10f, 0.185f, 0.165f, 0f, 0f, 16, 12, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, 0.545f, 0.80f, 0f, 0.10f, 0.185f, 0.165f, 0f, 0f, 16, 12, (ux, uy, uz) -> GRAY);
-                addEllipsoid(out, -0.615f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
-                addEllipsoid(out, 0.615f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
+                addTorus(out, 0f, 0.80f, 0f, 0.575f, 0.055f, 2, 28, 12, GRAY);
+                addEllipsoid(out, -0.560f, 0.80f, 0f, 0.10f, 0.188f, 0.168f, 0f, 0f, 18, 14, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, 0.560f, 0.80f, 0f, 0.10f, 0.188f, 0.168f, 0f, 0f, 18, 14, (ux, uy, uz) -> GRAY);
+                addEllipsoid(out, -0.630f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
+                addEllipsoid(out, 0.630f, 0.80f, 0f, 0.045f, 0.145f, 0.125f, 0f, 0f, 14, 10, (ux, uy, uz) -> CYAN);
                 break;
             }
-            case 7: { // бабочка
-                addEllipsoid(out, -0.13f, 0.30f, 0.40f, 0.12f, 0.09f, 0.045f, 0f, 22f, 14, 10, (ux, uy, uz) -> RED);
-                addEllipsoid(out, 0.13f, 0.30f, 0.40f, 0.12f, 0.09f, 0.045f, 0f, -22f, 14, 10, (ux, uy, uz) -> RED);
-                addEllipsoid(out, 0f, 0.30f, 0.42f, 0.045f, 0.055f, 0.035f, 0f, 0f, 10, 8, (ux, uy, uz) -> GOLD);
+            case 7: { // атласная бабочка на груди
+                addEllipsoid(out, -0.125f, 0.295f, 0.485f, 0.122f, 0.088f, 0.046f, -12f, 18f, 16, 12,
+                        (ux, uy, uz) -> mix(RED_DARK, RED, smoothstep(-0.3f, 0.5f, uz)));
+                addEllipsoid(out, 0.125f, 0.295f, 0.485f, 0.122f, 0.088f, 0.046f, -12f, -18f, 16, 12,
+                        (ux, uy, uz) -> mix(RED_DARK, RED, smoothstep(-0.3f, 0.5f, uz)));
+                addEllipsoid(out, 0f, 0.295f, 0.505f, 0.048f, 0.056f, 0.040f, -12f, 0f, 12, 10, (ux, uy, uz) -> GOLD);
                 break;
             }
             case 8: { // колпак волшебника
-                addConeY(out, 0f, 1.02f, 0f, 0.37f, 0.95f, 0.06f, 0.16f, 24, PURPLE);
-                addEllipsoid(out, 0f, 1.01f, 0f, 0.62f, 0.035f, 0.62f, 0f, 0f, 28, 8, (ux, uy, uz) -> PURPLE);
-                addTorus(out, 0f, 1.10f, 0f, 0.345f, 0.055f, 1, 24, 10, GOLD);
+                addConeY(out, 0f, 1.02f, 0f, 0.38f, 0.95f, 0.06f, 0.16f, 26, PURPLE);
+                addEllipsoid(out, 0f, 1.01f, 0f, 0.63f, 0.038f, 0.63f, 0f, 0f, 30, 10, (ux, uy, uz) -> PURPLE);
+                addTorus(out, 0f, 1.10f, 0f, 0.355f, 0.055f, 1, 26, 10, GOLD);
                 addEllipsoid(out, 0.11f, 1.78f, 0.28f, 0.075f, 0.075f, 0.075f, 0f, 0f, 12, 10, (ux, uy, uz) -> GOLD);
                 break;
             }

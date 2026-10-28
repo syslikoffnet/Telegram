@@ -71,8 +71,13 @@ public final class PengramCrashDialogs {
                     })
                     .setNegativeButton(getString(R.string.Close), (d, w) ->
                             PengramCrashReport.acknowledgePending(report))
+                    .setOnCancelListener(d -> PengramCrashReport.acknowledgePending(report))
+                    .setOnDismissListener(d -> PengramCrashReport.acknowledgePending(report))
                     .show();
-            shownThisSession = dialog.isShowing();
+            if (dialog.isShowing()) {
+                shownThisSession = true;
+                PengramCrashReport.acknowledgePending(report);
+            }
         } catch (Throwable error) {
             // A destroyed Activity or an overlay may prevent the dialog; retry
             // on the next resume instead of losing the only copy of the report.

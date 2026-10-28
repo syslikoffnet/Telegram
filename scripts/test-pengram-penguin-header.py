@@ -26,7 +26,9 @@ assert 'headerViewCompact = new PengramHeaderView(getContext(), true);' in setti
 assert 'public PengramHeaderView(Context context, boolean compact)' in settings
 assert 'private void buildCompact(Context context)' in settings
 assert 'private void buildFull(Context context)' in settings
-assert 'final int size = dp(72);' in settings                # пингвин, а не точка
+assert 'private static final int COMPACT_SIZE_DP = 116;' in settings
+assert 'final int size = COMPACT_SIZE_DP;' in settings        # сбалансированный размер в dp без двойного умножения на density
+assert 'final int size = dp(' not in settings
 # компактная шапка — та же центрированная композиция, что и большая:
 # ни пингвин, ни ссылки не должны уезжать влево
 assert 'addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));' in settings
@@ -56,5 +58,21 @@ assert 'float aspect = surfaceHeight == 0' not in view       # старый ра
 # --- размер ограничен обоими измерениями ------------------------------------
 assert 'final int maxHeight = height > 0 ? height - dp(240) : size;' in settings
 assert 'Math.min(maxWidth, maxHeight)' in settings
+assert 'clampPenguinSize(dp(' in settings
 
-print('penguin header: full row width, centred content, square viewport, size capped: OK')
+# --- детализированная 3D-геометрия пингвина ---------------------------------
+assert 'addParamSurface(' in view
+assert 'addFootToe(' in view
+assert 'addFlipper(' in view
+assert 'crownTuftMesh' in view
+
+# --- защита от устаревших окон краша после обновления -----------------------
+crash_report = (java / 'org/telegram/messenger/PengramCrashReport.java').read_text()
+crash_dialogs = (java / 'org/telegram/ui/Components/PengramCrashDialogs.java').read_text()
+assert 'private static void pruneStalePending()' in crash_report
+assert 'appInstallUpdateTimeMs()' in crash_report
+assert 'KEY_PENDING_INSTALL_STAMP' in crash_report
+assert 'setOnCancelListener(d -> PengramCrashReport.acknowledgePending(report))' in crash_dialogs
+assert 'setOnDismissListener(d -> PengramCrashReport.acknowledgePending(report))' in crash_dialogs
+
+print('penguin header: full row width, centred content, square viewport, size capped, crash-on-update guarded: OK')

@@ -7005,6 +7005,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         /** база превью пингвина: было 180dp — крупно и шумно; 150dp остаётся
          *  заметным, но не забивает шапку. Слайдер 70..120 % идёт от этой базы. */
         private static final int BASE_SIZE_DP = 150;
+        /** сбалансированный размер пингвина в корне «Настройки -> Pengram» (LayoutHelper принимает dp, не px) */
+        private static final int COMPACT_SIZE_DP = 116;
 
         private PengramPenguinView penguinView;
         private android.widget.ImageView fallbackLogo;
@@ -7106,10 +7108,12 @@ public class PengramSettingsActivity extends UniversalFragment {
 
         /** большое превью: раздел «Пингвин», где его крутят и переодевают */
         private void buildFull(Context context) {
-            final int penguinSize = clampPenguinSize(
-                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            final int sizePx = clampPenguinSize(dp(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f)));
+            final int penguinSize = Math.max(96, Math.round(sizePx / Math.max(1f, AndroidUtilities.density)));
             createPenguin(context, penguinSize);
             addView(penguinContainer, LayoutHelper.createLinear(penguinSize, penguinSize, Gravity.CENTER_HORIZONTAL));
+            applySize();
 
             // Пузырь с репликой: пингвин рассказывает, что происходит, и подсказывает жесты.
             bubble = createBubble(context, Gravity.CENTER);
@@ -7133,9 +7137,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         private void buildCompact(Context context) {
             // Компактная шапка повторяет большую по композиции, только ниже:
             // пингвин, заголовок, версия, реплика и ссылки идут по центру.
-            // Раньше пингвин стоял в левой колонке, а ссылки — отдельной
-            // строкой снизу, и шапка выглядела съехавшей влево.
-            final int size = dp(72);
+            // Важно: LayoutHelper.createLinear / createFrame принимают dp, а не px
+            // (раньше туда уходил dp(72), умножался на density повторно и раздувал шапку).
+            final int size = COMPACT_SIZE_DP;
             createPenguin(context, size);
             addView(penguinContainer, LayoutHelper.createLinear(size, size, Gravity.CENTER_HORIZONTAL));
 
@@ -7317,11 +7321,16 @@ public class PengramSettingsActivity extends UniversalFragment {
                 // ползунок размера относится к большому превью в разделе «Пингвин»
                 return;
             }
-            final int size = clampPenguinSize(
-                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f));
+            final int size = clampPenguinSize(dp(
+                    Math.round(BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f)));
+            final int logoSize = Math.round(size * 0.55f);
             if (fallbackLogo != null) {
-                fallbackLogo.setLayoutParams(LayoutHelper.createFrame(
-                        Math.round(size * 0.55f), Math.round(size * 0.55f), Gravity.CENTER));
+                final android.view.ViewGroup.LayoutParams logoLp = fallbackLogo.getLayoutParams();
+                if (logoLp != null && (logoLp.width != logoSize || logoLp.height != logoSize)) {
+                    logoLp.width = logoSize;
+                    logoLp.height = logoSize;
+                    fallbackLogo.setLayoutParams(logoLp);
+                }
             }
             if (penguinView != null) {
                 final android.view.ViewGroup.LayoutParams lp = penguinView.getLayoutParams();

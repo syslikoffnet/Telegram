@@ -6,6 +6,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.os.Debug;
 
@@ -17,6 +19,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Pengram: отчёт о вылете.
@@ -43,11 +47,14 @@ public final class PengramCrashReport {
     private static final String PREFS = "pengramcrash";
     private static final String KEY_PENDING = "pending";
     private static final String KEY_PENDING_TIME = "pendingTime";
+    private static final String KEY_PENDING_INSTALL_STAMP = "pendingInstallStamp";
     private static final String KEY_COPY = "copyToClipboard";
     private static final String KEY_NATIVE_EXIT_SEEN = "nativeExitSeen";
+    private static final long MAX_PENDING_AGE_MS = 24L * 3600000L;
     private static final String SEPARATOR = "\n=== pengram crash ===\n";
 
     private static volatile Thread.UncaughtExceptionHandler installedHandler;
+    private static volatile String cachedInstallStamp;
     private static final ThreadLocal<Boolean> handling = new ThreadLocal<>();
     private static ArrayList<String> cache;
 
@@ -57,6 +64,13 @@ public final class PengramCrashReport {
 
     /** вызывается один раз при старте приложения, до всего остального */
     public static synchronized void install() {
+        try {
+            // Прогреваем отпечаток установленного APK заранее и сразу гасим
+            // «висящие» отчёты от прошлой сборки, если приложение обновили.
+            currentInstallStamp();
+            pruneStalePending();
+        } catch (Throwable ignore) {
+        }
         try {
             final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
             if (previous == installedHandler) return;
@@ -92,6 +106,7 @@ public final class PengramCrashReport {
             if (context == null || p == null) return;
             ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
             if (manager == null) return;
+            final long installUpdateTime = appInstallUpdateTimeMs();
             for (ApplicationExitInfo info : manager.getHistoricalProcessExitReasons(context.getPackageName(), 0, 5)) {
                 if (!context.getPackageName().equals(info.getProcessName())) continue;
                 long timestamp = info.getTimestamp();
@@ -99,6 +114,8 @@ public final class PengramCrashReport {
                         || System.currentTimeMillis() - timestamp > 7L * 86400000L) break;
                 // Mark this exit before writing: do not redisplay a stale crash on every launch.
                 p.edit().putLong(KEY_NATIVE_EXIT_SEEN, timestamp).commit();
+                // Падение случилось до установки обновления — не выдаём его за вылет новой сборки.
+                if (installUpdateTime > 0 && timestamp < installUpdateTime) break;
                 if (info.getReason() != ApplicationExitInfo.REASON_CRASH_NATIVE) break;
                 StringBuilder sb = new StringBuilder("Pengram native crash report\n");
                 sb.append("Время: ").append(new SimpleDateFormat("dd.MM.yyyy HH:mm:ss", Locale.US)
@@ -303,9 +320,14 @@ public final class PengramCrashReport {
             final SharedPreferences p = prefs();
             if (p != null) {
                 // commit, а не apply: процесс умирает прямо сейчас
-                p.edit().putString(KEY_PENDING, report)
-                        .putLong(KEY_PENDING_TIME, System.currentTimeMillis())
-                        .commit();
+                final SharedPreferences.Editor editor = p.edit()
+                        .putString(KEY_PENDING, report)
+                        .putLong(KEY_PENDING_TIME, System.currentTimeMillis());
+                final String stamp = cachedInstallStamp;
+                if (stamp != null && !stamp.isEmpty()) {
+                    editor.putString(KEY_PENDING_INSTALL_STAMP, stamp);
+                }
+                editor.commit();
             }
         } catch (Throwable ignore) {
         }
@@ -390,7 +412,10 @@ public final class PengramCrashReport {
             }
             final SharedPreferences p = prefs();
             if (p != null) {
-                p.edit().remove(KEY_PENDING).remove(KEY_PENDING_TIME).apply();
+                p.edit().remove(KEY_PENDING)
+                        .remove(KEY_PENDING_TIME)
+                        .remove(KEY_PENDING_INSTALL_STAMP)
+                        .apply();
             }
         } catch (Throwable ignore) {
         }
@@ -398,14 +423,127 @@ public final class PengramCrashReport {
 
     // ------------------------------------------------------------------ «показать один раз»
 
+    /** время последней установки или обновления APK по данным PackageManager и файла APK */
+    private static long appInstallUpdateTimeMs() {
+        long best = 0;
+        try {
+            final Context context = ApplicationLoader.applicationContext;
+            if (context == null) {
+                return 0;
+            }
+            final PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            if (pInfo != null) {
+                best = Math.max(pInfo.firstInstallTime, pInfo.lastUpdateTime);
+            }
+            final ApplicationInfo appInfo = context.getApplicationInfo();
+            if (appInfo != null && appInfo.sourceDir != null) {
+                final File apk = new File(appInfo.sourceDir);
+                if (apk.exists()) {
+                    best = Math.max(best, apk.lastModified());
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        return best;
+    }
+
+    /**
+     * Отпечаток конкретной установленной сборки APK (включая размер и CRC32 classes.dex),
+     * чтобы отличать пересборки даже с одинаковым versionCode (например, beta-билды).
+     */
+    private static String currentInstallStamp() {
+        final String existing = cachedInstallStamp;
+        if (existing != null && !existing.isEmpty()) {
+            return existing;
+        }
+        try {
+            final Context context = ApplicationLoader.applicationContext;
+            if (context == null) {
+                return null;
+            }
+            final PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            final long versionCode = pInfo == null ? 0
+                    : (Build.VERSION.SDK_INT >= 28 ? pInfo.getLongVersionCode() : pInfo.versionCode);
+            final long updateTime = pInfo == null ? 0 : pInfo.lastUpdateTime;
+            long apkSize = 0;
+            long apkMtime = 0;
+            long dexCrc = 0;
+            final ApplicationInfo appInfo = context.getApplicationInfo();
+            if (appInfo != null && appInfo.sourceDir != null) {
+                final File apk = new File(appInfo.sourceDir);
+                if (apk.exists()) {
+                    apkSize = apk.length();
+                    apkMtime = apk.lastModified();
+                    try (ZipFile zip = new ZipFile(apk)) {
+                        final ZipEntry dex = zip.getEntry("classes.dex");
+                        if (dex != null) {
+                            dexCrc = dex.getCrc();
+                        }
+                    } catch (Throwable ignore) {
+                    }
+                }
+            }
+            final String built = versionCode + ":" + updateTime + ":" + apkSize + ":" + apkMtime + ":" + dexCrc
+                    + ":" + BuildVars.BUILD_VERSION_STRING;
+            cachedInstallStamp = built;
+            return built;
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    /**
+     * Если необработанный отчёт остался с прошлой сборки (до обновления приложения)
+     * или устарел более чем на сутки, снимаем флаг ожидания, чтобы после обновления
+     * не всплывало окно о старом вылете (в журнале падений запись при этом остаётся).
+     */
+    private static void pruneStalePending() {
+        try {
+            final SharedPreferences p = prefs();
+            if (p == null) {
+                return;
+            }
+            final String pending = p.getString(KEY_PENDING, null);
+            if (pending == null) {
+                return;
+            }
+            long crashTime = p.getLong(KEY_PENDING_TIME, 0);
+            if (crashTime <= 0) {
+                crashTime = timeOf(pending);
+            }
+            final long installUpdateTime = appInstallUpdateTimeMs();
+            final String savedStamp = p.getString(KEY_PENDING_INSTALL_STAMP, null);
+            final String currentStamp = currentInstallStamp();
+            final long now = System.currentTimeMillis();
+
+            final boolean predatesUpdate = installUpdateTime > 0
+                    && (crashTime <= 0 || crashTime < installUpdateTime);
+            final boolean buildChanged = savedStamp != null && !savedStamp.isEmpty()
+                    && currentStamp != null && !currentStamp.isEmpty()
+                    && !savedStamp.equals(currentStamp);
+            final boolean expired = crashTime > 0 && now > 0
+                    && (now - crashTime > MAX_PENDING_AGE_MS || crashTime - now > 3600000L);
+
+            if (predatesUpdate || buildChanged || expired) {
+                p.edit().remove(KEY_PENDING)
+                        .remove(KEY_PENDING_TIME)
+                        .remove(KEY_PENDING_INSTALL_STAMP)
+                        .commit();
+            }
+        } catch (Throwable ignore) {
+        }
+    }
+
     /** есть ли отчёт, о котором пользователю ещё не сказали */
     public static boolean hasPending() {
+        pruneStalePending();
         final SharedPreferences p = prefs();
         return p != null && p.getString(KEY_PENDING, null) != null;
     }
 
     /** Do not acknowledge until the crash dialog has actually opened. */
     public static String pendingReport() {
+        pruneStalePending();
         final SharedPreferences p = prefs();
         return p == null ? null : p.getString(KEY_PENDING, null);
     }
@@ -413,11 +551,15 @@ public final class PengramCrashReport {
     public static void acknowledgePending(String report) {
         final SharedPreferences p = prefs();
         if (p != null && report != null && report.equals(p.getString(KEY_PENDING, null))) {
-            p.edit().remove(KEY_PENDING).remove(KEY_PENDING_TIME).commit();
+            p.edit().remove(KEY_PENDING)
+                    .remove(KEY_PENDING_TIME)
+                    .remove(KEY_PENDING_INSTALL_STAMP)
+                    .commit();
         }
     }
 
     public static long pendingTime() {
+        pruneStalePending();
         final SharedPreferences p = prefs();
         return p == null ? 0 : p.getLong(KEY_PENDING_TIME, 0);
     }
