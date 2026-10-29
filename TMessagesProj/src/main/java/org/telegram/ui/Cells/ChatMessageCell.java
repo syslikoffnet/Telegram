@@ -4399,7 +4399,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (found != null) {
             pengramWatchUrl = found.url;
-            pengramWatchPlatform = found.platform;
+            pengramWatchPlatform = org.telegram.messenger.PengramLinkResolver.platformOf(found.url);
         }
     }
 

@@ -43334,7 +43334,7 @@ public class ChatActivity extends BaseFragment implements
                     BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
                             R.raw.ic_download,
                             LocaleController.getString(R.string.PengramLinkDownloading)).show();
-                    org.telegram.messenger.PengramLinkAssistant.execute(
+                    org.telegram.messenger.PengramLinkAssistant.start(
                             sendReq,
                             new org.telegram.messenger.PengramLinkAssistant.ExecutionOptions(
                                     false, null, directAction, null, -1, null),
@@ -43358,14 +43358,22 @@ public class ChatActivity extends BaseFragment implements
 
                                 @Override
                                 public void onFailedNoSend(org.telegram.messenger.PengramLinkAssistant.Request req, String reason) {
-                                    BulletinFactory.of(ChatActivity.this).createErrorBulletin(
-                                            LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                    AndroidUtilities.runOnUIThread(() -> {
+                                        if (getParentActivity() != null) {
+                                            BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                                                    LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                        }
+                                    });
                                 }
 
                                 @Override
                                 public void onFallbackChoiceRequested(org.telegram.messenger.PengramLinkAssistant.Request req, String reason) {
-                                    BulletinFactory.of(ChatActivity.this).createErrorBulletin(
-                                            LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                    AndroidUtilities.runOnUIThread(() -> {
+                                        if (getParentActivity() != null) {
+                                            BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                                                    LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                        }
+                                    });
                                 }
 
                                 @Override

@@ -2144,7 +2144,7 @@ public final class PengramLinkAssistant {
             return;
         }
         final long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
-        final int nowSec = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
+        final int nowSec = org.telegram.tgnet.ConnectionsManager.getInstance(currentAccount).getCurrentTime();
         String captionText = media.title.trim();
         if (!media.author.trim().isEmpty()) {
             captionText = captionText.isEmpty() ? media.author.trim() : (captionText + "\n— " + media.author.trim());

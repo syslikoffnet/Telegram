@@ -1346,6 +1346,10 @@ public final class PengramLinkResolver {
         return followRedirectsWithUa(url, cookies, maxHops, UA_DESKTOP);
     }
 
+    static String followRedirects(String url, Map<String, String> cookies, String ua) throws Exception {
+        return followRedirectsWithUa(url, cookies, 6, ua != null ? ua : UA_DESKTOP);
+    }
+
     private static String followRedirectsWithUa(String url, Map<String, String> cookies, int maxHops, String ua)
             throws Exception {
         String current = url;

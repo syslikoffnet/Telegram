@@ -14960,8 +14960,9 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                 }
-                ReadTask dialogPending = readTasksMap.remove(dialogId);
+                ReadTask dialogPending = readTasksMap.get(dialogId);
                 if (dialogPending != null) {
+                    readTasksMap.remove(dialogId);
                     readTasks.remove(dialogPending);
                     if (task == null && effectiveThreadId == 0) {
                         task = dialogPending;
@@ -15008,7 +15009,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 getConnectionsManager().sendRequest(req, null);
             }
         };
-        if (AndroidUtilities.isOnUIThread()) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
             uiStep.run();
         } else {
             AndroidUtilities.runOnUIThread(uiStep);
