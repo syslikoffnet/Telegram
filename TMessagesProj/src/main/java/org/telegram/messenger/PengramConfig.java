@@ -1008,15 +1008,17 @@ public class PengramConfig {
     }
 
     public static int getInlineWebSearchEngine() {
-        return clampInt(getInt(KEY_INLINE_WEB_SEARCH_ENGINE, WEB_ENGINE_GOOGLE), 0, WEB_ENGINE_COUNT - 1);
+        final int v = getIntCached(KEY_INLINE_WEB_SEARCH_ENGINE, WEB_ENGINE_GOOGLE);
+        return v < 0 || v >= WEB_ENGINE_COUNT ? WEB_ENGINE_GOOGLE : v;
     }
 
     public static void setInlineWebSearchEngine(int engine) {
-        putInt(KEY_INLINE_WEB_SEARCH_ENGINE, clampInt(engine, 0, WEB_ENGINE_COUNT - 1));
+        final int clamped = engine < 0 || engine >= WEB_ENGINE_COUNT ? WEB_ENGINE_GOOGLE : engine;
+        putInt(KEY_INLINE_WEB_SEARCH_ENGINE, clamped);
     }
 
     public static String getInlineWebSearchEngineName(int engine) {
-        switch (clampInt(engine, 0, WEB_ENGINE_COUNT - 1)) {
+        switch (engine) {
             case WEB_ENGINE_YANDEX: return "Яндекс";
             case WEB_ENGINE_DUCKDUCKGO: return "DuckDuckGo";
             case WEB_ENGINE_BRAVE: return "Brave Search";
