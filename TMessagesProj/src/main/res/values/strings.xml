@@ -13569,4 +13569,19 @@
     <string name="NoPaidMessagesTokenUsed">un1 used your QR code and can message you for free</string>
     <string name="NoPaidMessagesTokenUsedOut">You used the QR code of un1 and can message them for free</string>
     <string name="NoPaidMessagesTokenImported">You can now message **%1$s** for free.</string>
+    <string name="PengramCalcHeader">Inline Calculator &amp; Converter</string>
+    <string name="PengramInlineCalc">Calculator &amp; unit converter</string>
+    <string name="PengramInlineCalcInfo">Evaluates expressions like “= 1450 * 3.2” and converts units right in the message bar.</string>
+    <string name="PengramInlineCurrency">Live currency &amp; crypto converter</string>
+    <string name="PengramInlineCurrencyInfo">Shows live exchange rates when typing amounts like “150$”, “5000 rub in usd”, or “25 ton”.</string>
+    <string name="PengramCalcDefaultCurrency">Target currency</string>
+    <string name="PengramCalcCurrencyAuto">Auto (by language)</string>
+    <string name="PengramCalcRefreshRates">Refresh exchange rates</string>
+    <string name="PengramCalcRatesLive">Live rates</string>
+    <string name="PengramCalcRatesLoading">Updating rates…</string>
+    <string name="PengramCalcRatesUpdatedToast">Exchange rates updated</string>
+    <string name="PengramCalcRatesFailedToast">Could not update rates right now</string>
+    <string name="PengramCalcInsertChip">Insert</string>
+    <string name="PengramCalcTapToInsert">tap to insert</string>
+    <string name="PengramCalcSectionInfo">Tap the hint above the input bar to substitute the result, or tap the chip next to it to keep the original text.</string>
 </resources>

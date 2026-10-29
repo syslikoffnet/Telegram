@@ -876,6 +876,75 @@ public class PengramConfig {
         return h;
     }
 
+    // ------------------------------------------------------------ калькулятор и живой конвертер валют
+
+    public static final String KEY_INLINE_CALC = "inlineCalcEnabled";
+    public static final String KEY_INLINE_CURRENCY = "inlineCurrencyEnabled";
+    public static final String KEY_CALC_DEFAULT_CURRENCY = "inlineCalcCurrency";
+
+    public static final String[] CALC_CURRENCY_CODES = new String[]{
+            "AUTO", "RUB", "USD", "EUR", "UAH", "KZT", "BYN",
+            "UZS", "GEL", "TRY", "CNY", "GBP", "USDT", "TON", "BTC"
+    };
+
+    public static boolean isInlineCalcEnabled() {
+        return getBool(KEY_INLINE_CALC, true);
+    }
+
+    public static void setInlineCalcEnabled(boolean enabled) {
+        setBool(KEY_INLINE_CALC, enabled);
+    }
+
+    public static boolean isInlineCurrencyEnabled() {
+        return getBool(KEY_INLINE_CURRENCY, true);
+    }
+
+    public static void setInlineCurrencyEnabled(boolean enabled) {
+        setBool(KEY_INLINE_CURRENCY, enabled);
+    }
+
+    public static String getCalcDefaultCurrencyPref() {
+        init();
+        final SharedPreferences p = prefs();
+        final String v = p == null ? "AUTO" : p.getString(KEY_CALC_DEFAULT_CURRENCY, "AUTO");
+        if (v == null || v.isEmpty()) {
+            return "AUTO";
+        }
+        return v.toUpperCase(java.util.Locale.US);
+    }
+
+    public static void setCalcDefaultCurrencyPref(String code) {
+        putString(KEY_CALC_DEFAULT_CURRENCY, code == null || code.isEmpty() ? "AUTO" : code.toUpperCase(java.util.Locale.US));
+    }
+
+    public static String resolveCalcDefaultCurrency() {
+        final String pref = getCalcDefaultCurrencyPref();
+        if (!"AUTO".equals(pref)) {
+            return pref;
+        }
+        try {
+            final java.util.Locale loc = LocaleController.getInstance().getCurrentLocale();
+            final String lang = loc != null && loc.getLanguage() != null ? loc.getLanguage().toLowerCase(java.util.Locale.US) : "";
+            final String country = loc != null && loc.getCountry() != null ? loc.getCountry().toUpperCase(java.util.Locale.US) : "";
+            if ("ru".equals(lang) || "RU".equals(country)) return "RUB";
+            if ("uk".equals(lang) || "UA".equals(country)) return "UAH";
+            if ("kk".equals(lang) || "KZ".equals(country)) return "KZT";
+            if ("be".equals(lang) || "BY".equals(country)) return "BYN";
+            if ("uz".equals(lang) || "UZ".equals(country)) return "UZS";
+            if ("ka".equals(lang) || "GE".equals(country)) return "GEL";
+            if ("tr".equals(lang) || "TR".equals(country)) return "TRY";
+            if ("zh".equals(lang) || "CN".equals(country)) return "CNY";
+            if ("GB".equals(country)) return "GBP";
+            if ("DE".equals(country) || "FR".equals(country) || "NL".equals(country)
+                    || "ES".equals(country) || "IT".equals(country) || "PT".equals(country)
+                    || "AT".equals(country) || "BE".equals(country) || "FI".equals(country)) {
+                return "EUR";
+            }
+        } catch (Throwable ignore) {
+        }
+        return "RUB";
+    }
+
     // ------------------------------------------------------------ тексты песен
 
     public static final int LYRICS_SOURCE_AUTO = 0;
@@ -3462,7 +3531,8 @@ public class PengramConfig {
             "checkmarkStyle", "onlineBadgeStyle",
             "bubbleGlassEnabled", "bubbleGlassOpacity", "bubbleWallpaperTint",
             "bubbleRimEnabled", "bubbleRimStrength",
-            "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius"
+            "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius",
+            "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(

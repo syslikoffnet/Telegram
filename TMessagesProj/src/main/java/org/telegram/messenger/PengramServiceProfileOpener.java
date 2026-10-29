@@ -12,13 +12,20 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Pengram: надёжное открытие профиля из сервисных уведомлений о входе/выходе участника.
  *
- * <p>В обычном Telegram пользователь, покинувший группу, часто отсутствует в оперативном
- * кэше {@link MessagesController#getUser(long)}, из-за чего {@code ProfileActivity.onFragmentCreate()}
- * молча возвращает {@code false}. Здесь применяется 3-ступенчатое разрешение без фризов UI:
+ * <p>В обычном Telegram:
+ * <ul>
+ *   <li>нажатие мимо короткого жирного спана имени по тексту плашки вообще не обрабатывается
+ *       или открывает контекстное меню;</li>
+ *   <li>пользователь, покинувший группу, часто отсутствует в оперативном кэше
+ *       {@link MessagesController#getUser(long)}, из-за чего {@code ProfileActivity.onFragmentCreate()}
+ *       молча возвращает {@code false}.</li>
+ * </ul>
+ * Здесь применяется многоступенчатое разрешение без блокировки UI-потока:
  * <ol>
  *   <li>Оперативный кэш {@code MessagesController} (0 мс);</li>
  *   <li>Локальная БД {@code MessagesStorage.getUser(uid)} в {@code storageQueue};</li>
- *   <li>Запрос {@code users.getUsers} с {@code inputUserFromMessage} по исходному сервисному сообщению.</li>
+ *   <li>Запрос {@code users.getUsers} с {@code inputUserFromMessage} по исходному сервисному сообщению;</li>
+ *   <li>Для обычных групп — резервная подгрузка участников через {@code messages.getFullChat}.</li>
  * </ol>
  */
 public final class PengramServiceProfileOpener {
@@ -33,10 +40,22 @@ public final class PengramServiceProfileOpener {
             return false;
         }
         final TLRPC.MessageAction action = messageObject.messageOwner.action;
-        return action instanceof TLRPC.TL_messageActionChatAddUser
+        if (action instanceof TLRPC.TL_messageActionChatAddUser
                 || action instanceof TLRPC.TL_messageActionChatJoinedByLink
                 || action instanceof TLRPC.TL_messageActionChatJoinedByRequest
-                || action instanceof TLRPC.TL_messageActionChatDeleteUser;
+                || action instanceof TLRPC.TL_messageActionChatJoinedViaCommunity
+                || action instanceof TLRPC.TL_messageActionChatDeleteUser) {
+            return true;
+        }
+        if (messageObject.currentEvent != null && messageObject.currentEvent.action != null) {
+            final TLRPC.ChannelAdminLogEventAction ev = messageObject.currentEvent.action;
+            return ev instanceof TLRPC.TL_channelAdminLogEventActionParticipantJoin
+                    || ev instanceof TLRPC.TL_channelAdminLogEventActionParticipantJoinByInvite
+                    || ev instanceof TLRPC.TL_channelAdminLogEventActionParticipantJoinByRequest
+                    || ev instanceof TLRPC.TL_channelAdminLogEventActionParticipantLeave
+                    || ev instanceof TLRPC.TL_channelAdminLogEventActionParticipantInvite;
+        }
+        return false;
     }
 
     /**
@@ -49,12 +68,16 @@ public final class PengramServiceProfileOpener {
         }
         final TLRPC.Message msg = messageObject.messageOwner;
         final TLRPC.MessageAction action = msg.action;
-        final long fromUid = msg.from_id instanceof TLRPC.TL_peerUser ? msg.from_id.user_id : 0;
+        long fromUid = msg.from_id instanceof TLRPC.TL_peerUser ? msg.from_id.user_id : 0;
+        if (fromUid == 0 && messageObject.currentEvent != null && messageObject.currentEvent.user_id > 0) {
+            fromUid = messageObject.currentEvent.user_id;
+        }
         if (action == null) {
             return fromUid;
         }
         if (action instanceof TLRPC.TL_messageActionChatJoinedByLink
-                || action instanceof TLRPC.TL_messageActionChatJoinedByRequest) {
+                || action instanceof TLRPC.TL_messageActionChatJoinedByRequest
+                || action instanceof TLRPC.TL_messageActionChatJoinedViaCommunity) {
             return fromUid != 0 ? fromUid : action.user_id;
         }
         if (action instanceof TLRPC.TL_messageActionChatDeleteUser) {
@@ -84,9 +107,8 @@ public final class PengramServiceProfileOpener {
     }
 
     /**
-     * Если уведомление о входе/выходе относится ровно к одному участнику, возвращает его UID,
-     * чтобы нажатие по любой части компактной сервисной плашки открывало профиль без промахов.
-     * Если в уведомлении два разных человека («А добавил Б»), возвращает 0 — выбор идёт по спану.
+     * Если уведомление о входе/выходе относится ровно к одному участнику, возвращает его UID.
+     * Если в уведомлении два разных человека («А добавил Б»), возвращает 0.
      */
     public static long singleParticipantUid(MessageObject messageObject) {
         if (!isJoinOrLeaveAction(messageObject)) {
@@ -94,19 +116,22 @@ public final class PengramServiceProfileOpener {
         }
         final TLRPC.Message msg = messageObject.messageOwner;
         final TLRPC.MessageAction action = msg.action;
-        final long fromUid = msg.from_id instanceof TLRPC.TL_peerUser ? msg.from_id.user_id : 0;
+        long fromUid = msg.from_id instanceof TLRPC.TL_peerUser ? msg.from_id.user_id : 0;
+        if (fromUid == 0 && messageObject.currentEvent != null && messageObject.currentEvent.user_id > 0) {
+            fromUid = messageObject.currentEvent.user_id;
+        }
         long unique = 0;
 
         if (fromUid > 0) {
             unique = fromUid;
         }
-        if (action.user_id > 0) {
+        if (action != null && action.user_id > 0) {
             if (unique != 0 && unique != action.user_id) {
                 return 0;
             }
             unique = action.user_id;
         }
-        if (action.users != null) {
+        if (action != null && action.users != null) {
             for (int i = 0; i < action.users.size(); i++) {
                 final Long u = action.users.get(i);
                 if (u != null && u > 0) {
@@ -118,6 +143,49 @@ public final class PengramServiceProfileOpener {
             }
         }
         return unique;
+    }
+
+    /**
+     * Возвращает основного участника события входа/выхода при тапе по плашке целиком
+     * (например, если в тексте нет спанов или пользователь нажал между словами):
+     * <ul>
+     *   <li>«Вас добавил А» / «Вас исключил А» → профиль А;</li>
+     *   <li>«А добавил Б» / «А исключил Б» → профиль Б (того, кто вошёл / вышел);</li>
+     *   <li>«А вступил» / «А покинул» → профиль А.</li>
+     * </ul>
+     */
+    public static long primaryParticipantUid(MessageObject messageObject) {
+        if (!isJoinOrLeaveAction(messageObject)) {
+            return 0;
+        }
+        final long single = singleParticipantUid(messageObject);
+        if (single > 0) {
+            return single;
+        }
+        final TLRPC.Message msg = messageObject.messageOwner;
+        final TLRPC.MessageAction action = msg.action;
+        final long selfUid = UserConfig.getInstance(messageObject.currentAccount).getClientUserId();
+        long fromUid = msg.from_id instanceof TLRPC.TL_peerUser ? msg.from_id.user_id : 0;
+        if (fromUid == 0 && messageObject.currentEvent != null && messageObject.currentEvent.user_id > 0) {
+            fromUid = messageObject.currentEvent.user_id;
+        }
+        if (action instanceof TLRPC.TL_messageActionChatDeleteUser) {
+            if (action.user_id == selfUid && fromUid > 0) {
+                return fromUid;
+            }
+            return action.user_id > 0 ? action.user_id : fromUid;
+        }
+        if (action instanceof TLRPC.TL_messageActionChatAddUser) {
+            long target = action.user_id;
+            if (target == 0 && action.users != null && !action.users.isEmpty()) {
+                target = action.users.get(0);
+            }
+            if (target == selfUid && fromUid > 0 && fromUid != selfUid) {
+                return fromUid;
+            }
+            return target > 0 ? target : fromUid;
+        }
+        return fromUid;
     }
 
     /**
@@ -162,44 +230,74 @@ public final class PengramServiceProfileOpener {
 
     private static void fetchFromMessageAndOpen(int currentAccount, long uid, MessageObject serviceMessage, String flightKey, Runnable openAction) {
         final MessagesController controller = MessagesController.getInstance(currentAccount);
-        if (serviceMessage == null || serviceMessage.getId() <= 0 || serviceMessage.getDialogId() == 0) {
-            IN_FLIGHT.remove(flightKey);
-            openAction.run();
-            return;
-        }
-        final TLRPC.InputPeer peer = controller.getInputPeer(serviceMessage.getDialogId());
-        if (peer == null || peer instanceof TLRPC.TL_inputPeerEmpty) {
-            IN_FLIGHT.remove(flightKey);
-            openAction.run();
-            return;
-        }
-        final TLRPC.TL_inputUserFromMessage inputUser = new TLRPC.TL_inputUserFromMessage();
-        inputUser.peer = peer;
-        inputUser.msg_id = serviceMessage.getId();
-        inputUser.user_id = uid;
+        final long dialogId = serviceMessage != null ? serviceMessage.getDialogId() : 0;
+        final int msgId = serviceMessage != null ? serviceMessage.getId() : 0;
 
-        final TLRPC.TL_users_getUsers req = new TLRPC.TL_users_getUsers();
-        req.id.add(inputUser);
+        if (dialogId != 0 && msgId > 0) {
+            final TLRPC.InputPeer peer = controller.getInputPeer(dialogId);
+            if (peer != null && !(peer instanceof TLRPC.TL_inputPeerEmpty)) {
+                final TLRPC.TL_inputUserFromMessage inputUser = new TLRPC.TL_inputUserFromMessage();
+                inputUser.peer = peer;
+                inputUser.msg_id = msgId;
+                inputUser.user_id = uid;
 
-        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-            IN_FLIGHT.remove(flightKey);
-            if (response instanceof Vector) {
-                final Vector vector = (Vector) response;
-                final ArrayList<TLRPC.User> fetched = new ArrayList<>(vector.objects.size());
-                for (int i = 0; i < vector.objects.size(); i++) {
-                    Object o = vector.objects.get(i);
-                    if (o instanceof TLRPC.User && !(o instanceof TLRPC.TL_userEmpty)) {
-                        fetched.add((TLRPC.User) o);
+                final TLRPC.TL_users_getUsers req = new TLRPC.TL_users_getUsers();
+                req.id.add(inputUser);
+
+                ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                    if (response instanceof Vector) {
+                        final Vector vector = (Vector) response;
+                        final ArrayList<TLRPC.User> fetched = new ArrayList<>(vector.objects.size());
+                        for (int i = 0; i < vector.objects.size(); i++) {
+                            Object o = vector.objects.get(i);
+                            if (o instanceof TLRPC.User && !(o instanceof TLRPC.TL_userEmpty)) {
+                                fetched.add((TLRPC.User) o);
+                            }
+                        }
+                        if (!fetched.isEmpty()) {
+                            controller.putUsers(fetched, false);
+                            MessagesStorage.getInstance(currentAccount).putUsersAndChats(fetched, null, true, true);
+                        }
                     }
-                }
-                if (!fetched.isEmpty()) {
-                    controller.putUsers(fetched, false);
-                    MessagesStorage.getInstance(currentAccount).putUsersAndChats(fetched, null, true, true);
-                }
+                    if (controller.getUser(uid) != null) {
+                        IN_FLIGHT.remove(flightKey);
+                        openAction.run();
+                        return;
+                    }
+                    fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, openAction);
+                }));
+                return;
             }
-            if (controller.getUser(uid) != null) {
-                openAction.run();
+        }
+        fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, openAction);
+    }
+
+    private static void fetchFromChatFallback(int currentAccount, long uid, long dialogId, String flightKey, Runnable openAction) {
+        final MessagesController controller = MessagesController.getInstance(currentAccount);
+        if (dialogId < 0) {
+            final long chatId = -dialogId;
+            final TLRPC.Chat chat = controller.getChat(chatId);
+            if (chat != null && !ChatObject.isChannel(chat)) {
+                final TLRPC.TL_messages_getFullChat req = new TLRPC.TL_messages_getFullChat();
+                req.chat_id = chatId;
+                ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                    IN_FLIGHT.remove(flightKey);
+                    if (response instanceof TLRPC.TL_messages_chatFull) {
+                        final TLRPC.TL_messages_chatFull res = (TLRPC.TL_messages_chatFull) response;
+                        controller.putUsers(res.users, false);
+                        controller.putChats(res.chats, false);
+                        MessagesStorage.getInstance(currentAccount).putUsersAndChats(res.users, res.chats, true, true);
+                    }
+                    if (controller.getUser(uid) != null) {
+                        openAction.run();
+                    }
+                }));
+                return;
             }
-        }));
+        }
+        IN_FLIGHT.remove(flightKey);
+        if (controller.getUser(uid) != null) {
+            openAction.run();
+        }
     }
 }

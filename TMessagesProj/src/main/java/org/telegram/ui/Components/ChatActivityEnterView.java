@@ -143,6 +143,8 @@ import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramCurrencyRates;
+import org.telegram.messenger.PengramInlineCalc;
 import org.telegram.messenger.PengramLinkAssistant;
 import org.telegram.messenger.PengramLinkResolver;
 import org.telegram.messenger.R;
@@ -6171,6 +6173,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!pengramLinkSuppressWatcher) {
                     updatePengramLinkSuggestion(s);
                 }
+                if (!pengramCalcSuppressWatcher) {
+                    updatePengramCalcSuggestion(s);
+                }
             }
         });
         messageEditText.setEnabled(messageEditTextEnabled);
@@ -7151,7 +7156,264 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (topView == null) {
             return;
         }
-        if (topViewShownByPanel) {
+        if (topViewShownByPanel || pengramCalcShown) {
+            updatePengramLinkSlot();
+        } else {
+            updatePengramLinkSlot();
+            if (topViewShowed) {
+                hideTopView(true);
+            }
+        }
+    }
+
+    // --- Pengram: калькулятор, конвертер величин и живой конвертер валют прямо в строке ввода ---
+    private FrameLayout pengramCalcBar;
+    private FrameLayout pengramCalcIconWrap;
+    private TextView pengramCalcIconLabel;
+    private TextView pengramCalcTitle;
+    private TextView pengramCalcSubtitle;
+    private TextView pengramCalcSecondaryChip;
+    private TextView pengramCalcPrimaryChip;
+    private ImageView pengramCalcClose;
+    private boolean pengramCalcShown;
+    private boolean pengramCalcSuppressWatcher;
+    private String pengramCalcDismissedSig;
+    private PengramInlineCalc.Suggestion pengramCalcCurrent;
+
+    private final Runnable pengramRatesListener = () -> {
+        if (!destroyed && messageEditText != null && !pengramCalcSuppressWatcher) {
+            updatePengramCalcSuggestion(messageEditText.getText());
+        }
+    };
+
+    private void updatePengramCalcSuggestion(CharSequence text) {
+        if (destroyed || editingMessageObject != null) {
+            hidePengramCalcBar();
+            return;
+        }
+        final PengramInlineCalc.Suggestion suggestion = PengramInlineCalc.analyze(text, currentAccount);
+        if (suggestion == null) {
+            pengramCalcDismissedSig = null;
+            pengramCalcCurrent = null;
+            hidePengramCalcBar();
+            return;
+        }
+        if (suggestion.signature.equals(pengramCalcDismissedSig)) {
+            hidePengramCalcBar();
+            return;
+        }
+        pengramCalcDismissedSig = null;
+        pengramCalcCurrent = suggestion;
+        ensurePengramCalcBarAttached();
+        bindPengramCalcBar(suggestion);
+        showPengramCalcBar();
+    }
+
+    private void ensurePengramCalcBarAttached() {
+        if (pengramCalcBar != null || !(topView instanceof ChatActivityEnterTopView)) {
+            return;
+        }
+        final FrameLayout container = new FrameLayout(getContext());
+        container.setClickable(true);
+        container.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+
+        final LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), 0, dp(4), 0);
+
+        pengramCalcIconWrap = new FrameLayout(getContext());
+        pengramCalcIconLabel = new TextView(getContext());
+        pengramCalcIconLabel.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        pengramCalcIconLabel.setTypeface(AndroidUtilities.bold());
+        pengramCalcIconLabel.setGravity(Gravity.CENTER);
+        pengramCalcIconLabel.setSingleLine(true);
+        pengramCalcIconWrap.addView(pengramCalcIconLabel, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
+        row.addView(pengramCalcIconWrap, LayoutHelper.createLinear(28, 28));
+
+        final LinearLayout textCol = new LinearLayout(getContext());
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setGravity(Gravity.CENTER_VERTICAL);
+
+        pengramCalcTitle = new TextView(getContext());
+        pengramCalcTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13.5f);
+        pengramCalcTitle.setTypeface(AndroidUtilities.bold());
+        pengramCalcTitle.setSingleLine(true);
+        pengramCalcTitle.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(pengramCalcTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        pengramCalcSubtitle = new TextView(getContext());
+        pengramCalcSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+        pengramCalcSubtitle.setSingleLine(true);
+        pengramCalcSubtitle.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(pengramCalcSubtitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        row.addView(textCol, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 9, 0, 6, 0));
+
+        pengramCalcSecondaryChip = new TextView(getContext());
+        pengramCalcSecondaryChip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        pengramCalcSecondaryChip.setTypeface(AndroidUtilities.bold());
+        pengramCalcSecondaryChip.setGravity(Gravity.CENTER);
+        pengramCalcSecondaryChip.setSingleLine(true);
+        pengramCalcSecondaryChip.setPadding(dp(9), 0, dp(9), 0);
+        row.addView(pengramCalcSecondaryChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 5, 0));
+
+        pengramCalcPrimaryChip = new TextView(getContext());
+        pengramCalcPrimaryChip.setText(getString(R.string.PengramCalcInsertChip));
+        pengramCalcPrimaryChip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        pengramCalcPrimaryChip.setTypeface(AndroidUtilities.bold());
+        pengramCalcPrimaryChip.setTextColor(0xFFFFFFFF);
+        pengramCalcPrimaryChip.setGravity(Gravity.CENTER);
+        pengramCalcPrimaryChip.setSingleLine(true);
+        pengramCalcPrimaryChip.setPadding(dp(11), 0, dp(11), 0);
+        row.addView(pengramCalcPrimaryChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 2, 0));
+
+        pengramCalcClose = new ImageView(getContext());
+        pengramCalcClose.setImageResource(R.drawable.ic_ab_close);
+        pengramCalcClose.setScaleType(ImageView.ScaleType.CENTER);
+        pengramCalcClose.setContentDescription(LocaleController.getString(R.string.Close));
+        pengramCalcClose.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(18)));
+        row.addView(pengramCalcClose, LayoutHelper.createLinear(40, PENGRAM_LINK_BAR_DP));
+
+        container.addView(row, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP));
+
+        container.setOnClickListener(v -> applyPengramCalcSuggestion(false));
+        pengramCalcPrimaryChip.setOnClickListener(v -> applyPengramCalcSuggestion(false));
+        pengramCalcSecondaryChip.setOnClickListener(v -> applyPengramCalcSuggestion(true));
+        pengramCalcClose.setOnClickListener(v -> {
+            if (PengramConfig.isVibrationEnabled()) {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            }
+            if (pengramCalcCurrent != null) {
+                pengramCalcDismissedSig = pengramCalcCurrent.signature;
+            }
+            hidePengramCalcBar();
+        });
+
+        pengramCalcBar = container;
+        // ВАЖНО: LayoutHelper.createFrame принимает высоту в DP, НЕ в px!
+        ((ChatActivityEnterTopView) topView).setCalcView(container,
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP, Gravity.BOTTOM));
+    }
+
+    private void bindPengramCalcBar(PengramInlineCalc.Suggestion s) {
+        if (pengramCalcBar == null || s == null) {
+            return;
+        }
+        final int accent = getThemedColor(Theme.key_windowBackgroundWhiteBlueText);
+        final int tone;
+        final String badgeGlyph;
+        if (s.kind == PengramInlineCalc.KIND_CURRENCY) {
+            tone = 0xFF19A974;
+            badgeGlyph = "$";
+        } else if (s.kind == PengramInlineCalc.KIND_UNIT) {
+            tone = 0xFF7B61FF;
+            badgeGlyph = "⇄";
+        } else {
+            tone = accent;
+            badgeGlyph = "=";
+        }
+        if (pengramCalcIconLabel != null) {
+            pengramCalcIconLabel.setText(badgeGlyph);
+            pengramCalcIconLabel.setTextColor(tone);
+        }
+        if (pengramCalcIconWrap != null) {
+            pengramCalcIconWrap.setBackground(Theme.createRoundRectDrawable(
+                    dp(8), ColorUtils.setAlphaComponent(tone, 30)));
+        }
+        if (pengramCalcTitle != null) {
+            pengramCalcTitle.setText(s.displayTitle);
+            pengramCalcTitle.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+        }
+        if (pengramCalcSubtitle != null) {
+            pengramCalcSubtitle.setText(s.displaySubtitle);
+            pengramCalcSubtitle.setTextColor(getThemedColor(Theme.key_chat_replyPanelIcons));
+        }
+        if (pengramCalcPrimaryChip != null) {
+            if (s.loadingRates) {
+                pengramCalcPrimaryChip.setVisibility(GONE);
+            } else {
+                pengramCalcPrimaryChip.setVisibility(VISIBLE);
+                pengramCalcPrimaryChip.setText(getString(R.string.PengramCalcInsertChip));
+                pengramCalcPrimaryChip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                        dp(14), accent, ColorUtils.blendARGB(accent, Color.BLACK, 0.16f)));
+            }
+        }
+        if (pengramCalcSecondaryChip != null) {
+            if (s.loadingRates || TextUtils.isEmpty(s.secondaryLabel) || TextUtils.isEmpty(s.secondaryReplacement)) {
+                pengramCalcSecondaryChip.setVisibility(GONE);
+            } else {
+                pengramCalcSecondaryChip.setVisibility(VISIBLE);
+                pengramCalcSecondaryChip.setText(s.secondaryLabel);
+                final int secColor = getThemedColor(Theme.key_chat_replyPanelIcons);
+                pengramCalcSecondaryChip.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+                pengramCalcSecondaryChip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                        dp(14), ColorUtils.setAlphaComponent(secColor, 26), ColorUtils.setAlphaComponent(secColor, 52)));
+            }
+        }
+        if (pengramCalcClose != null) {
+            pengramCalcClose.setColorFilter(new PorterDuffColorFilter(
+                    getThemedColor(Theme.key_chat_replyPanelIcons), PorterDuff.Mode.SRC_IN));
+        }
+    }
+
+    private void applyPengramCalcSuggestion(boolean useSecondary) {
+        final PengramInlineCalc.Suggestion s = pengramCalcCurrent;
+        if (s == null || s.loadingRates || messageEditText == null) {
+            return;
+        }
+        final android.text.Editable edit = messageEditText.getText();
+        if (edit == null) {
+            return;
+        }
+        final int start = useSecondary ? s.secondaryReplaceStart : s.replaceStart;
+        final int end = useSecondary ? s.secondaryReplaceEnd : s.replaceEnd;
+        final String repl = useSecondary ? s.secondaryReplacement : s.primaryReplacement;
+        if (repl == null || start < 0 || end < start || end > edit.length()) {
+            return;
+        }
+        if (PengramConfig.isVibrationEnabled() && pengramCalcBar != null) {
+            pengramCalcBar.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        pengramCalcSuppressWatcher = true;
+        try {
+            edit.replace(start, end, repl);
+            final int cursor = Math.min(edit.length(), start + repl.length());
+            messageEditText.setSelection(cursor);
+        } finally {
+            pengramCalcSuppressWatcher = false;
+        }
+        pengramCalcCurrent = null;
+        hidePengramCalcBar();
+        updatePengramCalcSuggestion(messageEditText.getText());
+    }
+
+    private void showPengramCalcBar() {
+        pengramCalcShown = true;
+        if (topView == null) {
+            return;
+        }
+        ensurePengramCalcBarAttached();
+        updatePengramLinkSlot();
+        if (topViewShowed) {
+            return;
+        }
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) {
+            animatorTopViewVisibility.setValue(true, true);
+        }
+    }
+
+    private void hidePengramCalcBar() {
+        if (!pengramCalcShown) {
+            return;
+        }
+        pengramCalcShown = false;
+        if (topView == null) {
+            return;
+        }
+        if (topViewShownByPanel || pengramLinkShown) {
             updatePengramLinkSlot();
         } else {
             updatePengramLinkSlot();
@@ -7168,9 +7430,12 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
         final ChatActivityEnterTopView top = (topView instanceof ChatActivityEnterTopView)
                 ? (ChatActivityEnterTopView) topView : null;
-        final boolean barVisible = pengramLinkShown && (top == null || !top.isEditMode());
+        final boolean linkVis = pengramLinkShown && (top == null || !top.isEditMode());
+        final boolean calcVis = pengramCalcShown && !linkVis && (top == null || !top.isEditMode());
+        final boolean barVisible = linkVis || calcVis;
         if (top != null) {
-            top.setLinkVisible(barVisible);
+            top.setLinkVisible(linkVis);
+            top.setCalcVisible(calcVis);
             top.setPanelVisible(topViewShownByPanel || !barVisible);
         }
         final int base = pengramLinkSlotBaseHeight > 0 ? pengramLinkSlotBaseHeight : dp(48);
@@ -7217,6 +7482,22 @@ public class ChatActivityEnterView extends FrameLayout implements
             }
         }
         syncPengramActiveSession(!isPaused);
+        PengramCurrencyRates.addListener(pengramRatesListener);
+        if (PengramConfig.isInlineCurrencyEnabled()) {
+            PengramCurrencyRates.ensureFresh(currentAccount);
+        }
+        if (pengramCalcShown && pengramCalcCurrent != null) {
+            ensurePengramCalcBarAttached();
+            bindPengramCalcBar(pengramCalcCurrent);
+            updatePengramLinkSlot();
+            if (!topViewShowed) {
+                needShowTopView = true;
+                topViewShowed = true;
+                if (allowShowTopView) {
+                    animatorTopViewVisibility.setValue(true, false);
+                }
+            }
+        }
 
         checkUi_TopViewVisibility();
     }
@@ -7339,7 +7620,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
 
         topViewShownByPanel = false;
-        if (pengramLinkShown) {
+        if (pengramLinkShown || pengramCalcShown) {
             // Панель закрылась, но бар помощника активен — слот остаётся под ним.
             if (showTopViewRunnable != null) {
                 AndroidUtilities.cancelRunOnUIThread(showTopViewRunnable);
@@ -7482,6 +7763,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.featuredStickersDidLoad);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messageReceivedByServer2);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.sendingMessagesChanged);
+        PengramCurrencyRates.removeListener(pengramRatesListener);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.audioRecordTooShort);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateBotMenuButton);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.didUpdatePremiumGiftFieldIcon);

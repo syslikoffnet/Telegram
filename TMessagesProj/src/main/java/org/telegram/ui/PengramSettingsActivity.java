@@ -369,6 +369,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CHECKMARK_STYLE = 1057;
     private static final int BTN_ONLINE_BADGE_STYLE = 1058;
     private static final int BTN_BUBBLE_SHADOW_MODE = 1059;
+    private static final int BTN_CALC_CURRENCY = 1060;
+    private static final int BTN_CALC_REFRESH_RATES = 1061;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1117,7 +1119,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "hideBubbleTail", "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_TYPING:
-                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
+                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji", "inlineCalc*", "inlineCurrency*"};
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
             case SECTION_LINK_ASSISTANT:
@@ -1128,7 +1130,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS:
                 return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
-                        "serviceJoinLeaveProfile", "bubble*", "hideBubbleTail",
+                        "serviceJoinLeaveProfile", "bubble*", "hideBubbleTail", "inlineCalc*", "inlineCurrency*",
                         "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji",
                         "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
                         "forward*", "trackForward*"};
@@ -1496,6 +1498,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.KEY_SERVICE_JOIN_LEAVE_PROFILE: return R.drawable.msg_openprofile;
             case PengramConfig.KEY_BUBBLE_GLASS: return R.drawable.msg_theme;
             case PengramConfig.KEY_BUBBLE_RIM: return R.drawable.msg_customize;
+            case PengramConfig.KEY_INLINE_CALC: return R.drawable.msg_stats;
+            case PengramConfig.KEY_INLINE_CURRENCY: return R.drawable.msg_language;
             default: return 0;
         }
     }
@@ -4752,7 +4756,31 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asSettingsCell(BTN_TYPING_STATS_CLEAR, getString(R.string.PengramTypingStatsClear),
                     org.telegram.messenger.PengramTypingStats.summary(currentAccount)));
             items.add(UItem.asShadow(getString(R.string.PengramTypingStatsLegend)));
+        } else {
+            items.add(UItem.asShadow(null));
         }
+
+        items.add(UItem.asHeader(getString(R.string.PengramCalcHeader)));
+        items.add(checkInfo(PengramConfig.KEY_INLINE_CALC, true,
+                getString(R.string.PengramInlineCalc),
+                getString(R.string.PengramInlineCalcInfo)));
+        items.add(checkInfo(PengramConfig.KEY_INLINE_CURRENCY, true,
+                getString(R.string.PengramInlineCurrency),
+                getString(R.string.PengramInlineCurrencyInfo)));
+        if (PengramConfig.isInlineCurrencyEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_CALC_CURRENCY, R.drawable.msg_language,
+                    getString(R.string.PengramCalcDefaultCurrency),
+                    org.telegram.messenger.PengramCurrencyRates.displayLabelForPref(PengramConfig.getCalcDefaultCurrencyPref())));
+            final String rateStatus = org.telegram.messenger.PengramCurrencyRates.isUpdating()
+                    ? getString(R.string.PengramCalcRatesLoading)
+                    : (org.telegram.messenger.PengramCurrencyRates.hasRates()
+                            ? getString(R.string.PengramCalcRatesLive)
+                            : "");
+            items.add(UItem.asSettingsCell(BTN_CALC_REFRESH_RATES, R.drawable.msg_stats,
+                    getString(R.string.PengramCalcRefreshRates),
+                    rateStatus));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramCalcSectionInfo)));
     }
 
     /**
@@ -5324,6 +5352,42 @@ public class PengramSettingsActivity extends UniversalFragment {
                             refreshBubbleStudioPreview();
                             if (listView != null && listView.adapter != null) listView.adapter.update(true);
                         });
+                return;
+            }
+            case BTN_CALC_CURRENCY: {
+                final String[] codes = PengramConfig.CALC_CURRENCY_CODES;
+                final CharSequence[] options = new CharSequence[codes.length];
+                final String current = PengramConfig.getCalcDefaultCurrencyPref();
+                int selected = 0;
+                for (int i = 0; i < codes.length; i++) {
+                    options[i] = org.telegram.messenger.PengramCurrencyRates.displayLabelForPref(codes[i]);
+                    if (codes[i].equalsIgnoreCase(current)) {
+                        selected = i;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramCalcDefaultCurrency), options,
+                        selected, value -> {
+                            if (value >= 0 && value < codes.length) {
+                                PengramConfig.setCalcDefaultCurrencyPref(codes[value]);
+                                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                            }
+                        });
+                return;
+            }
+            case BTN_CALC_REFRESH_RATES: {
+                org.telegram.messenger.PengramCurrencyRates.refreshNow(currentAccount, ok -> {
+                    if (listView != null && listView.adapter != null) {
+                        listView.adapter.update(true);
+                    }
+                    BulletinFactory.of(PengramSettingsActivity.this)
+                            .createSimpleBulletin(
+                                    ok ? R.raw.ic_download : R.raw.error,
+                                    getString(ok ? R.string.PengramCalcRatesUpdatedToast : R.string.PengramCalcRatesFailedToast))
+                            .show();
+                });
+                if (listView != null && listView.adapter != null) {
+                    listView.adapter.update(true);
+                }
                 return;
             }
             case BTN_PARTICLE_MODE: {

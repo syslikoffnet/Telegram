@@ -370,6 +370,10 @@ public final class PengramSearchIndex {
             {R.string.PengramTypingStatsEnable, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
             {R.string.PengramTypingStatsBadge, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
             {R.string.PengramTypingStatsClear, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
+            {R.string.PengramInlineCalc, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, R.string.PengramInlineCalcInfo},
+            {R.string.PengramInlineCurrency, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, R.string.PengramInlineCurrencyInfo},
+            {R.string.PengramCalcDefaultCurrency, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, 0},
+            {R.string.PengramCalcRefreshRates, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, 0},
             {R.string.PengramMediaTimeDefault, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeDefaultInfo},
             {R.string.PengramMediaTimeStickers, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeStickersInfo},
             {R.string.PengramMediaTimeMedia, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeMediaInfo},
@@ -797,6 +801,10 @@ public final class PengramSearchIndex {
             0x103210b3, // PengramTypingStatsEnable (SECTION_TYPING)
             0x364ff4df, // PengramTypingStatsBadge (SECTION_TYPING)
             0x3e807865, // PengramTypingStatsClear (SECTION_TYPING)
+            0x1984f9b2, // PengramInlineCalc (SECTION_TYPING)
+            0x1ff4f078, // PengramInlineCurrency (SECTION_TYPING)
+            0x1c429ea4, // PengramCalcDefaultCurrency (SECTION_TYPING)
+            0x3bd3f55a, // PengramCalcRefreshRates (SECTION_TYPING)
             0x1361bea8, // PengramMediaTimeDefault (SECTION_CHAT_MESSAGES)
             0x14f53d03, // PengramMediaTimeStickers (SECTION_CHAT_MESSAGES)
             0x39bfce64, // PengramMediaTimeMedia (SECTION_CHAT_MESSAGES)

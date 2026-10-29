@@ -19,6 +19,9 @@ public class ChatActivityEnterTopView extends FrameLayout {
     private View linkView;
     private boolean linkVisible;
     private int linkBarHeightPx;
+    private View calcView;
+    private boolean calcVisible;
+    private int calcBarHeightPx;
     private Runnable linkLayoutCallback;
 
     public ChatActivityEnterTopView(Context context) {
@@ -36,10 +39,13 @@ public class ChatActivityEnterTopView extends FrameLayout {
     public void addView(View child, int index, android.view.ViewGroup.LayoutParams params) {
         super.addView(child, index, params);
         // Крестик отмены ответа добавляется в ChatActivity напрямую в ChatActivityEnterTopView.
-        if (replyCloseView == null && child != replyView && child != editView && child != linkView
+        if (replyCloseView == null && child != replyView && child != editView && child != linkView && child != calcView
                 && child instanceof ImageView) {
             replyCloseView = child;
             syncVisibilityAndMargins();
+        }
+        if (calcView != null && child != calcView && child != linkView) {
+            calcView.bringToFront();
         }
         if (linkView != null && child != linkView) {
             linkView.bringToFront();
@@ -61,6 +67,33 @@ public class ChatActivityEnterTopView extends FrameLayout {
             linkView.bringToFront();
             syncVisibilityAndMargins();
         }
+    }
+
+    /** Бар калькулятора и живого конвертера валют в том же нижнем слоте. */
+    public void setCalcView(View calcView, LayoutParams layoutParams) {
+        if (this.calcView == null && calcView != null) {
+            this.calcView = calcView;
+            this.calcBarHeightPx = layoutParams != null && layoutParams.height > 0 ? layoutParams.height : 0;
+            calcView.setVisibility(GONE);
+            addView(calcView, layoutParams);
+            calcView.bringToFront();
+            if (linkView != null) {
+                linkView.bringToFront();
+            }
+            syncVisibilityAndMargins();
+        }
+    }
+
+    public void setCalcVisible(boolean visible) {
+        if (this.calcVisible == visible) {
+            return;
+        }
+        this.calcVisible = visible;
+        syncVisibilityAndMargins();
+    }
+
+    public boolean isCalcVisible() {
+        return calcVisible && !linkVisible && calcView != null && calcView.getVisibility() == VISIBLE;
     }
 
     public void setPanelVisible(boolean visible) {
@@ -89,16 +122,24 @@ public class ChatActivityEnterTopView extends FrameLayout {
 
     private void applyLinkVisibility() {
         final boolean showLink = linkVisible && !editMode;
+        final boolean showCalc = calcVisible && !showLink && !editMode;
         if (linkView != null) {
             linkView.setVisibility(showLink ? VISIBLE : GONE);
             if (showLink) {
                 linkView.bringToFront();
             }
         }
+        if (calcView != null) {
+            calcView.setVisibility(showCalc ? VISIBLE : GONE);
+            if (showCalc) {
+                calcView.bringToFront();
+            }
+        }
     }
 
     private void syncVisibilityAndMargins() {
         final boolean showLink = linkVisible && !editMode;
+        final boolean showCalc = calcVisible && !showLink && !editMode;
         applyLinkVisibility();
 
         if (!panelVisible) {
@@ -116,7 +157,9 @@ public class ChatActivityEnterTopView extends FrameLayout {
                 replyView.setVisibility((editMode && !editSuggestionMode) ? GONE : VISIBLE);
                 if (replyView.getLayoutParams() instanceof MarginLayoutParams) {
                     final MarginLayoutParams mlp = (MarginLayoutParams) replyView.getLayoutParams();
-                    final int targetBottom = (showLink && linkBarHeightPx > 0) ? linkBarHeightPx : 0;
+                    final int targetBottom = (showLink && linkBarHeightPx > 0)
+                            ? linkBarHeightPx
+                            : ((showCalc && calcBarHeightPx > 0) ? calcBarHeightPx : 0);
                     if (mlp.bottomMargin != targetBottom) {
                         mlp.bottomMargin = targetBottom;
                         replyView.setLayoutParams(mlp);

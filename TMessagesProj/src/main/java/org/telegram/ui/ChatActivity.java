@@ -3155,6 +3155,19 @@ public class ChatActivity extends BaseFragment implements
                 processRowSelect(view, outside, x, y);
                 return;
             }
+            if (view instanceof ChatActionCell) {
+                ChatActionCell actionCell = (ChatActionCell) view;
+                MessageObject actionMsg = actionCell.getMessageObject();
+                if (org.telegram.messenger.PengramConfig.isServiceJoinLeaveProfileOpen()
+                        && org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(actionMsg)) {
+                    final long targetUid = actionCell.resolveJoinLeaveTapUid(x, y);
+                    if (targetUid > 0) {
+                        org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(
+                                currentAccount, targetUid, actionMsg, () -> openUserProfile(targetUid));
+                        return;
+                    }
+                }
+            }
             if (view instanceof ChatMessageCell) {
                 MessageObject msg = ((ChatMessageCell) view).getMessageObject();
                 if (msg != null && msg.type == MessageObject.TYPE_JOINED_CHANNEL) {
@@ -40943,6 +40956,11 @@ public class ChatActivity extends BaseFragment implements
                             return false;
                         }
                         return createMenu(cell, false, false, x, y, true);
+                    }
+
+                    @Override
+                    public boolean isInSelectionMode() {
+                        return actionBar != null && actionBar.isActionModeShowed() || isReport();
                     }
 
                     @Override

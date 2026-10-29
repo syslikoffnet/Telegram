@@ -99,7 +99,7 @@ def check_service_join_leave_profile():
     assert "Sync(" not in opener, "Never block UI thread with *Sync storage queries"
     assert "TL_inputUserFromMessage" in opener and "TL_users_getUsers" in opener
     assert "PengramServiceProfileOpener.ensureUserAndOpen" in action_cell
-    assert "PengramServiceProfileOpener.singleParticipantUid" in action_cell
+    assert "resolveJoinLeaveTapUid" in action_cell
     assert "PengramServiceProfileOpener.ensureUserAndOpen" in chat_act
     assert 'args.putBoolean("my_profile", true)' in admin_log
     assert "PengramServiceJoinLeaveProfile" in settings

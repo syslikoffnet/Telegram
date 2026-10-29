@@ -2296,4 +2296,19 @@
     <string name="NoPaidMessagesTokenUsed">un1 использовал ваш QR-код и может писать вам бесплатно</string>
     <string name="NoPaidMessagesTokenUsedOut">Вы использовали QR-код un1 и можете писать ему бесплатно</string>
     <string name="NoPaidMessagesTokenImported">Теперь вы можете писать **%1$s** бесплатно.</string>
+    <string name="PengramCalcHeader">Калькулятор и конвертер в поле ввода</string>
+    <string name="PengramInlineCalc">Калькулятор и конвертер величин</string>
+    <string name="PengramInlineCalcInfo">Считает выражения вроде «= 1450 * 3.2» и переводит длину, вес, объём, данные и температуру.</string>
+    <string name="PengramInlineCurrency">Живой конвертер валют и крипто</string>
+    <string name="PengramInlineCurrencyInfo">Показывает актуальный курс при вводе сумм вроде «150$», «5000 руб в $», «25 ton» или «0.02 btc».</string>
+    <string name="PengramCalcDefaultCurrency">Основная валюта перевода</string>
+    <string name="PengramCalcCurrencyAuto">Авто (по языку)</string>
+    <string name="PengramCalcRefreshRates">Обновить курсы валют</string>
+    <string name="PengramCalcRatesLive">актуальный курс</string>
+    <string name="PengramCalcRatesLoading">обновление курса…</string>
+    <string name="PengramCalcRatesUpdatedToast">Курсы валют успешно обновлены</string>
+    <string name="PengramCalcRatesFailedToast">Не удалось обновить курсы прямо сейчас</string>
+    <string name="PengramCalcInsertChip">Подставить</string>
+    <string name="PengramCalcTapToInsert">нажмите для подстановки</string>
+    <string name="PengramCalcSectionInfo">Нажмите по подсказке над полем ввода для подстановки ответа или по чипу рядом, чтобы дополнить исходный текст.</string>
 </resources>
