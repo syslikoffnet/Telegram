@@ -170,6 +170,11 @@ def check_prefix_web_search():
     assert "openPengramWebSearchSheet()" in enter
     assert "class PengramWebSearchSheet extends BottomSheet" in sheet
     assert "PengramInlineWebSearch" in search_idx
+    assert "PengramInputToolsSection" in search_idx
+    assert "SECTION_INPUT_TOOLS" in settings
+    search_meta = read("TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java")
+    assert "R.string.PengramInlineWebSearch" in search_meta
+    assert "быстрый поиск в интернете" in search_meta and "quick web internet search" in search_meta
 
     # Strings & <=150 shadow check
     en_map = {el.attrib["name"]: (el.text or "") for el in ET.parse(ROOT / "TMessagesProj/src/main/res/values/strings.xml").getroot().findall("string") if "name" in el.attrib}

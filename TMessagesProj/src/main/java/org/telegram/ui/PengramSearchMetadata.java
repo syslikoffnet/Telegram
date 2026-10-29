@@ -149,6 +149,8 @@ public final class PengramSearchMetadata {
             fragment.presentFragment(new PengramChatLookActivity(entry[0]));
         } else if (entry.length > 3 && entry[3] == 2) {
             fragment.presentFragment(new PengramProfileHistorySettingsActivity(entry[0]));
+        } else if (entry[0] == R.string.PengramInputToolsSection) {
+            fragment.presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_INPUT_TOOLS));
         } else {
             fragment.presentFragment(new PengramSettingsActivity(entry[1], entry[0],
                     entry.length > 2 ? entry[2] : 0));
@@ -178,7 +180,8 @@ public final class PengramSearchMetadata {
                 || section == PengramSettingsActivity.SECTION_CHAT_MENUS
                 || section == PengramSettingsActivity.SECTION_TYPING
                 || section == PengramSettingsActivity.SECTION_QUOTES
-                || section == PengramSettingsActivity.SECTION_LINK_ASSISTANT;
+                || section == PengramSettingsActivity.SECTION_LINK_ASSISTANT
+                || section == PengramSettingsActivity.SECTION_INPUT_TOOLS;
     }
 
     /** Every indexed setting has its own localized title, group and path tags;
@@ -276,6 +279,25 @@ public final class PengramSearchMetadata {
         if (has(own, "эмодзи", "emoji", "смайл")) tags.append(" смайлики эмоджи смайлы emoji emoticon");
         if (has(own, "удерж", "нажат", "tap", "press")) tags.append(" тап коснуться кнопка касание клик touch click longpress");
         if (has(own, "увелич", "масштаб", "zoom")) tags.append(" больше крупнее масштаб размер zoom scale");
+        if (id == R.string.PengramInputToolsSection) {
+            tags.append(" поиск калькулятор валюты курс быстрый поиск в интернете инете сети префикс точка строка ввода чата search calculator currency prefix web internet chat input");
+        } else if (id == R.string.PengramInlineWebSearch) {
+            tags.append(" быстрый поиск в интернете инете сети веб гугл яндекс википедия браузер префикс по префиксу точка знак символ вопрос строка ввода чата quick web internet search prefix dot chat input bar google yandex duckduckgo wikipedia");
+        } else if (id == R.string.PengramWebSearchPrefix) {
+            tags.append(" префикс поиска быстрый поиск знак символ точка вопрос восклицательный свой префикс интернет строка ввода search prefix trigger symbol dot custom web");
+        } else if (id == R.string.PengramWebSearchEngine) {
+            tags.append(" поисковик поисковая система браузер интернет гугл яндекс brave duckduckgo google yandex web search engine browser");
+        } else if (id == R.string.PengramInlineCalc) {
+            tags.append(" калькулятор считать посчитать вычисление математика примеры формула конвертер величин единицы измерения метры километры вес температура строка ввода inline calculator math unit converter");
+        } else if (id == R.string.PengramInlineCurrency) {
+            tags.append(" конвертер валют курс валюты валюта доллар евро рубль тенге гривна крипта криптовалюта биткоин тон звезды актуальный живой курс live currency crypto converter exchange rate usd eur rub ton btc");
+        } else if (id == R.string.PengramCalcDefaultCurrency) {
+            tags.append(" основная валюта перевода валюта по умолчанию рубль доллар евро курс target default currency rub usd eur");
+        } else if (id == R.string.PengramCalcRefreshRates) {
+            tags.append(" обновить курсы валют перезагрузить курс валюты крипта refresh update currency exchange rates");
+        } else if (id == R.string.PengramServiceJoinLeaveProfile) {
+            tags.append(" профиль вход выход вступил покинул чат группа уведомление сервисное сообщение join leave profile chat service message");
+        }
         return tags.toString();
     }
 

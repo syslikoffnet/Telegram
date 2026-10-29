@@ -171,6 +171,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     public static final int SECTION_TYPING = 19;
     public static final int SECTION_QUOTES = 20;
     public static final int SECTION_LINK_ASSISTANT = 21;
+    public static final int SECTION_INPUT_TOOLS = 22;
 
     private static final int BTN_SECTION_PROFILE = 1001;
     private static final int BTN_SECTION_GHOST = 1002;
@@ -373,6 +374,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_CALC_REFRESH_RATES = 1061;
     private static final int BTN_WEB_SEARCH_PREFIX = 1062;
     private static final int BTN_WEB_SEARCH_ENGINE = 1063;
+    private static final int BTN_SECTION_INPUT_TOOLS = 1064;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -631,7 +633,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_MENUS:
             case SECTION_TYPING:
             case SECTION_QUOTES:
-            case SECTION_LINK_ASSISTANT: return IconBackgroundColors.BLUE_ALT;
+            case SECTION_LINK_ASSISTANT:
+            case SECTION_INPUT_TOOLS: return IconBackgroundColors.BLUE_ALT;
             case SECTION_GHOST: return IconBackgroundColors.GREEN;
             case SECTION_HISTORY: return IconBackgroundColors.RED;
             case SECTION_MEDIA: return IconBackgroundColors.BLUE_DEEP;
@@ -667,6 +670,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_AI: return R.string.PengramHeroAI;
             case SECTION_LYRICS: return R.string.PengramHeroLyrics;
             case SECTION_LINK_ASSISTANT: return R.string.PengramLinkSectionDesc;
+            case SECTION_INPUT_TOOLS: return R.string.PengramHeroInputTools;
             default: return 0;
         }
     }
@@ -686,6 +690,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_TYPING: return R.drawable.msg_customize;
             case SECTION_QUOTES: return R.drawable.msg_copy;
             case SECTION_LINK_ASSISTANT: return R.drawable.msg_link2;
+            case SECTION_INPUT_TOOLS: return R.drawable.msg_search;
             case SECTION_GHOST: return R.drawable.msg_secret;
             case SECTION_HISTORY: return R.drawable.msg_viewchats;
             case SECTION_MEDIA: return R.drawable.settings_data;
@@ -712,6 +717,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_TYPING: return getString(R.string.PengramTypingSection);
             case SECTION_QUOTES: return getString(R.string.PengramQuoteSection);
             case SECTION_LINK_ASSISTANT: return getString(R.string.PengramLinkAssistant);
+            case SECTION_INPUT_TOOLS: return getString(R.string.PengramInputToolsSection);
             case SECTION_CHAT_INTERFACE: return getString(R.string.PengramSubsectionInterface);
             case SECTION_CHAT_MENUS: return getString(R.string.PengramSubsectionMenus);
             case SECTION_FREEDOM: return getString(R.string.PengramSectionFreedom);
@@ -1018,6 +1024,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_TYPING: fillTyping(items); break;
             case SECTION_QUOTES: fillQuotes(items); break;
             case SECTION_LINK_ASSISTANT: fillLinkAssistant(items); break;
+            case SECTION_INPUT_TOOLS: fillInputTools(items); break;
             case SECTION_CHAT_INTERFACE: fillChatInterface(items); break;
             case SECTION_CHAT_MENUS: fillChatMenus(items); break;
             case SECTION_FREEDOM: fillFreedom(items); break;
@@ -1121,7 +1128,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "hideBubbleTail", "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_TYPING:
-                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji", "inlineCalc*", "inlineCurrency*", "inlineWebSearch*"};
+                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji"};
+            case SECTION_INPUT_TOOLS:
+                return new String[]{"inlineCalc*", "inlineCurrency*", "inlineWebSearch*"};
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
             case SECTION_LINK_ASSISTANT:
@@ -2211,6 +2220,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramGroupChats)));
         items.add(sectionRow(BTN_SECTION_CHATS, IconBackgroundColors.BLUE_ALT, R.drawable.settings_chat,
                 getString(R.string.PengramSectionChats), hiddenCountValue()));
+        items.add(sectionRow(BTN_SECTION_INPUT_TOOLS, IconBackgroundColors.CYAN, R.drawable.msg_search,
+                getString(R.string.PengramInputToolsSection), inputToolsStateValue()));
         items.add(sectionRow(BTN_SECTION_AI, IconBackgroundColors.PURPLE, R.drawable.msg_bot,
                 getString(R.string.PengramSectionAI), aiSectionValue()));
         items.add(UItem.asShadow(null));
@@ -4200,6 +4211,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramQuoteSection), ""));
         items.add(sectionRow(BTN_SECTION_LINK_ASSISTANT, IconBackgroundColors.BLUE_ALT, R.drawable.msg_link2,
                 getString(R.string.PengramLinkAssistant), linkAssistantStateValue()));
+        items.add(sectionRow(BTN_SECTION_INPUT_TOOLS, IconBackgroundColors.CYAN, R.drawable.msg_search,
+                getString(R.string.PengramInputToolsSection), inputToolsStateValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_INTERFACE, IconBackgroundColors.PURPLE, R.drawable.settings_chat,
                 getString(R.string.PengramSubsectionInterface), hiddenCountValue()));
         items.add(sectionRow(BTN_SECTION_CHAT_MENUS, IconBackgroundColors.GRAY, R.drawable.msg_settings_old,
@@ -4706,6 +4719,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     }
 
     private void fillTyping(ArrayList<UItem> items) {
+        items.add(sectionRow(BTN_SECTION_INPUT_TOOLS, IconBackgroundColors.CYAN, R.drawable.msg_search,
+                getString(R.string.PengramInputToolsSection), inputToolsStateValue()));
+        items.add(UItem.asShadow(getString(R.string.PengramHeroInputTools)));
+
         items.add(UItem.asHeader(getString(R.string.PengramSendStyleHeader)));
         items.add(UItem.asSettingsCell(BTN_SEND_STYLE, R.drawable.msg_edit, getString(R.string.PengramSendStyle),
                 getString(PengramTextStyle.getNameRes(PengramConfig.getSendTextStyle()))));
@@ -4793,6 +4810,31 @@ public class PengramSettingsActivity extends UniversalFragment {
         } else {
             items.add(UItem.asShadow(null));
         }
+    }
+
+    private CharSequence inputToolsStateValue() {
+        if (PengramConfig.isInlineWebSearchEnabled()) {
+            return formatString(R.string.PengramInputToolsSubWebOn, PengramConfig.getInlineWebSearchPrefix());
+        }
+        if (PengramConfig.isInlineCalcEnabled() || PengramConfig.isInlineCurrencyEnabled()) {
+            return getString(R.string.PengramInputToolsSubCalcOn);
+        }
+        return getString(R.string.PasswordOff);
+    }
+
+    private void fillInputTools(ArrayList<UItem> items) {
+        items.add(UItem.asHeader(getString(R.string.PengramWebSearchHeader)));
+        items.add(checkInfo(PengramConfig.KEY_INLINE_WEB_SEARCH, false,
+                getString(R.string.PengramInlineWebSearch),
+                getString(R.string.PengramInlineWebSearchInfo)));
+        final String curPrefix = PengramConfig.getInlineWebSearchPrefix();
+        items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_PREFIX, R.drawable.msg_edit,
+                getString(R.string.PengramWebSearchPrefix),
+                curPrefix + "  (" + curPrefix + "…)"));
+        items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_ENGINE, R.drawable.msg_language,
+                getString(R.string.PengramWebSearchEngine),
+                PengramConfig.getInlineWebSearchEngineName(PengramConfig.getInlineWebSearchEngine())));
+        items.add(UItem.asShadow(getString(R.string.PengramWebSearchSectionInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramCalcHeader)));
         items.add(checkInfo(PengramConfig.KEY_INLINE_CALC, true,
@@ -4801,35 +4843,18 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(checkInfo(PengramConfig.KEY_INLINE_CURRENCY, true,
                 getString(R.string.PengramInlineCurrency),
                 getString(R.string.PengramInlineCurrencyInfo)));
-        if (PengramConfig.isInlineCurrencyEnabled()) {
-            items.add(UItem.asSettingsCell(BTN_CALC_CURRENCY, R.drawable.msg_language,
-                    getString(R.string.PengramCalcDefaultCurrency),
-                    org.telegram.messenger.PengramCurrencyRates.displayLabelForPref(PengramConfig.getCalcDefaultCurrencyPref())));
-            final String rateStatus = org.telegram.messenger.PengramCurrencyRates.isUpdating()
-                    ? getString(R.string.PengramCalcRatesLoading)
-                    : (org.telegram.messenger.PengramCurrencyRates.hasRates()
-                            ? getString(R.string.PengramCalcRatesLive)
-                            : "");
-            items.add(UItem.asSettingsCell(BTN_CALC_REFRESH_RATES, R.drawable.msg_stats,
-                    getString(R.string.PengramCalcRefreshRates),
-                    rateStatus));
-        }
+        items.add(UItem.asSettingsCell(BTN_CALC_CURRENCY, R.drawable.msg_language,
+                getString(R.string.PengramCalcDefaultCurrency),
+                org.telegram.messenger.PengramCurrencyRates.displayLabelForPref(PengramConfig.getCalcDefaultCurrencyPref())));
+        final String rateStatus = org.telegram.messenger.PengramCurrencyRates.isUpdating()
+                ? getString(R.string.PengramCalcRatesLoading)
+                : (org.telegram.messenger.PengramCurrencyRates.hasRates()
+                        ? getString(R.string.PengramCalcRatesLive)
+                        : "");
+        items.add(UItem.asSettingsCell(BTN_CALC_REFRESH_RATES, R.drawable.msg_stats,
+                getString(R.string.PengramCalcRefreshRates),
+                rateStatus));
         items.add(UItem.asShadow(getString(R.string.PengramCalcSectionInfo)));
-
-        items.add(UItem.asHeader(getString(R.string.PengramWebSearchHeader)));
-        items.add(checkInfo(PengramConfig.KEY_INLINE_WEB_SEARCH, false,
-                getString(R.string.PengramInlineWebSearch),
-                getString(R.string.PengramInlineWebSearchInfo)));
-        if (PengramConfig.isInlineWebSearchEnabled()) {
-            final String curPrefix = PengramConfig.getInlineWebSearchPrefix();
-            items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_PREFIX, R.drawable.msg_edit,
-                    getString(R.string.PengramWebSearchPrefix),
-                    curPrefix + "  (" + curPrefix + "запрос)"));
-            items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_ENGINE, R.drawable.msg_language,
-                    getString(R.string.PengramWebSearchEngine),
-                    PengramConfig.getInlineWebSearchEngineName(PengramConfig.getInlineWebSearchEngine())));
-        }
-        items.add(UItem.asShadow(getString(R.string.PengramWebSearchSectionInfo)));
     }
 
     /**
@@ -5735,6 +5760,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_SECTION_LINK_ASSISTANT:
                 presentFragment(new PengramSettingsActivity(SECTION_LINK_ASSISTANT));
+                return;
+            case BTN_SECTION_INPUT_TOOLS:
+                presentFragment(new PengramSettingsActivity(SECTION_INPUT_TOOLS));
                 return;
             case BTN_LINK_PREVIEW_MODE:
                 showChoicePicker(getString(R.string.PengramLinkPreviewMode), new CharSequence[]{

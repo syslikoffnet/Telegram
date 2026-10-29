@@ -29,6 +29,7 @@ public final class PengramSearchIndex {
             {R.string.PengramSectionSpy, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupPrivacy, 0, 0},
             {R.string.PengramSectionProfile, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupPrivacy, 0, 0},
             {R.string.PengramSectionChats, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupChats, 0, 0},
+            {R.string.PengramInputToolsSection, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupChats, 0, 0},
             {R.string.PengramSectionAI, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupChats, 0, 0},
             {R.string.PengramSectionPlayer, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupMedia, 0, 0},
             {R.string.PengramSectionMedia, PengramSettingsActivity.SECTION_ROOT, R.string.PengramGroupMedia, 0, 0},
@@ -271,6 +272,7 @@ public final class PengramSearchIndex {
             {R.string.PengramTypingSection, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramQuoteSection, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_CHATS, 0, 0, R.string.PengramLinkAssistantInfo},
+            {R.string.PengramInputToolsSection, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramSubsectionInterface, PengramSettingsActivity.SECTION_CHATS, 0, 0, R.string.PengramSubsectionInterfaceInfo},
             {R.string.PengramSubsectionMenus, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderGeneral, 0, R.string.PengramLinkAssistantInfo},
@@ -344,6 +346,7 @@ public final class PengramSearchIndex {
             {R.string.PengramQuoteLogoClear, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteWatermarkHeader, 0, 0},
             {R.string.PengramQuoteLogoSize, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteWatermarkHeader, 0, 0},
             {R.string.PengramQuoteWatermarkOpacity, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteWatermarkHeader, 0, 0},
+            {R.string.PengramInputToolsSection, PengramSettingsActivity.SECTION_TYPING, 0, 0, 0},
             {R.string.PengramSendStyle, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, R.string.PengramSendStyleInfo},
             {R.string.PengramSendStyleLargeEmoji, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, R.string.PengramSendStyleLargeEmojiInfo},
             {R.string.PengramSendStyleCaptions, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, 0},
@@ -370,13 +373,13 @@ public final class PengramSearchIndex {
             {R.string.PengramTypingStatsEnable, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
             {R.string.PengramTypingStatsBadge, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
             {R.string.PengramTypingStatsClear, PengramSettingsActivity.SECTION_TYPING, R.string.PengramTypingStatsTitle, 0, 0},
-            {R.string.PengramInlineCalc, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, R.string.PengramInlineCalcInfo},
-            {R.string.PengramInlineCurrency, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, R.string.PengramInlineCurrencyInfo},
-            {R.string.PengramCalcDefaultCurrency, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, 0},
-            {R.string.PengramCalcRefreshRates, PengramSettingsActivity.SECTION_TYPING, R.string.PengramCalcHeader, 0, 0},
-            {R.string.PengramInlineWebSearch, PengramSettingsActivity.SECTION_TYPING, R.string.PengramWebSearchHeader, 0, R.string.PengramInlineWebSearchInfo},
-            {R.string.PengramWebSearchPrefix, PengramSettingsActivity.SECTION_TYPING, R.string.PengramWebSearchHeader, 0, 0},
-            {R.string.PengramWebSearchEngine, PengramSettingsActivity.SECTION_TYPING, R.string.PengramWebSearchHeader, 0, 0},
+            {R.string.PengramInlineWebSearch, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, R.string.PengramInlineWebSearchInfo},
+            {R.string.PengramWebSearchPrefix, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, 0},
+            {R.string.PengramWebSearchEngine, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, 0},
+            {R.string.PengramInlineCalc, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, R.string.PengramInlineCalcInfo},
+            {R.string.PengramInlineCurrency, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, R.string.PengramInlineCurrencyInfo},
+            {R.string.PengramCalcDefaultCurrency, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, 0},
+            {R.string.PengramCalcRefreshRates, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, 0},
             {R.string.PengramMediaTimeDefault, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeDefaultInfo},
             {R.string.PengramMediaTimeStickers, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeStickersInfo},
             {R.string.PengramMediaTimeMedia, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeMediaInfo},
@@ -463,6 +466,7 @@ public final class PengramSearchIndex {
             0x1e271456, // PengramSectionSpy (SECTION_ROOT)
             0x1d13ff14, // PengramSectionProfile (SECTION_ROOT)
             0x3f9e41c9, // PengramSectionChats (SECTION_ROOT)
+            0x394b7d8b, // PengramInputToolsSection (SECTION_ROOT)
             0x3585ec29, // PengramSectionAI (SECTION_ROOT)
             0x3a464437, // PengramSectionPlayer (SECTION_ROOT)
             0x11dfdae4, // PengramSectionMedia (SECTION_ROOT)
@@ -705,6 +709,7 @@ public final class PengramSearchIndex {
             0x1500af5a, // PengramTypingSection (SECTION_CHATS)
             0x390b2ab5, // PengramQuoteSection (SECTION_CHATS)
             0x38dbdbcf, // PengramLinkAssistant (SECTION_CHATS)
+            0x106dcf72, // PengramInputToolsSection (SECTION_CHATS)
             0x31aed73c, // PengramSubsectionInterface (SECTION_CHATS)
             0x38e80bc3, // PengramSubsectionMenus (SECTION_CHATS)
             0x19fa1f8b, // PengramLinkAssistant (SECTION_LINK_ASSISTANT)
@@ -778,6 +783,7 @@ public final class PengramSearchIndex {
             0x3728de17, // PengramQuoteLogoClear (SECTION_QUOTES)
             0x12f15aac, // PengramQuoteLogoSize (SECTION_QUOTES)
             0x3bfec8ef, // PengramQuoteWatermarkOpacity (SECTION_QUOTES)
+            0x39181370, // PengramInputToolsSection (SECTION_TYPING)
             0x3b9ca751, // PengramSendStyle (SECTION_TYPING)
             0x3698be2e, // PengramSendStyleLargeEmoji (SECTION_TYPING)
             0x1cc904f1, // PengramSendStyleCaptions (SECTION_TYPING)
@@ -804,13 +810,13 @@ public final class PengramSearchIndex {
             0x103210b3, // PengramTypingStatsEnable (SECTION_TYPING)
             0x364ff4df, // PengramTypingStatsBadge (SECTION_TYPING)
             0x3e807865, // PengramTypingStatsClear (SECTION_TYPING)
-            0x1984f9b2, // PengramInlineCalc (SECTION_TYPING)
-            0x1ff4f078, // PengramInlineCurrency (SECTION_TYPING)
-            0x1c429ea4, // PengramCalcDefaultCurrency (SECTION_TYPING)
-            0x3bd3f55a, // PengramCalcRefreshRates (SECTION_TYPING)
-            0x30445494, // PengramInlineWebSearch (SECTION_TYPING)
-            0x33b0028a, // PengramWebSearchPrefix (SECTION_TYPING)
-            0x3a955924, // PengramWebSearchEngine (SECTION_TYPING)
+            0x327bb5d4, // PengramInlineWebSearch (SECTION_INPUT_TOOLS)
+            0x3a540b83, // PengramWebSearchPrefix (SECTION_INPUT_TOOLS)
+            0x1733588a, // PengramWebSearchEngine (SECTION_INPUT_TOOLS)
+            0x1cd0b552, // PengramInlineCalc (SECTION_INPUT_TOOLS)
+            0x11ee006b, // PengramInlineCurrency (SECTION_INPUT_TOOLS)
+            0x3716142c, // PengramCalcDefaultCurrency (SECTION_INPUT_TOOLS)
+            0x10e3f8e1, // PengramCalcRefreshRates (SECTION_INPUT_TOOLS)
             0x1361bea8, // PengramMediaTimeDefault (SECTION_CHAT_MESSAGES)
             0x14f53d03, // PengramMediaTimeStickers (SECTION_CHAT_MESSAGES)
             0x39bfce64, // PengramMediaTimeMedia (SECTION_CHAT_MESSAGES)

@@ -2341,4 +2341,8 @@
     <string name="PengramWebSearchOpenInBrowser">Открыть полный поиск в браузере</string>
     <string name="PengramWebSearchNoDirectHits">Выберите поисковик ниже, чтобы открыть все результаты в браузере.</string>
     <string name="PengramWebSearchSectionInfo">По умолчанию выключено. Нажмите кнопку для подстановки ответа или саму плашку — для всех результатов.</string>
+    <string name="PengramInputToolsSection">Поиск, калькулятор и валюты</string>
+    <string name="PengramHeroInputTools">Быстрый поиск в интернете по префиксу, калькулятор выражений, перевод величин и актуальные курсы валют прямо в строке ввода чата.</string>
+    <string name="PengramInputToolsSubWebOn">Поиск %1$s</string>
+    <string name="PengramInputToolsSubCalcOn">Калькулятор</string>
 </resources>

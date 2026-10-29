@@ -13614,4 +13614,8 @@
     <string name="PengramWebSearchOpenInBrowser">Open full search in browser</string>
     <string name="PengramWebSearchNoDirectHits">Tap a search engine below to open full results in browser.</string>
     <string name="PengramWebSearchSectionInfo">Off by default. Tap the button to insert the answer or tap the bar to see full web results.</string>
+    <string name="PengramInputToolsSection">Search, Calculator &amp; Currency</string>
+    <string name="PengramHeroInputTools">Prefix web search, inline math calculator, unit converter, and live exchange rates right in the chat input bar.</string>
+    <string name="PengramInputToolsSubWebOn">Search %1$s</string>
+    <string name="PengramInputToolsSubCalcOn">Calc &amp; rates</string>
 </resources>
