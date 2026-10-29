@@ -196,6 +196,17 @@ def check_prefix_web_search():
         assert k in ru_map and ru_map[k].strip(), f"Missing RU string {k}"
     assert len(en_map["PengramWebSearchSectionInfo"]) <= 150
     assert len(ru_map["PengramWebSearchSectionInfo"]) <= 150
+    assert len(ru_map["PengramBubbleStudioInfo"]) <= 150
+
+    # Beta 10 pre-release anti-leak & 120Hz fast-path invariants
+    rates = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramCurrencyRates.java")
+    assert "WeakReference<Runnable>" in rates, "PengramCurrencyRates must hold listeners weakly"
+    opener = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramServiceProfileOpener.java")
+    assert "REMOTE_TIMEOUT_MS" in opener and "AtomicReference<Runnable>" in opener and "cancelRequest(" in opener
+    assert "cachedCalcDefaultCurrency" in cfg and "cachedWebSearchPrefix" in cfg
+    assert "|| pengramLinkShown || pengramCalcShown" in enter
+    story_viewer = read("TMessagesProj/src/main/java/org/telegram/ui/Stories/StoryViewer.java")
+    assert "allowScreenshots = !isShowing || allowScreenshots || org.telegram.messenger.PengramConfig.screenshotsAllowed();" in story_viewer
 
 
 if __name__ == "__main__":

@@ -7470,7 +7470,8 @@ public class ChatActivityEnterView extends FrameLayout implements
     }
 
     private void updatePengramWebSuggestion(CharSequence text) {
-        if (destroyed || editingMessageObject != null || !PengramConfig.isInlineWebSearchEnabled()) {
+        if (destroyed || editingMessageObject != null || !PengramConfig.isInlineWebSearchEnabled()
+                || pengramLinkShown || pengramCalcShown) {
             cancelPengramWebHandle();
             pengramWebMatch = null;
             pengramWebResponse = null;
@@ -11578,6 +11579,11 @@ public class ChatActivityEnterView extends FrameLayout implements
         boolean hadEditingMessage = editingMessageObject != null;
         editingMessageObject = messageObject;
         editingCaption = caption;
+        if (editingMessageObject != null) {
+            hidePengramCalcBar();
+            cancelPengramWebHandle();
+            hidePengramWebBar();
+        }
         CharSequence textToSetWithKeyboard;
         if (editingMessageObject != null) {
             captionAbove = groupedMessages != null ? groupedMessages.captionAbove : messageObject.messageOwner.invert_media;

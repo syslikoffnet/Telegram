@@ -15,13 +15,14 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.lang.ref.WeakReference;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -48,7 +49,7 @@ public final class PengramCurrencyRates {
     private static final int HTTP_TIMEOUT_MS = 4500;
 
     private static final ConcurrentHashMap<String, Double> UNITS_PER_USD = new ConcurrentHashMap<>();
-    private static final CopyOnWriteArraySet<Runnable> LISTENERS = new CopyOnWriteArraySet<>();
+    private static final CopyOnWriteArrayList<WeakReference<Runnable>> LISTENERS = new CopyOnWriteArrayList<>();
     private static final AtomicBoolean DISK_LOADED = new AtomicBoolean(false);
     private static final AtomicBoolean FETCH_IN_FLIGHT = new AtomicBoolean(false);
 
@@ -68,20 +69,40 @@ public final class PengramCurrencyRates {
     }
 
     public static void addListener(Runnable listener) {
-        if (listener != null) {
-            LISTENERS.add(listener);
+        if (listener == null) {
+            return;
         }
+        for (WeakReference<Runnable> ref : LISTENERS) {
+            final Runnable cur = ref.get();
+            if (cur == null) {
+                LISTENERS.remove(ref);
+            } else if (cur == listener) {
+                return;
+            }
+        }
+        LISTENERS.add(new WeakReference<>(listener));
     }
 
     public static void removeListener(Runnable listener) {
-        if (listener != null) {
-            LISTENERS.remove(listener);
+        if (listener == null) {
+            return;
+        }
+        for (WeakReference<Runnable> ref : LISTENERS) {
+            final Runnable cur = ref.get();
+            if (cur == null || cur == listener) {
+                LISTENERS.remove(ref);
+            }
         }
     }
 
     private static void notifyListenersOnUi() {
         AndroidUtilities.runOnUIThread(() -> {
-            for (Runnable r : LISTENERS) {
+            for (WeakReference<Runnable> ref : LISTENERS) {
+                final Runnable r = ref.get();
+                if (r == null) {
+                    LISTENERS.remove(ref);
+                    continue;
+                }
                 try {
                     r.run();
                 } catch (Throwable ignore) {

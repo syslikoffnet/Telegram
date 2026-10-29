@@ -1124,7 +1124,8 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "deletedMark", "editedMark", "forceDeleteForAll", "resend*", "keepOnceMedia",
                         "mediaFolder", "mediaPattern", "mediaMaxSizeMb", "mediaToGallery"};
             case SECTION_APPEARANCE:
-                return new String[]{"appFont", "dialogAvatar*", "dialogSenderAvatar*", "checkmarkStyle", "onlineBadgeStyle",
+                return new String[]{"appFont", "avatarShape", "dialogAvatar*", "dialogSenderAvatar*",
+                        "checkmarkStyle", "onlineBadgeStyle", "bubble*", "cylinder*",
                         "hideBubbleTail", "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_TYPING:
@@ -1155,7 +1156,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "quickAction*"};
             case SECTION_CUSTOM:
                 return new String[]{"deletedMark", "editedMark", "deleteEffect*", "markEdited",
-                        "fadeDeleted", "keepDeletedInChat"};
+                        "fadeDeleted", "keepDeletedInChat", "copySignAuthor"};
             case SECTION_PENGUIN:
                 return new String[]{"penguin*"};
             case SECTION_PLAYER:

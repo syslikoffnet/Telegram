@@ -1336,6 +1336,9 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                         if (targetUid > 0) {
                             org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(
                                     currentAccount, targetUid, messageObject, () -> {
+                                        if (isFinished || isFinishing() || getParentLayout() == null || getParentLayout().getLastFragment() != ChannelAdminLogActivity.this) {
+                                            return;
+                                        }
                                         if (targetUid != UserConfig.getInstance(currentAccount).getClientUserId()) {
                                             Bundle args = new Bundle();
                                             args.putLong("user_id", targetUid);

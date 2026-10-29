@@ -2201,7 +2201,7 @@
     <string name="PengramBubbleOuterRadius">Внешние углы пузырей</string>
     <string name="PengramBubbleInnerRadius">Внутренние углы в группе</string>
     <string name="PengramBubbleInnerRadiusAuto">Авто</string>
-    <string name="PengramBubbleStudioInfo">Внешние и внутренние углы серии сообщений, стекло под обои чата, блик грани и глубина тени настраиваются раздельно и работают без потери плавности 120 Гц.</string>
+    <string name="PengramBubbleStudioInfo">Внешние и внутренние углы серии сообщений, стекло под обои чата, блик грани и глубина тени настраиваются отдельно без потери 120 Гц.</string>
     <string name="PleaseEnterCurrentPasswordGiftWallet">Введите текущий пароль, чтобы переместить **%s** в ваш кошелёк.</string>
     <string name="BotTypeAgent">Агент</string>
     <string name="BotTypeGame">Игра</string>

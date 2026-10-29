@@ -3163,7 +3163,12 @@ public class ChatActivity extends BaseFragment implements
                     final long targetUid = actionCell.resolveJoinLeaveTapUid(x, y);
                     if (targetUid > 0) {
                         org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(
-                                currentAccount, targetUid, actionMsg, () -> openUserProfile(targetUid));
+                                currentAccount, targetUid, actionMsg, () -> {
+                                    if (isFinished || isFinishing() || getParentLayout() == null || getParentLayout().getLastFragment() != ChatActivity.this) {
+                                        return;
+                                    }
+                                    openUserProfile(targetUid);
+                                });
                         return;
                     }
                 }
@@ -45964,6 +45969,9 @@ public class ChatActivity extends BaseFragment implements
             }
             if (getMessagesController().getUser(uid) == null) {
                 org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(currentAccount, uid, null, () -> {
+                    if (isFinished || isFinishing() || getParentLayout() == null || getParentLayout().getLastFragment() != ChatActivity.this) {
+                        return;
+                    }
                     if (getMessagesController().getUser(uid) == null) {
                         return;
                     }

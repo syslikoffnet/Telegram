@@ -903,18 +903,25 @@ public class PengramConfig {
         setBool(KEY_INLINE_CURRENCY, enabled);
     }
 
+    private static volatile String cachedCalcDefaultCurrency;
+
     public static String getCalcDefaultCurrencyPref() {
+        final String cached = cachedCalcDefaultCurrency;
+        if (cached != null) {
+            return cached;
+        }
         init();
         final SharedPreferences p = prefs();
         final String v = p == null ? "AUTO" : p.getString(KEY_CALC_DEFAULT_CURRENCY, "AUTO");
-        if (v == null || v.isEmpty()) {
-            return "AUTO";
-        }
-        return v.toUpperCase(java.util.Locale.US);
+        final String normalized = (v == null || v.isEmpty()) ? "AUTO" : v.toUpperCase(java.util.Locale.US);
+        cachedCalcDefaultCurrency = normalized;
+        return normalized;
     }
 
     public static void setCalcDefaultCurrencyPref(String code) {
-        putString(KEY_CALC_DEFAULT_CURRENCY, code == null || code.isEmpty() ? "AUTO" : code.toUpperCase(java.util.Locale.US));
+        final String normalized = code == null || code.isEmpty() ? "AUTO" : code.toUpperCase(java.util.Locale.US);
+        cachedCalcDefaultCurrency = normalized;
+        putString(KEY_CALC_DEFAULT_CURRENCY, normalized);
     }
 
     public static String resolveCalcDefaultCurrency() {
@@ -990,12 +997,20 @@ public class PengramConfig {
         return trimmed;
     }
 
+    private static volatile String cachedWebSearchPrefix;
+
     public static String getInlineWebSearchPrefix() {
+        final String cached = cachedWebSearchPrefix;
+        if (cached != null) {
+            return cached;
+        }
         init();
         final SharedPreferences p = prefs();
         final String raw = p == null ? "." : p.getString(KEY_INLINE_WEB_SEARCH_PREFIX, ".");
         final String clean = sanitizeWebSearchPrefix(raw);
-        return clean != null ? clean : ".";
+        final String resolved = clean != null ? clean : ".";
+        cachedWebSearchPrefix = resolved;
+        return resolved;
     }
 
     public static boolean setInlineWebSearchPrefix(String raw) {
@@ -1003,6 +1018,7 @@ public class PengramConfig {
         if (clean == null) {
             return false;
         }
+        cachedWebSearchPrefix = clean;
         putString(KEY_INLINE_WEB_SEARCH_PREFIX, clean);
         return true;
     }
@@ -4068,6 +4084,8 @@ public class PengramConfig {
         }
         intCache.clear();
         boolCache.clear();
+        cachedCalcDefaultCurrency = null;
+        cachedWebSearchPrefix = null;
         init();
     }
 

@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Pengram: надёжное открытие профиля из сервисных уведомлений о входе/выходе участника.
@@ -188,6 +190,8 @@ public final class PengramServiceProfileOpener {
         return fromUid;
     }
 
+    private static final long REMOTE_TIMEOUT_MS = 8000L;
+
     /**
      * Гарантирует наличие {@link TLRPC.User} в {@link MessagesController} перед вызовом {@code openAction}.
      */
@@ -208,6 +212,21 @@ public final class PengramServiceProfileOpener {
         if (!IN_FLIGHT.add(flightKey)) {
             return;
         }
+        final AtomicReference<Runnable> actionRef = new AtomicReference<>(openAction);
+        final AtomicInteger activeReqId = new AtomicInteger(0);
+        final Runnable timeoutWatchdog = () -> {
+            actionRef.set(null);
+            IN_FLIGHT.remove(flightKey);
+            final int reqId = activeReqId.getAndSet(0);
+            if (reqId != 0) {
+                try {
+                    ConnectionsManager.getInstance(currentAccount).cancelRequest(reqId, true);
+                } catch (Throwable ignore) {
+                }
+            }
+        };
+        AndroidUtilities.runOnUIThread(timeoutWatchdog, REMOTE_TIMEOUT_MS);
+
         final MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
         storage.getStorageQueue().postRunnable(() -> {
             TLRPC.User dbUser = null;
@@ -217,18 +236,33 @@ public final class PengramServiceProfileOpener {
             }
             final TLRPC.User foundLocal = dbUser;
             AndroidUtilities.runOnUIThread(() -> {
-                if (foundLocal != null) {
-                    IN_FLIGHT.remove(flightKey);
-                    controller.putUser(foundLocal, true);
-                    openAction.run();
+                if (actionRef.get() == null) {
                     return;
                 }
-                fetchFromMessageAndOpen(currentAccount, uid, serviceMessage, flightKey, openAction);
+                if (foundLocal != null) {
+                    AndroidUtilities.cancelRunOnUIThread(timeoutWatchdog);
+                    IN_FLIGHT.remove(flightKey);
+                    controller.putUser(foundLocal, true);
+                    final Runnable act = actionRef.getAndSet(null);
+                    if (act != null) {
+                        act.run();
+                    }
+                    return;
+                }
+                fetchFromMessageAndOpen(currentAccount, uid, serviceMessage, flightKey, actionRef, activeReqId, timeoutWatchdog);
             });
         });
     }
 
-    private static void fetchFromMessageAndOpen(int currentAccount, long uid, MessageObject serviceMessage, String flightKey, Runnable openAction) {
+    private static void fetchFromMessageAndOpen(
+            int currentAccount,
+            long uid,
+            MessageObject serviceMessage,
+            String flightKey,
+            AtomicReference<Runnable> actionRef,
+            AtomicInteger activeReqId,
+            Runnable timeoutWatchdog
+    ) {
         final MessagesController controller = MessagesController.getInstance(currentAccount);
         final long dialogId = serviceMessage != null ? serviceMessage.getDialogId() : 0;
         final int msgId = serviceMessage != null ? serviceMessage.getId() : 0;
@@ -244,7 +278,11 @@ public final class PengramServiceProfileOpener {
                 final TLRPC.TL_users_getUsers req = new TLRPC.TL_users_getUsers();
                 req.id.add(inputUser);
 
-                ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                final int reqId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                    activeReqId.set(0);
+                    if (actionRef.get() == null) {
+                        return;
+                    }
                     if (response instanceof Vector) {
                         final Vector vector = (Vector) response;
                         final ArrayList<TLRPC.User> fetched = new ArrayList<>(vector.objects.size());
@@ -260,19 +298,32 @@ public final class PengramServiceProfileOpener {
                         }
                     }
                     if (controller.getUser(uid) != null) {
+                        AndroidUtilities.cancelRunOnUIThread(timeoutWatchdog);
                         IN_FLIGHT.remove(flightKey);
-                        openAction.run();
+                        final Runnable act = actionRef.getAndSet(null);
+                        if (act != null) {
+                            act.run();
+                        }
                         return;
                     }
-                    fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, openAction);
+                    fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, actionRef, activeReqId, timeoutWatchdog);
                 }));
+                activeReqId.set(reqId);
                 return;
             }
         }
-        fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, openAction);
+        fetchFromChatFallback(currentAccount, uid, dialogId, flightKey, actionRef, activeReqId, timeoutWatchdog);
     }
 
-    private static void fetchFromChatFallback(int currentAccount, long uid, long dialogId, String flightKey, Runnable openAction) {
+    private static void fetchFromChatFallback(
+            int currentAccount,
+            long uid,
+            long dialogId,
+            String flightKey,
+            AtomicReference<Runnable> actionRef,
+            AtomicInteger activeReqId,
+            Runnable timeoutWatchdog
+    ) {
         final MessagesController controller = MessagesController.getInstance(currentAccount);
         if (dialogId < 0) {
             final long chatId = -dialogId;
@@ -280,7 +331,9 @@ public final class PengramServiceProfileOpener {
             if (chat != null && !ChatObject.isChannel(chat)) {
                 final TLRPC.TL_messages_getFullChat req = new TLRPC.TL_messages_getFullChat();
                 req.chat_id = chatId;
-                ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                final int reqId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                    activeReqId.set(0);
+                    AndroidUtilities.cancelRunOnUIThread(timeoutWatchdog);
                     IN_FLIGHT.remove(flightKey);
                     if (response instanceof TLRPC.TL_messages_chatFull) {
                         final TLRPC.TL_messages_chatFull res = (TLRPC.TL_messages_chatFull) response;
@@ -288,16 +341,20 @@ public final class PengramServiceProfileOpener {
                         controller.putChats(res.chats, false);
                         MessagesStorage.getInstance(currentAccount).putUsersAndChats(res.users, res.chats, true, true);
                     }
-                    if (controller.getUser(uid) != null) {
-                        openAction.run();
+                    final Runnable act = actionRef.getAndSet(null);
+                    if (act != null && controller.getUser(uid) != null) {
+                        act.run();
                     }
                 }));
+                activeReqId.set(reqId);
                 return;
             }
         }
+        AndroidUtilities.cancelRunOnUIThread(timeoutWatchdog);
         IN_FLIGHT.remove(flightKey);
-        if (controller.getUser(uid) != null) {
-            openAction.run();
+        final Runnable act = actionRef.getAndSet(null);
+        if (act != null && controller.getUser(uid) != null) {
+            act.run();
         }
     }
 }
