@@ -698,32 +698,49 @@ public class PengramHistory extends SQLiteOpenHelper {
     // ------------------------------------------------- метки «сообщение удалено»
 
     /** Account + dialog: IDs may coincide across logged-in accounts. */
-    private static final android.util.SparseArray<android.util.LongSparseArray<java.util.HashSet<Integer>>> marksCache = new android.util.SparseArray<>();
+    private static final android.util.SparseArray<android.util.LongSparseArray<java.util.Set<Integer>>> marksCache = new android.util.SparseArray<>();
+    /** Lock-free read mirror so 120Hz chat cell binds never contend on marksCache's monitor or allocate String keys. */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, java.util.Set<Integer>> fastMarksByDialog =
+            new java.util.concurrent.ConcurrentHashMap<>();
     /**
      * Какие диалоги мы уже прочитали из базы. Отдельно от marksCache: кэш может
      * быть заполнен «на лету» (пришло удаление), и тогда раннее «ключ есть —
      * значит всё загружено» навсегда скрывало старые метки этого диалога.
      */
-    private static final java.util.HashSet<String> marksLoadedDialogs = new java.util.HashSet<>();
+    private static final java.util.Set<Long> marksLoadedDialogs =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Long, Boolean>());
 
-    private static String marksKey(int account, long dialogId) {
-        return account + ":" + dialogId;
+    private static Long marksKey(int account, long dialogId) {
+        final long encodedDid = dialogId < 0 ? ((-dialogId) | (1L << 55)) : (dialogId & ((1L << 55) - 1L));
+        return (((long) (account & 0x7F)) << 56) | encodedDid;
     }
 
     /** minSdk 23: без Collection.removeIf — обычный итератор */
     private static void forgetLoadedMarks(int account) {
-        final String prefix = account + ":";
-        java.util.Iterator<String> it = marksLoadedDialogs.iterator();
+        final long accTag = (account & 0x7FL);
+        java.util.Iterator<Long> it = marksLoadedDialogs.iterator();
         while (it.hasNext()) {
-            if (it.next().startsWith(prefix)) {
+            final Long k = it.next();
+            if (k != null && ((k >>> 56) & 0x7FL) == accTag) {
                 it.remove();
+            }
+        }
+        java.util.Iterator<Long> fastIt = fastMarksByDialog.keySet().iterator();
+        while (fastIt.hasNext()) {
+            final Long k = fastIt.next();
+            if (k != null && ((k >>> 56) & 0x7FL) == accTag) {
+                fastIt.remove();
             }
         }
     }
 
+    private static java.util.Set<Integer> newConcurrentMarkSet() {
+        return java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Integer, Boolean>());
+    }
+
     /** Called while holding marksCache's monitor; avoids allocating keys on every chat row. */
-    private static android.util.LongSparseArray<java.util.HashSet<Integer>> accountMarks(int account) {
-        android.util.LongSparseArray<java.util.HashSet<Integer>> marks = marksCache.get(account);
+    private static android.util.LongSparseArray<java.util.Set<Integer>> accountMarks(int account) {
+        android.util.LongSparseArray<java.util.Set<Integer>> marks = marksCache.get(account);
         if (marks == null) {
             marks = new android.util.LongSparseArray<>();
             marksCache.put(account, marks);
@@ -882,10 +899,11 @@ public class PengramHistory extends SQLiteOpenHelper {
     private static void publishDeletedMark(int account, long dialogId, int id) {
         if (isUserDeleted(id)) return;
         synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
+            java.util.Set<Integer> set = accountMarks(account).get(dialogId);
             if (set == null) {
-                set = new java.util.HashSet<>();
+                set = newConcurrentMarkSet();
                 accountMarks(account).put(dialogId, set);
+                fastMarksByDialog.put(marksKey(account, dialogId), set);
             }
             set.add(id);
         }
@@ -911,29 +929,23 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
-    /** быстрая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
+    /** быстрая беззамковая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
     public static boolean isMarkedDeleted(int account, long dialogId, int messageId) {
         if (dialogId == 0) {
             return false;
         }
-        synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
-            return set != null && set.contains(messageId);
-        }
+        final java.util.Set<Integer> set = fastMarksByDialog.get(marksKey(account, dialogId));
+        return set != null && set.contains(messageId);
     }
 
     /** успели ли подгрузить метки этого диалога (до этого «не удалено» ничего не значит) */
     public static boolean marksLoaded(int account, long dialogId) {
-        synchronized (marksCache) {
-            return marksLoadedDialogs.contains(marksKey(account, dialogId));
-        }
+        return marksLoadedDialogs.contains(marksKey(account, dialogId));
     }
 
     public static boolean hasMarks(int account, long dialogId) {
-        synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
-            return set != null && !set.isEmpty();
-        }
+        final java.util.Set<Integer> set = fastMarksByDialog.get(marksKey(account, dialogId));
+        return set != null && !set.isEmpty();
     }
 
     /** подгружает метки диалога в память (вызывается при открытии чата) */
@@ -942,11 +954,9 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (done != null) AndroidUtilities.runOnUIThread(done);
             return;
         }
-        synchronized (marksCache) {
-            if (marksLoadedDialogs.contains(marksKey(account, dialogId))) {
-                if (done != null) AndroidUtilities.runOnUIThread(done);
-                return;
-            }
+        if (marksLoadedDialogs.contains(marksKey(account, dialogId))) {
+            if (done != null) AndroidUtilities.runOnUIThread(done);
+            return;
         }
         final PengramHistory history = getInstance();
         if (history == null) {
@@ -958,7 +968,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             return;
         }
         executor.execute(() -> {
-            final java.util.HashSet<Integer> set = new java.util.HashSet<>();
+            final java.util.Set<Integer> set = newConcurrentMarkSet();
             Cursor c = null;
             try {
                 c = history.getReadableDatabase().rawQuery(
@@ -975,11 +985,12 @@ public class PengramHistory extends SQLiteOpenHelper {
                 if (c != null) try { c.close(); } catch (Throwable ignore) {}
             }
             synchronized (marksCache) {
-                java.util.HashSet<Integer> existing = accountMarks(account).get(dialogId);
+                java.util.Set<Integer> existing = accountMarks(account).get(dialogId);
                 if (existing != null) {
                     set.addAll(existing);
                 }
                 accountMarks(account).put(dialogId, set);
+                fastMarksByDialog.put(marksKey(account, dialogId), set);
                 marksLoadedDialogs.add(marksKey(account, dialogId));
             }
             // метки появились — открытый чат должен перекраситься сразу
@@ -996,7 +1007,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         final ArrayList<Integer> copy = new ArrayList<>(ids);
         synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
+            java.util.Set<Integer> set = accountMarks(account).get(dialogId);
             if (set != null) {
                 set.removeAll(copy);
             }
@@ -1022,6 +1033,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 marksCache.remove(account);
             } else {
                 accountMarks(account).remove(dialogId);
+                fastMarksByDialog.remove(marksKey(account, dialogId));
             }
             if (dialogId == 0) {
                 forgetLoadedMarks(account);
@@ -2047,13 +2059,14 @@ public class PengramHistory extends SQLiteOpenHelper {
         final ArrayList<Long> reload = new ArrayList<>();
         synchronized (marksCache) {
             if (dialogId == 0) {
-                android.util.LongSparseArray<java.util.HashSet<Integer>> old = accountMarks(account);
+                android.util.LongSparseArray<java.util.Set<Integer>> old = accountMarks(account);
                 for (int i = 0; i < old.size(); i++) reload.add(old.keyAt(i));
                 marksCache.remove(account);
                 forgetLoadedMarks(account);
             } else {
                 reload.add(dialogId);
                 accountMarks(account).remove(dialogId);
+                fastMarksByDialog.remove(marksKey(account, dialogId));
                 marksLoadedDialogs.remove(marksKey(account, dialogId));
             }
         }

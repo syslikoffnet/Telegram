@@ -5344,6 +5344,9 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void pengramUpdateWpm(int before, int count) {
         if (pengramWpmBadge == null) return;
         final boolean active = org.telegram.messenger.PengramTypingStats.enabled();
+        if (!active && pengramWpmBadge.getVisibility() == GONE) {
+            return;
+        }
         final int speed = org.telegram.messenger.PengramTypingStats.onEdit(currentAccount, before, count,
                 active && !ignoreTextChange && innerTextChange == 0 && !isPaste
                         && messageEditText != null && messageEditText.isFocused());
@@ -5351,14 +5354,18 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (active) postDelayed(pengramWpmIdle, 3000);
         final boolean show = active && org.telegram.messenger.PengramConfig.getBool(
                 org.telegram.messenger.PengramTypingStats.KEY_SHOW_BADGE, true) && speed > 0;
-        pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
+        if ((pengramWpmBadge.getVisibility() == VISIBLE) != show) {
+            pengramWpmBadge.setVisibility(show ? VISIBLE : GONE);
+        }
         if (show) pengramWpmBadge.setText(speed + " WPM");
     }
 
     /** Animate only newly entered glyphs; paste and programmatic edits are ignored. */
     private void pengramAnimateTyping(int start, int before, int count) {
         if (messageEditText == null) return;
-        PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
+        if (org.telegram.messenger.PengramConfig.isTypingEffectsActive()) {
+            PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
+        }
         final long now = SystemClock.uptimeMillis();
         if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && (count - before) <= 2 && now - pengramLastTypingHaptic >= 90) {
             pengramLastTypingHaptic = now;
@@ -5374,7 +5381,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                    if (count > 0) {
+                    if (count > 0 && org.telegram.messenger.PengramConfig.getInputAnimation() != org.telegram.messenger.PengramConfig.INPUT_ANIM_NONE) {
                         PengramTypingEffects.captureBefore(ChatActivityEditTextCaption.this, s, start, count);
                     }
                 }
@@ -7442,6 +7449,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private ImageView pengramWebClose;
     private boolean pengramWebShown;
     private boolean pengramWebSuppressWatcher;
+    private boolean pengramWebDebounceScheduled;
     private String pengramWebDismissedQuery;
     private PengramInlineWebSearch.PrefixMatch pengramWebMatch;
     private PengramInlineWebSearch.SearchResponse pengramWebResponse;
@@ -7449,6 +7457,7 @@ public class ChatActivityEnterView extends FrameLayout implements
     private PengramWebSearchSheet pengramWebSheet;
 
     private final Runnable pengramWebDebounceRunnable = () -> {
+        pengramWebDebounceScheduled = false;
         if (destroyed || pengramWebMatch == null) {
             return;
         }
@@ -7466,7 +7475,10 @@ public class ChatActivityEnterView extends FrameLayout implements
     };
 
     private void cancelPengramWebHandle() {
-        AndroidUtilities.cancelRunOnUIThread(pengramWebDebounceRunnable);
+        if (pengramWebDebounceScheduled) {
+            pengramWebDebounceScheduled = false;
+            AndroidUtilities.cancelRunOnUIThread(pengramWebDebounceRunnable);
+        }
         if (pengramWebHandle != null) {
             pengramWebHandle.cancel();
             pengramWebHandle = null;
@@ -7476,19 +7488,23 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void updatePengramWebSuggestion(CharSequence text) {
         if (destroyed || editingMessageObject != null || !PengramConfig.isInlineWebSearchEnabled()
                 || pengramLinkShown || pengramCalcShown) {
-            cancelPengramWebHandle();
-            pengramWebMatch = null;
-            pengramWebResponse = null;
-            hidePengramWebBar();
+            if (pengramWebShown || pengramWebDebounceScheduled || pengramWebHandle != null || pengramWebMatch != null) {
+                cancelPengramWebHandle();
+                pengramWebMatch = null;
+                pengramWebResponse = null;
+                hidePengramWebBar();
+            }
             return;
         }
         final PengramInlineWebSearch.PrefixMatch match = PengramInlineWebSearch.extractPrefixQuery(text);
         if (match == null) {
-            cancelPengramWebHandle();
-            pengramWebDismissedQuery = null;
-            pengramWebMatch = null;
-            pengramWebResponse = null;
-            hidePengramWebBar();
+            if (pengramWebShown || pengramWebDebounceScheduled || pengramWebHandle != null || pengramWebMatch != null || pengramWebDismissedQuery != null) {
+                cancelPengramWebHandle();
+                pengramWebDismissedQuery = null;
+                pengramWebMatch = null;
+                pengramWebResponse = null;
+                hidePengramWebBar();
+            }
             return;
         }
         if (match.query.equalsIgnoreCase(pengramWebDismissedQuery)) {
@@ -7505,6 +7521,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             final PengramInlineWebSearch.SearchResponse cached = PengramInlineWebSearch.getCached(match.query);
             pengramWebResponse = cached;
             if (cached == null) {
+                pengramWebDebounceScheduled = true;
                 AndroidUtilities.runOnUIThread(pengramWebDebounceRunnable, 260);
             }
         }

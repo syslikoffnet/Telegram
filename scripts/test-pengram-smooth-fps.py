@@ -129,6 +129,34 @@ def main() -> None:
     require(del_view, "bitmap.getPixels(buildPixels, 0, bmpW, 0, 0, bmpW, bmpH);", "PengramDeleteEffectView")
     require(del_view, "samplePixelFast(", "PengramDeleteEffectView")
 
+    # 5. Pengram Settings Search + Chat 120Hz zero-lag pipelines
+    smart = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramSmartSearch.java")
+    for token in ("DP_SCRATCH", "withinPrefixOneEdit(", "splitTokens("):
+        require(smart, token, "PengramSmartSearch")
+
+    meta = read("TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java")
+    for token in ("class EntryDoc", "class Corpus", "warmupAsync()", "cachedTitle(int[] entry)", "PreparedTerms"):
+        require(meta, token, "PengramSearchMetadata")
+
+    for token in ("PengramSearchMetadata.warmupAsync()", "setHeadersPausedForSearch(", "updateSearchList()", "listView.adapter.update(false)", "MAX_RENDERED_SEARCH_RESULTS"):
+        require(settings, token, "PengramSettingsActivity.search120Hz")
+
+    forbid(typing, "new BlurMaskFilter(", "PengramTypingEffects.noCpuMaskBlur")
+
+    calc = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramInlineCalc.java")
+    require(calc, "hasDigitOrEquals(rawText)", "PengramInlineCalc")
+
+    link_res = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramLinkResolver.java")
+    require(link_res, "mayContainSupportedLink(text)", "PengramLinkResolver")
+
+    history = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramHistory.java")
+    require(history, "fastMarksByDialog", "PengramHistory.lockFreeMarks")
+
+    hydrator = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramSenderHydrator.java")
+    require(hydrator, "packReqKey(account, peerId)", "PengramSenderHydrator.packedKey")
+
+    require(cyl, "listBend.active", "PengramCylinderScroll.listFastPath")
+
     print("OK: test-pengram-smooth-fps passed")
 
 

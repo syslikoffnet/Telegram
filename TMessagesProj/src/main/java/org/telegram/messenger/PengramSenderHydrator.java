@@ -51,12 +51,17 @@ public final class PengramSenderHydrator {
     private static final String PREFS_NAME = "pengram_sender_snapshots";
     private static final int MAX_SAVED_PEERS = 600;
 
-    private static final Set<String> IN_FLIGHT =
-            Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-    private static final Set<String> MISS_CACHE =
-            Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-    private static final ConcurrentHashMap<String, CopyList> WAITERS =
+    private static final Set<Long> IN_FLIGHT =
+            Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
+    private static final Set<Long> MISS_CACHE =
+            Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
+    private static final ConcurrentHashMap<Long, CopyList> WAITERS =
             new ConcurrentHashMap<>();
+
+    private static Long packReqKey(int account, long peerId) {
+        final long encodedPeer = peerId < 0 ? ((-peerId) | (1L << 55)) : (peerId & ((1L << 55) - 1L));
+        return (((long) (account & 0x7F)) << 56) | encodedPeer;
+    }
 
     private static final Object SNAPSHOT_LOCK = new Object();
     private static SharedPreferences snapshotPrefs;
@@ -273,7 +278,7 @@ public final class PengramSenderHydrator {
             }
         }
 
-        final String reqKey = account + ":" + peerId;
+        final Long reqKey = packReqKey(account, peerId);
         if (MISS_CACHE.contains(reqKey)) {
             return;
         }
@@ -366,7 +371,7 @@ public final class PengramSenderHydrator {
         });
     }
 
-    private static void finishHydration(String reqKey, long peerId, boolean resolved) {
+    private static void finishHydration(Long reqKey, long peerId, boolean resolved) {
         IN_FLIGHT.remove(reqKey);
         if (!resolved) {
             MISS_CACHE.add(reqKey);

@@ -73,20 +73,61 @@ public final class PengramSmartSearch {
         return sb.toString();
     }
 
+    private static final String[] EMPTY_TOKENS = new String[0];
+
+    private static final ThreadLocal<int[]> DP_SCRATCH = new ThreadLocal<int[]>() {
+        @Override
+        protected int[] initialValue() {
+            return new int[3 * 36];
+        }
+    };
+
     public static String[] splitTokens(String normalizedText) {
         if (TextUtils.isEmpty(normalizedText)) {
-            return new String[0];
+            return EMPTY_TOKENS;
         }
-        return normalizedText.split(" +");
+        final int len = normalizedText.length();
+        int count = 0;
+        boolean inToken = false;
+        for (int i = 0; i < len; i++) {
+            if (normalizedText.charAt(i) != ' ') {
+                if (!inToken) {
+                    count++;
+                    inToken = true;
+                }
+            } else {
+                inToken = false;
+            }
+        }
+        if (count == 0) {
+            return EMPTY_TOKENS;
+        }
+        final String[] out = new String[count];
+        int idx = 0;
+        int start = -1;
+        for (int i = 0; i < len; i++) {
+            if (normalizedText.charAt(i) != ' ') {
+                if (start < 0) {
+                    start = i;
+                }
+            } else if (start >= 0) {
+                out[idx++] = normalizedText.substring(start, i);
+                start = -1;
+            }
+        }
+        if (start >= 0) {
+            out[idx] = normalizedText.substring(start, len);
+        }
+        return out;
     }
 
     /**
      * Переключает раскладку клавиатуры: латинские клавиши -> русские ЙЦУКЕН и наоборот.
-     * Возвращает {@code null}, если переключение не дало осмысленного отличия.
+     * Всегда возвращает не-null строку ({@code ""}, если переключение не дало отличия).
      */
     public static String flipKeyboardLayout(String raw) {
         if (TextUtils.isEmpty(raw)) {
-            return null;
+            return "";
         }
         int latCount = 0;
         int cyrCount = 0;
@@ -100,7 +141,7 @@ public final class PengramSmartSearch {
             }
         }
         if (latCount == 0 && cyrCount == 0) {
-            return null;
+            return "";
         }
         final boolean toRussian = latCount >= cyrCount;
         final String from = toRussian ? EN_LAYOUT : RU_LAYOUT;
@@ -121,16 +162,16 @@ public final class PengramSmartSearch {
             }
         }
         if (!changed) {
-            return null;
+            return "";
         }
         final String res = sb.toString().trim();
-        return res.isEmpty() || res.equalsIgnoreCase(raw.trim()) ? null : res;
+        return res.isEmpty() || res.equalsIgnoreCase(raw.trim()) ? "" : res;
     }
 
     /** Фонетическая транслитерация латиницы в русский («avatarka» -> «аватарка», «shрифт» -> «шрифт»). */
     public static String transliterateLatinToRu(String raw) {
         if (TextUtils.isEmpty(raw)) {
-            return null;
+            return "";
         }
         final String lower = raw.toLowerCase(Locale.ROOT).trim();
         boolean hasLat = false;
@@ -142,25 +183,26 @@ public final class PengramSmartSearch {
             }
         }
         if (!hasLat) {
-            return null;
+            return "";
         }
         final StringBuilder sb = new StringBuilder(lower.length());
         int i = 0;
         final int n = lower.length();
         while (i < n) {
-            if (i + 3 < n && lower.startsWith("shch", i)) {
+            if (i + 3 < n && lower.charAt(i) == 's' && lower.charAt(i + 1) == 'h'
+                    && lower.charAt(i + 2) == 'c' && lower.charAt(i + 3) == 'h') {
                 sb.append('щ');
                 i += 4;
                 continue;
             }
-            if (i + 2 < n) {
-                final String tri = lower.substring(i, i + 3);
-                if ("sch".equals(tri)) {
+            if (i + 2 < n && lower.charAt(i + 1) == 'c' && lower.charAt(i + 2) == 'h') {
+                final char c0 = lower.charAt(i);
+                if (c0 == 's') {
                     sb.append('щ');
                     i += 3;
                     continue;
                 }
-                if ("tch".equals(tri)) {
+                if (c0 == 't') {
                     sb.append('ч');
                     i += 3;
                     continue;
@@ -215,13 +257,13 @@ public final class PengramSmartSearch {
             }
         }
         final String out = sb.toString();
-        return out.equals(lower) ? null : out;
+        return out.equals(lower) ? "" : out;
     }
 
     /** Фонетическая транслитерация русского текста в латиницу («телеграм» -> «telegram»). */
     public static String transliterateRuToLatin(String raw) {
         if (TextUtils.isEmpty(raw)) {
-            return null;
+            return "";
         }
         final String lower = raw.toLowerCase(Locale.ROOT).trim();
         boolean hasCyr = false;
@@ -233,7 +275,7 @@ public final class PengramSmartSearch {
             }
         }
         if (!hasCyr) {
-            return null;
+            return "";
         }
         final StringBuilder sb = new StringBuilder(lower.length() + 8);
         for (int i = 0; i < lower.length(); i++) {
@@ -271,7 +313,7 @@ public final class PengramSmartSearch {
             }
         }
         final String out = sb.toString();
-        return out.isEmpty() || out.equals(lower) ? null : out;
+        return out.isEmpty() || out.equals(lower) ? "" : out;
     }
 
     /** Все альтернативные варианты запроса (смена раскладки и транслит) без дубликатов. */
@@ -351,28 +393,30 @@ public final class PengramSmartSearch {
         if (maxEdits == 1) {
             return withinOneDamerauEdit(a, b);
         }
-        // Компактная полоса ДП для maxEdits == 2 на словах до 32 символов
+        // Компактная полоса ДП для maxEdits == 2 на словах до 32 символов (без аллокаций в куче)
         if (la > 32 || lb > 32) {
             return false;
         }
-        int[] prevPrev = new int[lb + 1];
-        int[] prev = new int[lb + 1];
-        int[] curr = new int[lb + 1];
+        final int stride = 36;
+        final int[] buf = DP_SCRATCH.get();
+        int offPrev2 = 0;
+        int offPrev = stride;
+        int offCurr = stride * 2;
         for (int j = 0; j <= lb; j++) {
-            prev[j] = j;
+            buf[offPrev + j] = j;
         }
         for (int i = 1; i <= la; i++) {
-            curr[0] = i;
-            int rowMin = curr[0];
+            buf[offCurr] = i;
+            int rowMin = i;
             final char ca = a.charAt(i - 1);
             for (int j = 1; j <= lb; j++) {
                 final char cb = b.charAt(j - 1);
                 final int cost = ca == cb ? 0 : 1;
-                int val = Math.min(Math.min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+                int val = Math.min(Math.min(buf[offCurr + j - 1] + 1, buf[offPrev + j] + 1), buf[offPrev + j - 1] + cost);
                 if (i > 1 && j > 1 && ca == b.charAt(j - 2) && a.charAt(i - 2) == cb) {
-                    val = Math.min(val, prevPrev[j - 2] + 1);
+                    val = Math.min(val, buf[offPrev2 + j - 2] + 1);
                 }
-                curr[j] = val;
+                buf[offCurr + j] = val;
                 if (val < rowMin) {
                     rowMin = val;
                 }
@@ -380,17 +424,33 @@ public final class PengramSmartSearch {
             if (rowMin > maxEdits) {
                 return false;
             }
-            final int[] tmp = prevPrev;
-            prevPrev = prev;
-            prev = curr;
-            curr = tmp;
+            final int tmp = offPrev2;
+            offPrev2 = offPrev;
+            offPrev = offCurr;
+            offCurr = tmp;
         }
-        return prev[lb] <= maxEdits;
+        return buf[offPrev + lb] <= maxEdits;
     }
 
     private static boolean withinOneDamerauEdit(String a, String b) {
-        final int la = a.length();
-        final int lb = b.length();
+        return withinOneDamerauEditSlice(a, a.length(), b, b.length());
+    }
+
+    /**
+     * Нулевая по аллокациям проверка 1 опечатки (включая транспозицию) между префиксом {@code word}
+     * и токеном запроса {@code term} без создания {@code word.substring(...)}.
+     */
+    public static boolean withinPrefixOneEdit(String word, String term) {
+        if (word == null || term == null) {
+            return false;
+        }
+        final int wLen = word.length();
+        final int tLen = term.length();
+        final int effWLen = wLen > tLen + 1 ? Math.min(wLen, tLen) : wLen;
+        return withinOneDamerauEditSlice(word, effWLen, term, tLen);
+    }
+
+    private static boolean withinOneDamerauEditSlice(String a, int la, String b, int lb) {
         if (Math.abs(la - lb) > 1) {
             return false;
         }
@@ -454,12 +514,17 @@ public final class PengramSmartSearch {
                 }
             }
             if (tLen >= 5 && w.length() >= 4 && term.charAt(0) == w.charAt(0)) {
-                final int cmpLen = Math.min(w.length(), tLen + 1);
-                final String wPrefix = w.length() > cmpLen ? w.substring(0, cmpLen) : w;
-                final int maxEdits = tLen >= 9 ? 2 : 1;
-                if (withinDamerauDistance(term, wPrefix, maxEdits)
-                        || withinDamerauDistance(term, w, maxEdits)) {
-                    return true;
+                if (tLen < 9) {
+                    if (withinPrefixOneEdit(w, term) || withinOneDamerauEdit(term, w)) {
+                        return true;
+                    }
+                } else {
+                    final int cmpLen = Math.min(w.length(), tLen + 1);
+                    final String wPrefix = w.length() > cmpLen ? w.substring(0, cmpLen) : w;
+                    if (withinDamerauDistance(term, wPrefix, 2)
+                            || withinDamerauDistance(term, w, 2)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -480,7 +545,7 @@ public final class PengramSmartSearch {
                 return true;
             }
         }
-        return flipKeyboardLayout(query) != null;
+        return !flipKeyboardLayout(query).isEmpty();
     }
 
     /**

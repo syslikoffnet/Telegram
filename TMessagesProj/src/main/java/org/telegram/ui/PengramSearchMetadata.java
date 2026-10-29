@@ -22,17 +22,129 @@ import static org.telegram.messenger.LocaleController.getString;
 public final class PengramSearchMetadata {
     private PengramSearchMetadata() { }
 
+    /** Precomputed, locale-scoped search entry: zero regex, zero getString, and zero stem allocations per keystroke. */
+    private static final class EntryDoc {
+        final int[] entry;
+        final String rawTitle;
+        final boolean indexable;
+        final String normTitle;
+        final String[] titleWords;
+        final String[] titleStems;
+        final String[] words;
+        final String[] wordStems;
+        final String fullPath;
+        final String lowerFoldedPath;
+        final int leafStart;
+
+        EntryDoc(int[] entry, String rawTitle, String normTitle, String[] titleWords, String[] titleStems,
+                 String[] words, String[] wordStems, String fullPath, String lowerFoldedPath, int leafStart) {
+            this.entry = entry;
+            this.rawTitle = rawTitle;
+            this.indexable = !TextUtils.isEmpty(rawTitle) && !rawTitle.startsWith("LOC_ERR");
+            this.normTitle = normTitle;
+            this.titleWords = titleWords;
+            this.titleStems = titleStems;
+            this.words = words;
+            this.wordStems = wordStems;
+            this.fullPath = fullPath;
+            this.lowerFoldedPath = lowerFoldedPath;
+            this.leafStart = leafStart;
+        }
+    }
+
     /** Immutable, locale-scoped tokens. Text never comes from an account. */
     private static final class Corpus {
         final Locale locale;
-        final Map<int[], String[]> words;
-        Corpus(Locale locale, Map<int[], String[]> words) {
+        final EntryDoc[] docs;
+        final Map<int[], EntryDoc> byEntry;
+        Corpus(Locale locale, EntryDoc[] docs, Map<int[], EntryDoc> byEntry) {
             this.locale = locale;
-            this.words = words;
+            this.docs = docs;
+            this.byEntry = byEntry;
+        }
+    }
+
+    /** One-pass prepared query variants cached across all 437 relevance() calls of a single keystroke. */
+    private static final class PreparedTerms {
+        final String[] sourceRef;
+        final String[] terms;
+        final String[] stems;
+        final String joined;
+        final boolean hasFlip;
+        final String[] flipTerms;
+        final String[] flipStems;
+        final String joinedFlip;
+        final boolean hasTranslit;
+        final String[] translitTerms;
+        final String[] translitStems;
+        final String joinedTranslit;
+
+        PreparedTerms(String[] terms) {
+            this.sourceRef = terms;
+            this.terms = terms;
+            this.stems = buildStems(terms);
+            this.joined = joinTerms(terms);
+
+            boolean flipDiff = false;
+            final String[] fTerms = new String[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                final String f = normalized(org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(terms[i]));
+                fTerms[i] = f.isEmpty() ? terms[i] : f;
+                if (!fTerms[i].equals(terms[i])) {
+                    flipDiff = true;
+                }
+            }
+            this.hasFlip = flipDiff;
+            this.flipTerms = flipDiff ? fTerms : null;
+            this.flipStems = flipDiff ? buildStems(fTerms) : null;
+            this.joinedFlip = flipDiff ? joinTerms(fTerms) : null;
+
+            boolean trDiff = false;
+            final String[] trTerms = new String[terms.length];
+            for (int i = 0; i < terms.length; i++) {
+                final String tr = normalized(org.telegram.messenger.PengramSmartSearch.transliterate(terms[i]));
+                trTerms[i] = tr.isEmpty() ? terms[i] : tr;
+                if (!trTerms[i].equals(terms[i]) && (!flipDiff || !trTerms[i].equals(fTerms[i]))) {
+                    trDiff = true;
+                }
+            }
+            this.hasTranslit = trDiff;
+            this.translitTerms = trDiff ? trTerms : null;
+            this.translitStems = trDiff ? buildStems(trTerms) : null;
+            this.joinedTranslit = trDiff ? joinTerms(trTerms) : null;
+        }
+    }
+
+    private static final class PreparedHighlight {
+        final String rawQuery;
+        final String foldedQuery;
+        final String[] tokens;
+
+        PreparedHighlight(String rawQuery) {
+            this.rawQuery = rawQuery;
+            final String q = rawQuery == null ? "" : rawQuery.trim().toLowerCase(Locale.ROOT).replace('ё', 'е');
+            this.foldedQuery = q;
+            if (q.isEmpty()) {
+                this.tokens = new String[0];
+            } else {
+                final String flipped = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q);
+                final String[] t1 = queryTerms(q);
+                final String[] t2 = flipped.isEmpty() ? new String[0] : queryTerms(flipped);
+                final ArrayList<String> list = new ArrayList<>(t1.length + t2.length);
+                for (String t : t1) {
+                    if (t.length() >= 2 && !list.contains(t)) list.add(t);
+                }
+                for (String t : t2) {
+                    if (t.length() >= 2 && !list.contains(t)) list.add(t);
+                }
+                this.tokens = list.toArray(new String[0]);
+            }
         }
     }
 
     private static volatile Corpus cachedCorpus;
+    private static volatile PreparedTerms cachedPreparedTerms;
+    private static volatile PreparedHighlight cachedHighlight;
     private static volatile IdentityHashMap<int[], Integer> cachedEntryIds;
     private static volatile SparseArray<int[]> cachedIdEntries;
 
@@ -121,6 +233,51 @@ public final class PengramSearchMetadata {
         return out;
     }
 
+    private static String[] buildStems(String[] tokens) {
+        if (tokens == null || tokens.length == 0) {
+            return new String[0];
+        }
+        final String[] out = new String[tokens.length];
+        for (int i = 0; i < tokens.length; i++) {
+            final String t = tokens[i];
+            out[i] = t != null && t.length() >= 4 ? org.telegram.messenger.PengramSmartSearch.stem(t) : (t == null ? "" : t);
+        }
+        return out;
+    }
+
+    private static String joinTerms(String[] terms) {
+        if (terms == null || terms.length == 0) {
+            return "";
+        }
+        if (terms.length == 1) {
+            return terms[0];
+        }
+        final StringBuilder sb = new StringBuilder(24);
+        for (int i = 0; i < terms.length; i++) {
+            if (i > 0) sb.append(' ');
+            sb.append(terms[i]);
+        }
+        return sb.toString();
+    }
+
+    private static EntryDoc buildDoc(int[] entry) {
+        final String rawTitle = getString(entry[0]);
+        final String normTitle = normalized(rawTitle);
+        final String[] titleWords = org.telegram.messenger.PengramSmartSearch.splitTokens(normTitle);
+        final String[] titleStems = buildStems(titleWords);
+        // Только собственные слова строки: заголовок, группа, описание
+        // и синонимы. Полный путь сюда не входит — иначе запрос
+        // «сообщения» находил вообще все настройки раздела.
+        final String[] words = normalized(tags(entry)).split(" +");
+        final String[] wordStems = buildStems(words);
+        final String fullPath = path(entry);
+        final String lowerFoldedPath = fullPath.toLowerCase(Locale.ROOT).replace('ё', 'е');
+        final int arrow = fullPath.lastIndexOf(" ➔ ");
+        final int leafStart = arrow >= 0 ? arrow + 3 : 0;
+        return new EntryDoc(entry, rawTitle, normTitle, titleWords, titleStems,
+                words, wordStems, fullPath, lowerFoldedPath, leafStart);
+    }
+
     private static Corpus corpus() {
         Locale locale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
         if (locale == null) locale = Locale.getDefault();
@@ -129,18 +286,51 @@ public final class PengramSearchMetadata {
         synchronized (PengramSearchMetadata.class) {
             current = cachedCorpus;
             if (current == null || !current.locale.equals(locale)) {
-                Map<int[], String[]> words = new IdentityHashMap<>();
-                for (int[] entry : PengramSearchIndex.ITEMS) {
-                    // Только собственные слова строки: заголовок, группа, описание
-                    // и синонимы. Полный путь сюда не входит — иначе запрос
-                    // «сообщения» находил вообще все настройки раздела.
-                    words.put(entry, normalized(tags(entry)).split(" +"));
+                final int n = PengramSearchIndex.ITEMS.length;
+                final EntryDoc[] docs = new EntryDoc[n];
+                final Map<int[], EntryDoc> byEntry = new IdentityHashMap<>(n);
+                for (int i = 0; i < n; i++) {
+                    final int[] entry = PengramSearchIndex.ITEMS[i];
+                    final EntryDoc doc = buildDoc(entry);
+                    docs[i] = doc;
+                    byEntry.put(entry, doc);
                 }
-                current = new Corpus(locale, words);
+                current = new Corpus(locale, docs, byEntry);
                 cachedCorpus = current;
             }
         }
         return current;
+    }
+
+    /** Фоновый прогрев индекса текущей локали: к первому нажатию клавиши корпус уже в RAM. */
+    public static void warmupAsync() {
+        Locale locale = org.telegram.messenger.LocaleController.getInstance().getCurrentLocale();
+        if (locale == null) locale = Locale.getDefault();
+        final Corpus current = cachedCorpus;
+        if (current != null && current.locale.equals(locale)) {
+            ensureIdMaps();
+            return;
+        }
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            try {
+                ensureIdMaps();
+                corpus();
+            } catch (Throwable ignore) {
+            }
+        });
+    }
+
+    /** Возвращает закэшированный для текущей локали заголовок строки (или {@code null}, если она не индексируется). */
+    public static String cachedTitle(int[] entry) {
+        if (entry == null || entry.length == 0) {
+            return null;
+        }
+        EntryDoc doc = corpus().byEntry.get(entry);
+        if (doc == null) {
+            final String t = getString(entry[0]);
+            return TextUtils.isEmpty(t) || t.startsWith("LOC_ERR") ? null : t;
+        }
+        return doc.indexable ? doc.rawTitle : null;
     }
 
     public static void open(BaseFragment fragment, int[] entry) {
@@ -313,14 +503,12 @@ public final class PengramSearchMetadata {
     }
 
     private static String normalized(String input) {
-        return input.toLowerCase(Locale.ROOT).replace('ё', 'е')
-                .replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        return org.telegram.messenger.PengramSmartSearch.normalize(input);
     }
 
     /** Normalize once for an entire search, not once per result on each keystroke. */
     public static String[] queryTerms(String query) {
-        String q = normalized(query == null ? "" : query);
-        return q.isEmpty() ? new String[0] : q.split(" +");
+        return org.telegram.messenger.PengramSmartSearch.splitTokens(normalized(query == null ? "" : query));
     }
 
     /** Token prefixes make "аватарка", "аватарки" and "аву" useful alike. */
@@ -332,49 +520,44 @@ public final class PengramSearchMetadata {
         return relevance(entry, terms) > 0;
     }
 
+    private static PreparedTerms prepareTerms(String[] terms) {
+        final PreparedTerms cached = cachedPreparedTerms;
+        if (cached != null && (cached.sourceRef == terms || java.util.Arrays.equals(cached.terms, terms))) {
+            return cached;
+        }
+        final PreparedTerms next = new PreparedTerms(terms);
+        cachedPreparedTerms = next;
+        return next;
+    }
+
     /**
      * Насколько строка похожа на запрос. 0 — не подходит, чем больше, тем выше
      * в выдаче. Заголовки с прямым совпадением идут первыми, совпадения только
      * по синонимам — последними: так выдача не тонет в «похожих» настройках.
      */
     public static int relevance(int[] entry, String[] terms) {
-        if (terms == null || terms.length == 0) return 0;
-        String[] words = corpus().words.get(entry);
-        if (words == null) words = normalized(tags(entry)).split(" +");
-        final String title = normalized(getString(entry[0]));
-        final String[] titleWords = title.isEmpty() ? new String[0] : title.split(" +");
-
-        final int direct = relevanceDirect(words, title, titleWords, terms);
+        if (terms == null || terms.length == 0 || entry == null) return 0;
+        EntryDoc doc = corpus().byEntry.get(entry);
+        if (doc == null) {
+            doc = buildDoc(entry);
+        }
+        if (!doc.indexable) {
+            return 0;
+        }
+        final PreparedTerms prepared = prepareTerms(terms);
+        final int direct = relevanceDirect(doc, prepared.terms, prepared.stems, prepared.joined);
         if (direct > 0) {
             return direct;
         }
-        // Автоисправление забытой раскладки (QWERTY ↔ ЙЦУКЕН) и транслита
-        boolean hasFlip = false;
-        final String[] flipped = new String[terms.length];
-        for (int i = 0; i < terms.length; i++) {
-            final String f = normalized(org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(terms[i]));
-            flipped[i] = f.isEmpty() ? terms[i] : f;
-            if (!flipped[i].equals(terms[i])) {
-                hasFlip = true;
-            }
-        }
-        if (hasFlip) {
-            final int byFlip = relevanceDirect(words, title, titleWords, flipped);
+        // Автоисправление забытой раскладки (QWERTY ↔ ЙЦУКЕН) и транслита (предвычислено 1 раз на запрос!)
+        if (prepared.hasFlip) {
+            final int byFlip = relevanceDirect(doc, prepared.flipTerms, prepared.flipStems, prepared.joinedFlip);
             if (byFlip > 0) {
                 return Math.max(60, byFlip - 20);
             }
         }
-        boolean hasTranslit = false;
-        final String[] translit = new String[terms.length];
-        for (int i = 0; i < terms.length; i++) {
-            final String tr = normalized(org.telegram.messenger.PengramSmartSearch.transliterate(terms[i]));
-            translit[i] = tr.isEmpty() ? terms[i] : tr;
-            if (!translit[i].equals(terms[i])) {
-                hasTranslit = true;
-            }
-        }
-        if (hasTranslit) {
-            final int byTranslit = relevanceDirect(words, title, titleWords, translit);
+        if (prepared.hasTranslit) {
+            final int byTranslit = relevanceDirect(doc, prepared.translitTerms, prepared.translitStems, prepared.joinedTranslit);
             if (byTranslit > 0) {
                 return Math.max(50, byTranslit - 30);
             }
@@ -382,28 +565,31 @@ public final class PengramSearchMetadata {
         return 0;
     }
 
-    private static int relevanceDirect(String[] words, String title, String[] titleWords, String[] terms) {
+    private static int relevanceDirect(EntryDoc doc, String[] terms, String[] termStems, String joinedTerms) {
+        final String title = doc.normTitle;
+        final String[] titleWords = doc.titleWords;
+        final String[] titleStems = doc.titleStems;
+        final String[] words = doc.words;
+        final String[] wordStems = doc.wordStems;
+
         int inTitle = 0;
-        for (String term : terms) {
-            if (wordMatches(titleWords, term)) inTitle++;
+        for (int i = 0; i < terms.length; i++) {
+            if (wordMatches(titleWords, titleStems, terms[i], termStems[i])) {
+                inTitle++;
+            }
         }
         if (inTitle == 0) {
             // совпадение только по синонимам/описанию — всё равно проверяем все слова
-            for (String term : terms) {
-                if (!wordMatches(words, term)) return 0;
+            for (int i = 0; i < terms.length; i++) {
+                if (!wordMatches(words, wordStems, terms[i], termStems[i])) return 0;
             }
             return 100;
         }
-        for (String term : terms) {
-            if (!wordMatches(words, term)) return 0;
+        for (int i = 0; i < terms.length; i++) {
+            if (!wordMatches(words, wordStems, terms[i], termStems[i])) return 0;
         }
         if (inTitle == terms.length) {
-            final StringBuilder joined = new StringBuilder();
-            for (String term : terms) {
-                if (joined.length() > 0) joined.append(' ');
-                joined.append(term);
-            }
-            final boolean prefix = title.startsWith(joined.toString());
+            final boolean prefix = !joinedTerms.isEmpty() && title.startsWith(joinedTerms);
             // короткий точный заголовок важнее длинного с тем же словом
             return (prefix ? 420 : 340) - Math.min(80, title.length());
         }
@@ -428,42 +614,52 @@ public final class PengramSearchMetadata {
         if (rawTerms.length == 0 || flipTerms.length == 0) {
             return null;
         }
-        int directHits = 0;
-        int flipHits = 0;
-        for (int[] entry : PengramSearchIndex.ITEMS) {
-            String[] words = corpus().words.get(entry);
-            if (words == null) continue;
-            final String title = normalized(getString(entry[0]));
-            final String[] titleWords = title.isEmpty() ? new String[0] : title.split(" +");
-            if (relevanceDirect(words, title, titleWords, rawTerms) > 0) directHits++;
-            if (relevanceDirect(words, title, titleWords, flipTerms) > 0) flipHits++;
+        final String[] rawStems = buildStems(rawTerms);
+        final String rawJoined = joinTerms(rawTerms);
+        final String[] flipStems = buildStems(flipTerms);
+        final String flipJoined = joinTerms(flipTerms);
+        final EntryDoc[] docs = corpus().docs;
+        boolean anyFlipHit = false;
+        for (int i = 0; i < docs.length; i++) {
+            final EntryDoc doc = docs[i];
+            if (doc == null || !doc.indexable) continue;
+            // Как только прямое совпадение найдено — это НЕ ошибочная раскладка (ранний выход за микросекунды!)
+            if (relevanceDirect(doc, rawTerms, rawStems, rawJoined) > 0) {
+                return null;
+            }
+            if (!anyFlipHit && relevanceDirect(doc, flipTerms, flipStems, flipJoined) > 0) {
+                anyFlipHit = true;
+            }
         }
-        return directHits == 0 && flipHits > 0 ? flipped : null;
+        return anyFlipHit ? flipped : null;
     }
 
-    /** Слово совпадает по началу, основе или с допуском 1 опечатки на длинных словах. */
-    private static boolean wordMatches(String[] words, String term) {
-        if (term == null || term.isEmpty()) {
+    /** Слово совпадает по началу, предвычисленной основе или с допуском 1 опечатки на длинных словах без аллокаций. */
+    private static boolean wordMatches(String[] words, String[] wordStems, String term, String termStem) {
+        if (term == null || term.isEmpty() || words == null) {
             return false;
         }
-        final String termStem = term.length() >= 4 ? org.telegram.messenger.PengramSmartSearch.stem(term) : term;
-        for (String word : words) {
+        final int tLen = term.length();
+        final int tsLen = termStem == null ? 0 : termStem.length();
+        final char tFirst = term.charAt(0);
+        for (int i = 0; i < words.length; i++) {
+            final String word = words[i];
             if (word == null || word.isEmpty()) continue;
-            if (word.startsWith(term) || (word.length() >= 4 && term.length() >= 4
-                    && term.length() <= word.length() + 3 && term.startsWith(word))) {
+            final int wLen = word.length();
+            if (word.startsWith(term) || (wLen >= 4 && tLen >= 4
+                    && tLen <= wLen + 3 && term.startsWith(word))) {
                 return true;
             }
-            if (termStem.length() >= 4 && word.length() >= 4) {
-                final String wordStem = org.telegram.messenger.PengramSmartSearch.stem(word);
-                if (wordStem.length() >= 3 && (wordStem.startsWith(termStem) || termStem.startsWith(wordStem))) {
+            if (tsLen >= 4 && wLen >= 4 && wordStems != null && i < wordStems.length) {
+                final String wordStem = wordStems[i];
+                if (wordStem != null && wordStem.length() >= 3
+                        && (wordStem.startsWith(termStem) || termStem.startsWith(wordStem))) {
                     return true;
                 }
             }
-            if (term.length() >= 4 && word.length() >= 4) {
-                final String target = word.length() > term.length() + 1
-                        ? word.substring(0, Math.min(word.length(), term.length()))
-                        : word;
-                if (org.telegram.messenger.PengramSmartSearch.withinEditDistance(target, term, 1)) {
+            // Первая буква совпадает в 95% реальных опечаток; если длина >= 5, допускаем и замену/транспозицию 1-й буквы
+            if (tLen >= 4 && wLen >= 4 && (word.charAt(0) == tFirst || tLen >= 5)) {
+                if (org.telegram.messenger.PengramSmartSearch.withinPrefixOneEdit(word, term)) {
                     return true;
                 }
             }
@@ -473,24 +669,39 @@ public final class PengramSearchMetadata {
 
     /** Full readable breadcrumb. Keep the destination bold even if a synonym matched. */
     public static CharSequence emphasizedPath(int[] entry, String query) {
-        String path = path(entry);
-        SpannableStringBuilder result = new SpannableStringBuilder(path);
-        int leaf = path.lastIndexOf(" ➔ ") + 3;
-        result.setSpan(new StyleSpan(Typeface.BOLD), leaf, path.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT).replace('ё', 'е');
-        String lowerPath = path.toLowerCase(Locale.ROOT).replace('ё', 'е');
-        int start = lowerPath.indexOf(q);
-        if (!q.isEmpty() && start >= 0) {
+        EntryDoc doc = entry != null ? corpus().byEntry.get(entry) : null;
+        if (doc == null && entry != null) {
+            doc = buildDoc(entry);
+        }
+        final String path = doc != null ? doc.fullPath : path(entry);
+        final String lowerPath = doc != null ? doc.lowerFoldedPath : path.toLowerCase(Locale.ROOT).replace('ё', 'е');
+        final int leaf = doc != null ? doc.leafStart : (path.lastIndexOf(" ➔ ") + 3);
+
+        final SpannableStringBuilder result = new SpannableStringBuilder(path);
+        if (leaf >= 0 && leaf < path.length()) {
+            result.setSpan(new StyleSpan(Typeface.BOLD), leaf, path.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        if (TextUtils.isEmpty(query)) {
+            return result;
+        }
+        PreparedHighlight hl = cachedHighlight;
+        if (hl == null || !query.equals(hl.rawQuery)) {
+            hl = new PreparedHighlight(query);
+            cachedHighlight = hl;
+        }
+        final String q = hl.foldedQuery;
+        if (q.isEmpty()) {
+            return result;
+        }
+        final int start = lowerPath.indexOf(q);
+        if (start >= 0 && start + q.length() <= path.length()) {
             result.setSpan(new StyleSpan(Typeface.BOLD), start, start + q.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        } else if (!q.isEmpty()) {
-            final String flipped = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q);
-            for (String candidate : new String[]{q, flipped}) {
-                for (String token : queryTerms(candidate)) {
-                    if (token.length() < 2) continue;
-                    int idx = lowerPath.indexOf(token);
-                    if (idx >= 0 && idx + token.length() <= path.length()) {
-                        result.setSpan(new StyleSpan(Typeface.BOLD), idx, idx + token.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    }
+        } else {
+            for (int i = 0; i < hl.tokens.length; i++) {
+                final String token = hl.tokens[i];
+                final int idx = lowerPath.indexOf(token);
+                if (idx >= 0 && idx + token.length() <= path.length()) {
+                    result.setSpan(new StyleSpan(Typeface.BOLD), idx, idx + token.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
             }
         }

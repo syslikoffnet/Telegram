@@ -65,6 +65,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     // и resize без прокрутки).
     private int lastScrollOffset = -1;
     private int lastChildCount = -1;
+    private int lastTargetWidth = -1;
     private int lastTargetHeight = -1;
     private float lastLayoutSum;
     private int lastBarsSig;
@@ -242,7 +243,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         if (count == 0) {
             return;
         }
-        final int scrollOffset = target.computeVerticalScrollOffset();
+        final int targetWidth = target.getWidth();
         final int targetHeight = target.getHeight();
         // границы зоны изгиба: по умолчанию — края списка (режим как раньше);
         // с тумблером — низ шапки и верх ввода: полоса сгиба видна целиком
@@ -268,6 +269,15 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         }
         final int strengthPct = PengramConfig.getCylinderScrollStrength();
         final int barsSig = (Float.floatToIntBits(topEdge) * 31 + Float.floatToIntBits(bottomEdge)) * 31 + strengthPct;
+        // На API 33+ с активным listBend весь список гнётся единым GPU-слоем:
+        // его шейдер зависит только от геометрии списка и баров, а НЕ от скролла
+        // и позиций отдельных ячеек — при 120 Гц скролле пропускаем цикл по детям целиком.
+        if (applied && listBend != null && listBend.active
+                && targetWidth == lastTargetWidth && targetHeight == lastTargetHeight
+                && barsSig == lastBarsSig) {
+            return;
+        }
+        final int scrollOffset = target.computeVerticalScrollOffset();
         // сумма «верх + сдвиг» по всем строкам: аниматоры двигают ячейки и без
         // смены скролла — такой кадр обязан пересчитать сгиб, а не пропустить
         float layoutSum = 0f;
@@ -285,6 +295,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         lastScrollOffset = scrollOffset;
         lastChildCount = count;
         lastTargetHeight = targetHeight;
+        lastTargetWidth = targetWidth;
         lastLayoutSum = layoutSum;
         lastBarsSig = barsSig;
         // сила:100 % — сочный, но читаемый изгиб,0 % — прежняя нежная дуга
@@ -298,7 +309,6 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float band = Math.min(radius * ROLLER_EDGE_K, span / 3f);
         final float insetTop = topEdge + band;
         final float insetBottom = bottomEdge - band;
-        final int targetWidth = target.getWidth();
         boolean shader = ensureWarp();
         boolean listShaderActive = false;
         if (shader && targetWidth > 0 && targetHeight > 0) {
@@ -333,28 +343,36 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             }
             bends.clear();
         }
-        for (int i = 0; i < count; i++) {
-            final View child = target.getChildAt(i);
-            if (child == null) {
-                continue;
-            }
-            // ячейки списка не клипуются (clipChildren и у них самих выключен) —
-            // без ограничения рисунок детей вылезал из полей сообщения
-            // на соседей («лсд»). Держим ровно границы ячейки.
-            final int w = child.getWidth();
-            final int h = child.getHeight();
-            if (w > 0 && h > 0) {
-                android.graphics.Rect clip = clipRects.get(child);
-                if (clip == null) {
-                    clip = new android.graphics.Rect(0, 0, w, h);
-                    clipRects.put(child, clip);
-                    child.setClipBounds(clip);
-                } else if (clip.right != w || clip.bottom != h) {
-                    clip.set(0, 0, w, h);
-                    child.setClipBounds(clip);
+        if (listShaderActive && !clipRects.isEmpty()) {
+            for (final View view : clipRects.keySet()) {
+                if (view != null) {
+                    view.setClipBounds(null);
                 }
             }
-            if (!listShaderActive) {
+            clipRects.clear();
+        }
+        if (!listShaderActive) {
+            for (int i = 0; i < count; i++) {
+                final View child = target.getChildAt(i);
+                if (child == null) {
+                    continue;
+                }
+                // ячейки списка не клипуются (clipChildren и у них самих выключен) —
+                // без ограничения рисунок детей вылезал из полей сообщения
+                // на соседей («лсд»). Держим ровно границы ячейки.
+                final int w = child.getWidth();
+                final int h = child.getHeight();
+                if (w > 0 && h > 0) {
+                    android.graphics.Rect clip = clipRects.get(child);
+                    if (clip == null) {
+                        clip = new android.graphics.Rect(0, 0, w, h);
+                        clipRects.put(child, clip);
+                        child.setClipBounds(clip);
+                    } else if (clip.right != w || clip.bottom != h) {
+                        clip.set(0, 0, w, h);
+                        child.setClipBounds(clip);
+                    }
+                }
                 if (shader && w > 0 && h > 0) {
                     // Касательные валиков в локальных координатах ячейки: карта одна
                     // на весь список (инсет одинаков), поэтому швы соседних строк

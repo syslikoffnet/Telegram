@@ -3720,13 +3720,18 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     }
 
     public void drawBackground(Canvas canvas, boolean fromParent) {
-        if (canDrawInParent) {
+        final boolean parentServiceDraw = canDrawInParent
+                && !(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                && org.telegram.messenger.PengramConfig.isCylinderScroll());
+        if (parentServiceDraw) {
             if (hasGradientService() && !fromParent) {
                 return;
             }
             if (!hasGradientService() && fromParent) {
                 return;
             }
+        } else if (canDrawInParent && fromParent) {
+            return;
         }
         Paint backgroundPaint = getThemedPaint(Theme.key_paint_chatActionBackground);
         Paint darkenBackgroundPaint = getThemedPaint(Theme.key_paint_chatActionBackgroundDarken);
@@ -4242,13 +4247,18 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     }
 
     public void drawReactions(Canvas canvas, boolean fromParent, Integer only) {
-        if (canDrawInParent) {
+        final boolean parentServiceDraw = canDrawInParent
+                && !(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                && org.telegram.messenger.PengramConfig.isCylinderScroll());
+        if (parentServiceDraw) {
             if (hasGradientService() && !fromParent) {
                 return;
             }
             if (!hasGradientService() && fromParent) {
                 return;
             }
+        } else if (canDrawInParent && fromParent) {
+            return;
         }
         drawReactionsLayout(canvas, fromParent, only);
     }

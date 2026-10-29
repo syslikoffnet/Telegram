@@ -214,7 +214,7 @@ public final class PengramTypingEffects {
      *         либо {@code -1}, если маскирование на этом кадре не требовалось.
      */
     public static int preDraw(EditText edit, Canvas canvas) {
-        if (edit == null || canvas == null) {
+        if (edit == null || canvas == null || states.isEmpty()) {
             return -1;
         }
         final State state = states.get(edit);
@@ -226,6 +226,10 @@ public final class PengramTypingEffects {
 
     /** вызывается из onDraw поля ввода сразу после super.onDraw */
     public static void drawOverlay(EditText edit, Canvas canvas) {
+        if (states.isEmpty() && !PengramConfig.isTypingCursorSmooth()) {
+            syncNativeCursor(edit, false);
+            return;
+        }
         State state = states.get(edit);
         if (state == null) {
             if (wantsCustomCursor(edit)) {
@@ -1102,36 +1106,27 @@ public final class PengramTypingEffects {
                     if (ScaleIsOff(scaleX) || ScaleIsOff(scaleY)) {
                         canvas.scale(scaleX, scaleY, x + width * .5f, baseline);
                     }
-                    MaskFilter previousBlur = null;
-                    if (blurOn && rawT < 0.72f) {
-                        // Быстрый оптический расфокус без просадки FPS (кеш по целым радиусам <= 8px)
-                        final float cappedMax = Math.min(8f, blurMax * 0.6f);
-                        final float radius = cappedMax * (1f - rawT / 0.72f);
-                        if (radius > .6f) {
-                            final int bucket = Math.max(1, Math.round(radius));
-                            MaskFilter filter = blurCache.get(bucket);
-                            if (filter == null) {
-                                filter = new BlurMaskFilter(bucket, BlurMaskFilter.Blur.NORMAL);
-                                blurCache.put(bucket, filter);
-                            }
-                            paint.setMaskFilter(filter);
-                            previousBlur = filter;
-                        }
-                    }
                     if (glyph.mode == PengramConfig.INPUT_ANIM_FADE && p < 0.92f) {
                         final int accent = Theme.getColor(Theme.key_chat_messagePanelCursor);
                         paint.setColor(org.telegram.messenger.AndroidUtilities.getOffsetColor(accent, baseColor, p / 0.92f, 1f));
                     }
-                    paint.setAlpha(Math.max(0, Math.min(255, Math.round(baseAlpha * alpha))));
+                    final int mainAlpha = Math.max(0, Math.min(255, Math.round(baseAlpha * alpha)));
+                    if (blurOn && rawT < 0.72f) {
+                        // GPU-атласный мягкий оптический ореол без CPU-растеризации BlurMaskFilter в Skia/HWUI:
+                        // 0 аллокаций текстур и 120 Гц даже при пулемётном наборе.
+                        final float softNorm = Math.min(1f, (blurMax / 12f) * (1f - rawT / 0.72f));
+                        if (softNorm > 0.06f) {
+                            final int haloSave = canvas.save();
+                            final float haloScale = 1f + softNorm * 0.095f;
+                            canvas.scale(haloScale, haloScale, x + width * .5f, pivotY);
+                            paint.setAlpha(Math.max(1, Math.min(255, Math.round(mainAlpha * 0.28f * softNorm))));
+                            canvas.drawText(text, from, to, x, baseline, paint);
+                            canvas.restoreToCount(haloSave);
+                        }
+                    }
+                    paint.setAlpha(mainAlpha);
                     canvas.drawText(text, from, to, x, baseline, paint);
-                    if (previousBlur != null) {
-                        paint.setMaskFilter(null);
-                    }
                 } catch (Exception ignore) {
-                    try {
-                        paint.setMaskFilter(null);
-                    } catch (Exception ignored) {
-                    }
                 } finally {
                     paint.setColor(baseColor);
                     paint.setAlpha(baseAlpha);

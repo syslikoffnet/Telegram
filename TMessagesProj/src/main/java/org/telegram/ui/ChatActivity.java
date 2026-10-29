@@ -7866,6 +7866,22 @@ public class ChatActivity extends BaseFragment implements
                     final float[] out = pengramCylinderBarsTmp;
                     out[0] = 0f;
                     out[1] = chatListView.getHeight();
+                    final android.view.ViewParent listParent = chatListView.getParent();
+                    if (listParent != null
+                            && (actionBar == null || actionBar.getParent() == listParent)
+                            && (chatActivityEnterView == null || chatActivityEnterView.getParent() == listParent)) {
+                        final float listY = chatListView.getY();
+                        if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
+                            out[0] = Math.max(0f, (actionBar.getY() + actionBar.getHeight()) - listY);
+                        }
+                        if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                            final float inputTop = chatActivityEnterView.getY() - listY;
+                            if (inputTop > out[0] + AndroidUtilities.dp(72)) {
+                                out[1] = Math.min(out[1], inputTop);
+                            }
+                        }
+                        return out;
+                    }
                     final int[] scratch = pengramCylinderScratch;
                     chatListView.getLocationInWindow(scratch);
                     final float listTop = scratch[1];

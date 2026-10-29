@@ -753,13 +753,15 @@ public class PengramSettingsActivity extends UniversalFragment {
         final View view = super.createView(context);
         // Поиск прямо внутри настроек Pengram: не нужно помнить, в каком разделе лежит функция.
         final ActionBarMenu menu = actionBar.createMenu();
+        PengramSearchMetadata.warmupAsync();
         searchItem = menu.addItem(BTN_SEARCH, R.drawable.outline_header_search)
                 .setIsSearchField(true)
                 .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
                     @Override
                     public void onSearchExpand() {
                         searchQuery = "";
-                        updateList();
+                        setHeadersPausedForSearch(true);
+                        updateSearchList();
                     }
 
                     @Override
@@ -767,13 +769,20 @@ public class PengramSettingsActivity extends UniversalFragment {
                         searchQuery = null;
                         searchResults.clear();
                         recentSearchEntries.clear();
-                        updateList();
+                        setHeadersPausedForSearch(false);
+                        updateSearchList();
                     }
 
                     @Override
                     public void onTextChanged(EditText editText) {
-                        searchQuery = editText.getText() == null ? "" : editText.getText().toString();
-                        updateList();
+                        final String next = editText.getText() == null ? "" : editText.getText().toString();
+                        final String prevTrim = searchQuery == null ? null : searchQuery.trim();
+                        final String nextTrim = next.trim();
+                        searchQuery = next;
+                        if (prevTrim != null && prevTrim.equals(nextTrim)) {
+                            return;
+                        }
+                        updateSearchList();
                     }
 
                     @Override
@@ -887,11 +896,34 @@ public class PengramSettingsActivity extends UniversalFragment {
         return super.onBackPressed(invoked);
     }
 
+    private void setHeadersPausedForSearch(boolean searching) {
+        final boolean pause = searching || isPaused;
+        if (headerView != null) {
+            headerView.setPaused(pause);
+        }
+        if (headerViewCompact != null) {
+            headerViewCompact.setPaused(pause);
+        }
+    }
+
     private void updateList() {
         if (listView != null && listView.adapter != null) {
             listView.adapter.update(true);
         }
     }
+
+    /** Мгновенное обновление выдачи поиска без O(N^2) DiffUtil и каскада анимаций на каждом нажатии клавиши. */
+    private void updateSearchList() {
+        if (listView != null && listView.adapter != null) {
+            if (listView.getItemAnimator() != null) {
+                listView.getItemAnimator().endAnimations();
+            }
+            listView.adapter.update(false);
+            listView.scrollToPosition(0);
+        }
+    }
+
+    private static final int MAX_RENDERED_SEARCH_RESULTS = 60;
 
     /** выдача поиска по всем разделам сразу */
     private void fillSearch(ArrayList<UItem> items) {
@@ -906,10 +938,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                 final int count = Math.min(recent.size(), SEARCH_HISTORY_LIMIT);
                 for (int i = 0; i < count; i++) {
                     final int[] entry = recent.get(i);
+                    final String recentTitle = PengramSearchMetadata.cachedTitle(entry);
                     final UItem row = UItem.asSettingsCell(
                             BTN_SEARCH_HISTORY_BASE + recentSearchEntries.size(),
                             sectionIcon(entry[1]),
-                            getString(entry[0]),
+                            recentTitle != null ? recentTitle : getString(entry[0]),
                             PengramSearchMetadata.emphasizedPath(entry, ""));
                     row.adaptiveLayout = true;
                     row.object = entry[0];
@@ -940,8 +973,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         final ArrayList<int[]> matched = new ArrayList<>();
         final ArrayList<Integer> scores = new ArrayList<>();
         for (int[] entry : PengramSearchIndex.ITEMS) {
-            final String title = getString(entry[0]);
-            if (TextUtils.isEmpty(title) || title.startsWith("LOC_ERR")) continue;
+            final String title = PengramSearchMetadata.cachedTitle(entry);
+            if (title == null) continue;
             final int score = PengramSearchMetadata.relevance(entry, terms);
             if (score <= 0) continue;
             matched.add(entry);
@@ -951,19 +984,22 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asHeader(LocaleController.formatString(R.string.PengramSearchFlippedHeader, flippedSuggestion)));
         }
         // Более точные совпадения — выше: заголовок важнее синонимов и описания.
-        final ArrayList<Integer> order = new ArrayList<>();
+        final ArrayList<Integer> order = new ArrayList<>(matched.size());
         for (int i = 0; i < matched.size(); i++) order.add(i);
         java.util.Collections.sort(order, (a, b) -> {
             final int byScore = Integer.compare(scores.get(b), scores.get(a));
             return byScore != 0 ? byScore : Integer.compare(a, b);
         });
+        final int maxResults = Math.min(MAX_RENDERED_SEARCH_RESULTS, BTN_SEARCH_HISTORY_BASE - BTN_SEARCH_BASE);
         for (int index : order) {
-            if (searchResults.size() >= BTN_SEARCH_HISTORY_BASE - BTN_SEARCH_BASE) {
+            if (searchResults.size() >= maxResults) {
                 break;
             }
             final int[] entry = matched.get(index);
+            final String title = PengramSearchMetadata.cachedTitle(entry);
             final UItem result = UItem.asSettingsCell(BTN_SEARCH_BASE + searchResults.size(),
-                    sectionIcon(entry[1]), getString(entry[0]), PengramSearchMetadata.emphasizedPath(entry, query));
+                    sectionIcon(entry[1]), title != null ? title : getString(entry[0]),
+                    PengramSearchMetadata.emphasizedPath(entry, query));
             result.adaptiveLayout = true; // keep the COMPLETE path legible on narrow screens
             result.object = entry[0];
             items.add(result);
@@ -6525,15 +6561,16 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onResume() {
         super.onResume();
+        final boolean searching = searchQuery != null;
         if (headerView != null) {
-            headerView.setPaused(false);
+            headerView.setPaused(searching);
         }
         if (headerViewCompact != null) {
-            headerViewCompact.setPaused(false);
+            headerViewCompact.setPaused(searching);
         }
         // значения справа в строках разделов могли измениться на вложенном экране
         if (listView != null && listView.adapter != null) {
-            listView.adapter.update(true);
+            listView.adapter.update(!searching);
         }
     }
 

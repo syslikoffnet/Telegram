@@ -167,9 +167,46 @@ public final class PengramLinkResolver {
     private PengramLinkResolver() {
     }
 
+    /** Нулевой по аллокациям префильтр перед запуском тяжёлых URL-регулярок на каждом нажатии клавиши. */
+    private static boolean mayContainSupportedLink(CharSequence text) {
+        final int n = text.length();
+        if (n < 9) {
+            return false;
+        }
+        boolean hasSlash = false;
+        boolean hasDomain = false;
+        for (int i = 0; i < n; i++) {
+            final char c = text.charAt(i);
+            if (c == '/') {
+                hasSlash = true;
+                if (hasDomain) return true;
+                continue;
+            }
+            if (!hasDomain) {
+                if ((c == 'y' || c == 'Y') && i + 4 < n
+                        && (text.charAt(i + 1) | 32) == 'o'
+                        && (text.charAt(i + 2) | 32) == 'u'
+                        && (text.charAt(i + 3) | 32) == 't'
+                        && (text.charAt(i + 4) | 32) == 'u') {
+                    hasDomain = true;
+                    if (hasSlash) return true;
+                } else if ((c == 't' || c == 'T') && i + 5 < n
+                        && (text.charAt(i + 1) | 32) == 'i'
+                        && (text.charAt(i + 2) | 32) == 'k'
+                        && (text.charAt(i + 3) | 32) == 't'
+                        && (text.charAt(i + 4) | 32) == 'o'
+                        && (text.charAt(i + 5) | 32) == 'k') {
+                    hasDomain = true;
+                    if (hasSlash) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /** Последняя (свежайшая) поддерживаемая ссылка в тексте; null — нет. */
     public static FoundLink findLink(CharSequence text) {
-        if (text == null) {
+        if (text == null || !mayContainSupportedLink(text)) {
             return null;
         }
         final String s = text.toString();

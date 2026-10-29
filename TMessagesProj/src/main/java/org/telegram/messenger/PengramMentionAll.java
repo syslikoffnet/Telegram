@@ -154,16 +154,23 @@ public final class PengramMentionAll {
             return null;
         }
         final int length = text.length();
-        for (String token : TOKENS) {
-            final int tokenLength = token.length();
-            for (int at = 0; at + tokenLength <= length; ++at) {
-                if (!matchesAt(text, at, token)) {
+        if (length < 4) {
+            return null;
+        }
+        for (int at = 0; at + 4 <= length; ++at) {
+            if (text.charAt(at) != '@') {
+                continue;
+            }
+            if (at > 0 && isWordChar(text.charAt(at - 1))) {
+                continue;
+            }
+            for (String token : TOKENS) {
+                final int tokenLength = token.length();
+                if (at + tokenLength > length || !matchesAt(text, at, token)) {
                     continue;
                 }
                 final int end = at + tokenLength;
-                final boolean before = at == 0 || !isWordChar(text.charAt(at - 1));
-                final boolean after = end >= length || !isWordChar(text.charAt(end));
-                if (before && after) {
+                if (end >= length || !isWordChar(text.charAt(end))) {
                     return new int[]{at, end};
                 }
             }
