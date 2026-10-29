@@ -147,7 +147,10 @@ public final class PengramSearchIndex {
             {R.string.PengramMonetStrength, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramMonetHeader, 0, 0},
             {R.string.PengramQuickTiles, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramQuickTilesHeader, 0, R.string.PengramQuickTilesInfo},
             {R.string.PengramFont, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramAppearanceHeader, 0, 0},
+            {R.string.PengramAvatarShape, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramAppearanceHeader, 0, R.string.PengramAvatarShapeInfo},
             {R.string.PengramConstructor, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramAppearanceHeader, 0, R.string.PengramConstructorInfo},
+            {R.string.PengramCheckmarkStyle, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramStatusStylesHeader, 0, 0},
+            {R.string.PengramOnlineBadgeStyle, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramStatusStylesHeader, 0, 0},
             {R.string.PengramTitleText, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
             {R.string.PengramTitleCustom, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
             {R.string.PengramTitleCenter, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
@@ -283,8 +286,18 @@ public final class PengramSearchIndex {
             {R.string.PengramForwardLock, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramForwardHeader, 0, R.string.PengramForwardLockInfo},
             {R.string.PengramForwardDoneAlert, PengramSettingsActivity.SECTION_CHAT_ACTIONS, R.string.PengramForwardHeader, 0, 0},
             {R.string.PengramChatLook, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessagesHeader, 0, R.string.PengramChatLookInfo},
+            {R.string.PengramServiceJoinLeaveProfile, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessagesHeader, 0, R.string.PengramServiceJoinLeaveProfileInfo},
             {R.string.PengramKeepFormatting, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessagesHeader, 0, R.string.PengramKeepFormattingInfo},
-            {R.string.PengramHideTail, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubblesHeader, 0, R.string.PengramHideTailInfo},
+            {R.string.PengramBubbleGlass, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, R.string.PengramBubbleGlassInfo},
+            {R.string.PengramBubbleGlassOpacity, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleWallpaperTint, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleRim, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, R.string.PengramBubbleRimInfo},
+            {R.string.PengramBubbleRimStrength, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleShadowMode, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleShadowStrength, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleOuterRadius, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramBubbleInnerRadius, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, 0},
+            {R.string.PengramHideTail, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramBubbleStudioHeader, 0, R.string.PengramHideTailInfo},
             {R.string.PengramForceDeleteForAll, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramSelectionLimit, 0, R.string.PengramForceDeleteForAllInfo},
             {R.string.PengramMenuCopyMessageId, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
             {R.string.PengramMenuSaveToSaved, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMessageMenuHeader, 0, 0},
@@ -362,6 +375,7 @@ public final class PengramSearchIndex {
             {R.string.PengramMediaTimeMedia, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, R.string.PengramMediaTimeMediaInfo},
             {R.string.PengramMediaTimeRound, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, 0},
             {R.string.PengramMediaTimeSending, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMediaTimeHeader, 0, 0},
+            {R.string.PengramAvatarShape, PengramSettingsActivity.SECTION_CHAT_INTERFACE, R.string.PengramDialogsHeader, 0, R.string.PengramAvatarShapeInfo},
             {R.string.PengramHideWriteButton, PengramSettingsActivity.SECTION_CHAT_INTERFACE, R.string.PengramDialogsHeader, 0, 0},
             {R.string.PengramThreeLines, PengramSettingsActivity.SECTION_CHAT_INTERFACE, R.string.PengramDialogsHeader, 0, 0},
             {R.string.PengramHideArchive, PengramSettingsActivity.SECTION_CHAT_INTERFACE, R.string.PengramDialogsHeader, 0, 0},
@@ -560,7 +574,10 @@ public final class PengramSearchIndex {
             0x35f4ec36, // PengramMonetStrength (SECTION_APPEARANCE)
             0x192eb28d, // PengramQuickTiles (SECTION_APPEARANCE)
             0x1489928b, // PengramFont (SECTION_APPEARANCE)
+            0x1608596d, // PengramAvatarShape (SECTION_APPEARANCE)
             0x1f9df468, // PengramConstructor (SECTION_APPEARANCE)
+            0x3733eb5e, // PengramCheckmarkStyle (SECTION_APPEARANCE)
+            0x1b7472a5, // PengramOnlineBadgeStyle (SECTION_APPEARANCE)
             0x300d2540, // PengramTitleText (SECTION_APPEARANCE)
             0x1da9e0e7, // PengramTitleCustom (SECTION_APPEARANCE)
             0x1593177d, // PengramTitleCenter (SECTION_APPEARANCE)
@@ -696,7 +713,17 @@ public final class PengramSearchIndex {
             0x35e5b650, // PengramForwardLock (SECTION_CHAT_ACTIONS)
             0x1f227930, // PengramForwardDoneAlert (SECTION_CHAT_ACTIONS)
             0x3fdf2e36, // PengramChatLook (SECTION_CHAT_MESSAGES)
+            0x1f17c06f, // PengramServiceJoinLeaveProfile (SECTION_CHAT_MESSAGES)
             0x309c900f, // PengramKeepFormatting (SECTION_CHAT_MESSAGES)
+            0x3d8b1692, // PengramBubbleGlass (SECTION_CHAT_MESSAGES)
+            0x1fd00062, // PengramBubbleGlassOpacity (SECTION_CHAT_MESSAGES)
+            0x3198ec8c, // PengramBubbleWallpaperTint (SECTION_CHAT_MESSAGES)
+            0x12ee5a67, // PengramBubbleRim (SECTION_CHAT_MESSAGES)
+            0x37eda76f, // PengramBubbleRimStrength (SECTION_CHAT_MESSAGES)
+            0x1df9277e, // PengramBubbleShadowMode (SECTION_CHAT_MESSAGES)
+            0x352644df, // PengramBubbleShadowStrength (SECTION_CHAT_MESSAGES)
+            0x16e737ec, // PengramBubbleOuterRadius (SECTION_CHAT_MESSAGES)
+            0x35a88b1a, // PengramBubbleInnerRadius (SECTION_CHAT_MESSAGES)
             0x3aba5269, // PengramHideTail (SECTION_CHAT_MESSAGES)
             0x33746d5b, // PengramForceDeleteForAll (SECTION_CHAT_MESSAGES)
             0x3d59d9a4, // PengramMenuCopyMessageId (SECTION_CHAT_MESSAGES)
@@ -775,6 +802,7 @@ public final class PengramSearchIndex {
             0x39bfce64, // PengramMediaTimeMedia (SECTION_CHAT_MESSAGES)
             0x1b048c6b, // PengramMediaTimeRound (SECTION_CHAT_MESSAGES)
             0x3911a98c, // PengramMediaTimeSending (SECTION_CHAT_MESSAGES)
+            0x19df8a2e, // PengramAvatarShape (SECTION_CHAT_INTERFACE)
             0x3a3f24e9, // PengramHideWriteButton (SECTION_CHAT_INTERFACE)
             0x191824b2, // PengramThreeLines (SECTION_CHAT_INTERFACE)
             0x393bcd34, // PengramHideArchive (SECTION_CHAT_INTERFACE)

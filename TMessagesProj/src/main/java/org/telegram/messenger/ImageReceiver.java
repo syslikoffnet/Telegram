@@ -425,6 +425,62 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
     }
 
     public void setForUserOrChat(TLObject object, Drawable avatarDrawable, Object parentObject, boolean animationEnabled, int vectorType, boolean big) {
+        pengramSettingAvatar = true;
+        pengramAvatar = true;
+        try {
+            setForUserOrChatInternal(object, avatarDrawable, parentObject, animationEnabled, vectorType, big);
+        } finally {
+            pengramSettingAvatar = false;
+        }
+    }
+
+    private boolean pengramAvatar;
+    private boolean pengramSettingAvatar;
+    private Path pengramShapePath;
+    private float pengramShapeL, pengramShapeT, pengramShapeR, pengramShapeB, pengramShapeMorph = -1f;
+    private int pengramShapeKind = -1;
+
+    public void setPengramAvatar(boolean value) {
+        pengramAvatar = value;
+    }
+
+    public boolean isPengramAvatar() {
+        return pengramAvatar
+                || staticThumbDrawable instanceof org.telegram.ui.Components.AvatarDrawable
+                || currentThumbDrawable instanceof org.telegram.ui.Components.AvatarDrawable
+                || currentImageDrawable instanceof org.telegram.ui.Components.VectorAvatarThumbDrawable;
+    }
+
+    private Path getPengramAvatarPath(RectF rect, int radiusPx, BackgroundThreadDrawHolder holder) {
+        final float minDim = Math.min(rect.width(), rect.height());
+        final float morph = minDim > 0f ? Math.min(1f, radiusPx / Math.max(1f, minDim * 0.45f)) : 1f;
+        final int shape = org.telegram.ui.Components.PengramAvatarShape.currentShape();
+        if (holder != null) {
+            Path p = holder.roundPath == null ? (holder.roundPath = new Path()) : holder.roundPath;
+            org.telegram.ui.Components.PengramAvatarShape.buildPathForShape(p, rect, shape, morph);
+            return p;
+        }
+        if (pengramShapePath == null) {
+            pengramShapePath = new Path();
+        }
+        if (pengramShapeKind != shape
+                || Math.abs(pengramShapeMorph - morph) > 0.002f
+                || Math.abs(pengramShapeL - rect.left) > 0.05f
+                || Math.abs(pengramShapeT - rect.top) > 0.05f
+                || Math.abs(pengramShapeR - rect.right) > 0.05f
+                || Math.abs(pengramShapeB - rect.bottom) > 0.05f) {
+            pengramShapeKind = shape;
+            pengramShapeMorph = morph;
+            pengramShapeL = rect.left;
+            pengramShapeT = rect.top;
+            pengramShapeR = rect.right;
+            pengramShapeB = rect.bottom;
+            org.telegram.ui.Components.PengramAvatarShape.buildPathForShape(pengramShapePath, rect, shape, morph);
+        }
+        return pengramShapePath;
+    }
+
+    private void setForUserOrChatInternal(TLObject object, Drawable avatarDrawable, Object parentObject, boolean animationEnabled, int vectorType, boolean big) {
         if (parentObject == null) {
             parentObject = object;
         }
@@ -570,6 +626,11 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
     }
 
     public void setImage(ImageLocation mediaLocation, String mediaFilter, ImageLocation imageLocation, String imageFilter, ImageLocation thumbLocation, String thumbFilter, Drawable thumb, long size, String ext, Object parentObject, int cacheType) {
+        if (!pengramSettingAvatar) {
+            pengramAvatar = thumb instanceof org.telegram.ui.Components.AvatarDrawable
+                    || parentObject instanceof TLRPC.User
+                    || parentObject instanceof TLRPC.Chat;
+        }
         if (allowLoadingOnAttachedOnly && !attachedToWindow) {
             if (setImageBackup == null) {
                 setImageBackup = new SetImageBackup();
@@ -878,6 +939,10 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
     }
 
     public void setImageBitmap(Drawable bitmap) {
+        if (!pengramSettingAvatar) {
+            pengramAvatar = bitmap instanceof org.telegram.ui.Components.AvatarDrawable
+                    || bitmap instanceof org.telegram.ui.Components.VectorAvatarThumbDrawable;
+        }
         ImageLoader.getInstance().cancelLoadingForImageReceiver(this, true);
 
         if (crossfadeWithOldImage) {
@@ -1409,6 +1474,8 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
                                 if (canvas != null) {
                                     if (roundRadius[0] == 0) {
                                         canvas.drawRect(roundRect, roundPaint);
+                                    } else if (isPengramAvatar() && org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
+                                        canvas.drawPath(getPengramAvatarPath(roundRect, roundRadius[0], backgroundThreadDrawHolder), roundPaint);
                                     } else {
                                         canvas.drawRoundRect(roundRect, roundRadius[0], roundRadius[0], roundPaint);
                                     }
@@ -1525,6 +1592,8 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
                                         } else {
                                             canvas.drawRect(roundRect, roundPaint);
                                         }
+                                    } else if (isPengramAvatar() && org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
+                                        canvas.drawPath(getPengramAvatarPath(roundRect, roundRadius[0], backgroundThreadDrawHolder), roundPaint);
                                     } else {
                                         canvas.drawRoundRect(roundRect, roundRadius[0], roundRadius[0], roundPaint);
                                     }
@@ -1737,6 +1806,15 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
                 }
                 try {
                     drawable.setAlpha(alpha);
+                    final boolean clipCustomAvatar = isPengramAvatar()
+                            && !(drawable instanceof org.telegram.ui.Components.AvatarDrawable)
+                            && useRoundRadius && roundRadius[0] > 0
+                            && org.telegram.ui.Components.PengramAvatarShape.isCustomShape();
+                    if (clipCustomAvatar) {
+                        canvas.save();
+                        roundRect.set(drawRegion);
+                        canvas.clipPath(getPengramAvatarPath(roundRect, roundRadius[0], backgroundThreadDrawHolder));
+                    }
                     if (backgroundThreadDrawHolder != null) {
                         if (svgDrawable != null) {
                             long time = backgroundThreadDrawHolder.time;
@@ -1749,6 +1827,9 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
                         }
                     } else {
                         drawable.draw(canvas);
+                    }
+                    if (clipCustomAvatar) {
+                        canvas.restore();
                     }
                 } catch (Exception e) {
                     FileLog.e(e);

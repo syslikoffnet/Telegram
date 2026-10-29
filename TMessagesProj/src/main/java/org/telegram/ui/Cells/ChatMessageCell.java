@@ -1970,6 +1970,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         backgroundDrawable = new MessageBackgroundDrawable(this);
         avatarImage = new ImageReceiver();
         avatarImage.setAllowLoadingOnAttachedOnly(true);
+        avatarImage.setPengramAvatar(true);
         avatarImage.setRoundRadius(dp(21));
         avatarDrawable = new AvatarDrawable();
         replyImageReceiver = new ImageReceiver(this);
@@ -11092,7 +11093,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 } else {
                     rad = dp(SharedConfig.bubbleRadius);
                 }
-                int nearRad = Math.min(dp(3), rad);
+                final int customInnerDp = org.telegram.messenger.PengramConfig.getBubbleInnerRadius();
+                int nearRad = customInnerDp >= 0
+                        ? Math.min(rad, dp(customInnerDp > 2 ? customInnerDp - 2 : customInnerDp))
+                        : Math.min(dp(3), rad);
                 tl = tr = bl = br = rad;
                 if (minRad > tl) {
                     minRad = tl;
@@ -25087,7 +25091,35 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             invalidate();
         }
-        if (drawCheck2) {
+        final boolean pengramCustomChecks = org.telegram.ui.Components.PengramStatusIndicators.useCustomCheckmarks();
+        if (pengramCustomChecks && (drawCheck2 || drawCheck1)) {
+            final int sentColor;
+            final int readColor;
+            final float boxLeft;
+            final float centerY;
+            final float checkAlpha;
+            if (shouldDrawTimeOnMedia()) {
+                final int mediaCol = getThemedColor(currentMessageObject.shouldDrawWithoutBackground()
+                        ? Theme.key_chat_serviceText : Theme.key_chat_mediaSentCheck);
+                sentColor = mediaCol;
+                readColor = mediaCol;
+                boxLeft = layoutWidth - dp(bigRadius ? 36.5f : 34.5f) + offsetX;
+                centerY = timeY - dp(6.0f) + timeYOffset;
+                checkAlpha = timeAlpha * alpha;
+            } else {
+                sentColor = getThemedColor(drawSelectionBackground ? Theme.key_chat_outSentCheckSelected : Theme.key_chat_outSentCheck);
+                readColor = getThemedColor(drawSelectionBackground ? Theme.key_chat_outSentCheckReadSelected : Theme.key_chat_outSentCheckRead);
+                boxLeft = layoutWidth - dp(31.5f) + offsetX;
+                centerY = layoutHeight - dp(pinnedBottom || pinnedTop ? 15f : 14f) + timeYOffset;
+                checkAlpha = alpha;
+            }
+            final float readP = drawCheck1 ? (moveCheck ? progress : 1f) : 0f;
+            org.telegram.ui.Components.PengramStatusIndicators.drawMessageChecks(
+                    canvas, boxLeft, centerY, sentColor, readColor,
+                    drawCheck2, drawCheck1, readP, useScale ? scale : 1f, checkAlpha
+            );
+        }
+        if (!pengramCustomChecks && drawCheck2) {
             if (shouldDrawTimeOnMedia()) {
                 Drawable drawable;
                 if (moveCheck) {
@@ -25158,7 +25190,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 drawable.setAlpha(255);
             }
         }
-        if (drawCheck1) {
+        if (!pengramCustomChecks && drawCheck1) {
             if (shouldDrawTimeOnMedia()) {
                 Drawable drawable = currentMessageObject.shouldDrawWithoutBackground() ? getThemedDrawable(Theme.key_drawable_msgStickerHalfCheck) : Theme.chat_msgMediaHalfCheckDrawable;
                 setDrawableBounds(drawable, layoutWidth - dp(bigRadius ? 23.5f : 21.5f) - drawable.getIntrinsicWidth() + offsetX, timeY - drawable.getIntrinsicHeight() + timeYOffset);

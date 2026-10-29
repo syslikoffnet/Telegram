@@ -942,7 +942,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public AvatarImageView(Context context) {
             super(context);
             setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            imageReceiver.setPengramAvatar(true);
             foregroundImageReceiver = new ImageReceiver(this);
+            foregroundImageReceiver.setPengramAvatar(true);
             placeholderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             placeholderPaint.setColor(Color.BLACK);
         }
@@ -1087,7 +1089,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (r > 0) {
                 clipPath.rewind();
                 AndroidUtilities.rectTmp.set(inset, inset, thisWidth - inset, thisHeight - inset);
-                clipPath.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
+                if (org.telegram.ui.Components.PengramAvatarShape.isCustomShape() && !isForum) {
+                    final float minDim = Math.min(AndroidUtilities.rectTmp.width(), AndroidUtilities.rectTmp.height());
+                    final float morph = minDim > 0f ? Math.min(1f, r / Math.max(1f, minDim * 0.5f)) : 1f;
+                    org.telegram.ui.Components.PengramAvatarShape.buildPath(clipPath, AndroidUtilities.rectTmp, morph);
+                } else {
+                    clipPath.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
+                }
                 canvas.clipPath(clipPath);
             }
 

@@ -45944,6 +45944,22 @@ public class ChatActivity extends BaseFragment implements
                 avatarContainer.openProfile(true);
                 return;
             }
+            if (getMessagesController().getUser(uid) == null) {
+                org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(currentAccount, uid, null, () -> {
+                    if (getMessagesController().getUser(uid) == null) {
+                        return;
+                    }
+                    Bundle args = new Bundle();
+                    args.putLong("user_id", uid);
+                    if (currentEncryptedChat != null && currentUser != null && uid == currentUser.id) {
+                        args.putLong("dialog_id", dialog_id);
+                    }
+                    ProfileActivity fragment = new ProfileActivity(args);
+                    fragment.setPlayProfileAnimation(currentUser != null && currentUser.id == uid ? 1 : 0);
+                    presentFragment(fragment);
+                });
+                return;
+            }
             Bundle args = new Bundle();
             args.putLong("user_id", uid);
             if (currentEncryptedChat != null && uid == currentUser.id) {

@@ -627,37 +627,253 @@ public class PengramConfig {
     public static boolean isTimeWithSeconds() { return getBool(KEY_TIME_SECONDS, false); }
     public static boolean isVibrationEnabled() { return getBool(KEY_VIBRATION, true); }
 
-    public static final int DIALOG_AVATAR_CIRCLE = 0;
-    public static final int DIALOG_AVATAR_ROUNDED = 1;
-    public static final int DIALOG_AVATAR_SQUARE = 2;
-    public static final int DIALOG_AVATAR_COUNT = 3;
+    public static final String KEY_SERVICE_JOIN_LEAVE_PROFILE = "serviceJoinLeaveProfile";
+    public static boolean isServiceJoinLeaveProfileOpen() {
+        return getBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, true);
+    }
+    public static void setServiceJoinLeaveProfileOpen(boolean enabled) {
+        putBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, enabled);
+    }
 
-    /** форма миниатюр в списке чатов */
+    public static final String KEY_AVATAR_SHAPE = "dialogAvatarShape";
+    public static final int AVATAR_SHAPE_CIRCLE = 0;
+    public static final int AVATAR_SHAPE_SQUIRCLE = 1;
+    public static final int AVATAR_SHAPE_SOFT_SQUARE = 2;
+    public static final int AVATAR_SHAPE_HEXAGON = 3;
+    public static final int AVATAR_SHAPE_COUNT = 4;
+
+    public static final int DIALOG_AVATAR_CIRCLE = AVATAR_SHAPE_CIRCLE;
+    public static final int DIALOG_AVATAR_ROUNDED = AVATAR_SHAPE_SQUIRCLE;
+    public static final int DIALOG_AVATAR_SQUIRCLE = AVATAR_SHAPE_SQUIRCLE;
+    public static final int DIALOG_AVATAR_SQUARE = AVATAR_SHAPE_SOFT_SQUARE;
+    public static final int DIALOG_AVATAR_SOFT_SQUARE = AVATAR_SHAPE_SOFT_SQUARE;
+    public static final int DIALOG_AVATAR_HEXAGON = AVATAR_SHAPE_HEXAGON;
+    public static final int DIALOG_AVATAR_COUNT = AVATAR_SHAPE_COUNT;
+
+    /** единая форма аватарок по всему приложению */
+    public static int getAvatarShape() {
+        Object draft = pendingVisual(KEY_AVATAR_SHAPE);
+        final int value = draft instanceof Number ? ((Number) draft).intValue()
+                : getIntCached(KEY_AVATAR_SHAPE, AVATAR_SHAPE_CIRCLE);
+        return value < 0 || value >= AVATAR_SHAPE_COUNT ? AVATAR_SHAPE_CIRCLE : value;
+    }
+
+    public static void setAvatarShape(int value) {
+        putInt(KEY_AVATAR_SHAPE, value < 0 || value >= AVATAR_SHAPE_COUNT ? AVATAR_SHAPE_CIRCLE : value);
+    }
+
     public static int getDialogAvatarShape() {
-        final int value = getIntCached("dialogAvatarShape", DIALOG_AVATAR_CIRCLE);
-        return value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value;
+        return getAvatarShape();
     }
 
     public static void setDialogAvatarShape(int value) {
-        putInt("dialogAvatarShape", value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value);
+        setAvatarShape(value);
     }
 
     public static int getDialogAvatarShapeName(int value) {
         switch (value) {
-            case DIALOG_AVATAR_ROUNDED: return org.telegram.messenger.R.string.PengramCoverRounded;
-            case DIALOG_AVATAR_SQUARE: return org.telegram.messenger.R.string.PengramCoverSquare;
-            case DIALOG_AVATAR_CIRCLE:
-            default: return org.telegram.messenger.R.string.PengramCoverCircle;
+            case AVATAR_SHAPE_SQUIRCLE: return org.telegram.messenger.R.string.PengramAvatarShapeSquircle;
+            case AVATAR_SHAPE_SOFT_SQUARE: return org.telegram.messenger.R.string.PengramAvatarShapeSoftSquare;
+            case AVATAR_SHAPE_HEXAGON: return org.telegram.messenger.R.string.PengramAvatarShapeHexagon;
+            case AVATAR_SHAPE_CIRCLE:
+            default: return org.telegram.messenger.R.string.PengramAvatarShapeCircle;
         }
     }
 
-    /** радиус миниатюры в списке чатов: круг — как было, иначе наш вариант */
+    public static int getDialogAvatarShapeShortName(int value) {
+        switch (value) {
+            case AVATAR_SHAPE_SQUIRCLE: return org.telegram.messenger.R.string.PengramAvatarShapeSquircleShort;
+            case AVATAR_SHAPE_SOFT_SQUARE: return org.telegram.messenger.R.string.PengramAvatarShapeSoftSquareShort;
+            case AVATAR_SHAPE_HEXAGON: return org.telegram.messenger.R.string.PengramAvatarShapeHexagonShort;
+            case AVATAR_SHAPE_CIRCLE:
+            default: return org.telegram.messenger.R.string.PengramAvatarShapeCircle;
+        }
+    }
+
+    /** радиус аватарок для потребителей roundRadius (>0 сохраняет активный контур PengramAvatarShape) */
     public static int dialogAvatarRadius(int defaultRadius) {
-        switch (getDialogAvatarShape()) {
-            case DIALOG_AVATAR_ROUNDED: return Math.min(defaultRadius, AndroidUtilities.dp(13));
-            case DIALOG_AVATAR_SQUARE: return 0;
+        switch (getAvatarShape()) {
+            case AVATAR_SHAPE_SOFT_SQUARE: return Math.max(AndroidUtilities.dp(4), Math.min(defaultRadius, AndroidUtilities.dp(13)));
             default: return defaultRadius;
         }
+    }
+
+    // ------------------------------------------------------------ галочки и онлайн-индикатор
+
+    public static final String KEY_CHECKMARK_STYLE = "checkmarkStyle";
+    public static final int CHECKMARK_STANDARD = 0;
+    public static final int CHECKMARK_IOS_ROUNDED = 1;
+    public static final int CHECKMARK_DOUBLE_DOTS = 2;
+    public static final int CHECKMARK_OUTLINE_FILL = 3;
+    public static final int CHECKMARK_MINIMAL = 4;
+    public static final int CHECKMARK_STYLE_COUNT = 5;
+
+    public static int getCheckmarkStyle() {
+        final int v = getIntCached(KEY_CHECKMARK_STYLE, CHECKMARK_STANDARD);
+        return v < 0 || v >= CHECKMARK_STYLE_COUNT ? CHECKMARK_STANDARD : v;
+    }
+
+    public static void setCheckmarkStyle(int value) {
+        putInt(KEY_CHECKMARK_STYLE, value < 0 || value >= CHECKMARK_STYLE_COUNT ? CHECKMARK_STANDARD : value);
+    }
+
+    public static int getCheckmarkStyleName(int value) {
+        switch (value) {
+            case CHECKMARK_IOS_ROUNDED: return org.telegram.messenger.R.string.PengramCheckmarkIosRounded;
+            case CHECKMARK_DOUBLE_DOTS: return org.telegram.messenger.R.string.PengramCheckmarkDoubleDots;
+            case CHECKMARK_OUTLINE_FILL: return org.telegram.messenger.R.string.PengramCheckmarkOutlineFill;
+            case CHECKMARK_MINIMAL: return org.telegram.messenger.R.string.PengramCheckmarkMinimal;
+            case CHECKMARK_STANDARD:
+            default: return org.telegram.messenger.R.string.PengramCheckmarkStandard;
+        }
+    }
+
+    public static final String KEY_ONLINE_STYLE = "onlineBadgeStyle";
+    public static final int ONLINE_STANDARD = 0;
+    public static final int ONLINE_RING = 1;
+    public static final int ONLINE_CAPSULE = 2;
+    public static final int ONLINE_DIAMOND = 3;
+    public static final int ONLINE_PULSE = 4;
+    public static final int ONLINE_STYLE_COUNT = 5;
+
+    public static int getOnlineBadgeStyle() {
+        final int v = getIntCached(KEY_ONLINE_STYLE, ONLINE_STANDARD);
+        return v < 0 || v >= ONLINE_STYLE_COUNT ? ONLINE_STANDARD : v;
+    }
+
+    public static void setOnlineBadgeStyle(int value) {
+        putInt(KEY_ONLINE_STYLE, value < 0 || value >= ONLINE_STYLE_COUNT ? ONLINE_STANDARD : value);
+    }
+
+    public static int getOnlineBadgeStyleName(int value) {
+        switch (value) {
+            case ONLINE_RING: return org.telegram.messenger.R.string.PengramOnlineRing;
+            case ONLINE_CAPSULE: return org.telegram.messenger.R.string.PengramOnlineCapsule;
+            case ONLINE_DIAMOND: return org.telegram.messenger.R.string.PengramOnlineDiamond;
+            case ONLINE_PULSE: return org.telegram.messenger.R.string.PengramOnlinePulse;
+            case ONLINE_STANDARD:
+            default: return org.telegram.messenger.R.string.PengramOnlineStandard;
+        }
+    }
+
+    // ------------------------------------------------------------ Bubble Studio
+
+    public static final String KEY_BUBBLE_GLASS = "bubbleGlassEnabled";
+    public static final String KEY_BUBBLE_GLASS_OPACITY = "bubbleGlassOpacity";
+    public static final String KEY_BUBBLE_WALLPAPER_TINT = "bubbleWallpaperTint";
+    public static final String KEY_BUBBLE_RIM = "bubbleRimEnabled";
+    public static final String KEY_BUBBLE_RIM_STRENGTH = "bubbleRimStrength";
+    public static final String KEY_BUBBLE_SHADOW_MODE = "bubbleShadowMode";
+    public static final String KEY_BUBBLE_SHADOW_STRENGTH = "bubbleShadowStrength";
+    public static final String KEY_BUBBLE_INNER_RADIUS = "bubbleInnerRadius";
+
+    public static final int BUBBLE_SHADOW_NONE = 0;
+    public static final int BUBBLE_SHADOW_SOFT = 1;
+    public static final int BUBBLE_SHADOW_AMBIENT = 2;
+    public static final int BUBBLE_SHADOW_GLOW = 3;
+    public static final int BUBBLE_SHADOW_COUNT = 4;
+
+    public static boolean isBubbleGlassEnabled() {
+        return getBool(KEY_BUBBLE_GLASS, false);
+    }
+
+    public static void setBubbleGlassEnabled(boolean enabled) {
+        putBool(KEY_BUBBLE_GLASS, enabled);
+    }
+
+    public static int getBubbleGlassOpacity() {
+        final int v = getIntCached(KEY_BUBBLE_GLASS_OPACITY, 74);
+        return Math.max(35, Math.min(95, v));
+    }
+
+    public static void setBubbleGlassOpacity(int value) {
+        putInt(KEY_BUBBLE_GLASS_OPACITY, Math.max(35, Math.min(95, value)));
+    }
+
+    public static int getBubbleWallpaperTint() {
+        final int v = getIntCached(KEY_BUBBLE_WALLPAPER_TINT, 35);
+        return Math.max(0, Math.min(80, v));
+    }
+
+    public static void setBubbleWallpaperTint(int value) {
+        putInt(KEY_BUBBLE_WALLPAPER_TINT, Math.max(0, Math.min(80, value)));
+    }
+
+    public static boolean isBubbleRimEnabled() {
+        return getBool(KEY_BUBBLE_RIM, false);
+    }
+
+    public static void setBubbleRimEnabled(boolean enabled) {
+        putBool(KEY_BUBBLE_RIM, enabled);
+    }
+
+    public static int getBubbleRimStrength() {
+        final int v = getIntCached(KEY_BUBBLE_RIM_STRENGTH, 60);
+        return Math.max(15, Math.min(100, v));
+    }
+
+    public static void setBubbleRimStrength(int value) {
+        putInt(KEY_BUBBLE_RIM_STRENGTH, Math.max(15, Math.min(100, value)));
+    }
+
+    public static int getBubbleShadowMode() {
+        final int v = getIntCached(KEY_BUBBLE_SHADOW_MODE, BUBBLE_SHADOW_SOFT);
+        return v < 0 || v >= BUBBLE_SHADOW_COUNT ? BUBBLE_SHADOW_SOFT : v;
+    }
+
+    public static void setBubbleShadowMode(int value) {
+        putInt(KEY_BUBBLE_SHADOW_MODE, value < 0 || value >= BUBBLE_SHADOW_COUNT ? BUBBLE_SHADOW_SOFT : value);
+    }
+
+    public static int getBubbleShadowModeName(int value) {
+        switch (value) {
+            case BUBBLE_SHADOW_NONE: return org.telegram.messenger.R.string.PengramBubbleShadowNone;
+            case BUBBLE_SHADOW_AMBIENT: return org.telegram.messenger.R.string.PengramBubbleShadowAmbient;
+            case BUBBLE_SHADOW_GLOW: return org.telegram.messenger.R.string.PengramBubbleShadowGlow;
+            case BUBBLE_SHADOW_SOFT:
+            default: return org.telegram.messenger.R.string.PengramBubbleShadowSoft;
+        }
+    }
+
+    public static int getBubbleShadowStrength() {
+        final int v = getIntCached(KEY_BUBBLE_SHADOW_STRENGTH, 100);
+        return Math.max(20, Math.min(150, v));
+    }
+
+    public static void setBubbleShadowStrength(int value) {
+        putInt(KEY_BUBBLE_SHADOW_STRENGTH, Math.max(20, Math.min(150, value)));
+    }
+
+    /** -1 = Авто (min(6, bubbleRadius)), 0..17 = явный внутренний радиус в dp */
+    public static int getBubbleInnerRadius() {
+        final int v = getIntCached(KEY_BUBBLE_INNER_RADIUS, -1);
+        return v < 0 ? -1 : Math.min(17, v);
+    }
+
+    public static void setBubbleInnerRadius(int value) {
+        putInt(KEY_BUBBLE_INNER_RADIUS, value < 0 ? -1 : Math.min(17, value));
+    }
+
+    public static int resolveBubbleInnerRadiusDp(int outerDp) {
+        final int inner = getBubbleInnerRadius();
+        return inner < 0 ? Math.min(6, outerDp) : inner;
+    }
+
+    public static boolean isBubbleStudioCustom() {
+        return isBubbleGlassEnabled()
+                || isBubbleRimEnabled()
+                || getBubbleShadowMode() != BUBBLE_SHADOW_SOFT
+                || getBubbleShadowStrength() != 100
+                || getBubbleInnerRadius() >= 0;
+    }
+
+    public static int bubbleStudioSignature() {
+        int h = isBubbleGlassEnabled() ? (1000 + getBubbleGlassOpacity() * 31 + getBubbleWallpaperTint()) : 0;
+        h = h * 31 + (isBubbleRimEnabled() ? (100 + getBubbleRimStrength()) : 0);
+        h = h * 31 + getBubbleShadowMode();
+        h = h * 31 + getBubbleShadowStrength();
+        h = h * 31 + (getBubbleInnerRadius() + 2);
+        return h;
     }
 
     // ------------------------------------------------------------ тексты песен
@@ -1097,6 +1313,11 @@ public class PengramConfig {
         // повторного входа
         v = v * 31 + SharedConfig.fontSize;
         v = v * 31 + SharedConfig.bubbleRadius;
+        v = v * 31 + getAvatarShape();
+        v = v * 31 + getCheckmarkStyle();
+        v = v * 31 + getOnlineBadgeStyle();
+        v = v * 31 + (isServiceJoinLeaveProfileOpen() ? 1 : 0);
+        v = v * 31 + bubbleStudioSignature();
         return v;
     }
 
@@ -3236,7 +3457,12 @@ public class PengramConfig {
             "voiceGainCustomDrive", "voiceGainDb", "voiceGainLoudDb", "voiceGainLoudDrive",
             "voiceGainOverloadDb", "voiceGainOverloadDrive", "voiceGainPreset",
             "voiceStudioDrive", "voiceStudioMix", "voiceStudioRobot",
-            "zalgoFilter"
+            "zalgoFilter",
+            "serviceJoinLeaveProfile",
+            "checkmarkStyle", "onlineBadgeStyle",
+            "bubbleGlassEnabled", "bubbleGlassOpacity", "bubbleWallpaperTint",
+            "bubbleRimEnabled", "bubbleRimStrength",
+            "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(

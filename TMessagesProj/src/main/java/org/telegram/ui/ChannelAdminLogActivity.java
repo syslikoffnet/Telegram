@@ -3322,6 +3322,11 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                             ProfileActivity fragment = new ProfileActivity(args);
                             fragment.setPlayProfileAnimation(0);
                             presentFragment(fragment);
+                        } else {
+                            Bundle args = new Bundle();
+                            args.putLong("user_id", uid);
+                            args.putBoolean("my_profile", true);
+                            presentFragment(new ProfileActivity(args, null));
                         }
                     }
 
