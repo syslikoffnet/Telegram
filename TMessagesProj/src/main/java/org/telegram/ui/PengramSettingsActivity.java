@@ -6141,8 +6141,6 @@ public class PengramSettingsActivity extends UniversalFragment {
             case BTN_PLAYER_FAV_OPEN:
                 org.telegram.messenger.PengramMusicFavorites.openVaultChat(this);
                 return;
-                updateList();
-                return;
             case BTN_QUOTE_RESET_APPEARANCE:
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);
                 PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
