@@ -1259,10 +1259,17 @@
     <string name="PengramTypingSection">Набор и отправка текста</string>
     <string-array name="pengram_quote_styles">
         <item>По теме чата</item>
-        <item>Синий</item>
-        <item>Зелёный</item>
+        <item>Синий Telegram</item>
+        <item>Изумрудный</item>
         <item>Розовый</item>
         <item>Янтарный</item>
+        <item>Фиолетовый Premium</item>
+        <item>Полночь</item>
+        <item>Графит</item>
+    </string-array>
+    <string-array name="pengram_quote_avatar_layouts">
+        <item>Сбоку у облачка (как в Telegram)</item>
+        <item>Внутри шапки облачка</item>
     </string-array>
     <string name="PengramQuoteSticker">Стикер</string>
     <string name="PengramQuotePrivacyHeader">Отправитель и содержание</string>
@@ -1290,7 +1297,29 @@
         <item>Обои текущего чата</item>
         <item>Прозрачный PNG</item>
         <item>Свой цвет</item>
+        <item>Ночной градиент Telegram</item>
+        <item>Дневной градиент Telegram</item>
+        <item>Аврора</item>
+        <item>Тёплый закат</item>
+        <item>Чистый чёрный AMOLED</item>
     </string-array>
+    <string name="PengramQuoteTapSticker">Сразу отправлять стикером</string>
+    <string name="PengramQuoteCopied">Цитата скопирована в буфер обмена</string>
+    <string name="PengramQuoteAvatarLayout">Расположение аватарок</string>
+    <string name="PengramQuoteBubbleTail">Хвостик облачка как в Telegram</string>
+    <string name="PengramQuoteBubbleTailInfo">Плавный хвостик у последнего сообщения группы и плотные стыки соседних облачков одного автора.</string>
+    <string name="PengramQuotePeerNameColor">Настоящие цвета имён из Telegram</string>
+    <string name="PengramQuotePeerNameColorInfo">Имя и полоска ответа окрашиваются личным цветом собеседника, как в реальном чате.</string>
+    <string name="PengramQuoteShowReply">Показывать блок ответа</string>
+    <string name="PengramQuoteShowForward">Показывать «Переслано от…»</string>
+    <string name="PengramQuoteShowBadges">Галочки верификации и метки</string>
+    <string name="PengramQuoteShowReactions">Показывать реакции под текстом</string>
+    <string name="PengramQuoteAlignOutgoing">Свои сообщения справа</string>
+    <string name="PengramQuoteAlignOutgoingInfo">В диалогах располагает ваши сообщения справа с цветом исходящего облачка и галочками прочтения.</string>
+    <string name="PengramQuoteDateInTime">Добавлять дату рядом со временем</string>
+    <string name="PengramQuoteStudioPresets">Палитра и фон</string>
+    <string name="PengramQuoteStudioGeometry">Форма и поля</string>
+    <string name="PengramQuoteOpenSettings">Все настройки цитат</string>
     <string-array name="pengram_quote_positions">
         <item>Низ справа</item>
         <item>Низ слева</item>

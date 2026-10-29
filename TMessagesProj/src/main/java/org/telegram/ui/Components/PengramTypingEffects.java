@@ -5,17 +5,23 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import android.graphics.BlurMaskFilter;
 import android.graphics.Canvas;
 import android.graphics.MaskFilter;
+import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
+import android.text.Spanned;
 import android.text.TextPaint;
 import android.text.style.CharacterStyle;
 import android.text.style.ReplacementSpan;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.EditText;
 
+import org.telegram.messenger.Emoji;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.UserConfig;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
 
 import java.lang.ref.WeakReference;
@@ -51,11 +57,13 @@ public final class PengramTypingEffects {
     private static final int MAX_ACTIVE = 6;
     /** максимум символов из одной вставки (быстрый набор/автозамена) */
     private static final int MAX_PER_BATCH = 3;
-    /** всё, что длиннее, — вставка, а не набор */
-    private static final int PASTE_THRESHOLD = 12;
+    /** всё, что длиннее, — вставка, а не набор (с запасом под составные ZWJ-эмодзи) */
+    private static final int PASTE_THRESHOLD = 16;
 
-    /** максимум стёртых символов, которые рассыпаем за один раз */
+    /** максимум стёртых графем/токенов, которые рассыпаем за один раз */
     private static final int MAX_DELETE_CHARS = 64;
+    /** лимит сырой длины UTF-16 в beforeTextChanged (Gboard переписывает слово целиком вместе с ZWJ-эмодзи) */
+    private static final int MAX_DELETE_RAW_CHARS = 192;
     /** частицы полураспадаются за это время */
     private static final int PARTICLE_LIFE = 620;
 
@@ -115,12 +123,19 @@ public final class PengramTypingEffects {
         }
         // Клавиатуры с подсказками (Gboard и прочие) на каждом нажатии переписывают
         // всё набираемое слово целиком: onTextChanged приходит на весь кусок.
-        // Анимировать надо только реально добавленные символы в конце — иначе
+        // Анимировать надо только реально добавленные графемы в конце — иначе
         // уже стоящие на месте буквы каждый раз проигрывают анимацию заново,
-        // и это читается как мигание всего слова.
+        // и это читается как мигание всего слова. Шагаем по целым графемным кластерам,
+        // чтобы никогда не разрезать суррогатную пару или ZWJ-эмодзи пополам.
+        final int targetFloor = Math.max(start, end - added);
         int animStart = end;
-        for (int i = 0; i < added && animStart > start; ++i) {
-            animStart = android.text.TextUtils.getOffsetBefore(text, animStart);
+        while (animStart > targetFloor) {
+            final int prev = prevGraphemeStart(text, animStart, start);
+            if (prev >= animStart) {
+                animStart = targetFloor;
+                break;
+            }
+            animStart = prev;
         }
         if (animStart < start) {
             animStart = start;
@@ -146,19 +161,18 @@ public final class PengramTypingEffects {
 
     /**
      * Вызывается из beforeTextChanged ДО изменения текста: запоминаем уходящие
-     * символы и их экранные координаты — позже Layout их уже не знает.
+     * символы/эмодзи и их экранные координаты — позже Layout их уже не знает.
      */
     public static void captureBefore(EditText edit, CharSequence text, int start, int count) {
         if (edit == null || text == null) {
             return;
         }
-        if (count <= 0 || count > MAX_DELETE_CHARS
-                || PengramConfig.getInputAnimation() == PengramConfig.INPUT_ANIM_NONE
-                || !PengramConfig.isTypingDeleteAnim()) {
+        if (count <= 0 || count > MAX_DELETE_RAW_CHARS
+                || !PengramConfig.isTypingDeleteAnim()
+                || !org.telegram.messenger.SharedConfig.animationsEnabled()) {
             final State previous = states.get(edit);
             if (previous != null) {
-                previous.removedCount = 0;
-                previous.removedStart = -1;
+                previous.resetSnapshot();
             }
             return;
         }
@@ -284,10 +298,15 @@ public final class PengramTypingEffects {
         String pendingText;
         boolean pendingPosted;
 
-        /** снапшот стираемых символов из beforeTextChanged */
-        char[] removedChars;
-        float[] removedX, removedBaseline;
-        int removedCount, removedStart = -1;
+        /** снапшот стираемых графем/спанов из beforeTextChanged (без разрезания суррогатов и ZWJ-эмодзи) */
+        String[] removedClusters;
+        Drawable[] removedEmoji;
+        TLRPC.Document[] removedAnimDoc;
+        long[] removedAnimDocId;
+        int[] removedRelStart, removedRelEnd;
+        float[] removedX, removedWidth, removedBaseline;
+        int removedCount, removedStart = -1, removedRawLength;
+        String removedRawString;
 
         // ---------------------------------------------------------- курсор
         float cursorX = -1, cursorY;
@@ -400,31 +419,100 @@ public final class PengramTypingEffects {
             final float intensity = new float[]{0.75f, 1.08f, 1.42f}[
                     Math.max(0, Math.min(2, PengramConfig.getInputAnimationIntensity() - 1))];
 
-            // берём ровно хвост изменения: последние MAX_PER_BATCH символов
-            int from = end;
-            final int[] bounds = new int[MAX_PER_BATCH + 1];
-            int count = 0;
-            while (from > start && count < MAX_PER_BATCH) {
-                bounds[count++] = from;
-                from = android.text.TextUtils.getOffsetBefore(text, from);
-            }
-            bounds[count] = Math.max(start, from);
+            // Разбиваем изменённый кусок [start, end) от начала к концу на неделимые
+            // графемные кластеры и EmojiSpan/AnimatedEmojiSpan, чтобы никогда не резать
+            // суррогатные пары, модификаторы тона кожи, флаги и ZWJ-эмодзи на половинки («?»).
+            final AnimatedEmojiSpan[] animSpans = text.getSpans(start, end, AnimatedEmojiSpan.class);
+            final Emoji.EmojiSpan[] emojiSpans = text.getSpans(start, end, Emoji.EmojiSpan.class);
+            final ReplacementSpan[] allReplSpans = text.getSpans(start, end, ReplacementSpan.class);
 
+            final int[] tokStarts = new int[PASTE_THRESHOLD + 4];
+            final int[] tokEnds = new int[PASTE_THRESHOLD + 4];
+            final Drawable[] tokEmoji = new Drawable[PASTE_THRESHOLD + 4];
+            final boolean[] tokSkip = new boolean[PASTE_THRESHOLD + 4];
+            int totalTokens = 0;
+
+            int scan = start;
+            while (scan < end && totalTokens < tokStarts.length) {
+                int tokStart = scan;
+                int tokEnd = -1;
+                Drawable emojiDrawable = null;
+                boolean skip = false;
+
+                if (animSpans != null) {
+                    for (AnimatedEmojiSpan sp : animSpans) {
+                        final int ss = text.getSpanStart(sp);
+                        final int se = text.getSpanEnd(sp);
+                        if (ss >= 0 && se > ss && ss <= scan && scan < se) {
+                            tokStart = Math.max(start, ss);
+                            tokEnd = Math.min(end, se);
+                            // Кастомные эмодзи рисует EditTextEffects отдельным слоем поверх onDraw —
+                            // не дублируем их во входной слой глифов.
+                            skip = true;
+                            break;
+                        }
+                    }
+                }
+                if (tokEnd < 0 && emojiSpans != null) {
+                    for (Emoji.EmojiSpan sp : emojiSpans) {
+                        final int ss = text.getSpanStart(sp);
+                        final int se = text.getSpanEnd(sp);
+                        if (ss >= 0 && se > ss && ss <= scan && scan < se) {
+                            tokStart = Math.max(start, ss);
+                            tokEnd = Math.min(end, se);
+                            emojiDrawable = sp.getDrawable();
+                            break;
+                        }
+                    }
+                }
+                if (tokEnd < 0 && allReplSpans != null) {
+                    for (ReplacementSpan sp : allReplSpans) {
+                        if (sp instanceof Emoji.EmojiSpan) {
+                            continue;
+                        }
+                        final int ss = text.getSpanStart(sp);
+                        final int se = text.getSpanEnd(sp);
+                        if (ss >= 0 && se > ss && ss <= scan && scan < se) {
+                            tokStart = Math.max(start, ss);
+                            tokEnd = Math.min(end, se);
+                            skip = true;
+                            break;
+                        }
+                    }
+                }
+                if (tokEnd < 0) {
+                    tokEnd = nextGraphemeEnd(text, scan, end);
+                }
+                if (tokEnd <= scan) {
+                    tokEnd = Math.min(end, scan + 1);
+                }
+                tokStarts[totalTokens] = tokStart;
+                tokEnds[totalTokens] = tokEnd;
+                tokEmoji[totalTokens] = emojiDrawable;
+                tokSkip[totalTokens] = skip;
+                totalTokens++;
+                scan = tokEnd;
+            }
+
+            final int firstTok = Math.max(0, totalTokens - MAX_PER_BATCH);
             final int lastLine = layout.getLineCount() - 1;
             final boolean allLines = PengramConfig.isTypingAnimateAllLines();
             final boolean ignoreSpaces = PengramConfig.isTypingIgnoreSpaces();
 
-            for (int i = count - 1, index = 0; i >= 0; --i, ++index) {
-                final int offset = i + 1 <= count ? bounds[i + 1] : start;
-                final int next = bounds[i];
+            for (int t = firstTok, index = 0; t < totalTokens; ++t, ++index) {
+                if (tokSkip[t]) {
+                    continue;
+                }
+                final int offset = tokStarts[t];
+                final int next = tokEnds[t];
                 if (offset < 0 || next <= offset || next > text.length()) {
                     continue;
                 }
-                // эмодзи и прочие ReplacementSpan рисуют себя сами — их не трогаем
-                if (text.getSpans(offset, next, ReplacementSpan.class).length > 0) {
+                final String cluster = text.subSequence(offset, next).toString();
+                if (ignoreSpaces && (" ".equals(cluster) || "\u00A0".equals(cluster))) {
                     continue;
                 }
-                if (ignoreSpaces && text.charAt(offset) == ' ') {
+                if (isBrokenOrInvisibleCluster(cluster)) {
                     continue;
                 }
                 if (!allLines && lastLine >= 0) {
@@ -438,13 +526,15 @@ public final class PengramTypingEffects {
                         continue;
                     }
                 }
-                // drawText не умеет корректно рисовать составные эмодзи и
-                // диакритику. Пусть их без изменений отрисует сам EditText.
-                if (next - offset != 1 || Character.isSurrogate(text.charAt(offset))
-                        || Character.getType(text.charAt(offset)) == Character.NON_SPACING_MARK) {
-                    continue;
+                Drawable emojiDrawable = tokEmoji[t];
+                if (emojiDrawable == null && mayContainEmoji(cluster)) {
+                    final Emoji.EmojiDrawable ed = Emoji.getEmojiDrawable(cluster);
+                    if (ed != null) {
+                        ed.preload();
+                        emojiDrawable = ed;
+                    }
                 }
-                glyphs.add(new Glyph(offset, next, text.subSequence(offset, next).toString(),
+                glyphs.add(new Glyph(offset, next, cluster, emojiDrawable,
                         mode, intensity, now + Math.min(32, index * 16L), duration));
             }
             while (glyphs.size() > MAX_ACTIVE) {
@@ -456,41 +546,143 @@ public final class PengramTypingEffects {
 
         // ---------------------------------------------------------- снапшот удаления
 
-        void snapshot(CharSequence text, int start, int count) {
-            final EditText edit = ref.get();
+        void resetSnapshot() {
             removedCount = 0;
             removedStart = -1;
-            if (edit == null) {
+            removedRawLength = 0;
+            removedRawString = null;
+            if (removedEmoji != null) {
+                java.util.Arrays.fill(removedEmoji, null);
+            }
+            if (removedAnimDoc != null) {
+                java.util.Arrays.fill(removedAnimDoc, null);
+            }
+            if (removedClusters != null) {
+                java.util.Arrays.fill(removedClusters, null);
+            }
+        }
+
+        void snapshot(CharSequence text, int start, int count) {
+            final EditText edit = ref.get();
+            resetSnapshot();
+            if (edit == null || text == null || start < 0 || count <= 0) {
                 return;
             }
             final Layout layout = edit.getLayout();
-            if (layout == null || count > MAX_DELETE_CHARS) {
+            if (layout == null || count > MAX_DELETE_RAW_CHARS || start >= text.length()) {
                 return;
             }
             try {
-                if (removedChars == null || removedChars.length < count) {
-                    removedChars = new char[MAX_DELETE_CHARS];
+                if (removedClusters == null || removedClusters.length < MAX_DELETE_CHARS) {
+                    removedClusters = new String[MAX_DELETE_CHARS];
+                    removedEmoji = new Drawable[MAX_DELETE_CHARS];
+                    removedAnimDoc = new TLRPC.Document[MAX_DELETE_CHARS];
+                    removedAnimDocId = new long[MAX_DELETE_CHARS];
+                    removedRelStart = new int[MAX_DELETE_CHARS];
+                    removedRelEnd = new int[MAX_DELETE_CHARS];
                     removedX = new float[MAX_DELETE_CHARS];
+                    removedWidth = new float[MAX_DELETE_CHARS];
                     removedBaseline = new float[MAX_DELETE_CHARS];
                 }
+                final int end = Math.min(text.length(), start + count);
+                final int actualRawLen = end - start;
+                if (actualRawLen <= 0) {
+                    return;
+                }
+                final Spanned spanned = text instanceof Spanned ? (Spanned) text : null;
+                final AnimatedEmojiSpan[] animSpans = spanned != null
+                        ? spanned.getSpans(start, end, AnimatedEmojiSpan.class) : null;
+                final Emoji.EmojiSpan[] emojiSpans = spanned != null
+                        ? spanned.getSpans(start, end, Emoji.EmojiSpan.class) : null;
+
                 final int paddingLeft = edit.getCompoundPaddingLeft();
                 final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
+                paint.set(edit.getPaint());
+
                 int n = 0;
-                for (int i = 0; i < count; i++) {
-                    final int offset = start + i;
-                    if (offset >= text.length()) {
-                        break;
+                int idx = start;
+                while (idx < end && n < MAX_DELETE_CHARS) {
+                    int tokStart = idx;
+                    int tokEnd = -1;
+                    Drawable emojiDrawable = null;
+                    TLRPC.Document animDoc = null;
+                    long animDocId = 0L;
+
+                    if (animSpans != null && spanned != null) {
+                        for (AnimatedEmojiSpan sp : animSpans) {
+                            final int ss = spanned.getSpanStart(sp);
+                            final int se = spanned.getSpanEnd(sp);
+                            if (ss >= 0 && se > ss && ss <= idx && idx < se) {
+                                tokStart = Math.max(start, ss);
+                                tokEnd = Math.min(end, se);
+                                animDoc = sp.document;
+                                animDocId = sp.getDocumentId();
+                                break;
+                            }
+                        }
                     }
-                    final int line = layout.getLineForOffset(offset);
-                    removedChars[n] = text.charAt(offset);
-                    removedX[n] = layout.getPrimaryHorizontal(offset) + paddingLeft;
+                    if (tokEnd < 0 && emojiSpans != null && spanned != null) {
+                        for (Emoji.EmojiSpan sp : emojiSpans) {
+                            final int ss = spanned.getSpanStart(sp);
+                            final int se = spanned.getSpanEnd(sp);
+                            if (ss >= 0 && se > ss && ss <= idx && idx < se) {
+                                tokStart = Math.max(start, ss);
+                                tokEnd = Math.min(end, se);
+                                emojiDrawable = sp.getDrawable();
+                                break;
+                            }
+                        }
+                    }
+                    if (tokEnd < 0) {
+                        tokEnd = nextGraphemeEnd(text, idx, end);
+                    }
+                    if (tokEnd <= idx) {
+                        tokEnd = Math.min(end, idx + 1);
+                    }
+
+                    final String cluster = text.subSequence(tokStart, tokEnd).toString();
+                    if (emojiDrawable == null && mayContainEmoji(cluster)) {
+                        final Emoji.EmojiDrawable ed = Emoji.getEmojiDrawable(cluster);
+                        if (ed != null) {
+                            ed.preload();
+                            emojiDrawable = ed;
+                        }
+                    }
+
+                    final int line = layout.getLineForOffset(tokStart);
+                    final float hxStart = layout.getPrimaryHorizontal(tokStart);
+                    float width = 0f;
+                    if (tokEnd <= text.length() && layout.getLineForOffset(Math.min(tokEnd, text.length())) == line) {
+                        width = Math.abs(layout.getPrimaryHorizontal(tokEnd) - hxStart);
+                    }
+                    if (width <= 0.5f || width > dp(56)) {
+                        width = (emojiDrawable != null || animDoc != null || animDocId != 0)
+                                ? paint.getTextSize() * 1.12f
+                                : Math.max(dp(4), paint.measureText(cluster));
+                    }
+                    boolean rtl = false;
+                    try {
+                        rtl = layout.isRtlCharAt(tokStart);
+                    } catch (Exception ignore) {
+                    }
+                    removedClusters[n] = cluster;
+                    removedEmoji[n] = emojiDrawable;
+                    removedAnimDoc[n] = animDoc;
+                    removedAnimDocId[n] = animDocId;
+                    removedRelStart[n] = tokStart - start;
+                    removedRelEnd[n] = tokEnd - start;
+                    removedX[n] = (rtl ? (hxStart - width) : hxStart) + paddingLeft;
+                    removedWidth[n] = width;
                     removedBaseline[n] = layout.getLineBaseline(line) + paddingTop;
                     n++;
+                    idx = tokEnd;
                 }
                 removedCount = n;
                 removedStart = start;
+                removedRawLength = actualRawLen;
+                removedRawString = text.subSequence(start, end).toString();
             } catch (Exception e) {
-                removedCount = 0;
+                resetSnapshot();
             }
         }
 
@@ -499,46 +691,94 @@ public final class PengramTypingEffects {
          * висячий снапшот от старого удаления не должен сработать позднее.
          */
         void spawnFromSnapshot(int start, int before, int count, CharSequence afterText) {
-            final char[] chars = removedChars;
-            final float[] xs = removedX, baselines = removedBaseline;
-            final int n = removedCount;
-            final boolean match = removedStart == start && n == before;
+            final String[] clusters = removedClusters;
+            final Drawable[] emojis = removedEmoji;
+            final TLRPC.Document[] animDocs = removedAnimDoc;
+            final long[] animDocIds = removedAnimDocId;
+            final int[] relStarts = removedRelStart, relEnds = removedRelEnd;
+            final float[] xs = removedX, widths = removedWidth, baselines = removedBaseline;
+            final int tokenCount = removedCount;
+            final int rawLen = removedRawLength;
+            final String rawBefore = removedRawString;
+            final boolean match = removedStart == start && rawLen == before && rawBefore != null && tokenCount > 0;
             removedCount = 0;
             removedStart = -1;
-            if (!match || chars == null) {
+            removedRawLength = 0;
+            removedRawString = null;
+            if (!match || clusters == null) {
+                resetSnapshot();
                 return;
             }
             int commonPrefix = 0;
             int commonSuffix = 0;
             if (count > 0 && afterText != null && start >= 0 && start + count <= afterText.length()) {
-                final int maxCommon = Math.min(n, count);
-                while (commonPrefix < maxCommon && chars[commonPrefix] == afterText.charAt(start + commonPrefix)) {
+                final int maxCommon = Math.min(rawLen, count);
+                while (commonPrefix < maxCommon
+                        && rawBefore.charAt(commonPrefix) == afterText.charAt(start + commonPrefix)) {
                     commonPrefix++;
                 }
                 while (commonSuffix < maxCommon - commonPrefix
-                        && chars[n - 1 - commonSuffix] == afterText.charAt(start + count - 1 - commonSuffix)) {
+                        && rawBefore.charAt(rawLen - 1 - commonSuffix) == afterText.charAt(start + count - 1 - commonSuffix)) {
                     commonSuffix++;
                 }
             }
-            final int delStart = commonPrefix;
-            final int delEnd = Math.max(delStart, n - commonSuffix);
-            if (delEnd <= delStart) {
+            if (commonPrefix + commonSuffix >= rawLen) {
+                resetSnapshot();
                 return;
             }
+            final int keepSuffixFrom = rawLen - commonSuffix;
+            final EditText edit = ref.get();
             final int style = PengramConfig.getTypingDeleteStyle();
             final int perChar = Math.max(1, PengramConfig.getTypingDeleteCount());
             final float speed = PengramConfig.getTypingDeleteSpeed() / 50f;
             final float spread = PengramConfig.getTypingDeleteSpread() / 50f;
             final float size = PengramConfig.getTypingDeleteSize() / 50f;
             final long now = SystemClock.uptimeMillis();
-            final int endIdx = Math.min(delEnd, delStart + 12);
-            for (int i = delStart; i < endIdx && particles.size() < 160; i++) {
+            int spawnedTokens = 0;
+
+            for (int i = 0; i < tokenCount && spawnedTokens < 12 && particles.size() < 160; i++) {
+                // Токен не менялся, если он целиком лежит в неизменном префиксе или суффиксе слова
+                if (relEnds[i] <= commonPrefix || relStarts[i] >= keepSuffixFrom) {
+                    continue;
+                }
+                final String cluster = clusters[i];
+                final Drawable emojiDrawable = emojis[i];
+                final TLRPC.Document animDoc = animDocs[i];
+                final long animDocId = animDocIds[i];
+                final boolean hasRichEmoji = emojiDrawable != null || animDoc != null || animDocId != 0;
+                if (!hasRichEmoji && isBrokenOrInvisibleCluster(cluster)) {
+                    continue;
+                }
+                spawnedTokens++;
+
                 final int pieces = style == PengramConfig.DELETE_PARTICLE_LETTERS ? 1 : perChar;
                 for (int p = 0; p < pieces && particles.size() < 160; p++) {
                     final Particle particle = new Particle();
                     particle.style = style;
-                    particle.ch = chars[i];
-                    particle.x = xs[i] + (random.nextFloat() - .5f) * dp(2);
+                    particle.text = cluster;
+                    particle.glyphWidth = widths[i];
+                    if (style == PengramConfig.DELETE_PARTICLE_LETTERS) {
+                        particle.emojiDrawable = emojiDrawable;
+                        if ((animDoc != null || animDocId != 0) && edit != null) {
+                            try {
+                                final int cacheType = AnimatedEmojiDrawable.getCacheTypeForEnterView();
+                                final AnimatedEmojiDrawable ad = animDoc != null
+                                        ? AnimatedEmojiDrawable.make(UserConfig.selectedAccount, cacheType, animDoc)
+                                        : AnimatedEmojiDrawable.make(UserConfig.selectedAccount, cacheType, animDocId);
+                                if (ad != null) {
+                                    if (ad.canOverrideColor()) {
+                                        ad.setColorFilter(Theme.chat_animatedEmojiTextColorFilter);
+                                    }
+                                    particle.attachAnimatedEmoji(ad, edit);
+                                }
+                            } catch (Exception ignore) {
+                            }
+                        }
+                    }
+                    final float jitterX = style == PengramConfig.DELETE_PARTICLE_LETTERS
+                            ? (random.nextFloat() - .5f) * dp(2)
+                            : widths[i] * .35f + (random.nextFloat() - .5f) * dp(3);
+                    particle.x = xs[i] + jitterX;
                     particle.y = baselines[i] + (random.nextFloat() - .5f) * dp(4);
                     final double angle = style == PengramConfig.DELETE_PARTICLE_PETALS
                             ? Math.PI * .35 + random.nextDouble() * Math.PI * .3   // лепестки летят вниз-вбок
@@ -550,18 +790,24 @@ public final class PengramTypingEffects {
                     particle.gravity = style == PengramConfig.DELETE_PARTICLE_PETALS ? dp(.06f)
                             : style == PengramConfig.DELETE_PARTICLE_SNOW ? dp(.02f) : dp(.12f);
                     particle.size = dp(1.2f) * size * (.7f + random.nextFloat() * .6f);
-                    particle.rotation = random.nextFloat() * 360f;
+                    particle.rotation = style == PengramConfig.DELETE_PARTICLE_LETTERS
+                            ? (random.nextFloat() - .5f) * 14f
+                            : random.nextFloat() * 360f;
                     particle.rotationSpeed = (random.nextFloat() - .5f) *
-                            (style == PengramConfig.DELETE_PARTICLE_SNOW ? 240f : 560f);
+                            (style == PengramConfig.DELETE_PARTICLE_SNOW ? 240f
+                                    : style == PengramConfig.DELETE_PARTICLE_LETTERS ? 320f : 560f);
                     particle.start = now + Math.min(40, random.nextInt(40));
                     particle.duration = PARTICLE_LIFE + random.nextInt(200);
                     particle.seed = random.nextFloat() * 1000f;
                     particles.add(particle);
                 }
             }
+            resetSnapshot();
+            if (spawnedTokens == 0) {
+                return;
+            }
             idleFrom = 0;
             schedule();
-            final EditText edit = ref.get();
             if (edit != null) {
                 edit.invalidate();
             }
@@ -627,7 +873,7 @@ public final class PengramTypingEffects {
             final EditText edit = ref.get();
             if (edit == null) {
                 glyphs.clear();
-                particles.clear();
+                releaseAllParticles();
                 return;
             }
             final long now = SystemClock.uptimeMillis();
@@ -639,7 +885,7 @@ public final class PengramTypingEffects {
             }
             for (int a = particles.size() - 1; a >= 0; --a) {
                 if (particles.get(a).end() <= now) {
-                    particles.remove(a);
+                    particles.remove(a).release();
                 }
             }
             advanceCursor(now);
@@ -666,6 +912,13 @@ public final class PengramTypingEffects {
             glyphs.remove(glyph);
         }
 
+        void releaseAllParticles() {
+            for (int a = particles.size() - 1; a >= 0; --a) {
+                particles.get(a).release();
+            }
+            particles.clear();
+        }
+
         void clearAll() {
             final EditText edit = ref.get();
             if (edit != null) {
@@ -676,9 +929,8 @@ public final class PengramTypingEffects {
             pendingPosted = false;
             pendingStart = pendingEnd = -1;
             pendingText = null;
-            particles.clear();
-            removedCount = 0;
-            removedStart = -1;
+            releaseAllParticles();
+            resetSnapshot();
             clearGlyphs();
         }
 
@@ -882,6 +1134,10 @@ public final class PengramTypingEffects {
                     finish(glyph);
                     continue;
                 }
+                if (hasNonEmojiReplacementSpan(text, from, to)) {
+                    finish(glyph);
+                    continue;
+                }
                 final int line;
                 try {
                     line = layout.getLineForOffset(from);
@@ -899,7 +1155,15 @@ public final class PengramTypingEffects {
                 if (paint.getAlpha() == 0) {
                     continue;
                 }
-                final float width = paint.measureText(text, from, to);
+                float width = 0f;
+                if (to <= text.length() && layout.getLineForOffset(Math.min(to, text.length())) == line) {
+                    width = Math.abs(layout.getPrimaryHorizontal(to) - layout.getPrimaryHorizontal(from));
+                }
+                if (width <= 0.2f || width > dp(56)) {
+                    width = glyph.emojiDrawable != null
+                            ? paint.getTextSize() * 1.12f
+                            : paint.measureText(text, from, to);
+                }
                 if (width <= 0.2f) {
                     continue;
                 }
@@ -953,7 +1217,7 @@ public final class PengramTypingEffects {
             }
             for (int a = particles.size() - 1; a >= 0; --a) {
                 if (particles.get(a).end() + 300 < nowMs) {
-                    particles.remove(a);
+                    particles.remove(a).release();
                 }
             }
 
@@ -1015,6 +1279,10 @@ public final class PengramTypingEffects {
                     finish(glyph);
                     continue;
                 }
+                if (hasNonEmojiReplacementSpan(text, from, to)) {
+                    finish(glyph);
+                    continue;
+                }
                 final int line;
                 try {
                     line = layout.getLineForOffset(from);
@@ -1040,7 +1308,22 @@ public final class PengramTypingEffects {
                 }
                 final float x = layout.getPrimaryHorizontal(from) + paddingLeft;
                 final float baseline = layout.getLineBaseline(line) + paddingTop;
-                final float width = paint.measureText(text, from, to);
+                Drawable emojiDrawable = glyph.emojiDrawable;
+                if (emojiDrawable == null) {
+                    final Emoji.EmojiSpan[] emojiSpans = text.getSpans(from, to, Emoji.EmojiSpan.class);
+                    if (emojiSpans != null && emojiSpans.length > 0 && emojiSpans[0] != null) {
+                        emojiDrawable = emojiSpans[0].getDrawable();
+                    }
+                }
+                float width = 0f;
+                if (to <= text.length() && layout.getLineForOffset(Math.min(to, text.length())) == line) {
+                    width = Math.abs(layout.getPrimaryHorizontal(to) - layout.getPrimaryHorizontal(from));
+                }
+                if (width <= 0.2f || width > dp(56)) {
+                    width = emojiDrawable != null
+                            ? paint.getTextSize() * 1.12f
+                            : paint.measureText(text, from, to);
+                }
 
                 final float rawT = glyph.rawTime();
                 if (rawT <= 0f) {
@@ -1111,21 +1394,30 @@ public final class PengramTypingEffects {
                         paint.setColor(org.telegram.messenger.AndroidUtilities.getOffsetColor(accent, baseColor, p / 0.92f, 1f));
                     }
                     final int mainAlpha = Math.max(0, Math.min(255, Math.round(baseAlpha * alpha)));
-                    if (blurOn && rawT < 0.72f) {
-                        // GPU-атласный мягкий оптический ореол без CPU-растеризации BlurMaskFilter в Skia/HWUI:
-                        // 0 аллокаций текстур и 120 Гц даже при пулемётном наборе.
-                        final float softNorm = Math.min(1f, (blurMax / 12f) * (1f - rawT / 0.72f));
-                        if (softNorm > 0.06f) {
-                            final int haloSave = canvas.save();
-                            final float haloScale = 1f + softNorm * 0.095f;
-                            canvas.scale(haloScale, haloScale, x + width * .5f, pivotY);
-                            paint.setAlpha(Math.max(1, Math.min(255, Math.round(mainAlpha * 0.28f * softNorm))));
-                            canvas.drawText(text, from, to, x, baseline, paint);
-                            canvas.restoreToCount(haloSave);
+                    if (emojiDrawable != null) {
+                        final float box = Math.max(dp(14), Math.min(paint.getTextSize() * 1.24f,
+                                width > dp(6) ? width : paint.getTextSize() * 1.12f));
+                        final int cx = Math.round(x + width * 0.5f);
+                        final int cy = Math.round(baseline - paint.getTextSize() * 0.34f);
+                        final int half = Math.max(1, Math.round(box * 0.5f));
+                        drawEmojiDrawableSafely(canvas, emojiDrawable, cx - half, cy - half, cx + half, cy + half, mainAlpha);
+                    } else {
+                        if (blurOn && rawT < 0.72f) {
+                            // GPU-атласный мягкий оптический ореол без CPU-растеризации BlurMaskFilter в Skia/HWUI:
+                            // 0 аллокаций текстур и 120 Гц даже при пулемётном наборе.
+                            final float softNorm = Math.min(1f, (blurMax / 12f) * (1f - rawT / 0.72f));
+                            if (softNorm > 0.06f) {
+                                final int haloSave = canvas.save();
+                                final float haloScale = 1f + softNorm * 0.095f;
+                                canvas.scale(haloScale, haloScale, x + width * .5f, pivotY);
+                                paint.setAlpha(Math.max(1, Math.min(255, Math.round(mainAlpha * 0.28f * softNorm))));
+                                canvas.drawText(glyph.expected, x, baseline, paint);
+                                canvas.restoreToCount(haloSave);
+                            }
                         }
+                        paint.setAlpha(mainAlpha);
+                        canvas.drawText(glyph.expected, x, baseline, paint);
                     }
-                    paint.setAlpha(mainAlpha);
-                    canvas.drawText(text, from, to, x, baseline, paint);
                 } catch (Exception ignore) {
                 } finally {
                     paint.setColor(baseColor);
@@ -1196,16 +1488,52 @@ public final class PengramTypingEffects {
                         break;
                     }
                     case PengramConfig.DELETE_PARTICLE_LETTERS: {
-                        if (p.ch == 0) {
+                        final int drawAlpha = Math.max(0, Math.min(255, Math.round(255 * alpha)));
+                        if (drawAlpha <= 0) {
                             break;
                         }
                         paint.set(edit.getPaint());
-                        paint.setAlpha(Math.round(255 * alpha));
                         paint.setMaskFilter(null);
+                        final float textSize = Math.max(dp(12), paint.getTextSize());
+                        final float shrink = Math.max(0.55f, 1f - eased * 0.28f);
+
+                        final AnimatedEmojiDrawable anim = p.animDrawable;
+                        final boolean animReady = anim != null
+                                && anim.getImageReceiver() != null
+                                && anim.getImageReceiver().hasBitmapImage();
+                        if (animReady || p.emojiDrawable != null) {
+                            final float box = Math.max(dp(14), Math.min(textSize * 1.24f,
+                                    p.glyphWidth > dp(6) ? p.glyphWidth : textSize * 1.12f));
+                            final float cx = px + box * 0.5f;
+                            final float cy = py - textSize * 0.34f;
+                            final int half = Math.max(1, Math.round(box * 0.5f));
+                            final int save = canvas.save();
+                            canvas.translate(cx, cy);
+                            canvas.rotate(rotation * .35f);
+                            canvas.scale(shrink, shrink);
+                            if (animReady) {
+                                anim.setBounds(-half, -half, half, half);
+                                anim.setAlpha(drawAlpha);
+                                anim.draw(canvas);
+                                anim.setAlpha(255);
+                            } else {
+                                drawEmojiDrawableSafely(canvas, p.emojiDrawable, -half, -half, half, half, drawAlpha);
+                            }
+                            canvas.restoreToCount(save);
+                            break;
+                        }
+
+                        if (p.text == null || isBrokenOrInvisibleCluster(p.text)) {
+                            break;
+                        }
+                        paint.setAlpha(drawAlpha);
+                        final float halfW = Math.max(dp(3), p.glyphWidth * 0.5f);
+                        final float pivotX = px + halfW;
+                        final float pivotY = py - textSize * 0.32f;
                         final int save = canvas.save();
-                        canvas.rotate(rotation * .35f, px, py);
-                        final String s = String.valueOf(p.ch);
-                        canvas.drawText(s, px, py, paint);
+                        canvas.rotate(rotation * .35f, pivotX, pivotY);
+                        canvas.scale(shrink, shrink, pivotX, pivotY);
+                        canvas.drawText(p.text, px, py, paint);
                         canvas.restoreToCount(save);
                         paint.setAlpha(255);
                         break;
@@ -1391,15 +1719,17 @@ public final class PengramTypingEffects {
     private static final class Glyph {
         final int from, to;
         final String expected;
+        final Drawable emojiDrawable;
         final int mode;
         final float intensity;
         final long start;
         final long duration;
 
-        Glyph(int from, int to, String expected, int mode, float intensity, long start, long duration) {
+        Glyph(int from, int to, String expected, Drawable emojiDrawable, int mode, float intensity, long start, long duration) {
             this.from = from;
             this.to = to;
             this.expected = expected;
+            this.emojiDrawable = emojiDrawable;
             this.mode = mode;
             this.intensity = intensity;
             this.start = start;
@@ -1426,9 +1756,36 @@ public final class PengramTypingEffects {
 
     private static final class Particle {
         int style;
-        char ch;
+        String text;
+        Drawable emojiDrawable;
+        AnimatedEmojiDrawable animDrawable;
+        WeakReference<View> attachedViewRef;
+        float glyphWidth;
         float x, y, vx, vy, gravity, size, rotation, rotationSpeed, seed;
         long start, duration;
+
+        void attachAnimatedEmoji(AnimatedEmojiDrawable drawable, View view) {
+            this.animDrawable = drawable;
+            this.attachedViewRef = view != null ? new WeakReference<>(view) : null;
+            if (drawable != null && view != null) {
+                drawable.addView(view);
+            }
+        }
+
+        void release() {
+            if (animDrawable != null) {
+                final View v = attachedViewRef != null ? attachedViewRef.get() : null;
+                if (v != null) {
+                    try {
+                        animDrawable.removeView(v);
+                    } catch (Exception ignore) {
+                    }
+                }
+                animDrawable = null;
+            }
+            attachedViewRef = null;
+            emojiDrawable = null;
+        }
 
         long end() {
             return start + duration;
@@ -1440,6 +1797,192 @@ public final class PengramTypingEffects {
             }
             return Math.min(1f, (now - start) / (float) duration);
         }
+    }
+
+    // -------------------------------------------------------------- Unicode Grapheme & Emoji Engine
+
+    /**
+     * Проверяет, есть ли на участке [from, to) кастомный ReplacementSpan (НЕ обычный Emoji.EmojiSpan),
+     * который рисуется отдельным слоем (например, AnimatedEmojiSpan в EditTextEffects).
+     */
+    private static boolean hasNonEmojiReplacementSpan(Spanned text, int from, int to) {
+        if (text == null) {
+            return false;
+        }
+        final ReplacementSpan[] spans = text.getSpans(from, to, ReplacementSpan.class);
+        if (spans == null || spans.length == 0) {
+            return false;
+        }
+        for (ReplacementSpan sp : spans) {
+            if (sp != null && !(sp instanceof Emoji.EmojiSpan)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Отрисовывает синглтон EmojiDrawable с временными bounds/alpha и мгновенно возвращает
+     * исходные значения, чтобы соседние статичные смайлы в том же кадре не побледнели и не сместились.
+     */
+    private static void drawEmojiDrawableSafely(Canvas canvas, Drawable d, int l, int t, int r, int b, int alpha) {
+        if (d == null || alpha <= 0) {
+            return;
+        }
+        final android.graphics.Rect bounds = d.getBounds();
+        final int prevL = bounds.left, prevT = bounds.top, prevR = bounds.right, prevB = bounds.bottom;
+        try {
+            d.setBounds(l, t, r, b);
+            d.setAlpha(alpha);
+            d.draw(canvas);
+        } finally {
+            d.setAlpha(255);
+            d.setBounds(prevL, prevT, prevR, prevB);
+        }
+    }
+
+    /** Быстрая проверка без аллокаций: может ли кластер быть эмодзи из атласа Telegram. */
+    private static boolean mayContainEmoji(CharSequence cs) {
+        if (cs == null) {
+            return false;
+        }
+        final int len = cs.length();
+        for (int i = 0; i < len; i++) {
+            final char c = cs.charAt(i);
+            if (c >= 0xD800 && c <= 0xDFFF) {
+                return true;
+            }
+            if ((c >= 0x203C && c <= 0x3299) || c == 0xFE0F || c == 0x20E3
+                    || c == 0x00A9 || c == 0x00AE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Отсеивает пробелы, переносы, символ замены U+FFFD, разорванные одиночные суррогаты UTF-16
+     * и пустые управляющие селекторы (VS16/ZWJ), чтобы canvas.drawText НИКОГДА не нарисовал «?».
+     */
+    private static boolean isBrokenOrInvisibleCluster(String s) {
+        if (s == null || s.isEmpty()) {
+            return true;
+        }
+        final int len = s.length();
+        boolean hasVisible = false;
+        for (int i = 0; i < len; ) {
+            final char c = s.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 >= len || !Character.isLowSurrogate(s.charAt(i + 1))) {
+                    return true; // оборванный старший суррогат -> иначе превратится в «?»
+                }
+                hasVisible = true;
+                i += 2;
+                continue;
+            }
+            if (Character.isLowSurrogate(c) || c == '\uFFFD') {
+                return true; // оборванный младший суррогат или replacement char
+            }
+            final int cp = c;
+            if (!Character.isWhitespace(cp) && cp != 0x00A0
+                    && cp != 0x200D && cp != 0x200B && cp != 0x200C
+                    && cp != 0x2060 && cp != 0xFEFF
+                    && !(cp >= 0xFE00 && cp <= 0xFE0F)) {
+                final int type = Character.getType(cp);
+                if (type != Character.NON_SPACING_MARK && type != Character.FORMAT && type != Character.CONTROL) {
+                    hasVisible = true;
+                }
+            }
+            i++;
+        }
+        return !hasVisible;
+    }
+
+    private static boolean isRegionalIndicator(int cp) {
+        return cp >= 0x1F1E6 && cp <= 0x1F1FF;
+    }
+
+    private static boolean isEmojiClusterModifier(int cp) {
+        if (cp >= 0xFE00 && cp <= 0xFE0F) return true;       // Variation Selectors (VS15/VS16)
+        if (cp >= 0xE0100 && cp <= 0xE01EF) return true;     // Variation Selectors Supplement
+        if (cp >= 0x1F3FB && cp <= 0x1F3FF) return true;     // Fitzpatrick skin tones
+        if (cp >= 0xE0020 && cp <= 0xE007F) return true;     // Emoji tag sequences (subdivision flags)
+        if (cp == 0x20E3) return true;                       // Combining enclosing keycap
+        final int t = Character.getType(cp);
+        return t == Character.NON_SPACING_MARK
+                || t == Character.COMBINING_SPACING_MARK
+                || t == Character.ENCLOSING_MARK;
+    }
+
+    /**
+     * Возвращает конец целого расширенного графемного кластера Unicode (UAX #29):
+     * суррогатные пары, флаги из двух Regional Indicator, keycap-цифры, тона кожи,
+     * селекторы вариантов FE0F и произвольно длинные цепочки ZWJ (семьи, ❤️‍🔥, профессии).
+     */
+    static int nextGraphemeEnd(CharSequence s, int start, int limit) {
+        if (s == null || start >= limit) {
+            return limit;
+        }
+        final int max = Math.min(limit, s.length());
+        if (start >= max) {
+            return max;
+        }
+        final int firstCp = Character.codePointAt(s, start);
+        int pos = Math.min(max, start + Character.charCount(firstCp));
+        if (pos >= max) {
+            return max;
+        }
+        // Региональные флаги идут ровно парами индикаторов (🇷🇺 + 🇺🇸 = два отдельных флага)
+        if (isRegionalIndicator(firstCp)) {
+            final int secondCp = Character.codePointAt(s, pos);
+            if (isRegionalIndicator(secondCp)) {
+                pos = Math.min(max, pos + Character.charCount(secondCp));
+            }
+            return pos;
+        }
+        while (pos < max) {
+            final int cp = Character.codePointAt(s, pos);
+            if (isEmojiClusterModifier(cp)) {
+                pos = Math.min(max, pos + Character.charCount(cp));
+                continue;
+            }
+            if (cp == 0x200D) { // Zero-Width Joiner склеивает следующую базовую графему в один эмодзи
+                final int afterZwj = pos + 1;
+                if (afterZwj >= max) {
+                    pos = max;
+                    break;
+                }
+                final int joinedCp = Character.codePointAt(s, afterZwj);
+                pos = Math.min(max, afterZwj + Character.charCount(joinedCp));
+                continue;
+            }
+            break;
+        }
+        return pos;
+    }
+
+    /** Находит начало графемного кластера непосредственно перед позицией end (не левее floor). */
+    private static int prevGraphemeStart(CharSequence s, int end, int floor) {
+        if (s == null || end <= floor) {
+            return floor;
+        }
+        // Для короткого окна набора (до ~32 символов) прямой проход nextGraphemeEnd от безопасной базы
+        // гарантирует 100%-совпадение границ даже на самых длинных 11-символьных ZWJ-эмодзи.
+        int scanStart = Math.max(floor, end - 24);
+        if (scanStart > floor && scanStart < s.length() && Character.isLowSurrogate(s.charAt(scanStart))) {
+            scanStart--;
+        }
+        int prev = scanStart;
+        int cur = scanStart;
+        while (cur < end) {
+            prev = cur;
+            final int next = nextGraphemeEnd(s, cur, end);
+            if (next <= cur) {
+                break;
+            }
+            cur = next;
+        }
+        return Math.max(floor, prev);
     }
 
 }

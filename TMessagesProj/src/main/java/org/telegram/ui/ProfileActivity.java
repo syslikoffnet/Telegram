@@ -5093,12 +5093,68 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         return false;
                     }
                     try {
-                        AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
-                        BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        final String primaryId = pengramFormatPeerId(peerId);
+                        final String link = pengramPeerLink(peerId);
+                        final ItemOptions opts = ItemOptions.makeOptions(ProfileActivity.this, view);
+                        opts.add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy) + ": " + primaryId, () -> {
+                            AndroidUtilities.addToClipboard(primaryId);
+                            BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                        });
+                        if (chatId != 0 && userId == 0) {
+                            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+                            final boolean isChannel = chat != null && ChatObject.isChannel(chat);
+                            final String altId = PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT
+                                    ? String.valueOf(peerId)
+                                    : (isChannel ? ("-100" + peerId) : ("-" + peerId));
+                            if (!TextUtils.equals(primaryId, altId)) {
+                                final String altLabel = PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT ? "Telegram API: " : "Bot API: ";
+                                opts.add(R.drawable.msg_info, altLabel + altId, () -> {
+                                    AndroidUtilities.addToClipboard(altId);
+                                    BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                                });
+                            }
+                        }
+                        opts.add(R.drawable.msg_link2, LocaleController.getString(R.string.CopyLink), () -> {
+                            AndroidUtilities.addToClipboard(link);
+                            BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        });
+                        int dcId = -1;
+                        if (userId != 0) {
+                            final TLRPC.User u = getMessagesController().getUser(userId);
+                            if (u != null && u.photo != null) dcId = u.photo.dc_id;
+                        } else {
+                            final TLRPC.Chat c = getMessagesController().getChat(chatId);
+                            if (c != null && c.photo != null) dcId = c.photo.dc_id;
+                        }
+                        if (dcId > 0) {
+                            final String dcText = PengramRegDate.formatDc(dcId);
+                            if (!TextUtils.isEmpty(dcText)) {
+                                opts.add(R.drawable.msg2_devices, dcText, () -> {
+                                    AndroidUtilities.addToClipboard(dcText);
+                                    BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.TextCopied), resourcesProvider).show();
+                                });
+                            }
+                        }
+                        opts.show();
                     } catch (Exception e) {
                         FileLog.e(e);
+                        try {
+                            AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
+                            BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        } catch (Exception ignore) {
+                        }
                     }
                     return true;
+                } else if (position >= 0 && position == regDateRow && userId != 0) {
+                    final long estimate = PengramRegDate.estimate(userId);
+                    if (estimate > 0) {
+                        pengramRegDateUserId = userId;
+                        final String regCopy = pengramRegDateText(estimate);
+                        AndroidUtilities.addToClipboard(regCopy);
+                        BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.TextCopied), resourcesProvider).show();
+                        return true;
+                    }
+                    return false;
                 } else if (position == birthdayRow) {
                     if (editRow(view, position)) return true;
                     if (userInfo == null) return false;
@@ -7659,6 +7715,21 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (editRow(view, position)) return true;
 
             final TLRPC.User user = getMessagesController().getUser(userId);
+            final boolean hiddenPhoneWithInlineId = position == phoneRow
+                    && user != null
+                    && usernameRow == -1 && setUsernameRow == -1 && idRow == -1
+                    && PengramConfig.isIdVisible() && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE
+                    && (TextUtils.isEmpty(user.phone) && TextUtils.isEmpty(vcardPhone)
+                        || (UserObject.isUserSelf(user) && PengramConfig.isHidingPhoneNumber()));
+            if (hiddenPhoneWithInlineId) {
+                try {
+                    AndroidUtilities.addToClipboard(pengramFormatPeerId(userId));
+                    BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+                return true;
+            }
             if (user == null || user.phone == null || user.phone.length() == 0 || getParentActivity() == null) {
                 return false;
             }
@@ -10987,7 +11058,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
-                if (user != null && PengramConfig.isIdSeparateRow()) {
+                final boolean inlineIdWithoutAnchor = user != null
+                        && PengramConfig.isIdVisible()
+                        && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE
+                        && usernameRow == -1
+                        && phoneRow == -1;
+                if (user != null && (PengramConfig.isIdSeparateRow() || inlineIdWithoutAnchor)) {
                     idRow = rowCount++;
                 }
                 // значок живёт в строке ID, строка — по настройке «где показывать»
@@ -11121,6 +11197,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             usernameRow = rowCount++;
+            if (currentChat != null && PengramConfig.isIdSeparateRow()) {
+                idRow = rowCount++;
+            }
             if (actionsView == null) {
                 notificationsSimpleRow = rowCount++;
             }
@@ -11132,7 +11211,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 sharedMediaRow = rowCount++;
             }
         } else if (chatId != 0) {
-            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat)) {
+            final boolean chatInlineIdFallback = currentChat != null
+                    && !ChatObject.isPublic(currentChat)
+                    && PengramConfig.isIdVisible()
+                    && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE;
+            final boolean hasPengramChatRows = currentChat != null
+                    && (PengramConfig.isIdSeparateRow() || chatInlineIdFallback || PengramConfig.isHistoryRowVisible());
+            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || hasPengramChatRows) {
                 if (emptyRow < 0 && emptyRow2 < 0) {
                     if (hasMusic || hasBalance || peerColor != null || actionsView == null) {
                         emptyRow2 = rowCount++;
@@ -11155,7 +11240,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
                 }
-                if (currentChat != null && PengramConfig.isIdSeparateRow()) {
+                if (currentChat != null && (PengramConfig.isIdSeparateRow() || chatInlineIdFallback)) {
                     idRow = rowCount++;
                 }
                 if (currentChat != null && PengramConfig.isHistoryRowVisible()) {
@@ -13944,10 +14029,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (label == null) {
                             label = "ID";
                         }
-                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, regDateRow != -1);
+                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, pengramNeedDetailDivider(position));
                         detailCell.setContentDescriptionValueFirst(true);
-                        // календарик с приблизительной датой регистрации — прямо в строке ID
-                        final long regEstimate = userId != 0 && PengramConfig.isRegDateIconVisible() ? PengramRegDate.estimate(userId) : 0;
+                        // Значок даты регистрации на строке ID рисуется ТОЛЬКО когда нет отдельной строки под дату,
+                        // чтобы один и тот же значок никогда не дублировался в двух строках подряд.
+                        final long regEstimate = regDateRow == -1 && userId != 0 && PengramConfig.isRegDateIconVisible()
+                                ? PengramRegDate.estimate(userId) : 0;
                         if (regEstimate > 0) {
                             Drawable calendarDrawable = pengramRegDateDrawable(detailCell.getContext());
                             if (calendarDrawable != null) {
@@ -13963,7 +14050,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         final long estimate = PengramRegDate.estimate(userId);
                         pengramRegDateUserId = userId;
                         final String text = pengramRegDateText(estimate);
-                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), pengramNeedDetailDivider(position));
                         detailCell.setContentDescriptionValueFirst(true);
                         Drawable calendar = pengramRegDateDrawable(detailCell.getContext());
                         if (calendar != null) {
@@ -13992,7 +14079,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             phoneNumber = null;
                         }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
-                        detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
+                        CharSequence phoneLabel = LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile);
+                        if (usernameRow == -1 && setUsernameRow == -1 && idRow == -1) {
+                            phoneLabel = appendInlineId(phoneLabel);
+                        }
+                        detailCell.setTextAndValue(text, phoneLabel, pengramNeedDetailDivider(position));
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -14069,7 +14160,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             value = "";
                             usernames = new ArrayList<>();
                         }
-                        detailCell.setTextAndValue(text, appendInlineId(alsoUsernamesString(username, usernames, value)), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                        detailCell.setTextAndValue(text, appendInlineId(alsoUsernamesString(username, usernames, value)),
+                                pengramNeedDetailDivider(position) || (infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0));
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -14679,6 +14771,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 case VIEW_TYPE_MUSIC:
                     break;
             }
+        }
+
+        private boolean pengramNeedDetailDivider(int position) {
+            final int next = position + 1;
+            if (next < 0 || next >= rowCount) {
+                return false;
+            }
+            return next == idRow
+                    || next == regDateRow
+                    || next == bioRow
+                    || next == userInfoRow
+                    || next == channelInfoRow
+                    || next == locationRow
+                    || next == usernameRow
+                    || next == setUsernameRow
+                    || next == pengramHistoryRow
+                    || next == birthdayRow
+                    || next == bizHoursRow
+                    || next == bizLocationRow
+                    || next == noteRow
+                    || next == notificationsRow
+                    || next == notificationsSimpleRow
+                    || next == botAppRow;
         }
 
         private CharSequence appendInlineId(CharSequence value) {

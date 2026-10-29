@@ -321,13 +321,20 @@ public final class PengramSearchIndex {
             {R.string.PengramMentionAllStyle, PengramSettingsActivity.SECTION_CHAT_MESSAGES, R.string.PengramMentionAllHeader, 0, 0},
             {R.string.PengramQuoteTapAction, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteBehavior, 0, 0},
             {R.string.PengramQuoteNames, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, R.string.PengramQuoteNamesInfo},
+            {R.string.PengramQuotePeerNameColor, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, R.string.PengramQuotePeerNameColorInfo},
+            {R.string.PengramQuoteShowBadges, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
+            {R.string.PengramQuoteFakeName, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteAvatar, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, R.string.PengramQuoteAvatarInfo},
+            {R.string.PengramQuoteAvatarLayout, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteAvatarRounded, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteAvatarSize, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteAvatarGap, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
-            {R.string.PengramQuoteFakeName, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
+            {R.string.PengramQuoteShowReply, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
+            {R.string.PengramQuoteShowForward, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
+            {R.string.PengramQuoteShowReactions, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteAnonMentions, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, R.string.PengramQuoteAnonMentionsInfo},
             {R.string.PengramQuoteTimes, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
+            {R.string.PengramQuoteDateInTime, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, 0},
             {R.string.PengramQuoteMedia, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuotePrivacyHeader, 0, R.string.PengramQuoteMediaInfo},
             {R.string.PengramQuoteResetAppearance, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteBackgroundHeader, 0, 0},
             {R.string.PengramQuoteBackground, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteBackgroundHeader, 0, 0},
@@ -335,6 +342,8 @@ public final class PengramSearchIndex {
             {R.string.PengramQuoteStickerTransparent, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteBackgroundHeader, 0, 0},
             {R.string.PengramQuoteAccent, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, 0},
             {R.string.PengramQuoteDark, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, 0},
+            {R.string.PengramQuoteBubbleTail, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, R.string.PengramQuoteBubbleTailInfo},
+            {R.string.PengramQuoteAlignOutgoing, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, R.string.PengramQuoteAlignOutgoingInfo},
             {R.string.PengramQuoteScale, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, 0},
             {R.string.PengramQuotePadding, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, 0},
             {R.string.PengramQuoteRadius, PengramSettingsActivity.SECTION_QUOTES, R.string.PengramQuoteStyleHeader, 0, 0},
@@ -762,13 +771,20 @@ public final class PengramSearchIndex {
             0x378c225d, // PengramMentionAllStyle (SECTION_CHAT_MESSAGES)
             0x3dfea57a, // PengramQuoteTapAction (SECTION_QUOTES)
             0x3f4aa12a, // PengramQuoteNames (SECTION_QUOTES)
+            0x33416e86, // PengramQuotePeerNameColor (SECTION_QUOTES)
+            0x39b8c5a1, // PengramQuoteShowBadges (SECTION_QUOTES)
+            0x3cc876d1, // PengramQuoteFakeName (SECTION_QUOTES)
             0x1d5957a7, // PengramQuoteAvatar (SECTION_QUOTES)
+            0x3ae391d8, // PengramQuoteAvatarLayout (SECTION_QUOTES)
             0x1a93bfc6, // PengramQuoteAvatarRounded (SECTION_QUOTES)
             0x1d01c0cc, // PengramQuoteAvatarSize (SECTION_QUOTES)
             0x120e4129, // PengramQuoteAvatarGap (SECTION_QUOTES)
-            0x3cc876d1, // PengramQuoteFakeName (SECTION_QUOTES)
+            0x1841ea8b, // PengramQuoteShowReply (SECTION_QUOTES)
+            0x35c0d605, // PengramQuoteShowForward (SECTION_QUOTES)
+            0x315ab512, // PengramQuoteShowReactions (SECTION_QUOTES)
             0x1f601b82, // PengramQuoteAnonMentions (SECTION_QUOTES)
             0x345c0d9d, // PengramQuoteTimes (SECTION_QUOTES)
+            0x36e0f1f1, // PengramQuoteDateInTime (SECTION_QUOTES)
             0x37c9c2d9, // PengramQuoteMedia (SECTION_QUOTES)
             0x13771649, // PengramQuoteResetAppearance (SECTION_QUOTES)
             0x3079c1bc, // PengramQuoteBackground (SECTION_QUOTES)
@@ -776,6 +792,8 @@ public final class PengramSearchIndex {
             0x11254916, // PengramQuoteStickerTransparent (SECTION_QUOTES)
             0x13a15173, // PengramQuoteAccent (SECTION_QUOTES)
             0x33b2d44f, // PengramQuoteDark (SECTION_QUOTES)
+            0x1dea120d, // PengramQuoteBubbleTail (SECTION_QUOTES)
+            0x159428db, // PengramQuoteAlignOutgoing (SECTION_QUOTES)
             0x3d197b7d, // PengramQuoteScale (SECTION_QUOTES)
             0x1ce195e4, // PengramQuotePadding (SECTION_QUOTES)
             0x382c3673, // PengramQuoteRadius (SECTION_QUOTES)

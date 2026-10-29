@@ -45,9 +45,9 @@ public class PengramConfig {
     // где и чем показывать дату регистрации
     public static final int REG_PLACE_ROW = 0;       // отдельная строка в профиле
     public static final int REG_PLACE_ICON = 1;      // только значок рядом с ID
-    public static final int REG_PLACE_BOTH = 2;      // строка + значок
+    public static final int REG_PLACE_BOTH = 2;      // устаревший режим: приводится к REG_PLACE_ROW
     public static final int REG_PLACE_SUBTITLE = 3;  // в подписи под именем
-    public static int regDatePlace = REG_PLACE_BOTH;
+    public static int regDatePlace = REG_PLACE_ROW;
 
     // значок даты регистрации
     public static final int REG_ICON_CALENDAR = 0;
@@ -1601,7 +1601,10 @@ public class PengramConfig {
             idFormat = p.getInt("idFormat", ID_FORMAT_TELEGRAM);
             copyIdOnTap = p.getBoolean("copyIdOnTap", true);
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
-            regDatePlace = p.getInt("regDatePlace", REG_PLACE_BOTH);
+            regDatePlace = p.getInt("regDatePlace", REG_PLACE_ROW);
+            if (regDatePlace == REG_PLACE_BOTH) {
+                regDatePlace = REG_PLACE_ROW;
+            }
             regDateIcon = p.getInt("regDateIcon", REG_ICON_CALENDAR);
             titleMode = p.getInt("titleMode", TITLE_MODE_PENGRAM);
             titleCustom = p.getString("titleCustom", "");
@@ -1944,24 +1947,31 @@ public class PengramConfig {
         return getRegDateStyle() != REG_STYLE_OFF;
     }
 
-    public static int getRegDatePlace() { init(); return regDatePlace; }
-    public static void setRegDatePlace(int place) { init(); regDatePlace = place; putInt("regDatePlace", place); }
+    public static int getRegDatePlace() {
+        init();
+        return regDatePlace == REG_PLACE_BOTH ? REG_PLACE_ROW : regDatePlace;
+    }
+    public static void setRegDatePlace(int place) {
+        init();
+        final int normalized = place == REG_PLACE_BOTH ? REG_PLACE_ROW : place;
+        regDatePlace = normalized;
+        putInt("regDatePlace", normalized);
+    }
     /** нужна ли отдельная строка «дата регистрации» в профиле */
     public static boolean isRegDateRowVisible() {
         if (!isRegDateVisible()) return false;
         final int place = getRegDatePlace();
         if (place == REG_PLACE_SUBTITLE) return false;
-        if (place == REG_PLACE_ROW || place == REG_PLACE_BOTH) return true;
+        if (place == REG_PLACE_ROW) return true;
         // режим «только значок»: без отдельной строки ID значок вешать некуда,
         // поэтому дату показываем строкой
         return !isIdSeparateRow();
     }
-    /** нужен ли значок рядом со строкой ID */
+    /** нужен ли значок рядом со строкой ID (никогда не дублируется, если включена отдельная строка под дату) */
     public static boolean isRegDateIconVisible() {
-        if (!isRegDateVisible()) return false;
+        if (!isRegDateVisible() || isRegDateRowVisible()) return false;
         if (getRegDateIcon() == REG_ICON_NONE) return false;
-        final int place = getRegDatePlace();
-        return place == REG_PLACE_ICON || place == REG_PLACE_BOTH;
+        return getRegDatePlace() == REG_PLACE_ICON && isIdSeparateRow();
     }
     /** дописывать ли дату регистрации в подпись под именем */
     public static boolean isRegDateInSubtitle() {
@@ -3791,11 +3801,13 @@ public class PengramConfig {
             "profileHistoryEnabled", "profileHistoryLimitDays", "profileHistoryLimitMb",
             "profileHistoryScope", "profileHistoryStorage",
             "quickActionCount", "quickTiles",
-            "quoteAccentStyle", "quoteActionMode", "quoteAnonMentions",
-            "quoteAvatarGap", "quoteAvatarRounded", "quoteAvatarSize",
-            "quoteBackground", "quoteBackgroundColor", "quoteDarkCard", "quoteFakeName",
-            "quoteFollowChatTheme", "quoteIncludeMedia", "quoteJpegQuality", "quoteLogoSize",
-            "quotePadding", "quoteRadius", "quoteScale", "quoteShowAvatar", "quoteShowName",
+            "quoteAccentStyle", "quoteActionMode", "quoteAlignOutgoing", "quoteAnonMentions",
+            "quoteAvatarGap", "quoteAvatarLayout", "quoteAvatarRounded", "quoteAvatarSize",
+            "quoteBackground", "quoteBackgroundColor", "quoteBubbleTail", "quoteDarkCard",
+            "quoteDateInTime", "quoteFakeName", "quoteFollowChatTheme", "quoteIncludeMedia",
+            "quoteJpegQuality", "quoteLogoSize", "quotePadding", "quotePeerNameColor",
+            "quoteRadius", "quoteScale", "quoteShowAvatar", "quoteShowBadges",
+            "quoteShowForward", "quoteShowName", "quoteShowReactions", "quoteShowReply",
             "quoteShowTime", "quoteStickerTransparent", "quoteUseJpeg",
             "quoteWatermarkEnabled", "quoteWatermarkOpacity", "quoteWatermarkPosition", "quoteWatermarkText",
             "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",

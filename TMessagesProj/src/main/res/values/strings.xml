@@ -12295,10 +12295,17 @@
     <string name="PengramTypingSection">Typing and sending text</string>
     <string-array name="pengram_quote_styles">
         <item>Match chat theme</item>
-        <item>Blue</item>
-        <item>Green</item>
+        <item>Telegram Blue</item>
+        <item>Emerald</item>
         <item>Rose</item>
         <item>Amber</item>
+        <item>Premium Violet</item>
+        <item>Midnight</item>
+        <item>Graphite</item>
+    </string-array>
+    <string-array name="pengram_quote_avatar_layouts">
+        <item>Beside bubble (Telegram style)</item>
+        <item>Inside bubble header</item>
     </string-array>
     <string name="PengramQuoteSticker">Sticker</string>
     <string name="PengramQuotePrivacyHeader">Sender and content</string>
@@ -12326,7 +12333,29 @@
         <item>Current chat wallpaper</item>
         <item>Transparent PNG</item>
         <item>Custom color</item>
+        <item>Telegram Night gradient</item>
+        <item>Telegram Day gradient</item>
+        <item>Aurora</item>
+        <item>Warm sunset</item>
+        <item>Pure black AMOLED</item>
     </string-array>
+    <string name="PengramQuoteTapSticker">Send immediately as sticker</string>
+    <string name="PengramQuoteCopied">Quote copied to clipboard</string>
+    <string name="PengramQuoteAvatarLayout">Avatar placement</string>
+    <string name="PengramQuoteBubbleTail">Telegram bubble tail</string>
+    <string name="PengramQuoteBubbleTailInfo">Curved Telegram appendix on the last message of a sender group and grouped inner corners.</string>
+    <string name="PengramQuotePeerNameColor">Authentic Telegram peer name colors</string>
+    <string name="PengramQuotePeerNameColorInfo">Colors sender names and reply bars using each user’s real Telegram profile accent.</string>
+    <string name="PengramQuoteShowReply">Show reply header</string>
+    <string name="PengramQuoteShowForward">Show “Forwarded from…”</string>
+    <string name="PengramQuoteShowBadges">Verified and Scam/Fake badges</string>
+    <string name="PengramQuoteShowReactions">Show message reactions</string>
+    <string name="PengramQuoteAlignOutgoing">Align outgoing messages to right</string>
+    <string name="PengramQuoteAlignOutgoingInfo">Places your own messages on the right with outgoing bubble tint and read checkmarks.</string>
+    <string name="PengramQuoteDateInTime">Include date in message time</string>
+    <string name="PengramQuoteStudioPresets">Palette and background</string>
+    <string name="PengramQuoteStudioGeometry">Corners and margins</string>
+    <string name="PengramQuoteOpenSettings">All quote settings</string>
     <string-array name="pengram_quote_positions">
         <item>Bottom right</item>
         <item>Bottom left</item>
