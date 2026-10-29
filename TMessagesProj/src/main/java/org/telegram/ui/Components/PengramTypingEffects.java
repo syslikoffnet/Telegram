@@ -55,7 +55,7 @@ public final class PengramTypingEffects {
     private static final int PASTE_THRESHOLD = 12;
 
     /** максимум стёртых символов, которые рассыпаем за один раз */
-    private static final int MAX_DELETE_CHARS = 24;
+    private static final int MAX_DELETE_CHARS = 64;
     /** частицы полураспадаются за это время */
     private static final int PARTICLE_LIFE = 620;
 
@@ -83,18 +83,19 @@ public final class PengramTypingEffects {
         // A pending 500 ms blink timer must not delay the caret after an IME edit,
         // including auto-correction and backspace (which may not add glyphs).
         if (previous != null) previous.onTextChanged();
-        if (previous != null && (mode == PengramConfig.INPUT_ANIM_NONE || before > 0
-                || count > PASTE_THRESHOLD || previous.overlapsInsertion(start))) {
+        final int netAdded = count - before;
+        if (previous != null && (mode == PengramConfig.INPUT_ANIM_NONE || before > count
+                || netAdded > PASTE_THRESHOLD || previous.overlapsInsertion(start + Math.min(before, count)))) {
             previous.clearGlyphs();
         }
-        // удаление: символов больше не стало — разлетаются частицы из снапшота
+        // удаление: символов стало меньше — разлетаются частицы реально удалённого хвоста/выделения
         if (before > count && deleteAnimations) {
             State s = states.get(edit);
             if (s == null) {
                 s = new State(edit);
                 states.put(edit, s);
             }
-            s.spawnFromSnapshot(start, before);
+            s.spawnFromSnapshot(start, before, count, text);
             s.noteCursorEvent(CURSOR_EVENT_PULSE);
             if (mode == PengramConfig.INPUT_ANIM_NONE || count <= 0 || start < 0 || start >= text.length()) {
                 return;
@@ -104,7 +105,8 @@ public final class PengramTypingEffects {
             return;
         }
         final int end = Math.min(text.length(), start + count);
-        if (end - start > PASTE_THRESHOLD) {
+        final int added = Math.max(1, count - before);
+        if (added > PASTE_THRESHOLD) {
             final State existing = states.get(edit);
             if (existing != null) {
                 existing.clearAll();
@@ -116,7 +118,6 @@ public final class PengramTypingEffects {
         // Анимировать надо только реально добавленные символы в конце — иначе
         // уже стоящие на месте буквы каждый раз проигрывают анимацию заново,
         // и это читается как мигание всего слова.
-        final int added = Math.max(1, count - before);
         int animStart = end;
         for (int i = 0; i < added && animStart > start; ++i) {
             animStart = android.text.TextUtils.getOffsetBefore(text, animStart);
@@ -202,6 +203,27 @@ public final class PengramTypingEffects {
                 && edit.isShown();
     }
 
+    /**
+     * Вызывается из {@code onDraw} поля ввода ДО {@code super.onDraw(canvas)}.
+     * Подхватывает свежую разметку {@link Layout} и временно маскирует прямоугольники
+     * активных летящих букв через {@code clipOutRect}, чтобы стандартная отрисовка
+     * {@code TextView} не печатала поверх них неподвижную 100%-плотную копию символа
+     * и при этом мы никогда не меняли {@link Editable} спанами.
+     *
+     * @return {@code saveCount >= 0}, который нужно передать в {@code canvas.restoreToCount},
+     *         либо {@code -1}, если маскирование на этом кадре не требовалось.
+     */
+    public static int preDraw(EditText edit, Canvas canvas) {
+        if (edit == null || canvas == null) {
+            return -1;
+        }
+        final State state = states.get(edit);
+        if (state == null) {
+            return -1;
+        }
+        return state.preDraw(canvas);
+    }
+
     /** вызывается из onDraw поля ввода сразу после super.onDraw */
     public static void drawOverlay(EditText edit, Canvas canvas) {
         State state = states.get(edit);
@@ -254,6 +276,7 @@ public final class PengramTypingEffects {
 
         /** отложенная пачка символов из последнего изменения текста */
         int pendingStart = -1, pendingEnd = -1, pendingMode;
+        long pendingQueuedAt;
         String pendingText;
         boolean pendingPosted;
 
@@ -292,13 +315,17 @@ public final class PengramTypingEffects {
             pendingStart = start;
             pendingEnd = end;
             pendingMode = mode;
+            pendingQueuedAt = SystemClock.uptimeMillis();
             final EditText edit = ref.get();
             final Editable value = edit == null ? null : edit.getText();
             pendingText = value != null && start >= 0 && end <= value.length()
                     ? value.subSequence(start, end).toString() : null;
-            if (edit != null && !pendingPosted) {
-                pendingPosted = true;
-                edit.post(applyRunnable);
+            if (edit != null) {
+                if (!pendingPosted) {
+                    pendingPosted = true;
+                    edit.post(applyRunnable);
+                }
+                edit.invalidate();
             }
         }
 
@@ -337,25 +364,37 @@ public final class PengramTypingEffects {
             pendingPosted = false;
             final int start = pendingStart, end = pendingEnd, mode = pendingMode;
             final String expected = pendingText;
-            pendingStart = pendingEnd = -1;
-            pendingText = null;
+            if (start < 0) {
+                return;
+            }
             final EditText edit = ref.get();
-            if (edit == null || start < 0 || mode != PengramConfig.getInputAnimation()
-                    || mode == PengramConfig.INPUT_ANIM_NONE) {
+            final long now = SystemClock.uptimeMillis();
+            if (edit == null || mode != PengramConfig.getInputAnimation()
+                    || mode == PengramConfig.INPUT_ANIM_NONE || now - pendingQueuedAt > 260) {
+                pendingStart = pendingEnd = -1;
+                pendingText = null;
                 return;
             }
             final Editable text = edit.getText();
             if (text == null || end > text.length() || !edit.isAttachedToWindow()
                     || expected == null || !android.text.TextUtils.equals(expected, text.subSequence(start, end))) {
+                pendingStart = pendingEnd = -1;
+                pendingText = null;
                 return;
             }
-            final long now = SystemClock.uptimeMillis();
-            final long duration = new long[]{150, 210, 280}[
+            final Layout layout = edit.getLayout();
+            // IME обновляет Editable раньше, чем TextView успевает пересобрать Layout в onMeasure/assumeLayout.
+            // НЕ сбрасываем pendingStart раньше времени — подхватим в preDraw/draw сразу после готовности Layout!
+            if (layout == null || layout.getText() == null || layout.getText().length() != text.length()) {
+                edit.postInvalidateOnAnimation();
+                return;
+            }
+            pendingStart = pendingEnd = -1;
+            pendingText = null;
+            final long duration = new long[]{185, 250, 330}[
                     Math.max(0, Math.min(2, PengramConfig.getInputAnimationSpeed()))];
-            final float intensity = Math.max(.6f, PengramConfig.getInputAnimationIntensity() * .45f);
-
-            // Даже если IME переписала слово, предыдущая правка уже сняла
-            // устаревшие эффекты. Оригинальный текст мы никогда не прячем.
+            final float intensity = new float[]{0.75f, 1.08f, 1.42f}[
+                    Math.max(0, Math.min(2, PengramConfig.getInputAnimationIntensity() - 1))];
 
             // берём ровно хвост изменения: последние MAX_PER_BATCH символов
             int from = end;
@@ -367,12 +406,6 @@ public final class PengramTypingEffects {
             }
             bounds[count] = Math.max(start, from);
 
-            final Layout layout = edit.getLayout();
-            // IME can update Editable before TextView has rebuilt its layout.
-            // Skip only this overlay frame; the underlying text remains intact.
-            if (layout == null || layout.getText() == null || layout.getText().length() != text.length()) {
-                return;
-            }
             final int lastLine = layout.getLineCount() - 1;
             final boolean allLines = PengramConfig.isTypingAnimateAllLines();
             final boolean ignoreSpaces = PengramConfig.isTypingIgnoreSpaces();
@@ -390,16 +423,14 @@ public final class PengramTypingEffects {
                 if (ignoreSpaces && text.charAt(offset) == ' ') {
                     continue;
                 }
-                if (!allLines && layout != null && lastLine >= 0) {
-                    // без настройки «каждая строка» анимируем только хвост последней —
-                    // перенесённый наверх кусок не должен мигать повторно
+                if (!allLines && lastLine >= 0) {
                     final int line;
                     try {
                         line = layout.getLineForOffset(offset);
                     } catch (Exception e) {
                         continue;
                     }
-                    if (line != lastLine && line != layout.getLineForOffset(end)) {
+                    if (line != lastLine && line != layout.getLineForOffset(Math.min(end, text.length()))) {
                         continue;
                     }
                 }
@@ -410,7 +441,7 @@ public final class PengramTypingEffects {
                     continue;
                 }
                 glyphs.add(new Glyph(offset, next, text.subSequence(offset, next).toString(),
-                        mode, intensity, now + Math.min(30, index * 14L), duration));
+                        mode, intensity, now + Math.min(32, index * 16L), duration));
             }
             while (glyphs.size() > MAX_ACTIVE) {
                 finish(glyphs.get(0));
@@ -463,7 +494,7 @@ public final class PengramTypingEffects {
          * Из снапшота строим частицы. Сбрасываем его в любом случае:
          * висячий снапшот от старого удаления не должен сработать позднее.
          */
-        void spawnFromSnapshot(int start, int before) {
+        void spawnFromSnapshot(int start, int before, int count, CharSequence afterText) {
             final char[] chars = removedChars;
             final float[] xs = removedX, baselines = removedBaseline;
             final int n = removedCount;
@@ -473,14 +504,31 @@ public final class PengramTypingEffects {
             if (!match || chars == null) {
                 return;
             }
+            int commonPrefix = 0;
+            int commonSuffix = 0;
+            if (count > 0 && afterText != null && start >= 0 && start + count <= afterText.length()) {
+                final int maxCommon = Math.min(n, count);
+                while (commonPrefix < maxCommon && chars[commonPrefix] == afterText.charAt(start + commonPrefix)) {
+                    commonPrefix++;
+                }
+                while (commonSuffix < maxCommon - commonPrefix
+                        && chars[n - 1 - commonSuffix] == afterText.charAt(start + count - 1 - commonSuffix)) {
+                    commonSuffix++;
+                }
+            }
+            final int delStart = commonPrefix;
+            final int delEnd = Math.max(delStart, n - commonSuffix);
+            if (delEnd <= delStart) {
+                return;
+            }
             final int style = PengramConfig.getTypingDeleteStyle();
             final int perChar = Math.max(1, PengramConfig.getTypingDeleteCount());
             final float speed = PengramConfig.getTypingDeleteSpeed() / 50f;
             final float spread = PengramConfig.getTypingDeleteSpread() / 50f;
             final float size = PengramConfig.getTypingDeleteSize() / 50f;
             final long now = SystemClock.uptimeMillis();
-            final int total = Math.min(n, 12);
-            for (int i = 0; i < total && particles.size() < 160; i++) {
+            final int endIdx = Math.min(delEnd, delStart + 12);
+            for (int i = delStart; i < endIdx && particles.size() < 160; i++) {
                 final int pieces = style == PengramConfig.DELETE_PARTICLE_LETTERS ? 1 : perChar;
                 for (int p = 0; p < pieces && particles.size() < 160; p++) {
                     final Particle particle = new Particle();
@@ -796,10 +844,96 @@ public final class PengramTypingEffects {
 
         // ---------------------------------------------------------- отрисовка
 
+        int preDraw(Canvas canvas) {
+            if (pendingStart >= 0) {
+                applyPending();
+            }
+            if (glyphs.isEmpty() || PengramConfig.getInputAnimation() == PengramConfig.INPUT_ANIM_NONE) {
+                return -1;
+            }
+            final EditText edit = ref.get();
+            if (edit == null) {
+                return -1;
+            }
+            final Editable text = edit.getText();
+            final Layout layout = edit.getLayout();
+            if (text == null || layout == null || layout.getText() == null || layout.getText().length() != text.length()) {
+                return -1;
+            }
+            final long nowMs = SystemClock.uptimeMillis();
+            final int paddingLeft = edit.getCompoundPaddingLeft();
+            final int paddingTop = edit.getExtendedPaddingTop() + verticalOffset(edit, layout);
+            final boolean customCaret = wantsCustomCursor(edit);
+            int saveCount = -1;
+            for (int a = glyphs.size() - 1; a >= 0; --a) {
+                final Glyph glyph = glyphs.get(a);
+                if (nowMs >= glyph.endTime()) {
+                    finish(glyph);
+                    continue;
+                }
+                final int from = glyph.from;
+                final int to = glyph.to;
+                if (from < 0 || to <= from || to > text.length()
+                        || !android.text.TextUtils.equals(glyph.expected, text.subSequence(from, to))) {
+                    finish(glyph);
+                    continue;
+                }
+                final int line;
+                try {
+                    line = layout.getLineForOffset(from);
+                } catch (Exception e) {
+                    finish(glyph);
+                    continue;
+                }
+                paint.set(edit.getPaint());
+                try {
+                    for (CharacterStyle style : text.getSpans(from, to, CharacterStyle.class)) {
+                        style.updateDrawState(paint);
+                    }
+                } catch (Exception ignore) {
+                }
+                if (paint.getAlpha() == 0) {
+                    continue;
+                }
+                final float width = paint.measureText(text, from, to);
+                if (width <= 0.2f) {
+                    continue;
+                }
+                final float x = layout.getPrimaryHorizontal(from) + paddingLeft;
+                final float top = layout.getLineTop(line) + paddingTop;
+                final float bottom = layout.getLineBottom(line) + paddingTop;
+                final boolean rtl;
+                boolean isRtl = false;
+                try {
+                    isRtl = layout.isRtlCharAt(from);
+                } catch (Exception ignore) {
+                }
+                rtl = isRtl;
+                final float padTrail = customCaret ? dp(1.2f) : -dp(0.4f);
+                final float left = rtl ? (x - width - padTrail) : (x - 0.5f);
+                final float right = rtl ? (x + 0.5f) : (x + Math.max(1f, width + padTrail));
+                if (right <= left) {
+                    continue;
+                }
+                if (saveCount < 0) {
+                    saveCount = canvas.save();
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    canvas.clipOutRect(left, top, right, bottom);
+                } else {
+                    canvas.clipRect(left, top, right, bottom, android.graphics.Region.Op.DIFFERENCE);
+                }
+            }
+            return saveCount;
+        }
+
         void draw(Canvas canvas) {
             final EditText edit = ref.get();
             if (edit == null) {
                 return;
+            }
+            if (pendingStart >= 0) {
+                applyPending();
             }
             final Editable text = edit.getText();
             final Layout layout = edit.getLayout();
@@ -809,7 +943,7 @@ public final class PengramTypingEffects {
             // Если кадровый колбэк не дошёл, устаревший след снимаем на отрисовке.
             final long nowMs = SystemClock.uptimeMillis();
             for (int a = glyphs.size() - 1; a >= 0; --a) {
-                if (glyphs.get(a).endTime() + 500 < nowMs) {
+                if (glyphs.get(a).endTime() <= nowMs) {
                     finish(glyphs.get(a));
                 }
             }
@@ -904,43 +1038,75 @@ public final class PengramTypingEffects {
                 final float baseline = layout.getLineBaseline(line) + paddingTop;
                 final float width = paint.measureText(text, from, to);
 
+                final float rawT = glyph.rawTime();
+                if (rawT <= 0f) {
+                    // Символ ждёт своей микрозадержки каскада (0..32 мс) — пока остаётся полностью скрыт
+                    continue;
+                }
                 final float p = glyph.progress();
-                // The real glyph has already been rendered by EditText. The
-                // animated overlay fades OUT, never replacing native text.
-                float alpha = (1f - p) * (1f - p) * .72f;
-                float scale = 1f, dx = 0, dy = 0, rotation = 0;
+                final float inv = 1f - p;
+                final float rawInv = 1f - rawT;
+                final float k = glyph.intensity;
+                // Реальный глиф проявляется от 0 до 100 % плотности и ровно в p=1 сшивается со штатным TextView
+                float alpha = Math.min(1f, rawT * 2.35f);
+                float scaleX = 1f, scaleY = 1f, dx = 0f, dy = 0f, rotation = 0f;
                 switch (glyph.mode) {
-                    case PengramConfig.INPUT_ANIM_POP:
-                        scale = 1f + .36f * (1f - p) * glyph.intensity;
+                    case PengramConfig.INPUT_ANIM_FADE:
+                        alpha = 1f - rawInv * rawInv;
+                        dy = inv * dp(4.5f) * k;
                         break;
-                    case PengramConfig.INPUT_ANIM_SLIDE:
-                        dx = (1f - p) * dp(7f) * glyph.intensity * (LocaleController.isRTL ? -1 : 1);
+                    case PengramConfig.INPUT_ANIM_POP: {
+                        // Пружина с перелётом: вырастает с ~0.35 до ~1.18 и мягко садится в 1.0
+                        final float wave = (float) (Math.exp(-5.0f * rawT) * Math.cos(9.2f * rawT));
+                        final float s = 1f - wave * 0.66f * Math.min(1.25f, k) * rawInv;
+                        scaleX = scaleY = Math.max(0.22f, s);
+                        dy = -(float) Math.sin(rawT * Math.PI) * rawInv * dp(3.0f) * k;
                         break;
-                    case PengramConfig.INPUT_ANIM_RISE:
-                        dy = (1f - p) * dp(8f) * glyph.intensity;
+                    }
+                    case PengramConfig.INPUT_ANIM_SLIDE: {
+                        final int dir = LocaleController.isRTL ? -1 : 1;
+                        dx = inv * dp(11f) * k * dir;
+                        scaleX = 1f + 0.20f * inv * k;
+                        scaleY = Math.max(0.78f, 1f - 0.08f * inv * k);
                         break;
-                    case PengramConfig.INPUT_ANIM_BOUNCE:
-                        scale = 1f + (float) Math.sin(p * Math.PI) * .32f * glyph.intensity;
+                    }
+                    case PengramConfig.INPUT_ANIM_RISE: {
+                        // Всплытие снизу с лёгким перелётом вверх над базовой линией
+                        final float overshoot = 1f + 2.1f * (p - 1f) * (p - 1f) * (p - 1f) + 1.1f * (p - 1f) * (p - 1f);
+                        dy = (1f - overshoot) * dp(11.5f) * k;
+                        scaleX = scaleY = 0.72f + 0.28f * p;
                         break;
-                    case PengramConfig.INPUT_ANIM_SHAKE:
-                        rotation = (float) Math.sin(p * Math.PI * 3f) * (1f - p) * (1f - p) * 12f * glyph.intensity;
+                    }
+                    case PengramConfig.INPUT_ANIM_BOUNCE: {
+                        // Упругая капля (squash & stretch с сохранением площади)
+                        dy = -(float) Math.abs(Math.sin(rawT * Math.PI * 1.5f)) * rawInv * dp(10.5f) * k;
+                        scaleY = Math.max(0.70f, 1f + (float) Math.sin(rawT * Math.PI * 2.0f) * rawInv * 0.34f * k);
+                        scaleX = 1f / scaleY;
                         break;
+                    }
+                    case PengramConfig.INPUT_ANIM_SHAKE: {
+                        rotation = (float) Math.sin(rawT * Math.PI * 2.5f) * rawInv * 19f * k;
+                        scaleX = scaleY = 0.68f + 0.32f * p + (float) Math.sin(rawT * Math.PI) * rawInv * 0.14f * k;
+                        break;
+                    }
                 }
 
+                final int baseColor = paint.getColor();
                 final int save = canvas.save();
                 try {
                     canvas.translate(dx, dy);
-                    if (rotation != 0) {
-                        canvas.rotate(rotation, x + width * .5f, baseline);
+                    final float pivotY = baseline - paint.getTextSize() * 0.32f;
+                    if (rotation != 0f) {
+                        canvas.rotate(rotation, x + width * .5f, pivotY);
                     }
-                    if (ScaleIsOff(scale)) {
-                        canvas.scale(scale, scale, x + width * .5f, baseline);
+                    if (ScaleIsOff(scaleX) || ScaleIsOff(scaleY)) {
+                        canvas.scale(scaleX, scaleY, x + width * .5f, baseline);
                     }
                     MaskFilter previousBlur = null;
-                    if (blurOn && p < 1f) {
-                        // символ проступает из расфокуса: сила размытия угасает
-                        // по мере проявления, резкость доезжает на последних 20%
-                        final float radius = blurMax * (1f - p) * .8f;
+                    if (blurOn && rawT < 0.72f) {
+                        // Быстрый оптический расфокус без просадки FPS (кеш по целым радиусам <= 8px)
+                        final float cappedMax = Math.min(8f, blurMax * 0.6f);
+                        final float radius = cappedMax * (1f - rawT / 0.72f);
                         if (radius > .6f) {
                             final int bucket = Math.max(1, Math.round(radius));
                             MaskFilter filter = blurCache.get(bucket);
@@ -952,8 +1118,9 @@ public final class PengramTypingEffects {
                             previousBlur = filter;
                         }
                     }
-                    if (glyph.mode == PengramConfig.INPUT_ANIM_FADE) {
-                        paint.setColor(Theme.getColor(Theme.key_chat_messagePanelCursor));
+                    if (glyph.mode == PengramConfig.INPUT_ANIM_FADE && p < 0.92f) {
+                        final int accent = Theme.getColor(Theme.key_chat_messagePanelCursor);
+                        paint.setColor(org.telegram.messenger.AndroidUtilities.getOffsetColor(accent, baseColor, p / 0.92f, 1f));
                     }
                     paint.setAlpha(Math.max(0, Math.min(255, Math.round(baseAlpha * alpha))));
                     canvas.drawText(text, from, to, x, baseline, paint);
@@ -966,6 +1133,7 @@ public final class PengramTypingEffects {
                     } catch (Exception ignored) {
                     }
                 } finally {
+                    paint.setColor(baseColor);
                     paint.setAlpha(baseAlpha);
                     canvas.restoreToCount(save);
                 }
@@ -1247,13 +1415,16 @@ public final class PengramTypingEffects {
             return start + duration;
         }
 
-        float progress() {
+        float rawTime() {
             final long now = SystemClock.uptimeMillis();
             if (now <= start) {
                 return 0f;
             }
-            float t = (now - start) / (float) duration;
-            t = Math.max(0f, Math.min(1f, t));
+            return Math.max(0f, Math.min(1f, (now - start) / (float) duration));
+        }
+
+        float progress() {
+            final float t = rawTime();
             return 1f - (1f - t) * (1f - t) * (1f - t);
         }
     }

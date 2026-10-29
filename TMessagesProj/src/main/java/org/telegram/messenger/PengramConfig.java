@@ -268,6 +268,7 @@ public class PengramConfig {
 
     // --- анимация набора текста (лёгкие transform-анимации без перерисовки glyph-ов) ---
     public static final String KEY_INPUT_ANIMATION = "inputAnimation";
+    public static final String KEY_INPUT_ANIMATION_SAVED = "inputAnimationSaved";
     public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
     public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
     public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
@@ -957,6 +958,9 @@ public class PengramConfig {
     public static final String KEY_INLINE_WEB_SEARCH = "inlineWebSearchEnabled";
     public static final String KEY_INLINE_WEB_SEARCH_PREFIX = "inlineWebSearchPrefix";
     public static final String KEY_INLINE_WEB_SEARCH_ENGINE = "inlineWebSearchEngine";
+    public static final String KEY_WEB_SEARCH_HISTORY_ENABLED = "webSearchHistoryEnabled";
+    private static final String KEY_WEB_SEARCH_RECENT = "lastWebSearchQueries";
+    public static final int WEB_SEARCH_RECENT_MAX = 12;
 
     public static final int WEB_ENGINE_GOOGLE = 0;
     public static final int WEB_ENGINE_YANDEX = 1;
@@ -1041,6 +1045,88 @@ public class PengramConfig {
             case WEB_ENGINE_GOOGLE:
             default: return "Google";
         }
+    }
+
+    public static boolean isWebSearchHistoryEnabled() {
+        return getBool(KEY_WEB_SEARCH_HISTORY_ENABLED, true);
+    }
+
+    public static void setWebSearchHistoryEnabled(boolean enabled) {
+        setBool(KEY_WEB_SEARCH_HISTORY_ENABLED, enabled);
+        if (!enabled) {
+            clearRecentWebQueries();
+        }
+    }
+
+    public static java.util.ArrayList<String> getRecentWebQueries() {
+        final java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        if (!isWebSearchHistoryEnabled()) {
+            return out;
+        }
+        final String raw = visualString(KEY_WEB_SEARCH_RECENT);
+        if (raw == null || raw.isEmpty()) {
+            return out;
+        }
+        for (String line : raw.split("\n")) {
+            final String q = line == null ? "" : line.trim();
+            if (!q.isEmpty() && !out.contains(q) && out.size() < WEB_SEARCH_RECENT_MAX) {
+                out.add(q);
+            }
+        }
+        return out;
+    }
+
+    public static void rememberWebQuery(String query) {
+        if (!isWebSearchHistoryEnabled() || query == null) {
+            return;
+        }
+        final String clean = query.replace('\n', ' ').replace('\r', ' ').trim();
+        if (clean.length() < 2 || clean.length() > 140) {
+            return;
+        }
+        final java.util.ArrayList<String> list = getRecentWebQueries();
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).equalsIgnoreCase(clean)) {
+                list.remove(i);
+            }
+        }
+        list.add(0, clean);
+        while (list.size() > WEB_SEARCH_RECENT_MAX) {
+            list.remove(list.size() - 1);
+        }
+        saveRecentWebQueries(list);
+    }
+
+    public static void removeRecentWebQuery(String query) {
+        if (query == null) {
+            return;
+        }
+        final java.util.ArrayList<String> list = getRecentWebQueries();
+        boolean changed = false;
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).equalsIgnoreCase(query.trim())) {
+                list.remove(i);
+                changed = true;
+            }
+        }
+        if (changed) {
+            saveRecentWebQueries(list);
+        }
+    }
+
+    public static void clearRecentWebQueries() {
+        putString(KEY_WEB_SEARCH_RECENT, "");
+    }
+
+    private static void saveRecentWebQueries(java.util.List<String> list) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            final String s = list.get(i);
+            if (s == null || s.isEmpty()) continue;
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(s);
+        }
+        putString(KEY_WEB_SEARCH_RECENT, sb.toString());
     }
 
     // ------------------------------------------------------------ тексты песен
@@ -1583,6 +1669,24 @@ public class PengramConfig {
                 }
                 p.edit().putBoolean("migrIslandBottom", true).apply();
             }
+            // В beta 10 анимации ввода и цилиндр-прокрутка по базе строго выключены,
+            // но при первом включении сразу запускают самый сочный пресет.
+            if (!p.getBoolean("migrBeta10TypingCylinderOff", false)) {
+                final SharedPreferences.Editor ed = p.edit();
+                ed.putBoolean(KEY_CYLINDER_SCROLL, false);
+                boolCache.put(KEY_CYLINDER_SCROLL, Boolean.FALSE);
+                final int prevAnim = p.getInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                if (prevAnim > INPUT_ANIM_NONE && prevAnim != INPUT_ANIM_FADE) {
+                    ed.putInt(KEY_INPUT_ANIMATION_SAVED, prevAnim);
+                    intCache.put(KEY_INPUT_ANIMATION_SAVED, prevAnim);
+                }
+                ed.putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                intCache.put(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                ed.putBoolean(KEY_TYPING_CURSOR, false);
+                boolCache.put(KEY_TYPING_CURSOR, Boolean.FALSE);
+                ed.putBoolean("migrBeta10TypingCylinderOff", true);
+                ed.apply();
+            }
             loaded = true;
         }
     }
@@ -1989,11 +2093,28 @@ public class PengramConfig {
         org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
     }
 
-    /** Прокрутка-цилиндр в чате: сообщения огибают невидимый валик. */
+    /** Прокрутка-цилиндр в чате: по умолчанию выключена, но при включении сразу ставит самый сочный пресет. */
     public static final String KEY_CYLINDER_SCROLL = "chatCylinderScroll";
-    /** по умолчанию включён и сразу «сочный» — см. KEY_CYLINDER_STRENGTH */
-    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }
-    public static void setCylinderScroll(boolean value) { setBool(KEY_CYLINDER_SCROLL, value); }
+    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }
+    public static void setCylinderScroll(boolean value) {
+        init();
+        final SharedPreferences p = prefs();
+        if (value && p != null) {
+            if (!p.contains(KEY_CYLINDER_STRENGTH)) {
+                setCylinderScrollStrength(100);
+            }
+            if (!p.contains(KEY_CYLINDER_TO_BARS)) {
+                setCylinderScrollToBars(true);
+            }
+        }
+        setBool(KEY_CYLINDER_SCROLL, value);
+    }
+
+    public static void applyJuicyCylinderPreset() {
+        setCylinderScrollStrength(100);
+        setCylinderScrollToBars(true);
+        setBool(KEY_CYLINDER_SCROLL, true);
+    }
 
     /** сила цилиндра, %: 100 — самый сочный (валик уже, изгиб заметнее) */
     public static final String KEY_CYLINDER_STRENGTH = "cylinderScrollStrength";
@@ -3335,31 +3456,111 @@ public class PengramConfig {
     public static boolean isMusicForwardClean() { return getBool(KEY_MUSIC_FORWARD_CLEAN, true); }
     public static boolean isMusicSmartArtist() { return getBool(KEY_MUSIC_SMART_ARTIST, true); }
     public static boolean isPlayerSwipe() { return getBool(KEY_PLAYER_SWIPE, true); }
-    public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
-    public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
+    public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE))); }
+    public static void setInputAnimation(int value) {
+        final int clamped = Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value));
+        final int prev = getInputAnimation();
+        if (clamped != INPUT_ANIM_NONE) {
+            putInt(KEY_INPUT_ANIMATION_SAVED, clamped);
+            if (prev == INPUT_ANIM_NONE) {
+                ensureJuicyTypingSubDefaults();
+            }
+        }
+        putInt(KEY_INPUT_ANIMATION, clamped);
+    }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
     public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
-    public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
+    public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 3))); }
     public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
 
-    // ------------------------------------------------- анимация ввода: детали
+    // ------------------------------------------------- анимация ввода: детали (по базе выкл, при включении — сразу сочный пресет)
     public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }
-    public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 10))); }
+    public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 6))); }
     public static boolean isTypingDeleteAnim() { return getBool(KEY_TYPING_DELETE, true); }
-    public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_DUST))); }
-    public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 5))); }
-    public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 50))); }
-    public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 50))); }
-    public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 50))); }
-    public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, true); }
-    public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 25))); }
+    public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS))); }
+    public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 7))); }
+    public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 68))); }
+    public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 65))); }
+    public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 62))); }
+    public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, false); }
+    public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 32))); }
     public static int getTypingCursorWidth() { return Math.max(1, Math.min(12, getIntCached(KEY_TYPING_CURSOR_WIDTH, 2))); }
-    public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, false); }
-    public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 15))); }
-    public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, false); }
+    public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, true); }
+    public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 22))); }
+    public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, true); }
     public static boolean isTypingIgnoreSpaces() { return getBool(KEY_TYPING_IGNORE_SPACES, true); }
-    public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, false); }
+    public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, true); }
     public static boolean isInputAnimationHaptic() { return getBool(KEY_INPUT_ANIMATION_HAPTIC, false); }
+
+    public static boolean isTypingEffectsActive() {
+        return getInputAnimation() != INPUT_ANIM_NONE || isTypingCursorSmooth();
+    }
+
+    private static void ensureJuicyTypingSubDefaults() {
+        init();
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return;
+        }
+        if (!p.contains(KEY_INPUT_ANIMATION_SPEED)) setInputAnimationSpeed(1);
+        if (!p.contains(KEY_INPUT_ANIMATION_INTENSITY)) setInputAnimationIntensity(3);
+        if (!p.contains(KEY_TYPING_BLUR)) setBool(KEY_TYPING_BLUR, true);
+        if (!p.contains(KEY_TYPING_BLUR_RADIUS)) putInt(KEY_TYPING_BLUR_RADIUS, 6);
+        if (!p.contains(KEY_TYPING_ALL_LINES)) setBool(KEY_TYPING_ALL_LINES, true);
+        if (!p.contains(KEY_TYPING_DELETE)) setBool(KEY_TYPING_DELETE, true);
+        if (!p.contains(KEY_TYPING_DELETE_STYLE)) putInt(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS);
+        if (!p.contains(KEY_TYPING_DELETE_COUNT)) putInt(KEY_TYPING_DELETE_COUNT, 7);
+        if (!p.contains(KEY_TYPING_DELETE_SPEED)) putInt(KEY_TYPING_DELETE_SPEED, 68);
+        if (!p.contains(KEY_TYPING_DELETE_SPREAD)) putInt(KEY_TYPING_DELETE_SPREAD, 65);
+        if (!p.contains(KEY_TYPING_DELETE_SIZE)) putInt(KEY_TYPING_DELETE_SIZE, 62);
+        if (!p.contains(KEY_TYPING_CURSOR_SPEED)) putInt(KEY_TYPING_CURSOR_SPEED, 32);
+        if (!p.contains(KEY_TYPING_CURSOR_WIDTH)) putInt(KEY_TYPING_CURSOR_WIDTH, 2);
+        if (!p.contains(KEY_TYPING_CURSOR_LIQUID)) setBool(KEY_TYPING_CURSOR_LIQUID, true);
+        if (!p.contains(KEY_TYPING_CURSOR_LIQUID_SCALE)) putInt(KEY_TYPING_CURSOR_LIQUID_SCALE, 22);
+        if (!p.contains(KEY_TYPING_SELECTION)) setBool(KEY_TYPING_SELECTION, true);
+    }
+
+    public static void setTypingEffectsMaster(boolean enabled) {
+        if (enabled) {
+            ensureJuicyTypingSubDefaults();
+            int saved = getIntCached(KEY_INPUT_ANIMATION_SAVED, INPUT_ANIM_POP);
+            if (saved <= INPUT_ANIM_NONE || saved >= INPUT_ANIM_COUNT) {
+                saved = INPUT_ANIM_POP;
+            }
+            putInt(KEY_INPUT_ANIMATION, saved);
+            setBool(KEY_TYPING_CURSOR, true);
+        } else {
+            final int cur = getInputAnimation();
+            if (cur != INPUT_ANIM_NONE) {
+                putInt(KEY_INPUT_ANIMATION_SAVED, cur);
+            }
+            putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+            setBool(KEY_TYPING_CURSOR, false);
+        }
+    }
+
+    public static void applyJuicyTypingPreset() {
+        putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_POP);
+        putInt(KEY_INPUT_ANIMATION_SAVED, INPUT_ANIM_POP);
+        setInputAnimationSpeed(1);
+        setInputAnimationIntensity(3);
+        setBool(KEY_TYPING_BLUR, true);
+        putInt(KEY_TYPING_BLUR_RADIUS, 6);
+        setBool(KEY_TYPING_IGNORE_SPACES, true);
+        setBool(KEY_TYPING_ALL_LINES, true);
+        setBool(KEY_TYPING_DELETE, true);
+        putInt(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS);
+        putInt(KEY_TYPING_DELETE_COUNT, 7);
+        putInt(KEY_TYPING_DELETE_SPEED, 68);
+        putInt(KEY_TYPING_DELETE_SPREAD, 65);
+        putInt(KEY_TYPING_DELETE_SIZE, 62);
+        setBool(KEY_TYPING_CURSOR, true);
+        putInt(KEY_TYPING_CURSOR_SPEED, 32);
+        putInt(KEY_TYPING_CURSOR_WIDTH, 2);
+        setBool(KEY_TYPING_CURSOR_LIQUID, true);
+        putInt(KEY_TYPING_CURSOR_LIQUID_SCALE, 22);
+        setBool(KEY_TYPING_SELECTION, true);
+    }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
     public static boolean screenshotsAllowed() {
@@ -3552,7 +3753,7 @@ public class PengramConfig {
             "hideTabSettings", "hideWriteButton",
             "historyKeepDays", "historyMaxEntries", "historyRowInProfile", "idFormat", "idStyle",
             "inAppVibration", "inputAnimation", "inputAnimationHaptic",
-            "inputAnimationIntensity", "inputAnimationSpeed", "inputBarLiquidGlass",
+            "inputAnimationIntensity", "inputAnimationSaved", "inputAnimationSpeed", "inputBarLiquidGlass",
             "keepDeletedInChat", "keepFormatting", "keepOnceMedia",
             "linkAssistant", "linkAssistantCaption", "linkAssistantFallback",
             "linkAssistantIslandPreviewBtn", "linkAssistantPhotoStitch", "linkAssistantPreview",
@@ -3631,7 +3832,8 @@ public class PengramConfig {
             "bubbleRimEnabled", "bubbleRimStrength",
             "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius",
             "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency",
-            "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine"
+            "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine",
+            "webSearchHistoryEnabled"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(

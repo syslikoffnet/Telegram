@@ -326,6 +326,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     /** недавние переходы в поиске по настройкам — как в поиске настроек Telegram */
     private static final int BTN_SEARCH_HISTORY_BASE = 7800;
     private static final int BTN_SEARCH_HISTORY_CLEAR = 7900;
+    private static final int BTN_SEARCH_QUICK_SECTION_BASE = 7920;
     private static final int SEARCH_HISTORY_LIMIT = PengramConfig.SEARCH_HISTORY_MAX;
     private static final int BTN_PENGUIN_FLIP = 1443;
     private static final int BTN_PENGUIN_DANCE = 1444;
@@ -375,6 +376,9 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_WEB_SEARCH_PREFIX = 1062;
     private static final int BTN_WEB_SEARCH_ENGINE = 1063;
     private static final int BTN_SECTION_INPUT_TOOLS = 1064;
+    private static final int BTN_TYPING_MASTER = 1065;
+    private static final int BTN_TYPING_JUICY_PRESET = 1066;
+    private static final int BTN_CYLINDER_JUICY_PRESET = 1067;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -914,10 +918,24 @@ public class PengramSettingsActivity extends UniversalFragment {
                 }
                 items.add(UItem.asButton(BTN_SEARCH_HISTORY_CLEAR, R.drawable.msg_clear_recent,
                         getString(R.string.PengramSearchHistoryClear)).red());
+                items.add(UItem.asShadow(null));
+            }
+            items.add(UItem.asHeader(getString(R.string.PengramSearchQuickSections)));
+            final int[] quickSections = new int[]{
+                    SECTION_GHOST, SECTION_APPEARANCE, SECTION_CHATS,
+                    SECTION_INPUT_TOOLS, SECTION_TYPING, SECTION_HISTORY
+            };
+            for (int targetSection : quickSections) {
+                items.add(UItem.asSettingsCell(
+                        BTN_SEARCH_QUICK_SECTION_BASE + targetSection,
+                        sectionIcon(targetSection),
+                        sectionTitle(targetSection),
+                        null));
             }
             items.add(UItem.asShadow(getString(R.string.PengramSearchHint)));
             return;
         }
+        final String flippedSuggestion = PengramSearchMetadata.suggestedFlippedQuery(query);
         final String[] terms = PengramSearchMetadata.queryTerms(query);
         final ArrayList<int[]> matched = new ArrayList<>();
         final ArrayList<Integer> scores = new ArrayList<>();
@@ -928,6 +946,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             if (score <= 0) continue;
             matched.add(entry);
             scores.add(score);
+        }
+        if (flippedSuggestion != null && !matched.isEmpty()) {
+            items.add(UItem.asHeader(LocaleController.formatString(R.string.PengramSearchFlippedHeader, flippedSuggestion)));
         }
         // Более точные совпадения — выше: заголовок важнее синонимов и описания.
         final ArrayList<Integer> order = new ArrayList<>();
@@ -3698,17 +3719,26 @@ public class PengramSettingsActivity extends UniversalFragment {
                         getString(R.string.PengramChatEnterStyle), chatEnterStyleName()));
             }
             items.add(tgCheckInfo(BTN_EXTRA_BASE + 65, getString(R.string.PengramCylinderScroll), getString(R.string.PengramCylinderScrollInfo),
-                    PengramConfig::isCylinderScroll, () -> PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll())));
-            items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
-                    PengramConfig::isCylinderScrollToBars, () -> PengramConfig.setCylinderScrollToBars(!PengramConfig.isCylinderScrollToBars())));
+                    PengramConfig::isCylinderScroll, () -> {
+                        PengramConfig.setCylinderScroll(!PengramConfig.isCylinderScroll());
+                        if (listView != null && listView.adapter != null) {
+                            listView.adapter.update(true);
+                        }
+                    }));
+            if (PengramConfig.isCylinderScroll() || searchRevealGroups) {
+                items.add(tgCheckInfo(BTN_EXTRA_BASE + 66, getString(R.string.PengramCylinderToBars), getString(R.string.PengramCylinderToBarsInfo),
+                        PengramConfig::isCylinderScrollToBars, () -> PengramConfig.setCylinderScrollToBars(!PengramConfig.isCylinderScrollToBars())));
+                items.add(UItem.asHeader(getString(R.string.PengramCylinderStrength)));
+                items.add(UItem.asIntSlideView(1, 0, PengramConfig.getCylinderScrollStrength(), 100,
+                        value -> value + "%",
+                        value -> PengramConfig.setCylinderScrollStrength(value)));
+                items.add(UItem.asButton(BTN_CYLINDER_JUICY_PRESET, R.drawable.msg_customize,
+                        getString(R.string.PengramCylinderJuicyPreset)));
+            }
             // Помощник ссылок: переход в подробные настройки (предпросмотр, склейка фото, поведение при ошибке).
             items.add(UItem.asSettingsCell(BTN_SECTION_LINK_ASSISTANT, R.drawable.msg_link2,
                     getString(R.string.PengramLinkAssistant), linkAssistantStateValue()));
             items.add(UItem.asShadow(getString(R.string.PengramLinkAssistantInfo)));
-            items.add(UItem.asHeader(getString(R.string.PengramCylinderStrength)));
-            items.add(UItem.asIntSlideView(1, 0, PengramConfig.getCylinderScrollStrength(), 100,
-                    value -> value + "%",
-                    value -> PengramConfig.setCylinderScrollStrength(value)));
             items.add(liteCheck(BTN_EXTRA_BASE + 12, LiteMode.FLAG_CHAT_BLUR, getString(R.string.PengramChatBlur)));
             items.add(liteCheck(BTN_EXTRA_BASE + 13, LiteMode.FLAG_CHAT_SPOILER, getString(R.string.PengramSpoilerEffect)));
             items.add(liteCheck(BTN_EXTRA_BASE + 14, LiteMode.FLAG_CHAT_THANOS, getString(R.string.PengramThanosEffect)));
@@ -4737,8 +4767,16 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asHeader(getString(R.string.PengramInputAnimationHeader)));
         if (typingPreview == null && getContext() != null) typingPreview = new org.telegram.ui.Components.PengramTypingPreviewView(getContext());
         if (typingPreview != null) { typingPreview.update(); items.add(UItem.asCustom(typingPreview, LayoutHelper.WRAP_CONTENT)); }
+        items.add(tgCheckInfo(BTN_TYPING_MASTER, getString(R.string.PengramTypingMaster), getString(R.string.PengramTypingMasterInfo),
+                PengramConfig::isTypingEffectsActive, () -> {
+                    PengramConfig.setTypingEffectsMaster(!PengramConfig.isTypingEffectsActive());
+                    if (typingPreview != null) typingPreview.update();
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                }));
         items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION, R.drawable.msg_customize,
                 getString(R.string.PengramInputAnimation), inputAnimationName()));
+        items.add(UItem.asButton(BTN_TYPING_JUICY_PRESET, R.drawable.msg_premium_liststar,
+                getString(R.string.PengramTypingJuicyPreset)));
         if (PengramConfig.getInputAnimation() != PengramConfig.INPUT_ANIM_NONE) {
             items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_SPEED, getString(R.string.PengramInputAnimationSpeed), inputAnimationSpeedName()));
             items.add(UItem.asSettingsCell(BTN_INPUT_ANIMATION_INTENSITY, getString(R.string.PengramInputAnimationIntensity), inputAnimationIntensityName()));
@@ -4753,7 +4791,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramTypingBehaviorHeader)));
             items.add(check(PengramConfig.KEY_TYPING_IGNORE_SPACES, true, getString(R.string.PengramTypingIgnoreSpaces)));
-            items.add(check(PengramConfig.KEY_TYPING_ALL_LINES, false, getString(R.string.PengramTypingAllLines)));
+            items.add(check(PengramConfig.KEY_TYPING_ALL_LINES, true, getString(R.string.PengramTypingAllLines)));
             items.add(UItem.asShadow(null));
             items.add(UItem.asHeader(getString(R.string.PengramTypingDeleteHeader)));
             items.add(check(PengramConfig.KEY_TYPING_DELETE, true, getString(R.string.PengramTypingDelete)));
@@ -4779,7 +4817,7 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(null));
         items.add(UItem.asHeader(getString(R.string.PengramTypingCursorHeader)));
-        items.add(check(PengramConfig.KEY_TYPING_CURSOR, true, getString(R.string.PengramTypingCursorSmooth)));
+        items.add(check(PengramConfig.KEY_TYPING_CURSOR, false, getString(R.string.PengramTypingCursorSmooth)));
         if (PengramConfig.isTypingCursorSmooth()) {
             items.add(UItem.asHeader(getString(R.string.PengramTypingCursorSpeed)));
             items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorSpeed(), 60,
@@ -4789,14 +4827,14 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asIntSlideView(1, 1, PengramConfig.getTypingCursorWidth(), 12,
                     value -> value + " dp",
                     value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_WIDTH, value)));
-            items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, false, getString(R.string.PengramTypingCursorLiquid)));
+            items.add(check(PengramConfig.KEY_TYPING_CURSOR_LIQUID, true, getString(R.string.PengramTypingCursorLiquid)));
             if (PengramConfig.isTypingCursorLiquid()) {
                 items.add(UItem.asHeader(getString(R.string.PengramTypingCursorStretch)));
                 items.add(UItem.asIntSlideView(1, 0, PengramConfig.getTypingCursorLiquidScale(), 40,
                         value -> "" + value,
                         value -> PengramConfig.setIntValue(PengramConfig.KEY_TYPING_CURSOR_LIQUID_SCALE, value)));
             }
-            items.add(check(PengramConfig.KEY_TYPING_SELECTION, false, getString(R.string.PengramTypingSelectionLiquid)));
+            items.add(check(PengramConfig.KEY_TYPING_SELECTION, true, getString(R.string.PengramTypingSelectionLiquid)));
         }
         items.add(UItem.asShadow(getString(R.string.PengramInputAnimationInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramTypingStatsTitle)));
@@ -4835,6 +4873,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_ENGINE, R.drawable.msg_language,
                 getString(R.string.PengramWebSearchEngine),
                 PengramConfig.getInlineWebSearchEngineName(PengramConfig.getInlineWebSearchEngine())));
+        items.add(checkInfo(PengramConfig.KEY_WEB_SEARCH_HISTORY_ENABLED, true,
+                getString(R.string.PengramWebSearchHistory),
+                getString(R.string.PengramWebSearchHistoryInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramWebSearchSectionInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramCalcHeader)));
@@ -5099,6 +5140,11 @@ public class PengramSettingsActivity extends UniversalFragment {
             confirmClearSearchHistory();
             return;
         }
+        if (item.id >= BTN_SEARCH_QUICK_SECTION_BASE && item.id < BTN_SEARCH_QUICK_SECTION_BASE + 100) {
+            final int targetSec = item.id - BTN_SEARCH_QUICK_SECTION_BASE;
+            presentFragment(new PengramSettingsActivity(targetSec));
+            return;
+        }
         if (item.id >= BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE
                 && item.id - BTN_SEARCH_BASE < searchResults.size()) {
             pengramOpenSearchEntry(searchResults.get(item.id - BTN_SEARCH_BASE));
@@ -5236,6 +5282,19 @@ public class PengramSettingsActivity extends UniversalFragment {
                 }
                 return;
             }
+            case BTN_TYPING_JUICY_PRESET: {
+                PengramConfig.applyJuicyTypingPreset();
+                if (typingPreview != null) typingPreview.update();
+                updateList();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.PengramPresetAppliedToast)).show();
+                return;
+            }
+            case BTN_CYLINDER_JUICY_PRESET: {
+                PengramConfig.applyJuicyCylinderPreset();
+                updateList();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.PengramPresetAppliedToast)).show();
+                return;
+            }
             case BTN_INPUT_ANIMATION: {
                 final CharSequence[] options = new CharSequence[PengramConfig.INPUT_ANIM_COUNT];
                 final int[] names = {R.string.PengramInputAnimNone, R.string.PengramInputAnimFade, R.string.PengramInputAnimPop,
@@ -5244,6 +5303,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 showChoicePicker(getString(R.string.PengramInputAnimation), options, PengramConfig.getInputAnimation(), value -> {
                     PengramConfig.setInputAnimation(value);
                     if (typingPreview != null) typingPreview.update();
+                    updateList();
                 });
                 return;
             }

@@ -12816,7 +12816,7 @@
     <string name="PengramInputAnimationSpeed">Speed</string>
     <string name="PengramInputAnimationIntensity">Intensity</string>
     <string name="PengramInputAnimationHaptic">Light haptic feedback</string>
-    <string name="PengramInputAnimationInfo">New letters appear with a VSync-synchronised effect up to 120 fps on supported displays. Only a few recent glyphs animate; low-performance devices disable effects automatically.</string>
+    <string name="PengramInputAnimationInfo">New letters spring and fade in at up to 120 fps VSync with zero flicker or frame drops. Off by default — enabling it immediately activates the juiciest preset.</string>
     <string name="PengramInputAnimNone">No animation</string>
     <string name="PengramInputAnimFade">Soft fade</string>
     <string name="PengramInputAnimPop">Compact pop</string>
@@ -13476,7 +13476,7 @@
     <string name="PengramCylinderStrength">Cylinder strength</string>
     <string name="PengramCylinderToBars">Wrap up to header and input</string>
     <string name="PengramCylinderToBarsInfo">Rollers start below the header and above the input: messages bend visibly right up to them and disappear behind the bars. Off — at the screen edges.</string>
-    <string name="PengramCylinderScrollInfo">As you scroll, messages gently wrap around an invisible drum: the center stays flat while the edges bend back, like paper rolling over a cylinder. On by default at full strength.</string>
+    <string name="PengramCylinderScrollInfo">As you scroll, whole message bubbles — frame, background, albums and text — wrap smoothly around a 3D drum without clipping. Off by default; enabling it immediately activates the juiciest preset.</string>
     <string name="PengramChatEnterAnimInfo">Opening a chat fades the screen in with a slight zoom instead of a plain slide. Only cheap property animations — no overlays or extra layers, so no flicker or lag. Off by default: the stock Telegram transition is used.</string>
     <string name="PengramGlassSharedInfo">Glass parameters are shared by tabs, the input bar, headers and floating surfaces. Refraction requires Android 13 or later and the system liquid glass option.</string>
     <string name="PengramServiceJoinLeaveProfile">Open profile from join &amp; leave notices</string>
@@ -13622,4 +13622,19 @@
     <string name="PengramHeroInputTools">Prefix web search, inline math calculator, unit converter, and live exchange rates right in the chat input bar.</string>
     <string name="PengramInputToolsSubWebOn">Search %1$s</string>
     <string name="PengramInputToolsSubCalcOn">Calc &amp; rates</string>
+    <string name="PengramTypingMaster">Juicy typing animations</string>
+    <string name="PengramTypingMasterInfo">Off by default. Turning it on immediately activates springy letter pop, delete sparks, and the smooth liquid cursor — fully customizable below.</string>
+    <string name="PengramTypingJuicyPreset">Apply juicy typing preset</string>
+    <string name="PengramCylinderJuicyPreset">Apply juicy 3D cylinder preset</string>
+    <string name="PengramPresetAppliedToast">Juicy preset applied</string>
+    <string name="PengramWebSearchHistory">Recent queries in search sheet</string>
+    <string name="PengramWebSearchHistoryInfo">Stores recent web queries locally on this device only for one-tap reuse.</string>
+    <string name="PengramWebSearchFromClipboard">Search from clipboard</string>
+    <string name="PengramWebSearchQuickExamples">Try instant answers</string>
+    <string name="PengramWebSearchEx1">100 usd in eur</string>
+    <string name="PengramWebSearchEx2">time in Tokyo</string>
+    <string name="PengramWebSearchEx3">what currency is used in Japan</string>
+    <string name="PengramWebSearchEx4">capital of Kazakhstan</string>
+    <string name="PengramSearchQuickSections">Quick jump to sections</string>
+    <string name="PengramSearchFlippedHeader">Showing results for “%1$s”</string>
 </resources>

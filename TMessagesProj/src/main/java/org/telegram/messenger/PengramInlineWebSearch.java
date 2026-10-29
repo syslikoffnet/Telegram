@@ -897,11 +897,138 @@ public final class PengramInlineWebSearch {
         return handle;
     }
 
-    private static SearchResponse executeParallelSearch(String query, int currentAccount, SearchHandle handle) {
-        // 0) Мгновенная локальная проверка калькулятора / конвертера величин / живых курсов валют
-        InstantAnswer calcInstant = null;
+    private static InstantAnswer tryResolveWorldTime(String rawQuery) {
+        if (TextUtils.isEmpty(rawQuery)) {
+            return null;
+        }
+        final String low = rawQuery.trim().toLowerCase(Locale.ROOT).replace('ё', 'е');
+        boolean timeAsked = low.startsWith("время ") || low.startsWith("сколько времени ")
+                || low.startsWith("который час ") || low.startsWith("time in ")
+                || low.startsWith("current time ") || low.equals("время мск") || low.equals("время utc");
+        if (!timeAsked) {
+            return null;
+        }
+        String place = low
+                .replace("сколько времени", "")
+                .replace("который час", "")
+                .replace("current time", "")
+                .replace("time in", "")
+                .replace("время", "")
+                .trim();
+        if (place.startsWith("в ") || place.startsWith("во ")) {
+            place = place.substring(place.indexOf(' ') + 1).trim();
+        } else if (place.startsWith("in ")) {
+            place = place.substring(3).trim();
+        }
+        place = trimPunctuation(place);
+        if (place.isEmpty()) {
+            return null;
+        }
+        String tzId = null;
+        String cityLabel = null;
+        if (place.startsWith("москв") || place.equals("мск") || place.startsWith("moscow")) {
+            tzId = "Europe/Moscow"; cityLabel = "Москва";
+        } else if (place.startsWith("санкт") || place.startsWith("питер") || place.equals("спб")) {
+            tzId = "Europe/Moscow"; cityLabel = "Санкт-Петербург";
+        } else if (place.startsWith("екатеринбург")) {
+            tzId = "Asia/Yekaterinburg"; cityLabel = "Екатеринбург";
+        } else if (place.startsWith("новосибирск")) {
+            tzId = "Asia/Novosibirsk"; cityLabel = "Новосибирск";
+        } else if (place.startsWith("владивосток")) {
+            tzId = "Asia/Vladivostok"; cityLabel = "Владивосток";
+        } else if (place.startsWith("калининград")) {
+            tzId = "Europe/Kaliningrad"; cityLabel = "Калининград";
+        } else if (place.startsWith("алмат") || place.startsWith("астан") || place.startsWith("казахстан")) {
+            tzId = "Asia/Almaty"; cityLabel = "Алматы / Астана";
+        } else if (place.startsWith("минск") || place.startsWith("беларус")) {
+            tzId = "Europe/Minsk"; cityLabel = "Минск";
+        } else if (place.startsWith("киев") || place.startsWith("украин") || place.startsWith("kyiv")) {
+            tzId = "Europe/Kyiv"; cityLabel = "Киев";
+        } else if (place.startsWith("ташкент") || place.startsWith("узбекистан")) {
+            tzId = "Asia/Tashkent"; cityLabel = "Ташкент";
+        } else if (place.startsWith("тбилис") || place.startsWith("грузи")) {
+            tzId = "Asia/Tbilisi"; cityLabel = "Тбилиси";
+        } else if (place.startsWith("ереван") || place.startsWith("армени")) {
+            tzId = "Asia/Yerevan"; cityLabel = "Ереван";
+        } else if (place.startsWith("баку") || place.startsWith("азербайджан")) {
+            tzId = "Asia/Baku"; cityLabel = "Баку";
+        } else if (place.startsWith("стамбул") || place.startsWith("анкар") || place.startsWith("турци") || place.startsWith("istanbul")) {
+            tzId = "Europe/Istanbul"; cityLabel = "Стамбул";
+        } else if (place.startsWith("дуба") || place.startsWith("оаэ") || place.startsWith("dubai")) {
+            tzId = "Asia/Dubai"; cityLabel = "Дубай";
+        } else if (place.startsWith("токио") || place.startsWith("япони") || place.startsWith("tokyo")) {
+            tzId = "Asia/Tokyo"; cityLabel = "Токио";
+        } else if (place.startsWith("пекин") || place.startsWith("шанха") || place.startsWith("кита") || place.startsWith("beijing")) {
+            tzId = "Asia/Shanghai"; cityLabel = "Пекин";
+        } else if (place.startsWith("сеул") || place.startsWith("коре") || place.startsWith("seoul")) {
+            tzId = "Asia/Seoul"; cityLabel = "Сеул";
+        } else if (place.startsWith("бангкок") || place.startsWith("таиланд") || place.startsWith("пхукет") || place.startsWith("bangkok")) {
+            tzId = "Asia/Bangkok"; cityLabel = "Бангкок";
+        } else if (place.startsWith("лондон") || place.startsWith("британи") || place.startsWith("англи") || place.startsWith("london")) {
+            tzId = "Europe/London"; cityLabel = "Лондон";
+        } else if (place.startsWith("берлин") || place.startsWith("германи") || place.startsWith("нюрнберг") || place.startsWith("мюнхен") || place.startsWith("berlin")) {
+            tzId = "Europe/Berlin"; cityLabel = "Германия (CET)";
+        } else if (place.startsWith("париж") || place.startsWith("франци") || place.startsWith("paris")) {
+            tzId = "Europe/Paris"; cityLabel = "Париж";
+        } else if (place.startsWith("нью") || place.startsWith("вашингтон") || place.startsWith("new york") || place.equals("nyc")) {
+            tzId = "America/New_York"; cityLabel = "Нью-Йорк";
+        } else if (place.startsWith("лос") || place.startsWith("калифорни") || place.startsWith("los angeles")) {
+            tzId = "America/Los_Angeles"; cityLabel = "Лос-Анджелес";
+        } else if (place.equals("utc") || place.equals("gmt")) {
+            tzId = "UTC"; cityLabel = "UTC";
+        }
+        if (tzId == null) {
+            return null;
+        }
+        final java.util.TimeZone tz = java.util.TimeZone.getTimeZone(tzId);
+        final java.util.Date now = new java.util.Date();
+        final java.text.SimpleDateFormat tf = new java.text.SimpleDateFormat("HH:mm", Locale.US);
+        tf.setTimeZone(tz);
+        final String hhmm = tf.format(now);
+        final java.text.SimpleDateFormat df = new java.text.SimpleDateFormat("EEEE, d MMMM", isRussianUiLocale() ? new Locale("ru") : Locale.US);
+        df.setTimeZone(tz);
+        final int offsetMin = tz.getOffset(now.getTime()) / 60000;
+        final int offH = offsetMin / 60;
+        final int offM = Math.abs(offsetMin % 60);
+        final String utcLabel = "UTC" + (offH >= 0 ? "+" : "") + offH + (offM > 0 ? (":" + (offM < 10 ? "0" : "") + offM) : "");
+        final String subtitle = cityLabel + " · " + utcLabel + " · " + df.format(now);
+        return new InstantAnswer(
+                hhmm + " (" + cityLabel + ")",
+                subtitle,
+                cityLabel + ": " + hhmm + " (" + utcLabel + ")",
+                hhmm,
+                "",
+                cityLabel + ": сейчас " + hhmm + " (" + utcLabel + ")",
+                "Мировое время",
+                "",
+                true
+        );
+    }
+
+    private static SearchResponse executeParallelSearch(String rawInputQuery, int currentAccount, SearchHandle handle) {
+        String query = rawInputQuery;
+        // 0) Мгновенная локальная проверка калькулятора / конвертера величин / живых курсов валют / мирового времени
+        InstantAnswer calcInstant = tryResolveWorldTime(query);
+        if (calcInstant == null) {
+            final String flippedTry = PengramSmartSearch.flipKeyboardLayout(query);
+            if (!flippedTry.isEmpty() && !flippedTry.equalsIgnoreCase(query)) {
+                calcInstant = tryResolveWorldTime(flippedTry);
+                if (calcInstant != null) {
+                    query = flippedTry;
+                }
+            }
+        }
         try {
-            final PengramInlineCalc.Suggestion calc = PengramInlineCalc.analyzeDirect(query, currentAccount);
+            PengramInlineCalc.Suggestion calc = calcInstant == null ? PengramInlineCalc.analyzeDirect(query, currentAccount) : null;
+            if (calc == null && calcInstant == null) {
+                final String flippedCalc = PengramSmartSearch.flipKeyboardLayout(query);
+                if (!flippedCalc.isEmpty() && !flippedCalc.equalsIgnoreCase(query)) {
+                    calc = PengramInlineCalc.analyzeDirect(flippedCalc, currentAccount);
+                    if (calc != null) {
+                        query = flippedCalc;
+                    }
+                }
+            }
             if (calc != null && !calc.loadingRates && !TextUtils.isEmpty(calc.primaryReplacement)) {
                 final String title = calc.displayTitle.startsWith("= ") || calc.displayTitle.startsWith("≈ ")
                         ? calc.displayTitle.substring(2).trim()
@@ -921,8 +1048,20 @@ public final class PengramInlineWebSearch {
         } catch (Throwable ignore) {
         }
 
-        final QuestionAnalysis qa = parseQuestionIntent(query);
-        final boolean cyrillic = containsCyrillic(query);
+        QuestionAnalysis qa = parseQuestionIntent(query);
+        if (!qa.hasStructuredProperty() && !containsCyrillic(query) && query.length() >= 4) {
+            final String flippedQ = PengramSmartSearch.flipKeyboardLayout(query);
+            if (containsCyrillic(flippedQ)) {
+                final QuestionAnalysis flippedQa = parseQuestionIntent(flippedQ);
+                if (flippedQa.hasStructuredProperty()) {
+                    query = flippedQ;
+                    qa = flippedQa;
+                }
+            }
+        }
+        final String effectiveQuery = query;
+        final QuestionAnalysis finalQa = qa;
+        final boolean cyrillic = containsCyrillic(effectiveQuery);
         final String primaryLang = cyrillic ? "ru" : (isRussianUiLocale() ? "ru" : "en");
 
         final InstantAnswer[] wikidataHolder = new InstantAnswer[1];
@@ -936,8 +1075,8 @@ public final class PengramInlineWebSearch {
         // Поток 1: Граф знаний Wikidata (точный структурированный ответ на фактические вопросы)
         SEARCH_POOL.execute(() -> {
             try {
-                if (!handle.isCancelled() && qa.hasStructuredProperty()) {
-                    wikidataHolder[0] = resolveWikidataFact(qa, cyrillic ? "ru" : "en");
+                if (!handle.isCancelled() && finalQa.hasStructuredProperty()) {
+                    wikidataHolder[0] = resolveWikidataFact(finalQa, cyrillic ? "ru" : "en");
                 }
             } catch (Throwable ignore) {
             } finally {
@@ -949,9 +1088,9 @@ public final class PengramInlineWebSearch {
         SEARCH_POOL.execute(() -> {
             try {
                 if (!handle.isCancelled()) {
-                    WikiFetchResult res = fetchWikipedia(qa, cyrillic ? "ru" : "en");
+                    WikiFetchResult res = fetchWikipedia(finalQa, cyrillic ? "ru" : "en");
                     if ((res == null || res.hits.isEmpty()) && !handle.isCancelled()) {
-                        res = fetchWikipedia(qa, cyrillic ? "en" : "ru");
+                        res = fetchWikipedia(finalQa, cyrillic ? "en" : "ru");
                     }
                     wikiHolder[0] = res;
                 }
@@ -965,10 +1104,10 @@ public final class PengramInlineWebSearch {
         SEARCH_POOL.execute(() -> {
             try {
                 if (!handle.isCancelled()) {
-                    ddgInstantHolder[0] = fetchDuckDuckGoInstant(query);
+                    ddgInstantHolder[0] = fetchDuckDuckGoInstant(effectiveQuery);
                 }
                 if (!handle.isCancelled()) {
-                    webHitsHolder[0] = fetchCombinedWebResults(query, qa.focusedSearchQuery, cyrillic || "ru".equals(primaryLang), handle);
+                    webHitsHolder[0] = fetchCombinedWebResults(effectiveQuery, finalQa.focusedSearchQuery, cyrillic || "ru".equals(primaryLang), handle);
                 }
             } catch (Throwable ignore) {
             } finally {
@@ -980,7 +1119,7 @@ public final class PengramInlineWebSearch {
         SEARCH_POOL.execute(() -> {
             try {
                 if (!handle.isCancelled()) {
-                    suggestHolder[0] = fetchGoogleSuggestions(query, primaryLang);
+                    suggestHolder[0] = fetchGoogleSuggestions(effectiveQuery, primaryLang);
                 }
             } catch (Throwable ignore) {
             } finally {
@@ -995,7 +1134,7 @@ public final class PengramInlineWebSearch {
         }
 
         // Приоритет точного ответа:
-        // 1) Калькулятор/курс  2) Wikidata Knowledge Graph  3) DDG Direct Answer  4) Релевантная статья Википедии  5) Извлечённое предложение из топ-сниппетов
+        // 1) Калькулятор/курс/время  2) Wikidata Knowledge Graph  3) DDG Direct Answer  4) Релевантная статья Википедии  5) Извлечённое предложение из топ-сниппетов
         InstantAnswer instant = calcInstant;
         final WikiFetchResult wiki = wikiHolder[0];
         final DdgInstantResult ddgInstant = ddgInstantHolder[0];
@@ -1009,7 +1148,7 @@ public final class PengramInlineWebSearch {
         if (instant == null && wiki != null && wiki.primaryInstant != null) {
             instant = wiki.primaryInstant;
         }
-        if (instant == null && ddgInstant != null && ddgInstant.abstractAnswer != null && qa.intent == INTENT_DEFINITION) {
+        if (instant == null && ddgInstant != null && ddgInstant.abstractAnswer != null && finalQa.intent == INTENT_DEFINITION) {
             instant = ddgInstant.abstractAnswer;
         }
 
@@ -1046,11 +1185,11 @@ public final class PengramInlineWebSearch {
 
         // Если готовой карточки нет — пробуем аккуратно вытащить фактическое предложение из лучших сниппетов (БЕЗ подстановки кликбейтных заголовков или URL!)
         if (instant == null && !mergedHits.isEmpty()) {
-            instant = buildBestSnippetPreview(query, mergedHits);
+            instant = buildBestSnippetPreview(effectiveQuery, mergedHits);
         }
 
         final List<String> suggestions = suggestHolder[0] != null ? suggestHolder[0] : Collections.emptyList();
-        return new SearchResponse(query, instant, mergedHits, suggestions);
+        return new SearchResponse(rawInputQuery, instant, mergedHits, suggestions);
     }
 
     // -------------------------------------------------------------------------

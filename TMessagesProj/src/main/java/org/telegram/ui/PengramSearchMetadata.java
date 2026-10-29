@@ -297,6 +297,12 @@ public final class PengramSearchMetadata {
             tags.append(" обновить курсы валют перезагрузить курс валюты крипта refresh update currency exchange rates");
         } else if (id == R.string.PengramServiceJoinLeaveProfile) {
             tags.append(" профиль вход выход вступил покинул чат группа уведомление сервисное сообщение join leave profile chat service message");
+        } else if (id == R.string.PengramCylinderScroll || id == R.string.PengramCylinderToBars || id == R.string.PengramCylinderStrength) {
+            tags.append(" цилиндр цилиндрическая прокрутка 3d 3д скролл изгиб сообщения гнутся барабан валик перспектива cylinder scroll bend curve 3d");
+        } else if (id == R.string.PengramInputAnimation || id == R.string.PengramTypingCursorSmooth || id == R.string.PengramTypingCursorLiquid) {
+            tags.append(" анимация ввода печать набор букв плавный курсор жидкий курсор каретка искры частицы typing animation smooth liquid cursor caret");
+        } else if (id == R.string.PengramWebSearchHistory) {
+            tags.append(" история поиска запросы веб очистить недавние web search history recent queries");
         }
         return tags.toString();
     }
@@ -338,6 +344,45 @@ public final class PengramSearchMetadata {
         final String title = normalized(getString(entry[0]));
         final String[] titleWords = title.isEmpty() ? new String[0] : title.split(" +");
 
+        final int direct = relevanceDirect(words, title, titleWords, terms);
+        if (direct > 0) {
+            return direct;
+        }
+        // Автоисправление забытой раскладки (QWERTY ↔ ЙЦУКЕН) и транслита
+        boolean hasFlip = false;
+        final String[] flipped = new String[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            final String f = normalized(org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(terms[i]));
+            flipped[i] = f.isEmpty() ? terms[i] : f;
+            if (!flipped[i].equals(terms[i])) {
+                hasFlip = true;
+            }
+        }
+        if (hasFlip) {
+            final int byFlip = relevanceDirect(words, title, titleWords, flipped);
+            if (byFlip > 0) {
+                return Math.max(60, byFlip - 20);
+            }
+        }
+        boolean hasTranslit = false;
+        final String[] translit = new String[terms.length];
+        for (int i = 0; i < terms.length; i++) {
+            final String tr = normalized(org.telegram.messenger.PengramSmartSearch.transliterate(terms[i]));
+            translit[i] = tr.isEmpty() ? terms[i] : tr;
+            if (!translit[i].equals(terms[i])) {
+                hasTranslit = true;
+            }
+        }
+        if (hasTranslit) {
+            final int byTranslit = relevanceDirect(words, title, titleWords, translit);
+            if (byTranslit > 0) {
+                return Math.max(50, byTranslit - 30);
+            }
+        }
+        return 0;
+    }
+
+    private static int relevanceDirect(String[] words, String title, String[] titleWords, String[] terms) {
         int inTitle = 0;
         for (String term : terms) {
             if (wordMatches(titleWords, term)) inTitle++;
@@ -365,12 +410,62 @@ public final class PengramSearchMetadata {
         return 220;
     }
 
-    /** Слово совпадает по началу: «аватар» → «аватарка», «аватарки» → «аватар». */
+    /** Если запрос введён в неверной раскладке и дал выдачу именно после переворота, возвращает читаемый вариант. */
+    public static String suggestedFlippedQuery(String rawQuery) {
+        if (rawQuery == null) {
+            return null;
+        }
+        final String q = rawQuery.trim();
+        if (q.length() < 2) {
+            return null;
+        }
+        final String flipped = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q).trim();
+        if (flipped.isEmpty() || flipped.equalsIgnoreCase(q)) {
+            return null;
+        }
+        final String[] rawTerms = queryTerms(q);
+        final String[] flipTerms = queryTerms(flipped);
+        if (rawTerms.length == 0 || flipTerms.length == 0) {
+            return null;
+        }
+        int directHits = 0;
+        int flipHits = 0;
+        for (int[] entry : PengramSearchIndex.ITEMS) {
+            String[] words = corpus().words.get(entry);
+            if (words == null) continue;
+            final String title = normalized(getString(entry[0]));
+            final String[] titleWords = title.isEmpty() ? new String[0] : title.split(" +");
+            if (relevanceDirect(words, title, titleWords, rawTerms) > 0) directHits++;
+            if (relevanceDirect(words, title, titleWords, flipTerms) > 0) flipHits++;
+        }
+        return directHits == 0 && flipHits > 0 ? flipped : null;
+    }
+
+    /** Слово совпадает по началу, основе или с допуском 1 опечатки на длинных словах. */
     private static boolean wordMatches(String[] words, String term) {
+        if (term == null || term.isEmpty()) {
+            return false;
+        }
+        final String termStem = term.length() >= 4 ? org.telegram.messenger.PengramSmartSearch.stem(term) : term;
         for (String word : words) {
+            if (word == null || word.isEmpty()) continue;
             if (word.startsWith(term) || (word.length() >= 4 && term.length() >= 4
                     && term.length() <= word.length() + 3 && term.startsWith(word))) {
                 return true;
+            }
+            if (termStem.length() >= 4 && word.length() >= 4) {
+                final String wordStem = org.telegram.messenger.PengramSmartSearch.stem(word);
+                if (wordStem.length() >= 3 && (wordStem.startsWith(termStem) || termStem.startsWith(wordStem))) {
+                    return true;
+                }
+            }
+            if (term.length() >= 4 && word.length() >= 4) {
+                final String target = word.length() > term.length() + 1
+                        ? word.substring(0, Math.min(word.length(), term.length()))
+                        : word;
+                if (org.telegram.messenger.PengramSmartSearch.withinEditDistance(target, term, 1)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -382,10 +477,22 @@ public final class PengramSearchMetadata {
         SpannableStringBuilder result = new SpannableStringBuilder(path);
         int leaf = path.lastIndexOf(" ➔ ") + 3;
         result.setSpan(new StyleSpan(Typeface.BOLD), leaf, path.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        String q = query.trim().toLowerCase(Locale.ROOT);
-        int start = path.toLowerCase(Locale.ROOT).indexOf(q);
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT).replace('ё', 'е');
+        String lowerPath = path.toLowerCase(Locale.ROOT).replace('ё', 'е');
+        int start = lowerPath.indexOf(q);
         if (!q.isEmpty() && start >= 0) {
             result.setSpan(new StyleSpan(Typeface.BOLD), start, start + q.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        } else if (!q.isEmpty()) {
+            final String flipped = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q);
+            for (String candidate : new String[]{q, flipped}) {
+                for (String token : queryTerms(candidate)) {
+                    if (token.length() < 2) continue;
+                    int idx = lowerPath.indexOf(token);
+                    if (idx >= 0 && idx + token.length() <= path.length()) {
+                        result.setSpan(new StyleSpan(Typeface.BOLD), idx, idx + token.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    }
+                }
+            }
         }
         return result;
     }

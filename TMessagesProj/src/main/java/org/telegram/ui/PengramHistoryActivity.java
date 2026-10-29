@@ -306,11 +306,17 @@ public class PengramHistoryActivity extends UniversalFragment {
                     if (user != null) {
                         return org.telegram.messenger.UserObject.getUserName(user);
                     }
+                    org.telegram.messenger.PengramSenderHydrator.ensureLoaded(currentAccount, 0, peerId, id -> {
+                        if (adapter != null) adapter.notifyDataSetChanged();
+                    });
                 } else if (peerId < 0) {
                     TLRPC.Chat chat = getMessagesController().getChat(-peerId);
                     if (chat != null) {
                         return chat.title;
                     }
+                    org.telegram.messenger.PengramSenderHydrator.ensureLoaded(currentAccount, peerId, peerId, id -> {
+                        if (adapter != null) adapter.notifyDataSetChanged();
+                    });
                 }
             } catch (Throwable ignore) {}
             return String.valueOf(peerId);

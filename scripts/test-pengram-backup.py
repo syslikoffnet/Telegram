@@ -69,7 +69,7 @@ ai_exported = set(re.findall(r'"([^"]+)"', config.split('EXPORTABLE_AI_KEYS = ne
 ephemeral_keys = {
     'antiCrashBlocked', 'settingsSearchRecentEntries', 'settingsSearchHistory',
     'pending', 'pendingTime', 'pendingInstallStamp', 'nativeExitSeen',
-    'rates_json', 'updated_at_ms',
+    'rates_json', 'updated_at_ms', 'lastWebSearchQueries',
 }
 for p in sorted(java.rglob('Pengram*.java')):
     for m in re.finditer(r'String\s+KEY_[A-Z0-9_]+\s*=\s*"([^"]+)"', p.read_text()):

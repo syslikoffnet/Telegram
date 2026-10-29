@@ -365,6 +365,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                             final boolean out, final byte[] data, final TLRPC.Message previous,
                             final boolean keepMedia) {
         try {
+            PengramSenderHydrator.rememberPeer(account, fromId != 0 ? fromId : dialogId);
             enqueueSave(account, dialogId, messageId, fromId, date, action, text, prevText, out, data, previous, keepMedia);
         } catch (Throwable e) {
             FileLog.e(e);
@@ -1348,7 +1349,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         final int wanted = Math.max(1, Math.min(200, limit));
         final String needle = query.toLowerCase(Locale.ROOT);
         final String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        boolean unicode = false;
+        boolean unicode = PengramSmartSearch.requiresSmartArchiveScan(query);
         for (int i = 0; i < query.length(); i++) {
             if (query.charAt(i) > 127) { unicode = true; break; }
         }
@@ -1382,11 +1383,14 @@ public class PengramHistory extends SQLiteOpenHelper {
                         beforeDate = c.getInt(5);
                         beforeId = c.getLong(0);
                         String text = c.getString(8), previous = c.getString(9);
+                        long rowFromId = c.getLong(4);
                         if (unicode && !(text != null && text.toLowerCase(Locale.ROOT).contains(needle))
-                                && !(previous != null && previous.toLowerCase(Locale.ROOT).contains(needle))) continue;
+                                && !(previous != null && previous.toLowerCase(Locale.ROOT).contains(needle))
+                                && !PengramSmartSearch.matchesArchiveText(text, previous,
+                                        resolveCachedPeerName(account, rowFromId != 0 ? rowFromId : c.getLong(2)), query)) continue;
                         Entry e = new Entry();
                         e.rowId = c.getLong(0); e.account = c.getInt(1); e.dialogId = c.getLong(2);
-                        e.messageId = c.getInt(3); e.fromId = c.getLong(4); e.date = c.getInt(5);
+                        e.messageId = c.getInt(3); e.fromId = rowFromId; e.date = c.getInt(5);
                         e.savedAt = c.getInt(6); e.action = c.getInt(7); e.text = text;
                         e.prevText = previous; e.out = c.getInt(10) != 0;
                         result.add(e);
@@ -1398,6 +1402,49 @@ public class PengramHistory extends SQLiteOpenHelper {
             FileLog.e(e);
         }
         return result;
+    }
+
+    private static String resolveCachedPeerName(int account, long peerId) {
+        if (peerId == 0 || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return null;
+        }
+        try {
+            final MessagesController mc = MessagesController.getInstance(account);
+            if (peerId > 0) {
+                final TLRPC.User u = mc.getUser(peerId);
+                return u != null ? UserObject.getUserName(u) : null;
+            } else {
+                final TLRPC.Chat chat = mc.getChat(-peerId);
+                return chat != null ? chat.title : null;
+            }
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    /** Подгружает в {@link MessagesController} авторов архивных записей диалога (для аватарок и поиска по имени). */
+    public static void preloadDialogSenders(int account, long dialogId) {
+        if (dialogId == 0 || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return;
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        final java.util.HashSet<Long> ids = new java.util.HashSet<>();
+        ids.add(dialogId);
+        try (Cursor c = history.getReadableDatabase().rawQuery(
+                "SELECT DISTINCT from_id FROM " + TABLE + " WHERE account = ? AND dialog_id = ? AND from_id != 0 LIMIT 250",
+                new String[]{String.valueOf(account), String.valueOf(dialogId)})) {
+            while (c.moveToNext()) {
+                final long fid = c.getLong(0);
+                if (fid != 0) {
+                    ids.add(fid);
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        PengramSenderHydrator.preloadPeersBlocking(account, ids);
     }
 
     public interface PageCallback {
@@ -1551,6 +1598,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             }
             boolean unicode = false;
             if (!TextUtils.isEmpty(query)) {
+                unicode = PengramSmartSearch.requiresSmartArchiveScan(query);
                 for (int i = 0; i < query.length(); i++) {
                     if (query.charAt(i) > 127) { unicode = true; break; }
                 }
@@ -1575,8 +1623,11 @@ public class PengramHistory extends SQLiteOpenHelper {
             while (c.moveToNext() && result.size() < Math.max(1, limit)) {
                 // SQLite LIKE case-folds ASCII only. Filter other scripts in Java on this
                 // background reader; apply the page limit to matches, not database rows.
+                final long rowFromId = c.getLong(4);
                 if (unicode && !(c.getString(8) != null && c.getString(8).toLowerCase(Locale.ROOT).contains(needle))
-                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))) {
+                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))
+                        && !PengramSmartSearch.matchesArchiveText(c.getString(8), c.getString(9),
+                                resolveCachedPeerName(account, rowFromId != 0 ? rowFromId : c.getLong(2)), query)) {
                     continue;
                 }
                 Entry e = new Entry();

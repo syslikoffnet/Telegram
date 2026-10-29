@@ -203,7 +203,11 @@ public class PengramWebSearchSheet extends BottomSheet {
             if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
                 AndroidUtilities.cancelRunOnUIThread(debouncedSearchRunnable);
                 AndroidUtilities.hideKeyboard(searchField);
-                runQueryNow(searchField.getText() != null ? searchField.getText().toString().trim() : "");
+                final String submitted = searchField.getText() != null ? searchField.getText().toString().trim() : "";
+                if (submitted.length() >= 2) {
+                    PengramConfig.rememberWebQuery(submitted);
+                }
+                runQueryNow(submitted);
                 return true;
             }
             return false;
@@ -228,24 +232,212 @@ public class PengramWebSearchSheet extends BottomSheet {
                 currentQuery = q;
                 AndroidUtilities.cancelRunOnUIThread(debouncedSearchRunnable);
                 if (q.length() >= 2) {
-                    AndroidUtilities.runOnUIThread(debouncedSearchRunnable, 300);
+                    AndroidUtilities.runOnUIThread(debouncedSearchRunnable, 280);
                 } else {
                     cancelActiveSearch();
                     loadingRow.setVisibility(android.view.View.GONE);
                     suggestScroll.setVisibility(android.view.View.GONE);
-                    resultsContainer.removeAllViews();
+                    if (q.isEmpty()) {
+                        renderSmartEmptyState();
+                    } else {
+                        resultsContainer.removeAllViews();
+                    }
                 }
             }
         });
 
         if (preloaded != null && preloaded.query.equalsIgnoreCase(currentQuery)) {
             loadingRow.setVisibility(android.view.View.GONE);
+            PengramConfig.rememberWebQuery(currentQuery);
             renderResponse(preloaded);
         } else if (currentQuery.length() >= 2) {
+            PengramConfig.rememberWebQuery(currentQuery);
             runQueryNow(currentQuery);
         } else {
             loadingRow.setVisibility(android.view.View.GONE);
+            renderSmartEmptyState();
         }
+    }
+
+    private void pickQuickQuery(String q) {
+        if (TextUtils.isEmpty(q)) {
+            return;
+        }
+        final String clean = q.trim();
+        searchField.setText(clean);
+        searchField.setSelection(searchField.length());
+        AndroidUtilities.cancelRunOnUIThread(debouncedSearchRunnable);
+        PengramConfig.rememberWebQuery(clean);
+        runQueryNow(clean);
+    }
+
+    @Nullable
+    private String readClipboardSearchCandidate() {
+        try {
+            final android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                    getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm == null || !cm.hasPrimaryClip()) {
+                return null;
+            }
+            final android.content.ClipData clip = cm.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) {
+                return null;
+            }
+            final CharSequence raw = clip.getItemAt(0).getText();
+            if (raw == null) {
+                return null;
+            }
+            final String clean = raw.toString().replace('\n', ' ').replace('\r', ' ').trim();
+            if (clean.length() < 2 || clean.length() > 90) {
+                return null;
+            }
+            if (clean.startsWith("http://") || clean.startsWith("https://")) {
+                return null;
+            }
+            return clean;
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    private void renderSmartEmptyState() {
+        resultsContainer.removeAllViews();
+        final Context ctx = getContext();
+
+        // 1. Быстрый поиск текста из буфера обмена (читается только при ручном открытии этого окна)
+        final String clipCandidate = readClipboardSearchCandidate();
+        if (!TextUtils.isEmpty(clipCandidate)) {
+            final LinearLayout clipCard = new LinearLayout(ctx);
+            clipCard.setOrientation(LinearLayout.VERTICAL);
+            clipCard.setPadding(dp(12), dp(10), dp(12), dp(10));
+            final int accent = getThemedColor(Theme.key_windowBackgroundWhiteBlueText);
+            clipCard.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(12),
+                    ColorUtils.setAlphaComponent(accent, Theme.isCurrentThemeDark() ? 36 : 22),
+                    ColorUtils.setAlphaComponent(accent, 58)));
+            final TextView label = new TextView(ctx);
+            label.setText(getString(R.string.PengramWebSearchFromClipboard));
+            label.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11.5f);
+            label.setTypeface(AndroidUtilities.bold());
+            label.setTextColor(accent);
+            clipCard.addView(label, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+            final TextView val = new TextView(ctx);
+            val.setText(clipCandidate);
+            val.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            val.setMaxLines(2);
+            val.setEllipsize(TextUtils.TruncateAt.END);
+            val.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+            clipCard.addView(val, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
+
+            clipCard.setOnClickListener(v -> {
+                haptic(v);
+                pickQuickQuery(clipCandidate);
+            });
+            resultsContainer.addView(clipCard, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 10));
+        }
+
+        // 2. Локальные недавние запросы (с удалением в 1 тап)
+        final java.util.ArrayList<String> recent = PengramConfig.getRecentWebQueries();
+        if (!recent.isEmpty()) {
+            final FrameLayout hdr = new FrameLayout(ctx);
+            final TextView hdrTitle = new TextView(ctx);
+            hdrTitle.setText(getString(R.string.PengramSearchRecent));
+            hdrTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12.5f);
+            hdrTitle.setTypeface(AndroidUtilities.bold());
+            hdrTitle.setTextColor(getThemedColor(Theme.key_dialogTextGray2));
+            hdr.addView(hdrTitle, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.START | Gravity.CENTER_VERTICAL));
+
+            final TextView clearRecentBtn = new TextView(ctx);
+            clearRecentBtn.setText(getString(R.string.PengramSearchHistoryClear));
+            clearRecentBtn.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12f);
+            clearRecentBtn.setTypeface(AndroidUtilities.bold());
+            clearRecentBtn.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlueText));
+            clearRecentBtn.setPadding(dp(8), dp(4), dp(8), dp(4));
+            clearRecentBtn.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+            clearRecentBtn.setOnClickListener(v -> {
+                haptic(v);
+                PengramConfig.clearRecentWebQueries();
+                renderSmartEmptyState();
+            });
+            hdr.addView(clearRecentBtn, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.END | Gravity.CENTER_VERTICAL));
+            resultsContainer.addView(hdr, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 4));
+
+            final int count = Math.min(recent.size(), 6);
+            for (int i = 0; i < count; i++) {
+                final String rq = recent.get(i);
+                final LinearLayout row = new LinearLayout(ctx);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(10), dp(7), dp(6), dp(7));
+                final int rowBg = ColorUtils.setAlphaComponent(
+                        getThemedColor(Theme.key_dialogTextGray3), Theme.isCurrentThemeDark() ? 22 : 14);
+                row.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                        dp(10), rowBg, ColorUtils.setAlphaComponent(getThemedColor(Theme.key_listSelector), 42)));
+
+                final ImageView ic = new ImageView(ctx);
+                ic.setImageResource(R.drawable.msg_recent);
+                ic.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                ic.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_dialogTextGray3), PorterDuff.Mode.SRC_IN));
+                row.addView(ic, LayoutHelper.createLinear(18, 18, 0, 0, 8, 0));
+
+                final TextView qTv = new TextView(ctx);
+                qTv.setText(rq);
+                qTv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14f);
+                qTv.setSingleLine(true);
+                qTv.setEllipsize(TextUtils.TruncateAt.END);
+                qTv.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+                row.addView(qTv, LayoutHelper.createLinear(0, LayoutHelper.WRAP_CONTENT, 1f));
+
+                final ImageView del = new ImageView(ctx);
+                del.setImageResource(R.drawable.ic_ab_close);
+                del.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                del.setPadding(dp(5), dp(5), dp(5), dp(5));
+                del.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_dialogTextGray3), PorterDuff.Mode.SRC_IN));
+                del.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(14)));
+                del.setOnClickListener(v -> {
+                    haptic(v);
+                    PengramConfig.removeRecentWebQuery(rq);
+                    renderSmartEmptyState();
+                });
+                row.addView(del, LayoutHelper.createLinear(28, 28));
+
+                row.setOnClickListener(v -> {
+                    haptic(v);
+                    pickQuickQuery(rq);
+                });
+                resultsContainer.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 4));
+            }
+        }
+
+        // 3. Примеры умных мгновенных запросов (курсы, время, факты Wikidata)
+        final TextView exHdr = new TextView(ctx);
+        exHdr.setText(getString(R.string.PengramWebSearchQuickExamples));
+        exHdr.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12.5f);
+        exHdr.setTypeface(AndroidUtilities.bold());
+        exHdr.setTextColor(getThemedColor(Theme.key_dialogTextGray2));
+        resultsContainer.addView(exHdr, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, recent.isEmpty() ? 2 : 8, 0, 6));
+
+        final String[] examples = new String[]{
+                getString(R.string.PengramWebSearchEx1),
+                getString(R.string.PengramWebSearchEx2),
+                getString(R.string.PengramWebSearchEx3),
+                getString(R.string.PengramWebSearchEx4)
+        };
+        final HorizontalScrollView exScroll = new HorizontalScrollView(ctx);
+        exScroll.setHorizontalScrollBarEnabled(false);
+        final LinearLayout exRow = new LinearLayout(ctx);
+        exRow.setOrientation(LinearLayout.HORIZONTAL);
+        for (String ex : examples) {
+            final TextView chip = buildSmallChip(ex, false);
+            chip.setOnClickListener(v -> {
+                haptic(v);
+                pickQuickQuery(ex);
+            });
+            exRow.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
+        }
+        exScroll.addView(exRow, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
+        resultsContainer.addView(exScroll, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 4));
     }
 
     private void runQueryNow(String query) {
@@ -408,6 +600,7 @@ public class PengramWebSearchSheet extends BottomSheet {
             final TextView insertShortBtn = buildSmallChip(shortLabel, true);
             insertShortBtn.setOnClickListener(v -> {
                 haptic(v);
+                PengramConfig.rememberWebQuery(currentQuery);
                 if (insertCallback != null) {
                     insertCallback.onInsert(instant.shortInsert);
                 }
@@ -557,6 +750,7 @@ public class PengramWebSearchSheet extends BottomSheet {
         card.setOnClickListener(v -> {
             if (!TextUtils.isEmpty(hit.url)) {
                 haptic(v);
+                PengramConfig.rememberWebQuery(currentQuery);
                 Browser.openUrl(ctx, hit.url);
                 dismiss();
             }
@@ -601,6 +795,7 @@ public class PengramWebSearchSheet extends BottomSheet {
             final TextView chip = buildSmallChip(PengramConfig.getInlineWebSearchEngineName(eng) + " ↗", isPrimary);
             chip.setOnClickListener(v -> {
                 haptic(v);
+                PengramConfig.rememberWebQuery(query);
                 Browser.openUrl(ctx, PengramInlineWebSearch.buildBrowserSearchUrl(query, eng));
                 dismiss();
             });

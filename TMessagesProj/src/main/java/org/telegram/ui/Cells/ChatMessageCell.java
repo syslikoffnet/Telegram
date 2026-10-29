@@ -365,6 +365,24 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return 1f;
     }
 
+    private final org.telegram.messenger.PengramSenderHydrator.Listener pengramSenderHydratedListener = peerId -> {
+        final MessageObject msg = currentMessageObject;
+        if (msg == null) {
+            return;
+        }
+        final long fromId = msg.getFromChatId();
+        final long rawFrom = msg.messageOwner != null && msg.messageOwner.from_id != null
+                ? DialogObject.getPeerDialogId(msg.messageOwner.from_id) : 0;
+        if (peerId != fromId && peerId != rawFrom && peerId != msg.getDialogId()) {
+            return;
+        }
+        updateCurrentUserAndChat();
+        setAvatar(msg);
+        msg.resetLayout();
+        requestLayout();
+        org.telegram.messenger.PengramSenderHydrator.invalidateCellAndParent(this);
+    };
+
     public void setAvatar(MessageObject messageObject) {
         if (messageObject == null) {
             return;
@@ -390,11 +408,23 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     final long did = DialogObject.getPeerDialogId(messageObject.messageOwner.from_id);
                     if (did >= 0) {
                         final TLRPC.User user = MessagesController.getInstance(messageObject.currentAccount).getUser(did);
-                        avatarDrawable.setInfo(currentAccount, user);
+                        if (user != null) {
+                            avatarDrawable.setInfo(currentAccount, user);
+                        } else {
+                            avatarDrawable.setInfo(did, "?", null);
+                            org.telegram.messenger.PengramSenderHydrator.ensureLoaded(
+                                    messageObject.currentAccount, messageObject.getDialogId(), did, pengramSenderHydratedListener);
+                        }
                         avatarImage.setForUserOrChat(user, avatarDrawable);
                     } else {
                         final TLRPC.Chat chat = MessagesController.getInstance(messageObject.currentAccount).getChat(-did);
-                        avatarDrawable.setInfo(currentAccount, chat);
+                        if (chat != null) {
+                            avatarDrawable.setInfo(currentAccount, chat);
+                        } else {
+                            avatarDrawable.setInfo(did, "?", null);
+                            org.telegram.messenger.PengramSenderHydrator.ensureLoaded(
+                                    messageObject.currentAccount, messageObject.getDialogId(), did, pengramSenderHydratedListener);
+                        }
                         avatarImage.setForUserOrChat(chat, avatarDrawable);
                     }
                 } else {
@@ -407,8 +437,16 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             } else {
                 currentPhoto = null;
-                avatarDrawable.setInfo(messageObject.getFromChatId(), null, null);
+                long fallbackPeerId = messageObject.getFromChatId();
+                if (fallbackPeerId == 0 && messageObject.messageOwner != null && messageObject.messageOwner.from_id != null) {
+                    fallbackPeerId = DialogObject.getPeerDialogId(messageObject.messageOwner.from_id);
+                }
+                avatarDrawable.setInfo(fallbackPeerId, fallbackPeerId != 0 ? "?" : null, null);
                 avatarImage.setImage(null, null, avatarDrawable, null, null, 0);
+                if (fallbackPeerId != 0) {
+                    org.telegram.messenger.PengramSenderHydrator.ensureLoaded(
+                            messageObject.currentAccount, messageObject.getDialogId(), fallbackPeerId, pengramSenderHydratedListener);
+                }
             }
         } else {
             currentPhoto = null;
@@ -18888,7 +18926,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     protected boolean checkNeedDrawShareButton(MessageObject messageObject) {
         if (isReportChat) return false;
-        if (currentMessageObject.deleted && !currentMessageObject.deletedByThanos) return false;
+        if (currentMessageObject.deleted && !currentMessageObject.pengramDeleted && !currentMessageObject.deletedByThanos) return false;
         if (currentMessageObject.isSponsored()) return false;
         if (currentMessageObject.isEphemeral()) return false;
         if (currentMessagesGroup != null && currentPosition != null) {
@@ -18977,10 +19015,18 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 }
             } else if (DialogObject.isUserDialog(fromId) && (!currentMessageObject.messageOwner.post || fromChat != null && fromChat.signature_profiles)) {
                 currentUser = messagesController.getUser(fromId);
+                if (currentUser == null && fromId > 0) {
+                    org.telegram.messenger.PengramSenderHydrator.ensureLoaded(
+                            currentAccount, did, fromId, pengramSenderHydratedListener);
+                }
             } else if (currentMessageObject.messageOwner.post && chat != null && !chat.signature_profiles) {
                 currentChat = chat;
             } else if (DialogObject.isChatDialog(fromId)) {
                 currentChat = fromChat;
+                if (currentChat == null && fromId < 0) {
+                    org.telegram.messenger.PengramSenderHydrator.ensureLoaded(
+                            currentAccount, did, fromId, pengramSenderHydratedListener);
+                }
             } else if (currentMessageObject.messageOwner.post) {
                 currentChat = messagesController.getChat(currentMessageObject.messageOwner.peer_id.channel_id);
             }
@@ -20362,6 +20408,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     protected void onDraw(Canvas canvas) {
         if (!PengramAntiCrash.isEnabled()) {
             drawInternal(canvas);
+            pengramDrawStandaloneAvatar(canvas);
             return;
         }
         if (pengramBlockedStub) {
@@ -20373,6 +20420,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         final int restoreTo = canvas.save();
         try {
             drawInternal(canvas);
+            pengramDrawStandaloneAvatar(canvas);
         } catch (Throwable e) {
             pengramBlockedStub = true;
             pengramReportStub("cell draw", e);
@@ -20383,6 +20431,24 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             } catch (Throwable ignore) {
             }
         }
+    }
+
+    /** В автономных экранах (архив удалённых в группе) родительского списка чата нет — рисуем аватарку сами. */
+    private void pengramDrawStandaloneAvatar(Canvas canvas) {
+        if (!fullyDraw || !isAvatarVisible || drawNameAvatar || currentMessageObject == null || currentMessageObject.isOutOwner()) {
+            return;
+        }
+        final int size = dp(currentMessageObject.isRepostPreview ? 36 : 42);
+        int ax = dp(currentMessageObject.isRepostPreview ? 15 : 6);
+        if (!currentMessageObject.isRepostPreview
+                && org.telegram.messenger.PengramConfig.getGroupAvatarPos() == org.telegram.messenger.PengramConfig.AVATAR_POS_RIGHT) {
+            ax = Math.max(ax, getMeasuredWidth() - size - dp(6));
+        }
+        final float ay = Math.max(dp(2), getMeasuredHeight() - dp(44));
+        avatarImage.setImageCoords(ax, ay, size, size);
+        avatarImage.setRoundRadius((int) (size * 0.5f));
+        avatarImage.setVisible(true, false);
+        avatarImage.draw(canvas);
     }
     public void drawInternal(Canvas canvas) {
         if (currentMessageObject == null) {
@@ -21147,6 +21213,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     public boolean drawBackgroundInParent() {
         if (canDrawBackgroundInParent && currentMessageObject != null && currentMessageObject.isOutOwner()) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                    && org.telegram.messenger.PengramConfig.isCylinderScroll()) {
+                return false;
+            }
             return getThemedColor(Theme.key_chat_outBubbleGradient1) != 0;
         }
         return false;
@@ -21500,7 +21570,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             Choreographer60FpsContent.getInstance().removeFrameCallback(invalidateOutboundsRunnable);
         }
 
-        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !(currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
+        if ((currentNameStatusDrawable != null || currentNameEmojiStatusDrawable != null || topicButton != null && (drawTopic || transitionParams.animateDrawTopic)) && drawNameLayout && nameLayout != null && (currentPosition == null || currentPosition.minX == 0 && currentPosition.minY == 0) && !((currentMessageObject.deleted && !currentMessageObject.pengramDeleted) && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1)) {
             int color;
             float nameX, nameY;
             if (currentMessageObject.shouldDrawWithoutBackground()) {
@@ -22266,7 +22336,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         lastNamesAnimationTime = newAnimationTime;
 
-        if (currentMessageObject.deleted && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1) {
+        if ((currentMessageObject.deleted && !currentMessageObject.pengramDeleted) && !drawingToBitmap && currentMessagesGroup != null && currentMessagesGroup.messages.size() >= 1) {
             return;
         }
 
@@ -23884,7 +23954,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         drawCommentLayout(canvas, alpha);
 
-        if (captionLayout == null || selectionOnly && links.isEmpty() || (currentMessageObject.deleted && !drawingToBitmap && currentPosition != null) || alpha == 0) {
+        if (captionLayout == null || selectionOnly && links.isEmpty() || ((currentMessageObject.deleted && !currentMessageObject.pengramDeleted) && !drawingToBitmap && currentPosition != null) || alpha == 0) {
             return;
         }
         setupTextColors();
@@ -24249,7 +24319,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private void drawTimeInternal(Canvas canvas, float alpha, boolean fromParent, float timeX, StaticLayout timeLayout, float timeWidth, boolean drawSelectionBackground) {
-        if ((!drawTime || groupPhotoInvisible) && shouldDrawTimeOnMedia() || timeLayout == null || (currentMessageObject.deleted && currentPosition != null) || currentMessageObject.type == MessageObject.TYPE_PHONE_CALL) {
+        if ((!drawTime || groupPhotoInvisible) && shouldDrawTimeOnMedia() || timeLayout == null || ((currentMessageObject.deleted && !currentMessageObject.pengramDeleted) && currentPosition != null) || currentMessageObject.type == MessageObject.TYPE_PHONE_CALL) {
             return;
         }
         if (isPengramTimeHidden()) {

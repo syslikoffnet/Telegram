@@ -38,7 +38,11 @@ public class PengramTypingPreviewView extends LinearLayout {
         input = new EditTextBoldCursor(context) {
             @Override
             protected void onDraw(android.graphics.Canvas canvas) {
+                final int pengramSave = PengramTypingEffects.preDraw(this, canvas);
                 super.onDraw(canvas);
+                if (pengramSave >= 0) {
+                    canvas.restoreToCount(pengramSave);
+                }
                 PengramTypingEffects.drawOverlay(this, canvas);
             }
         };

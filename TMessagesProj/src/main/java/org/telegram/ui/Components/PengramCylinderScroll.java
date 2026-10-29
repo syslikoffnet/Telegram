@@ -55,6 +55,8 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private final WeakHashMap<View, android.graphics.Rect> clipRects = new WeakHashMap<>();
     /** шейдер сгиба на ячейку: uniforms у RuntimeShader общие для всех его эффектов. */
     private final WeakHashMap<View, Bend> bends = new WeakHashMap<>();
+    /** единый шейдер сгиба на весь список (API 33+): гнёт фон исходящих пузырей, альбомы, аватарки и текст без обрезки по краям ячейки. */
+    private Bend listBend;
     private String shaderCode;
     private boolean shaderFailed;
     private boolean applied;
@@ -264,7 +266,8 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 }
             }
         }
-        final int barsSig = Float.floatToIntBits(topEdge) * 31 + Float.floatToIntBits(bottomEdge);
+        final int strengthPct = PengramConfig.getCylinderScrollStrength();
+        final int barsSig = (Float.floatToIntBits(topEdge) * 31 + Float.floatToIntBits(bottomEdge)) * 31 + strengthPct;
         // сумма «верх + сдвиг» по всем строкам: аниматоры двигают ячейки и без
         // смены скролла — такой кадр обязан пересчитать сгиб, а не пропустить
         float layoutSum = 0f;
@@ -295,15 +298,36 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         final float band = Math.min(radius * ROLLER_EDGE_K, span / 3f);
         final float insetTop = topEdge + band;
         final float insetBottom = bottomEdge - band;
-        final boolean shader = ensureWarp();
+        final int targetWidth = target.getWidth();
+        boolean shader = ensureWarp();
+        boolean listShaderActive = false;
+        if (shader && targetWidth > 0 && targetHeight > 0) {
+            if (listBend == null) {
+                try {
+                    listBend = new Bend(shaderCode);
+                } catch (Throwable t) {
+                    shaderFailed = true;
+                    shader = false;
+                }
+            }
+            if (listBend != null) {
+                if (listBend.bind(insetTop, insetBottom, radius, targetWidth, targetHeight)) {
+                    target.setRenderEffect(listBend.effect);
+                }
+                listShaderActive = true;
+            }
+        }
         if (shader) {
             warp.deactivate();
         } else {
             // шейдера нет (API < 33 или сбой) — ту же карту исполняет mesh-варп
+            if (listBend != null && listBend.detachIfActive() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                target.setRenderEffect(null);
+            }
             warp.setGeometry(insetTop, insetBottom, radius);
         }
-        if (!shader && !bends.isEmpty()) {
-            // шейдер не поднялся — снимаем остатки эффектов
+        if ((!shader || listShaderActive) && !bends.isEmpty()) {
+            // шейдер не поднялся или перешёл на весь список — снимаем по-ячеечные эффекты
             for (final View view : bends.keySet()) {
                 view.setRenderEffect(null);
             }
@@ -330,35 +354,37 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                     child.setClipBounds(clip);
                 }
             }
-            if (shader && w > 0 && h > 0) {
-                // Касательные валиков в локальных координатах ячейки: карта одна
-                // на весь список (инсет одинаков), поэтому швы соседних строк
-                // совпадают точно, а содержимое одного сообщения едет неразрывно.
-                final float top = child.getTop() + child.getTranslationY();
-                final float localT = insetTop - top;
-                final float localB = insetBottom - top;
-                // В плоской середине между валиками шейдер — тождественное 1:1 копирование:
-                // снимаем RenderEffect, чтобы HWUI не выделял offscreen FBO на плоские ячейки.
-                if (localT <= 0f && localB >= h) {
-                    final Bend existing = bends.get(child);
-                    if (existing != null && existing.detachIfActive()) {
-                        child.setRenderEffect(null);
+            if (!listShaderActive) {
+                if (shader && w > 0 && h > 0) {
+                    // Касательные валиков в локальных координатах ячейки: карта одна
+                    // на весь список (инсет одинаков), поэтому швы соседних строк
+                    // совпадают точно, а содержимое одного сообщения едет неразрывно.
+                    final float top = child.getTop() + child.getTranslationY();
+                    final float localT = insetTop - top;
+                    final float localB = insetBottom - top;
+                    // В плоской середине между валиками шейдер — тождественное 1:1 копирование:
+                    // снимаем RenderEffect, чтобы HWUI не выделял offscreen FBO на плоские ячейки.
+                    if (localT <= 0f && localB >= h) {
+                        final Bend existing = bends.get(child);
+                        if (existing != null && existing.detachIfActive()) {
+                            child.setRenderEffect(null);
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                Bend bend = bends.get(child);
-                if (bend == null) {
-                    try {
-                        bend = new Bend(shaderCode);
-                    } catch (Throwable t) {
-                        shaderFailed = true;
+                    Bend bend = bends.get(child);
+                    if (bend == null) {
+                        try {
+                            bend = new Bend(shaderCode);
+                        } catch (Throwable t) {
+                            shaderFailed = true;
+                        }
+                        if (bend != null) {
+                            bends.put(child, bend);
+                        }
                     }
-                    if (bend != null) {
-                        bends.put(child, bend);
+                    if (bend != null && bend.bind(localT, localB, radius, w, h)) {
+                        child.setRenderEffect(bend.effect);
                     }
-                }
-                if (bend != null && bend.bind(localT, localB, radius, w, h)) {
-                    child.setRenderEffect(bend.effect);
                 }
             }
         }
@@ -368,6 +394,9 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private void reset() {
         applied = false;
         warp.clear();
+        if (listBend != null && listBend.detachIfActive() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            target.setRenderEffect(null);
+        }
         if (!bends.isEmpty()) {
             for (final View view : bends.keySet()) {
                 view.setRenderEffect(null);

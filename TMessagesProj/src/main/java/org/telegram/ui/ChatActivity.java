@@ -2367,6 +2367,9 @@ public class ChatActivity extends BaseFragment implements
                 }
                 view.invalidate();
             }
+            if (chatListView != null) {
+                chatListView.invalidate();
+            }
             // если ячейки на экране нет, updateRowWithMessageObject уже пометил строку изменённой
         } catch (Throwable e) {
             FileLog.e(e);
@@ -2437,6 +2440,7 @@ public class ChatActivity extends BaseFragment implements
                 obj = filteredMessagesDict.get((long) mid);
             }
             if (obj != null) {
+                org.telegram.messenger.PengramSenderHydrator.rememberMessageSender(currentAccount, obj.messageOwner);
                 org.telegram.messenger.PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner);
                 kept.add(obj);
                 any = true;
@@ -2448,7 +2452,26 @@ public class ChatActivity extends BaseFragment implements
             // синхронно: сообщение удалено и оставлено — флаг не ждёт асинхронной
             // публикации метки (читая кэш до неё, мы ложно получали false)
             obj.pengramDeleted = true;
+            obj.deleted = false;
             pengramRefreshMessage(obj, true);
+        }
+        if (!kept.isEmpty()) {
+            // MessagesController проставляет obj.deleted = true сразу после рассылки
+            // NotificationCenter.messagesDeleted — возвращаем false на следующем такте UI,
+            // чтобы боковая аватарка отправителя в группе никогда не пропадала.
+            AndroidUtilities.runOnUIThread(() -> {
+                boolean cleared = false;
+                for (int i = 0; i < kept.size(); i++) {
+                    final MessageObject obj = kept.get(i);
+                    if (obj != null && obj.pengramDeleted && obj.deleted) {
+                        obj.deleted = false;
+                        cleared = true;
+                    }
+                }
+                if (cleared && chatListView != null) {
+                    chatListView.invalidate();
+                }
+            });
         }
         if (!any && chatListView != null) {
             chatListView.invalidateViews();
@@ -7251,7 +7274,8 @@ public class ChatActivity extends BaseFragment implements
                             if (group == null || (k == 0 && group.messages.size() == 1) || (k == 1 && !group.transitionParams.drawBackgroundForDeletedItems)) {
                                 continue;
                             }
-                            if ((k == 0 && cell.getMessageObject().deleted) || (k == 1 && !cell.getMessageObject().deleted)) {
+                            final boolean pengramTrulyDeleted = cell.getMessageObject().deleted && !cell.getMessageObject().pengramDeleted;
+                            if ((k == 0 && pengramTrulyDeleted) || (k == 1 && !pengramTrulyDeleted)) {
                                 continue;
                             }
                             if ((k == 2 && !cell.willRemovedAfterAnimation()) || (k != 2 && cell.willRemovedAfterAnimation())) {
@@ -7552,7 +7576,7 @@ public class ChatActivity extends BaseFragment implements
                     final ImageReceiver imageReceiver = mcell.getAvatarImage();
                     if (imageReceiver != null && getSideMenuAlpha() < 1.f) {
                         final MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
-                        boolean updateVisibility = !mcell.getMessageObject().deleted && chatListView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION;
+                        boolean updateVisibility = (!mcell.getMessageObject().deleted || mcell.getMessageObject().pengramDeleted) && chatListView.getChildAdapterPosition(child) != RecyclerView.NO_POSITION;
 
                         boolean replaceAnimation = chatListView.isFastScrollAnimationRunning() || (groupedMessages != null && groupedMessages.transitionParams.backgroundChangeBounds);
                         int top = (replaceAnimation ? child.getTop() : (int) child.getY()) + child.getPaddingTop();
@@ -29658,6 +29682,16 @@ public class ChatActivity extends BaseFragment implements
         final long owner = getUserConfig().getClientUserId();
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final PengramHistory.Entry saved = PengramHistory.getDeletedEntry(currentAccount, hit.rowId);
+            if (saved != null) {
+                final java.util.HashSet<Long> senderIds = new java.util.HashSet<>();
+                if (saved.fromId != 0) {
+                    senderIds.add(saved.fromId);
+                }
+                if (saved.dialogId != 0) {
+                    senderIds.add(saved.dialogId);
+                }
+                org.telegram.messenger.PengramSenderHydrator.preloadPeersBlocking(currentAccount, senderIds);
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 if (saved == null || saved.dialogId != dialog_id || saved.messageId != hit.messageId
                         || saved.account != currentAccount || getParentActivity() == null
@@ -38505,7 +38539,7 @@ public class ChatActivity extends BaseFragment implements
                     cell.setChecked(false, false, true);
                 }
 
-                if (messageObject != null && (!messageObject.deleted || cell.linkedChatId != linkedChatId) && !suppressUpdateMessageObject) {
+                if (messageObject != null && (!messageObject.deleted || messageObject.pengramDeleted || cell.linkedChatId != linkedChatId) && !suppressUpdateMessageObject) {
                     cell.setIsUpdating(true);
                     cell.linkedChatId = chatInfo != null ? chatInfo.linked_chat_id : 0;
                     cell.setMessageObject(messageObject, cell.getCurrentMessagesGroup(), cell.isPinnedBottom(), cell.isPinnedTop(), cell.isFirstInChat(), cell.isLastInChatList());

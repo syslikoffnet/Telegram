@@ -5360,7 +5360,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (messageEditText == null) return;
         PengramTypingEffects.apply(messageEditText, messageEditText.getText(), start, before, count);
         final long now = SystemClock.uptimeMillis();
-        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && count <= 2 && now - pengramLastTypingHaptic >= 90) {
+        if (org.telegram.messenger.PengramConfig.isInputAnimationHaptic() && count > before && (count - before) <= 2 && now - pengramLastTypingHaptic >= 90) {
             pengramLastTypingHaptic = now;
             if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) messageEditText.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         }
@@ -5393,7 +5393,11 @@ public class ChatActivityEnterView extends FrameLayout implements
 
         @Override
         protected void onDraw(android.graphics.Canvas canvas) {
+            final int pengramSave = PengramTypingEffects.preDraw(this, canvas);
             super.onDraw(canvas);
+            if (pengramSave >= 0) {
+                canvas.restoreToCount(pengramSave);
+            }
             // Pengram: анимация только что набранных букв рисуется поверх текста,
             // чтобы не трогать разметку строки (иначе текст мигает и прыгает)
             PengramTypingEffects.drawOverlay(this, canvas);

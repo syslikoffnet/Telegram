@@ -186,8 +186,9 @@ public final class PengramSearchIndex {
             {R.string.PengramChatEnterStyle, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramCylinderScroll, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderScrollInfo},
             {R.string.PengramCylinderToBars, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramCylinderToBarsInfo},
-            {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramLinkAssistantInfo},
             {R.string.PengramCylinderStrength, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
+            {R.string.PengramCylinderJuicyPreset, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
+            {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, R.string.PengramLinkAssistantInfo},
             {R.string.PengramChatBlur, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramSpoilerEffect, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
             {R.string.PengramThanosEffect, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramEffectsHeader, 0, 0},
@@ -350,7 +351,9 @@ public final class PengramSearchIndex {
             {R.string.PengramSendStyle, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, R.string.PengramSendStyleInfo},
             {R.string.PengramSendStyleLargeEmoji, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, R.string.PengramSendStyleLargeEmojiInfo},
             {R.string.PengramSendStyleCaptions, PengramSettingsActivity.SECTION_TYPING, R.string.PengramSendStyleHeader, 0, 0},
+            {R.string.PengramTypingMaster, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, R.string.PengramTypingMasterInfo},
             {R.string.PengramInputAnimation, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, R.string.PengramInputAnimationInfo},
+            {R.string.PengramTypingJuicyPreset, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramInputAnimationSpeed, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramInputAnimationIntensity, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
             {R.string.PengramInputAnimationHaptic, PengramSettingsActivity.SECTION_TYPING, R.string.PengramInputAnimationHeader, 0, 0},
@@ -376,6 +379,7 @@ public final class PengramSearchIndex {
             {R.string.PengramInlineWebSearch, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, R.string.PengramInlineWebSearchInfo},
             {R.string.PengramWebSearchPrefix, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, 0},
             {R.string.PengramWebSearchEngine, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, 0},
+            {R.string.PengramWebSearchHistory, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramWebSearchHeader, 0, R.string.PengramWebSearchHistoryInfo},
             {R.string.PengramInlineCalc, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, R.string.PengramInlineCalcInfo},
             {R.string.PengramInlineCurrency, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, R.string.PengramInlineCurrencyInfo},
             {R.string.PengramCalcDefaultCurrency, PengramSettingsActivity.SECTION_INPUT_TOOLS, R.string.PengramCalcHeader, 0, 0},
@@ -623,8 +627,9 @@ public final class PengramSearchIndex {
             0x14faab14, // PengramChatEnterStyle (SECTION_APPEARANCE)
             0x1ebf9c5a, // PengramCylinderScroll (SECTION_APPEARANCE)
             0x30b283f3, // PengramCylinderToBars (SECTION_APPEARANCE)
-            0x36e9d0b1, // PengramLinkAssistant (SECTION_APPEARANCE)
             0x19cb50e5, // PengramCylinderStrength (SECTION_APPEARANCE)
+            0x3bad03c6, // PengramCylinderJuicyPreset (SECTION_APPEARANCE)
+            0x36e9d0b1, // PengramLinkAssistant (SECTION_APPEARANCE)
             0x1e93faa1, // PengramChatBlur (SECTION_APPEARANCE)
             0x3c3b8904, // PengramSpoilerEffect (SECTION_APPEARANCE)
             0x345f9a52, // PengramThanosEffect (SECTION_APPEARANCE)
@@ -787,7 +792,9 @@ public final class PengramSearchIndex {
             0x3b9ca751, // PengramSendStyle (SECTION_TYPING)
             0x3698be2e, // PengramSendStyleLargeEmoji (SECTION_TYPING)
             0x1cc904f1, // PengramSendStyleCaptions (SECTION_TYPING)
+            0x124f514f, // PengramTypingMaster (SECTION_TYPING)
             0x3fb66b0d, // PengramInputAnimation (SECTION_TYPING)
+            0x3f0118aa, // PengramTypingJuicyPreset (SECTION_TYPING)
             0x37f4c757, // PengramInputAnimationSpeed (SECTION_TYPING)
             0x15dbc560, // PengramInputAnimationIntensity (SECTION_TYPING)
             0x1299115d, // PengramInputAnimationHaptic (SECTION_TYPING)
@@ -813,6 +820,7 @@ public final class PengramSearchIndex {
             0x327bb5d4, // PengramInlineWebSearch (SECTION_INPUT_TOOLS)
             0x3a540b83, // PengramWebSearchPrefix (SECTION_INPUT_TOOLS)
             0x1733588a, // PengramWebSearchEngine (SECTION_INPUT_TOOLS)
+            0x17c6aabf, // PengramWebSearchHistory (SECTION_INPUT_TOOLS)
             0x1cd0b552, // PengramInlineCalc (SECTION_INPUT_TOOLS)
             0x11ee006b, // PengramInlineCurrency (SECTION_INPUT_TOOLS)
             0x3716142c, // PengramCalcDefaultCurrency (SECTION_INPUT_TOOLS)
