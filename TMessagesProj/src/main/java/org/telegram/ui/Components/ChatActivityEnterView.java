@@ -145,6 +145,7 @@ import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.PengramCurrencyRates;
 import org.telegram.messenger.PengramInlineCalc;
+import org.telegram.messenger.PengramInlineWebSearch;
 import org.telegram.messenger.PengramLinkAssistant;
 import org.telegram.messenger.PengramLinkResolver;
 import org.telegram.messenger.R;
@@ -6176,6 +6177,9 @@ public class ChatActivityEnterView extends FrameLayout implements
                 if (!pengramCalcSuppressWatcher) {
                     updatePengramCalcSuggestion(s);
                 }
+                if (!pengramWebSuppressWatcher) {
+                    updatePengramWebSuggestion(s);
+                }
             }
         });
         messageEditText.setEnabled(messageEditTextEnabled);
@@ -7156,7 +7160,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (topView == null) {
             return;
         }
-        if (topViewShownByPanel || pengramCalcShown) {
+        if (topViewShownByPanel || pengramCalcShown || pengramWebShown) {
             updatePengramLinkSlot();
         } else {
             updatePengramLinkSlot();
@@ -7413,7 +7417,345 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (topView == null) {
             return;
         }
-        if (topViewShownByPanel || pengramLinkShown) {
+        if (topViewShownByPanel || pengramLinkShown || pengramWebShown) {
+            updatePengramLinkSlot();
+        } else {
+            updatePengramLinkSlot();
+            if (topViewShowed) {
+                hideTopView(true);
+            }
+        }
+    }
+
+    // --- Pengram: быстрый интернет-поиск по префиксу прямо в строке ввода (по дефолту выкл.) ---
+    private FrameLayout pengramWebBar;
+    private FrameLayout pengramWebIconWrap;
+    private ImageView pengramWebIconView;
+    private TextView pengramWebTitle;
+    private TextView pengramWebSubtitle;
+    private ImageView pengramWebMoreBtn;
+    private TextView pengramWebActionChip;
+    private ImageView pengramWebClose;
+    private boolean pengramWebShown;
+    private boolean pengramWebSuppressWatcher;
+    private String pengramWebDismissedQuery;
+    private PengramInlineWebSearch.PrefixMatch pengramWebMatch;
+    private PengramInlineWebSearch.SearchResponse pengramWebResponse;
+    private PengramInlineWebSearch.SearchHandle pengramWebHandle;
+    private PengramWebSearchSheet pengramWebSheet;
+
+    private final Runnable pengramWebDebounceRunnable = () -> {
+        if (destroyed || pengramWebMatch == null) {
+            return;
+        }
+        final String q = pengramWebMatch.query;
+        cancelPengramWebHandle();
+        pengramWebHandle = PengramInlineWebSearch.searchAsync(q, currentAccount, response -> {
+            if (destroyed || pengramWebMatch == null || !q.equalsIgnoreCase(pengramWebMatch.query)) {
+                return;
+            }
+            pengramWebResponse = response;
+            if (pengramWebShown) {
+                bindPengramWebBar();
+            }
+        });
+    };
+
+    private void cancelPengramWebHandle() {
+        AndroidUtilities.cancelRunOnUIThread(pengramWebDebounceRunnable);
+        if (pengramWebHandle != null) {
+            pengramWebHandle.cancel();
+            pengramWebHandle = null;
+        }
+    }
+
+    private void updatePengramWebSuggestion(CharSequence text) {
+        if (destroyed || editingMessageObject != null || !PengramConfig.isInlineWebSearchEnabled()) {
+            cancelPengramWebHandle();
+            pengramWebMatch = null;
+            pengramWebResponse = null;
+            hidePengramWebBar();
+            return;
+        }
+        final PengramInlineWebSearch.PrefixMatch match = PengramInlineWebSearch.extractPrefixQuery(text);
+        if (match == null) {
+            cancelPengramWebHandle();
+            pengramWebDismissedQuery = null;
+            pengramWebMatch = null;
+            pengramWebResponse = null;
+            hidePengramWebBar();
+            return;
+        }
+        if (match.query.equalsIgnoreCase(pengramWebDismissedQuery)) {
+            cancelPengramWebHandle();
+            hidePengramWebBar();
+            return;
+        }
+        pengramWebDismissedQuery = null;
+        final boolean sameQuery = pengramWebMatch != null && match.query.equalsIgnoreCase(pengramWebMatch.query);
+        pengramWebMatch = match;
+
+        if (!sameQuery) {
+            cancelPengramWebHandle();
+            final PengramInlineWebSearch.SearchResponse cached = PengramInlineWebSearch.getCached(match.query);
+            pengramWebResponse = cached;
+            if (cached == null) {
+                AndroidUtilities.runOnUIThread(pengramWebDebounceRunnable, 260);
+            }
+        }
+        ensurePengramWebBarAttached();
+        bindPengramWebBar();
+        showPengramWebBar();
+    }
+
+    private void ensurePengramWebBarAttached() {
+        if (pengramWebBar != null || !(topView instanceof ChatActivityEnterTopView)) {
+            return;
+        }
+        final FrameLayout container = new FrameLayout(getContext());
+        container.setClickable(true);
+        container.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
+
+        final LinearLayout row = new LinearLayout(getContext());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), 0, dp(4), 0);
+
+        pengramWebIconWrap = new FrameLayout(getContext());
+        pengramWebIconView = new ImageView(getContext());
+        pengramWebIconView.setImageResource(R.drawable.msg_search);
+        pengramWebIconView.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        pengramWebIconView.setPadding(dp(5), dp(5), dp(5), dp(5));
+        pengramWebIconWrap.addView(pengramWebIconView, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
+        row.addView(pengramWebIconWrap, LayoutHelper.createLinear(28, 28));
+
+        final LinearLayout textCol = new LinearLayout(getContext());
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        textCol.setGravity(Gravity.CENTER_VERTICAL);
+
+        pengramWebTitle = new TextView(getContext());
+        pengramWebTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13.5f);
+        pengramWebTitle.setTypeface(AndroidUtilities.bold());
+        pengramWebTitle.setSingleLine(true);
+        pengramWebTitle.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(pengramWebTitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        pengramWebSubtitle = new TextView(getContext());
+        pengramWebSubtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
+        pengramWebSubtitle.setSingleLine(true);
+        pengramWebSubtitle.setEllipsize(TextUtils.TruncateAt.END);
+        textCol.addView(pengramWebSubtitle, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
+
+        row.addView(textCol, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f, 9, 0, 6, 0));
+
+        pengramWebMoreBtn = new ImageView(getContext());
+        pengramWebMoreBtn.setImageResource(R.drawable.msg_search);
+        pengramWebMoreBtn.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        pengramWebMoreBtn.setPadding(dp(5), dp(4), dp(5), dp(4));
+        pengramWebMoreBtn.setContentDescription(getString(R.string.PengramWebSearchSheetTitle));
+        row.addView(pengramWebMoreBtn, LayoutHelper.createLinear(30, 28, 0, 0, 5, 0));
+
+        pengramWebActionChip = new TextView(getContext());
+        pengramWebActionChip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        pengramWebActionChip.setTypeface(AndroidUtilities.bold());
+        pengramWebActionChip.setTextColor(0xFFFFFFFF);
+        pengramWebActionChip.setGravity(Gravity.CENTER);
+        pengramWebActionChip.setSingleLine(true);
+        pengramWebActionChip.setPadding(dp(11), 0, dp(11), 0);
+        row.addView(pengramWebActionChip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 28, 0, 0, 2, 0));
+
+        pengramWebClose = new ImageView(getContext());
+        pengramWebClose.setImageResource(R.drawable.ic_ab_close);
+        pengramWebClose.setScaleType(ImageView.ScaleType.CENTER);
+        pengramWebClose.setContentDescription(LocaleController.getString(R.string.Close));
+        pengramWebClose.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(18)));
+        row.addView(pengramWebClose, LayoutHelper.createLinear(40, PENGRAM_LINK_BAR_DP));
+
+        container.addView(row, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP));
+
+        container.setOnClickListener(v -> openPengramWebSearchSheet());
+        pengramWebMoreBtn.setOnClickListener(v -> openPengramWebSearchSheet());
+        pengramWebActionChip.setOnClickListener(v -> {
+            final PengramInlineWebSearch.SearchResponse resp = pengramWebResponse;
+            if (resp != null && resp.instant != null && !TextUtils.isEmpty(resp.instant.shortInsert)) {
+                applyPengramWebInsert(resp.instant.shortInsert);
+            } else {
+                openPengramWebSearchSheet();
+            }
+        });
+        pengramWebClose.setOnClickListener(v -> {
+            if (PengramConfig.isVibrationEnabled()) {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            }
+            if (pengramWebMatch != null) {
+                pengramWebDismissedQuery = pengramWebMatch.query;
+            }
+            cancelPengramWebHandle();
+            hidePengramWebBar();
+        });
+
+        pengramWebBar = container;
+        // ВАЖНО: LayoutHelper.createFrame принимает высоту в DP, НЕ в px!
+        ((ChatActivityEnterTopView) topView).setWebSearchView(container,
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, PENGRAM_LINK_BAR_DP, Gravity.BOTTOM));
+    }
+
+    private void bindPengramWebBar() {
+        if (pengramWebBar == null || pengramWebMatch == null) {
+            return;
+        }
+        final int accent = getThemedColor(Theme.key_windowBackgroundWhiteBlueText);
+        final int secColor = getThemedColor(Theme.key_chat_replyPanelIcons);
+
+        if (pengramWebIconWrap != null) {
+            pengramWebIconWrap.setBackground(Theme.createRoundRectDrawable(
+                    dp(8), ColorUtils.setAlphaComponent(accent, 30)));
+        }
+        if (pengramWebIconView != null) {
+            pengramWebIconView.setColorFilter(new PorterDuffColorFilter(accent, PorterDuff.Mode.SRC_IN));
+        }
+        if (pengramWebMoreBtn != null) {
+            pengramWebMoreBtn.setColorFilter(new PorterDuffColorFilter(
+                    getThemedColor(Theme.key_chat_messagePanelText), PorterDuff.Mode.SRC_IN));
+            pengramWebMoreBtn.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(14), ColorUtils.setAlphaComponent(secColor, 26), ColorUtils.setAlphaComponent(secColor, 52)));
+        }
+        if (pengramWebClose != null) {
+            pengramWebClose.setColorFilter(new PorterDuffColorFilter(secColor, PorterDuff.Mode.SRC_IN));
+        }
+
+        final PengramInlineWebSearch.SearchResponse resp = pengramWebResponse;
+        final boolean hasInstant = resp != null && resp.instant != null && !TextUtils.isEmpty(resp.instant.title);
+
+        if (pengramWebTitle != null) {
+            pengramWebTitle.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
+            if (hasInstant) {
+                final String head = !TextUtils.isEmpty(resp.instant.subtitle)
+                        && !resp.instant.subtitle.equalsIgnoreCase(resp.instant.sourceName)
+                        && resp.instant.title.length() <= 28
+                        ? (resp.instant.title + " — " + resp.instant.subtitle)
+                        : resp.instant.title;
+                pengramWebTitle.setText(head);
+            } else {
+                pengramWebTitle.setText(LocaleController.formatString(
+                        R.string.PengramWebSearchSearching, pengramWebMatch.query));
+            }
+        }
+
+        if (pengramWebSubtitle != null) {
+            pengramWebSubtitle.setTextColor(secColor);
+            if (hasInstant) {
+                final String sub = !TextUtils.isEmpty(resp.instant.summary)
+                        ? (resp.instant.summary + " · " + getString(R.string.PengramWebSearchTapForMore))
+                        : getString(R.string.PengramWebSearchTapForMore);
+                pengramWebSubtitle.setText(sub);
+            } else if (resp != null) {
+                pengramWebSubtitle.setText(getString(R.string.PengramWebSearchTapForMore));
+            } else {
+                pengramWebSubtitle.setText(getString(R.string.PengramWebSearchSearchingSub));
+            }
+        }
+
+        if (pengramWebActionChip != null) {
+            pengramWebActionChip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
+                    dp(14), accent, ColorUtils.blendARGB(accent, Color.BLACK, 0.16f)));
+            if (hasInstant && !TextUtils.isEmpty(resp.instant.shortInsert)) {
+                pengramWebActionChip.setText(getString(R.string.PengramCalcInsertChip));
+                if (pengramWebMoreBtn != null) {
+                    pengramWebMoreBtn.setVisibility(VISIBLE);
+                }
+            } else {
+                pengramWebActionChip.setText(getString(R.string.PengramWebSearchOpenBtn));
+                if (pengramWebMoreBtn != null) {
+                    pengramWebMoreBtn.setVisibility(GONE);
+                }
+            }
+        }
+    }
+
+    private void openPengramWebSearchSheet() {
+        if (destroyed || getContext() == null) {
+            return;
+        }
+        if (PengramConfig.isVibrationEnabled() && pengramWebBar != null) {
+            pengramWebBar.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        final String q = pengramWebMatch != null ? pengramWebMatch.query : "";
+        if (pengramWebSheet != null) {
+            try {
+                pengramWebSheet.dismiss();
+            } catch (Throwable ignore) {
+            }
+            pengramWebSheet = null;
+        }
+        pengramWebSheet = new PengramWebSearchSheet(
+                getContext(),
+                currentAccount,
+                q,
+                pengramWebResponse,
+                resourcesProvider,
+                this::applyPengramWebInsert
+        );
+        pengramWebSheet.show();
+    }
+
+    private void applyPengramWebInsert(String insertedText) {
+        if (TextUtils.isEmpty(insertedText) || messageEditText == null) {
+            return;
+        }
+        final android.text.Editable edit = messageEditText.getText();
+        if (edit == null) {
+            return;
+        }
+        final PengramInlineWebSearch.PrefixMatch currentMatch = PengramInlineWebSearch.extractPrefixQuery(edit);
+        final int start = currentMatch != null ? currentMatch.replaceStart : 0;
+        final int end = currentMatch != null ? currentMatch.replaceEnd : edit.length();
+        if (start < 0 || end < start || end > edit.length()) {
+            return;
+        }
+        if (PengramConfig.isVibrationEnabled() && pengramWebBar != null) {
+            pengramWebBar.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        }
+        pengramWebSuppressWatcher = true;
+        try {
+            edit.replace(start, end, insertedText);
+            messageEditText.setSelection(Math.min(edit.length(), start + insertedText.length()));
+        } finally {
+            pengramWebSuppressWatcher = false;
+        }
+        cancelPengramWebHandle();
+        pengramWebMatch = null;
+        pengramWebResponse = null;
+        hidePengramWebBar();
+        updatePengramCalcSuggestion(messageEditText.getText());
+    }
+
+    private void showPengramWebBar() {
+        pengramWebShown = true;
+        if (topView == null) {
+            return;
+        }
+        ensurePengramWebBarAttached();
+        updatePengramLinkSlot();
+        if (topViewShowed) {
+            return;
+        }
+        needShowTopView = true;
+        topViewShowed = true;
+        if (allowShowTopView) {
+            animatorTopViewVisibility.setValue(true, true);
+        }
+    }
+
+    private void hidePengramWebBar() {
+        if (!pengramWebShown) {
+            return;
+        }
+        pengramWebShown = false;
+        if (topView == null) {
+            return;
+        }
+        if (topViewShownByPanel || pengramLinkShown || pengramCalcShown) {
             updatePengramLinkSlot();
         } else {
             updatePengramLinkSlot();
@@ -7432,10 +7774,12 @@ public class ChatActivityEnterView extends FrameLayout implements
                 ? (ChatActivityEnterTopView) topView : null;
         final boolean linkVis = pengramLinkShown && (top == null || !top.isEditMode());
         final boolean calcVis = pengramCalcShown && !linkVis && (top == null || !top.isEditMode());
-        final boolean barVisible = linkVis || calcVis;
+        final boolean webVis = pengramWebShown && !linkVis && !calcVis && (top == null || !top.isEditMode());
+        final boolean barVisible = linkVis || calcVis || webVis;
         if (top != null) {
             top.setLinkVisible(linkVis);
             top.setCalcVisible(calcVis);
+            top.setWebSearchVisible(webVis);
             top.setPanelVisible(topViewShownByPanel || !barVisible);
         }
         final int base = pengramLinkSlotBaseHeight > 0 ? pengramLinkSlotBaseHeight : dp(48);
@@ -7489,6 +7833,18 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (pengramCalcShown && pengramCalcCurrent != null) {
             ensurePengramCalcBarAttached();
             bindPengramCalcBar(pengramCalcCurrent);
+            updatePengramLinkSlot();
+            if (!topViewShowed) {
+                needShowTopView = true;
+                topViewShowed = true;
+                if (allowShowTopView) {
+                    animatorTopViewVisibility.setValue(true, false);
+                }
+            }
+        }
+        if (pengramWebShown && pengramWebMatch != null) {
+            ensurePengramWebBarAttached();
+            bindPengramWebBar();
             updatePengramLinkSlot();
             if (!topViewShowed) {
                 needShowTopView = true;
@@ -7620,7 +7976,7 @@ public class ChatActivityEnterView extends FrameLayout implements
         }
 
         topViewShownByPanel = false;
-        if (pengramLinkShown || pengramCalcShown) {
+        if (pengramLinkShown || pengramCalcShown || pengramWebShown) {
             // Панель закрылась, но бар помощника активен — слот остаётся под ним.
             if (showTopViewRunnable != null) {
                 AndroidUtilities.cancelRunOnUIThread(showTopViewRunnable);
@@ -7764,6 +8120,15 @@ public class ChatActivityEnterView extends FrameLayout implements
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messageReceivedByServer2);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.sendingMessagesChanged);
         PengramCurrencyRates.removeListener(pengramRatesListener);
+        cancelPengramWebHandle();
+        if (pengramWebSheet != null) {
+            try {
+                pengramWebSheet.setOnDismissListener((android.content.DialogInterface.OnDismissListener) null);
+                pengramWebSheet.dismiss();
+            } catch (Throwable ignore) {
+            }
+            pengramWebSheet = null;
+        }
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.audioRecordTooShort);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.updateBotMenuButton);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.didUpdatePremiumGiftFieldIcon);

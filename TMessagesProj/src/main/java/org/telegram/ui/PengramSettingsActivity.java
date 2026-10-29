@@ -371,6 +371,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_BUBBLE_SHADOW_MODE = 1059;
     private static final int BTN_CALC_CURRENCY = 1060;
     private static final int BTN_CALC_REFRESH_RATES = 1061;
+    private static final int BTN_WEB_SEARCH_PREFIX = 1062;
+    private static final int BTN_WEB_SEARCH_ENGINE = 1063;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1119,7 +1121,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                         "hideBubbleTail", "hideEditedLabel", "hideStories", "hideWriteButton", "mediaTime*", "title*",
                         "tabBarSize", "hideTab*", "forceSnow", "particle*", "md3*"};
             case SECTION_TYPING:
-                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji", "inlineCalc*", "inlineCurrency*"};
+                return new String[]{"inputAnimation*", "typing*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji", "inlineCalc*", "inlineCurrency*", "inlineWebSearch*"};
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
             case SECTION_LINK_ASSISTANT:
@@ -1130,7 +1132,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_CHAT_INTERFACE:
             case SECTION_CHAT_MENUS:
                 return new String[]{"chat*", "menu*", "hideMenu*", "hideChat*", "settingsOrder*",
-                        "serviceJoinLeaveProfile", "bubble*", "hideBubbleTail", "inlineCalc*", "inlineCurrency*",
+                        "serviceJoinLeaveProfile", "bubble*", "hideBubbleTail", "inlineCalc*", "inlineCurrency*", "inlineWebSearch*",
                         "pengramCardOnTop", "inputAnimation*", "typingStats*", "sendTextStyle", "sendStyleCaptions", "sendStyleLargeEmoji",
                         "keepFormatting", "selectionLimit", "speedBoost", "deleteEffect*",
                         "forward*", "trackForward*"};
@@ -1500,6 +1502,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case PengramConfig.KEY_BUBBLE_RIM: return R.drawable.msg_customize;
             case PengramConfig.KEY_INLINE_CALC: return R.drawable.msg_stats;
             case PengramConfig.KEY_INLINE_CURRENCY: return R.drawable.msg_language;
+            case PengramConfig.KEY_INLINE_WEB_SEARCH: return R.drawable.msg_search;
             default: return 0;
         }
     }
@@ -4650,6 +4653,37 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(getString(R.string.PengramQuoteWatermarkInfo)));
     }
 
+    private void showCustomWebPrefixDialog() {
+        if (getContext() == null) return;
+        EditTextBoldCursor input = new EditTextBoldCursor(getContext());
+        input.setText(PengramConfig.getInlineWebSearchPrefix());
+        input.setHint(getString(R.string.PengramWebSearchPrefixCustomHint));
+        input.setHintTextColor(getThemedColor(Theme.key_dialogTextGray3));
+        input.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+        input.setCursorColor(getThemedColor(Theme.key_windowBackgroundWhiteBlueText));
+        input.setCursorSize(dp(20));
+        input.setCursorWidth(1.6f);
+        input.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
+        input.setSingleLine(true);
+        input.setSelectAllOnFocus(true);
+        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
+        android.widget.FrameLayout container = new android.widget.FrameLayout(getContext());
+        container.setPadding(dp(20), dp(8), dp(20), dp(8));
+        container.addView(input, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48));
+        showDialog(new AlertDialog.Builder(getContext(), getResourceProvider())
+                .setTitle(getString(R.string.PengramWebSearchPrefix))
+                .setView(container)
+                .setPositiveButton(getString(R.string.Save), (dialog, which) -> {
+                    final String val = input.getText() != null ? input.getText().toString() : "";
+                    if (!PengramConfig.setInlineWebSearchPrefix(val)) {
+                        BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramWebSearchPrefixInvalid)).show();
+                    }
+                    if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                })
+                .setNegativeButton(getString(R.string.Cancel), null)
+                .create());
+    }
+
     private void showQuoteTextDialog(CharSequence title, String current, boolean color,
                                      Utilities.Callback<String> onSave) {
         if (getContext() == null) return;
@@ -4781,6 +4815,21 @@ public class PengramSettingsActivity extends UniversalFragment {
                     rateStatus));
         }
         items.add(UItem.asShadow(getString(R.string.PengramCalcSectionInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramWebSearchHeader)));
+        items.add(checkInfo(PengramConfig.KEY_INLINE_WEB_SEARCH, false,
+                getString(R.string.PengramInlineWebSearch),
+                getString(R.string.PengramInlineWebSearchInfo)));
+        if (PengramConfig.isInlineWebSearchEnabled()) {
+            final String curPrefix = PengramConfig.getInlineWebSearchPrefix();
+            items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_PREFIX, R.drawable.msg_edit,
+                    getString(R.string.PengramWebSearchPrefix),
+                    curPrefix + "  (" + curPrefix + "запрос)"));
+            items.add(UItem.asSettingsCell(BTN_WEB_SEARCH_ENGINE, R.drawable.msg_language,
+                    getString(R.string.PengramWebSearchEngine),
+                    PengramConfig.getInlineWebSearchEngineName(PengramConfig.getInlineWebSearchEngine())));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramWebSearchSectionInfo)));
     }
 
     /**
@@ -5388,6 +5437,46 @@ public class PengramSettingsActivity extends UniversalFragment {
                 if (listView != null && listView.adapter != null) {
                     listView.adapter.update(true);
                 }
+                return;
+            }
+            case BTN_WEB_SEARCH_PREFIX: {
+                final String[] presets = PengramConfig.WEB_SEARCH_PRESET_PREFIXES;
+                final CharSequence[] options = new CharSequence[]{
+                        getString(R.string.PengramWebSearchPrefixDot),
+                        getString(R.string.PengramWebSearchPrefixQuestion),
+                        getString(R.string.PengramWebSearchPrefixDoubleQuestion),
+                        getString(R.string.PengramWebSearchPrefixBang),
+                        getString(R.string.PengramWebSearchPrefixSemicolon),
+                        getString(R.string.PengramWebSearchPrefixCustom)
+                };
+                final String current = PengramConfig.getInlineWebSearchPrefix();
+                int selected = presets.length;
+                for (int i = 0; i < presets.length; i++) {
+                    if (presets[i].equals(current)) {
+                        selected = i;
+                        break;
+                    }
+                }
+                showChoicePicker(getString(R.string.PengramWebSearchPrefix), options, selected, value -> {
+                    if (value >= 0 && value < presets.length) {
+                        PengramConfig.setInlineWebSearchPrefix(presets[value]);
+                        if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                    } else {
+                        showCustomWebPrefixDialog();
+                    }
+                });
+                return;
+            }
+            case BTN_WEB_SEARCH_ENGINE: {
+                final CharSequence[] engines = new CharSequence[PengramConfig.WEB_ENGINE_COUNT];
+                for (int i = 0; i < engines.length; i++) {
+                    engines[i] = PengramConfig.getInlineWebSearchEngineName(i);
+                }
+                showChoicePicker(getString(R.string.PengramWebSearchEngine), engines,
+                        PengramConfig.getInlineWebSearchEngine(), value -> {
+                            PengramConfig.setInlineWebSearchEngine(value);
+                            if (listView != null && listView.adapter != null) listView.adapter.update(true);
+                        });
                 return;
             }
             case BTN_PARTICLE_MODE: {

@@ -133,8 +133,61 @@ def check_inline_calc_and_ui():
     assert len(ru_map["PengramCalcSectionInfo"]) <= 150
 
 
+def check_prefix_web_search():
+    web = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramInlineWebSearch.java")
+    sheet = read("TMessagesProj/src/main/java/org/telegram/ui/Components/PengramWebSearchSheet.java")
+    top = read("TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterTopView.java")
+    enter = read("TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java")
+    cfg = read("TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java")
+    settings = read("TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java")
+    search_idx = read("TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java")
+
+    assert "UNICODE_CHARACTER_CLASS" not in web and "(?U)" not in web
+    assert "\\b" not in web
+
+    # Strictly disabled by default!
+    assert 'KEY_INLINE_WEB_SEARCH = "inlineWebSearchEnabled"' in cfg
+    assert "getBool(KEY_INLINE_WEB_SEARCH, false)" in cfg
+    assert "checkInfo(PengramConfig.KEY_INLINE_WEB_SEARCH, false," in settings
+
+    # Reserved Telegram symbols /, @, # must be blocked as prefixes
+    assert "first == '/' || first == '@' || first == '#'" in cfg
+
+    # Multi-source parallel search & redirect unwrapping
+    for req in (
+        ".wikipedia.org/w/api.php",
+        "api.duckduckgo.com/",
+        "html.duckduckgo.com/html/",
+        "suggestqueries.google.com/complete/search",
+        "unwrapDuckDuckGoRedirect",
+        "simplifyQuestionForWiki",
+    ):
+        assert req in web, f"Missing {req} in PengramInlineWebSearch"
+
+    # UI & settings wiring
+    assert "setWebSearchView(" in top and "setWebSearchVisible(" in top
+    assert "updatePengramWebSuggestion(" in enter
+    assert "openPengramWebSearchSheet()" in enter
+    assert "class PengramWebSearchSheet extends BottomSheet" in sheet
+    assert "PengramInlineWebSearch" in search_idx
+
+    # Strings & <=150 shadow check
+    en_map = {el.attrib["name"]: (el.text or "") for el in ET.parse(ROOT / "TMessagesProj/src/main/res/values/strings.xml").getroot().findall("string") if "name" in el.attrib}
+    ru_map = {el.attrib["name"]: (el.text or "") for el in ET.parse(ROOT / "TMessagesProj/src/main/res/values-ru/strings.xml").getroot().findall("string") if "name" in el.attrib}
+    for k in (
+        "PengramWebSearchHeader", "PengramInlineWebSearch", "PengramInlineWebSearchInfo",
+        "PengramWebSearchPrefix", "PengramWebSearchPrefixCustom", "PengramWebSearchPrefixInvalid",
+        "PengramWebSearchEngine", "PengramWebSearchSheetTitle", "PengramWebSearchSectionInfo",
+    ):
+        assert k in en_map and en_map[k].strip(), f"Missing EN string {k}"
+        assert k in ru_map and ru_map[k].strip(), f"Missing RU string {k}"
+    assert len(en_map["PengramWebSearchSectionInfo"]) <= 150
+    assert len(ru_map["PengramWebSearchSectionInfo"]) <= 150
+
+
 if __name__ == "__main__":
     check_join_leave_fix()
     check_live_currency_engine()
     check_inline_calc_and_ui()
-    print("Pengram join/leave fix + inline calculator & live currency converter: OK")
+    check_prefix_web_search()
+    print("Pengram join/leave fix + inline calculator & live currency + prefix web search: OK")

@@ -22,6 +22,9 @@ public class ChatActivityEnterTopView extends FrameLayout {
     private View calcView;
     private boolean calcVisible;
     private int calcBarHeightPx;
+    private View webSearchView;
+    private boolean webSearchVisible;
+    private int webSearchBarHeightPx;
     private Runnable linkLayoutCallback;
 
     public ChatActivityEnterTopView(Context context) {
@@ -39,10 +42,14 @@ public class ChatActivityEnterTopView extends FrameLayout {
     public void addView(View child, int index, android.view.ViewGroup.LayoutParams params) {
         super.addView(child, index, params);
         // Крестик отмены ответа добавляется в ChatActivity напрямую в ChatActivityEnterTopView.
-        if (replyCloseView == null && child != replyView && child != editView && child != linkView && child != calcView
+        if (replyCloseView == null && child != replyView && child != editView
+                && child != linkView && child != calcView && child != webSearchView
                 && child instanceof ImageView) {
             replyCloseView = child;
             syncVisibilityAndMargins();
+        }
+        if (webSearchView != null && child != webSearchView && child != calcView && child != linkView) {
+            webSearchView.bringToFront();
         }
         if (calcView != null && child != calcView && child != linkView) {
             calcView.bringToFront();
@@ -96,6 +103,37 @@ public class ChatActivityEnterTopView extends FrameLayout {
         return calcVisible && !linkVisible && calcView != null && calcView.getVisibility() == VISIBLE;
     }
 
+    /** Бар быстрого интернет-поиска по префиксу в том же нижнем слоте. */
+    public void setWebSearchView(View webSearchView, LayoutParams layoutParams) {
+        if (this.webSearchView == null && webSearchView != null) {
+            this.webSearchView = webSearchView;
+            this.webSearchBarHeightPx = layoutParams != null && layoutParams.height > 0 ? layoutParams.height : 0;
+            webSearchView.setVisibility(GONE);
+            addView(webSearchView, layoutParams);
+            webSearchView.bringToFront();
+            if (calcView != null) {
+                calcView.bringToFront();
+            }
+            if (linkView != null) {
+                linkView.bringToFront();
+            }
+            syncVisibilityAndMargins();
+        }
+    }
+
+    public void setWebSearchVisible(boolean visible) {
+        if (this.webSearchVisible == visible) {
+            return;
+        }
+        this.webSearchVisible = visible;
+        syncVisibilityAndMargins();
+    }
+
+    public boolean isWebSearchVisible() {
+        return webSearchVisible && !linkVisible && !calcVisible
+                && webSearchView != null && webSearchView.getVisibility() == VISIBLE;
+    }
+
     public void setPanelVisible(boolean visible) {
         if (this.panelVisible == visible) {
             return;
@@ -123,6 +161,7 @@ public class ChatActivityEnterTopView extends FrameLayout {
     private void applyLinkVisibility() {
         final boolean showLink = linkVisible && !editMode;
         final boolean showCalc = calcVisible && !showLink && !editMode;
+        final boolean showWeb = webSearchVisible && !showLink && !showCalc && !editMode;
         if (linkView != null) {
             linkView.setVisibility(showLink ? VISIBLE : GONE);
             if (showLink) {
@@ -135,11 +174,18 @@ public class ChatActivityEnterTopView extends FrameLayout {
                 calcView.bringToFront();
             }
         }
+        if (webSearchView != null) {
+            webSearchView.setVisibility(showWeb ? VISIBLE : GONE);
+            if (showWeb) {
+                webSearchView.bringToFront();
+            }
+        }
     }
 
     private void syncVisibilityAndMargins() {
         final boolean showLink = linkVisible && !editMode;
         final boolean showCalc = calcVisible && !showLink && !editMode;
+        final boolean showWeb = webSearchVisible && !showLink && !showCalc && !editMode;
         applyLinkVisibility();
 
         if (!panelVisible) {
@@ -157,9 +203,16 @@ public class ChatActivityEnterTopView extends FrameLayout {
                 replyView.setVisibility((editMode && !editSuggestionMode) ? GONE : VISIBLE);
                 if (replyView.getLayoutParams() instanceof MarginLayoutParams) {
                     final MarginLayoutParams mlp = (MarginLayoutParams) replyView.getLayoutParams();
-                    final int targetBottom = (showLink && linkBarHeightPx > 0)
-                            ? linkBarHeightPx
-                            : ((showCalc && calcBarHeightPx > 0) ? calcBarHeightPx : 0);
+                    final int targetBottom;
+                    if (showLink && linkBarHeightPx > 0) {
+                        targetBottom = linkBarHeightPx;
+                    } else if (showCalc && calcBarHeightPx > 0) {
+                        targetBottom = calcBarHeightPx;
+                    } else if (showWeb && webSearchBarHeightPx > 0) {
+                        targetBottom = webSearchBarHeightPx;
+                    } else {
+                        targetBottom = 0;
+                    }
                     if (mlp.bottomMargin != targetBottom) {
                         mlp.bottomMargin = targetBottom;
                         replyView.setLayoutParams(mlp);

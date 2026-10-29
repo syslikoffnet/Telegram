@@ -259,6 +259,18 @@ public final class PengramInlineCalc {
         if (rawText == null || rawText.length() == 0 || rawText.length() > 600) {
             return null;
         }
+        // Если включён интернет-поиск по префиксу и сообщение начинается с него — не перехватываем запрос
+        if (PengramInlineWebSearch.extractPrefixQuery(rawText) != null) {
+            return null;
+        }
+        return analyzeDirect(rawText, currentAccount);
+    }
+
+    /** Прямой анализ выражения без проверки префикса веб-поиска. */
+    public static Suggestion analyzeDirect(CharSequence rawText, int currentAccount) {
+        if (rawText == null || rawText.length() == 0 || rawText.length() > 600) {
+            return null;
+        }
         final boolean calcOn = PengramConfig.isInlineCalcEnabled();
         final boolean curOn = PengramConfig.isInlineCurrencyEnabled();
         if (!calcOn && !curOn) {

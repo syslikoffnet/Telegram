@@ -945,6 +945,86 @@ public class PengramConfig {
         return "RUB";
     }
 
+    // ------------------------------------------------------------ быстрый поиск в сети по префиксу
+
+    public static final String KEY_INLINE_WEB_SEARCH = "inlineWebSearchEnabled";
+    public static final String KEY_INLINE_WEB_SEARCH_PREFIX = "inlineWebSearchPrefix";
+    public static final String KEY_INLINE_WEB_SEARCH_ENGINE = "inlineWebSearchEngine";
+
+    public static final int WEB_ENGINE_GOOGLE = 0;
+    public static final int WEB_ENGINE_YANDEX = 1;
+    public static final int WEB_ENGINE_DUCKDUCKGO = 2;
+    public static final int WEB_ENGINE_BRAVE = 3;
+    public static final int WEB_ENGINE_COUNT = 4;
+
+    public static final String[] WEB_SEARCH_PRESET_PREFIXES = new String[]{
+            ".", "?", "??", "!", ";"
+    };
+
+    /** По умолчанию СТРОГО выключено (false). */
+    public static boolean isInlineWebSearchEnabled() {
+        return getBool(KEY_INLINE_WEB_SEARCH, false);
+    }
+
+    public static void setInlineWebSearchEnabled(boolean enabled) {
+        setBool(KEY_INLINE_WEB_SEARCH, enabled);
+    }
+
+    public static String sanitizeWebSearchPrefix(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        final String trimmed = raw.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 4) {
+            return null;
+        }
+        final char first = trimmed.charAt(0);
+        if (first == '/' || first == '@' || first == '#') {
+            return null;
+        }
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (Character.isWhitespace(trimmed.charAt(i))) {
+                return null;
+            }
+        }
+        return trimmed;
+    }
+
+    public static String getInlineWebSearchPrefix() {
+        init();
+        final SharedPreferences p = prefs();
+        final String raw = p == null ? "." : p.getString(KEY_INLINE_WEB_SEARCH_PREFIX, ".");
+        final String clean = sanitizeWebSearchPrefix(raw);
+        return clean != null ? clean : ".";
+    }
+
+    public static boolean setInlineWebSearchPrefix(String raw) {
+        final String clean = sanitizeWebSearchPrefix(raw);
+        if (clean == null) {
+            return false;
+        }
+        putString(KEY_INLINE_WEB_SEARCH_PREFIX, clean);
+        return true;
+    }
+
+    public static int getInlineWebSearchEngine() {
+        return clampInt(getInt(KEY_INLINE_WEB_SEARCH_ENGINE, WEB_ENGINE_GOOGLE), 0, WEB_ENGINE_COUNT - 1);
+    }
+
+    public static void setInlineWebSearchEngine(int engine) {
+        putInt(KEY_INLINE_WEB_SEARCH_ENGINE, clampInt(engine, 0, WEB_ENGINE_COUNT - 1));
+    }
+
+    public static String getInlineWebSearchEngineName(int engine) {
+        switch (clampInt(engine, 0, WEB_ENGINE_COUNT - 1)) {
+            case WEB_ENGINE_YANDEX: return "Яндекс";
+            case WEB_ENGINE_DUCKDUCKGO: return "DuckDuckGo";
+            case WEB_ENGINE_BRAVE: return "Brave Search";
+            case WEB_ENGINE_GOOGLE:
+            default: return "Google";
+        }
+    }
+
     // ------------------------------------------------------------ тексты песен
 
     public static final int LYRICS_SOURCE_AUTO = 0;
@@ -3532,7 +3612,8 @@ public class PengramConfig {
             "bubbleGlassEnabled", "bubbleGlassOpacity", "bubbleWallpaperTint",
             "bubbleRimEnabled", "bubbleRimStrength",
             "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius",
-            "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency"
+            "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency",
+            "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(
