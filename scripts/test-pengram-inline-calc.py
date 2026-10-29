@@ -153,14 +153,22 @@ def check_prefix_web_search():
     # Reserved Telegram symbols /, @, # must be blocked as prefixes
     assert "first == '/' || first == '@' || first == '#'" in cfg
 
-    # Multi-source parallel search & redirect unwrapping
+    # Multi-source parallel search, Wikidata Knowledge Graph & redirect unwrapping
     for req in (
+        "www.wikidata.org/w/api.php",
         ".wikipedia.org/w/api.php",
         "api.duckduckgo.com/",
         "html.duckduckgo.com/html/",
+        "lite.duckduckgo.com/lite/",
+        "search.brave.com/search",
         "suggestqueries.google.com/complete/search",
         "unwrapDuckDuckGoRedirect",
         "simplifyQuestionForWiki",
+        "parseQuestionIntent",
+        "selectBestWikidataClaims",
+        "cleanWikiText",
+        "P582",
+        "code != 200",
     ):
         assert req in web, f"Missing {req} in PengramInlineWebSearch"
 

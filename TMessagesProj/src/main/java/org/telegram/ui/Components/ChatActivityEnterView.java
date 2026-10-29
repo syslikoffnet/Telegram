@@ -7577,7 +7577,8 @@ public class ChatActivityEnterView extends FrameLayout implements
         pengramWebMoreBtn.setOnClickListener(v -> openPengramWebSearchSheet());
         pengramWebActionChip.setOnClickListener(v -> {
             final PengramInlineWebSearch.SearchResponse resp = pengramWebResponse;
-            if (resp != null && resp.instant != null && !TextUtils.isEmpty(resp.instant.shortInsert)) {
+            if (resp != null && resp.instant != null && resp.instant.confidentShort
+                    && !TextUtils.isEmpty(resp.instant.shortInsert)) {
                 applyPengramWebInsert(resp.instant.shortInsert);
             } else {
                 openPengramWebSearchSheet();
@@ -7659,10 +7660,19 @@ public class ChatActivityEnterView extends FrameLayout implements
         if (pengramWebActionChip != null) {
             pengramWebActionChip.setBackground(Theme.createSimpleSelectorRoundRectDrawable(
                     dp(14), accent, ColorUtils.blendARGB(accent, Color.BLACK, 0.16f)));
-            if (hasInstant && !TextUtils.isEmpty(resp.instant.shortInsert)) {
-                pengramWebActionChip.setText(getString(R.string.PengramCalcInsertChip));
+            if (hasInstant && resp.instant.confidentShort && !TextUtils.isEmpty(resp.instant.shortInsert)) {
+                final String sIns = resp.instant.shortInsert;
+                final String chipText = sIns.length() <= 18
+                        ? LocaleController.formatString(R.string.PengramWebSearchInsertExact, sIns)
+                        : getString(R.string.PengramWebSearchInsertShort);
+                pengramWebActionChip.setText(chipText);
                 if (pengramWebMoreBtn != null) {
                     pengramWebMoreBtn.setVisibility(VISIBLE);
+                }
+            } else if (resp != null && resp.hasDirectContent()) {
+                pengramWebActionChip.setText(getString(R.string.PengramWebSearchShowAnswers));
+                if (pengramWebMoreBtn != null) {
+                    pengramWebMoreBtn.setVisibility(GONE);
                 }
             } else {
                 pengramWebActionChip.setText(getString(R.string.PengramWebSearchOpenBtn));

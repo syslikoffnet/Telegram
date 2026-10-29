@@ -402,7 +402,10 @@ public class PengramWebSearchSheet extends BottomSheet {
         actionsRow.setGravity(Gravity.CENTER_VERTICAL);
 
         if (!TextUtils.isEmpty(instant.shortInsert)) {
-            final TextView insertShortBtn = buildSmallChip(getString(R.string.PengramWebSearchInsertShort), true);
+            final String shortLabel = instant.shortInsert.length() <= 22
+                    ? LocaleController.formatString(R.string.PengramWebSearchInsertExact, instant.shortInsert)
+                    : getString(R.string.PengramWebSearchInsertShort);
+            final TextView insertShortBtn = buildSmallChip(shortLabel, true);
             insertShortBtn.setOnClickListener(v -> {
                 haptic(v);
                 if (insertCallback != null) {
@@ -413,9 +416,27 @@ public class PengramWebSearchSheet extends BottomSheet {
             actionsRow.addView(insertShortBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
         }
 
+        if (!TextUtils.isEmpty(instant.altInsert)
+                && !instant.altInsert.equalsIgnoreCase(instant.shortInsert)) {
+            final TextView insertAltBtn = buildSmallChip(instant.altInsert, false);
+            insertAltBtn.setOnClickListener(v -> {
+                haptic(v);
+                if (insertCallback != null) {
+                    insertCallback.onInsert(instant.altInsert);
+                }
+                dismiss();
+            });
+            actionsRow.addView(insertAltBtn, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
+        }
+
         if (!TextUtils.isEmpty(instant.summaryInsert)
-                && !instant.summaryInsert.equalsIgnoreCase(instant.shortInsert)) {
-            final TextView insertSumBtn = buildSmallChip(getString(R.string.PengramWebSearchInsertSummary), false);
+                && !instant.summaryInsert.equalsIgnoreCase(instant.shortInsert)
+                && !instant.summaryInsert.equalsIgnoreCase(instant.altInsert)) {
+            final boolean primaryIfNoShort = TextUtils.isEmpty(instant.shortInsert);
+            final TextView insertSumBtn = buildSmallChip(
+                    primaryIfNoShort ? getString(R.string.PengramWebSearchInsertShort) : getString(R.string.PengramWebSearchInsertFullSentence),
+                    primaryIfNoShort
+            );
             insertSumBtn.setOnClickListener(v -> {
                 haptic(v);
                 if (insertCallback != null) {
@@ -496,13 +517,12 @@ public class PengramWebSearchSheet extends BottomSheet {
         final LinearLayout actions = new LinearLayout(ctx);
         actions.setOrientation(LinearLayout.HORIZONTAL);
 
-        final TextView insTextBtn = buildSmallChip(getString(R.string.PengramCalcInsertChip), false);
+        final String cleanFact = PengramInlineWebSearch.extractCleanSentenceFromSnippet(hit.snippet);
+        final TextView insTextBtn = buildSmallChip(getString(R.string.PengramWebSearchInsertFact), false);
         insTextBtn.setOnClickListener(v -> {
             haptic(v);
             if (insertCallback != null) {
-                final String payload = !TextUtils.isEmpty(hit.snippet) && hit.snippet.length() <= 140
-                        ? (hit.title + " — " + hit.snippet)
-                        : hit.title;
+                final String payload = !TextUtils.isEmpty(cleanFact) ? cleanFact : hit.title;
                 insertCallback.onInsert(payload);
             }
             dismiss();

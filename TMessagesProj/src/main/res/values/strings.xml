@@ -13605,6 +13605,10 @@
     <string name="PengramWebSearchInputHint">Ask a question or search the web…</string>
     <string name="PengramWebSearchInstantBadge">Instant answer</string>
     <string name="PengramWebSearchInsertShort">Insert answer</string>
+    <string name="PengramWebSearchInsertExact">Insert: %1$s</string>
+    <string name="PengramWebSearchInsertFullSentence">Full sentence</string>
+    <string name="PengramWebSearchInsertFact">Insert snippet</string>
+    <string name="PengramWebSearchShowAnswers">Answers</string>
     <string name="PengramWebSearchInsertSummary">Insert with details</string>
     <string name="PengramWebSearchInsertLink">Insert link</string>
     <string name="PengramWebSearchOpenArticle">Article</string>

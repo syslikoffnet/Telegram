@@ -2332,6 +2332,10 @@
     <string name="PengramWebSearchInputHint">Введите вопрос или запрос…</string>
     <string name="PengramWebSearchInstantBadge">Точный ответ</string>
     <string name="PengramWebSearchInsertShort">Подставить ответ</string>
+    <string name="PengramWebSearchInsertExact">Вставить: %1$s</string>
+    <string name="PengramWebSearchInsertFullSentence">Полным ответом</string>
+    <string name="PengramWebSearchInsertFact">Вставить суть</string>
+    <string name="PengramWebSearchShowAnswers">Ответы</string>
     <string name="PengramWebSearchInsertSummary">С пояснением</string>
     <string name="PengramWebSearchInsertLink">Вставить ссылку</string>
     <string name="PengramWebSearchOpenArticle">Статья</string>
