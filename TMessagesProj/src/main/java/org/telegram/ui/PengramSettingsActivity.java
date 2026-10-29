@@ -4814,7 +4814,7 @@ public class PengramSettingsActivity extends UniversalFragment {
 
     private CharSequence inputToolsStateValue() {
         if (PengramConfig.isInlineWebSearchEnabled()) {
-            return formatString(R.string.PengramInputToolsSubWebOn, PengramConfig.getInlineWebSearchPrefix());
+            return org.telegram.messenger.LocaleController.formatString(R.string.PengramInputToolsSubWebOn, PengramConfig.getInlineWebSearchPrefix());
         }
         if (PengramConfig.isInlineCalcEnabled() || PengramConfig.isInlineCurrencyEnabled()) {
             return getString(R.string.PengramInputToolsSubCalcOn);
