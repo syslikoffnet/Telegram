@@ -365,7 +365,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return 1f;
     }
 
-    private final org.telegram.messenger.PengramSenderHydrator.Listener pengramSenderHydratedListener = peerId -> {
+    private final org.telegram.messenger.PengramSenderHydrator.Listener pengramSenderHydratedListener = this::onPengramSenderHydrated;
+
+    private void onPengramSenderHydrated(long peerId) {
         final MessageObject msg = currentMessageObject;
         if (msg == null) {
             return;
@@ -381,7 +383,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         msg.resetLayout();
         requestLayout();
         org.telegram.messenger.PengramSenderHydrator.invalidateCellAndParent(this);
-    };
+    }
 
     public void setAvatar(MessageObject messageObject) {
         if (messageObject == null) {

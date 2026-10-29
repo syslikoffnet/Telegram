@@ -307,7 +307,7 @@ public class PengramHistoryActivity extends UniversalFragment {
                         return org.telegram.messenger.UserObject.getUserName(user);
                     }
                     org.telegram.messenger.PengramSenderHydrator.ensureLoaded(currentAccount, 0, peerId, id -> {
-                        if (adapter != null) adapter.notifyDataSetChanged();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(false);
                     });
                 } else if (peerId < 0) {
                     TLRPC.Chat chat = getMessagesController().getChat(-peerId);
@@ -315,7 +315,7 @@ public class PengramHistoryActivity extends UniversalFragment {
                         return chat.title;
                     }
                     org.telegram.messenger.PengramSenderHydrator.ensureLoaded(currentAccount, peerId, peerId, id -> {
-                        if (adapter != null) adapter.notifyDataSetChanged();
+                        if (listView != null && listView.adapter != null) listView.adapter.update(false);
                     });
                 }
             } catch (Throwable ignore) {}
