@@ -1086,12 +1086,10 @@ public class PengramVoiceChanger {
 
     private static final AmbienceEngine LIVE_AMBIENCE = new AmbienceEngine();
     private static final AmbienceEngine PREVIEW_AMBIENCE = new AmbienceEngine();
-    private static volatile Thread ambiencePreviewThread;
-    private static volatile boolean ambiencePreviewRunning;
 
     public static float ambienceAmplitude(int levelPct) {
-        final float norm = Math.max(0.05f, Math.min(0.70f, levelPct / 100f));
-        return (0.14f * norm + 0.86f * norm * norm) * 11200f;
+        final float norm = Math.max(0.05f, Math.min(1.0f, levelPct / 100f));
+        return (0.14f * norm + 0.86f * norm * norm) * 8600f;
     }
 
     public static String getAmbienceName(int mode) {
@@ -1118,105 +1116,29 @@ public class PengramVoiceChanger {
         }
     }
 
-    public static boolean isAmbiencePreviewPlaying() {
-        return ambiencePreviewRunning;
+    public static void resetAmbiencePreview(int sampleRate) {
+        PREVIEW_AMBIENCE.reset(sampleRate);
     }
 
-    public static void stopAmbiencePreview() {
-        ambiencePreviewRunning = false;
-        final Thread t = ambiencePreviewThread;
-        if (t != null) {
-            t.interrupt();
-        }
-    }
-
-    /** 8-секундное живое прослушивание выбранного фона прямо в настройках (реагирует на ползунок на лету). */
-    public static void toggleAmbiencePreview(final Runnable onStateChanged) {
-        if (ambiencePreviewRunning) {
-            stopAmbiencePreview();
-            if (onStateChanged != null) {
-                AndroidUtilities.runOnUIThread(onStateChanged);
-            }
-            return;
-        }
-        if (PengramConfig.getVoiceAmbience() == AMBIENCE_OFF) {
-            PengramConfig.setVoiceAmbience(AMBIENCE_SUBWAY);
-        }
-        ambiencePreviewRunning = true;
-        if (onStateChanged != null) {
-            AndroidUtilities.runOnUIThread(onStateChanged);
-        }
-        final Thread worker = new Thread(() -> {
-            android.media.AudioTrack track = null;
-            try {
-                final int rate = 48000;
-                final int minBuf = android.media.AudioTrack.getMinBufferSize(
-                        rate,
-                        android.media.AudioFormat.CHANNEL_OUT_MONO,
-                        android.media.AudioFormat.ENCODING_PCM_16BIT);
-                final int bufBytes = Math.max(minBuf, rate / 10 * 2);
-                track = new android.media.AudioTrack(
-                        android.media.AudioManager.STREAM_MUSIC,
-                        rate,
-                        android.media.AudioFormat.CHANNEL_OUT_MONO,
-                        android.media.AudioFormat.ENCODING_PCM_16BIT,
-                        bufBytes,
-                        android.media.AudioTrack.MODE_STREAM);
-                if (track.getState() != android.media.AudioTrack.STATE_INITIALIZED) {
-                    return;
-                }
-                PREVIEW_AMBIENCE.reset(rate);
-                track.play();
-                final int chunkSamples = rate / 50; // 20 ms
-                final short[] pcm = new short[chunkSamples];
-                final int totalSamples = rate * 8;
-                final int fadeSamples = rate / 6;
-                int written = 0;
-                while (ambiencePreviewRunning && written < totalSamples && !Thread.currentThread().isInterrupted()) {
-                    final int amb = PengramConfig.getVoiceAmbience();
-                    if (amb == AMBIENCE_OFF) {
-                        break;
-                    }
-                    final float gain = ambienceAmplitude(PengramConfig.getVoiceAmbienceLevel()) * 1.15f;
-                    for (int i = 0; i < chunkSamples; i++) {
-                        final int idx = written + i;
-                        float fade = 1f;
-                        if (idx < fadeSamples) {
-                            fade = idx / (float) fadeSamples;
-                        } else if (idx > totalSamples - fadeSamples) {
-                            fade = Math.max(0f, (totalSamples - idx) / (float) fadeSamples);
-                        }
-                        float s = PREVIEW_AMBIENCE.nextSample(amb, rate, gain * fade, 0f, false);
-                        if (s > 30000f) s = 30000f;
-                        else if (s < -30000f) s = -30000f;
-                        pcm[i] = (short) s;
-                    }
-                    final int rc = track.write(pcm, 0, chunkSamples);
-                    if (rc <= 0) {
-                        break;
-                    }
-                    written += rc;
-                }
-            } catch (Throwable ignore) {
-            } finally {
-                ambiencePreviewRunning = false;
-                ambiencePreviewThread = null;
-                if (track != null) {
-                    try {
-                        track.pause();
-                        track.flush();
-                        track.release();
-                    } catch (Throwable ignore) {
-                    }
-                }
-                if (onStateChanged != null) {
-                    AndroidUtilities.runOnUIThread(onStateChanged);
+    public static void renderAmbiencePreviewChunk(short[] pcm, int chunkSamples, int sampleRate,
+                                                  int ambience, int levelPct,
+                                                  int writtenSamples, int totalSamples, int fadeSamples) {
+        final float gain = ambienceAmplitude(levelPct) * 1.15f;
+        for (int i = 0; i < chunkSamples; i++) {
+            final int idx = writtenSamples + i;
+            float fade = 1f;
+            if (fadeSamples > 0) {
+                if (idx < fadeSamples) {
+                    fade = idx / (float) fadeSamples;
+                } else if (idx > totalSamples - fadeSamples) {
+                    fade = Math.max(0f, (totalSamples - idx) / (float) fadeSamples);
                 }
             }
-        }, "pengram-ambience-preview");
-        worker.setDaemon(true);
-        ambiencePreviewThread = worker;
-        worker.start();
+            float s = PREVIEW_AMBIENCE.nextSample(ambience, sampleRate, gain * fade, 0f, false);
+            if (s > 30000f) s = 30000f;
+            else if (s < -30000f) s = -30000f;
+            pcm[i] = (short) s;
+        }
     }
 
     /**

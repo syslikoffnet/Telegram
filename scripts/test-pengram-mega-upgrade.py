@@ -206,8 +206,8 @@ for amb in (
     assert amb in voice, f"Missing {amb} in PengramVoiceChanger"
 
 assert "class AmbienceEngine" in voice
-assert "toggleAmbiencePreview(" in voice and "stopAmbiencePreview(" in voice
-assert "PengramVoiceChanger.stopAmbiencePreview();" in settings
+assert "renderAmbiencePreviewChunk(" in voice
+assert "PengramVoiceAmbiencePlayer.stop();" in settings
 assert '"ambience"' in voice_prof and '"ambienceLevel"' in voice_prof and '"ambienceDuck"' in voice_prof
 
 # 4. Localization completeness & <= 150-char shadow guard

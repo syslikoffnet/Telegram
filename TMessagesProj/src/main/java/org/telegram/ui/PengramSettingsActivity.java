@@ -3946,7 +3946,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(checkInfo(PengramConfig.KEY_VOICE_AMBIENCE_DUCK, true,
                     getString(R.string.PengramVoiceAmbienceDuck),
                     getString(R.string.PengramVoiceAmbienceDuckInfo)));
-            final boolean playing = PengramVoiceChanger.isAmbiencePreviewPlaying();
+            final boolean playing = org.telegram.ui.Components.PengramVoiceAmbiencePlayer.isPlaying();
             items.add(UItem.asButton(BTN_VOICE_AMBIENCE_PREVIEW,
                     playing ? R.drawable.msg_block : R.drawable.msg_played,
                     getString(playing
@@ -6070,13 +6070,13 @@ public class PengramSettingsActivity extends UniversalFragment {
                         getString(R.string.PengramVoiceAmbienceRadio),
                         getString(R.string.PengramVoiceAmbienceClub)
                 }, PengramConfig.getVoiceAmbience(), value -> {
-                    PengramVoiceChanger.stopAmbiencePreview();
+                    org.telegram.ui.Components.PengramVoiceAmbiencePlayer.stop();
                     PengramConfig.setVoiceAmbience(value);
                     updateList();
                 });
                 return;
             case BTN_VOICE_AMBIENCE_PREVIEW:
-                PengramVoiceChanger.toggleAmbiencePreview(this::updateList);
+                org.telegram.ui.Components.PengramVoiceAmbiencePlayer.toggle(this::updateList);
                 updateList();
                 return;
             case BTN_QUOTE_RESET_APPEARANCE:
@@ -6744,7 +6744,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onPause() {
         super.onPause();
-        PengramVoiceChanger.stopAmbiencePreview();
+        org.telegram.ui.Components.PengramVoiceAmbiencePlayer.stop();
         if (headerView != null) {
             headerView.setPaused(true);
         }
