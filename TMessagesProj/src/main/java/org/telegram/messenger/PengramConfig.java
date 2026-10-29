@@ -632,7 +632,7 @@ public class PengramConfig {
         return getBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, true);
     }
     public static void setServiceJoinLeaveProfileOpen(boolean enabled) {
-        putBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, enabled);
+        setBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, enabled);
     }
 
     public static final String KEY_AVATAR_SHAPE = "dialogAvatarShape";
@@ -778,7 +778,7 @@ public class PengramConfig {
     }
 
     public static void setBubbleGlassEnabled(boolean enabled) {
-        putBool(KEY_BUBBLE_GLASS, enabled);
+        setBool(KEY_BUBBLE_GLASS, enabled);
     }
 
     public static int getBubbleGlassOpacity() {
@@ -804,7 +804,7 @@ public class PengramConfig {
     }
 
     public static void setBubbleRimEnabled(boolean enabled) {
-        putBool(KEY_BUBBLE_RIM, enabled);
+        setBool(KEY_BUBBLE_RIM, enabled);
     }
 
     public static int getBubbleRimStrength() {

@@ -2,6 +2,7 @@ package org.telegram.messenger;
 
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.Vector;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -182,8 +183,8 @@ public final class PengramServiceProfileOpener {
 
         ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
             IN_FLIGHT.remove(flightKey);
-            if (response instanceof TLRPC.Vector) {
-                final TLRPC.Vector vector = (TLRPC.Vector) response;
+            if (response instanceof Vector) {
+                final Vector vector = (Vector) response;
                 final ArrayList<TLRPC.User> fetched = new ArrayList<>(vector.objects.size());
                 for (int i = 0; i < vector.objects.size(); i++) {
                     Object o = vector.objects.get(i);

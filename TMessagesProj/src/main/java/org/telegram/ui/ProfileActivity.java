@@ -1089,7 +1089,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (r > 0) {
                 clipPath.rewind();
                 AndroidUtilities.rectTmp.set(inset, inset, thisWidth - inset, thisHeight - inset);
-                if (org.telegram.ui.Components.PengramAvatarShape.isCustomShape() && !isForum) {
+                if (org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
                     final float minDim = Math.min(AndroidUtilities.rectTmp.width(), AndroidUtilities.rectTmp.height());
                     final float morph = minDim > 0f ? Math.min(1f, r / Math.max(1f, minDim * 0.5f)) : 1f;
                     org.telegram.ui.Components.PengramAvatarShape.buildPath(clipPath, AndroidUtilities.rectTmp, morph);
