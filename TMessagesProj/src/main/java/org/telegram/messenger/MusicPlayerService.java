@@ -441,9 +441,9 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
             } else {
                 loadingFilePath = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(messageObject.getDocument()).getAbsolutePath();
             }
-            if (albumArt == null && PengramConfig.isPlayerCovers()) {
+            if (albumArt == null) {
                 final String coverKey = PengramCovers.keyFor(messageObject);
-                final Bitmap pengramCover = PengramCovers.getCached(coverKey);
+                final Bitmap pengramCover = PengramCovers.getCached(messageObject);
                 if (pengramCover != null && !pengramCover.isRecycled()) {
                     albumArt = pengramCover;
                     fullAlbumArt = pengramCover;

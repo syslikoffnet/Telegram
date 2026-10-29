@@ -5041,6 +5041,10 @@ public class PengramConfig {
         return getBool(KEY_MINI_PLAYER_QUEUE_BTN, true);
     }
 
+    public static boolean isMiniPlayerQueueBtn() {
+        return isMiniPlayerQueueButton();
+    }
+
     public static void setMiniPlayerQueueButton(boolean enabled) {
         setBool(KEY_MINI_PLAYER_QUEUE_BTN, enabled);
     }

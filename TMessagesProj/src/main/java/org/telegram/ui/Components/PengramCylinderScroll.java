@@ -14,7 +14,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
@@ -511,12 +510,16 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
         return Math.min(listHeight, Math.max(y, s) + 2f);
     }
 
+    public interface BlurCaptureDrawer {
+        void draw(Canvas canvas, RectF position);
+    }
+
     /**
      * Захват фрагмента списка для Liquid Glass (blur3) с точным совпадением 3D-изгиба цилиндра:
      * на API 33+ применяет тот же AGSL-шейдер валика к полосе под стеклянной плашкой, чтобы внутри
      * прозрачного стекла не просвечивали плоские «призрачные» пузыри и не рвался шов преломления.
      */
-    public void drawForBlurCapture(Canvas blurCanvas, RectF listLocalPos, BlurredBackgroundSource.DrawImpl listDrawer) {
+    public void drawForBlurCapture(Canvas blurCanvas, RectF listLocalPos, BlurCaptureDrawer listDrawer) {
         if (!applied || !activeListShader || activeRadius <= 1f
                 || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
                 || !blurCanvas.isHardwareAccelerated()
