@@ -209,6 +209,38 @@ public class PengramConfig {
     public static final String KEY_LINK_SLIDE_AUDIO = "linkAssistantSlideAudio";
     /** Показывать на островке ссылки отдельную кнопку вызова окна предпросмотра (когда автопредпросмотр выключен). */
     public static final String KEY_LINK_ISLAND_PREVIEW_BTN = "linkAssistantIslandPreviewBtn";
+    /** Индивидуальные переключатели площадок Помощника ссылок. */
+    public static final String KEY_LINK_PLAT_YOUTUBE = "linkAssistantYoutube";
+    public static final String KEY_LINK_PLAT_TIKTOK = "linkAssistantTiktok";
+    public static final String KEY_LINK_PLAT_INSTAGRAM = "linkAssistantInstagram";
+    public static final String KEY_LINK_PLAT_TWITTER = "linkAssistantTwitter";
+    public static final String KEY_LINK_PLAT_PINTEREST = "linkAssistantPinterest";
+    public static final String KEY_LINK_PLAT_VK = "linkAssistantVk";
+    public static final String KEY_LINK_PLAT_RUTUBE = "linkAssistantRutube";
+    public static final String KEY_LINK_PLAT_REDDIT = "linkAssistantReddit";
+    public static final String KEY_LINK_PLAT_SOUNDCLOUD = "linkAssistantSoundcloud";
+    public static final String KEY_LINK_PLAT_YANDEX = "linkAssistantYandex";
+    /** Качество загрузки видео по умолчанию: 0 — Авто (до 1080p), 1 — Экономия трафика (720p/480p), 2 — Максимальное. */
+    public static final String KEY_LINK_QUALITY = "linkAssistantQuality";
+    public static final int LINK_QUALITY_AUTO_1080 = 0;
+    public static final int LINK_QUALITY_SAVER_720 = 1;
+    public static final int LINK_QUALITY_MAX = 2;
+    /** Показывать чип «Отправить как аудио/музыку» в предпросмотре и быстрых действиях. */
+    public static final String KEY_LINK_AUDIO_CHIP = "linkAssistantAudioChip";
+    /** Формат отправки по умолчанию: 0 — медиа (видео/фото), 1 — только звук (MP3/M4A). */
+    public static final String KEY_LINK_DEFAULT_FORMAT = "linkAssistantFormat";
+    public static final int LINK_FORMAT_MEDIA = 0;
+    public static final int LINK_FORMAT_AUDIO = 1;
+    /** Входящие ссылки в чате: кнопка «⬇ Смотреть тут» у пузыря сообщения для просмотра во встроенном плеере. */
+    public static final String KEY_LINK_INCOMING_WATCH = "linkAssistantIncomingWatch";
+    /** Показывать кнопку «⬇ Смотреть тут» также и на собственных отправленных ссылках. */
+    public static final String KEY_LINK_INCOMING_OUTGOING = "linkAssistantIncomingOnOut";
+    /** Призрак: автоматически отправлять прочтение чата при отправке своего ответа в этот чат. */
+    public static final String KEY_GHOST_READ_ON_REPLY = "ghostReadOnReply";
+    /** Фоновый шум (Ambience / Soundboard) для голосовых, кружочков и звонков. */
+    public static final String KEY_VOICE_AMBIENCE = "voiceAmbience";
+    public static final String KEY_VOICE_AMBIENCE_LEVEL = "voiceAmbienceLevel";
+    public static final String KEY_VOICE_AMBIENCE_DUCK = "voiceAmbienceDuck";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
@@ -3350,6 +3382,42 @@ public class PengramConfig {
     public static void setLinkSlideAudioEnabled(boolean value) { setBool(KEY_LINK_SLIDE_AUDIO, value); }
     public static boolean isLinkIslandPreviewButtonEnabled() { return getBool(KEY_LINK_ISLAND_PREVIEW_BTN, true); }
     public static void setLinkIslandPreviewButtonEnabled(boolean value) { setBool(KEY_LINK_ISLAND_PREVIEW_BTN, value); }
+    public static boolean isLinkPlatformYoutubeEnabled() { return getBool(KEY_LINK_PLAT_YOUTUBE, true); }
+    public static boolean isLinkPlatformTiktokEnabled() { return getBool(KEY_LINK_PLAT_TIKTOK, true); }
+    public static boolean isLinkPlatformInstagramEnabled() { return getBool(KEY_LINK_PLAT_INSTAGRAM, true); }
+    public static boolean isLinkPlatformTwitterEnabled() { return getBool(KEY_LINK_PLAT_TWITTER, true); }
+    public static boolean isLinkPlatformPinterestEnabled() { return getBool(KEY_LINK_PLAT_PINTEREST, true); }
+    public static boolean isLinkPlatformVkEnabled() { return getBool(KEY_LINK_PLAT_VK, true); }
+    public static boolean isLinkPlatformRutubeEnabled() { return getBool(KEY_LINK_PLAT_RUTUBE, true); }
+    public static boolean isLinkPlatformRedditEnabled() { return getBool(KEY_LINK_PLAT_REDDIT, true); }
+    public static boolean isLinkPlatformSoundcloudEnabled() { return getBool(KEY_LINK_PLAT_SOUNDCLOUD, true); }
+    public static boolean isLinkPlatformYandexEnabled() { return getBool(KEY_LINK_PLAT_YANDEX, true); }
+    public static int getLinkQualityMode() { return Math.max(LINK_QUALITY_AUTO_1080, Math.min(LINK_QUALITY_MAX, getIntCached(KEY_LINK_QUALITY, LINK_QUALITY_AUTO_1080))); }
+    public static void setLinkQualityMode(int mode) { setIntValue(KEY_LINK_QUALITY, Math.max(LINK_QUALITY_AUTO_1080, Math.min(LINK_QUALITY_MAX, mode))); }
+    public static int getLinkMaxVideoHeight() {
+        switch (getLinkQualityMode()) {
+            case LINK_QUALITY_SAVER_720: return 720;
+            case LINK_QUALITY_MAX: return 4320;
+            case LINK_QUALITY_AUTO_1080:
+            default: return 1080;
+        }
+    }
+    public static boolean isLinkAudioChipEnabled() { return getBool(KEY_LINK_AUDIO_CHIP, true); }
+    public static void setLinkAudioChipEnabled(boolean value) { setBool(KEY_LINK_AUDIO_CHIP, value); }
+    public static int getLinkDefaultFormat() { return Math.max(LINK_FORMAT_MEDIA, Math.min(LINK_FORMAT_AUDIO, getIntCached(KEY_LINK_DEFAULT_FORMAT, LINK_FORMAT_MEDIA))); }
+    public static void setLinkDefaultFormat(int format) { setIntValue(KEY_LINK_DEFAULT_FORMAT, Math.max(LINK_FORMAT_MEDIA, Math.min(LINK_FORMAT_AUDIO, format))); }
+    public static boolean isLinkIncomingWatchEnabled() { return getBool(KEY_LINK_INCOMING_WATCH, true); }
+    public static void setLinkIncomingWatchEnabled(boolean value) { setBool(KEY_LINK_INCOMING_WATCH, value); }
+    public static boolean isLinkIncomingOutgoingEnabled() { return getBool(KEY_LINK_INCOMING_OUTGOING, false); }
+    public static void setLinkIncomingOutgoingEnabled(boolean value) { setBool(KEY_LINK_INCOMING_OUTGOING, value); }
+    public static boolean isGhostReadOnReply() { return getBool(KEY_GHOST_READ_ON_REPLY, true); }
+    public static void setGhostReadOnReply(boolean value) { setBool(KEY_GHOST_READ_ON_REPLY, value); }
+    public static int getVoiceAmbience() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_AMBIENCE, 0))); }
+    public static void setVoiceAmbience(int mode) { setIntValue(KEY_VOICE_AMBIENCE, Math.max(0, Math.min(6, mode))); }
+    public static int getVoiceAmbienceLevel() { return Math.max(5, Math.min(100, getIntCached(KEY_VOICE_AMBIENCE_LEVEL, 24))); }
+    public static void setVoiceAmbienceLevel(int pct) { setIntValue(KEY_VOICE_AMBIENCE_LEVEL, Math.max(5, Math.min(100, pct))); }
+    public static boolean isVoiceAmbienceDuck() { return getBool(KEY_VOICE_AMBIENCE_DUCK, true); }
+    public static void setVoiceAmbienceDuck(boolean value) { setBool(KEY_VOICE_AMBIENCE_DUCK, value); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
@@ -3749,7 +3817,7 @@ public class PengramConfig {
             "editHistoryOpenMark", "editHistoryOpenMenu", "editedMark", "exportChatEnabled",
             "fadeDeleted", "forceDeleteForAll", "forceSnow", "forwardDoneAlert", "forwardLockInput",
             "ghostAutoOffline", "ghostDontSendReactions", "ghostDontSendVoiceRead",
-            "ghostMode", "ghostSendDelay", "ghostStoriesWarn", "groupAvatarPos",
+            "ghostMode", "ghostReadOnReply", "ghostSendDelay", "ghostStoriesWarn", "groupAvatarPos",
             "headerLyrics", "headerLyricsAnim", "headerLyricsArtist", "headerLyricsBold",
             "headerLyricsMarquee", "headerLyricsSize", "headerLyricsSpeed", "headerLyricsWords",
             "hideAds", "hideBubbleTail", "hideChatAutoDelete", "hideChatCall", "hideChatClearHistory",
@@ -3765,9 +3833,13 @@ public class PengramConfig {
             "inAppVibration", "inputAnimation", "inputAnimationHaptic",
             "inputAnimationIntensity", "inputAnimationSaved", "inputAnimationSpeed", "inputBarLiquidGlass",
             "keepDeletedInChat", "keepFormatting", "keepOnceMedia",
-            "linkAssistant", "linkAssistantCaption", "linkAssistantFallback",
-            "linkAssistantIslandPreviewBtn", "linkAssistantPhotoStitch", "linkAssistantPreview",
-            "linkAssistantSlideAudio", "linkAssistantSlideSec",
+            "linkAssistant", "linkAssistantAudioChip", "linkAssistantCaption", "linkAssistantFallback",
+            "linkAssistantFormat", "linkAssistantIncomingOnOut", "linkAssistantIncomingWatch",
+            "linkAssistantInstagram", "linkAssistantIslandPreviewBtn", "linkAssistantPhotoStitch",
+            "linkAssistantPinterest", "linkAssistantPreview", "linkAssistantQuality",
+            "linkAssistantReddit", "linkAssistantRutube", "linkAssistantSlideAudio",
+            "linkAssistantSlideSec", "linkAssistantSoundcloud", "linkAssistantTiktok",
+            "linkAssistantTwitter", "linkAssistantVk", "linkAssistantYandex", "linkAssistantYoutube",
             "localKeep", "localPremium", "localPremiumStatus", "localEmojiStatus",
             "lyricsAlign", "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",
@@ -3831,6 +3903,7 @@ public class PengramConfig {
             "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize",
             "typingDeleteSpeed", "typingDeleteSpread", "typingDeleteStyle",
             "typingIgnoreSpaces", "typingSelectionLiquid", "typingStatsBadge", "typingStatsEnabled",
+            "voiceAmbience", "voiceAmbienceDuck", "voiceAmbienceLevel",
             "voiceChangerCalls", "voiceChangerEcho", "voiceChangerFormant", "voiceChangerGate",
             "voiceChangerMessages", "voiceChangerMode", "voiceChangerPitch", "voiceChangerRound",
             "voiceGainBattleDb", "voiceGainBattleDrive", "voiceGainClearDb", "voiceGainClearDrive",

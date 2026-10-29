@@ -6,9 +6,10 @@ import org.json.JSONObject;
 /** A shareable DSP effect profile, not a neural voice/identity model. */
 public final class PengramVoiceProfile {
     private static final String FORMAT = "pengram.voice.effect.v1";
-    private final int pitch, formant, echo, drive, robot, mix, gainDb, overdrive;
+    private final int pitch, formant, echo, drive, robot, mix, gainDb, overdrive, ambience, ambienceLevel;
+    private final boolean ambienceDuck;
 
-    private PengramVoiceProfile(int pitch, int formant, int echo, int drive, int robot, int mix, int gainDb, int overdrive) {
+    private PengramVoiceProfile(int pitch, int formant, int echo, int drive, int robot, int mix, int gainDb, int overdrive, int ambience, int ambienceLevel, boolean ambienceDuck) {
         this.pitch = pitch;
         this.formant = formant;
         this.echo = echo;
@@ -17,6 +18,9 @@ public final class PengramVoiceProfile {
         this.mix = mix;
         this.gainDb = gainDb;
         this.overdrive = overdrive;
+        this.ambience = ambience;
+        this.ambienceLevel = ambienceLevel;
+        this.ambienceDuck = ambienceDuck;
     }
 
     public static PengramVoiceProfile current() {
@@ -24,14 +28,16 @@ public final class PengramVoiceProfile {
                 PengramConfig.getVoiceFormant(), PengramConfig.getVoiceEcho(),
                 PengramConfig.getVoiceStudioDrive(), PengramConfig.getVoiceStudioRobot(),
                 PengramConfig.getVoiceStudioMix(), PengramConfig.getVoiceGainDb(),
-                PengramConfig.getVoiceGainDrive());
+                PengramConfig.getVoiceGainDrive(), PengramConfig.getVoiceAmbience(),
+                PengramConfig.getVoiceAmbienceLevel(), PengramConfig.isVoiceAmbienceDuck());
     }
 
     public String toJson() throws JSONException {
         return new JSONObject().put("format", FORMAT).put("pitch", pitch)
                 .put("formant", formant).put("echo", echo).put("drive", drive)
                 .put("robot", robot).put("mix", mix).put("gainDb", gainDb)
-                .put("overdrive", overdrive).toString(2);
+                .put("overdrive", overdrive).put("ambience", ambience)
+                .put("ambienceLevel", ambienceLevel).put("ambienceDuck", ambienceDuck).toString(2);
     }
 
     /** Validate *all* fields before touching any microphone or persistent setting. */
@@ -44,7 +50,10 @@ public final class PengramVoiceProfile {
                 number(json, "drive", 0, 6), number(json, "robot", 0, 6),
                 number(json, "mix", 0, 100), json.has("gainDb")
                         ? number(json, "gainDb", 0, PengramConfig.VOICE_GAIN_MAX_DB) : 0,
-                json.has("overdrive") ? number(json, "overdrive", 0, 100) : 0);
+                json.has("overdrive") ? number(json, "overdrive", 0, 100) : 0,
+                json.has("ambience") ? number(json, "ambience", 0, 6) : 0,
+                json.has("ambienceLevel") ? number(json, "ambienceLevel", 5, 100) : 24,
+                !json.has("ambienceDuck") || json.optBoolean("ambienceDuck", true));
     }
 
     private static int number(JSONObject json, String key, int min, int max) throws JSONException {
@@ -68,6 +77,9 @@ public final class PengramVoiceProfile {
         PengramConfig.setVoiceGainPreset(PengramConfig.VOICE_GAIN_CUSTOM);
         PengramConfig.setVoiceGainDb(gainDb);
         PengramConfig.setVoiceGainDrive(overdrive);
+        PengramConfig.setVoiceAmbience(ambience);
+        PengramConfig.setVoiceAmbienceLevel(ambienceLevel);
+        PengramConfig.setVoiceAmbienceDuck(ambienceDuck);
         PengramConfig.setVoiceChangerMode(PengramVoiceChanger.MODE_CUSTOM);
         PengramVoiceChanger.reset();
     }

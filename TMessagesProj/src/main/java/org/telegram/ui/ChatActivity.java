@@ -43245,6 +43245,140 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
+        private void invalidateVisiblePengramWatchCells() {
+            if (chatListView == null) {
+                return;
+            }
+            for (int i = 0, n = chatListView.getChildCount(); i < n; i++) {
+                final View child = chatListView.getChildAt(i);
+                if (child instanceof ChatMessageCell) {
+                    child.invalidate();
+                }
+            }
+        }
+
+        @Override
+        public void didPressPengramWatch(ChatMessageCell cell, String url) {
+            if (url == null || url.isEmpty()) {
+                return;
+            }
+            org.telegram.messenger.PengramLinkAssistant.watchInline(
+                    ChatActivity.this,
+                    currentAccount,
+                    url,
+                    false,
+                    this::invalidateVisiblePengramWatchCells);
+            invalidateVisiblePengramWatchCells();
+        }
+
+        @Override
+        public void didLongPressPengramWatch(ChatMessageCell cell, String url) {
+            if (url == null || url.isEmpty() || getParentActivity() == null) {
+                return;
+            }
+            final int platform = org.telegram.messenger.PengramLinkResolver.platformOf(url);
+            final boolean isAudioOnly = org.telegram.messenger.PengramLinkResolver.isAudioPlatform(platform);
+            final ArrayList<CharSequence> titles = new ArrayList<>();
+            final ArrayList<Integer> icons = new ArrayList<>();
+            final ArrayList<Integer> actions = new ArrayList<>();
+
+            titles.add(LocaleController.getString(isAudioOnly
+                    ? R.string.PengramLinkWatchMenuListen
+                    : R.string.PengramLinkWatchMenuWatch));
+            icons.add(isAudioOnly ? R.drawable.msg_tone_add : R.drawable.ic_action_play);
+            actions.add(1);
+
+            if (!isAudioOnly) {
+                titles.add(LocaleController.getString(R.string.PengramLinkWatchMenuListenAudio));
+                icons.add(R.drawable.msg_tone_add);
+                actions.add(2);
+            }
+
+            if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                titles.add(LocaleController.getString(R.string.PengramLinkWatchMenuSendChat));
+                icons.add(R.drawable.msg_send);
+                actions.add(3);
+            }
+
+            titles.add(LocaleController.getString(R.string.PengramLinkOpenBrowser));
+            icons.add(R.drawable.msg_openin);
+            actions.add(4);
+
+            final int[] iconArr = new int[icons.size()];
+            for (int i = 0; i < icons.size(); i++) {
+                iconArr[i] = icons.get(i);
+            }
+            final BottomSheet.Builder builder = new BottomSheet.Builder(getParentActivity(), false, themeDelegate);
+            builder.setTitle(org.telegram.messenger.PengramLinkAssistant.platformDisplayName(platform, url), true);
+            builder.setItems(titles.toArray(new CharSequence[0]), iconArr, (d, which) -> {
+                if (which < 0 || which >= actions.size()) {
+                    return;
+                }
+                final int act = actions.get(which);
+                if (act == 1) {
+                    org.telegram.messenger.PengramLinkAssistant.watchInline(
+                            ChatActivity.this, currentAccount, url, false, this::invalidateVisiblePengramWatchCells);
+                    invalidateVisiblePengramWatchCells();
+                } else if (act == 2) {
+                    org.telegram.messenger.PengramLinkAssistant.watchInline(
+                            ChatActivity.this, currentAccount, url, true, this::invalidateVisiblePengramWatchCells);
+                    invalidateVisiblePengramWatchCells();
+                } else if (act == 3) {
+                    final org.telegram.messenger.PengramLinkAssistant.Request sendReq =
+                            new org.telegram.messenger.PengramLinkAssistant.Request(
+                                    currentAccount, dialog_id, url, url, "",
+                                    replyingMessageObject, threadMessageObject);
+                    final int directAction = isAudioOnly
+                            ? org.telegram.messenger.PengramLinkAssistant.ACTION_SEND_AUDIO
+                            : org.telegram.messenger.PengramLinkAssistant.ACTION_SEND_VIDEO;
+                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                            R.raw.ic_download,
+                            LocaleController.getString(R.string.PengramLinkDownloading)).show();
+                    org.telegram.messenger.PengramLinkAssistant.execute(
+                            sendReq,
+                            new org.telegram.messenger.PengramLinkAssistant.ExecutionOptions(
+                                    false, null, directAction, null, -1, null),
+                            new org.telegram.messenger.PengramLinkAssistant.Callback() {
+                                @Override
+                                public void onPhase(int phase, float progress) {
+                                }
+
+                                @Override
+                                public void onSent() {
+                                }
+
+                                @Override
+                                public void onPreviewRequested(org.telegram.messenger.PengramLinkAssistant.Request req,
+                                                               org.telegram.messenger.PengramLinkResolver.Resolved resolved) {
+                                }
+
+                                @Override
+                                public void onFallbackSent(String reason) {
+                                }
+
+                                @Override
+                                public void onFailedNoSend(org.telegram.messenger.PengramLinkAssistant.Request req, String reason) {
+                                    BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                                            LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                }
+
+                                @Override
+                                public void onFallbackChoiceRequested(org.telegram.messenger.PengramLinkAssistant.Request req, String reason) {
+                                    BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                                            LocaleController.getString(R.string.PengramLinkWatchFailed)).show();
+                                }
+
+                                @Override
+                                public void onCancelled() {
+                                }
+                            });
+                } else if (act == 4) {
+                    org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), url);
+                }
+            });
+            showDialog(builder.create());
+        }
+
         @Override
         public void didPressHiddenForward(ChatMessageCell cell) {
             if (cell.getMessageObject().isImportedForward()) {

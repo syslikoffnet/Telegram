@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -19,7 +20,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,6 +45,7 @@ public final class PengramLinkResolver {
 
     public static final int KIND_VIDEO = 0;
     public static final int KIND_PHOTOS = 1;
+    public static final int KIND_AUDIO = 2;
 
     public static final class PhotoItem {
         public final String imageUrl;
@@ -75,6 +79,7 @@ public final class PengramLinkResolver {
         public final String referer;
         public final String userAgent;
         public final boolean rangeChunked;
+        public final boolean hlsStream;
         public final List<Resolved> fallbacks = new ArrayList<>();
 
         Resolved(int kind, int platform, List<String> urls, List<PhotoItem> photos,
@@ -82,6 +87,15 @@ public final class PengramLinkResolver {
                  String title, String author, long durationMs,
                  Map<String, String> cookies, String referer,
                  String userAgent, boolean rangeChunked) {
+            this(kind, platform, urls, photos, audioUrl, thumbnailUrl, needsMux,
+                    title, author, durationMs, cookies, referer, userAgent, rangeChunked, false);
+        }
+
+        Resolved(int kind, int platform, List<String> urls, List<PhotoItem> photos,
+                 String audioUrl, String thumbnailUrl, boolean needsMux,
+                 String title, String author, long durationMs,
+                 Map<String, String> cookies, String referer,
+                 String userAgent, boolean rangeChunked, boolean hlsStream) {
             this.kind = kind;
             this.platform = platform;
             this.urls = urls != null ? urls : Collections.<String>emptyList();
@@ -96,16 +110,21 @@ public final class PengramLinkResolver {
             this.referer = referer != null ? referer : "";
             this.userAgent = userAgent != null && !userAgent.isEmpty() ? userAgent : UA_CHROME;
             this.rangeChunked = rangeChunked;
+            this.hlsStream = hlsStream;
         }
 
         Resolved(List<String> urls, boolean needsMux, String title, String author, long durationMs,
                  Map<String, String> cookies, String referer) {
             this(KIND_VIDEO, PLATFORM_UNKNOWN, urls, Collections.<PhotoItem>emptyList(),
-                    "", "", needsMux, title, author, durationMs, cookies, referer, UA_CHROME, false);
+                    "", "", needsMux, title, author, durationMs, cookies, referer, UA_CHROME, false, false);
         }
 
         public boolean isPhotos() {
             return kind == KIND_PHOTOS && !photos.isEmpty();
+        }
+
+        public boolean isAudio() {
+            return kind == KIND_AUDIO && !urls.isEmpty();
         }
 
         static Resolved forVideo(int platform, List<String> urls, boolean needsMux,
@@ -114,7 +133,25 @@ public final class PengramLinkResolver {
                                  String userAgent, boolean rangeChunked) {
             return new Resolved(KIND_VIDEO, platform, urls, Collections.<PhotoItem>emptyList(),
                     "", thumbnailUrl, needsMux, title, author, durationMs,
-                    cookies, referer, userAgent, rangeChunked);
+                    cookies, referer, userAgent, rangeChunked, false);
+        }
+
+        static Resolved forVideoWithAudio(int platform, List<String> urls, String standaloneAudioUrl,
+                                          boolean needsMux, boolean hlsStream,
+                                          String title, String author, long durationMs, String thumbnailUrl,
+                                          Map<String, String> cookies, String referer,
+                                          String userAgent, boolean rangeChunked) {
+            return new Resolved(KIND_VIDEO, platform, urls, Collections.<PhotoItem>emptyList(),
+                    standaloneAudioUrl, thumbnailUrl, needsMux, title, author, durationMs,
+                    cookies, referer, userAgent, rangeChunked, hlsStream);
+        }
+
+        static Resolved forAudio(int platform, String streamUrl, boolean hlsStream,
+                                 String title, String author, long durationMs, String coverUrl,
+                                 Map<String, String> cookies, String referer, String userAgent) {
+            return new Resolved(KIND_AUDIO, platform, Collections.singletonList(streamUrl),
+                    Collections.<PhotoItem>emptyList(), streamUrl, coverUrl, false,
+                    title, author, durationMs, cookies, referer, userAgent, false, hlsStream);
         }
 
         static Resolved forPhotos(int platform, List<PhotoItem> photos, String audioUrl,
@@ -147,6 +184,15 @@ public final class PengramLinkResolver {
     public static final int PLATFORM_UNKNOWN = 0;
     public static final int PLATFORM_YOUTUBE = 1;
     public static final int PLATFORM_TIKTOK = 2;
+    public static final int PLATFORM_INSTAGRAM = 3;
+    public static final int PLATFORM_TWITTER = 4;
+    public static final int PLATFORM_PINTEREST = 5;
+    public static final int PLATFORM_VK = 6;
+    public static final int PLATFORM_RUTUBE = 7;
+    public static final int PLATFORM_REDDIT = 8;
+    public static final int PLATFORM_SOUNDCLOUD = 9;
+    public static final int PLATFORM_YANDEX = 10;
+    public static final int ALL_PLATFORMS_MASK = (1 << 11) - 2;
 
     // ВАЖНО: Pattern.UNICODE_CHARACTER_CLASS на Android отвергается рантаймом
     // (IllegalArgumentException в <clinit> → ExceptionInInitializerError при
@@ -160,9 +206,39 @@ public final class PengramLinkResolver {
     private static final Pattern TIKTOK = Pattern.compile(
             "(?i)(?:https?://)?(?:www\\.|vm\\.|vt\\.|m\\.)?tiktokv?\\.com/"
                     + "(?:@[^/" + URL_STOP + "]*/(?:video|photo)/\\d+|(?:share/(?:video|photo)|v)/\\d+|t/[A-Za-z0-9_-]+|(?!explore\\b|foryou\\b|following\\b|search\\b|upload\\b|login\\b|live\\b)[A-Za-z0-9_-]{6,24})[^" + URL_STOP + "]*");
+    private static final Pattern INSTAGRAM = Pattern.compile(
+            "(?i)(?:https?://)?(?:(?:www\\.|m\\.|dd|kk)?instagram\\.com|instagr\\.am)/"
+                    + "(?:(?:[A-Za-z0-9._]{1,30}/)?(?:reel|reels|p|tv)/[A-Za-z0-9_-]{5,36}|share/(?:(?:reel|reels|p)/)?[A-Za-z0-9_-]{5,36})[^" + URL_STOP + "]*");
+    private static final Pattern TWITTER = Pattern.compile(
+            "(?i)(?:https?://)?(?:(?:www\\.|mobile\\.|fx|vx|fixup|fixvx)?(?:twitter|x)\\.com/(?:[A-Za-z0-9_]{1,20}/status|i/web/status|i/status)/\\d{5,25}|t\\.co/[A-Za-z0-9]{6,16})[^" + URL_STOP + "]*");
+    private static final Pattern PINTEREST = Pattern.compile(
+            "(?i)(?:https?://)?(?:(?:[a-z]{2}\\.|www\\.)?pinterest\\.(?:com|ru|de|co\\.uk|fr|es|it|ca|jp|com\\.au|com\\.mx|co\\.kr|br)/pin/(?:[^/" + URL_STOP + "]*--)?\\d{6,25}|pin\\.it/[A-Za-z0-9_-]{5,20})[^" + URL_STOP + "]*");
+    private static final Pattern VK = Pattern.compile(
+            "(?i)(?:https?://)?(?:www\\.|m\\.)?(?:vk\\.com|vk\\.ru|vkvideo\\.ru)/(?:(?:clip|video)-?\\d+_\\d+|clips/?\\?[^" + URL_STOP + "]*z=(?:clip|video)-?\\d+_\\d+)[^" + URL_STOP + "]*");
+    private static final Pattern RUTUBE = Pattern.compile(
+            "(?i)(?:https?://)?(?:www\\.|m\\.)?rutube\\.ru/(?:shorts/[a-f0-9]{16,40}|video/(?:private/)?[a-f0-9]{16,40}|play/embed/[a-f0-9]{16,40}|yappy/[a-f0-9]{16,40})[^" + URL_STOP + "]*");
+    private static final Pattern REDDIT = Pattern.compile(
+            "(?i)(?:https?://)?(?:(?:www\\.|old\\.|new\\.|np\\.|m\\.)?reddit\\.com/(?:r|u|user)/[^/" + URL_STOP + "]+/(?:comments/[A-Za-z0-9]{5,12}|s/[A-Za-z0-9]{6,16})|(?:v\\.|i\\.)?redd\\.it/[A-Za-z0-9]{5,18})[^" + URL_STOP + "]*");
+    private static final Pattern SOUNDCLOUD = Pattern.compile(
+            "(?i)(?:https?://)?(?:(?:www\\.|m\\.)?soundcloud\\.com/(?!discover(?:/|$)|stream(?:/|$)|search(?:/|$)|you(?:/|$)|upload(?:/|$)|settings(?:/|$)|pages(?:/|$))[A-Za-z0-9_-]{2,60}/(?!sets(?:/|$)|likes(?:/|$)|followers(?:/|$)|following(?:/|$)|tracks(?:/|$)|albums(?:/|$)|reposts(?:/|$)|popular-tracks(?:/|$))[A-Za-z0-9_-]{2,120}|on\\.soundcloud\\.com/[A-Za-z0-9]{4,22}|soundcloud\\.app\\.goo\\.gl/[A-Za-z0-9]{4,22})[^" + URL_STOP + "]*");
+    private static final Pattern YANDEX = Pattern.compile(
+            "(?i)(?:https?://)?music\\.yandex\\.(?:ru|by|kz|uz|com)/(?:album/\\d+/track/\\d+|users/[^/" + URL_STOP + "]+/playlists/\\d+/track/\\d+|track/\\d+)[^" + URL_STOP + "]*");
+
+    private static final Pattern[] ALL_PATTERNS = {
+            YOUTUBE, TIKTOK, INSTAGRAM, TWITTER, PINTEREST, VK, RUTUBE, REDDIT, SOUNDCLOUD, YANDEX
+    };
+    private static final int[] PATTERN_PLATFORMS = {
+            PLATFORM_YOUTUBE, PLATFORM_TIKTOK, PLATFORM_INSTAGRAM, PLATFORM_TWITTER, PLATFORM_PINTEREST,
+            PLATFORM_VK, PLATFORM_RUTUBE, PLATFORM_REDDIT, PLATFORM_SOUNDCLOUD, PLATFORM_YANDEX
+    };
 
     private static volatile String cachedYtVisitorData;
     private static volatile long cachedYtVisitorTimeMs;
+    private static volatile String cachedVkAnonToken;
+    private static volatile String cachedVkDeviceId;
+    private static volatile long cachedVkTokenTimeMs;
+    private static volatile String cachedSoundCloudClientId;
+    private static volatile long cachedSoundCloudClientTimeMs;
 
     private PengramLinkResolver() {
     }
@@ -170,35 +246,19 @@ public final class PengramLinkResolver {
     /** Нулевой по аллокациям префильтр перед запуском тяжёлых URL-регулярок на каждом нажатии клавиши. */
     private static boolean mayContainSupportedLink(CharSequence text) {
         final int n = text.length();
-        if (n < 9) {
+        if (n < 8) {
             return false;
         }
         boolean hasSlash = false;
-        boolean hasDomain = false;
+        boolean hasDot = false;
         for (int i = 0; i < n; i++) {
             final char c = text.charAt(i);
             if (c == '/') {
                 hasSlash = true;
-                if (hasDomain) return true;
-                continue;
-            }
-            if (!hasDomain) {
-                if ((c == 'y' || c == 'Y') && i + 4 < n
-                        && (text.charAt(i + 1) | 32) == 'o'
-                        && (text.charAt(i + 2) | 32) == 'u'
-                        && (text.charAt(i + 3) | 32) == 't'
-                        && (text.charAt(i + 4) | 32) == 'u') {
-                    hasDomain = true;
-                    if (hasSlash) return true;
-                } else if ((c == 't' || c == 'T') && i + 5 < n
-                        && (text.charAt(i + 1) | 32) == 'i'
-                        && (text.charAt(i + 2) | 32) == 'k'
-                        && (text.charAt(i + 3) | 32) == 't'
-                        && (text.charAt(i + 4) | 32) == 'o'
-                        && (text.charAt(i + 5) | 32) == 'k') {
-                    hasDomain = true;
-                    if (hasSlash) return true;
-                }
+                if (hasDot) return true;
+            } else if (c == '.') {
+                hasDot = true;
+                if (hasSlash) return true;
             }
         }
         return false;
@@ -206,13 +266,22 @@ public final class PengramLinkResolver {
 
     /** Последняя (свежайшая) поддерживаемая ссылка в тексте; null — нет. */
     public static FoundLink findLink(CharSequence text) {
-        if (text == null || !mayContainSupportedLink(text)) {
+        return findLink(text, ALL_PLATFORMS_MASK);
+    }
+
+    /** Поиск поддерживаемой ссылки с фильтром включённых площадок (битовая маска 1 << PLATFORM_*). */
+    public static FoundLink findLink(CharSequence text, int enabledPlatformsMask) {
+        if (text == null || enabledPlatformsMask == 0 || !mayContainSupportedLink(text)) {
             return null;
         }
         final String s = text.toString();
         FoundLink best = null;
-        for (Pattern p : new Pattern[]{YOUTUBE, TIKTOK}) {
-            Matcher m = p.matcher(s);
+        for (int idx = 0; idx < ALL_PATTERNS.length; idx++) {
+            final int plat = PATTERN_PLATFORMS[idx];
+            if ((enabledPlatformsMask & (1 << plat)) == 0) {
+                continue;
+            }
+            Matcher m = ALL_PATTERNS[idx].matcher(s);
             while (m.find()) {
                 String url = trimUrl(m.group());
                 if (url.isEmpty()) {
@@ -257,7 +326,35 @@ public final class PengramLinkResolver {
         if (lower.contains("tiktok.com/") || lower.contains("tiktokv.com/")) {
             return PLATFORM_TIKTOK;
         }
+        if (lower.contains("instagram.com/")) {
+            return PLATFORM_INSTAGRAM;
+        }
+        if (lower.contains("twitter.com/") || lower.contains("x.com/") || lower.contains("//t.co/") || lower.startsWith("t.co/")) {
+            return PLATFORM_TWITTER;
+        }
+        if (lower.contains("pinterest.") || lower.contains("pin.it/")) {
+            return PLATFORM_PINTEREST;
+        }
+        if (lower.contains("vk.com/") || lower.contains("vk.ru/") || lower.contains("vkvideo.ru/")) {
+            return PLATFORM_VK;
+        }
+        if (lower.contains("rutube.ru/")) {
+            return PLATFORM_RUTUBE;
+        }
+        if (lower.contains("reddit.com/") || lower.contains("redd.it/")) {
+            return PLATFORM_REDDIT;
+        }
+        if (lower.contains("soundcloud.com/") || lower.contains("soundcloud.app.goo.gl/")) {
+            return PLATFORM_SOUNDCLOUD;
+        }
+        if (lower.contains("music.yandex.")) {
+            return PLATFORM_YANDEX;
+        }
         return PLATFORM_UNKNOWN;
+    }
+
+    public static boolean isAudioPlatform(int platform) {
+        return platform == PLATFORM_SOUNDCLOUD || platform == PLATFORM_YANDEX;
     }
 
     public static boolean isYouTubeShortsUrl(String url) {
@@ -276,17 +373,39 @@ public final class PengramLinkResolver {
         return lower.contains("/video/") || lower.contains("/v/");
     }
 
-    /** Полный конвейер: платформа → прямые URL видео или фото. */
+    /** Полный конвейер: платформа → прямые URL видео, фото-карусели или аудио. */
     public static Resolved resolve(String url) throws Exception {
+        return resolve(url, 1080);
+    }
+
+    public static Resolved resolve(String url, int maxVideoHeight) throws Exception {
+        final int capHeight = maxVideoHeight > 0 ? maxVideoHeight : 1080;
         final String normalized = (url != null && !url.startsWith("http")) ? "https://" + url : url;
         final int platform = platformOf(normalized);
-        if (platform == PLATFORM_YOUTUBE) {
-            return resolveYouTube(normalized);
+        switch (platform) {
+            case PLATFORM_YOUTUBE:
+                return resolveYouTube(normalized, capHeight);
+            case PLATFORM_TIKTOK:
+                return resolveTikTok(normalized);
+            case PLATFORM_INSTAGRAM:
+                return resolveInstagram(normalized, capHeight);
+            case PLATFORM_TWITTER:
+                return resolveTwitter(normalized, capHeight);
+            case PLATFORM_PINTEREST:
+                return resolvePinterest(normalized, capHeight);
+            case PLATFORM_VK:
+                return resolveVk(normalized, capHeight);
+            case PLATFORM_RUTUBE:
+                return resolveRutube(normalized, capHeight);
+            case PLATFORM_REDDIT:
+                return resolveReddit(normalized, capHeight);
+            case PLATFORM_SOUNDCLOUD:
+                return resolveSoundCloud(normalized);
+            case PLATFORM_YANDEX:
+                return resolveYandexMusic(normalized);
+            default:
+                throw new Exception("unsupported");
         }
-        if (platform == PLATFORM_TIKTOK) {
-            return resolveTikTok(normalized);
-        }
-        throw new Exception("unsupported");
     }
 
     // ---------------------------------------------------------------- YouTube
@@ -296,7 +415,7 @@ public final class PengramLinkResolver {
      * VISIONOS — дефолтный no-JS клиент без PO-token; ANDROID / IOS / WEB_EMBEDDED — запасные).
      * ANDROID_VR удалён (403 с 2026-08-17, yt-dlp #17348).
      */
-    private static Resolved resolveYouTube(String url) throws Exception {
+    private static Resolved resolveYouTube(String url, int maxVideoHeight) throws Exception {
         final String videoId = extractYouTubeId(url);
         if (videoId == null) {
             throw new Exception("bad url");
@@ -323,7 +442,7 @@ public final class PengramLinkResolver {
         Exception last = null;
         for (String[] client : clients) {
             try {
-                final Resolved r = playerRequest(videoId, client, visitorData);
+                final Resolved r = playerRequest(videoId, client, visitorData, maxVideoHeight);
                 if (primary == null) {
                     primary = r;
                 } else {
@@ -371,7 +490,7 @@ public final class PengramLinkResolver {
         return null;
     }
 
-    private static Resolved playerRequest(String videoId, String[] client, String visitorData) throws Exception {
+    private static Resolved playerRequest(String videoId, String[] client, String visitorData, int maxVideoHeight) throws Exception {
         final String clientName = client[0];
         final String clientVersion = client[1];
         final String userAgent = client[2];
@@ -479,7 +598,10 @@ public final class PengramLinkResolver {
                 final int h = f.optInt("height", 0);
                 final String mime = f.optString("mimeType", "");
                 if (f.has("audioQuality") && f.optInt("width", 0) > 0 && mime.contains("mp4")) {
-                    if (bestMuxedUrl == null || h > bestMuxedHeight) {
+                    if (h <= maxVideoHeight && (bestMuxedUrl == null || h > bestMuxedHeight)) {
+                        bestMuxedUrl = direct;
+                        bestMuxedHeight = h;
+                    } else if (bestMuxedUrl == null) {
                         bestMuxedUrl = direct;
                         bestMuxedHeight = h;
                     }
@@ -503,7 +625,7 @@ public final class PengramLinkResolver {
                 final boolean hasAudio = f.has("audioQuality") || mime.startsWith("audio/");
                 if (hasVideo && !hasAudio) {
                     final int h = f.optInt("height", 0);
-                    if (h <= 0 || h > 1080 || !mime.contains("mp4")) {
+                    if (h <= 0 || h > maxVideoHeight || !mime.contains("mp4")) {
                         continue;
                     }
                     // AV1 в mp4 (av01) на части устройств ломает MediaMuxer — предпочитаем H.264 (avc1).
@@ -535,21 +657,21 @@ public final class PengramLinkResolver {
             }
         }
 
-        // Предпочитаем адаптивную пару HD (720p/1080p H.264+AAC), если прогрессивный поток только 360p.
+        // Предпочитаем адаптивную пару HD (720p/1080p H.264+AAC), если прогрессивный поток ниже потолка.
         if (videoUrl != null && audioUrl != null && bestVideoHeight > bestMuxedHeight) {
-            return Resolved.forVideo(PLATFORM_YOUTUBE, Arrays.asList(videoUrl, audioUrl), true,
-                    title, author, lengthSec * 1000L, thumbUrl, null, "https://www.youtube.com/",
-                    userAgent, true);
+            return Resolved.forVideoWithAudio(PLATFORM_YOUTUBE, Arrays.asList(videoUrl, audioUrl),
+                    audioUrl, true, false, title, author, lengthSec * 1000L, thumbUrl,
+                    null, "https://www.youtube.com/", userAgent, true);
         }
         if (bestMuxedUrl != null) {
-            return Resolved.forVideo(PLATFORM_YOUTUBE, Arrays.asList(bestMuxedUrl), false,
-                    title, author, lengthSec * 1000L, thumbUrl, null, "https://www.youtube.com/",
-                    userAgent, true);
+            return Resolved.forVideoWithAudio(PLATFORM_YOUTUBE, Arrays.asList(bestMuxedUrl),
+                    audioUrl != null ? audioUrl : "", false, false, title, author, lengthSec * 1000L, thumbUrl,
+                    null, "https://www.youtube.com/", userAgent, true);
         }
         if (videoUrl != null && audioUrl != null) {
-            return Resolved.forVideo(PLATFORM_YOUTUBE, Arrays.asList(videoUrl, audioUrl), true,
-                    title, author, lengthSec * 1000L, thumbUrl, null, "https://www.youtube.com/",
-                    userAgent, true);
+            return Resolved.forVideoWithAudio(PLATFORM_YOUTUBE, Arrays.asList(videoUrl, audioUrl),
+                    audioUrl, true, false, title, author, lengthSec * 1000L, thumbUrl,
+                    null, "https://www.youtube.com/", userAgent, true);
         }
         throw new Exception("no direct formats");
     }
@@ -1424,7 +1546,17 @@ public final class PengramLinkResolver {
                                 Map<String, String> cookies, String referer,
                                 String userAgent, boolean rangeChunked,
                                 boolean[] cancel, Progress progress) throws Exception {
+        return download(url, target, maxBytes, cookies, referer, userAgent, rangeChunked, false, cancel, progress);
+    }
+
+    public static long download(String url, File target, long maxBytes,
+                                Map<String, String> cookies, String referer,
+                                String userAgent, boolean rangeChunked, boolean hlsStream,
+                                boolean[] cancel, Progress progress) throws Exception {
         final String ua = (userAgent != null && !userAgent.isEmpty()) ? userAgent : UA_CHROME;
+        if (hlsStream || (url != null && url.toLowerCase().contains(".m3u8"))) {
+            return downloadHlsStream(url, target, maxBytes, cookies, referer, ua, cancel, progress);
+        }
         if (rangeChunked) {
             return downloadRangeChunked(url, target, maxBytes, cookies, referer, ua, cancel, progress);
         }
@@ -1649,6 +1781,1539 @@ public final class PengramLinkResolver {
             }
         }
         return out;
+    }
+
+    // ---------------------------------------------------------------- HLS (.m3u8 → .ts / fMP4)
+
+    /**
+     * Скачивает HLS-плейлист (master или media): при master-плейлисте выбирает лучший поток,
+     * затем последовательно дописывает сегменты (включая #EXT-X-MAP init) в выходной файл.
+     */
+    private static long downloadHlsStream(String playlistUrl, File target, long maxBytes,
+                                          Map<String, String> cookies, String referer, String ua,
+                                          boolean[] cancel, Progress progress) throws Exception {
+        String activeUrl = playlistUrl;
+        String body = httpGetWithHeaders(activeUrl, ua, cookies, referer, null);
+        if (body == null || !body.contains("#EXTM3U")) {
+            return downloadSingleStream(playlistUrl, target, maxBytes, cookies, referer, ua, cancel, progress);
+        }
+        if (body.contains("#EXT-X-STREAM-INF")) {
+            final String variant = selectBestHlsVariant(body, activeUrl, 1080);
+            if (variant != null && !variant.isEmpty()) {
+                activeUrl = variant;
+                body = httpGetWithHeaders(activeUrl, ua, cookies, referer, null);
+            }
+        }
+        final URL base = new URL(activeUrl);
+        final List<String> segments = new ArrayList<>();
+        final String[] lines = body.split("\r?\n");
+        for (int i = 0; i < lines.length; i++) {
+            final String line = lines[i].trim();
+            if (line.isEmpty()) continue;
+            if (line.startsWith("#EXT-X-KEY") && line.contains("METHOD=AES-128")) {
+                throw new Exception("encrypted hls");
+            }
+            if (line.startsWith("#EXT-X-MAP:")) {
+                final Matcher mm = Pattern.compile("URI=\"([^\"]+)\"").matcher(line);
+                if (mm.find()) {
+                    segments.add(new URL(base, mm.group(1)).toString());
+                }
+                continue;
+            }
+            if (!line.startsWith("#")) {
+                segments.add(line.startsWith("http") ? line : new URL(base, line).toString());
+            }
+        }
+        if (segments.isEmpty()) {
+            throw new Exception("empty hls playlist");
+        }
+        long written = 0L;
+        final int totalSegs = segments.size();
+        final byte[] buf = new byte[64 * 1024];
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            for (int idx = 0; idx < totalSegs; idx++) {
+                if (cancel != null && cancel[0]) {
+                    throw new java.util.concurrent.CancellationException("cancelled");
+                }
+                String segUrl = segments.get(idx);
+                for (int hop = 0; hop < 4; hop++) {
+                    final HttpURLConnection conn = (HttpURLConnection) new URL(segUrl).openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(12_000);
+                    conn.setReadTimeout(20_000);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("User-Agent", ua);
+                    if (referer != null && !referer.isEmpty()) {
+                        conn.setRequestProperty("Referer", referer);
+                    }
+                    if (cookies != null && !cookies.isEmpty()) {
+                        applyCookies(conn, cookies);
+                    }
+                    try {
+                        final int code = conn.getResponseCode();
+                        if (code / 100 == 3) {
+                            final String loc = conn.getHeaderField("Location");
+                            if (loc != null && !loc.isEmpty()) {
+                                segUrl = loc.startsWith("http") ? loc : new URL(new URL(segUrl), loc).toString();
+                                continue;
+                            }
+                        }
+                        if (code / 100 != 2) {
+                            throw new Exception("hls seg http " + code);
+                        }
+                        try (InputStream in = conn.getInputStream()) {
+                            int n;
+                            while ((n = in.read(buf)) > 0) {
+                                if (cancel != null && cancel[0]) {
+                                    throw new java.util.concurrent.CancellationException("cancelled");
+                                }
+                                written += n;
+                                if (maxBytes > 0 && written > maxBytes) {
+                                    throw new Exception("too big");
+                                }
+                                out.write(buf, 0, n);
+                            }
+                        }
+                        if (progress != null) {
+                            final long estTotal = (written * totalSegs) / Math.max(1, idx + 1);
+                            progress.onBytes(written, estTotal);
+                        }
+                        break;
+                    } finally {
+                        conn.disconnect();
+                    }
+                }
+            }
+        }
+        return written;
+    }
+
+    private static String selectBestHlsVariant(String masterM3u8, String masterUrl, int maxVideoHeight) {
+        try {
+            final URL base = new URL(masterUrl);
+            final String[] lines = masterM3u8.split("\r?\n");
+            String bestAllowed = null;
+            int bestAllowedH = -1;
+            long bestAllowedBw = -1L;
+            String smallestOver = null;
+            int smallestOverH = Integer.MAX_VALUE;
+
+            for (int i = 0; i < lines.length; i++) {
+                final String line = lines[i].trim();
+                if (!line.startsWith("#EXT-X-STREAM-INF")) {
+                    continue;
+                }
+                int h = 0;
+                long bw = 0L;
+                final Matcher rm = Pattern.compile("RESOLUTION=(\\d+)x(\\d+)").matcher(line);
+                if (rm.find()) {
+                    final int w = Integer.parseInt(rm.group(1));
+                    final int hh = Integer.parseInt(rm.group(2));
+                    h = Math.min(w, hh) > 0 && hh > w ? w : hh; // для вертикальных 1080x1920 короткая сторона = 1080p
+                }
+                final Matcher bm = Pattern.compile("BANDWIDTH=(\\d+)").matcher(line);
+                if (bm.find()) {
+                    bw = Long.parseLong(bm.group(1));
+                }
+                String nextUri = null;
+                for (int j = i + 1; j < lines.length; j++) {
+                    final String cand = lines[j].trim();
+                    if (cand.isEmpty()) continue;
+                    if (!cand.startsWith("#")) {
+                        nextUri = cand.startsWith("http") ? cand : new URL(base, cand).toString();
+                    }
+                    break;
+                }
+                if (nextUri == null) continue;
+                if (h <= 0 || h <= maxVideoHeight) {
+                    if (h > bestAllowedH || (h == bestAllowedH && bw > bestAllowedBw)) {
+                        bestAllowed = nextUri;
+                        bestAllowedH = h;
+                        bestAllowedBw = bw;
+                    }
+                } else if (h < smallestOverH) {
+                    smallestOver = nextUri;
+                    smallestOverH = h;
+                }
+            }
+            return bestAllowed != null ? bestAllowed : smallestOver;
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    // ---------------------------------------------------------------- Instagram (Reels и карусели)
+
+    private static final String UA_IG_APP =
+            "Instagram 317.0.0.34.109 Android (33/13; 420dpi; 1080x2400; Google/google; Pixel 7; panther; panther; en_US; 562249123)";
+
+    private static Resolved resolveInstagram(String rawUrl, int maxVideoHeight) throws Exception {
+        String url = rawUrl.replace("ddinstagram.com", "www.instagram.com")
+                .replace("kkinstagram.com", "www.instagram.com");
+        final Map<String, String> cookies = new HashMap<>();
+        if (url.toLowerCase(Locale.US).contains("/share/")) {
+            // /share/ отдаёт 3xx на канонический /reel/<id> только для не-браузерного UA (curl).
+            try {
+                url = followRedirects(url, cookies, "curl/8.5.0");
+            } catch (Throwable ignore) {
+            }
+        }
+        final String shortcode = extractInstagramShortcode(url);
+        if (shortcode == null || shortcode.isEmpty()) {
+            throw new Exception("bad instagram url");
+        }
+        Exception lastErr = null;
+        // Слой 1: Мобильный oEmbed -> media_id -> /api/v1/media/{id}/info/
+        try {
+            final Resolved r1 = resolveInstagramMobileApi(shortcode, maxVideoHeight, cookies);
+            if (r1 != null) return r1;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        // Слой 2: /p/{shortcode}/embed/captioned/ (contextJSON / sidecar / прямой video_url)
+        try {
+            final Resolved r2 = resolveInstagramEmbed(shortcode, cookies);
+            if (r2 != null) return r2;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        // Слой 3: GraphQL PolarisPostActionLoadPostQueryQuery (doc_id=8845758582119845)
+        try {
+            final Resolved r3 = resolveInstagramGraphql(shortcode, maxVideoHeight, cookies);
+            if (r3 != null) return r3;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        throw lastErr != null ? lastErr : new Exception("instagram resolve failed");
+    }
+
+    private static String extractInstagramShortcode(String url) {
+        final Matcher m = Pattern.compile("(?i)instagram\\.com/(?:[A-Za-z0-9._]{1,30}/)?(?:reel|reels|p|tv)/([A-Za-z0-9_-]{5,36})").matcher(url);
+        return m.find() ? m.group(1) : null;
+    }
+
+    private static Resolved resolveInstagramMobileApi(String shortcode, int maxVideoHeight, Map<String, String> cookies) throws Exception {
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("x-ig-app-id", "936619743392459");
+        headers.put("X-IG-App-Locale", "en_US");
+        headers.put("Accept", "*/*");
+        final String oembedUrl = "https://i.instagram.com/api/v1/oembed/?url="
+                + URLEncoder.encode("https://www.instagram.com/p/" + shortcode + "/", "UTF-8");
+        final String oembedJson = httpGetWithHeaders(oembedUrl, UA_IG_APP, cookies, "https://www.instagram.com/", headers);
+        final JSONObject oe = new JSONObject(oembedJson);
+        final String mediaId = oe.optString("media_id", "");
+        if (mediaId.isEmpty()) {
+            return null;
+        }
+        final String infoJson = httpGetWithHeaders("https://i.instagram.com/api/v1/media/" + mediaId + "/info/",
+                UA_IG_APP, cookies, "https://www.instagram.com/", headers);
+        final JSONObject root = new JSONObject(infoJson);
+        final JSONArray items = root.optJSONArray("items");
+        if (items == null || items.length() == 0) {
+            return null;
+        }
+        final JSONObject item = items.getJSONObject(0);
+        final JSONObject user = item.optJSONObject("user");
+        final String author = user != null ? user.optString("username", user.optString("full_name", "")) : "";
+        final JSONObject cap = item.optJSONObject("caption");
+        final String title = cap != null ? cap.optString("text", "") : oe.optString("title", "");
+
+        final JSONArray carousel = item.optJSONArray("carousel_media");
+        if (carousel != null && carousel.length() > 0) {
+            final List<PhotoItem> photos = new ArrayList<>();
+            String singleVideo = null;
+            String singleThumb = "";
+            for (int i = 0; i < carousel.length(); i++) {
+                final JSONObject cm = carousel.optJSONObject(i);
+                if (cm == null) continue;
+                final String vUrl = pickIgVideoVersion(cm.optJSONArray("video_versions"), maxVideoHeight);
+                final PhotoItem img = pickIgImageCandidate(cm.optJSONObject("image_versions2"));
+                if (vUrl != null && carousel.length() == 1) {
+                    singleVideo = vUrl;
+                    singleThumb = img != null ? img.imageUrl : "";
+                } else if (img != null) {
+                    photos.add(img);
+                }
+            }
+            if (singleVideo != null) {
+                return Resolved.forVideo(PLATFORM_INSTAGRAM, Collections.singletonList(singleVideo), false,
+                        title, author, (long) (item.optDouble("video_duration", 0) * 1000L),
+                        singleThumb, cookies, "https://www.instagram.com/", UA_DESKTOP, false);
+            }
+            if (!photos.isEmpty()) {
+                return Resolved.forPhotos(PLATFORM_INSTAGRAM, photos, "", title, author,
+                        cookies, "https://www.instagram.com/", UA_DESKTOP);
+            }
+        }
+        final String vUrl = pickIgVideoVersion(item.optJSONArray("video_versions"), maxVideoHeight);
+        final PhotoItem img = pickIgImageCandidate(item.optJSONObject("image_versions2"));
+        if (vUrl != null) {
+            return Resolved.forVideo(PLATFORM_INSTAGRAM, Collections.singletonList(vUrl), false,
+                    title, author, (long) (item.optDouble("video_duration", 0) * 1000L),
+                    img != null ? img.imageUrl : "", cookies, "https://www.instagram.com/", UA_DESKTOP, false);
+        }
+        if (img != null) {
+            return Resolved.forPhotos(PLATFORM_INSTAGRAM, Collections.singletonList(img), "",
+                    title, author, cookies, "https://www.instagram.com/", UA_DESKTOP);
+        }
+        return null;
+    }
+
+    private static String pickIgVideoVersion(JSONArray versions, int maxHeight) {
+        if (versions == null || versions.length() == 0) return null;
+        String best = null;
+        int bestShortSide = -1;
+        String fallback = null;
+        for (int i = 0; i < versions.length(); i++) {
+            final JSONObject v = versions.optJSONObject(i);
+            if (v == null) continue;
+            final String u = cleanGenericUrl(v.optString("url", ""));
+            if (u.isEmpty()) continue;
+            if (fallback == null) fallback = u;
+            final int w = v.optInt("width", 0);
+            final int h = v.optInt("height", 0);
+            final int shortSide = (w > 0 && h > 0) ? Math.min(w, h) : h;
+            if (shortSide <= maxHeight && shortSide > bestShortSide) {
+                best = u;
+                bestShortSide = shortSide;
+            }
+        }
+        return best != null ? best : fallback;
+    }
+
+    private static PhotoItem pickIgImageCandidate(JSONObject imageVersions2) {
+        if (imageVersions2 == null) return null;
+        final JSONArray cands = imageVersions2.optJSONArray("candidates");
+        if (cands == null || cands.length() == 0) return null;
+        JSONObject best = null;
+        int bestArea = -1;
+        for (int i = 0; i < cands.length(); i++) {
+            final JSONObject c = cands.optJSONObject(i);
+            if (c == null) continue;
+            final String u = cleanGenericUrl(c.optString("url", ""));
+            if (u.isEmpty()) continue;
+            final int area = Math.max(1, c.optInt("width", 1)) * Math.max(1, c.optInt("height", 1));
+            if (area > bestArea) {
+                best = c;
+                bestArea = area;
+            }
+        }
+        if (best == null) return null;
+        final String url = cleanGenericUrl(best.optString("url", ""));
+        return new PhotoItem(url, url, best.optInt("width", 0), best.optInt("height", 0));
+    }
+
+    private static Resolved resolveInstagramEmbed(String shortcode, Map<String, String> cookies) throws Exception {
+        final String embedUrl = "https://www.instagram.com/p/" + shortcode + "/embed/captioned/";
+        final String html = httpGet(embedUrl, UA_DESKTOP, cookies, "https://www.instagram.com/");
+        final Matcher cm = Pattern.compile("\"contextJSON\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(html);
+        if (cm.find()) {
+            final String unescaped = new JSONObject("{\"v\":\"" + cm.group(1) + "\"}").optString("v", "");
+            if (!unescaped.isEmpty()) {
+                final JSONObject ctx = new JSONObject(unescaped);
+                JSONObject media = null;
+                final JSONObject gql = ctx.optJSONObject("gql_data");
+                if (gql != null) {
+                    media = gql.optJSONObject("shortcode_media");
+                    if (media == null) media = gql.optJSONObject("xdt_shortcode_media");
+                }
+                if (media != null) {
+                    final Resolved parsed = parseInstagramGraphMedia(media, cookies);
+                    if (parsed != null) return parsed;
+                }
+            }
+        }
+        final Matcher vm = Pattern.compile("\"video_url\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)+)\"").matcher(html);
+        if (vm.find()) {
+            final String vUrl = cleanGenericUrl(unescapeJsonString(vm.group(1)));
+            if (!vUrl.isEmpty()) {
+                String thumb = "";
+                final Matcher dm = Pattern.compile("\"display_url\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)+)\"").matcher(html);
+                if (dm.find()) thumb = cleanGenericUrl(unescapeJsonString(dm.group(1)));
+                return Resolved.forVideo(PLATFORM_INSTAGRAM, Collections.singletonList(vUrl), false,
+                        "", "", 0L, thumb, cookies, "https://www.instagram.com/", UA_DESKTOP, false);
+            }
+        }
+        return null;
+    }
+
+    private static Resolved resolveInstagramGraphql(String shortcode, int maxVideoHeight, Map<String, String> cookies) throws Exception {
+        final String pageHtml = httpGet("https://www.instagram.com/p/" + shortcode + "/", UA_DESKTOP, cookies, "https://www.instagram.com/");
+        String lsd = "AVqbxe3J_YA";
+        final Matcher lm = Pattern.compile("\"LSD\"\\s*,\\s*\\[\\]\\s*,\\s*\\{\\s*\"token\"\\s*:\\s*\"([^\"]+)\"").matcher(pageHtml);
+        if (lm.find()) lsd = lm.group(1);
+        final String csrf = cookies.containsKey("csrftoken") ? cookies.get("csrftoken") : "";
+
+        final JSONObject vars = new JSONObject()
+                .put("shortcode", shortcode)
+                .put("fetch_tagged_user_count", JSONObject.NULL)
+                .put("hoisted_comment_id", JSONObject.NULL)
+                .put("hoisted_reply_id", JSONObject.NULL);
+        final String form = "av=0&__d=www&__user=0&__a=1&__req=3&lsd=" + URLEncoder.encode(lsd, "UTF-8")
+                + "&fb_api_caller_class=RelayModern&fb_api_req_friendly_name=PolarisPostActionLoadPostQueryQuery"
+                + "&variables=" + URLEncoder.encode(vars.toString(), "UTF-8")
+                + "&server_timestamps=true&doc_id=8845758582119845";
+
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/x-www-form-urlencoded");
+        headers.put("X-IG-App-ID", "936619743392459");
+        headers.put("X-FB-LSD", lsd);
+        headers.put("X-ASBD-ID", "129477");
+        if (!csrf.isEmpty()) headers.put("X-CSRFToken", csrf);
+
+        final String resp = httpPost("https://www.instagram.com/graphql/query", form,
+                UA_DESKTOP, cookies, "https://www.instagram.com/p/" + shortcode + "/", headers);
+        final JSONObject data = new JSONObject(resp).optJSONObject("data");
+        if (data == null) return null;
+        JSONObject media = data.optJSONObject("xdt_shortcode_media");
+        if (media == null) media = data.optJSONObject("shortcode_media");
+        return media != null ? parseInstagramGraphMedia(media, cookies) : null;
+    }
+
+    private static Resolved parseInstagramGraphMedia(JSONObject media, Map<String, String> cookies) {
+        final JSONObject owner = media.optJSONObject("owner");
+        final String author = owner != null ? owner.optString("username", "") : "";
+        String title = "";
+        final JSONObject capConn = media.optJSONObject("edge_media_to_caption");
+        final JSONArray capEdges = capConn != null ? capConn.optJSONArray("edges") : null;
+        if (capEdges != null && capEdges.length() > 0) {
+            final JSONObject n = capEdges.optJSONObject(0) != null ? capEdges.optJSONObject(0).optJSONObject("node") : null;
+            if (n != null) title = n.optString("text", "");
+        }
+        final JSONObject sidecar = media.optJSONObject("edge_sidecar_to_children");
+        final JSONArray edges = sidecar != null ? sidecar.optJSONArray("edges") : null;
+        if (edges != null && edges.length() > 0) {
+            final List<PhotoItem> photos = new ArrayList<>();
+            for (int i = 0; i < edges.length(); i++) {
+                final JSONObject edge = edges.optJSONObject(i);
+                final JSONObject node = edge != null ? edge.optJSONObject("node") : null;
+                if (node == null) continue;
+                if (node.optBoolean("is_video", false) && edges.length() == 1) {
+                    final String vu = cleanGenericUrl(node.optString("video_url", ""));
+                    if (!vu.isEmpty()) {
+                        return Resolved.forVideo(PLATFORM_INSTAGRAM, Collections.singletonList(vu), false,
+                                title, author, (long) (node.optDouble("video_duration", 0) * 1000L),
+                                cleanGenericUrl(node.optString("display_url", "")),
+                                cookies, "https://www.instagram.com/", UA_DESKTOP, false);
+                    }
+                }
+                final String img = cleanGenericUrl(node.optString("display_url", ""));
+                if (!img.isEmpty()) {
+                    final JSONObject dims = node.optJSONObject("dimensions");
+                    photos.add(new PhotoItem(img, img,
+                            dims != null ? dims.optInt("width", 0) : 0,
+                            dims != null ? dims.optInt("height", 0) : 0));
+                }
+            }
+            if (!photos.isEmpty()) {
+                return Resolved.forPhotos(PLATFORM_INSTAGRAM, photos, "", title, author,
+                        cookies, "https://www.instagram.com/", UA_DESKTOP);
+            }
+        }
+        if (media.optBoolean("is_video", false)) {
+            final String vu = cleanGenericUrl(media.optString("video_url", ""));
+            if (!vu.isEmpty()) {
+                return Resolved.forVideo(PLATFORM_INSTAGRAM, Collections.singletonList(vu), false,
+                        title, author, (long) (media.optDouble("video_duration", 0) * 1000L),
+                        cleanGenericUrl(media.optString("display_url", "")),
+                        cookies, "https://www.instagram.com/", UA_DESKTOP, false);
+            }
+        }
+        final String disp = cleanGenericUrl(media.optString("display_url", ""));
+        if (!disp.isEmpty()) {
+            final JSONObject dims = media.optJSONObject("dimensions");
+            final PhotoItem p = new PhotoItem(disp, disp,
+                    dims != null ? dims.optInt("width", 0) : 0,
+                    dims != null ? dims.optInt("height", 0) : 0);
+            return Resolved.forPhotos(PLATFORM_INSTAGRAM, Collections.singletonList(p), "",
+                    title, author, cookies, "https://www.instagram.com/", UA_DESKTOP);
+        }
+        return null;
+    }
+
+    // ---------------------------------------------------------------- X / Twitter (fxtwitter + syndication)
+
+    private static Resolved resolveTwitter(String rawUrl, int maxVideoHeight) throws Exception {
+        String url = rawUrl;
+        final Map<String, String> cookies = new HashMap<>();
+        if (url.toLowerCase(Locale.US).contains("//t.co/") || url.toLowerCase(Locale.US).startsWith("t.co/")) {
+            url = followRedirects(url, cookies, UA_DESKTOP);
+        }
+        final Matcher m = Pattern.compile("(?i)(?:twitter|x)\\.com/(?:[A-Za-z0-9_]{1,20}/status|i/web/status|i/status)/(\\d{5,25})").matcher(url);
+        if (!m.find()) {
+            throw new Exception("bad twitter url");
+        }
+        final String tweetId = m.group(1);
+        Exception lastErr = null;
+        // Слой 1: api.fxtwitter.com (прямые MP4 без авторизации + мульти-фото + метаданные)
+        try {
+            final Resolved r1 = resolveFxTwitter(tweetId, maxVideoHeight);
+            if (r1 != null) return r1;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        // Слой 2: api.vxtwitter.com (резервное зеркало FixTweet/BetterTwitFix)
+        try {
+            final Resolved r2 = resolveVxTwitter(tweetId);
+            if (r2 != null) return r2;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        // Слой 3: Официальный cdn.syndication.twimg.com/tweet-result с математическим токеном
+        try {
+            final Resolved r3 = resolveTwitterSyndication(tweetId, maxVideoHeight);
+            if (r3 != null) return r3;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        throw lastErr != null ? lastErr : new Exception("twitter resolve failed");
+    }
+
+    private static Resolved resolveFxTwitter(String tweetId, int maxVideoHeight) throws Exception {
+        final String body = httpGet("https://api.fxtwitter.com/i/status/" + tweetId,
+                "Pengram/1.0 (+https://github.com)", null, "https://x.com/");
+        final JSONObject root = new JSONObject(body);
+        final JSONObject tweet = root.optJSONObject("tweet");
+        if (tweet == null) return null;
+        final JSONObject authorObj = tweet.optJSONObject("author");
+        final String author = authorObj != null ? authorObj.optString("screen_name", authorObj.optString("name", "")) : "";
+        final String title = tweet.optString("text", "");
+        final JSONObject media = tweet.optJSONObject("media");
+        if (media == null) return null;
+
+        final JSONArray videos = media.optJSONArray("videos");
+        if (videos != null && videos.length() > 0) {
+            final JSONObject v = videos.getJSONObject(0);
+            String bestUrl = cleanTwitterMp4(v.optString("url", ""));
+            final JSONArray formats = v.optJSONArray("formats");
+            if (formats != null && formats.length() > 0) {
+                String cand = null;
+                int candBitrate = -1;
+                for (int i = 0; i < formats.length(); i++) {
+                    final JSONObject f = formats.optJSONObject(i);
+                    if (f == null) continue;
+                    final String cType = f.optString("container", f.optString("content_type", "")).toLowerCase(Locale.US);
+                    if (!cType.contains("mp4")) continue;
+                    final String fu = cleanTwitterMp4(f.optString("url", ""));
+                    if (fu.isEmpty()) continue;
+                    final int h = extractHeightFromTwitterUrl(fu);
+                    final int br = f.optInt("bitrate", 0);
+                    if ((h <= 0 || h <= maxVideoHeight) && br >= candBitrate) {
+                        cand = fu;
+                        candBitrate = br;
+                    }
+                }
+                if (cand != null) bestUrl = cand;
+            }
+            if (!bestUrl.isEmpty()) {
+                final long durMs = (long) (v.optDouble("duration", 0) * 1000L);
+                if (durMs > MAX_DURATION_SEC * 1000L) throw new Exception("too long");
+                final String thumb = cleanGenericUrl(v.optString("thumbnail_url", ""));
+                return Resolved.forVideo(PLATFORM_TWITTER, Collections.singletonList(bestUrl), false,
+                        title, author, durMs, thumb, null, "https://x.com/", UA_DESKTOP, false);
+            }
+        }
+
+        final JSONArray photosJson = media.optJSONArray("photos");
+        if (photosJson != null && photosJson.length() > 0) {
+            final List<PhotoItem> photos = new ArrayList<>();
+            for (int i = 0; i < photosJson.length(); i++) {
+                final JSONObject p = photosJson.optJSONObject(i);
+                if (p == null) continue;
+                final String u = cleanGenericUrl(p.optString("url", ""));
+                if (!u.isEmpty()) {
+                    final String orig = u.contains("?") ? u : (u + "?name=orig");
+                    photos.add(new PhotoItem(orig, u, p.optInt("width", 0), p.optInt("height", 0)));
+                }
+            }
+            if (!photos.isEmpty()) {
+                return Resolved.forPhotos(PLATFORM_TWITTER, photos, "", title, author,
+                        null, "https://x.com/", UA_DESKTOP);
+            }
+        }
+        return null;
+    }
+
+    private static Resolved resolveVxTwitter(String tweetId) throws Exception {
+        final String body = httpGet("https://api.vxtwitter.com/Twitter/status/" + tweetId,
+                "Pengram/1.0 (+https://github.com)", null, "https://x.com/");
+        final JSONObject root = new JSONObject(body);
+        final String author = root.optString("user_screen_name", root.optString("user_name", ""));
+        final String title = root.optString("text", "");
+        final JSONArray ext = root.optJSONArray("media_extended");
+        if (ext == null || ext.length() == 0) return null;
+        final List<PhotoItem> photos = new ArrayList<>();
+        for (int i = 0; i < ext.length(); i++) {
+            final JSONObject m = ext.optJSONObject(i);
+            if (m == null) continue;
+            final String type = m.optString("type", "");
+            final String u = cleanGenericUrl(m.optString("url", ""));
+            if (u.isEmpty()) continue;
+            if ("video".equalsIgnoreCase(type) || "gif".equalsIgnoreCase(type)) {
+                return Resolved.forVideo(PLATFORM_TWITTER, Collections.singletonList(cleanTwitterMp4(u)), false,
+                        title, author, m.optLong("duration_millis", 0L),
+                        cleanGenericUrl(m.optString("thumbnail_url", "")),
+                        null, "https://x.com/", UA_DESKTOP, false);
+            } else if ("image".equalsIgnoreCase(type)) {
+                final JSONObject sz = m.optJSONObject("size");
+                photos.add(new PhotoItem(u, u, sz != null ? sz.optInt("width", 0) : 0,
+                        sz != null ? sz.optInt("height", 0) : 0));
+            }
+        }
+        if (!photos.isEmpty()) {
+            return Resolved.forPhotos(PLATFORM_TWITTER, photos, "", title, author,
+                    null, "https://x.com/", UA_DESKTOP);
+        }
+        return null;
+    }
+
+    private static Resolved resolveTwitterSyndication(String tweetId, int maxVideoHeight) throws Exception {
+        final String token = computeTwitterSyndicationToken(tweetId);
+        final String url = "https://cdn.syndication.twimg.com/tweet-result?id=" + tweetId + "&token=" + token + "&lang=en";
+        final String body = httpGet(url, UA_DESKTOP, null, "https://platform.twitter.com/");
+        final JSONObject root = new JSONObject(body);
+        final JSONObject user = root.optJSONObject("user");
+        final String author = user != null ? user.optString("screen_name", "") : "";
+        final String title = root.optString("text", "");
+
+        final JSONObject video = root.optJSONObject("video");
+        if (video != null) {
+            final JSONArray variants = video.optJSONArray("variants");
+            String best = null;
+            int bestH = -1;
+            String fallback = null;
+            if (variants != null) {
+                for (int i = 0; i < variants.length(); i++) {
+                    final JSONObject v = variants.optJSONObject(i);
+                    if (v == null) continue;
+                    final String type = v.optString("type", "");
+                    if (!type.contains("mp4")) continue;
+                    final String vu = cleanTwitterMp4(v.optString("src", ""));
+                    if (vu.isEmpty()) continue;
+                    if (fallback == null) fallback = vu;
+                    final int h = extractHeightFromTwitterUrl(vu);
+                    if ((h <= 0 || h <= maxVideoHeight) && h >= bestH) {
+                        best = vu;
+                        bestH = h;
+                    }
+                }
+            }
+            final String chosen = best != null ? best : fallback;
+            if (chosen != null) {
+                return Resolved.forVideo(PLATFORM_TWITTER, Collections.singletonList(chosen), false,
+                        title, author, video.optLong("durationMs", 0L),
+                        cleanGenericUrl(video.optString("poster", "")),
+                        null, "https://x.com/", UA_DESKTOP, false);
+            }
+        }
+        final JSONArray photosArr = root.optJSONArray("photos");
+        if (photosArr != null && photosArr.length() > 0) {
+            final List<PhotoItem> photos = new ArrayList<>();
+            for (int i = 0; i < photosArr.length(); i++) {
+                final JSONObject p = photosArr.optJSONObject(i);
+                if (p == null) continue;
+                final String u = cleanGenericUrl(p.optString("url", ""));
+                if (!u.isEmpty()) {
+                    photos.add(new PhotoItem(u + (u.contains("?") ? "" : "?name=orig"), u,
+                            p.optInt("width", 0), p.optInt("height", 0)));
+                }
+            }
+            if (!photos.isEmpty()) {
+                return Resolved.forPhotos(PLATFORM_TWITTER, photos, "", title, author,
+                        null, "https://x.com/", UA_DESKTOP);
+            }
+        }
+        return null;
+    }
+
+    private static String computeTwitterSyndicationToken(String id) {
+        try {
+            final double val = (Double.parseDouble(id) / 1e15) * Math.PI;
+            long intPart = (long) val;
+            double frac = val - intPart;
+            final String digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+            final StringBuilder sb = new StringBuilder();
+            if (intPart > 0) {
+                while (intPart > 0) {
+                    sb.insert(0, digits.charAt((int) (intPart % 36)));
+                    intPart /= 36;
+                }
+            }
+            for (int i = 0; i < 10 && frac > 0; i++) {
+                frac *= 36.0;
+                final int d = (int) frac;
+                if (d != 0) sb.append(digits.charAt(d));
+                frac -= d;
+            }
+            return sb.length() > 0 ? sb.toString() : "a";
+        } catch (Throwable ignore) {
+            return "a";
+        }
+    }
+
+    private static String cleanTwitterMp4(String url) {
+        final String u = cleanGenericUrl(url);
+        final int q = u.indexOf("?tag=");
+        return q > 0 ? u.substring(0, q) : u;
+    }
+
+    private static int extractHeightFromTwitterUrl(String url) {
+        final Matcher m = Pattern.compile("/(\\d{2,4})x(\\d{2,4})/").matcher(url);
+        if (m.find()) {
+            return Math.min(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)));
+        }
+        return 0;
+    }
+
+    // ---------------------------------------------------------------- Pinterest (оригиналы пинов и видео без водяных знаков)
+
+    private static Resolved resolvePinterest(String rawUrl, int maxVideoHeight) throws Exception {
+        String url = rawUrl;
+        final Map<String, String> cookies = new HashMap<>();
+        final Matcher shortM = Pattern.compile("(?i)pin\\.it/([A-Za-z0-9_-]{5,20})").matcher(url);
+        if (shortM.find()) {
+            try {
+                url = followRedirects("https://api.pinterest.com/url_shortener/" + shortM.group(1) + "/redirect/",
+                        cookies, UA_DESKTOP);
+            } catch (Throwable ignore) {
+                url = followRedirects(url, cookies, UA_DESKTOP);
+            }
+        }
+        final Matcher idM = Pattern.compile("(?i)/pin/(?:[^/?#]*--)?(\\d{6,25})").matcher(url);
+        if (!idM.find()) {
+            throw new Exception("bad pinterest url");
+        }
+        final String pinId = idM.group(1);
+        final String html = httpGet("https://www.pinterest.com/pin/" + pinId + "/", UA_DESKTOP, cookies, "https://www.pinterest.com/");
+        if (html.contains("\"__typename\":\"PinNotFound\"")) {
+            throw new Exception("pin not found");
+        }
+        String title = "";
+        final Matcher tm = Pattern.compile("<meta\\s+property=\"og:title\"\\s+content=\"([^\"]+)\"").matcher(html);
+        if (tm.find()) title = htmlUnescape(tm.group(1));
+
+        // Ищем прямые прогрессивные MP4 (без водяного знака TikTok-стиля) на v1.pinimg.com
+        final Matcher vm = Pattern.compile("https://v1\\.pinimg\\.com/videos/[^\"'\\s\\\\]+\\.mp4").matcher(html);
+        String bestMp4 = null;
+        int bestScore = -1;
+        while (vm.find()) {
+            final String cand = cleanGenericUrl(vm.group());
+            if (cand.isEmpty()) continue;
+            int score = 10;
+            if (cand.contains("/720p/")) score = maxVideoHeight >= 720 ? 30 : 25;
+            else if (cand.contains("/mc/")) score = 20;
+            else if (cand.contains("expMp4")) score = 28;
+            if (score > bestScore) {
+                bestMp4 = cand;
+                bestScore = score;
+            }
+        }
+        String origImg = "";
+        final Matcher im = Pattern.compile("https://i\\.pinimg\\.com/originals/[0-9a-f/]+\\.(?:jpg|jpeg|png|webp)").matcher(html);
+        if (im.find()) {
+            origImg = cleanGenericUrl(im.group());
+        } else {
+            final Matcher im736 = Pattern.compile("https://i\\.pinimg\\.com/736x/[0-9a-f/]+\\.(?:jpg|jpeg|png|webp)").matcher(html);
+            if (im736.find()) {
+                origImg = cleanGenericUrl(im736.group());
+            }
+        }
+
+        if (bestMp4 != null) {
+            return Resolved.forVideo(PLATFORM_PINTEREST, Collections.singletonList(bestMp4), false,
+                    title, "", 0L, origImg, cookies, "https://www.pinterest.com/", UA_DESKTOP, false);
+        }
+        // Резерв: HLS-поток видео-пина (.m3u8)
+        final Matcher hm = Pattern.compile("https://v1\\.pinimg\\.com/videos/[^\"'\\s\\\\]+\\.m3u8").matcher(html);
+        if (hm.find()) {
+            final String m3u8 = cleanGenericUrl(hm.group());
+            if (!m3u8.isEmpty()) {
+                return Resolved.forVideoWithAudio(PLATFORM_PINTEREST, Collections.singletonList(m3u8), "",
+                        false, true, title, "", 0L, origImg, cookies, "https://www.pinterest.com/", UA_DESKTOP, false);
+            }
+        }
+        if (!origImg.isEmpty()) {
+            return Resolved.forPhotos(PLATFORM_PINTEREST,
+                    Collections.singletonList(new PhotoItem(origImg, origImg, 0, 0)),
+                    "", title, "", cookies, "https://www.pinterest.com/", UA_DESKTOP);
+        }
+        throw new Exception("pinterest empty");
+    }
+
+    // ---------------------------------------------------------------- VK Клипы и VK Видео
+
+    private static final String UA_VK_VIDEO =
+            "com.vk.vkvideo.prod/1955 (iPhone, iOS 16.7.15, iPhone10,4, Scale/2.0) SAK/1.135";
+
+    private static Resolved resolveVk(String rawUrl, int maxVideoHeight) throws Exception {
+        final Matcher m = Pattern.compile("(?i)(?:clip|video)(-?\\d+)_(\\d+)(?:_([A-Za-z0-9]+))?").matcher(rawUrl);
+        if (!m.find()) {
+            throw new Exception("bad vk url");
+        }
+        final String oid = m.group(1);
+        final String vid = m.group(2);
+        String accessKey = m.group(3) != null ? m.group(3) : "";
+        if (accessKey.isEmpty()) {
+            final Matcher ak = Pattern.compile("[?&]access_key=([A-Za-z0-9]+)").matcher(rawUrl);
+            if (ak.find()) accessKey = ak.group(1);
+        }
+
+        Exception lastErr = null;
+        try {
+            final Resolved r1 = resolveVkVideoApi(oid, vid, accessKey, maxVideoHeight);
+            if (r1 != null) return r1;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        try {
+            final Resolved r2 = resolveVkEmbedPage(oid, vid, accessKey, maxVideoHeight);
+            if (r2 != null) return r2;
+        } catch (Exception e) {
+            lastErr = e;
+        }
+        throw lastErr != null ? lastErr : new Exception("vk resolve failed");
+    }
+
+    private static String[] getVkAnonToken() throws Exception {
+        final long now = System.currentTimeMillis();
+        if (cachedVkAnonToken != null && cachedVkDeviceId != null && now - cachedVkTokenTimeMs < 45L * 60_000L) {
+            return new String[]{cachedVkAnonToken, cachedVkDeviceId};
+        }
+        final String deviceId = UUID.randomUUID().toString();
+        final String tokenUrl = "https://api.vk.ru/method/auth.getAnonymToken"
+                + "?client_id=51552953&client_secret=qgr0yWwXCrsxA1jnRtRX"
+                + "&device_id=" + URLEncoder.encode(deviceId, "UTF-8") + "&v=5.274";
+        final String resp = httpGet(tokenUrl, UA_VK_VIDEO, null, "https://vkvideo.ru/");
+        final JSONObject data = new JSONObject(resp).optJSONObject("response");
+        final String token = data != null ? data.optString("token", "") : "";
+        if (token.isEmpty()) {
+            throw new Exception("vk anon token failed");
+        }
+        cachedVkAnonToken = token;
+        cachedVkDeviceId = deviceId;
+        cachedVkTokenTimeMs = now;
+        return new String[]{token, deviceId};
+    }
+
+    private static Resolved resolveVkVideoApi(String oid, String vid, String accessKey, int maxVideoHeight) throws Exception {
+        final String[] auth = getVkAnonToken();
+        final String videoSpec = oid + "_" + vid + (accessKey.isEmpty() ? "" : "_" + accessKey);
+        final String form = "anonymous_token=" + URLEncoder.encode(auth[0], "UTF-8")
+                + "&device_id=" + URLEncoder.encode(auth[1], "UTF-8")
+                + "&v=5.274&extended=1&videos=" + URLEncoder.encode(videoSpec, "UTF-8");
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/x-www-form-urlencoded");
+        final String json = httpPost("https://api.vkvideo.ru/method/video.get", form,
+                UA_VK_VIDEO, null, "https://vkvideo.ru/", headers);
+        final JSONObject resp = new JSONObject(json).optJSONObject("response");
+        final JSONArray items = resp != null ? resp.optJSONArray("items") : null;
+        if (items == null || items.length() == 0) {
+            return null;
+        }
+        final JSONObject item = items.getJSONObject(0);
+        if (item.optInt("live", 0) == 1) {
+            throw new Exception("live");
+        }
+        final long durSec = item.optLong("duration", 0L);
+        if (durSec > MAX_DURATION_SEC) {
+            throw new Exception("too long");
+        }
+        final String title = item.optString("title", "");
+        String author = "";
+        final long ownerLong = item.optLong("owner_id", 0L);
+        if (ownerLong < 0 && resp.optJSONArray("groups") != null) {
+            final JSONArray groups = resp.optJSONArray("groups");
+            for (int i = 0; i < groups.length(); i++) {
+                final JSONObject g = groups.optJSONObject(i);
+                if (g != null && g.optLong("id") == -ownerLong) {
+                    author = g.optString("name", "");
+                    break;
+                }
+            }
+        } else if (ownerLong > 0 && resp.optJSONArray("profiles") != null) {
+            final JSONArray profs = resp.optJSONArray("profiles");
+            for (int i = 0; i < profs.length(); i++) {
+                final JSONObject p = profs.optJSONObject(i);
+                if (p != null && p.optLong("id") == ownerLong) {
+                    author = (p.optString("first_name", "") + " " + p.optString("last_name", "")).trim();
+                    break;
+                }
+            }
+        }
+        String thumb = "";
+        final JSONArray imgs = item.optJSONArray("image");
+        if (imgs != null && imgs.length() > 0) {
+            final JSONObject last = imgs.optJSONObject(imgs.length() - 1);
+            if (last != null) thumb = cleanGenericUrl(last.optString("url", ""));
+        }
+
+        final JSONObject files = item.optJSONObject("files");
+        if (files == null) return null;
+        final int[] qualities = {2160, 1440, 1080, 720, 480, 360, 240, 144};
+        String chosenMp4 = null;
+        String fallbackMp4 = null;
+        for (int q : qualities) {
+            final String u = cleanGenericUrl(files.optString("mp4_" + q, ""));
+            if (u.isEmpty()) continue;
+            if (fallbackMp4 == null || q < maxVideoHeight) fallbackMp4 = u;
+            if (q <= maxVideoHeight && chosenMp4 == null) {
+                chosenMp4 = u;
+                break;
+            }
+        }
+        if (chosenMp4 == null) chosenMp4 = fallbackMp4;
+        if (chosenMp4 != null && !chosenMp4.isEmpty()) {
+            return Resolved.forVideo(PLATFORM_VK, Collections.singletonList(chosenMp4), false,
+                    title, author, durSec * 1000L, thumb, null, "https://vkvideo.ru/", UA_VK_VIDEO, false);
+        }
+        final String hls = cleanGenericUrl(files.optString("hls", ""));
+        if (!hls.isEmpty()) {
+            return Resolved.forVideoWithAudio(PLATFORM_VK, Collections.singletonList(hls), "",
+                    false, true, title, author, durSec * 1000L, thumb,
+                    null, "https://vkvideo.ru/", UA_VK_VIDEO, false);
+        }
+        return null;
+    }
+
+    private static Resolved resolveVkEmbedPage(String oid, String vid, String accessKey, int maxVideoHeight) throws Exception {
+        final String extUrl = "https://vk.com/video_ext.php?oid=" + oid + "&id=" + vid
+                + (accessKey.isEmpty() ? "" : "&hash=" + accessKey);
+        final Map<String, String> cookies = new HashMap<>();
+        final String html = httpGet(extUrl, UA_DESKTOP, cookies, "https://vk.com/");
+        final int[] qualities = {2160, 1440, 1080, 720, 480, 360, 240};
+        String chosen = null;
+        String fallback = null;
+        for (int q : qualities) {
+            final Matcher m = Pattern.compile("\"url" + q + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)+)\"").matcher(html);
+            if (m.find()) {
+                final String u = cleanGenericUrl(unescapeJsonString(m.group(1)));
+                if (u.isEmpty()) continue;
+                fallback = u;
+                if (q <= maxVideoHeight && chosen == null) {
+                    chosen = u;
+                    break;
+                }
+            }
+        }
+        if (chosen == null) chosen = fallback;
+        if (chosen != null) {
+            return Resolved.forVideo(PLATFORM_VK, Collections.singletonList(chosen), false,
+                    "", "", 0L, "", cookies, "https://vk.com/", UA_DESKTOP, false);
+        }
+        return null;
+    }
+
+    // ---------------------------------------------------------------- Rutube, Rutube Shorts и Yappy
+
+    private static Resolved resolveRutube(String rawUrl, int maxVideoHeight) throws Exception {
+        final Matcher ym = Pattern.compile("(?i)rutube\\.ru/yappy/([a-f0-9]{16,40})").matcher(rawUrl);
+        if (ym.find()) {
+            final String yid = ym.group(1);
+            final String json = httpGet("https://rutube.ru/pangolin/api/web/yappy/v4/yappypage/?client=wdp&videoId="
+                    + yid + "&page=1&page_size=1", UA_DESKTOP, null, "https://rutube.ru/");
+            final JSONArray results = new JSONObject(json).optJSONArray("results");
+            if (results != null) {
+                for (int i = 0; i < results.length(); i++) {
+                    final JSONObject r = results.optJSONObject(i);
+                    if (r == null) continue;
+                    final String link = cleanGenericUrl(r.optString("link", ""));
+                    if (!link.isEmpty()) {
+                        return Resolved.forVideoWithAudio(PLATFORM_RUTUBE, Collections.singletonList(link), "",
+                                false, link.contains(".m3u8"), r.optString("description", ""), "",
+                                0L, cleanGenericUrl(r.optString("preview", "")),
+                                null, "https://rutube.ru/", UA_DESKTOP, false);
+                    }
+                }
+            }
+            throw new Exception("yappy empty");
+        }
+
+        final Matcher m = Pattern.compile("(?i)rutube\\.ru/(?:shorts/|video/(?:private/)?|play/embed/)([a-f0-9]{16,40})").matcher(rawUrl);
+        if (!m.find()) {
+            throw new Exception("bad rutube url");
+        }
+        final String videoId = m.group(1);
+        String pKey = "";
+        final Matcher pm = Pattern.compile("[?&]p=([A-Za-z0-9_-]+)").matcher(rawUrl);
+        if (pm.find()) pKey = pm.group(1);
+
+        final String apiUrl = "https://rutube.ru/api/play/options/" + videoId
+                + "/?no_404=true&referer=https%3A%2F%2Frutube.ru&pver=v2"
+                + (pKey.isEmpty() ? "" : "&p=" + URLEncoder.encode(pKey, "UTF-8"));
+        final String body = httpGet(apiUrl, UA_DESKTOP, null, "https://rutube.ru/");
+        final JSONObject play = new JSONObject(body);
+        if (play.optJSONObject("live_streams") != null && play.optJSONObject("live_streams").has("hls")) {
+            throw new Exception("live");
+        }
+        final long durMs = play.optLong("duration", 0L);
+        if (durMs > MAX_DURATION_SEC * 1000L) {
+            throw new Exception("too long");
+        }
+        final String title = play.optString("title", "").trim();
+        final JSONObject authorObj = play.optJSONObject("author");
+        final String author = authorObj != null ? authorObj.optString("name", "").trim() : "";
+        final String thumb = cleanGenericUrl(play.optString("thumbnail_url", ""));
+
+        final JSONObject balancer = play.optJSONObject("video_balancer");
+        if (balancer == null) {
+            throw new Exception("no rutube balancer");
+        }
+        String m3u8Url = cleanGenericUrl(balancer.optString("m3u8", ""));
+        if (m3u8Url.isEmpty()) {
+            m3u8Url = cleanGenericUrl(balancer.optString("default", ""));
+        }
+        if (m3u8Url.isEmpty()) {
+            throw new Exception("empty rutube stream");
+        }
+        final String master = httpGet(m3u8Url, UA_DESKTOP, null, "https://rutube.ru/");
+        final String chosenVariant = master.contains("#EXT-X-STREAM-INF")
+                ? selectBestHlsVariant(master, m3u8Url, maxVideoHeight)
+                : m3u8Url;
+        final String finalStream = (chosenVariant != null && !chosenVariant.isEmpty()) ? chosenVariant : m3u8Url;
+        return Resolved.forVideoWithAudio(PLATFORM_RUTUBE, Collections.singletonList(finalStream), "",
+                false, true, title, author, durMs, thumb,
+                null, "https://rutube.ru/", UA_DESKTOP, false);
+    }
+
+    // ---------------------------------------------------------------- Reddit (видео со звуком + галереи)
+
+    private static final String UA_REDDIT =
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36 Pengram/1.0";
+
+    private static Resolved resolveReddit(String rawUrl, int maxVideoHeight) throws Exception {
+        String url = rawUrl;
+        final Map<String, String> cookies = new HashMap<>();
+        if (url.contains("/s/") || url.toLowerCase(Locale.US).contains("redd.it/")) {
+            url = followRedirects(url, cookies, UA_REDDIT);
+        }
+        final Matcher cm = Pattern.compile("(?i)/comments/([A-Za-z0-9]{5,12})").matcher(url);
+        if (!cm.find()) {
+            throw new Exception("bad reddit url");
+        }
+        final String postId = cm.group(1);
+        String json = null;
+        final String[] endpoints = {
+                "https://www.reddit.com/comments/" + postId + ".json?raw_json=1",
+                "https://old.reddit.com/comments/" + postId + ".json?raw_json=1",
+                "https://api.reddit.com/api/info/?id=t3_" + postId + "&raw_json=1"
+        };
+        Exception lastErr = null;
+        for (String ep : endpoints) {
+            try {
+                json = httpGet(ep, UA_REDDIT, cookies, "https://www.reddit.com/");
+                if (json != null && (json.trim().startsWith("[") || json.trim().startsWith("{"))) {
+                    break;
+                }
+            } catch (Exception e) {
+                lastErr = e;
+            }
+        }
+        if (json == null) {
+            throw lastErr != null ? lastErr : new Exception("reddit fetch failed");
+        }
+        JSONObject post;
+        final String trimmed = json.trim();
+        if (trimmed.startsWith("[")) {
+            post = new JSONArray(trimmed).getJSONObject(0)
+                    .getJSONObject("data").getJSONArray("children")
+                    .getJSONObject(0).getJSONObject("data");
+        } else {
+            post = new JSONObject(trimmed).getJSONObject("data")
+                    .getJSONArray("children").getJSONObject(0).getJSONObject("data");
+        }
+        final JSONArray crossposts = post.optJSONArray("crosspost_parent_list");
+        if (crossposts != null && crossposts.length() > 0 && crossposts.optJSONObject(0) != null) {
+            post = crossposts.getJSONObject(0);
+        }
+        final String title = post.optString("title", "");
+        final String author = post.optString("author", "");
+        String thumb = cleanGenericUrl(post.optString("thumbnail", ""));
+        if (!thumb.startsWith("http")) thumb = "";
+
+        // 1. Галерея Reddit (gallery_data + media_metadata)
+        final JSONObject mediaMeta = post.optJSONObject("media_metadata");
+        if (mediaMeta != null) {
+            final List<PhotoItem> photos = new ArrayList<>();
+            final JSONObject galleryData = post.optJSONObject("gallery_data");
+            final JSONArray items = galleryData != null ? galleryData.optJSONArray("items") : null;
+            if (items != null) {
+                for (int i = 0; i < items.length(); i++) {
+                    final JSONObject it = items.optJSONObject(i);
+                    final String mid = it != null ? it.optString("media_id", "") : "";
+                    final PhotoItem p = parseRedditGalleryItem(mediaMeta.optJSONObject(mid));
+                    if (p != null) photos.add(p);
+                }
+            } else {
+                final Iterator<String> keys = mediaMeta.keys();
+                while (keys.hasNext()) {
+                    final PhotoItem p = parseRedditGalleryItem(mediaMeta.optJSONObject(keys.next()));
+                    if (p != null) photos.add(p);
+                }
+            }
+            if (!photos.isEmpty()) {
+                return Resolved.forPhotos(PLATFORM_REDDIT, photos, "", title, author,
+                        cookies, "https://www.reddit.com/", UA_REDDIT);
+            }
+        }
+
+        // 2. Видео Reddit (v.redd.it: DASH видео + отдельная звуковая дорожка)
+        JSONObject rv = null;
+        if (post.optJSONObject("secure_media") != null) {
+            rv = post.optJSONObject("secure_media").optJSONObject("reddit_video");
+        }
+        if (rv == null && post.optJSONObject("media") != null) {
+            rv = post.optJSONObject("media").optJSONObject("reddit_video");
+        }
+        if (rv == null && post.optJSONObject("preview") != null) {
+            rv = post.optJSONObject("preview").optJSONObject("reddit_video_preview");
+        }
+        if (rv != null) {
+            final long durSec = rv.optLong("duration", 0L);
+            if (durSec > MAX_DURATION_SEC) {
+                throw new Exception("too long");
+            }
+            String fallbackUrl = cleanGenericUrl(rv.optString("fallback_url", ""));
+            final int qIdx = fallbackUrl.indexOf('?');
+            if (qIdx > 0) fallbackUrl = fallbackUrl.substring(0, qIdx);
+
+            if (!fallbackUrl.isEmpty()) {
+                final int slash = fallbackUrl.lastIndexOf('/');
+                final String baseUrl = slash > 0 ? fallbackUrl.substring(0, slash) : "";
+                String videoUrl = fallbackUrl;
+                final int origH = rv.optInt("height", 0);
+                if (origH > maxVideoHeight && !baseUrl.isEmpty()) {
+                    final int[] dashHeights = {1080, 720, 480, 360};
+                    for (int dh : dashHeights) {
+                        if (dh <= maxVideoHeight && probeHttpOk(baseUrl + "/DASH_" + dh + ".mp4", UA_REDDIT)) {
+                            videoUrl = baseUrl + "/DASH_" + dh + ".mp4";
+                            break;
+                        }
+                    }
+                }
+                String audioUrl = "";
+                if (!rv.optBoolean("is_gif", false) && !baseUrl.isEmpty()) {
+                    final String[] audioSuffixes = {
+                            "/DASH_AUDIO_128.mp4", "/DASH_AUDIO_64.mp4", "/DASH_audio.mp4",
+                            "/CMAF_AUDIO_128.mp4", "/CMAF_AUDIO_64.mp4", "/audio"
+                    };
+                    for (String suf : audioSuffixes) {
+                        final String cand = baseUrl + suf;
+                        if (probeHttpOk(cand, UA_REDDIT)) {
+                            audioUrl = cand;
+                            break;
+                        }
+                    }
+                }
+                if (!audioUrl.isEmpty()) {
+                    return Resolved.forVideoWithAudio(PLATFORM_REDDIT, Arrays.asList(videoUrl, audioUrl),
+                            audioUrl, true, false, title, author, durSec * 1000L, thumb,
+                            cookies, "https://www.reddit.com/", UA_REDDIT, false);
+                }
+                return Resolved.forVideo(PLATFORM_REDDIT, Collections.singletonList(videoUrl), false,
+                        title, author, durSec * 1000L, thumb, cookies, "https://www.reddit.com/", UA_REDDIT, false);
+            }
+            final String hlsUrl = cleanGenericUrl(rv.optString("hls_url", ""));
+            if (!hlsUrl.isEmpty()) {
+                return Resolved.forVideoWithAudio(PLATFORM_REDDIT, Collections.singletonList(hlsUrl), "",
+                        false, true, title, author, durSec * 1000L, thumb,
+                        cookies, "https://www.reddit.com/", UA_REDDIT, false);
+            }
+        }
+
+        // 3. Одиночное фото i.redd.it
+        final String dest = cleanGenericUrl(post.optString("url_overridden_by_dest", post.optString("url", "")));
+        if (dest.matches("(?i).+\\.(jpg|jpeg|png|webp)(\\?.*)?$")) {
+            return Resolved.forPhotos(PLATFORM_REDDIT,
+                    Collections.singletonList(new PhotoItem(dest, dest, 0, 0)),
+                    "", title, author, cookies, "https://www.reddit.com/", UA_REDDIT);
+        }
+        throw new Exception("reddit no media");
+    }
+
+    private static PhotoItem parseRedditGalleryItem(JSONObject meta) {
+        if (meta == null) return null;
+        final JSONObject s = meta.optJSONObject("s");
+        if (s == null) return null;
+        String u = htmlUnescape(cleanGenericUrl(s.optString("u", s.optString("gif", ""))));
+        if (u.isEmpty()) return null;
+        return new PhotoItem(u, u, s.optInt("x", 0), s.optInt("y", 0));
+    }
+
+    // ---------------------------------------------------------------- SoundCloud (трек + обложка)
+
+    private static Resolved resolveSoundCloud(String rawUrl) throws Exception {
+        String url = rawUrl;
+        final Map<String, String> cookies = new HashMap<>();
+        final String lower = url.toLowerCase(Locale.US);
+        if (lower.contains("on.soundcloud.com/") || lower.contains("soundcloud.app.goo.gl/")) {
+            url = followRedirects(url, cookies, UA_DESKTOP);
+        }
+        final int q = url.indexOf('?');
+        if (q > 0) url = url.substring(0, q);
+        url = url.replace("://m.soundcloud.com/", "://soundcloud.com/");
+
+        for (int attempt = 0; attempt < 2; attempt++) {
+            final String clientId = getSoundCloudClientId(attempt > 0);
+            try {
+                final String apiUrl = "https://api-v2.soundcloud.com/resolve?url="
+                        + URLEncoder.encode(url, "UTF-8") + "&client_id=" + clientId;
+                final String json = httpGet(apiUrl, UA_DESKTOP, cookies, "https://soundcloud.com/");
+                final JSONObject track = new JSONObject(json);
+                if (!"track".equalsIgnoreCase(track.optString("kind", ""))) {
+                    throw new Exception("not a track");
+                }
+                final long durMs = track.optLong("duration", 0L);
+                if (durMs > 25L * 60_000L) {
+                    throw new Exception("too long");
+                }
+                final String title = track.optString("title", "");
+                final JSONObject user = track.optJSONObject("user");
+                final String author = user != null ? user.optString("username", "") : "";
+                String cover = cleanGenericUrl(track.optString("artwork_url", ""));
+                if (cover.isEmpty() && user != null) {
+                    cover = cleanGenericUrl(user.optString("avatar_url", ""));
+                }
+                if (!cover.isEmpty()) {
+                    cover = cover.replace("-large.", "-t500x500.");
+                }
+                final String trackAuth = track.optString("track_authorization", "");
+                final JSONObject media = track.optJSONObject("media");
+                final JSONArray transcodings = media != null ? media.optJSONArray("transcodings") : null;
+                if (transcodings == null || transcodings.length() == 0) {
+                    throw new Exception("no transcodings");
+                }
+                JSONObject chosen = null;
+                boolean isHls = false;
+                for (int i = 0; i < transcodings.length(); i++) {
+                    final JSONObject t = transcodings.optJSONObject(i);
+                    if (t == null || t.optBoolean("snipped", false)) continue;
+                    final JSONObject fmt = t.optJSONObject("format");
+                    final String proto = fmt != null ? fmt.optString("protocol", "") : "";
+                    final String mime = fmt != null ? fmt.optString("mime_type", "") : "";
+                    if (proto.contains("encrypted")) continue;
+                    if ("progressive".equalsIgnoreCase(proto) && mime.contains("mpeg")) {
+                        chosen = t;
+                        isHls = false;
+                        break;
+                    }
+                    if (chosen == null && "hls".equalsIgnoreCase(proto)) {
+                        chosen = t;
+                        isHls = true;
+                    }
+                }
+                if (chosen == null) {
+                    chosen = transcodings.optJSONObject(0);
+                    final JSONObject fmt = chosen != null ? chosen.optJSONObject("format") : null;
+                    isHls = fmt != null && "hls".equalsIgnoreCase(fmt.optString("protocol", ""));
+                }
+                if (chosen == null) throw new Exception("no soundcloud stream");
+                String infoUrl = chosen.optString("url", "");
+                infoUrl += (infoUrl.contains("?") ? "&" : "?") + "client_id=" + clientId;
+                if (!trackAuth.isEmpty()) {
+                    infoUrl += "&track_authorization=" + URLEncoder.encode(trackAuth, "UTF-8");
+                }
+                final String streamJson = httpGet(infoUrl, UA_DESKTOP, cookies, "https://soundcloud.com/");
+                final String streamUrl = cleanGenericUrl(new JSONObject(streamJson).optString("url", ""));
+                if (streamUrl.isEmpty()) throw new Exception("empty soundcloud url");
+                return Resolved.forAudio(PLATFORM_SOUNDCLOUD, streamUrl, isHls,
+                        title, author, durMs, cover, cookies, "https://soundcloud.com/", UA_DESKTOP);
+            } catch (Exception e) {
+                if (attempt == 0 && e.getMessage() != null && (e.getMessage().contains("401") || e.getMessage().contains("403"))) {
+                    continue;
+                }
+                throw e;
+            }
+        }
+        throw new Exception("soundcloud resolve failed");
+    }
+
+    private static String getSoundCloudClientId(boolean forceRefresh) throws Exception {
+        final long now = System.currentTimeMillis();
+        if (!forceRefresh && cachedSoundCloudClientId != null && now - cachedSoundCloudClientTimeMs < 2L * 3600_000L) {
+            return cachedSoundCloudClientId;
+        }
+        final String home = httpGet("https://soundcloud.com/", UA_DESKTOP, null, "https://soundcloud.com/");
+        final Matcher scriptM = Pattern.compile("https://a-v2\\.sndcdn\\.com/assets/[^\"'\\s>]+\\.js").matcher(home);
+        final List<String> scripts = new ArrayList<>();
+        while (scriptM.find()) {
+            scripts.add(scriptM.group());
+        }
+        // client_id всегда лежит в последних бандлах приложения
+        for (int i = scripts.size() - 1; i >= Math.max(0, scripts.size() - 8); i--) {
+            try {
+                final String js = httpGet(scripts.get(i), UA_DESKTOP, null, "https://soundcloud.com/");
+                final Matcher cm = Pattern.compile("client_id\\s*[:=]\\s*\"([A-Za-z0-9]{32})\"").matcher(js);
+                if (cm.find()) {
+                    cachedSoundCloudClientId = cm.group(1);
+                    cachedSoundCloudClientTimeMs = now;
+                    return cachedSoundCloudClientId;
+                }
+            } catch (Throwable ignore) {
+            }
+        }
+        throw new Exception("soundcloud client_id not found");
+    }
+
+    // ---------------------------------------------------------------- Яндекс.Музыка (трек / превью + обложка)
+
+    private static Resolved resolveYandexMusic(String rawUrl) throws Exception {
+        String albumId = "";
+        String trackId = "";
+        final Matcher fullM = Pattern.compile("(?i)music\\.yandex\\.[a-z]+/album/(\\d+)/track/(\\d+)").matcher(rawUrl);
+        if (fullM.find()) {
+            albumId = fullM.group(1);
+            trackId = fullM.group(2);
+        } else {
+            final Matcher tM = Pattern.compile("(?i)/track/(\\d+)").matcher(rawUrl);
+            if (tM.find()) trackId = tM.group(1);
+        }
+        if (trackId.isEmpty()) {
+            throw new Exception("bad yandex music url");
+        }
+        final Map<String, String> cookies = new HashMap<>();
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("X-Requested-With", "XMLHttpRequest");
+        headers.put("X-Retpath-Y", rawUrl);
+
+        final String trackSpec = albumId.isEmpty() ? trackId : (trackId + ":" + albumId);
+        final String metaJson = httpGetWithHeaders(
+                "https://music.yandex.ru/handlers/track.jsx?track=" + URLEncoder.encode(trackSpec, "UTF-8"),
+                UA_DESKTOP, cookies, rawUrl, headers);
+        final JSONObject metaRoot = new JSONObject(metaJson);
+        final JSONObject track = metaRoot.optJSONObject("track");
+        if (track == null) {
+            throw new Exception("yandex track meta empty");
+        }
+        final String title = track.optString("title", "");
+        final long durMs = track.optLong("durationMs", 0L);
+        if (durMs > 25L * 60_000L) {
+            throw new Exception("too long");
+        }
+        final StringBuilder artistsSb = new StringBuilder();
+        final JSONArray artists = track.optJSONArray("artists");
+        if (artists != null) {
+            for (int i = 0; i < artists.length(); i++) {
+                final JSONObject a = artists.optJSONObject(i);
+                if (a == null) continue;
+                final String name = a.optString("name", "").trim();
+                if (!name.isEmpty()) {
+                    if (artistsSb.length() > 0) artistsSb.append(", ");
+                    artistsSb.append(name);
+                }
+            }
+        }
+        if (albumId.isEmpty()) {
+            final JSONArray albums = track.optJSONArray("albums");
+            if (albums != null && albums.length() > 0 && albums.optJSONObject(0) != null) {
+                albumId = String.valueOf(albums.getJSONObject(0).optLong("id", 0L));
+                if ("0".equals(albumId)) albumId = "";
+            }
+        }
+        String cover = "";
+        final String coverUri = track.optString("coverUri", track.optString("ogImage", ""));
+        if (!coverUri.isEmpty()) {
+            cover = "https://" + coverUri.replace("%%", "1000x1000");
+        }
+
+        // Слой 1: api/v2.1 signed get-mp3 (MD5 подпись как в yt-dlp YandexMusicTrackIE)
+        final String dlPathSpec = albumId.isEmpty() ? trackId : (trackId + ":" + albumId);
+        final String dlApi = "https://music.yandex.ru/api/v2.1/handlers/track/" + dlPathSpec
+                + "/web-album_track-track-track-main/download/m?hq=1";
+        try {
+            final String dlInfoJson = httpGetWithHeaders(dlApi, UA_DESKTOP, cookies, rawUrl, headers);
+            final String srcUrl = cleanGenericUrl(new JSONObject(dlInfoJson).optString("src", ""));
+            if (!srcUrl.isEmpty()) {
+                final String storageJson = httpGetWithHeaders(
+                        srcUrl + (srcUrl.contains("?") ? "&" : "?") + "format=json",
+                        UA_DESKTOP, cookies, rawUrl, headers);
+                final JSONObject st = new JSONObject(storageJson);
+                final String host = st.optString("host", "");
+                final String path = st.optString("path", "");
+                final String ts = st.optString("ts", "");
+                final String s = st.optString("s", "");
+                if (!host.isEmpty() && path.length() > 1 && !ts.isEmpty() && !s.isEmpty()) {
+                    final String sign = md5Hex("XGRlBW9FXlekgbPrRHuSiA" + path.substring(1) + s);
+                    final String mp3Url = "https://" + host + "/get-mp3/" + sign + "/" + ts + path + "?track-id=" + trackId;
+                    return Resolved.forAudio(PLATFORM_YANDEX, mp3Url, false,
+                            title, artistsSb.toString(), durMs, cover, cookies, "https://music.yandex.ru/", UA_DESKTOP);
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+
+        // Слой 2: Публичный превью-поток api.music.yandex.net (работает даже без Plus-подписки)
+        final String pubInfo = httpGet("https://api.music.yandex.net/tracks/" + trackId + "/download-info",
+                UA_DESKTOP, cookies, "https://music.yandex.ru/");
+        final JSONArray resArr = new JSONObject(pubInfo).optJSONArray("result");
+        if (resArr != null && resArr.length() > 0) {
+            JSONObject best = resArr.getJSONObject(0);
+            for (int i = 0; i < resArr.length(); i++) {
+                final JSONObject c = resArr.optJSONObject(i);
+                if (c != null && "mp3".equalsIgnoreCase(c.optString("codec", ""))
+                        && c.optInt("bitrateInKbps", 0) >= best.optInt("bitrateInKbps", 0)) {
+                    best = c;
+                }
+            }
+            final String diUrl = cleanGenericUrl(best.optString("downloadInfoUrl", ""));
+            if (!diUrl.isEmpty()) {
+                final String stJson = httpGet(diUrl + (diUrl.contains("?") ? "&" : "?") + "format=json",
+                        UA_DESKTOP, cookies, "https://music.yandex.ru/");
+                final JSONObject st = new JSONObject(stJson);
+                final String host = st.optString("host", "");
+                final String path = st.optString("path", "");
+                final String ts = st.optString("ts", "");
+                final String s = st.optString("s", "");
+                if (!host.isEmpty() && path.length() > 1) {
+                    final String sign = md5Hex("XGRlBW9FXlekgbPrRHuSiA" + path.substring(1) + s);
+                    final String mp3Url = "https://" + host + "/get-mp3/" + sign + "/" + ts + path;
+                    return Resolved.forAudio(PLATFORM_YANDEX, mp3Url, false,
+                            title, artistsSb.toString(), durMs, cover, cookies, "https://music.yandex.ru/", UA_DESKTOP);
+                }
+            }
+        }
+        throw new Exception("yandex stream unavailable");
+    }
+
+    // ---------------------------------------------------------------- Общие HTTP/строковые утилиты экстракторов
+
+    private static String cleanGenericUrl(String raw) {
+        if (raw == null) return "";
+        String s = raw.trim()
+                .replace("\\u002F", "/")
+                .replace("\\u0026", "&")
+                .replace("\\/", "/")
+                .replace("&amp;", "&");
+        if (s.startsWith("//")) s = "https:" + s;
+        return s.startsWith("http") ? s : "";
+    }
+
+    private static String unescapeJsonString(String raw) {
+        if (raw == null) return "";
+        try {
+            return new JSONObject("{\"v\":\"" + raw + "\"}").optString("v", raw);
+        } catch (Throwable ignore) {
+            return raw.replace("\\/", "/").replace("\\u0026", "&");
+        }
+    }
+
+    private static String htmlUnescape(String s) {
+        if (s == null) return "";
+        return s.replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">");
+    }
+
+    private static String md5Hex(String text) throws Exception {
+        final MessageDigest md = MessageDigest.getInstance("MD5");
+        final byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
+        final StringBuilder sb = new StringBuilder(32);
+        for (byte b : digest) {
+            sb.append(String.format(Locale.US, "%02x", b & 0xFF));
+        }
+        return sb.toString();
+    }
+
+    private static boolean probeHttpOk(String url, String ua) {
+        try {
+            final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(6_000);
+            conn.setReadTimeout(6_000);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", ua);
+            conn.setRequestProperty("Range", "bytes=0-1");
+            try {
+                final int code = conn.getResponseCode();
+                return code == 200 || code == 206;
+            } finally {
+                conn.disconnect();
+            }
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    private static String httpGetWithHeaders(String url, String ua, Map<String, String> cookies,
+                                             String referer, Map<String, String> extraHeaders) throws Exception {
+        String current = url;
+        for (int hop = 0; hop < 6; hop++) {
+            final HttpURLConnection conn = (HttpURLConnection) new URL(current).openConnection();
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(12_000);
+            conn.setReadTimeout(18_000);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", ua);
+            if (referer != null && !referer.isEmpty()) {
+                conn.setRequestProperty("Referer", referer);
+            }
+            if (extraHeaders != null) {
+                for (Map.Entry<String, String> e : extraHeaders.entrySet()) {
+                    conn.setRequestProperty(e.getKey(), e.getValue());
+                }
+            }
+            if (cookies != null && !cookies.isEmpty()) {
+                applyCookies(conn, cookies);
+            }
+            try {
+                final int code = conn.getResponseCode();
+                if (cookies != null) {
+                    storeCookies(conn, cookies);
+                }
+                if (code / 100 == 3) {
+                    final String loc = conn.getHeaderField("Location");
+                    if (loc != null && !loc.isEmpty()) {
+                        current = loc.startsWith("http") ? loc : new URL(new URL(current), loc).toString();
+                        continue;
+                    }
+                }
+                if (code / 100 != 2) {
+                    throw new Exception("http " + code);
+                }
+                return readAll(conn);
+            } finally {
+                conn.disconnect();
+            }
+        }
+        throw new Exception("too many redirects");
+    }
+
+    private static String httpPost(String url, String body, String ua, Map<String, String> cookies,
+                                   String referer, Map<String, String> extraHeaders) throws Exception {
+        final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setConnectTimeout(12_000);
+        conn.setReadTimeout(18_000);
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("User-Agent", ua);
+        if (referer != null && !referer.isEmpty()) {
+            conn.setRequestProperty("Referer", referer);
+        }
+        if (extraHeaders != null) {
+            for (Map.Entry<String, String> e : extraHeaders.entrySet()) {
+                conn.setRequestProperty(e.getKey(), e.getValue());
+            }
+        }
+        if (cookies != null && !cookies.isEmpty()) {
+            applyCookies(conn, cookies);
+        }
+        try {
+            final byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(payload);
+            }
+            final int code = conn.getResponseCode();
+            if (cookies != null) {
+                storeCookies(conn, cookies);
+            }
+            if (code / 100 != 2) {
+                throw new Exception("http " + code);
+            }
+            return readAll(conn);
+        } finally {
+            conn.disconnect();
+        }
     }
 
     public interface Progress {

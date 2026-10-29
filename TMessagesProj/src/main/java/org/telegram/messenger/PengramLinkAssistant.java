@@ -2,8 +2,15 @@ package org.telegram.messenger;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.MediaMetadataRetriever;
 
 import androidx.annotation.Nullable;
+
+import org.telegram.messenger.browser.Browser;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.PhotoViewer;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -46,6 +53,7 @@ public final class PengramLinkAssistant {
     public static final int ACTION_SEND_PHOTOS = 1;
     public static final int ACTION_STITCH_VIDEO = 2;
     public static final int ACTION_SEND_VIDEO = 3;
+    public static final int ACTION_SEND_AUDIO = 4;
 
     public static final int PHASE_RESOLVE = 1;
     public static final int PHASE_DOWNLOAD = 2;
@@ -271,6 +279,63 @@ public final class PengramLinkAssistant {
 
     public static String chatKey(int currentAccount, long dialogId, long topicId) {
         return currentAccount + ":" + dialogId + ":" + topicId;
+    }
+
+    /** Битовая маска включённых пользователем площадок (1 << PLATFORM_*). */
+    public static int getEnabledPlatformsMask() {
+        int mask = 0;
+        if (PengramConfig.isLinkPlatformYoutubeEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_YOUTUBE);
+        if (PengramConfig.isLinkPlatformTiktokEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_TIKTOK);
+        if (PengramConfig.isLinkPlatformInstagramEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_INSTAGRAM);
+        if (PengramConfig.isLinkPlatformTwitterEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_TWITTER);
+        if (PengramConfig.isLinkPlatformPinterestEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_PINTEREST);
+        if (PengramConfig.isLinkPlatformVkEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_VK);
+        if (PengramConfig.isLinkPlatformRutubeEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_RUTUBE);
+        if (PengramConfig.isLinkPlatformRedditEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_REDDIT);
+        if (PengramConfig.isLinkPlatformSoundcloudEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_SOUNDCLOUD);
+        if (PengramConfig.isLinkPlatformYandexEnabled()) mask |= (1 << PengramLinkResolver.PLATFORM_YANDEX);
+        return mask;
+    }
+
+    public static boolean isPlatformEnabled(int platform) {
+        return platform > 0 && (getEnabledPlatformsMask() & (1 << platform)) != 0;
+    }
+
+    @Nullable
+    public static PengramLinkResolver.FoundLink findSupportedLink(@Nullable CharSequence text) {
+        if (text == null) {
+            return null;
+        }
+        return PengramLinkResolver.findLink(text, getEnabledPlatformsMask());
+    }
+
+    public static String platformDisplayName(int platform, @Nullable String url) {
+        switch (platform) {
+            case PengramLinkResolver.PLATFORM_YOUTUBE:
+                return PengramLinkResolver.isYouTubeShortsUrl(url) ? "YouTube Shorts" : "YouTube";
+            case PengramLinkResolver.PLATFORM_TIKTOK:
+                return "TikTok";
+            case PengramLinkResolver.PLATFORM_INSTAGRAM:
+                return (url != null && url.toLowerCase(Locale.US).contains("/reel")) ? "Instagram Reels" : "Instagram";
+            case PengramLinkResolver.PLATFORM_TWITTER:
+                return "X / Twitter";
+            case PengramLinkResolver.PLATFORM_PINTEREST:
+                return "Pinterest";
+            case PengramLinkResolver.PLATFORM_VK:
+                return (url != null && url.toLowerCase(Locale.US).contains("clip"))
+                        ? LocaleController.getString(R.string.PengramLinkPlatformVkClips)
+                        : "VK Видео";
+            case PengramLinkResolver.PLATFORM_RUTUBE:
+                return (url != null && url.toLowerCase(Locale.US).contains("/shorts/")) ? "Rutube Shorts" : "Rutube";
+            case PengramLinkResolver.PLATFORM_REDDIT:
+                return "Reddit";
+            case PengramLinkResolver.PLATFORM_SOUNDCLOUD:
+                return "SoundCloud";
+            case PengramLinkResolver.PLATFORM_YANDEX:
+                return LocaleController.getString(R.string.PengramLinkPlatformYandex);
+            default:
+                return "Media";
+        }
     }
 
     public static Handle start(final Request req, final Callback cb) {
@@ -939,7 +1004,7 @@ public final class PengramLinkAssistant {
                 } else {
                     notifyPhase(cb, PHASE_RESOLVE, 0f);
                     checkCancelled(handle);
-                    resolved = PengramLinkResolver.resolve(req.url);
+                    resolved = PengramLinkResolver.resolve(req.url, PengramConfig.getLinkMaxVideoHeight());
                     checkCancelled(handle);
                     if (resolved.platform == PengramLinkResolver.PLATFORM_TIKTOK) {
                         registerTikTokResolved(req.url, resolved);
@@ -956,7 +1021,15 @@ public final class PengramLinkAssistant {
                 return;
             }
 
-            if (resolved.isPhotos()) {
+            final boolean wantAudioOnly = opts.action == ACTION_SEND_AUDIO
+                    || resolved.isAudio()
+                    || (opts.action == ACTION_AUTO
+                            && !resolved.isPhotos()
+                            && PengramConfig.getLinkDefaultFormat() == PengramConfig.LINK_FORMAT_AUDIO);
+
+            if (wantAudioOnly) {
+                deliverAudio(req, resolved, opts, workDir, scratchToClean, handle, cb);
+            } else if (resolved.isPhotos()) {
                 deliverPhotos(req, resolved, opts, workDir, cacheDir, scratchToClean, handle, cb);
             } else {
                 deliverVideo(req, resolved, opts, workDir, cacheDir, scratchToClean, handle, cb);
@@ -1223,17 +1296,39 @@ public final class PengramLinkAssistant {
                     finalFile = out;
                 } else if (!candidate.urls.isEmpty()) {
                     final File out = new File(workDir, "link_" + stamp + ".mp4");
-                    try {
-                        PengramLinkResolver.download(
-                                candidate.urls.get(0), out, MAX_VIDEO_BYTES,
-                                candidate.cookies, candidate.referer,
-                                candidate.userAgent, candidate.rangeChunked, handle.cancel,
-                                (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
-                        validateDownloadedVideo(out);
-                        finalFile = out;
-                    } catch (Throwable dlErr) {
-                        out.delete();
-                        throw dlErr;
+                    if (candidate.hlsStream) {
+                        final File rawTs = new File(workDir, "link_" + stamp + ".raw.ts");
+                        scratchToClean.add(rawTs);
+                        try {
+                            PengramLinkResolver.download(
+                                    candidate.urls.get(0), rawTs, MAX_VIDEO_BYTES,
+                                    candidate.cookies, candidate.referer,
+                                    candidate.userAgent, false, true, handle.cancel,
+                                    (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                            checkCancelled(handle);
+                            notifyPhase(cb, PHASE_MUX, -1f);
+                            PengramVideoMux.remuxToMp4(rawTs, out, handle.cancel);
+                            cleanFiles(scratchToClean);
+                            scratchToClean.clear();
+                            validateDownloadedVideo(out);
+                            finalFile = out;
+                        } catch (Throwable dlErr) {
+                            out.delete();
+                            throw dlErr;
+                        }
+                    } else {
+                        try {
+                            PengramLinkResolver.download(
+                                    candidate.urls.get(0), out, MAX_VIDEO_BYTES,
+                                    candidate.cookies, candidate.referer,
+                                    candidate.userAgent, candidate.rangeChunked, handle.cancel,
+                                    (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                            validateDownloadedVideo(out);
+                            finalFile = out;
+                        } catch (Throwable dlErr) {
+                            out.delete();
+                            throw dlErr;
+                        }
                     }
                 }
                 if (finalFile != null) {
@@ -1498,5 +1593,714 @@ public final class PengramLinkAssistant {
             return;
         }
         AndroidUtilities.runOnUIThread(cb::onCancelled);
+    }
+
+    // --- Режим «Только звук (MP3 / M4A)» + отправка как музыкального трека с обложкой ---
+
+    private static File prepareAudioTrackFile(String sourceUrl,
+                                              PengramLinkResolver.Resolved resolved,
+                                              File targetDir,
+                                              List<File> scratchToClean,
+                                              Handle handle,
+                                              Callback cb) throws Exception {
+        final long stamp = System.currentTimeMillis();
+        notifyPhase(cb, PHASE_DOWNLOAD, 0f);
+
+        if (resolved.isAudio()) {
+            if (!resolved.hlsStream) {
+                final File outMp3 = new File(targetDir, "audio_" + stamp + ".mp3");
+                PengramLinkResolver.download(
+                        resolved.urls.get(0), outMp3, MAX_AUDIO_BYTES * 3L,
+                        resolved.cookies, resolved.referer, resolved.userAgent, false, false,
+                        handle.cancel,
+                        (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                if (outMp3.length() < 1024L) {
+                    outMp3.delete();
+                    throw new Exception("audio empty");
+                }
+                return outMp3;
+            } else {
+                final File rawTs = new File(targetDir, "audio_" + stamp + ".ts");
+                final File outM4a = new File(targetDir, "audio_" + stamp + ".m4a");
+                scratchToClean.add(rawTs);
+                PengramLinkResolver.download(
+                        resolved.urls.get(0), rawTs, MAX_AUDIO_BYTES * 3L,
+                        resolved.cookies, resolved.referer, resolved.userAgent, false, true,
+                        handle.cancel,
+                        (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                checkCancelled(handle);
+                notifyPhase(cb, PHASE_MUX, -1f);
+                PengramVideoMux.extractAudioToM4a(rawTs, outM4a, handle.cancel);
+                rawTs.delete();
+                return outM4a;
+            }
+        }
+
+        // Если у ролика/карусели уже есть отдельная аудиодорожка (YouTube m4a, Reddit DASH_AUDIO, TikTok звук)
+        if (resolved.audioUrl != null && !resolved.audioUrl.isEmpty()) {
+            final File rawAud = new File(targetDir, "audio_" + stamp + ".raw");
+            scratchToClean.add(rawAud);
+            PengramLinkResolver.download(
+                    resolved.audioUrl, rawAud, MAX_AUDIO_BYTES * 3L,
+                    resolved.cookies, resolved.referer, resolved.userAgent, resolved.rangeChunked, false,
+                    handle.cancel,
+                    (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+            checkCancelled(handle);
+            if (isMp3Header(rawAud)) {
+                final File outMp3 = new File(targetDir, "audio_" + stamp + ".mp3");
+                if (!rawAud.renameTo(outMp3)) {
+                    copyFile(rawAud, outMp3);
+                    rawAud.delete();
+                }
+                return outMp3;
+            }
+            notifyPhase(cb, PHASE_MUX, -1f);
+            final File outM4a = new File(targetDir, "audio_" + stamp + ".m4a");
+            PengramVideoMux.extractAudioToM4a(rawAud, outM4a, handle.cancel);
+            rawAud.delete();
+            return outM4a;
+        }
+
+        // Иначе скачиваем поток ролика и без потерь вынимаем из него AAC-дорожку в .m4a
+        if (resolved.urls.isEmpty()) {
+            throw new Exception("no audio in post");
+        }
+        final String streamUrl = resolved.needsMux && resolved.urls.size() >= 2
+                ? resolved.urls.get(1) : resolved.urls.get(0);
+        final boolean isHls = !resolved.needsMux && resolved.hlsStream;
+        final File rawMedia = new File(targetDir, "audio_" + stamp + (isHls ? ".ts" : ".mp4"));
+        scratchToClean.add(rawMedia);
+        PengramLinkResolver.download(
+                streamUrl, rawMedia, MAX_VIDEO_BYTES,
+                resolved.cookies, resolved.referer, resolved.userAgent, resolved.rangeChunked, isHls,
+                handle.cancel,
+                (w, t) -> notifyPhase(cb, PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+        checkCancelled(handle);
+        notifyPhase(cb, PHASE_MUX, -1f);
+        final File outM4a = new File(targetDir, "audio_" + stamp + ".m4a");
+        PengramVideoMux.extractAudioToM4a(rawMedia, outM4a, handle.cancel);
+        rawMedia.delete();
+        return outM4a;
+    }
+
+    private static boolean isMp3Header(File f) {
+        if (f == null || !f.exists() || f.length() < 16L) return false;
+        final byte[] h = new byte[4];
+        try (FileInputStream in = new FileInputStream(f)) {
+            if (in.read(h) < 4) return false;
+        } catch (Throwable ignore) {
+            return false;
+        }
+        if (h[0] == 'I' && h[1] == 'D' && h[2] == '3') return true;
+        return (h[0] & 0xFF) == 0xFF && (h[1] & 0xE0) == 0xE0;
+    }
+
+    private static void deliverAudio(Request req, PengramLinkResolver.Resolved resolved,
+                                     ExecutionOptions opts, File workDir,
+                                     List<File> scratchToClean, Handle handle, Callback cb) throws Exception {
+        final File audioFile = prepareAudioTrackFile(req.url, resolved, workDir, scratchToClean, handle, cb);
+        File coverTemp = null;
+        if (resolved.thumbnailUrl != null && !resolved.thumbnailUrl.isEmpty()) {
+            final File cand = new File(workDir, "cover_" + System.currentTimeMillis() + ".raw");
+            try {
+                PengramLinkResolver.download(resolved.thumbnailUrl, cand, 8L * 1024L * 1024L,
+                        resolved.cookies, resolved.referer, resolved.userAgent, false, handle.cancel, null);
+                if (cand.exists() && cand.length() > 256L) {
+                    coverTemp = cand;
+                } else {
+                    cand.delete();
+                }
+            } catch (Throwable ignore) {
+                cand.delete();
+            }
+        }
+        cleanFiles(scratchToClean);
+        scratchToClean.clear();
+        checkCancelled(handle);
+        notifyPhase(cb, PHASE_SEND, 1f);
+
+        final int capMode = opts.captionModeOverride >= 0 ? opts.captionModeOverride : PengramConfig.getLinkCaptionMode();
+        final String caption = resolved.isAudio()
+                ? (req.extraCaption != null ? req.extraCaption : "")
+                : (capMode == PengramConfig.LINK_CAPTION_NONE ? (req.extraCaption != null ? req.extraCaption : "") : buildCaption(req, resolved, capMode));
+        sendAudioFile(req, resolved, audioFile, coverTemp, caption, cb);
+    }
+
+    private static void sendAudioFile(Request req, PengramLinkResolver.Resolved resolved,
+                                      File audioFile, @Nullable File coverTemp,
+                                      String caption, Callback cb) {
+        final boolean isMp3 = audioFile.getName().toLowerCase(Locale.US).endsWith(".mp3");
+        double durationSec = resolved.durationMs > 0 ? (resolved.durationMs / 1000.0) : 0.0;
+        if (durationSec <= 0.1) {
+            final MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+            try {
+                mmr.setDataSource(audioFile.getAbsolutePath());
+                final String d = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                if (d != null) durationSec = Math.max(1.0, Long.parseLong(d) / 1000.0);
+            } catch (Throwable ignore) {
+            } finally {
+                try { mmr.release(); } catch (Throwable ignore) {}
+            }
+        }
+        if (durationSec <= 0.1) durationSec = 1.0;
+
+        String trackTitle = resolved.title != null ? resolved.title.trim() : "";
+        if (trackTitle.length() > 140) trackTitle = trackTitle.substring(0, 140).trim();
+        if (trackTitle.isEmpty()) {
+            trackTitle = platformDisplayName(resolved.platform, req.url);
+        }
+        String performer = resolved.author != null ? resolved.author.trim() : "";
+        if (performer.isEmpty()) {
+            performer = platformDisplayName(resolved.platform, req.url);
+        }
+
+        final boolean isEncrypted = DialogObject.isEncryptedDialog(req.dialogId);
+        final TLRPC.TL_document doc = new TLRPC.TL_document();
+        doc.file_reference = new byte[0];
+        doc.dc_id = Integer.MIN_VALUE;
+        doc.date = AccountInstance.getInstance(req.currentAccount).getConnectionsManager().getCurrentTime();
+        doc.size = audioFile.length();
+        doc.mime_type = isMp3 ? "audio/mpeg" : "audio/mp4";
+
+        final TLRPC.TL_documentAttributeAudio attrAudio = new TLRPC.TL_documentAttributeAudio();
+        attrAudio.duration = durationSec;
+        attrAudio.title = trackTitle;
+        attrAudio.performer = performer;
+        attrAudio.voice = false;
+        attrAudio.flags |= 3;
+        doc.attributes.add(attrAudio);
+
+        final TLRPC.TL_documentAttributeFilename attrFile = new TLRPC.TL_documentAttributeFilename();
+        final String safeBase = trackTitle.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
+        attrFile.file_name = (safeBase.isEmpty() ? "track" : safeBase) + (isMp3 ? ".mp3" : ".m4a");
+        doc.attributes.add(attrFile);
+
+        if (coverTemp != null && coverTemp.exists()) {
+            try {
+                final Bitmap bmp = PengramPhotoSlideshow.decodeOrientedBitmap(coverTemp, 512);
+                if (bmp != null) {
+                    final TLRPC.PhotoSize thumb = ImageLoader.scaleAndSaveImage(bmp, 320, 320, 82, isEncrypted);
+                    if (thumb != null) {
+                        doc.thumbs.add(thumb);
+                        doc.flags |= 1;
+                    }
+                    bmp.recycle();
+                }
+            } catch (Throwable ignore) {
+            } finally {
+                coverTemp.delete();
+            }
+        }
+
+        final HashMap<String, String> params = new HashMap<>();
+        params.put("originalPath", audioFile.getAbsolutePath() + "audio" + audioFile.length());
+        params.put("final", "1");
+
+        AndroidUtilities.runOnUIThread(() -> {
+            final SendMessagesHelper.SendMessageParams sendParams = SendMessagesHelper.SendMessageParams.of(
+                    doc, null, audioFile.getAbsolutePath(), req.dialogId,
+                    req.replyToMsg, req.replyToTopMsg,
+                    caption != null && !caption.isEmpty() ? caption : null,
+                    null, null, params, true, 0, 0, 0, null, null, false, false);
+            sendParams.sendMessageChatArguments = req.sendMessageChatArguments;
+            sendParams.monoForumPeer = req.monoForumPeer;
+            SendMessagesHelper.getInstance(req.currentAccount).sendMessage(sendParams);
+            if (cb != null) {
+                cb.onSent();
+            }
+        });
+    }
+
+    // --- Режим входящих ссылок в чате: «⬇ Смотреть тут» во встроенном плеере Telegram ---
+
+    public static final class WatchTask {
+        public final String url;
+        public final Handle handle;
+        public volatile int phase = PHASE_RESOLVE;
+        public volatile float progress = -1f;
+
+        WatchTask(String url, Handle handle) {
+            this.url = url;
+            this.handle = handle;
+        }
+    }
+
+    private static final class WatchCachedMedia {
+        final int kind;
+        final List<File> files;
+        final String title;
+        final String author;
+        final long durationMs;
+        @Nullable
+        final File coverFile;
+        final long createdAtMs;
+
+        WatchCachedMedia(int kind, List<File> files, String title, String author,
+                         long durationMs, @Nullable File coverFile) {
+            this.kind = kind;
+            this.files = files;
+            this.title = title != null ? title : "";
+            this.author = author != null ? author : "";
+            this.durationMs = durationMs;
+            this.coverFile = coverFile;
+            this.createdAtMs = System.currentTimeMillis();
+        }
+
+        boolean isValid() {
+            if (files == null || files.isEmpty()) return false;
+            for (File f : files) {
+                if (f == null || !f.exists() || f.length() < 128L) return false;
+            }
+            return true;
+        }
+
+        long totalBytes() {
+            long sum = 0L;
+            for (File f : files) {
+                if (f != null && f.exists()) sum += f.length();
+            }
+            if (coverFile != null && coverFile.exists()) sum += coverFile.length();
+            return sum;
+        }
+
+        void destroy() {
+            for (File f : files) {
+                if (f != null && f.exists()) f.delete();
+            }
+            if (coverFile != null && coverFile.exists()) coverFile.delete();
+        }
+    }
+
+    private static final Object WATCH_LOCK = new Object();
+    private static final int MAX_WATCH_CACHE_ITEMS = 6;
+    private static final long MAX_WATCH_CACHE_BYTES = 260L * 1024L * 1024L;
+    private static final LinkedHashMap<String, WatchCachedMedia> WATCH_CACHE =
+            new LinkedHashMap<>(8, 0.75f, true);
+    private static final Map<String, WatchTask> ACTIVE_WATCH_TASKS = new ConcurrentHashMap<>();
+    private static int syntheticLocalMsgId = -710_000;
+
+    private static String watchKey(String url, boolean audioOnly) {
+        return (audioOnly ? "aud:" : "med:") + normalizeUrlForAlias(url);
+    }
+
+    @Nullable
+    public static WatchTask getActiveWatchTask(@Nullable String url) {
+        if (url == null) return null;
+        WatchTask t = ACTIVE_WATCH_TASKS.get(watchKey(url, false));
+        if (t == null) t = ACTIVE_WATCH_TASKS.get(watchKey(url, true));
+        return t;
+    }
+
+    public static boolean isWatchCached(@Nullable String url) {
+        if (url == null) return false;
+        synchronized (WATCH_LOCK) {
+            final WatchCachedMedia m = WATCH_CACHE.get(watchKey(url, false));
+            if (m != null && m.isValid()) return true;
+            final WatchCachedMedia a = WATCH_CACHE.get(watchKey(url, true));
+            return a != null && a.isValid();
+        }
+    }
+
+    public static void cancelWatch(@Nullable String url) {
+        if (url == null) return;
+        for (boolean aud : new boolean[]{false, true}) {
+            final WatchTask t = ACTIVE_WATCH_TASKS.remove(watchKey(url, aud));
+            if (t != null) {
+                t.handle.cancel();
+            }
+        }
+    }
+
+    private static void trimWatchCacheLocked() {
+        while (WATCH_CACHE.size() > MAX_WATCH_CACHE_ITEMS) {
+            final Iterator<Map.Entry<String, WatchCachedMedia>> it = WATCH_CACHE.entrySet().iterator();
+            if (!it.hasNext()) break;
+            final Map.Entry<String, WatchCachedMedia> eldest = it.next();
+            eldest.getValue().destroy();
+            it.remove();
+        }
+        long sum = 0L;
+        for (WatchCachedMedia m : WATCH_CACHE.values()) sum += m.totalBytes();
+        final Iterator<Map.Entry<String, WatchCachedMedia>> it = WATCH_CACHE.entrySet().iterator();
+        while (sum > MAX_WATCH_CACHE_BYTES && it.hasNext()) {
+            final Map.Entry<String, WatchCachedMedia> eldest = it.next();
+            sum -= eldest.getValue().totalBytes();
+            eldest.getValue().destroy();
+            it.remove();
+        }
+    }
+
+    /**
+     * Открывает ссылку прямо во встроенном плеере Telegram (PhotoViewer для видео/каруселей фото
+     * или MediaController для треков SoundCloud / Яндекс.Музыки) без браузера.
+     */
+    public static void watchInline(final BaseFragment fragment,
+                                   final int currentAccount,
+                                   final String url,
+                                   final boolean forceAudioOnly,
+                                   @Nullable final Runnable onStateUpdate) {
+        if (fragment == null || url == null || url.isEmpty()) {
+            return;
+        }
+        final String key = watchKey(url, forceAudioOnly);
+        final WatchTask existingTask = getActiveWatchTask(url);
+        if (existingTask != null) {
+            cancelWatch(url);
+            if (onStateUpdate != null) AndroidUtilities.runOnUIThread(onStateUpdate);
+            return;
+        }
+        synchronized (WATCH_LOCK) {
+            final WatchCachedMedia cached = WATCH_CACHE.get(key);
+            if (cached != null) {
+                if (cached.isValid()) {
+                    openWatchedMediaOnUi(fragment, currentAccount, cached);
+                    return;
+                } else {
+                    WATCH_CACHE.remove(key);
+                }
+            }
+        }
+
+        final Handle handle = new Handle();
+        final WatchTask task = new WatchTask(url, handle);
+        ACTIVE_WATCH_TASKS.put(key, task);
+        if (onStateUpdate != null) AndroidUtilities.runOnUIThread(onStateUpdate);
+
+        TASK_EXECUTOR.execute(() -> {
+            final File watchDir = new File(ApplicationLoader.applicationContext.getCacheDir(), "pengram_watch_cache");
+            //noinspection ResultOfMethodCallIgnored
+            watchDir.mkdirs();
+            final List<File> scratch = new ArrayList<>();
+            final long[] lastUiMs = new long[]{0L};
+            final Callback progressBridge = new Callback() {
+                @Override
+                public void onPhase(int phase, float progress) {
+                    task.phase = phase;
+                    task.progress = progress;
+                    final long now = android.os.SystemClock.elapsedRealtime();
+                    if (onStateUpdate != null && (now - lastUiMs[0] >= 80L || progress >= 0.99f)) {
+                        lastUiMs[0] = now;
+                        AndroidUtilities.runOnUIThread(onStateUpdate);
+                    }
+                }
+                @Override public void onSent() {}
+                @Override public void onPreviewRequested(Request req, PengramLinkResolver.Resolved resolved) {}
+                @Override public void onFallbackSent(String reason) {}
+                @Override public void onFailedNoSend(Request req, String reason) {}
+                @Override public void onFallbackChoiceRequested(Request req, String reason) {}
+                @Override public void onCancelled() {}
+            };
+
+            try {
+                progressBridge.onPhase(PHASE_RESOLVE, -1f);
+                final PengramLinkResolver.Resolved resolved = PengramLinkResolver.resolve(
+                        url, PengramConfig.getLinkMaxVideoHeight());
+                checkCancelled(handle);
+
+                final WatchCachedMedia result;
+                if (forceAudioOnly || resolved.isAudio()) {
+                    final File audioOut = prepareAudioTrackFile(url, resolved, watchDir, scratch, handle, progressBridge);
+                    File coverOut = null;
+                    if (resolved.thumbnailUrl != null && !resolved.thumbnailUrl.isEmpty()) {
+                        final File cov = new File(watchDir, "wcov_" + System.currentTimeMillis() + ".jpg");
+                        try {
+                            PengramLinkResolver.download(resolved.thumbnailUrl, cov, 6L * 1024L * 1024L,
+                                    resolved.cookies, resolved.referer, resolved.userAgent, false, handle.cancel, null);
+                            if (cov.exists() && cov.length() > 256L) coverOut = cov;
+                            else cov.delete();
+                        } catch (Throwable ignore) {
+                            cov.delete();
+                        }
+                    }
+                    final List<File> list = new ArrayList<>(1);
+                    list.add(audioOut);
+                    result = new WatchCachedMedia(PengramLinkResolver.KIND_AUDIO, list,
+                            resolved.title, resolved.author, resolved.durationMs, coverOut);
+                } else if (resolved.isPhotos()) {
+                    final long stamp = System.currentTimeMillis();
+                    final List<File> jpegs = new ArrayList<>(resolved.photos.size());
+                    for (int i = 0; i < resolved.photos.size(); i++) {
+                        checkCancelled(handle);
+                        final int idx = i;
+                        final int total = resolved.photos.size();
+                        final File raw = new File(watchDir, "wp_" + stamp + "_" + i + ".raw");
+                        final File jpg = new File(watchDir, "wp_" + stamp + "_" + i + ".jpg");
+                        scratch.add(raw);
+                        PengramLinkResolver.download(
+                                resolved.photos.get(i).imageUrl, raw, MAX_PHOTO_BYTES,
+                                resolved.cookies, resolved.referer, resolved.userAgent, false, handle.cancel,
+                                (w, t) -> progressBridge.onPhase(PHASE_DOWNLOAD,
+                                        (idx + (t > 0 ? Math.min(1f, (float) w / t) : 0.5f)) / total));
+                        normalizePhotoToJpeg(raw, jpg);
+                        raw.delete();
+                        jpegs.add(jpg);
+                    }
+                    result = new WatchCachedMedia(PengramLinkResolver.KIND_PHOTOS, jpegs,
+                            resolved.title, resolved.author, 0L, null);
+                } else {
+                    final File mp4 = downloadSingleVideoForWatch(resolved, watchDir, scratch, handle, progressBridge);
+                    final List<File> list = new ArrayList<>(1);
+                    list.add(mp4);
+                    result = new WatchCachedMedia(PengramLinkResolver.KIND_VIDEO, list,
+                            resolved.title, resolved.author, resolved.durationMs, null);
+                }
+
+                cleanFiles(scratch);
+                checkCancelled(handle);
+                synchronized (WATCH_LOCK) {
+                    WATCH_CACHE.put(key, result);
+                    trimWatchCacheLocked();
+                }
+                ACTIVE_WATCH_TASKS.remove(key, task);
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (onStateUpdate != null) onStateUpdate.run();
+                    openWatchedMediaOnUi(fragment, currentAccount, result);
+                });
+            } catch (CancellationException ce) {
+                cleanFiles(scratch);
+                ACTIVE_WATCH_TASKS.remove(key, task);
+                if (onStateUpdate != null) AndroidUtilities.runOnUIThread(onStateUpdate);
+            } catch (Throwable err) {
+                FileLog.e(new Exception("PengramLinkAssistant watchInline failed for " + url + ": " + err, err));
+                cleanFiles(scratch);
+                ACTIVE_WATCH_TASKS.remove(key, task);
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (onStateUpdate != null) onStateUpdate.run();
+                    if (fragment.getParentActivity() != null) {
+                        BulletinFactory.of(fragment).createSimpleBulletin(
+                                R.raw.error,
+                                LocaleController.getString(R.string.PengramLinkWatchFailed),
+                                LocaleController.getString(R.string.PengramLinkOpenBrowser),
+                                () -> Browser.openUrl(fragment.getParentActivity(), url)).show();
+                    }
+                });
+            }
+        });
+    }
+
+    private static File downloadSingleVideoForWatch(PengramLinkResolver.Resolved primary,
+                                                    File watchDir,
+                                                    List<File> scratch,
+                                                    Handle handle,
+                                                    Callback cb) throws Exception {
+        final List<PengramLinkResolver.Resolved> cands = new ArrayList<>();
+        cands.add(primary);
+        cands.addAll(primary.fallbacks);
+        Exception lastErr = null;
+        for (int i = 0; i < cands.size(); i++) {
+            checkCancelled(handle);
+            final PengramLinkResolver.Resolved c = cands.get(i);
+            final long stamp = System.currentTimeMillis();
+            final File out = new File(watchDir, "wv_" + stamp + ".mp4");
+            try {
+                cb.onPhase(PHASE_DOWNLOAD, 0f);
+                if (c.needsMux && c.urls.size() >= 2) {
+                    final File vPart = new File(watchDir, "wv_" + stamp + ".v.mp4");
+                    final File aPart = new File(watchDir, "wv_" + stamp + ".a.m4a");
+                    scratch.add(vPart);
+                    scratch.add(aPart);
+                    PengramLinkResolver.download(c.urls.get(0), vPart, MAX_VIDEO_BYTES,
+                            c.cookies, c.referer, c.userAgent, c.rangeChunked, handle.cancel,
+                            (w, t) -> cb.onPhase(PHASE_DOWNLOAD, t > 0 ? 0.78f * w / t : -1f));
+                    checkCancelled(handle);
+                    PengramLinkResolver.download(c.urls.get(1), aPart, MAX_VIDEO_BYTES / 3,
+                            c.cookies, c.referer, c.userAgent, c.rangeChunked, handle.cancel,
+                            (w, t) -> cb.onPhase(PHASE_DOWNLOAD, 0.78f + (t > 0 ? 0.22f * w / t : 0f)));
+                    checkCancelled(handle);
+                    cb.onPhase(PHASE_MUX, -1f);
+                    PengramVideoMux.mux(vPart, aPart, out, handle.cancel);
+                    vPart.delete();
+                    aPart.delete();
+                } else if (c.hlsStream) {
+                    final File rawTs = new File(watchDir, "wv_" + stamp + ".ts");
+                    scratch.add(rawTs);
+                    PengramLinkResolver.download(c.urls.get(0), rawTs, MAX_VIDEO_BYTES,
+                            c.cookies, c.referer, c.userAgent, false, true, handle.cancel,
+                            (w, t) -> cb.onPhase(PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                    checkCancelled(handle);
+                    cb.onPhase(PHASE_MUX, -1f);
+                    PengramVideoMux.remuxToMp4(rawTs, out, handle.cancel);
+                    rawTs.delete();
+                } else {
+                    PengramLinkResolver.download(c.urls.get(0), out, MAX_VIDEO_BYTES,
+                            c.cookies, c.referer, c.userAgent, c.rangeChunked, handle.cancel,
+                            (w, t) -> cb.onPhase(PHASE_DOWNLOAD, t > 0 ? (float) w / t : -1f));
+                }
+                validateDownloadedVideo(out);
+                return out;
+            } catch (CancellationException ce) {
+                out.delete();
+                throw ce;
+            } catch (Exception e) {
+                out.delete();
+                lastErr = e;
+            }
+        }
+        throw lastErr != null ? lastErr : new Exception("watch video failed");
+    }
+
+    private static void openWatchedMediaOnUi(BaseFragment fragment, int currentAccount, WatchCachedMedia media) {
+        if (fragment == null || fragment.getParentActivity() == null || !media.isValid()) {
+            return;
+        }
+        final long selfId = UserConfig.getInstance(currentAccount).getClientUserId();
+        final int nowSec = ConnectionsManager.getInstance(currentAccount).getCurrentTime();
+        String captionText = media.title.trim();
+        if (!media.author.trim().isEmpty()) {
+            captionText = captionText.isEmpty() ? media.author.trim() : (captionText + "\n— " + media.author.trim());
+        }
+        if (captionText.length() > 400) captionText = captionText.substring(0, 400);
+
+        if (media.kind == PengramLinkResolver.KIND_AUDIO) {
+            final File f = media.files.get(0);
+            final boolean isMp3 = f.getName().toLowerCase(Locale.US).endsWith(".mp3");
+            final TLRPC.TL_message msg = new TLRPC.TL_message();
+            msg.id = --syntheticLocalMsgId;
+            msg.date = nowSec;
+            msg.dialog_id = selfId;
+            msg.peer_id = new TLRPC.TL_peerUser();
+            msg.peer_id.user_id = selfId;
+            msg.from_id = msg.peer_id;
+            msg.out = true;
+            msg.message = "";
+            msg.attachPath = f.getAbsolutePath();
+
+            final TLRPC.TL_messageMediaDocument mm = new TLRPC.TL_messageMediaDocument();
+            final TLRPC.TL_document doc = new TLRPC.TL_document();
+            doc.id = msg.id;
+            doc.date = nowSec;
+            doc.size = f.length();
+            doc.mime_type = isMp3 ? "audio/mpeg" : "audio/mp4";
+            doc.file_reference = new byte[0];
+
+            final TLRPC.TL_documentAttributeAudio attr = new TLRPC.TL_documentAttributeAudio();
+            attr.duration = media.durationMs > 0 ? (media.durationMs / 1000.0) : 180.0;
+            attr.title = !media.title.isEmpty() ? media.title : LocaleController.getString(R.string.AttachMusic);
+            attr.performer = !media.author.isEmpty() ? media.author : "Pengram";
+            attr.voice = false;
+            attr.flags |= 3;
+            doc.attributes.add(attr);
+            mm.document = doc;
+            mm.flags |= 1;
+            msg.media = mm;
+            msg.flags |= 512;
+
+            final MessageObject mo = new MessageObject(currentAccount, msg, false, false);
+            MediaController.getInstance().playMessage(mo);
+            return;
+        }
+
+        if (media.kind == PengramLinkResolver.KIND_PHOTOS) {
+            final ArrayList<MessageObject> gallery = new ArrayList<>(media.files.size());
+            for (int i = 0; i < media.files.size(); i++) {
+                final File jpg = media.files.get(i);
+                final BitmapFactory.Options b = new BitmapFactory.Options();
+                b.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(jpg.getAbsolutePath(), b);
+
+                final TLRPC.TL_message msg = new TLRPC.TL_message();
+                msg.id = --syntheticLocalMsgId;
+                msg.date = nowSec;
+                msg.dialog_id = selfId;
+                msg.peer_id = new TLRPC.TL_peerUser();
+                msg.peer_id.user_id = selfId;
+                msg.from_id = msg.peer_id;
+                msg.message = i == 0 ? captionText : "";
+                msg.attachPath = jpg.getAbsolutePath();
+
+                final TLRPC.TL_messageMediaPhoto mp = new TLRPC.TL_messageMediaPhoto();
+                final TLRPC.TL_photo photo = new TLRPC.TL_photo();
+                photo.id = msg.id;
+                photo.date = nowSec;
+                photo.file_reference = new byte[0];
+                final TLRPC.TL_photoSize ps = new TLRPC.TL_photoSize();
+                ps.type = "x";
+                ps.w = b.outWidth > 0 ? b.outWidth : 1080;
+                ps.h = b.outHeight > 0 ? b.outHeight : 1440;
+                ps.size = (int) jpg.length();
+                ps.location = new TLRPC.TL_fileLocationUnavailable();
+                photo.sizes.add(ps);
+                mp.photo = photo;
+                mp.flags |= 1;
+                msg.media = mp;
+                msg.flags |= 512;
+
+                final MessageObject mo = new MessageObject(currentAccount, msg, false, true);
+                mo.photoThumbsObject = photo;
+                gallery.add(mo);
+            }
+            PhotoViewer.getInstance().setParentActivity(fragment);
+            PhotoViewer.getInstance().openPhoto(gallery, 0, 0L, 0L, 0L, new PhotoViewer.EmptyPhotoViewerProvider());
+            return;
+        }
+
+        // Видео (.mp4) — открываем в нативном видеоплеере PhotoViewer
+        final File mp4 = media.files.get(0);
+        int vw = 1080;
+        int vh = 1920;
+        double durSec = media.durationMs > 0 ? (media.durationMs / 1000.0) : 15.0;
+        final MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(mp4.getAbsolutePath());
+            final String ws = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH);
+            final String hs = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT);
+            final String rot = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION);
+            final String ds = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            if (ws != null && hs != null) {
+                int w0 = Integer.parseInt(ws);
+                int h0 = Integer.parseInt(hs);
+                if ("90".equals(rot) || "270".equals(rot)) {
+                    vw = h0;
+                    vh = w0;
+                } else {
+                    vw = w0;
+                    vh = h0;
+                }
+            }
+            if (ds != null) {
+                durSec = Math.max(0.5, Long.parseLong(ds) / 1000.0);
+            }
+        } catch (Throwable ignore) {
+        } finally {
+            try { mmr.release(); } catch (Throwable ignore) {}
+        }
+
+        final TLRPC.TL_message msg = new TLRPC.TL_message();
+        msg.id = --syntheticLocalMsgId;
+        msg.date = nowSec;
+        msg.dialog_id = selfId;
+        msg.peer_id = new TLRPC.TL_peerUser();
+        msg.peer_id.user_id = selfId;
+        msg.from_id = msg.peer_id;
+        msg.message = captionText;
+        msg.attachPath = mp4.getAbsolutePath();
+
+        final TLRPC.TL_messageMediaDocument mm = new TLRPC.TL_messageMediaDocument();
+        final TLRPC.TL_document doc = new TLRPC.TL_document();
+        doc.id = msg.id;
+        doc.date = nowSec;
+        doc.size = mp4.length();
+        doc.mime_type = "video/mp4";
+        doc.file_reference = new byte[0];
+
+        final TLRPC.TL_documentAttributeVideo vAttr = new TLRPC.TL_documentAttributeVideo();
+        vAttr.w = vw > 0 ? vw : 1080;
+        vAttr.h = vh > 0 ? vh : 1920;
+        vAttr.duration = durSec;
+        vAttr.supports_streaming = true;
+        doc.attributes.add(vAttr);
+
+        final TLRPC.TL_documentAttributeFilename fAttr = new TLRPC.TL_documentAttributeFilename();
+        fAttr.file_name = mp4.getName();
+        doc.attributes.add(fAttr);
+
+        mm.document = doc;
+        mm.flags |= 1;
+        msg.media = mm;
+        msg.flags |= 512;
+
+        final MessageObject mo = new MessageObject(currentAccount, msg, false, true);
+        PhotoViewer.getInstance().setParentActivity(fragment);
+        PhotoViewer.getInstance().openPhoto(mo, null, 0L, 0L, 0L, new PhotoViewer.EmptyPhotoViewerProvider());
     }
 }

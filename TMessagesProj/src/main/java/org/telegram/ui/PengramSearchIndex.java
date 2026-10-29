@@ -111,6 +111,7 @@ public final class PengramSearchIndex {
             {R.string.PengramGhostAutoOffline, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostHeader, 0, 0},
             {R.string.PengramGhostDontSendVoiceRead, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostHeader, 0, 0},
             {R.string.PengramGhostDontSendReactions, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostHeader, 0, 0},
+            {R.string.PengramGhostReadOnReply, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostExtraHeader, 0, R.string.PengramGhostReadOnReplyInfo},
             {R.string.PengramGhostStoriesWarn, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostExtraHeader, 0, R.string.PengramGhostStoriesWarnInfo},
             {R.string.PengramGhostSendDelay, PengramSettingsActivity.SECTION_GHOST, R.string.PengramGhostExtraHeader, 0, R.string.PengramGhostSendDelayInfo},
             {R.string.PengramBypass, PengramSettingsActivity.SECTION_FREEDOM, 0, 0, R.string.PengramBypassInfo},
@@ -210,6 +211,10 @@ public final class PengramSearchIndex {
             {R.string.PengramVoiceGainPreset, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceGainHeader, 0, 0},
             {R.string.PengramVoiceOverdrive, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceGainHeader, 0, 0},
             {R.string.PengramVoiceGainMaximum, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceGainHeader, 0, 0},
+            {R.string.PengramVoiceAmbience, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceAmbienceHeader, 0, R.string.PengramVoiceAmbienceInfo},
+            {R.string.PengramVoiceAmbienceLevel, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceAmbienceHeader, 0, 0},
+            {R.string.PengramVoiceAmbienceDuck, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceAmbienceHeader, 0, R.string.PengramVoiceAmbienceDuckInfo},
+            {R.string.PengramVoiceAmbienceStopPreview, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceAmbienceHeader, 0, 0},
             {R.string.PengramVoiceMessages, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},
             {R.string.PengramVoiceRound, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},
             {R.string.PengramVoiceCalls, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramVoiceSources, 0, 0},
@@ -277,6 +282,21 @@ public final class PengramSearchIndex {
             {R.string.PengramSubsectionInterface, PengramSettingsActivity.SECTION_CHATS, 0, 0, R.string.PengramSubsectionInterfaceInfo},
             {R.string.PengramSubsectionMenus, PengramSettingsActivity.SECTION_CHATS, 0, 0, 0},
             {R.string.PengramLinkAssistant, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderGeneral, 0, R.string.PengramLinkAssistantInfo},
+            {R.string.PengramLinkQualityMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderQuality, 0, 0},
+            {R.string.PengramLinkDefaultFormat, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderQuality, 0, 0},
+            {R.string.PengramLinkAudioChip, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderQuality, 0, R.string.PengramLinkAudioChipInfo},
+            {R.string.PengramLinkIncomingWatch, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderIncoming, 0, R.string.PengramLinkIncomingWatchInfo},
+            {R.string.PengramLinkIncomingOutgoing, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderIncoming, 0, 0},
+            {R.string.PengramLinkPlatformYoutubeRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformTiktokRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformInstagramRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformTwitterRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformPinterestRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformVkRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformRutubeRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformRedditRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformSoundcloudRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
+            {R.string.PengramLinkPlatformYandexRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
             {R.string.PengramLinkPreviewMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, 0},
             {R.string.PengramLinkIslandPreviewBtn, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, R.string.PengramLinkIslandPreviewBtnInfo},
             {R.string.PengramLinkPhotoStitchMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
@@ -561,6 +581,7 @@ public final class PengramSearchIndex {
             0x3f134c00, // PengramGhostAutoOffline (SECTION_GHOST)
             0x104cfe77, // PengramGhostDontSendVoiceRead (SECTION_GHOST)
             0x10a1ac15, // PengramGhostDontSendReactions (SECTION_GHOST)
+            0x31253de0, // PengramGhostReadOnReply (SECTION_GHOST)
             0x197fc781, // PengramGhostStoriesWarn (SECTION_GHOST)
             0x3a40a152, // PengramGhostSendDelay (SECTION_GHOST)
             0x31d2d593, // PengramBypass (SECTION_FREEDOM)
@@ -660,6 +681,10 @@ public final class PengramSearchIndex {
             0x1c7862aa, // PengramVoiceGainPreset (SECTION_MEDIA)
             0x38d0c499, // PengramVoiceOverdrive (SECTION_MEDIA)
             0x144228e7, // PengramVoiceGainMaximum (SECTION_MEDIA)
+            0x1d8faf5b, // PengramVoiceAmbience (SECTION_MEDIA)
+            0x11b5b003, // PengramVoiceAmbienceLevel (SECTION_MEDIA)
+            0x33dd38ff, // PengramVoiceAmbienceDuck (SECTION_MEDIA)
+            0x1799b254, // PengramVoiceAmbienceStopPreview (SECTION_MEDIA)
             0x3c879e8e, // PengramVoiceMessages (SECTION_MEDIA)
             0x11f047f5, // PengramVoiceRound (SECTION_MEDIA)
             0x3320b582, // PengramVoiceCalls (SECTION_MEDIA)
@@ -727,6 +752,21 @@ public final class PengramSearchIndex {
             0x31aed73c, // PengramSubsectionInterface (SECTION_CHATS)
             0x38e80bc3, // PengramSubsectionMenus (SECTION_CHATS)
             0x19fa1f8b, // PengramLinkAssistant (SECTION_LINK_ASSISTANT)
+            0x102ba2ba, // PengramLinkQualityMode (SECTION_LINK_ASSISTANT)
+            0x140cba8a, // PengramLinkDefaultFormat (SECTION_LINK_ASSISTANT)
+            0x3515f2a0, // PengramLinkAudioChip (SECTION_LINK_ASSISTANT)
+            0x351ecd79, // PengramLinkIncomingWatch (SECTION_LINK_ASSISTANT)
+            0x19300406, // PengramLinkIncomingOutgoing (SECTION_LINK_ASSISTANT)
+            0x3af9bb99, // PengramLinkPlatformYoutubeRow (SECTION_LINK_ASSISTANT)
+            0x38e3dccc, // PengramLinkPlatformTiktokRow (SECTION_LINK_ASSISTANT)
+            0x3fe63294, // PengramLinkPlatformInstagramRow (SECTION_LINK_ASSISTANT)
+            0x1ce2cc52, // PengramLinkPlatformTwitterRow (SECTION_LINK_ASSISTANT)
+            0x1cb31816, // PengramLinkPlatformPinterestRow (SECTION_LINK_ASSISTANT)
+            0x3d1e253e, // PengramLinkPlatformVkRow (SECTION_LINK_ASSISTANT)
+            0x1f1d3f34, // PengramLinkPlatformRutubeRow (SECTION_LINK_ASSISTANT)
+            0x320e5896, // PengramLinkPlatformRedditRow (SECTION_LINK_ASSISTANT)
+            0x305b6ff3, // PengramLinkPlatformSoundcloudRow (SECTION_LINK_ASSISTANT)
+            0x10b76be2, // PengramLinkPlatformYandexRow (SECTION_LINK_ASSISTANT)
             0x1d7dcd31, // PengramLinkPreviewMode (SECTION_LINK_ASSISTANT)
             0x3b85fcfe, // PengramLinkIslandPreviewBtn (SECTION_LINK_ASSISTANT)
             0x12abf83a, // PengramLinkPhotoStitchMode (SECTION_LINK_ASSISTANT)

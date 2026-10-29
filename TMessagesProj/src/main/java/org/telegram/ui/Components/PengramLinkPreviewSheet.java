@@ -74,9 +74,26 @@ public final class PengramLinkPreviewSheet {
         void onSendPhotos(@Nullable List<Integer> indices, int captionMode);
         void onStitchPhotos(@Nullable List<Integer> indices, int captionMode, boolean withAudio);
         void onSendVideo(int captionMode);
+        default void onSendAudioOnly(int captionMode) {}
         void onSendPlainLink();
         void onCancelKeepInField();
         void onOpenSettings();
+    }
+
+    public static int platformBrandColor(int platform, int fallbackAccent) {
+        switch (platform) {
+            case PengramLinkResolver.PLATFORM_YOUTUBE: return 0xFFFF3B30;
+            case PengramLinkResolver.PLATFORM_TIKTOK: return 0xFFFF2D55;
+            case PengramLinkResolver.PLATFORM_INSTAGRAM: return 0xFFE1306C;
+            case PengramLinkResolver.PLATFORM_TWITTER: return 0xFF1D9BF0;
+            case PengramLinkResolver.PLATFORM_PINTEREST: return 0xFFE60023;
+            case PengramLinkResolver.PLATFORM_VK: return 0xFF0077FF;
+            case PengramLinkResolver.PLATFORM_RUTUBE: return 0xFF00A8E8;
+            case PengramLinkResolver.PLATFORM_REDDIT: return 0xFFFF4500;
+            case PengramLinkResolver.PLATFORM_SOUNDCLOUD: return 0xFFFF5500;
+            case PengramLinkResolver.PLATFORM_YANDEX: return 0xFFFC3F1D;
+            default: return fallbackAccent;
+        }
     }
 
     public interface FallbackCallbacks {
@@ -144,14 +161,12 @@ public final class PengramLinkPreviewSheet {
         platformPill.setTypeface(AndroidUtilities.bold());
         platformPill.setPadding(dp(8), dp(2), dp(8), dp(2));
         final boolean isTikTok = resolved.platform == PengramLinkResolver.PLATFORM_TIKTOK;
-        final int pillTone = isTikTok ? 0xFFFF2D55 : 0xFFFF3B30;
+        final int pillTone = platformBrandColor(resolved.platform, accentColor);
         platformPill.setTextColor(pillTone);
         platformPill.setBackground(roundRect(ColorUtils.setAlphaComponent(pillTone, isDark ? 46 : 30), dp(6)));
-        String pillLabel = isTikTok ? "TikTok" : "YouTube";
+        String pillLabel = PengramLinkAssistant.platformDisplayName(resolved.platform, req.url);
         if (resolved.isPhotos()) {
             pillLabel += " · " + resolved.photos.size();
-        } else if (PengramLinkResolver.isYouTubeShortsUrl(req.url)) {
-            pillLabel = "YouTube Shorts";
         }
         platformPill.setText(pillLabel);
         badgeRow.addView(platformPill, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
@@ -162,7 +177,10 @@ public final class PengramLinkPreviewSheet {
             authorTv.setTextColor(subColor);
             authorTv.setSingleLine(true);
             authorTv.setEllipsize(TextUtils.TruncateAt.END);
-            final String cleanAuthor = isTikTok && !resolved.author.startsWith("@")
+            final boolean handlePrefix = isTikTok
+                    || resolved.platform == PengramLinkResolver.PLATFORM_INSTAGRAM
+                    || resolved.platform == PengramLinkResolver.PLATFORM_TWITTER;
+            final String cleanAuthor = handlePrefix && !resolved.author.startsWith("@")
                     ? "@" + resolved.author : resolved.author;
             authorTv.setText("  " + cleanAuthor);
             badgeRow.addView(authorTv, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
@@ -177,7 +195,8 @@ public final class PengramLinkPreviewSheet {
         headerTitle.setEllipsize(TextUtils.TruncateAt.END);
         headerTitle.setText(LocaleController.getString(resolved.isPhotos()
                 ? R.string.PengramLinkPreviewSheetPhotosTitle
-                : R.string.PengramLinkPreviewSheetVideoTitle));
+                : (resolved.isAudio() ? R.string.PengramLinkPreviewSheetAudioTitle
+                : R.string.PengramLinkPreviewSheetVideoTitle)));
         titleCol.addView(headerTitle, LayoutHelper.createLinear(
                 LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 3, 0, 0));
 
@@ -233,6 +252,47 @@ public final class PengramLinkPreviewSheet {
                     ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
         }
 
+        if (!resolved.isPhotos() && !resolved.isAudio()) {
+            final int[] qMode = new int[]{PengramConfig.getLinkQualityMode()};
+            final TextView qualityChip = createChipView(context, textColor, cardBg);
+            final Runnable syncQualityChip = () -> {
+                final int res = qMode[0] == PengramConfig.LINK_QUALITY_SAVER_720
+                        ? R.string.PengramLinkQualityChip720
+                        : (qMode[0] == PengramConfig.LINK_QUALITY_MAX
+                        ? R.string.PengramLinkQualityChipMax
+                        : R.string.PengramLinkQualityChip1080);
+                qualityChip.setText(LocaleController.getString(res));
+            };
+            syncQualityChip.run();
+            qualityChip.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                qMode[0] = (qMode[0] + 1) % 3;
+                PengramConfig.setLinkQualityMode(qMode[0]);
+                syncQualityChip.run();
+            });
+            chipsRow.addView(qualityChip, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
+        }
+
+        final boolean canSendAsAudio = PengramConfig.isLinkAudioChipEnabled()
+                && !resolved.isAudio()
+                && (!resolved.isPhotos() || !resolved.audioUrl.isEmpty());
+        if (canSendAsAudio) {
+            final TextView audioOnlyChip = createChipView(
+                    context,
+                    accentColor,
+                    ColorUtils.setAlphaComponent(accentColor, isDark ? 42 : 24));
+            audioOnlyChip.setText(LocaleController.getString(R.string.PengramLinkPreviewSendAudioChip));
+            audioOnlyChip.setOnClickListener(v -> {
+                v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                actionTaken[0] = true;
+                sheet.dismiss();
+                callbacks.onSendAudioOnly(captionMode[0]);
+            });
+            chipsRow.addView(audioOnlyChip, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)));
+        }
+
         root.addView(chipsRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
 
         // --- Hint + Select-All bar for multi-photo interaction (selectAllBtn guaranteed inside bounds) ---
@@ -279,7 +339,9 @@ public final class PengramLinkPreviewSheet {
 
         final Runnable syncSelectionUi = () -> {
             if (!resolved.isPhotos()) {
-                primaryBtn.setText(LocaleController.getString(R.string.PengramLinkPreviewSendVideo));
+                primaryBtn.setText(LocaleController.getString(resolved.isAudio()
+                        ? R.string.PengramLinkPreviewSendAudio
+                        : R.string.PengramLinkPreviewSendVideo));
                 stitchBtn.setVisibility(View.GONE);
                 return;
             }
@@ -421,7 +483,11 @@ public final class PengramLinkPreviewSheet {
             videoCard.setOnClickListener(v -> {
                 actionTaken[0] = true;
                 sheet.dismiss();
-                callbacks.onSendVideo(captionMode[0]);
+                if (resolved.isAudio()) {
+                    callbacks.onSendAudioOnly(captionMode[0]);
+                } else {
+                    callbacks.onSendVideo(captionMode[0]);
+                }
             });
             mediaScroll.addView(videoCard, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         }
@@ -435,6 +501,8 @@ public final class PengramLinkPreviewSheet {
             if (resolved.isPhotos()) {
                 final List<Integer> list = selected.isEmpty() ? null : new ArrayList<>(selected);
                 callbacks.onSendPhotos(list, captionMode[0]);
+            } else if (resolved.isAudio()) {
+                callbacks.onSendAudioOnly(captionMode[0]);
             } else {
                 callbacks.onSendVideo(captionMode[0]);
             }

@@ -6618,15 +6618,17 @@ public class ChatActivityEnterView extends FrameLayout implements
     private void stylePengramLinkBarPlatform(String url, @Nullable PengramLinkResolver.Resolved cached) {
         final int platform = PengramLinkResolver.platformOf(url);
         final boolean isTikTok = platform == PengramLinkResolver.PLATFORM_TIKTOK;
+        final boolean isAudio = cached != null ? cached.isAudio() : PengramLinkResolver.isAudioPlatform(platform);
         final boolean isPhoto = cached != null
                 ? cached.isPhotos()
                 : (isTikTok && PengramLinkResolver.isTikTokPhotoHintUrl(url));
-        final boolean isShorts = !isTikTok && PengramLinkResolver.isYouTubeShortsUrl(url);
         final int accent = getThemedColor(Theme.key_chat_replyPanelName);
-        final int badgeTone = isTikTok ? 0xFFFF2D55 : (platform == PengramLinkResolver.PLATFORM_YOUTUBE ? 0xFFFF3B30 : accent);
+        final int badgeTone = PengramLinkPreviewSheet.platformBrandColor(platform, accent);
 
         if (pengramLinkBarIcon != null) {
-            pengramLinkBarIcon.setImageResource(isPhoto ? R.drawable.msg_photos : R.drawable.ic_action_play);
+            final int iconRes = isAudio ? R.drawable.msg_tone_add
+                    : (isPhoto ? R.drawable.msg_photos : R.drawable.ic_action_play);
+            pengramLinkBarIcon.setImageResource(iconRes);
             pengramLinkBarIcon.setColorFilter(new PorterDuffColorFilter(badgeTone, PorterDuff.Mode.SRC_IN));
         }
         if (pengramLinkBarIconWrap != null) {
@@ -6634,10 +6636,7 @@ public class ChatActivityEnterView extends FrameLayout implements
                     dp(8), ColorUtils.setAlphaComponent(badgeTone, 30)));
         }
         if (pengramLinkBarBadge != null) {
-            final String label = isTikTok
-                    ? "TikTok"
-                    : (isShorts ? "YouTube Shorts" : "YouTube");
-            pengramLinkBarBadge.setText(label);
+            pengramLinkBarBadge.setText(PengramLinkAssistant.platformDisplayName(platform, url));
             pengramLinkBarBadge.setTextColor(badgeTone);
         }
         if (pengramLinkBarClose != null) {
@@ -6682,17 +6681,26 @@ public class ChatActivityEnterView extends FrameLayout implements
         final PengramLinkResolver.Resolved cached = isTikTok ? PengramLinkAssistant.peekCachedTikTok(url) : null;
         stylePengramLinkBarPlatform(url, cached);
 
-        final boolean isKnownPhotos = cached != null
+        final boolean isAudio = cached != null
+                ? cached.isAudio()
+                : (PengramLinkResolver.isAudioPlatform(platform)
+                        || PengramConfig.getLinkDefaultFormat() == PengramConfig.LINK_FORMAT_AUDIO);
+        final boolean isKnownPhotos = !isAudio && (cached != null
                 ? cached.isPhotos()
-                : (isTikTok && PengramLinkResolver.isTikTokPhotoHintUrl(url));
-        final boolean isKnownVideo = cached != null
+                : (isTikTok && PengramLinkResolver.isTikTokPhotoHintUrl(url)));
+        final boolean isKnownVideo = !isAudio && (cached != null
                 ? !cached.isPhotos()
-                : (platform == PengramLinkResolver.PLATFORM_YOUTUBE || (isTikTok && PengramLinkResolver.isTikTokVideoHintUrl(url)));
+                : (platform == PengramLinkResolver.PLATFORM_YOUTUBE
+                        || platform == PengramLinkResolver.PLATFORM_VK
+                        || platform == PengramLinkResolver.PLATFORM_RUTUBE
+                        || (isTikTok && PengramLinkResolver.isTikTokVideoHintUrl(url))));
 
         if (pengramLinkBarTitle != null) {
-            final int titleRes = isKnownPhotos
+            final int titleRes = isAudio
+                    ? R.string.PengramLinkSuggestAudioTitle
+                    : (isKnownPhotos
                     ? R.string.PengramLinkSuggestPhotosTitle
-                    : (isKnownVideo ? R.string.PengramLinkSuggestVideoTitle : R.string.PengramLinkSuggestTitle);
+                    : (isKnownVideo ? R.string.PengramLinkSuggestVideoTitle : R.string.PengramLinkSuggestTitle));
             pengramLinkBarTitle.setText(getString(titleRes));
             pengramLinkBarTitle.setTextColor(getThemedColor(Theme.key_chat_messagePanelText));
         }
@@ -6855,7 +6863,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             final Editable editable = messageEditText != null ? messageEditText.getText() : null;
             if (editable != null && editable.length() > 0) {
                 fullText = editable.toString();
-                final PengramLinkResolver.FoundLink found = PengramLinkResolver.findLink(fullText);
+                final PengramLinkResolver.FoundLink found = PengramLinkAssistant.findSupportedLink(fullText);
                 if (found != null && found.start >= 0 && found.end <= fullText.length()) {
                     final String before = fullText.substring(0, found.start);
                     final String after = fullText.substring(found.end);
@@ -6943,6 +6951,14 @@ public class ChatActivityEnterView extends FrameLayout implements
                         pengramLinkSheet = null;
                         runPengramRequest(request, new PengramLinkAssistant.ExecutionOptions(
                                 false, resolved, PengramLinkAssistant.ACTION_SEND_VIDEO,
+                                null, captionMode, null));
+                    }
+
+                    @Override
+                    public void onSendAudioOnly(int captionMode) {
+                        pengramLinkSheet = null;
+                        runPengramRequest(request, new PengramLinkAssistant.ExecutionOptions(
+                                false, resolved, PengramLinkAssistant.ACTION_SEND_AUDIO,
                                 null, captionMode, null));
                     }
 
@@ -7111,7 +7127,7 @@ public class ChatActivityEnterView extends FrameLayout implements
             hidePengramLinkBar();
             return;
         }
-        final PengramLinkResolver.FoundLink link = PengramLinkResolver.findLink(text);
+        final PengramLinkResolver.FoundLink link = PengramLinkAssistant.findSupportedLink(text);
         if (link == null) {
             pengramLinkDismissedUrl = null;
             pengramLinkUrl = null;

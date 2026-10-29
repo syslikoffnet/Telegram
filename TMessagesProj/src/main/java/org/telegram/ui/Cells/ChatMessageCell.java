@@ -766,6 +766,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
         }
 
+        /** Pengram: нажатие на кнопку «Смотреть тут» у ссылки в чате */
+        default void didPressPengramWatch(ChatMessageCell cell, String url) {
+
+        }
+
+        default void didLongPressPengramWatch(ChatMessageCell cell, String url) {
+
+        }
+
         default void didPressTime(ChatMessageCell cell) {
         }
 
@@ -4283,6 +4292,318 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         return false;
     }
 
+    private static TextPaint pengramWatchTextPaint;
+    private final RectF pengramWatchRect = new RectF();
+    private final Path pengramWatchClipPath = new Path();
+    private final Paint pengramWatchFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private int pengramWatchCheckedMsgId;
+    private int pengramWatchCheckedMask = Integer.MIN_VALUE;
+    private String pengramWatchCheckedRaw;
+    private String pengramWatchUrl;
+    private int pengramWatchPlatform;
+    private boolean pengramWatchDrawn;
+    private boolean pengramWatchSide;
+    private boolean pengramWatchPressed;
+    private boolean pengramWatchLongHandled;
+    private String pengramWatchLastLabel;
+    private float pengramWatchLabelWidth;
+    private Runnable pengramWatchLongPressRunnable;
+
+    private static TextPaint getPengramWatchPaint() {
+        TextPaint p = pengramWatchTextPaint;
+        if (p == null) {
+            p = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            p.setTypeface(AndroidUtilities.bold());
+            pengramWatchTextPaint = p;
+        }
+        final float targetPx = dp(12);
+        if (p.getTextSize() != targetPx) {
+            p.setTextSize(targetPx);
+        }
+        return p;
+    }
+
+    private float pengramMeasureWatchLabel(String label) {
+        if (label == null || label.isEmpty()) {
+            return 0f;
+        }
+        final TextPaint p = getPengramWatchPaint();
+        if (label.equals(pengramWatchLastLabel) && pengramWatchLabelWidth > 0f) {
+            return pengramWatchLabelWidth;
+        }
+        pengramWatchLastLabel = label;
+        pengramWatchLabelWidth = p.measureText(label);
+        return pengramWatchLabelWidth;
+    }
+
+    private void pengramResolveWatchUrl() {
+        if (currentMessageObject == null || currentMessageObject.messageOwner == null
+                || isDrawSelectionBackground() || currentMessageObject.isSponsored()
+                || currentMessageObject.preview
+                || !org.telegram.messenger.PengramConfig.isLinkAssistantEnabled()
+                || !org.telegram.messenger.PengramConfig.isLinkIncomingWatchEnabled()) {
+            pengramWatchUrl = null;
+            return;
+        }
+        if (currentMessageObject.isOutOwner()
+                && !org.telegram.messenger.PengramConfig.isLinkIncomingOutgoingEnabled()) {
+            pengramWatchUrl = null;
+            return;
+        }
+        if (currentPosition != null
+                && (currentPosition.flags & MessageObject.POSITION_FLAG_BOTTOM) == 0) {
+            pengramWatchUrl = null;
+            return;
+        }
+        final TLRPC.MessageMedia media = currentMessageObject.messageOwner.media;
+        if (media != null
+                && !(media instanceof TLRPC.TL_messageMediaEmpty)
+                && !(media instanceof TLRPC.TL_messageMediaWebPage)) {
+            pengramWatchUrl = null;
+            return;
+        }
+        final String raw = currentMessageObject.messageOwner.message;
+        final int msgId = currentMessageObject.getId();
+        final int mask = org.telegram.messenger.PengramLinkAssistant.getEnabledPlatformsMask();
+        if (mask == 0) {
+            pengramWatchUrl = null;
+            return;
+        }
+        if (msgId != 0 && msgId == pengramWatchCheckedMsgId
+                && mask == pengramWatchCheckedMask
+                && TextUtils.equals(raw, pengramWatchCheckedRaw)) {
+            return;
+        }
+        pengramWatchCheckedMsgId = msgId;
+        pengramWatchCheckedMask = mask;
+        pengramWatchCheckedRaw = raw;
+        pengramWatchUrl = null;
+        pengramWatchPlatform = 0;
+
+        org.telegram.messenger.PengramLinkResolver.FoundLink found =
+                org.telegram.messenger.PengramLinkAssistant.findSupportedLink(raw);
+        if (found == null && currentMessageObject.messageOwner.entities != null) {
+            for (int i = 0, n = currentMessageObject.messageOwner.entities.size(); i < n; i++) {
+                final TLRPC.MessageEntity ent = currentMessageObject.messageOwner.entities.get(i);
+                if (ent instanceof TLRPC.TL_messageEntityTextUrl && ent.url != null) {
+                    found = org.telegram.messenger.PengramLinkAssistant.findSupportedLink(ent.url);
+                    if (found != null) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (found == null && media instanceof TLRPC.TL_messageMediaWebPage
+                && media.webpage != null && media.webpage.url != null) {
+            found = org.telegram.messenger.PengramLinkAssistant.findSupportedLink(media.webpage.url);
+        }
+        if (found != null) {
+            pengramWatchUrl = found.url;
+            pengramWatchPlatform = found.platform;
+        }
+    }
+
+    private String pengramBuildWatchLabel() {
+        final String url = pengramWatchUrl;
+        if (url == null) {
+            return "";
+        }
+        final org.telegram.messenger.PengramLinkAssistant.WatchTask task =
+                org.telegram.messenger.PengramLinkAssistant.getActiveWatchTask(url);
+        if (task != null) {
+            final int pct = Math.round(Math.max(0f, Math.min(1f, task.progress)) * 100f);
+            if (pct >= 2 && pct < 100) {
+                return "⏳ " + pct + "% · ✕";
+            }
+            return LocaleController.getString(R.string.PengramLinkWatchLoadingPill);
+        }
+        if (org.telegram.messenger.PengramLinkAssistant.isWatchCached(url)) {
+            return LocaleController.getString(R.string.PengramLinkWatchCachedPill);
+        }
+        if (org.telegram.messenger.PengramLinkResolver.isAudioPlatform(pengramWatchPlatform)) {
+            return LocaleController.getString(R.string.PengramLinkListenInlinePill);
+        }
+        return LocaleController.getString(R.string.PengramLinkWatchInlinePill);
+    }
+
+    private int pengramComputeWatchBottomPadding(int cellWidth) {
+        pengramResolveWatchUrl();
+        if (pengramWatchUrl == null || cellWidth <= 0) {
+            pengramWatchSide = false;
+            return 0;
+        }
+        final String label = pengramBuildWatchLabel();
+        final int pillW = (int) Math.ceil(pengramMeasureWatchLabel(label)) + dp(20);
+        final boolean out = currentMessageObject.isOutOwner();
+        if (out) {
+            final int bubbleLeft = cellWidth - backgroundWidth - (!mediaBackground ? 0 : dp(9));
+            if (bubbleLeft >= pillW + dp(14)) {
+                pengramWatchSide = true;
+                return 0;
+            }
+        } else if (drawSideButton == 0) {
+            final int leftPad = dp(isSideMenuEnabled ? ChatActivity.SIDE_MENU_WIDTH
+                    : ((isChat || (currentMessageObject != null && (currentMessageObject.isRepostPreview
+                    || currentMessageObject.forceAvatar
+                    || currentMessageObject.messageOwner.guestchat_via_from != null))) && isAvatarVisible ? 48 : 0))
+                    + dp(!mediaBackground ? 3 : 9);
+            final int bubbleRight = leftPad + backgroundWidth - (mediaBackground ? 0 : dp(3));
+            if (cellWidth - bubbleRight >= pillW + dp(14)) {
+                pengramWatchSide = true;
+                return 0;
+            }
+        }
+        pengramWatchSide = false;
+        return dp(30);
+    }
+
+    private void pengramDrawWatchPill(Canvas canvas) {
+        if (pengramWatchUrl == null || currentMessageObject == null || isDrawSelectionBackground()) {
+            pengramWatchDrawn = false;
+            return;
+        }
+        final String label = pengramBuildWatchLabel();
+        if (label.isEmpty()) {
+            pengramWatchDrawn = false;
+            return;
+        }
+        final float textW = pengramMeasureWatchLabel(label);
+        final float pillW = (float) Math.ceil(textW) + dp(20);
+        final float pillH = dp(25);
+        final int topOffset = getPaddingTop();
+        final boolean out = currentMessageObject.isOutOwner();
+        float left;
+        float top;
+        if (pengramWatchSide) {
+            if (out) {
+                left = Math.max(dp(6), backgroundDrawableLeft - dp(6) - pillW);
+            } else {
+                left = Math.min(getMeasuredWidth() - pillW - dp(6),
+                        backgroundDrawableLeft + backgroundDrawableRight + dp(6));
+            }
+            top = Math.max(topOffset + dp(2), topOffset + totalHeight - pillH - dp(2));
+        } else {
+            if (out) {
+                left = Math.max(dp(8), Math.min(getMeasuredWidth() - pillW - dp(8),
+                        backgroundDrawableLeft + backgroundDrawableRight - pillW - dp(4)));
+            } else {
+                left = Math.max(dp(8), backgroundDrawableLeft + dp(4));
+            }
+            top = topOffset + totalHeight + keyboardHeight + bottomActionPadding + dp(3);
+        }
+        pengramWatchRect.set(left, top, left + pillW, top + pillH);
+        pengramWatchDrawn = true;
+
+        final float r = pillH * 0.5f;
+        final boolean pressed = pengramWatchPressed;
+        if (pressed) {
+            canvas.save();
+            canvas.scale(0.95f, 0.95f, pengramWatchRect.centerX(), pengramWatchRect.centerY());
+        }
+        applyServiceShaderMatrix();
+        canvas.drawRoundRect(pengramWatchRect, r, r, getThemedPaint(
+                pressed ? Theme.key_paint_chatActionBackgroundSelected : Theme.key_paint_chatActionBackground));
+        if (hasGradientService()) {
+            canvas.drawRoundRect(pengramWatchRect, r, r, Theme.chat_actionBackgroundGradientDarkenPaint);
+        }
+        final org.telegram.messenger.PengramLinkAssistant.WatchTask task =
+                org.telegram.messenger.PengramLinkAssistant.getActiveWatchTask(pengramWatchUrl);
+        if (task != null && task.progress > 0.01f) {
+            final float prog = Math.min(1f, task.progress);
+            pengramWatchClipPath.rewind();
+            pengramWatchClipPath.addRoundRect(pengramWatchRect, r, r, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(pengramWatchClipPath);
+            pengramWatchFillPaint.setColor(Theme.multAlpha(getThemedColor(Theme.key_chat_serviceText), 0.22f));
+            canvas.drawRect(left, top, left + pillW * prog, top + pillH, pengramWatchFillPaint);
+            canvas.restore();
+        }
+        final TextPaint tp = getPengramWatchPaint();
+        tp.setColor(getThemedColor(Theme.key_chat_serviceText));
+        final float textX = left + (pillW - textW) * 0.5f;
+        final float textY = top + (pillH - (tp.descent() + tp.ascent())) * 0.5f;
+        canvas.drawText(label, textX, textY, tp);
+        if (pressed) {
+            canvas.restore();
+        }
+    }
+
+    private void cancelPengramWatchLongPress() {
+        if (pengramWatchLongPressRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(pengramWatchLongPressRunnable);
+            pengramWatchLongPressRunnable = null;
+        }
+    }
+
+    private boolean checkPengramWatchMotionEvent(MotionEvent event) {
+        if (!pengramWatchDrawn || pengramWatchUrl == null || currentMessageObject == null || delegate == null) {
+            return false;
+        }
+        final float x = event.getX();
+        final float y = event.getY();
+        final boolean inside = x >= pengramWatchRect.left - dp(6)
+                && x <= pengramWatchRect.right + dp(6)
+                && y >= pengramWatchRect.top - dp(5)
+                && y <= pengramWatchRect.bottom + dp(5);
+        final int action = event.getAction();
+        if (action == MotionEvent.ACTION_DOWN) {
+            if (inside) {
+                pengramWatchPressed = true;
+                pengramWatchLongHandled = false;
+                invalidate();
+                cancelPengramWatchLongPress();
+                final String targetUrl = pengramWatchUrl;
+                pengramWatchLongPressRunnable = () -> {
+                    pengramWatchLongPressRunnable = null;
+                    if (pengramWatchPressed && delegate != null && targetUrl != null) {
+                        pengramWatchLongHandled = true;
+                        pengramWatchPressed = false;
+                        try {
+                            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        } catch (Throwable ignore) {
+                        }
+                        invalidate();
+                        delegate.didLongPressPengramWatch(ChatMessageCell.this, targetUrl);
+                    }
+                };
+                AndroidUtilities.runOnUIThread(pengramWatchLongPressRunnable, 420);
+                return true;
+            }
+        } else if (action == MotionEvent.ACTION_MOVE) {
+            if (pengramWatchPressed) {
+                if (!inside) {
+                    pengramWatchPressed = false;
+                    cancelPengramWatchLongPress();
+                    invalidate();
+                }
+                return true;
+            }
+        } else if (action == MotionEvent.ACTION_UP) {
+            if (pengramWatchPressed) {
+                pengramWatchPressed = false;
+                cancelPengramWatchLongPress();
+                invalidate();
+                if (inside && !pengramWatchLongHandled) {
+                    playSoundEffect(SoundEffectConstants.CLICK);
+                    delegate.didPressPengramWatch(this, pengramWatchUrl);
+                }
+                return true;
+            }
+            if (pengramWatchLongHandled) {
+                pengramWatchLongHandled = false;
+                return true;
+            }
+        } else if (action == MotionEvent.ACTION_CANCEL) {
+            if (pengramWatchPressed || pengramWatchLongHandled) {
+                pengramWatchPressed = false;
+                pengramWatchLongHandled = false;
+                cancelPengramWatchLongPress();
+                invalidate();
+            }
+        }
+        return false;
+    }
+
     private boolean checkDateMotionEvent(MotionEvent event) {
         if (!currentMessageObject.isImportedForward()) {
             return false;
@@ -5096,6 +5417,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (!result) {
             result = checkPengramMarkMotionEvent(event);
+        }
+        if (!result) {
+            result = checkPengramWatchMotionEvent(event);
         }
         if (!result) {
             result = checkTextSelection(event);
@@ -13872,17 +14196,20 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         updateSelectionTextPosition();
 
+        final int cellWidth = isWidthAdaptive() ? getBoundsRight() - getBoundsLeft() : MeasureSpec.getSize(widthMeasureSpec);
+        final int watchBottomPad = pengramComputeWatchBottomPadding(cellWidth);
+
         final int normHeight = starsPriceTopPadding + topicSeparatorTopPadding + suggestionOfferTopPadding + totalHeight + keyboardHeight + askBotForumBottomPadding + bottomActionPadding;
-        int resultHeight = normHeight;
+        int resultHeight = normHeight + watchBottomPad;
         ChatActivityDraftMessageMeasureController botDraftHeightController = getDraftMessageMeasureController();
         if (botDraftHeightController != null) {
-            resultHeight = botDraftHeightController.getOverrideMeasureHeight(currentMessageObject, normHeight);
+            resultHeight = botDraftHeightController.getOverrideMeasureHeight(currentMessageObject, resultHeight);
         }
 
         additionalPaddingHeight = Math.max(0, resultHeight - normHeight);
 
         setMeasuredDimension(
-            isWidthAdaptive() ? getBoundsRight() - getBoundsLeft() : MeasureSpec.getSize(widthMeasureSpec),
+            cellWidth,
             resultHeight
         );
     }
@@ -20411,6 +20738,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (!PengramAntiCrash.isEnabled()) {
             drawInternal(canvas);
             pengramDrawStandaloneAvatar(canvas);
+            pengramDrawWatchPill(canvas);
             return;
         }
         if (pengramBlockedStub) {
@@ -20423,6 +20751,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         try {
             drawInternal(canvas);
             pengramDrawStandaloneAvatar(canvas);
+            pengramDrawWatchPill(canvas);
         } catch (Throwable e) {
             pengramBlockedStub = true;
             pengramReportStub("cell draw", e);

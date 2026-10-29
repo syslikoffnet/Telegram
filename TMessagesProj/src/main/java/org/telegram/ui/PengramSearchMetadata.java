@@ -453,7 +453,7 @@ public final class PengramSearchMetadata {
         if (has(own, "профил", "profile")) tags.append(" страница аккаунта пользователь профиль account bio");
         if (has(own, "имя", "ник", "username", "name")) tags.append(" никнейм юзернейм название nickname handle name");
         if (has(own, "телефон", "номер", "phone")) tags.append(" мобила контакт номер телефона mobile phone");
-        if (has(own, "ссылк", "link", "url")) tags.append(" адрес url линк ссылка hyperlink tiktok тикток youtube ютуб shorts шортс");
+        if (has(own, "ссылк", "link", "url")) tags.append(" адрес url линк ссылка hyperlink tiktok тикток youtube ютуб shorts шортс instagram инстаграм reels рилс twitter твиттер pinterest пинтерест vk вк клипы rutube рутуб reddit реддит soundcloud саундклауд яндекс");
         if (has(own, "предпросмотр", "preview")) tags.append(" превью выбор просмотр фото видео preview picker");
         if (has(own, "скле", "stitch", "кадр", "slide")) tags.append(" склеить слайдшоу карусель фото в видео slideshow carousel stitch");
         if (has(own, "истори", "history")) tags.append(" архив журнал версии лог история log archive");
@@ -493,6 +493,14 @@ public final class PengramSearchMetadata {
             tags.append(" анимация ввода печать набор букв плавный курсор жидкий курсор каретка искры частицы typing animation smooth liquid cursor caret");
         } else if (id == R.string.PengramWebSearchHistory) {
             tags.append(" история поиска запросы веб очистить недавние web search history recent queries");
+        } else if (id == R.string.PengramGhostReadOnReply) {
+            tags.append(" прочтение при ответе прочитать при отправке галочки призрак невидимка read on reply ghost mark read");
+        } else if (id == R.string.PengramVoiceAmbience || id == R.string.PengramVoiceAmbienceLevel || id == R.string.PengramVoiceAmbienceDuck) {
+            tags.append(" фоновый шум атмосфера эмбиент амбиент саундборд метро улица дождь офис клавиатура рация помехи клуб голос звонок войс кружок background ambience noise soundboard subway street rain office radio club");
+        } else if (id == R.string.PengramLinkIncomingWatch || id == R.string.PengramLinkIncomingOutgoing) {
+            tags.append(" смотреть тут слушать тут входящие ссылки кнопка в чате встроенный плеер без браузера watch here listen inline player incoming links");
+        } else if (id == R.string.PengramLinkQualityMode || id == R.string.PengramLinkDefaultFormat || id == R.string.PengramLinkAudioChip) {
+            tags.append(" качество видео 1080p 720p экономия трафика максимальное только звук как аудио музыка mp3 m4a трек video quality data saver audio only music");
         }
         return tags.toString();
     }

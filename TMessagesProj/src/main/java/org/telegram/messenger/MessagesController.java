@@ -14760,11 +14760,41 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    private final java.util.LinkedHashMap<String, ReadTask> pengramGhostDeferredReads = new java.util.LinkedHashMap<String, ReadTask>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, ReadTask> eldest) {
+            return size() > 256;
+        }
+    };
+
+    private static String pengramReadTaskKey(long dialogId, long replyId) {
+        return replyId != 0 ? (dialogId + "_" + replyId) : Long.toString(dialogId);
+    }
+
     private void completeReadTask(ReadTask task) {
-        if (PengramConfig.isNotSendingRead()) {
-            // режим призрака: локально прочитано, но серверу об этом не сообщаем
+        completeReadTask(task, false);
+    }
+
+    private void completeReadTask(ReadTask task, boolean forceSend) {
+        if (!forceSend && PengramConfig.isNotSendingRead()) {
+            // режим призрака: локально прочитано, но серверу об этом не сообщаем;
+            // запоминаем задачу на случай авто-прочтения при собственном ответе в этот чат
+            if (task != null) {
+                ReadTask deferred = new ReadTask();
+                deferred.dialogId = task.dialogId;
+                deferred.maxId = task.maxId;
+                deferred.maxDate = task.maxDate;
+                deferred.replyId = task.replyId;
+                deferred.monoForumPeerId = task.monoForumPeerId;
+                deferred.sendRequestTime = task.sendRequestTime;
+                pengramGhostDeferredReads.put(pengramReadTaskKey(task.dialogId, task.replyId), deferred);
+            }
             return;
         }
+        if (task == null) {
+            return;
+        }
+        pengramGhostDeferredReads.remove(pengramReadTaskKey(task.dialogId, task.replyId));
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -14864,6 +14894,125 @@ public class MessagesController extends BaseController implements NotificationCe
                 readTasksMap.remove(dialogId);
             }
         });
+    }
+
+    public void pengramMarkDialogReadOnReply(long dialogId, long topicId, long monoForumPeerId) {
+        if (!PengramConfig.isNotSendingRead() || !PengramConfig.isGhostReadOnReply()) {
+            return;
+        }
+        if (dialogId == 0 || dialogId == getUserConfig().getClientUserId()) {
+            return;
+        }
+        Runnable uiStep = () -> {
+            int maxId = 0;
+            int maxDate = 0;
+            boolean hadMentions = false;
+            Integer cachedMax = dialogs_read_inbox_max.get(dialogId);
+            if (cachedMax != null && cachedMax > maxId) {
+                maxId = cachedMax;
+            }
+            TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+            if (dialog != null) {
+                if (dialog.top_message > maxId) {
+                    maxId = dialog.top_message;
+                }
+                if (dialog.read_inbox_max_id > maxId) {
+                    maxId = dialog.read_inbox_max_id;
+                }
+                hadMentions = dialog.unread_mentions_count > 0;
+            }
+            ArrayList<MessageObject> topMsgs = dialogMessage.get(dialogId);
+            if (topMsgs != null) {
+                for (int i = 0, n = topMsgs.size(); i < n; i++) {
+                    MessageObject mo = topMsgs.get(i);
+                    if (mo == null || mo.messageOwner == null) continue;
+                    if (mo.getId() > maxId) {
+                        maxId = mo.getId();
+                    }
+                    if (mo.messageOwner.date > maxDate) {
+                        maxDate = mo.messageOwner.date;
+                    }
+                }
+            }
+            if (dialog != null && (dialog.unread_count > 0 || dialog.unread_mark)) {
+                markDialogAsRead(dialogId, maxId, Math.min(0, dialog.top_message), maxDate, false, topicId, 0, false, 0);
+            }
+            final int fallbackMaxId = maxId;
+            final int fallbackMaxDate = maxDate;
+            final boolean flushMentions = hadMentions;
+            final long effectiveThreadId = monoForumPeerId != 0 ? monoForumPeerId : topicId;
+            Utilities.stageQueue.postRunnable(() -> {
+                String threadKey = effectiveThreadId != 0 ? (dialogId + "_" + effectiveThreadId) : null;
+                ReadTask task = null;
+                if (threadKey != null) {
+                    ReadTask pending = threadsReadTasksMap.remove(threadKey);
+                    if (pending != null) {
+                        repliesReadTasks.remove(pending);
+                        task = pending;
+                    }
+                    ReadTask deferred = pengramGhostDeferredReads.remove(threadKey);
+                    if (deferred != null) {
+                        if (task == null) {
+                            task = deferred;
+                        } else {
+                            task.maxId = Math.max(task.maxId, deferred.maxId);
+                            task.maxDate = Math.max(task.maxDate, deferred.maxDate);
+                        }
+                    }
+                }
+                ReadTask dialogPending = readTasksMap.remove(dialogId);
+                if (dialogPending != null) {
+                    readTasks.remove(dialogPending);
+                    if (task == null && effectiveThreadId == 0) {
+                        task = dialogPending;
+                    }
+                }
+                ReadTask dialogDeferred = pengramGhostDeferredReads.remove(Long.toString(dialogId));
+                if (dialogDeferred != null && task == null && effectiveThreadId == 0) {
+                    task = dialogDeferred;
+                }
+                if (task == null) {
+                    if (!DialogObject.isEncryptedDialog(dialogId) && fallbackMaxId <= 0) {
+                        return;
+                    }
+                    if (DialogObject.isEncryptedDialog(dialogId) && fallbackMaxDate <= 0) {
+                        return;
+                    }
+                    task = new ReadTask();
+                    task.dialogId = dialogId;
+                    task.replyId = effectiveThreadId;
+                    task.monoForumPeerId = monoForumPeerId;
+                    task.maxId = fallbackMaxId;
+                    task.maxDate = fallbackMaxDate;
+                } else {
+                    if (fallbackMaxId > task.maxId) {
+                        task.maxId = fallbackMaxId;
+                    }
+                    if (fallbackMaxDate > task.maxDate) {
+                        task.maxDate = fallbackMaxDate;
+                    }
+                    if (monoForumPeerId != 0 && task.monoForumPeerId == 0) {
+                        task.monoForumPeerId = monoForumPeerId;
+                    }
+                }
+                completeReadTask(task, true);
+            });
+            if (flushMentions && !DialogObject.isEncryptedDialog(dialogId)) {
+                getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
+                TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
+                req.peer = getInputPeer(dialogId);
+                if (topicId != 0) {
+                    req.top_msg_id = (int) topicId;
+                    req.flags |= 1;
+                }
+                getConnectionsManager().sendRequest(req, null);
+            }
+        };
+        if (AndroidUtilities.isOnUIThread()) {
+            uiStep.run();
+        } else {
+            AndroidUtilities.runOnUIThread(uiStep);
+        }
     }
 
     public void markMentionsAsRead(long dialogId, long topicId) {

@@ -380,6 +380,10 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TYPING_JUICY_PRESET = 1066;
     private static final int BTN_CYLINDER_JUICY_PRESET = 1067;
     private static final int BTN_QUOTE_AVATAR_LAYOUT = 1068;
+    private static final int BTN_LINK_QUALITY_MODE = 1069;
+    private static final int BTN_LINK_DEFAULT_FORMAT = 1070;
+    private static final int BTN_VOICE_AMBIENCE = 1071;
+    private static final int BTN_VOICE_AMBIENCE_PREVIEW = 1072;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1208,7 +1212,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return new String[]{"allowForwards", "allowScreenshots", "noScreenshotNotify", "hideAds",
                         "localPremium*", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle", "antiCrash*"};
             case SECTION_MEDIA:
-                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "trackForward*"};
+                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "voiceAmbience*", "trackForward*"};
             case SECTION_GENERAL:
                 return new String[]{"noNumberRounding", "timeWithSeconds", "inAppVibration", "zalgoFilter",
                         "quickAction*"};
@@ -3448,6 +3452,9 @@ public class PengramSettingsActivity extends UniversalFragment {
                 + getString(R.string.PengramGhostWhatInfo)));
 
         items.add(UItem.asHeader(getString(R.string.PengramGhostExtraHeader)));
+        items.add(checkInfo(PengramConfig.KEY_GHOST_READ_ON_REPLY, true,
+                getString(R.string.PengramGhostReadOnReply),
+                getString(R.string.PengramGhostReadOnReplyInfo)));
         items.add(check(PengramConfig.KEY_GHOST_STORIES_WARN, false, getString(R.string.PengramGhostStoriesWarn)));
         items.add(checkInfo(PengramConfig.KEY_GHOST_SEND_DELAY, false, getString(R.string.PengramGhostSendDelay), getString(R.string.PengramGhostSendDelayInfo)));
         items.add(UItem.asShadow(null));
@@ -3928,6 +3935,26 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.PengramVoiceGainInfo)));
         }
 
+        items.add(UItem.asHeader(getString(R.string.PengramVoiceAmbienceHeader)));
+        final int ambience = PengramConfig.getVoiceAmbience();
+        items.add(UItem.asSettingsCell(BTN_VOICE_AMBIENCE, R.drawable.msg_tone_on,
+                getString(R.string.PengramVoiceAmbience), voiceAmbienceName(ambience)));
+        if (ambience != PengramVoiceChanger.AMBIENCE_OFF) {
+            items.add(UItem.asHeader(getString(R.string.PengramVoiceAmbienceLevel)));
+            items.add(UItem.asIntSlideView(1, 5, PengramConfig.getVoiceAmbienceLevel(), 100,
+                    value -> value + "%", PengramConfig::setVoiceAmbienceLevel));
+            items.add(checkInfo(PengramConfig.KEY_VOICE_AMBIENCE_DUCK, true,
+                    getString(R.string.PengramVoiceAmbienceDuck),
+                    getString(R.string.PengramVoiceAmbienceDuckInfo)));
+            final boolean playing = PengramVoiceChanger.isAmbiencePreviewPlaying();
+            items.add(UItem.asButton(BTN_VOICE_AMBIENCE_PREVIEW,
+                    playing ? R.drawable.msg_block : R.drawable.msg_played,
+                    getString(playing
+                            ? R.string.PengramVoiceAmbienceStopPreview
+                            : R.string.PengramVoiceAmbiencePlayPreview)));
+        }
+        items.add(UItem.asShadow(getString(R.string.PengramVoiceAmbienceInfo)));
+
         items.add(UItem.asHeader(getString(R.string.PengramVoiceSources)));
         items.add(check(PengramConfig.KEY_VOICE_MESSAGES, true, getString(R.string.PengramVoiceMessages)));
         items.add(check(PengramConfig.KEY_VOICE_ROUND, true, getString(R.string.PengramVoiceRound)));
@@ -4330,12 +4357,83 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
     }
 
+    private CharSequence voiceAmbienceName(int ambience) {
+        switch (ambience) {
+            case PengramVoiceChanger.AMBIENCE_SUBWAY: return getString(R.string.PengramVoiceAmbienceSubway);
+            case PengramVoiceChanger.AMBIENCE_STREET: return getString(R.string.PengramVoiceAmbienceStreet);
+            case PengramVoiceChanger.AMBIENCE_RAIN: return getString(R.string.PengramVoiceAmbienceRain);
+            case PengramVoiceChanger.AMBIENCE_OFFICE: return getString(R.string.PengramVoiceAmbienceOffice);
+            case PengramVoiceChanger.AMBIENCE_RADIO: return getString(R.string.PengramVoiceAmbienceRadio);
+            case PengramVoiceChanger.AMBIENCE_CLUB: return getString(R.string.PengramVoiceAmbienceClub);
+            case PengramVoiceChanger.AMBIENCE_OFF:
+            default: return getString(R.string.PengramVoiceAmbienceOff);
+        }
+    }
+
+    private CharSequence linkQualityModeValue() {
+        switch (PengramConfig.getLinkQualityMode()) {
+            case PengramConfig.LINK_QUALITY_SAVER_720: return getString(R.string.PengramLinkQualitySaver720);
+            case PengramConfig.LINK_QUALITY_MAX: return getString(R.string.PengramLinkQualityMax);
+            case PengramConfig.LINK_QUALITY_AUTO_1080:
+            default: return getString(R.string.PengramLinkQualityAuto1080);
+        }
+    }
+
+    private CharSequence linkDefaultFormatValue() {
+        return getString(PengramConfig.getLinkDefaultFormat() == PengramConfig.LINK_FORMAT_AUDIO
+                ? R.string.PengramLinkFormatAudio
+                : R.string.PengramLinkFormatVideo);
+    }
+
     private void fillLinkAssistant(ArrayList<UItem> items) {
         items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderGeneral)));
         items.add(check(PengramConfig.KEY_LINK_ASSISTANT, true, getString(R.string.PengramLinkAssistant)));
         items.add(UItem.asShadow(getString(R.string.PengramLinkAssistantInfo)));
 
         if (PengramConfig.isLinkAssistantEnabled()) {
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderQuality)));
+            items.add(UItem.asSettingsCell(BTN_LINK_QUALITY_MODE, R.drawable.msg_media,
+                    getString(R.string.PengramLinkQualityMode), linkQualityModeValue()));
+            items.add(UItem.asSettingsCell(BTN_LINK_DEFAULT_FORMAT, R.drawable.msg_tone_on,
+                    getString(R.string.PengramLinkDefaultFormat), linkDefaultFormatValue()));
+            items.add(checkInfo(PengramConfig.KEY_LINK_AUDIO_CHIP, true,
+                    getString(R.string.PengramLinkAudioChip),
+                    getString(R.string.PengramLinkAudioChipInfo)));
+            items.add(UItem.asShadow(getString(R.string.PengramLinkQualityInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderIncoming)));
+            items.add(checkInfo(PengramConfig.KEY_LINK_INCOMING_WATCH, true,
+                    getString(R.string.PengramLinkIncomingWatch),
+                    getString(R.string.PengramLinkIncomingWatchInfo)));
+            if (PengramConfig.isLinkIncomingWatchEnabled()) {
+                items.add(check(PengramConfig.KEY_LINK_INCOMING_OUTGOING, false,
+                        getString(R.string.PengramLinkIncomingOutgoing)));
+            }
+            items.add(UItem.asShadow(getString(R.string.PengramLinkIncomingInfo)));
+
+            items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPlatforms)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_YOUTUBE, true,
+                    getString(R.string.PengramLinkPlatformYoutubeRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_TIKTOK, true,
+                    getString(R.string.PengramLinkPlatformTiktokRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_INSTAGRAM, true,
+                    getString(R.string.PengramLinkPlatformInstagramRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_TWITTER, true,
+                    getString(R.string.PengramLinkPlatformTwitterRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_PINTEREST, true,
+                    getString(R.string.PengramLinkPlatformPinterestRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_VK, true,
+                    getString(R.string.PengramLinkPlatformVkRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_RUTUBE, true,
+                    getString(R.string.PengramLinkPlatformRutubeRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_REDDIT, true,
+                    getString(R.string.PengramLinkPlatformRedditRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_SOUNDCLOUD, true,
+                    getString(R.string.PengramLinkPlatformSoundcloudRow)));
+            items.add(check(PengramConfig.KEY_LINK_PLAT_YANDEX, true,
+                    getString(R.string.PengramLinkPlatformYandexRow)));
+            items.add(UItem.asShadow(getString(R.string.PengramLinkPlatformsInfo)));
+
             items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPreview)));
             items.add(UItem.asSettingsCell(BTN_LINK_PREVIEW_MODE, R.drawable.msg_view_file,
                     getString(R.string.PengramLinkPreviewMode), linkPreviewModeValue()));
@@ -5943,6 +6041,44 @@ public class PengramSettingsActivity extends UniversalFragment {
                     updateList();
                 });
                 return;
+            case BTN_LINK_QUALITY_MODE:
+                showChoicePicker(getString(R.string.PengramLinkQualityMode), new CharSequence[]{
+                        getString(R.string.PengramLinkQualityAuto1080),
+                        getString(R.string.PengramLinkQualitySaver720),
+                        getString(R.string.PengramLinkQualityMax)
+                }, PengramConfig.getLinkQualityMode(), value -> {
+                    PengramConfig.setLinkQualityMode(value);
+                    updateList();
+                });
+                return;
+            case BTN_LINK_DEFAULT_FORMAT:
+                showChoicePicker(getString(R.string.PengramLinkDefaultFormat), new CharSequence[]{
+                        getString(R.string.PengramLinkFormatVideo),
+                        getString(R.string.PengramLinkFormatAudio)
+                }, PengramConfig.getLinkDefaultFormat(), value -> {
+                    PengramConfig.setLinkDefaultFormat(value);
+                    updateList();
+                });
+                return;
+            case BTN_VOICE_AMBIENCE:
+                showChoicePicker(getString(R.string.PengramVoiceAmbience), new CharSequence[]{
+                        getString(R.string.PengramVoiceAmbienceOff),
+                        getString(R.string.PengramVoiceAmbienceSubway),
+                        getString(R.string.PengramVoiceAmbienceStreet),
+                        getString(R.string.PengramVoiceAmbienceRain),
+                        getString(R.string.PengramVoiceAmbienceOffice),
+                        getString(R.string.PengramVoiceAmbienceRadio),
+                        getString(R.string.PengramVoiceAmbienceClub)
+                }, PengramConfig.getVoiceAmbience(), value -> {
+                    PengramVoiceChanger.stopAmbiencePreview();
+                    PengramConfig.setVoiceAmbience(value);
+                    updateList();
+                });
+                return;
+            case BTN_VOICE_AMBIENCE_PREVIEW:
+                PengramVoiceChanger.toggleAmbiencePreview(this::updateList);
+                updateList();
+                return;
             case BTN_QUOTE_RESET_APPEARANCE:
                 PengramConfig.setIntValue(org.telegram.ui.Components.PengramQuoteMaker.KEY_BACKGROUND, 0);
                 PengramConfig.setBool(org.telegram.ui.Components.PengramQuoteMaker.KEY_THEME_STYLE, true);
@@ -6608,6 +6744,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     @Override
     public void onPause() {
         super.onPause();
+        PengramVoiceChanger.stopAmbiencePreview();
         if (headerView != null) {
             headerView.setPaused(true);
         }
