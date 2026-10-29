@@ -1828,7 +1828,7 @@ public final class PengramQuoteMaker {
                     if (r.start < 0 || r.end > ssb.length() || r.end <= r.start) continue;
                     Emoji.EmojiDrawable d = Emoji.getEmojiDrawable(r.code);
                     if (d != null && d.isLoaded()) {
-                        ssb.setSpan(new Emoji.EmojiSpan(d, Paint.Align.BOTTOM, fmi),
+                        ssb.setSpan(new Emoji.EmojiSpan(d, android.text.style.DynamicDrawableSpan.ALIGN_BOTTOM, fmi),
                                 r.start, r.end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                     }
                 }
