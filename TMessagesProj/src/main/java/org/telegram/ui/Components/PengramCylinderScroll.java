@@ -1,6 +1,9 @@
 package org.telegram.ui.Components;
 
+import android.graphics.Canvas;
+import android.graphics.RectF;
 import android.graphics.RenderEffect;
+import android.graphics.RenderNode;
 import android.graphics.RuntimeShader;
 import android.os.Build;
 import android.view.View;
@@ -11,6 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.R;
+import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 
 import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
@@ -70,6 +74,26 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
     private float lastLayoutSum;
     private int lastBarsSig;
     private boolean observing;
+    private float activeInsetTop;
+    private float activeInsetBottom;
+    private float activeRadius;
+    private boolean activeListShader;
+
+    private static final int BLUR_SLOT_COUNT = 4;
+    private BlurSlot[] blurSlots;
+    private int blurSlotCursor;
+    private final RectF blurSrcRectTmp = new RectF();
+
+    private static final class BlurSlot {
+        final RenderNode node;
+        final Bend bend;
+
+        BlurSlot(String code) {
+            this.node = new RenderNode("PengramCylinderBlur");
+            this.node.setClipToBounds(false);
+            this.bend = new Bend(code);
+        }
+    }
 
     /** Границы баров в координатах списка: [0] — низ шапки, [1] — верх ввода. */
     public interface BarsProvider {
@@ -99,6 +123,7 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             // воин рисует детей сам только пока эффект включён; в обычных
             // списках (childWarp == null) хук остаётся пустым
             ((RecyclerListView) target).setChildWarp(scroll.warp);
+            ((RecyclerListView) target).setPengramCylinderScroll(scroll);
         }
         target.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
             @Override
@@ -327,6 +352,10 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
                 listShaderActive = true;
             }
         }
+        activeInsetTop = insetTop;
+        activeInsetBottom = insetBottom;
+        activeRadius = radius;
+        activeListShader = listShaderActive;
         if (shader) {
             warp.deactivate();
         } else {
@@ -411,9 +440,20 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
 
     private void reset() {
         applied = false;
+        activeListShader = false;
+        activeRadius = 0f;
+        activeInsetTop = 0f;
+        activeInsetBottom = 0f;
         warp.clear();
         if (listBend != null && listBend.detachIfActive() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             target.setRenderEffect(null);
+        }
+        if (blurSlots != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            for (int i = 0; i < blurSlots.length; i++) {
+                if (blurSlots[i] != null) {
+                    blurSlots[i].node.discardDisplayList();
+                }
+            }
         }
         if (!bends.isEmpty()) {
             for (final View view : bends.keySet()) {
@@ -432,5 +472,107 @@ public final class PengramCylinderScroll implements ViewTreeObserver.OnPreDrawLi
             }
         }
         clipRects.clear();
+    }
+
+    /** Активен ли mesh-варп ячеек (API < 33 fallback), когда внегабаритные реакции нельзя рисовать плоско поверх. */
+    public boolean isMeshWarpActive() {
+        return applied && !activeListShader && activeRadius > 1f;
+    }
+
+    /** Хэш состояния цилиндра для инвалидации кэша Liquid Glass (DownscaleScrollableNoiseSuppressor). */
+    public long getBlurStateHash() {
+        if (!applied || activeRadius <= 1f) {
+            return 0L;
+        }
+        long h = activeListShader ? 0x51C3L : 0x29A7L;
+        h = h * 31L + Float.floatToIntBits(activeInsetTop);
+        h = h * 31L + Float.floatToIntBits(activeInsetBottom);
+        h = h * 31L + Float.floatToIntBits(activeRadius);
+        return h;
+    }
+
+    /** Расширение верхней границы захвата под обратную дугу asin() верхнего валика. */
+    public float expandBlurSourceTop(float y) {
+        if (!applied || activeRadius <= 1f || y >= activeInsetTop) {
+            return y;
+        }
+        final float sn = Math.min(1f, (activeInsetTop - Math.max(0f, y)) / activeRadius);
+        final float s = activeInsetTop - activeRadius * (float) Math.asin(sn);
+        return Math.max(0f, Math.min(y, s) - 2f);
+    }
+
+    /** Расширение нижней границы захвата под обратную дугу asin() нижнего валика. */
+    public float expandBlurSourceBottom(float y, float listHeight) {
+        if (!applied || activeRadius <= 1f || y <= activeInsetBottom) {
+            return y;
+        }
+        final float sn = Math.min(1f, (Math.min(listHeight, y) - activeInsetBottom) / activeRadius);
+        final float s = activeInsetBottom + activeRadius * (float) Math.asin(sn);
+        return Math.min(listHeight, Math.max(y, s) + 2f);
+    }
+
+    /**
+     * Захват фрагмента списка для Liquid Glass (blur3) с точным совпадением 3D-изгиба цилиндра:
+     * на API 33+ применяет тот же AGSL-шейдер валика к полосе под стеклянной плашкой, чтобы внутри
+     * прозрачного стекла не просвечивали плоские «призрачные» пузыри и не рвался шов преломления.
+     */
+    public void drawForBlurCapture(Canvas blurCanvas, RectF listLocalPos, BlurredBackgroundSource.DrawImpl listDrawer) {
+        if (!applied || !activeListShader || activeRadius <= 1f
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || !blurCanvas.isHardwareAccelerated()
+                || shaderCode == null) {
+            listDrawer.draw(blurCanvas, listLocalPos);
+            return;
+        }
+        final int listW = target.getWidth();
+        final int listH = target.getHeight();
+        if (listW <= 0 || listH <= 0) {
+            listDrawer.draw(blurCanvas, listLocalPos);
+            return;
+        }
+        // Если область целиком лежит в плоской центральной зоне между валиками — шейдер тождественен 1:1.
+        if (listLocalPos.top >= activeInsetTop && listLocalPos.bottom <= activeInsetBottom) {
+            listDrawer.draw(blurCanvas, listLocalPos);
+            return;
+        }
+        final float dstTop = Math.max(0f, listLocalPos.top);
+        final float dstBottom = Math.min(listH, listLocalPos.bottom);
+        if (dstBottom <= dstTop) {
+            return;
+        }
+        final int nodeTop = Math.max(0, (int) Math.floor(expandBlurSourceTop(dstTop)));
+        final int nodeBottom = Math.min(listH, (int) Math.ceil(expandBlurSourceBottom(dstBottom, listH)));
+        final int nodeH = nodeBottom - nodeTop;
+        if (nodeH <= 0) {
+            return;
+        }
+        try {
+            if (blurSlots == null) {
+                blurSlots = new BlurSlot[BLUR_SLOT_COUNT];
+            }
+            final int idx = (blurSlotCursor++) & (BLUR_SLOT_COUNT - 1);
+            BlurSlot slot = blurSlots[idx];
+            if (slot == null) {
+                slot = new BlurSlot(shaderCode);
+                blurSlots[idx] = slot;
+            }
+            slot.node.setPosition(0, 0, listW, nodeH);
+            if (slot.bend.bind(activeInsetTop - nodeTop, activeInsetBottom - nodeTop, activeRadius, listW, nodeH)) {
+                slot.node.setRenderEffect(slot.bend.effect);
+            }
+            final Canvas rc = slot.node.beginRecording(listW, nodeH);
+            rc.translate(0f, -nodeTop);
+            blurSrcRectTmp.set(0f, nodeTop, listW, nodeBottom);
+            listDrawer.draw(rc, blurSrcRectTmp);
+            slot.node.endRecording();
+
+            blurCanvas.save();
+            blurCanvas.clipRect(listLocalPos);
+            blurCanvas.translate(0f, nodeTop);
+            blurCanvas.drawRenderNode(slot.node);
+            blurCanvas.restore();
+        } catch (Throwable t) {
+            listDrawer.draw(blurCanvas, listLocalPos);
+        }
     }
 }

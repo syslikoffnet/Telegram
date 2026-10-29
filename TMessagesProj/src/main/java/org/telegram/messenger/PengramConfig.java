@@ -3918,7 +3918,10 @@ public class PengramConfig {
             "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius",
             "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency",
             "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine",
-            "webSearchHistoryEnabled"
+            "webSearchHistoryEnabled",
+            "linkLivePhotos", "classicProfileMusic", "disableVoiceProximity",
+            "miniPlayerQueueBtn", "playerFavoritesEnabled", "playerFavTargetMode",
+            "playerFavRichCaption", "playerFavLikedSet", "smartTrackRecognition"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(
@@ -4990,5 +4993,104 @@ public class PengramConfig {
             case COVER_SHAPE_ROUNDED:
             default: return org.telegram.messenger.R.string.PengramCoverRounded;
         }
+    }
+
+    // ------------------------------------------------------- beta 11+ медиа, профиль и голосовые
+
+    /** живые / анимированные фото в каруселях TikTok (по умолчанию включено) */
+    public static final String KEY_LINK_LIVE_PHOTOS = "linkLivePhotos";
+
+    public static boolean isLinkLivePhotos() {
+        return getBool(KEY_LINK_LIVE_PHOTOS, true);
+    }
+
+    public static void setLinkLivePhotos(boolean enabled) {
+        setBool(KEY_LINK_LIVE_PHOTOS, enabled);
+    }
+
+    /** классическая полноразмерная плашка музыки в профиле как в старых версиях Telegram */
+    public static final String KEY_CLASSIC_PROFILE_MUSIC = "classicProfileMusic";
+
+    public static boolean isClassicProfileMusic() {
+        return getBool(KEY_CLASSIC_PROFILE_MUSIC, false);
+    }
+
+    public static void setClassicProfileMusic(boolean enabled) {
+        setBool(KEY_CLASSIC_PROFILE_MUSIC, enabled);
+    }
+
+    /** блокировать датчик приближения при прослушивании ГС и кружков (по базе ВКЛЮЧЕНО!) */
+    public static final String KEY_DISABLE_VOICE_PROXIMITY = "disableVoiceProximity";
+
+    public static boolean isDisableVoiceProximity() {
+        return getBool(KEY_DISABLE_VOICE_PROXIMITY, true);
+    }
+
+    public static void setDisableVoiceProximity(boolean enabled) {
+        setBool(KEY_DISABLE_VOICE_PROXIMITY, enabled);
+        try {
+            MediaController.getInstance().onPengramProximitySettingChanged();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** кнопка плейлиста треков чата прямо в кастомном мини-плеере */
+    public static final String KEY_MINI_PLAYER_QUEUE_BTN = "miniPlayerQueueBtn";
+
+    public static boolean isMiniPlayerQueueButton() {
+        return getBool(KEY_MINI_PLAYER_QUEUE_BTN, true);
+    }
+
+    public static void setMiniPlayerQueueButton(boolean enabled) {
+        setBool(KEY_MINI_PLAYER_QUEUE_BTN, enabled);
+    }
+
+    /** кнопка «❤️» в уведомлении и плеере с сохранением в отдельный музыкальный канал/чат (строго по тумблеру в настройках плеера) */
+    public static final String KEY_PLAYER_FAVORITES = "playerFavoritesEnabled";
+
+    public static final int FAV_TARGET_AUTO_CHANNEL = 0;
+    public static final int FAV_TARGET_AUTO_GROUP = 1;
+    public static final int FAV_TARGET_SAVED = 2;
+    public static final int FAV_TARGET_CUSTOM = 3;
+    public static final int FAV_TARGET_COUNT = 4;
+
+    public static final String KEY_PLAYER_FAV_TARGET_MODE = "playerFavTargetMode";
+    public static final String KEY_PLAYER_FAV_CAPTION = "playerFavRichCaption";
+    public static final String KEY_SMART_TRACK_RECOGNITION = "smartTrackRecognition";
+
+    public static boolean isPlayerFavoritesEnabled() {
+        return getBool(KEY_PLAYER_FAVORITES, false);
+    }
+
+    public static void setPlayerFavoritesEnabled(boolean enabled) {
+        setBool(KEY_PLAYER_FAVORITES, enabled);
+        PengramMusicFavorites.notifyServiceChanged();
+    }
+
+    public static int getPlayerFavTargetMode() {
+        init();
+        final int v = getIntCached(KEY_PLAYER_FAV_TARGET_MODE, FAV_TARGET_AUTO_CHANNEL);
+        return v < 0 || v >= FAV_TARGET_COUNT ? FAV_TARGET_AUTO_CHANNEL : v;
+    }
+
+    public static void setPlayerFavTargetMode(int mode) {
+        putInt(KEY_PLAYER_FAV_TARGET_MODE, mode < 0 || mode >= FAV_TARGET_COUNT ? FAV_TARGET_AUTO_CHANNEL : mode);
+    }
+
+    public static boolean isPlayerFavRichCaption() {
+        return getBool(KEY_PLAYER_FAV_CAPTION, true);
+    }
+
+    public static void setPlayerFavRichCaption(boolean enabled) {
+        setBool(KEY_PLAYER_FAV_CAPTION, enabled);
+    }
+
+    /** умное распознавание и очистка метаданных треков (ID3/MP4/FLAC + каталог + качество) */
+    public static boolean isSmartTrackRecognition() {
+        return getBool(KEY_SMART_TRACK_RECOGNITION, true);
+    }
+
+    public static void setSmartTrackRecognition(boolean enabled) {
+        setBool(KEY_SMART_TRACK_RECOGNITION, enabled);
     }
 }

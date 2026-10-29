@@ -6163,13 +6163,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return dp(152f);
     }
 
+    private int getPillsExtraHeightDp() {
+        if (!hasMusic && !hasBalance) {
+            return 0;
+        }
+        if (hasMusic && org.telegram.messenger.PengramConfig.isClassicProfileMusic()) {
+            return hasBalance ? 66 : 42;
+        }
+        return 25;
+    }
+
     private int getActionsExtraHeight() {
         return getActionsExtraHeight(true);
     }
     private int getActionsExtraHeight(boolean withPills) {
         if (userId != 0 && imageUpdater != null && !myProfile)
             return 0;
-        return dp(74 + (withPills && (hasMusic || hasBalance) ? 25 : 0));
+        return dp(74 + (withPills ? getPillsExtraHeightDp() : 0));
     }
 
     private int getHeaderExtraHeight() {
@@ -9885,6 +9895,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
+        if (musicView != null) {
+            musicView.requestLayout();
+            musicView.invalidate();
+        }
         invalidateIsInLandscapeMode();
         if (listAdapter != null) {
             // saveScrollPosition();
@@ -11595,7 +11609,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             actionsView.updatePosition(listView.getMeasuredWidth(), dp(74));
         } else {
             actionsView.clipHeight = -1;
-            float bottom = extraHeight + newTop - dp(hasMusic || hasBalance ? 25 : 0);
+            float bottom = extraHeight + newTop - dp(getPillsExtraHeightDp());
             float height = Math.min(dp(74), bottom - newTop);
             actionsView.updatePosition(bottom - height, height);
         }

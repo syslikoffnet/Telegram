@@ -1954,6 +1954,7 @@ public class ChatActivity extends BaseFragment implements
     /** Переиспользуемые массивы геометрии баров цилиндра — без аллокаций в кадр. */
     private final float[] pengramCylinderBarsTmp = new float[2];
     private final int[] pengramCylinderScratch = new int[2];
+    private org.telegram.ui.Components.PengramCylinderScroll pengramCylinderScroll;
 
     /** содержимое острова собирается при первом открытии меню, а не при входе в чат */
     private final Utilities.Callback0Return<View> pengramCreateIslandView = () -> {
@@ -7856,40 +7857,57 @@ public class ChatActivity extends BaseFragment implements
         chatListView.setVerticalScrollBarEnabled(!SharedConfig.chatBlurEnabled());
         chatListView.setAdapter(chatAdapter = new ChatActivityAdapter(context));
         // Прокрутка-цилиндр (по умолчанию выключен): сообщения огибают валик.
-        org.telegram.ui.Components.PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll,
+        pengramCylinderScroll = org.telegram.ui.Components.PengramCylinderScroll.attach(chatListView, PengramConfig::isCylinderScroll,
                 PengramConfig::isCylinderScrollToBars,
                 () -> {
-                    // [0] — низ шапки, [1] — верх ввода в координатах списка;
-                    // location-математика честна к любой раскладке (шапка-оверлей
-                    // или сосед сверху — в последнем случае вернётся ноль и
-                    // поведение совпадёт с выключенным тумблером)
+                    // [0] — низ шапки (включая закреп/мини-плеер topPanelLayout),
+                    // [1] — реальный верх капсулы ввода chatInputViewsContainer в координатах списка
+                    // без ежекадровых getLocationInWindow и без фантомного отступа контейнера ввода.
                     final float[] out = pengramCylinderBarsTmp;
                     out[0] = 0f;
                     out[1] = chatListView.getHeight();
                     final android.view.ViewParent listParent = chatListView.getParent();
-                    if (listParent != null
-                            && (actionBar == null || actionBar.getParent() == listParent)
-                            && (chatActivityEnterView == null || chatActivityEnterView.getParent() == listParent)) {
+                    if (listParent != null && (actionBar == null || actionBar.getParent() == listParent)) {
                         final float listY = chatListView.getY();
+                        float headerBottom = chatListView.getPaddingTop();
                         if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
-                            out[0] = Math.max(0f, (actionBar.getY() + actionBar.getHeight()) - listY);
+                            headerBottom = Math.max(headerBottom, (actionBar.getY() + actionBar.getHeight()) - listY);
                         }
-                        if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                        out[0] = Math.max(0f, headerBottom);
+                        if (chatInputViewsContainer != null && chatInputViewsContainer.getVisibility() == View.VISIBLE
+                                && chatInputViewsContainer.getParent() == listParent
+                                && chatInputViewsContainer.getInputBubbleHeight() > 0) {
+                            final float inputTop = (chatInputViewsContainer.getY() + chatInputViewsContainer.getInputBubbleTop()) - listY;
+                            if (inputTop > out[0] + AndroidUtilities.dp(72)) {
+                                out[1] = Math.min(out[1], inputTop);
+                            }
+                            return out;
+                        }
+                        if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE
+                                && chatActivityEnterView.getParent() == listParent) {
                             final float inputTop = chatActivityEnterView.getY() - listY;
                             if (inputTop > out[0] + AndroidUtilities.dp(72)) {
                                 out[1] = Math.min(out[1], inputTop);
                             }
+                            return out;
                         }
-                        return out;
                     }
                     final int[] scratch = pengramCylinderScratch;
                     chatListView.getLocationInWindow(scratch);
                     final float listTop = scratch[1];
+                    out[0] = Math.max(0f, chatListView.getPaddingTop());
                     if (actionBar != null && actionBar.getVisibility() == View.VISIBLE) {
                         actionBar.getLocationInWindow(scratch);
-                        out[0] = Math.max(0f, (scratch[1] + actionBar.getHeight()) - listTop);
+                        out[0] = Math.max(out[0], (scratch[1] + actionBar.getHeight()) - listTop);
                     }
-                    if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                    if (chatInputViewsContainer != null && chatInputViewsContainer.getVisibility() == View.VISIBLE
+                            && chatInputViewsContainer.getInputBubbleHeight() > 0) {
+                        chatInputViewsContainer.getLocationInWindow(scratch);
+                        final float inputTop = (scratch[1] + chatInputViewsContainer.getInputBubbleTop()) - listTop;
+                        if (inputTop > out[0] + AndroidUtilities.dp(72)) {
+                            out[1] = Math.min(out[1], inputTop);
+                        }
+                    } else if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
                         chatActivityEnterView.getLocationInWindow(scratch);
                         final float inputTop = scratch[1] - listTop;
                         if (inputTop > out[0] + AndroidUtilities.dp(72)) {
@@ -19456,7 +19474,8 @@ public class ChatActivity extends BaseFragment implements
                         }
                         blurCanvas.restore();
                         chatListView.drawChild(blurCanvas, child, drawingTime);
-                        if (cell.hasOutboundsContent()) {
+                        final boolean meshWarping = pengramCylinderScroll != null && pengramCylinderScroll.isMeshWarpActive();
+                        if (!meshWarping && cell.hasOutboundsContent()) {
                             blurCanvas.save();
                             blurCanvas.translate(cell.getX(), cell.getY());
                             cell.drawOutboundsContent(blurCanvas);
@@ -19465,15 +19484,26 @@ public class ChatActivity extends BaseFragment implements
                     } else if (child instanceof ChatActionCell) {
                         ChatActionCell cell = (ChatActionCell) child;
                         chatListView.drawChild(blurCanvas, child, drawingTime);
-                        blurCanvas.save();
-                        blurCanvas.translate(child.getX(), child.getY());
-                        cell.drawOutboundsContent(blurCanvas);
-                        blurCanvas.restore();
+                        final boolean meshWarping = pengramCylinderScroll != null && pengramCylinderScroll.isMeshWarpActive();
+                        if (!meshWarping) {
+                            blurCanvas.save();
+                            blurCanvas.translate(child.getX(), child.getY());
+                            cell.drawOutboundsContent(blurCanvas);
+                            blurCanvas.restore();
+                        }
                     } else {
                         chatListView.drawChild(blurCanvas, child, drawingTime);
                     }
                 }
                 chatListView.drawChatForegroundElements(blurCanvas, position);
+            }
+        }
+
+        private void drawListForBlurCapture(Canvas c, RectF pos) {
+            if (pengramCylinderScroll != null) {
+                pengramCylinderScroll.drawForBlurCapture(c, pos, this::drawListImpl);
+            } else {
+                drawListImpl(c, pos);
             }
         }
 
@@ -19487,7 +19517,7 @@ public class ChatActivity extends BaseFragment implements
                 blurCanvas.drawColor(Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundWhite), searchListVisibilityFactor * 0.85f));
             }
 
-            Blur3Utils.captureRelativeParent(this::drawListImpl, blurCanvas, position, chatListView, parent, chatListAlpha);
+            Blur3Utils.captureRelativeParent(this::drawListForBlurCapture, blurCanvas, position, chatListView, parent, chatListAlpha);
 
             if (messagesSearchListView != null) {
                 Blur3Utils.captureRelativeParent(messagesSearchListView, blurCanvas, position, messagesSearchListView, parent, searchListAlpha);

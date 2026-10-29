@@ -954,4 +954,188 @@ public final class PengramPhotoSlideshow {
             throw new CancellationException("cancelled");
         }
     }
+
+    /** Проверяет по заголовку файла, является ли он GIF87a/GIF89a или анимированным WebP. */
+    public static boolean isAnimatedImageFile(File file) {
+        if (file == null || !file.exists() || file.length() < 16L) {
+            return false;
+        }
+        final byte[] header = new byte[64];
+        try (FileInputStream in = new FileInputStream(file)) {
+            final int read = in.read(header);
+            return PengramLinkResolver.isAnimatedImageBytes(header, read);
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    /**
+     * Перекодирует анимированный GIF / Animated WebP (живой слайд TikTok без отдельного MP4)
+     * в аппаратный H.264 MP4 через Movie + OpenGL ES InputSurface, чтобы Telegram проигрывал его в движении.
+     */
+    @SuppressWarnings("deprecation")
+    public static boolean convertAnimatedImageToMp4(File animFile, File outMp4, boolean[] cancel) {
+        if (animFile == null || !animFile.exists() || outMp4 == null) {
+            return false;
+        }
+        android.graphics.Movie movie = null;
+        try {
+            movie = android.graphics.Movie.decodeFile(animFile.getAbsolutePath());
+        } catch (Throwable ignore) {
+        }
+        if (movie == null || movie.width() <= 0 || movie.height() <= 0) {
+            return false;
+        }
+        final int srcW = movie.width();
+        final int srcH = movie.height();
+        final float maxSide = 960f;
+        final float scale = Math.min(1f, maxSide / Math.max(srcW, srcH));
+        int outW = Math.max(64, Math.round(srcW * scale));
+        int outH = Math.max(64, Math.round(srcH * scale));
+        if ((outW & 1) != 0) outW--;
+        if ((outH & 1) != 0) outH--;
+
+        int durationMs = movie.duration();
+        if (durationMs <= 0) {
+            durationMs = 2400;
+        }
+        durationMs = Math.max(1200, Math.min(8000, durationMs));
+        final int animFps = 24;
+        final int totalFrames = Math.max(24, (int) Math.round(durationMs * animFps / 1000.0));
+
+        MediaCodec encoder = null;
+        InputSurface inputSurface = null;
+        MediaMuxer muxer = null;
+        boolean muxerStarted = false;
+        int program = 0;
+        int texId = 0;
+        Bitmap frameBmp = null;
+
+        try {
+            final MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, outW, outH);
+            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+            format.setInteger(MediaFormat.KEY_BIT_RATE, Math.max(1_200_000, outW * outH * 3));
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, animFps);
+            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+
+            encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            inputSurface = new InputSurface(encoder.createInputSurface());
+            inputSurface.makeCurrent();
+            encoder.start();
+
+            muxer = new MediaMuxer(outMp4.getAbsolutePath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+            final MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+            int trackIndex = -1;
+
+            program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+            GLES20.glUseProgram(program);
+            final int aPos = GLES20.glGetAttribLocation(program, "aPosition");
+            final int aUv = GLES20.glGetAttribLocation(program, "aTexCoord");
+            final int uTexA = GLES20.glGetUniformLocation(program, "uTexA");
+            final int uTexB = GLES20.glGetUniformLocation(program, "uTexB");
+            final int uMix = GLES20.glGetUniformLocation(program, "uMix");
+            final int uZoomA = GLES20.glGetUniformLocation(program, "uZoomA");
+            final int uZoomB = GLES20.glGetUniformLocation(program, "uZoomB");
+
+            final float[] quad = {
+                    -1f, -1f, 0f, 1f,
+                     1f, -1f, 1f, 1f,
+                    -1f,  1f, 0f, 0f,
+                     1f,  1f, 1f, 0f,
+            };
+            final FloatBuffer vb = ByteBuffer.allocateDirect(quad.length * 4)
+                    .order(ByteOrder.nativeOrder()).asFloatBuffer();
+            vb.put(quad).position(0);
+
+            final int[] texIds = new int[1];
+            GLES20.glGenTextures(1, texIds, 0);
+            texId = texIds[0];
+            initTexture(texId);
+
+            frameBmp = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888);
+            final Canvas frameCanvas = new Canvas(frameBmp);
+            final float sx = (float) outW / srcW;
+            final float sy = (float) outH / srcH;
+
+            GLES20.glViewport(0, 0, outW, outH);
+
+            for (int f = 0; f < totalFrames; f++) {
+                checkCancelled(cancel);
+                final int relMs = (int) (((long) f * 1000L / animFps) % Math.max(1, movie.duration() > 0 ? movie.duration() : durationMs));
+                movie.setTime(relMs);
+                frameCanvas.drawColor(0xFF000000);
+                frameCanvas.save();
+                frameCanvas.scale(sx, sy);
+                movie.draw(frameCanvas, 0f, 0f);
+                frameCanvas.restore();
+
+                uploadBitmap(texId, frameBmp);
+
+                vb.position(0);
+                GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 16, vb);
+                GLES20.glEnableVertexAttribArray(aPos);
+                vb.position(2);
+                GLES20.glVertexAttribPointer(aUv, 2, GLES20.GL_FLOAT, false, 16, vb);
+                GLES20.glEnableVertexAttribArray(aUv);
+
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texId);
+                GLES20.glUniform1i(uTexA, 0);
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texId);
+                GLES20.glUniform1i(uTexB, 1);
+                GLES20.glUniform1f(uMix, 0f);
+                GLES20.glUniform1f(uZoomA, 1f);
+                GLES20.glUniform1f(uZoomB, 1f);
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+                final long ptsNs = (long) f * 1_000_000_000L / animFps;
+                inputSurface.setPresentationTime(ptsNs);
+                inputSurface.swapBuffers();
+
+                final int[] state = drainVideoEncoder(encoder, muxer, bufferInfo, trackIndex, muxerStarted, false);
+                trackIndex = state[0];
+                muxerStarted = state[1] == 1;
+            }
+
+            final int[] finalState = drainVideoEncoder(encoder, muxer, bufferInfo, trackIndex, muxerStarted, true);
+            muxerStarted = finalState[1] == 1;
+            if (muxerStarted) {
+                muxer.stop();
+            }
+            muxer.release();
+            muxer = null;
+            return outMp4.exists() && outMp4.length() > 1024L;
+        } catch (CancellationException ce) {
+            outMp4.delete();
+            throw ce;
+        } catch (Throwable ignore) {
+            outMp4.delete();
+            return false;
+        } finally {
+            if (frameBmp != null && !frameBmp.isRecycled()) {
+                frameBmp.recycle();
+            }
+            if (texId != 0) {
+                GLES20.glDeleteTextures(1, new int[]{texId}, 0);
+            }
+            if (program != 0) {
+                GLES20.glDeleteProgram(program);
+            }
+            if (inputSurface != null) {
+                try { inputSurface.release(); } catch (Throwable ignore) {}
+            }
+            if (encoder != null) {
+                try { encoder.stop(); } catch (Throwable ignore) {}
+                try { encoder.release(); } catch (Throwable ignore) {}
+            }
+            if (muxer != null) {
+                if (muxerStarted) {
+                    try { muxer.stop(); } catch (Throwable ignore) {}
+                }
+                try { muxer.release(); } catch (Throwable ignore) {}
+            }
+        }
+    }
 }

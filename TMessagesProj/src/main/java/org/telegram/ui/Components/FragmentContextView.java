@@ -150,6 +150,13 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     private RLottieImageView muteButton;
     private RLottieDrawable muteDrawable;
     private ImageView closeButton;
+    private ImageView pengramQueueButton;
+    private ImageView pengramLikeButton;
+    private int pengramRecToken;
+    private final Runnable pengramFavListener = () -> {
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        pengramUpdateMusicActionButtons(playing);
+    };
     private ActionBarMenuItem playbackSpeedButton;
     private SpeedIconDrawable speedIcon;
     private ActionBarMenuSlider.SpeedSlider speedSlider;
@@ -745,6 +752,52 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         closeButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, dp(14)));
         closeButton.setScaleType(ImageView.ScaleType.CENTER);
         addView(closeButton, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.TOP, 0, 0, 4, 0));
+
+        pengramQueueButton = new ImageView(context);
+        pengramQueueButton.setImageResource(R.drawable.msg_list);
+        pengramQueueButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_inappPlayerClose), PorterDuff.Mode.MULTIPLY));
+        pengramQueueButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, dp(14)));
+        pengramQueueButton.setScaleType(ImageView.ScaleType.CENTER);
+        pengramQueueButton.setPadding(dp(6), dp(6), dp(6), dp(6));
+        pengramQueueButton.setVisibility(GONE);
+        pengramQueueButton.setOnClickListener(v -> pengramOpenChatMusicList(false));
+        pengramQueueButton.setOnLongClickListener(v -> {
+            pengramOpenChatMusicList(true);
+            return true;
+        });
+        addView(pengramQueueButton, LayoutHelper.createFrame(34, 36, Gravity.RIGHT | Gravity.TOP, 0, 0, 38, 0));
+
+        pengramLikeButton = new ImageView(context);
+        pengramLikeButton.setImageResource(R.drawable.ic_pengram_heart_outline);
+        pengramLikeButton.setScaleType(ImageView.ScaleType.CENTER);
+        pengramLikeButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, dp(14)));
+        pengramLikeButton.setVisibility(GONE);
+        pengramLikeButton.setOnClickListener(v -> {
+            final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+            if (playing == null || !playing.isMusic() || !PengramConfig.isPlayerFavoritesEnabled()) {
+                return;
+            }
+            if (PengramConfig.isVibrationEnabled()) {
+                try {
+                    pengramLikeButton.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                } catch (Throwable ignore) {}
+            }
+            pengramLikeButton.animate().cancel();
+            pengramLikeButton.setScaleX(0.76f);
+            pengramLikeButton.setScaleY(0.76f);
+            pengramLikeButton.animate().scaleX(1f).scaleY(1f).setDuration(280)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(2.5f)).start();
+            org.telegram.messenger.PengramMusicFavorites.toggleFavorite(playing, getContext());
+            pengramUpdateMusicActionButtons(playing);
+        });
+        pengramLikeButton.setOnLongClickListener(v -> {
+            if (!PengramConfig.isPlayerFavoritesEnabled()) {
+                return false;
+            }
+            org.telegram.messenger.PengramMusicFavorites.openVaultChat(fragment);
+            return true;
+        });
+        addView(pengramLikeButton, LayoutHelper.createFrame(34, 36, Gravity.RIGHT | Gravity.TOP, 0, 0, 70, 0));
         closeButton.setOnClickListener(v -> {
             if (currentStyle == STYLE_LIVE_LOCATION) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(fragment.getParentActivity(), resourcesProvider);
@@ -1062,6 +1115,14 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         }
         if (closeButton != null) {
             closeButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_inappPlayerClose), PorterDuff.Mode.MULTIPLY));
+        }
+        if (pengramQueueButton != null) {
+            pengramQueueButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_inappPlayerClose), PorterDuff.Mode.MULTIPLY));
+            pengramQueueButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, dp(14)));
+        }
+        if (pengramLikeButton != null) {
+            pengramLikeButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, dp(14)));
+            pengramUpdateMusicActionButtons(MediaController.getInstance().getPlayingMessageObject());
         }
         if (subtitleTextView != null) {
             for (int i = 0; i < 2; i++) {
@@ -1437,12 +1498,106 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 playbackSpeedButton.setTag(null);
             }
         }
+        if (style != STYLE_AUDIO_PLAYER) {
+            pengramUpdateMusicActionButtons(null);
+        }
+    }
+
+    private void pengramOpenChatMusicList(boolean preferInlinePlayerPanel) {
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing == null || !playing.isMusic() || getContext() == null) {
+            return;
+        }
+        if (preferInlinePlayerPanel && PengramConfig.isNewPlayer()) {
+            final PengramMusicPlayerSheet sheet = new PengramMusicPlayerSheet(getContext(), resourcesProvider);
+            sheet.show();
+            AndroidUtilities.runOnUIThread(() -> sheet.openQueueOnTab(1), 60);
+            return;
+        }
+        final long dialogId = playing.getDialogId();
+        final int account = fragment != null ? fragment.getCurrentAccount() : UserConfig.selectedAccount;
+        if (dialogId != 0) {
+            final CharSequence chatName = PengramMusicPlayerSheet.resolveDialogTitle(account, dialogId);
+            final PengramChatMusicSheet sheet = new PengramChatMusicSheet(getContext(), resourcesProvider, account, dialogId, chatName, msg -> {
+                if (msg == null) {
+                    return;
+                }
+                if (chatActivity != null && chatActivity.getDialogId() == dialogId) {
+                    chatActivity.scrollToMessageId(msg.getId(), 0, true, 0, true, 0);
+                } else if (fragment != null) {
+                    final Bundle args = new Bundle();
+                    if (dialogId > 0) {
+                        args.putLong("user_id", dialogId);
+                    } else {
+                        args.putLong("chat_id", -dialogId);
+                    }
+                    args.putInt("message_id", msg.getId());
+                    fragment.presentFragment(new ChatActivity(args));
+                }
+            });
+            sheet.show();
+        } else if (PengramConfig.isNewPlayer()) {
+            final PengramMusicPlayerSheet sheet = new PengramMusicPlayerSheet(getContext(), resourcesProvider);
+            sheet.show();
+            AndroidUtilities.runOnUIThread(() -> sheet.openQueueOnTab(0), 60);
+        }
+    }
+
+    private int pengramUpdateMusicActionButtons(MessageObject messageObject) {
+        final boolean activeMusic = currentStyle == STYLE_AUDIO_PLAYER
+                && messageObject != null && messageObject.isMusic();
+        final boolean showQueue = activeMusic && PengramConfig.isMiniPlayerQueueBtn();
+        final boolean showLike = activeMusic && PengramConfig.isPlayerFavoritesEnabled();
+        final boolean speedShown = activeMusic && playbackSpeedButton != null && messageObject.getDuration() >= 10 * 60;
+        int rightDp = 36 + (isSideMenued ? 64 : 0) + (speedShown ? 36 : 0);
+        if (pengramQueueButton != null) {
+            if (showQueue) {
+                final LayoutParams lp = (LayoutParams) pengramQueueButton.getLayoutParams();
+                if (lp != null && lp.rightMargin != dp(rightDp)) {
+                    lp.rightMargin = dp(rightDp);
+                    pengramQueueButton.setLayoutParams(lp);
+                }
+                pengramQueueButton.setContentDescription(getString(R.string.PengramChatMusicTitle));
+                pengramQueueButton.setVisibility(VISIBLE);
+                rightDp += 32;
+            } else {
+                pengramQueueButton.setVisibility(GONE);
+            }
+        }
+        if (pengramLikeButton != null) {
+            if (showLike) {
+                final LayoutParams lp = (LayoutParams) pengramLikeButton.getLayoutParams();
+                if (lp != null && lp.rightMargin != dp(rightDp)) {
+                    lp.rightMargin = dp(rightDp);
+                    pengramLikeButton.setLayoutParams(lp);
+                }
+                final boolean liked = org.telegram.messenger.PengramMusicFavorites.isLiked(messageObject);
+                pengramLikeButton.setImageResource(liked ? R.drawable.ic_pengram_heart_filled : R.drawable.ic_pengram_heart_outline);
+                final int tint = liked ? 0xFFFF3B5C : getThemedColor(Theme.key_inappPlayerClose);
+                pengramLikeButton.setColorFilter(new PorterDuffColorFilter(tint, PorterDuff.Mode.SRC_IN));
+                pengramLikeButton.setContentDescription(getString(liked ? R.string.PengramPlayerFavRemoveAction : R.string.PengramPlayerFavAddAction));
+                pengramLikeButton.setVisibility(VISIBLE);
+                rightDp += 32;
+            } else {
+                pengramLikeButton.setVisibility(GONE);
+            }
+        }
+        if (pengramTicker != null && activeMusic) {
+            final LayoutParams tlp = (LayoutParams) pengramTicker.getLayoutParams();
+            final int wantedTickerRight = dp(Math.max(rightDp + 6, 36 + (isSideMenued ? 64 : 0) + 44));
+            if (tlp != null && tlp.rightMargin != wantedTickerRight) {
+                tlp.rightMargin = wantedTickerRight;
+                pengramTicker.setLayoutParams(tlp);
+            }
+        }
+        return Math.max(0, rightDp - (36 + (isSideMenued ? 64 : 0)));
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         PengramLyrics.removeListener(pengramLyricsReady);
+        org.telegram.messenger.PengramMusicFavorites.removeListener(pengramFavListener);
         pengramStopTickerPump();
         if (animatorSet != null) {
             animatorSet.cancel();
@@ -1505,6 +1660,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         PengramLyrics.addListener(pengramLyricsReady);
+        org.telegram.messenger.PengramMusicFavorites.addListener(pengramFavListener);
         removeObservers();
 
         if (isLocation) {
@@ -2061,6 +2217,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 SpannableStringBuilder stringBuilder;
                 if (lastMessageObject.isVoice() || lastMessageObject.isRoundVideo()) {
                     isMusic = false;
+                    pengramUpdateMusicActionButtons(null);
                     if (playbackSpeedButton != null) {
                         playbackSpeedButton.setAlpha(1.0f);
                         playbackSpeedButton.setEnabled(true);
@@ -2077,23 +2234,56 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                     }
 
                     updatePlaybackButton(false);
+                    TypefaceSpan span = new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer));
+                    stringBuilder.setSpan(span, 0, messageObject.getMusicAuthor().length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 } else {
                     isMusic = true;
+                    final int extraBtnRightDp = pengramUpdateMusicActionButtons(messageObject);
                     if (playbackSpeedButton != null) {
                         if (messageObject.getDuration() >= 10 * 60) {
                             playbackSpeedButton.setAlpha(1.0f);
                             playbackSpeedButton.setEnabled(true);
-                            titleTextView.setPadding(0, 0, dp(44) + joinButtonWidth, 0);
+                            titleTextView.setPadding(0, 0, dp(Math.max(44, extraBtnRightDp + 4)) + joinButtonWidth, 0);
                             updatePlaybackButton(false);
                         } else {
                             playbackSpeedButton.setAlpha(0.0f);
                             playbackSpeedButton.setEnabled(false);
-                            titleTextView.setPadding(0, 0, joinButtonWidth, 0);
+                            titleTextView.setPadding(0, 0, dp(extraBtnRightDp) + joinButtonWidth, 0);
                         }
                     } else {
-                        titleTextView.setPadding(0, 0, joinButtonWidth, 0);
+                        titleTextView.setPadding(0, 0, dp(extraBtnRightDp) + joinButtonWidth, 0);
                     }
-                    stringBuilder = new SpannableStringBuilder(String.format("%s - %s", messageObject.getMusicAuthor(), messageObject.getMusicTitle()));
+                    String dispAuthor = messageObject.getMusicAuthor();
+                    String dispTitle = messageObject.getMusicTitle();
+                    if (PengramConfig.isSmartTrackRecognition()) {
+                        final org.telegram.messenger.PengramTrackRecognizer.TrackInfo cachedRec =
+                                org.telegram.messenger.PengramTrackRecognizer.getCached(messageObject);
+                        final String[] cleanPair = org.telegram.messenger.PengramMusicMeta.resolveDisplayPair(messageObject);
+                        if (cachedRec != null) {
+                            if (!TextUtils.isEmpty(cachedRec.artist)) dispAuthor = cachedRec.artist;
+                            else if (!TextUtils.isEmpty(cleanPair[0])) dispAuthor = cleanPair[0];
+                            if (!TextUtils.isEmpty(cachedRec.title)) dispTitle = cachedRec.title;
+                            else if (!TextUtils.isEmpty(cleanPair[1])) dispTitle = cleanPair[1];
+                        } else {
+                            if (!TextUtils.isEmpty(cleanPair[0])) dispAuthor = cleanPair[0];
+                            if (!TextUtils.isEmpty(cleanPair[1])) dispTitle = cleanPair[1];
+                            final int myRecTok = ++pengramRecToken;
+                            final String recKey = org.telegram.messenger.PengramTrackRecognizer.keyFor(messageObject);
+                            org.telegram.messenger.PengramTrackRecognizer.recognize(messageObject, (k, info) -> {
+                                if (info == null || myRecTok != pengramRecToken || k == null || !k.equals(recKey)
+                                        || lastMessageObject != messageObject || currentStyle != STYLE_AUDIO_PLAYER) {
+                                    return;
+                                }
+                                final String a = !TextUtils.isEmpty(info.artist) ? info.artist : messageObject.getMusicAuthor();
+                                final String t = !TextUtils.isEmpty(info.title) ? info.title : messageObject.getMusicTitle();
+                                final SpannableStringBuilder sb = new SpannableStringBuilder(String.format("%s - %s", a, t));
+                                sb.setSpan(new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer)),
+                                        0, a.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                                titleTextView.setText(sb, false);
+                            });
+                        }
+                    }
+                    stringBuilder = new SpannableStringBuilder(String.format("%s - %s", dispAuthor, dispTitle));
                     for (int i = 0; i < 2; i++) {
                         TextView textView = i == 0 ? titleTextView.getTextView() : titleTextView.getNextTextView();
                         if (textView == null) {
@@ -2101,9 +2291,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                         }
                         textView.setEllipsize(TextUtils.TruncateAt.END);
                     }
+                    TypefaceSpan span = new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer));
+                    stringBuilder.setSpan(span, 0, dispAuthor.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 }
-                TypefaceSpan span = new TypefaceSpan(AndroidUtilities.bold(), 0, getThemedColor(Theme.key_inappPlayerPerformer));
-                stringBuilder.setSpan(span, 0, messageObject.getMusicAuthor().length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
                 titleTextView.setText(stringBuilder, !create && wasVisible && isMusic);
                 pengramCheckTicker(messageObject);
             } else if (pengramTicker != null && !pengramTickerShown && isMusic
@@ -2112,6 +2302,9 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
                 // шапке уже после старта трека, ответ пришёл позже или прошлый
                 // запрос упал. Повтор ничего не стоит: request() отдаёт кэш.
                 pengramCheckTicker(messageObject);
+            }
+            if (isMusic) {
+                pengramUpdateMusicActionButtons(messageObject);
             }
         }
     }

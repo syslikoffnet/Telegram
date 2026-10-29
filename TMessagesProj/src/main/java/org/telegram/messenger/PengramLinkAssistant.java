@@ -1099,6 +1099,7 @@ public final class PengramLinkAssistant {
                     && PengramConfig.getLinkPhotoStitchMode() == PengramConfig.LINK_STITCH_ALWAYS;
         }
 
+        final boolean allowLivePhotos = !stitchIntoVideo && PengramConfig.isLinkLivePhotos();
         final long stamp = System.currentTimeMillis();
         final List<File> normalizedJpegs = new ArrayList<>(chosenIndices.size());
         notifyPhase(cb, PHASE_DOWNLOAD, 0f);
@@ -1107,9 +1108,43 @@ public final class PengramLinkAssistant {
         for (int i = 0; i < chosenIndices.size(); i++) {
             checkCancelled(handle);
             final int origIdx = chosenIndices.get(i);
+            final PengramLinkResolver.PhotoItem currentItem = resolved.photos.get(origIdx);
+            final int photoIdx = i;
+            final int totalPhotos = chosenIndices.size();
+
+            // Если это живое фото TikTok (Live Photo MP4 или анимированный слайд) и включён режим живых фото —
+            // скачиваем движущийся клип (с бесшовным откатом на статичный JPEG при любой ошибке).
+            if (allowLivePhotos && currentItem.hasMotionVideo()) {
+                final File motionMp4 = new File(workDir, "link_live_" + stamp + "_" + i + ".mp4");
+                boolean gotLiveMp4 = false;
+                try {
+                    PengramLinkResolver.download(
+                            currentItem.motionVideoUrl, motionMp4, MAX_VIDEO_BYTES,
+                            resolved.cookies, resolved.referer, resolved.userAgent, false,
+                            handle.cancel,
+                            (written, total) -> {
+                                final float sub = total > 0 ? Math.min(1f, (float) written / total) : 0.5f;
+                                notifyPhase(cb, PHASE_DOWNLOAD, (photoIdx + sub) / totalPhotos);
+                            });
+                    validateDownloadedVideo(motionMp4);
+                    gotLiveMp4 = true;
+                } catch (CancellationException ce) {
+                    motionMp4.delete();
+                    throw ce;
+                } catch (Throwable ignoreMotionErr) {
+                    motionMp4.delete();
+                }
+                if (gotLiveMp4) {
+                    normalizedJpegs.add(motionMp4);
+                    notifyPhase(cb, PHASE_DOWNLOAD, (i + 1f) / chosenIndices.size());
+                    continue;
+                }
+            }
+
             final File jpgFile = new File(workDir, "link_" + stamp + "_" + i + ".jpg");
 
-            if (copyCachedPhotoIfPresent(req.url, resolved, origIdx, jpgFile) != null) {
+            if (! (allowLivePhotos && currentItem.hasAnimatedImage())
+                    && copyCachedPhotoIfPresent(req.url, resolved, origIdx, jpgFile) != null) {
                 if (stitchIntoVideo) {
                     scratchToClean.add(jpgFile);
                 }
@@ -1121,12 +1156,12 @@ public final class PengramLinkAssistant {
             final File rawFile = new File(workDir, "link_" + stamp + "_p" + i + ".raw");
             scratchToClean.add(rawFile);
 
-            final int photoIdx = i;
-            final int totalPhotos = chosenIndices.size();
             try {
                 final PengramLinkResolver.PhotoItem item = resolved.photos.get(origIdx);
+                final String targetPhotoUrl = (allowLivePhotos && item.hasAnimatedImage())
+                        ? item.animatedImageUrl : item.imageUrl;
                 PengramLinkResolver.download(
-                        item.imageUrl, rawFile, MAX_PHOTO_BYTES,
+                        targetPhotoUrl, rawFile, MAX_PHOTO_BYTES,
                         resolved.cookies, resolved.referer, resolved.userAgent, false,
                         handle.cancel,
                         (written, total) -> {
@@ -1160,6 +1195,16 @@ public final class PengramLinkAssistant {
                 }
             }
             checkCancelled(handle);
+
+            if (allowLivePhotos && PengramPhotoSlideshow.isAnimatedImageFile(rawFile)) {
+                final File animMp4 = new File(workDir, "link_anim_" + stamp + "_" + i + ".mp4");
+                if (PengramPhotoSlideshow.convertAnimatedImageToMp4(rawFile, animMp4, handle.cancel)) {
+                    rawFile.delete();
+                    normalizedJpegs.add(animMp4);
+                    continue;
+                }
+                animMp4.delete();
+            }
 
             normalizePhotoToJpeg(rawFile, jpgFile);
             rawFile.delete();
@@ -1490,9 +1535,10 @@ public final class PengramLinkAssistant {
                 final int end = Math.min(photoFiles.size(), start + batchSize);
                 final ArrayList<SendMessagesHelper.SendingMediaInfo> items = new ArrayList<>(end - start);
                 for (int i = start; i < end; i++) {
+                    final File mediaFile = photoFiles.get(i);
                     final SendMessagesHelper.SendingMediaInfo info = new SendMessagesHelper.SendingMediaInfo();
-                    info.path = photoFiles.get(i).getAbsolutePath();
-                    info.isVideo = false;
+                    info.path = mediaFile.getAbsolutePath();
+                    info.isVideo = mediaFile.getName().endsWith(".mp4");
                     if (start == 0 && i == 0 && !caption.isEmpty()) {
                         info.caption = caption;
                     }

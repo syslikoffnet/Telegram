@@ -52,13 +52,61 @@ public final class PengramLinkResolver {
         public final String thumbUrl;
         public final int width;
         public final int height;
+        public final String motionVideoUrl;
+        public final String animatedImageUrl;
 
         public PhotoItem(String imageUrl, String thumbUrl, int width, int height) {
+            this(imageUrl, thumbUrl, width, height, "", "");
+        }
+
+        public PhotoItem(String imageUrl, String thumbUrl, int width, int height,
+                         String motionVideoUrl, String animatedImageUrl) {
             this.imageUrl = imageUrl;
             this.thumbUrl = thumbUrl != null && !thumbUrl.isEmpty() ? thumbUrl : imageUrl;
             this.width = width;
             this.height = height;
+            this.motionVideoUrl = motionVideoUrl != null ? motionVideoUrl : "";
+            this.animatedImageUrl = animatedImageUrl != null ? animatedImageUrl : "";
         }
+
+        public boolean hasMotionVideo() {
+            return !motionVideoUrl.isEmpty();
+        }
+
+        public boolean hasAnimatedImage() {
+            return !animatedImageUrl.isEmpty();
+        }
+
+        public boolean isMotion() {
+            return hasMotionVideo() || hasAnimatedImage();
+        }
+    }
+
+    /** Чистая байтовая проверка заголовка GIF87a/GIF89a или анимированного WebP (VP8X bit 0x02 / ANIM). */
+    public static boolean isAnimatedImageBytes(byte[] header, int len) {
+        if (header == null || len < 12) {
+            return false;
+        }
+        // GIF87a / GIF89a
+        if (header[0] == 'G' && header[1] == 'I' && header[2] == 'F'
+                && header[3] == '8' && (header[4] == '7' || header[4] == '9') && header[5] == 'a') {
+            return true;
+        }
+        // RIFF....WEBP
+        if (header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F'
+                && header[8] == 'W' && header[9] == 'E' && header[10] == 'B' && header[11] == 'P') {
+            if (len >= 21 && header[12] == 'V' && header[13] == 'P' && header[14] == '8' && header[15] == 'X') {
+                if ((header[20] & 0x02) != 0) {
+                    return true;
+                }
+            }
+            for (int i = 12; i <= len - 4; i++) {
+                if (header[i] == 'A' && header[i + 1] == 'N' && header[i + 2] == 'I' && header[i + 3] == 'M') {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static final class Resolved {
@@ -912,11 +960,143 @@ public final class PengramLinkResolver {
             if (bestUrl.isEmpty()) {
                 bestUrl = pickBestImageUrl(img.optJSONObject("ownerWatermarkImage"));
             }
-            if (!bestUrl.isEmpty()) {
-                list.add(new PhotoItem(bestUrl, bestUrl, w, h));
+            final String motionVideoUrl = extractSlideMotionVideoUrl(img);
+            String animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("dynamicImage"));
+            if (animatedImgUrl.isEmpty()) {
+                animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("dynamic_image"));
+            }
+            if (animatedImgUrl.isEmpty()) {
+                animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("animatedImage"));
+            }
+            if (animatedImgUrl.isEmpty()) {
+                animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("imageURL"));
+            }
+            if (animatedImgUrl.isEmpty()) {
+                animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("displayImage"));
+            }
+            if (animatedImgUrl.isEmpty()) {
+                animatedImgUrl = pickAnimatedImageUrl(img.optJSONObject("display_image"));
+            }
+            if (bestUrl.isEmpty() && !animatedImgUrl.isEmpty()) {
+                bestUrl = animatedImgUrl;
+            }
+            if (!bestUrl.isEmpty() || !motionVideoUrl.isEmpty()) {
+                final String finalImg = !bestUrl.isEmpty() ? bestUrl : motionVideoUrl;
+                list.add(new PhotoItem(finalImg, finalImg, w, h, motionVideoUrl, animatedImgUrl));
             }
         }
         return list;
+    }
+
+    /**
+     * Извлекает видеоклип живого фото (Live Photo) конкретного слайда карусели TikTok.
+     * Важно: проверяются ТОЛЬКО поля внутри самого объекта слайда images[i] (video / livePhoto / clip),
+     * а не корневой item.video (где у imagePost лежит фоновая MP3-музыка).
+     */
+    private static String extractSlideMotionVideoUrl(JSONObject img) {
+        if (img == null) {
+            return "";
+        }
+        final String[] videoKeys = {
+                "video", "livePhoto", "live_photo", "livePhotoInfo",
+                "live_photo_info", "motionPhoto", "motionVideo", "clip"
+        };
+        for (String key : videoKeys) {
+            final JSONObject vidObj = img.optJSONObject(key);
+            if (vidObj == null) {
+                continue;
+            }
+            final List<String> urls = collectTikTokVideoUrls(vidObj);
+            for (String u : urls) {
+                if (isLikelyMotionVideoUrl(u)) {
+                    return u.replace("/playwm/", "/play/");
+                }
+            }
+            // Дополнительно проверим play_addr / playAddr со вложенным url_list (мобильная схема aweme)
+            final String[] addrKeys = {"playAddr", "play_addr", "downloadAddr", "download_addr", "videoUrl"};
+            for (String ak : addrKeys) {
+                final JSONObject addrObj = vidObj.optJSONObject(ak);
+                if (addrObj != null) {
+                    final String picked = pickFirstMotionUrlFromHolder(addrObj);
+                    if (!picked.isEmpty()) {
+                        return picked.replace("/playwm/", "/play/");
+                    }
+                }
+                final String direct = cleanMediaUrl(vidObj.optString(ak, ""));
+                if (isLikelyMotionVideoUrl(direct)) {
+                    return direct.replace("/playwm/", "/play/");
+                }
+            }
+        }
+        final String directTop = cleanMediaUrl(img.optString("livePhotoUrl", img.optString("motionVideoUrl", "")));
+        if (isLikelyMotionVideoUrl(directTop)) {
+            return directTop.replace("/playwm/", "/play/");
+        }
+        return "";
+    }
+
+    private static String pickFirstMotionUrlFromHolder(JSONObject holder) {
+        if (holder == null) {
+            return "";
+        }
+        JSONArray arr = holder.optJSONArray("urlList");
+        if (arr == null) {
+            arr = holder.optJSONArray("url_list");
+        }
+        if (arr == null) {
+            arr = holder.optJSONArray("UrlList");
+        }
+        if (arr == null) {
+            return "";
+        }
+        for (int i = 0; i < arr.length(); i++) {
+            final String u = cleanMediaUrl(arr.optString(i, ""));
+            if (isLikelyMotionVideoUrl(u)) {
+                return u;
+            }
+        }
+        return "";
+    }
+
+    private static boolean isLikelyMotionVideoUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        final String low = url.toLowerCase();
+        if (!low.startsWith("http://") && !low.startsWith("https://")) {
+            return false;
+        }
+        if (low.contains(".mp3") || low.contains(".m4a") || low.contains(".aac")
+                || low.contains(".jpeg") || low.contains(".jpg") || low.contains(".png")
+                || low.contains(".webp") || low.contains("mime_type=audio")) {
+            return false;
+        }
+        return true;
+    }
+
+    private static String pickAnimatedImageUrl(JSONObject holder) {
+        if (holder == null) {
+            return "";
+        }
+        JSONArray arr = holder.optJSONArray("urlList");
+        if (arr == null) {
+            arr = holder.optJSONArray("url_list");
+        }
+        if (arr == null || arr.length() == 0) {
+            return "";
+        }
+        for (int i = 0; i < arr.length(); i++) {
+            final String u = cleanMediaUrl(arr.optString(i, ""));
+            if (u.isEmpty()) {
+                continue;
+            }
+            final String low = u.toLowerCase();
+            if (low.contains(".gif") || low.contains("awebp") || low.contains("animated")
+                    || low.contains("photomode-awebp") || low.contains("dynamic")) {
+                return u;
+            }
+        }
+        return "";
     }
 
     private static String pickBestImageUrl(JSONObject holder) {

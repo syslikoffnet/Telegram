@@ -458,12 +458,14 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         private final TextView title;
         private final TextView subtitle;
         private final TextView duration;
+        private final ImageView heartButton;
         private final EqualizerView equalizer;
         private final RectF rect = new RectF();
         private final Paint highlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         /** заглушка вместо обложки создаётся один раз на ячейку, а не на каждую привязку */
         private final android.graphics.drawable.Drawable coverPlaceholder = Theme.createRoundRectDrawable(dp(10), 0x1FFFFFFF);
         private boolean active;
+        private MessageObject boundMessage;
 
         TrackCell(Context context) {
             super(context);
@@ -478,12 +480,15 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             equalizer.setVisibility(GONE);
             addView(equalizer, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL, 20, 0, 0, 0));
 
+            final boolean favOn = org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled();
+            final int rightTextPad = favOn ? 104 : 74;
+
             title = new TextView(context);
             title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
             title.setMaxLines(1);
             title.setEllipsize(TextUtils.TruncateAt.END);
             addView(title, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
-                    Gravity.LEFT | Gravity.TOP, 80, 12, 74, 0));
+                    Gravity.LEFT | Gravity.TOP, 80, 12, rightTextPad, 0));
 
             subtitle = new TextView(context);
             subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
@@ -491,13 +496,41 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             subtitle.setMaxLines(1);
             subtitle.setEllipsize(TextUtils.TruncateAt.END);
             addView(subtitle, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
-                    Gravity.LEFT | Gravity.TOP, 80, 33, 74, 0));
+                    Gravity.LEFT | Gravity.TOP, 80, 33, rightTextPad, 0));
+
+            heartButton = new ImageView(context);
+            heartButton.setScaleType(ImageView.ScaleType.CENTER);
+            heartButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(16)));
+            heartButton.setVisibility(favOn ? VISIBLE : GONE);
+            heartButton.setOnClickListener(v -> {
+                if (boundMessage == null || !org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled()) {
+                    return;
+                }
+                org.telegram.messenger.PengramMusicFavorites.toggleFavorite(boundMessage, getContext());
+                updateHeart(boundMessage);
+            });
+            addView(heartButton, LayoutHelper.createFrame(32, 32,
+                    Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 56, 0));
 
             duration = new TextView(context);
             duration.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
             duration.setTextColor(0x8AFFFFFF);
             addView(duration, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
-                    Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 20, 0));
+                    Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, 0, 18, 0));
+        }
+
+        private void updateHeart(MessageObject msg) {
+            if (heartButton == null) {
+                return;
+            }
+            if (!org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled() || msg == null) {
+                heartButton.setVisibility(GONE);
+                return;
+            }
+            heartButton.setVisibility(VISIBLE);
+            final boolean liked = org.telegram.messenger.PengramMusicFavorites.isLiked(msg);
+            heartButton.setImageResource(liked ? R.drawable.ic_pengram_heart_filled : R.drawable.ic_pengram_heart_outline);
+            heartButton.setColorFilter(new PorterDuffColorFilter(liked ? 0xFFFF3B5C : 0x80FFFFFF, PorterDuff.Mode.SRC_IN));
         }
 
         @Override
@@ -506,15 +539,23 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         }
 
         void set(MessageObject messageObject) {
+            boundMessage = messageObject;
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             active = playing != null && playing.getId() == messageObject.getId()
                     && playing.getDialogId() == messageObject.getDialogId();
 
-            title.setText(messageObject.getMusicTitle(true));
+            if (org.telegram.messenger.PengramConfig.isSmartTrackRecognition()) {
+                final String[] pair = org.telegram.messenger.PengramMusicMeta.resolveDisplayPair(messageObject);
+                title.setText(pair[1]);
+                subtitle.setText(pair[0]);
+            } else {
+                title.setText(messageObject.getMusicTitle(true));
+                subtitle.setText(messageObject.getMusicAuthor(true));
+            }
             title.setTextColor(active ? accentColor : 0xFFFFFFFF);
             title.setTypeface(active ? AndroidUtilities.bold() : android.graphics.Typeface.DEFAULT);
-            subtitle.setText(messageObject.getMusicAuthor(true));
             duration.setText(AndroidUtilities.formatShortDuration((int) messageObject.getDuration()));
+            updateHeart(messageObject);
 
             final TLRPC.Document document = messageObject.getDocument();
             final TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 90) : null;

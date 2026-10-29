@@ -80,6 +80,11 @@ public class MusicPlayerReceiver extends BroadcastReceiver {
                         MediaController.getInstance().setPlaybackOrderType(2);
                     }
                     break;
+                case PengramMusicFavorites.ACTION_LIKE:
+                    if (PengramConfig.isPlayerFavoritesEnabled()) {
+                        PengramMusicFavorites.togglePlayingTrack(false);
+                    }
+                    break;
             }
         }
     }

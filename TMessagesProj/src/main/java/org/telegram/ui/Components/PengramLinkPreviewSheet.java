@@ -396,6 +396,7 @@ public final class PengramLinkPreviewSheet {
             final int count = resolved.photos.size();
             if (count == 1) {
                 final PhotoTileView singleTile = new PhotoTileView(context, 0, cardBg, accentColor, false);
+                singleTile.setLiveMotion(PengramConfig.isLinkLivePhotos() && resolved.photos.get(0).isMotion());
                 singleTile.loadThumb(
                         PengramLinkAssistant.getCachedTikTokPhotoFile(req.url, 0),
                         resolved.photos.get(0).thumbUrl, resolved.cookies, resolved.referer);
@@ -420,6 +421,7 @@ public final class PengramLinkPreviewSheet {
                         final int photoIndex = idx + c;
                         if (photoIndex < count) {
                             final PhotoTileView tile = new PhotoTileView(context, photoIndex, cardBg, accentColor, true);
+                            tile.setLiveMotion(PengramConfig.isLinkLivePhotos() && resolved.photos.get(photoIndex).isMotion());
                             tile.loadThumb(
                                     PengramLinkAssistant.getCachedTikTokPhotoFile(req.url, photoIndex),
                                     resolved.photos.get(photoIndex).thumbUrl, resolved.cookies, resolved.referer);
@@ -952,6 +954,7 @@ public final class PengramLinkPreviewSheet {
         private Bitmap bitmap;
         private boolean checked;
         private boolean checkVisible;
+        private boolean liveMotion;
         private float scaleFactor = 1f;
         private Drawable checkIcon;
         private Interaction interaction;
@@ -1000,6 +1003,13 @@ public final class PengramLinkPreviewSheet {
                 lastDownY = event.getY();
             }
             return super.onTouchEvent(event);
+        }
+
+        void setLiveMotion(boolean live) {
+            if (this.liveMotion != live) {
+                this.liveMotion = live;
+                invalidate();
+            }
         }
 
         void loadThumb(@Nullable File localFile, String url, Map<String, String> cookies, String referer) {
@@ -1101,6 +1111,18 @@ public final class PengramLinkPreviewSheet {
                         checkIcon.draw(canvas);
                     }
                 }
+            }
+
+            if (liveMotion) {
+                final String liveLabel = "\u25cf LIVE";
+                final float lw = textPaint.measureText(liveLabel) + dp(12);
+                rect.set(dp(6), h - dp(24), dp(6) + lw, h - dp(6));
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(0xB8000000);
+                canvas.drawRoundRect(rect, dp(9), dp(9), paint);
+                final float tx = rect.centerX() - textPaint.measureText(liveLabel) / 2f;
+                final float ty = rect.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f;
+                canvas.drawText(liveLabel, tx, ty, textPaint);
             }
             canvas.restore();
         }

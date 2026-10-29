@@ -78,6 +78,7 @@ public final class PengramSearchIndex {
             {R.string.PengramRegTapText, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramRegHeader, 0, R.string.PengramRegTapTextInfo},
             {R.string.PengramHidePhone, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramPrivacyHeader, 0, R.string.PengramHidePhoneInfo},
             {R.string.PengramSharePhoneMode, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramPrivacyHeader, 0, R.string.PengramSharePhoneModeInfo},
+            {R.string.PengramClassicProfileMusic, PengramSettingsActivity.SECTION_PROFILE, R.string.PengramProfileMusicHeader, 0, R.string.PengramClassicProfileMusicInfo},
             {R.string.PengramSpyAccount, PengramSettingsActivity.SECTION_HISTORY, 0, 0, 0},
             {R.string.PengramSpyOwnSettings, PengramSettingsActivity.SECTION_HISTORY, 0, 0, 0},
             {R.string.PengramHistorySaveMessages, PengramSettingsActivity.SECTION_HISTORY, R.string.PengramHistoryHeader, 0, 0},
@@ -229,6 +230,7 @@ public final class PengramSearchIndex {
             {R.string.PengramSortFilesByName, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramAutoplayHeader, 0, 0},
             {R.string.PengramInAppCamera, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramCameraHeader, 0, 0},
             {R.string.PengramBigCameraRound, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramCameraHeader, 0, 0},
+            {R.string.PengramDisableVoiceProximity, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramAudioHeader, 0, R.string.PengramDisableVoiceProximityInfo},
             {R.string.RaiseToSpeak, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramAudioHeader, 0, R.string.RaiseToSpeakInfo},
             {R.string.RaiseToListen, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramAudioHeader, 0, R.string.RaiseToListenInfo},
             {R.string.PengramPauseOnRecord, PengramSettingsActivity.SECTION_MEDIA, R.string.PengramAudioHeader, 0, 0},
@@ -244,6 +246,11 @@ public final class PengramSearchIndex {
             {R.string.PengramPlayerPenguinDance, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerHeader, 0, R.string.PengramPlayerPenguinDanceInfo},
             {R.string.PengramPlayerBeat, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerHeader, 0, R.string.PengramPlayerBeatInfo},
             {R.string.PengramPlayerSwipe, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerSwipeHeader, 0, R.string.PengramPlayerSwipeInfo},
+            {R.string.PengramMiniPlayerQueueBtn, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramMiniPlayerQueueHeader, 0, R.string.PengramMiniPlayerQueueBtnInfo},
+            {R.string.PengramPlayerFavorites, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavoritesInfo},
+            {R.string.PengramPlayerFavTarget, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, 0},
+            {R.string.PengramPlayerFavCaption, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavCaptionInfo},
+            {R.string.PengramPlayerFavOpenVault, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, 0},
             {R.string.PengramTrackForwardButton, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackForwardHeader, 0, R.string.PengramTrackForwardButtonInfo},
             {R.string.PengramMusicForwardClean, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackForwardHeader, 0, R.string.PengramMusicForwardCleanInfo},
             {R.string.PengramTrackForwardMode, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackForwardHeader, 0, 0},
@@ -251,6 +258,7 @@ public final class PengramSearchIndex {
             {R.string.PengramTrackCardFormat, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackCardSettings, 0, 0},
             {R.string.PengramTrackCardLink, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackCardSettings, 0, R.string.PengramTrackCardLinkInfo},
             {R.string.PengramTrackCardBrand, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramTrackCardSettings, 0, 0},
+            {R.string.PengramSmartTrackRecognition, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramMusicMetaHeader, 0, R.string.PengramSmartTrackRecognitionInfo},
             {R.string.PengramMusicSmartArtist, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramMusicMetaHeader, 0, R.string.PengramMusicSmartArtistInfo},
             {R.string.PengramLyricsSection, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramMusicMetaHeader, 0, R.string.PengramLyricsSectionInfo},
             {R.string.PengramLyricsAuto, PengramSettingsActivity.SECTION_LYRICS, R.string.PengramLyricsSyncHeader, 0, R.string.PengramLyricsAutoInfo},
@@ -299,6 +307,7 @@ public final class PengramSearchIndex {
             {R.string.PengramLinkPlatformYandexRow, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPlatforms, 0, 0},
             {R.string.PengramLinkPreviewMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, 0},
             {R.string.PengramLinkIslandPreviewBtn, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPreview, 0, R.string.PengramLinkIslandPreviewBtnInfo},
+            {R.string.PengramLinkLivePhotos, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, R.string.PengramLinkLivePhotosInfo},
             {R.string.PengramLinkPhotoStitchMode, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
             {R.string.PengramLinkSlideAudio, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
             {R.string.PengramLinkSlideDuration, PengramSettingsActivity.SECTION_LINK_ASSISTANT, R.string.PengramLinkHeaderPhotos, 0, 0},
@@ -548,6 +557,7 @@ public final class PengramSearchIndex {
             0x39d26581, // PengramRegTapText (SECTION_PROFILE)
             0x389931d3, // PengramHidePhone (SECTION_PROFILE)
             0x33fcd3f5, // PengramSharePhoneMode (SECTION_PROFILE)
+            0x3e3ca80b, // PengramClassicProfileMusic (SECTION_PROFILE)
             0x3db706a5, // PengramSpyAccount (SECTION_HISTORY)
             0x34c01df4, // PengramSpyOwnSettings (SECTION_HISTORY)
             0x3c34a2e5, // PengramHistorySaveMessages (SECTION_HISTORY)
@@ -699,6 +709,7 @@ public final class PengramSearchIndex {
             0x135274c2, // PengramSortFilesByName (SECTION_MEDIA)
             0x10ebaeb6, // PengramInAppCamera (SECTION_MEDIA)
             0x379048c7, // PengramBigCameraRound (SECTION_MEDIA)
+            0x12f9d448, // PengramDisableVoiceProximity (SECTION_MEDIA)
             0x1b137829, // RaiseToSpeak (SECTION_MEDIA)
             0x1fa1c7c3, // RaiseToListen (SECTION_MEDIA)
             0x14386a2d, // PengramPauseOnRecord (SECTION_MEDIA)
@@ -714,6 +725,11 @@ public final class PengramSearchIndex {
             0x14d05261, // PengramPlayerPenguinDance (SECTION_PLAYER)
             0x342b5f17, // PengramPlayerBeat (SECTION_PLAYER)
             0x1defe278, // PengramPlayerSwipe (SECTION_PLAYER)
+            0x1961e91d, // PengramMiniPlayerQueueBtn (SECTION_PLAYER)
+            0x1601c374, // PengramPlayerFavorites (SECTION_PLAYER)
+            0x180ca148, // PengramPlayerFavTarget (SECTION_PLAYER)
+            0x148690c5, // PengramPlayerFavCaption (SECTION_PLAYER)
+            0x31e4ace4, // PengramPlayerFavOpenVault (SECTION_PLAYER)
             0x18968ae2, // PengramTrackForwardButton (SECTION_PLAYER)
             0x3ceef70e, // PengramMusicForwardClean (SECTION_PLAYER)
             0x31ddc846, // PengramTrackForwardMode (SECTION_PLAYER)
@@ -721,6 +737,7 @@ public final class PengramSearchIndex {
             0x3919958a, // PengramTrackCardFormat (SECTION_PLAYER)
             0x107e2f2d, // PengramTrackCardLink (SECTION_PLAYER)
             0x1d762679, // PengramTrackCardBrand (SECTION_PLAYER)
+            0x1462e83d, // PengramSmartTrackRecognition (SECTION_PLAYER)
             0x13ce56d8, // PengramMusicSmartArtist (SECTION_PLAYER)
             0x38696306, // PengramLyricsSection (SECTION_PLAYER)
             0x3ca92f57, // PengramLyricsAuto (SECTION_LYRICS)
@@ -769,6 +786,7 @@ public final class PengramSearchIndex {
             0x10b76be2, // PengramLinkPlatformYandexRow (SECTION_LINK_ASSISTANT)
             0x1d7dcd31, // PengramLinkPreviewMode (SECTION_LINK_ASSISTANT)
             0x3b85fcfe, // PengramLinkIslandPreviewBtn (SECTION_LINK_ASSISTANT)
+            0x3debb3c7, // PengramLinkLivePhotos (SECTION_LINK_ASSISTANT)
             0x12abf83a, // PengramLinkPhotoStitchMode (SECTION_LINK_ASSISTANT)
             0x3c0992cf, // PengramLinkSlideAudio (SECTION_LINK_ASSISTANT)
             0x30cfb07d, // PengramLinkSlideDuration (SECTION_LINK_ASSISTANT)

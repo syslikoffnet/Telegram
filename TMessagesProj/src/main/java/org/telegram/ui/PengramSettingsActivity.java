@@ -384,6 +384,8 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_LINK_DEFAULT_FORMAT = 1070;
     private static final int BTN_VOICE_AMBIENCE = 1071;
     private static final int BTN_VOICE_AMBIENCE_PREVIEW = 1072;
+    private static final int BTN_PLAYER_FAV_TARGET = 1073;
+    private static final int BTN_PLAYER_FAV_OPEN = 1074;
     private static final int REQUEST_PICK_QUOTE_LOGO = 4712;
     private static final int REQUEST_PICK_VOICE_PROFILE = 4713;
     private static final int GROUP_VOICE = 1;
@@ -1178,7 +1180,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PROFILE:
                 return new String[]{"id*", "regDate*", "regTapText", "copyIdOnTap", "hidePhoneNumber", "originalName",
                         "hideSharePhoneOption", "sharePhoneDefault", "sharePhoneMode", "historyRowInProfile",
-                        "groupAvatarPos", "coverShape", "showAccountsInSettings"};
+                        "groupAvatarPos", "coverShape", "showAccountsInSettings", "classicProfileMusic"};
             case SECTION_GHOST:
                 return new String[]{"ghost*", "dontSend*", "hideOnline"};
             case SECTION_HISTORY:
@@ -1197,7 +1199,7 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_QUOTES:
                 return new String[]{"quote*"};
             case SECTION_LINK_ASSISTANT:
-                return new String[]{"linkAssistant*"};
+                return new String[]{"linkAssistant*", "link*"};
             case SECTION_CHATS:
             case SECTION_CHAT_ACTIONS:
             case SECTION_CHAT_MESSAGES:
@@ -1212,7 +1214,7 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return new String[]{"allowForwards", "allowScreenshots", "noScreenshotNotify", "hideAds",
                         "localPremium*", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle", "antiCrash*"};
             case SECTION_MEDIA:
-                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "voiceAmbience*", "trackForward*"};
+                return new String[]{"media*", "saveDeletedMedia", "voiceChanger*", "voiceAmbience*", "trackForward*", "disableVoiceProximity"};
             case SECTION_GENERAL:
                 return new String[]{"noNumberRounding", "timeWithSeconds", "inAppVibration", "zalgoFilter",
                         "quickAction*"};
@@ -1222,7 +1224,8 @@ public class PengramSettingsActivity extends UniversalFragment {
             case SECTION_PENGUIN:
                 return new String[]{"penguin*"};
             case SECTION_PLAYER:
-                return new String[]{"player*", "newPlayer", "coverShape", "trackForward*", "musicForward*", "musicSmartArtist"};
+                return new String[]{"player*", "newPlayer", "coverShape", "trackForward*", "musicForward*", "musicSmartArtist",
+                        "miniPlayerQueueBtn", "smartTrackRecognition"};
             case SECTION_LYRICS:
                 return new String[]{"lyrics*", "headerLyrics*"};
             default:
@@ -3259,6 +3262,12 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramSharePhoneMode), sharePhoneModeName(PengramConfig.getSharePhoneMode())));
         items.add(UItem.asShadow(getString(R.string.PengramSharePhoneModeInfo)));
         items.add(UItem.asShadow(getString(R.string.PengramHidePhoneInfo)));
+
+        items.add(UItem.asHeader(getString(R.string.PengramProfileMusicHeader)));
+        items.add(checkInfo(PengramConfig.KEY_CLASSIC_PROFILE_MUSIC, false,
+                getString(R.string.PengramClassicProfileMusic),
+                getString(R.string.PengramClassicProfileMusicInfo)));
+        items.add(UItem.asShadow(null));
     }
 
     private String spyAccountName(int account) {
@@ -3984,6 +3993,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(getString(R.string.PengramAudioHeader)));
+        items.add(checkInfo(PengramConfig.KEY_DISABLE_VOICE_PROXIMITY, true,
+                getString(R.string.PengramDisableVoiceProximity),
+                getString(R.string.PengramDisableVoiceProximityInfo)));
         items.add(tgCheck(BTN_EXTRA_BASE + 60, getString(R.string.RaiseToSpeak), () -> SharedConfig.raiseToSpeak, SharedConfig::toggleRaiseToSpeak));
         items.add(tgCheck(BTN_EXTRA_BASE + 61, getString(R.string.RaiseToListen), () -> SharedConfig.raiseToListen, SharedConfig::toggleRaiseToListen));
         items.add(tgCheck(BTN_EXTRA_BASE + 62, getString(R.string.PengramPauseOnRecord), () -> SharedConfig.pauseMusicOnRecord, SharedConfig::togglePauseMusicOnRecord));
@@ -4169,6 +4181,28 @@ public class PengramSettingsActivity extends UniversalFragment {
         items.add(UItem.asCustom(swipePreview, 104));
         items.add(UItem.asShadow(getString(R.string.PengramPlayerSwipeInfo)));
 
+        items.add(UItem.asHeader(getString(R.string.PengramMiniPlayerQueueHeader)));
+        items.add(checkInfo(PengramConfig.KEY_MINI_PLAYER_QUEUE_BTN, true,
+                getString(R.string.PengramMiniPlayerQueueBtn),
+                getString(R.string.PengramMiniPlayerQueueBtnInfo)));
+        items.add(UItem.asShadow(null));
+
+        items.add(UItem.asHeader(getString(R.string.PengramPlayerFavoritesHeader)));
+        items.add(checkInfo(PengramConfig.KEY_PLAYER_FAVORITES, false,
+                getString(R.string.PengramPlayerFavorites),
+                getString(R.string.PengramPlayerFavoritesInfo)));
+        if (PengramConfig.isPlayerFavoritesEnabled()) {
+            items.add(UItem.asSettingsCell(BTN_PLAYER_FAV_TARGET, R.drawable.ic_pengram_heart_outline,
+                    getString(R.string.PengramPlayerFavTarget),
+                    org.telegram.messenger.PengramMusicFavorites.getTargetSummary(currentAccount)));
+            items.add(checkInfo(PengramConfig.KEY_PLAYER_FAV_CAPTION, true,
+                    getString(R.string.PengramPlayerFavCaption),
+                    getString(R.string.PengramPlayerFavCaptionInfo)));
+            items.add(UItem.asButton(BTN_PLAYER_FAV_OPEN, R.drawable.msg_openin,
+                    getString(R.string.PengramPlayerFavOpenVault)));
+        }
+        items.add(UItem.asShadow(null));
+
         // Пересылка трека: манера выбирается заранее, кнопка потом не задаёт лишних вопросов
         items.add(UItem.asHeader(getString(R.string.PengramTrackForwardHeader)));
         items.add(checkInfo(PengramConfig.KEY_TRACK_FORWARD_BUTTON, true,
@@ -4196,6 +4230,9 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
         items.add(UItem.asShadow(getString(R.string.PengramTrackCardInfo)));
         items.add(UItem.asHeader(getString(R.string.PengramMusicMetaHeader)));
+        items.add(checkInfo(PengramConfig.KEY_SMART_TRACK_RECOGNITION, true,
+                getString(R.string.PengramSmartTrackRecognition),
+                getString(R.string.PengramSmartTrackRecognitionInfo)));
         items.add(checkInfo(PengramConfig.KEY_MUSIC_SMART_ARTIST, true,
                 getString(R.string.PengramMusicSmartArtist), getString(R.string.PengramMusicSmartArtistInfo)));
         items.add(UItem.asShadow(null));
@@ -4443,6 +4480,9 @@ public class PengramSettingsActivity extends UniversalFragment {
             items.add(UItem.asShadow(getString(R.string.PengramLinkPreviewInfo)));
 
             items.add(UItem.asHeader(getString(R.string.PengramLinkHeaderPhotos)));
+            items.add(checkInfo(PengramConfig.KEY_LINK_LIVE_PHOTOS, true,
+                    getString(R.string.PengramLinkLivePhotos),
+                    getString(R.string.PengramLinkLivePhotosInfo)));
             items.add(UItem.asSettingsCell(BTN_LINK_PHOTO_STITCH, R.drawable.msg_photos,
                     getString(R.string.PengramLinkPhotoStitchMode), linkPhotoStitchValue()));
             if (PengramConfig.getLinkPhotoStitchMode() != PengramConfig.LINK_STITCH_NEVER) {
@@ -5387,6 +5427,11 @@ public class PengramSettingsActivity extends UniversalFragment {
                     || item.id == boolId(PengramConfig.KEY_DELETED_REPLY_QUOTE)
                     || item.id == boolId(PengramConfig.KEY_FADE_DELETED)) {
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            } else if (item.id == boolId(PengramConfig.KEY_DISABLE_VOICE_PROXIMITY)) {
+                org.telegram.messenger.MediaController.getInstance().onPengramProximitySettingChanged();
+            } else if (item.id == boolId(PengramConfig.KEY_PLAYER_FAVORITES)) {
+                org.telegram.messenger.MusicPlayerService.onPengramFavoritesStateChanged();
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
             }
             return;
         }
@@ -6077,6 +6122,25 @@ public class PengramSettingsActivity extends UniversalFragment {
                 return;
             case BTN_VOICE_AMBIENCE_PREVIEW:
                 org.telegram.ui.Components.PengramVoiceAmbiencePlayer.toggle(this::updateList);
+                return;
+            case BTN_PLAYER_FAV_TARGET:
+                showChoicePicker(getString(R.string.PengramPlayerFavTarget), new CharSequence[]{
+                        getString(R.string.PengramPlayerFavTargetAutoChannel),
+                        getString(R.string.PengramPlayerFavTargetAutoGroup),
+                        getString(R.string.PengramPlayerFavTargetSaved),
+                        getString(R.string.PengramPlayerFavTargetPickCustom)
+                }, PengramConfig.getPlayerFavTargetMode(), value -> {
+                    if (value == PengramConfig.FAV_TARGET_CUSTOM) {
+                        org.telegram.messenger.PengramMusicFavorites.pickCustomVaultChat(this, this::updateList);
+                    } else {
+                        PengramConfig.setPlayerFavTargetMode(value);
+                        updateList();
+                    }
+                });
+                return;
+            case BTN_PLAYER_FAV_OPEN:
+                org.telegram.messenger.PengramMusicFavorites.openVaultChat(this);
+                return;
                 updateList();
                 return;
             case BTN_QUOTE_RESET_APPEARANCE:

@@ -20102,6 +20102,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                         }
                         mess = AndroidUtilities.removeSpans(mess, QuoteSpan.class);
                         mess = AndroidUtilities.removeSpans(mess, QuoteSpan.QuoteStyleSpan.class);
+                        mess = AnimatedEmojiSpan.normalizeForCompactLine(mess, textPaint.getFontMetricsInt());
                         mess = AndroidUtilities.replaceNewLines(mess);
                         stringFinalText = Emoji.replaceEmoji(mess, textPaint.getFontMetricsInt(), true);
                         if (messageObject.replyMessageObject.messageOwner != null) {
