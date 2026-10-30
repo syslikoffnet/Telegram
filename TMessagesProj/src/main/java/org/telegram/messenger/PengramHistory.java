@@ -468,8 +468,9 @@ public class PengramHistory extends SQLiteOpenHelper {
                 try {
                     for (int i = 0, size = batch.size(); i < size; i++) {
                         final TLRPC.Message message = batch.get(i);
-                        if (message == null || isUserDeleted(account, dialogId, message.id)) continue;
+                        if (message == null) continue;
                         final long dialogId = MessageObject.getDialogId(message);
+                        if (isUserDeleted(account, dialogId, message.id)) continue;
                         // Секрет- и саморазрушающиеся сообщения не покидают свой кэш;
                         // свои/чужие и боты здесь без разбору — это история чата целиком.
                         if (dialogId == 0 || !isArchivableSnapshot(dialogId, message, ACTION_SAVED)) continue;
