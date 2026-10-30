@@ -1079,6 +1079,22 @@ public class ProfileSearchCell extends BaseCell implements NotificationCenter.No
         }
 
         final float lockT = premiumBlockedT.set(premiumBlocked);
+        if (lockT <= 0.01f && user != null && !savedMessages && !user.bot && !user.self && !MessagesController.isSupportUser(user)) {
+            final boolean online = (isOnline != null && isOnline[0])
+                    || (user.status != null && user.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())
+                    || MessagesController.getInstance(currentAccount).onlinePrivacy.containsKey(user.id);
+            if (online) {
+                final float bx = LocaleController.isRTL
+                        ? avatarStoryParams.originalAvatarRect.left + dp(6)
+                        : avatarStoryParams.originalAvatarRect.right - dp(6);
+                final float by = avatarStoryParams.originalAvatarRect.bottom - dp(6);
+                org.telegram.ui.Components.PengramStatusIndicators.drawOnlineBadge(
+                        canvas, bx, by, 1f,
+                        Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
+                        Theme.getColor(Theme.key_chats_onlineCircle, resourcesProvider)
+                );
+            }
+        }
         if (lockT > 0) {
             final float top = avatarImage.getCenterY() + dp(14);
             final float left = avatarImage.getCenterX() + dp(16);

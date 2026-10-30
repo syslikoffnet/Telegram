@@ -72,12 +72,19 @@ public class MusicPlayerReceiver extends BroadcastReceiver {
                     break;
                 case MusicPlayerService.NOTIFY_REPEAT:
                     SharedConfig.setRepeatMode((SharedConfig.repeatMode + 1) % 3);
+                    MusicPlayerService.onPlaybackModeChanged();
                     break;
                 case MusicPlayerService.NOTIFY_SHUFFLE:
                     if (SharedConfig.shuffleMusic) {
                         MediaController.getInstance().setPlaybackOrderType(0);
                     } else {
                         MediaController.getInstance().setPlaybackOrderType(2);
+                    }
+                    MusicPlayerService.onPlaybackModeChanged();
+                    break;
+                case PengramMusicFavorites.ACTION_LIKE:
+                    if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
+                        PengramMusicFavorites.togglePlayingTrack(false);
                     }
                     break;
             }

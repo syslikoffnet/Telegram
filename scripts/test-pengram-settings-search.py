@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Pengram: поиск по настройкам — релевантность, точный переход и история.
+"""Pengram: поиск по настройкам — релевантность, точный переход и сохранение переходов.
 
-Проверяем три вещи, которые ломались на практике:
-  * в корпус поиска попадал весь путь строки, поэтому запрос «сообщения»
-    находил вообще все настройки раздела;
-  * переход из выдачи вёл не в ту строку, если такой же текст встречался
-    в другом месте экрана;
-  * запросы нигде не сохранялись, хотя в Telegram история поиска есть.
+Проверяем:
+  * в корпус поиска попадают только собственные слова строки, а не весь путь;
+  * переход из выдачи и из «Недавних» ведёт строго в целевую строку;
+  * в «Недавних» сохраняется НЕ сырой текст запроса, а сам переход (стабильный ID
+    из PengramSearchIndex.IDS, независимый от aapt2 R.string и порядка элементов),
+    как в поиске по настройкам официального Telegram.
 """
 
 import pathlib
@@ -16,8 +16,10 @@ import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG = (ROOT / 'TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java').read_text()
+INDEX = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchIndex.java').read_text()
 META = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSearchMetadata.java').read_text()
 SETTINGS = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java').read_text()
+PROFILE = (ROOT / 'TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java').read_text()
 
 # --- корпус и релевантность ---------------------------------------------------
 assert 'normalized(tags(entry)).split(" +")' in META, 'корпус должен строиться только по своим словам строки'
@@ -25,7 +27,6 @@ assert 'normalized(path(entry) + " " + tags(entry))' not in META, 'путь не
 assert 'public static int relevance(int[] entry, String[] terms)' in META
 assert 'public static boolean matches(int[] entry, String[] terms)' in META
 assert 'return relevance(entry, terms) > 0;' in META
-# заголовок весит больше, чем синоним
 assert re.search(r'return \(prefix \? 420 : 340\)', META)
 assert 'return 100;' in META and 'return 220;' in META
 assert 'private static boolean wordMatches(' in META
@@ -39,30 +40,51 @@ assert 'pengramTagRows(items);' in SETTINGS
 assert 'item.object instanceof Integer && (Integer) item.object == stringRes' in SETTINGS
 assert 'private void pengramJumpTo(int stringRes, int tries)' in SETTINGS
 assert "if (tries < 12 && listView.adapter.getItemCount() < 3)" in SETTINGS
-# заголовок группы — последний шанс для строк без собственного текста (слайдеры)
 assert SETTINGS.count('TextUtils.equals(target, item.text)') == 2
 assert 'R.string.PengramSearchParentOff' in SETTINGS
 
-# --- история запросов ---------------------------------------------------------
-assert 'private static final String KEY_SEARCH_HISTORY' in CONFIG
-assert 'public static java.util.ArrayList<String> getSearchHistory()' in CONFIG
-assert 'public static void addSearchHistory(String query)' in CONFIG
+# --- стабильные ID переходов в PengramSearchIndex -----------------------------
+item_rows = re.findall(r'\{R\.string\.\w+, PengramSettingsActivity\.SECTION_\w+,', INDEX)
+id_rows = re.findall(r'0x([0-9a-f]{8}), // \w+ \(SECTION_\w+\)', INDEX)
+assert len(item_rows) == len(id_rows) and len(id_rows) >= 400, (len(item_rows), len(id_rows))
+assert len(set(id_rows)) == len(id_rows), 'коллизия стабильных ID в PengramSearchIndex.IDS'
+
+# --- сохранение именно переходов (как в официальном поиске Telegram) ----------
+assert 'private static final String KEY_SEARCH_RECENT = "settingsSearchRecentEntries"' in CONFIG
+assert 'public static java.util.ArrayList<Integer> getRecentSearchIds()' in CONFIG
+assert 'public static void addRecentSearchId(int stableId)' in CONFIG
+assert 'public static void removeRecentSearchId(int stableId)' in CONFIG
 assert 'public static void clearSearchHistory()' in CONFIG
+assert 'addSearchHistory(String query)' not in CONFIG, 'сырой текст запроса больше не должен сохраняться'
+
+assert 'public static int stableId(int[] entry)' in META
+assert 'public static int[] entryByStableId(int stableId)' in META
+assert 'public static void rememberEntry(int[] entry)' in META
+assert 'public static void removeRecentEntry(int[] entry)' in META
+assert 'public static ArrayList<int[]> recentEntries()' in META
+
+# нажатие Enter на клавиатуре лишь прячет клавиатуру, а не пишет сырой запрос
 assert 'public void onSearchPressed(EditText editText)' in SETTINGS
-assert 'pengramRememberSearch();' in SETTINGS
-assert 'BTN_SEARCH_HISTORY_BASE' in SETTINGS and 'BTN_SEARCH_HISTORY_CLEAR' in SETTINGS
-assert 'private void pengramApplySearch(String query)' in SETTINGS
-assert 'searchItem.getSearchField()' in SETTINGS
+assert 'pengramRememberSearch' not in SETTINGS
+assert 'pengramApplySearch' not in SETTINGS
+
+# и выдача, и список «Недавние» открывают целевой переход через единый метод
+assert 'final ArrayList<int[]> recent = PengramSearchMetadata.recentEntries();' in SETTINGS
+assert 'PengramSearchMetadata.emphasizedPath(entry, "")' in SETTINGS
+assert 'private void pengramOpenSearchEntry(int[] found)' in SETTINGS
+assert 'pengramOpenSearchEntry(recentSearchEntries.get(index))' in SETTINGS
+assert 'pengramOpenSearchEntry(searchResults.get(item.id - BTN_SEARCH_BASE))' in SETTINGS
+assert 'PengramSearchMetadata.removeRecentEntry(entry)' in SETTINGS
 assert 'BTN_SEARCH_BASE && item.id < BTN_SEARCH_HISTORY_BASE' in SETTINGS
-assert 'history.get(i)' in SETTINGS
+assert 'PengramSearchMetadata.stableId(entry)' in PROFILE
 
 # --- строки в обеих локалях ---------------------------------------------------
-needed = ['PengramSearchRecent', 'PengramSearchHistoryClear', 'PengramSearchParentOff']
+needed = ['PengramSearchRecent', 'PengramSearchRemoveRecent', 'PengramSearchHistoryClear', 'PengramSearchParentOff']
 for locale in ('values', 'values-ru'):
     names = {n.get('name') for n in ET.parse(
         ROOT / f'TMessagesProj/src/main/res/{locale}/strings.xml').iter('string')}
     for key in needed:
         assert key in names, (locale, key)
 
-print('Pengram settings search: relevance, exact jump and history: OK')
+print('Pengram settings search: relevance, exact jump and transition history: OK')
 sys.exit(0)

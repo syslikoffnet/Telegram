@@ -45,10 +45,10 @@ def main():
     # A. Хранилище: архив+метка при keepVisible, guards, keep-возврат
     st = read('TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java')
     assert 'pengramSaveDeleted(' in st, 'нет вызова сохранения перед удалением'
-    assert 'PengramHistory.keepInChat(currentAccount, messages)' in st, 'нет keep-возврата из БД'
+    assert 'PengramHistory.keepInChat(currentAccount, dialogId, messages)' in st, 'нет keep-возврата из БД'
     assert 'if (archived || keepVisible) {' in st, 'метка должна писаться и при keepVisible'
     assert 'isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)' in st, 'нет guard архивируемости'
-    assert 'PengramHistory.isUserDeleted(message.id)' in st, 'нет guard «удалено самим»'
+    assert 'PengramHistory.isUserDeleted(currentAccount, did, message.id)' in st, 'нет scoped guard «удалено самим»'
 
     # B. Чат: keep-ветка и переживание перезапуска
     chat = read('TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java')

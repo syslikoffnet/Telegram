@@ -3,7 +3,10 @@ package org.telegram.ui.Components;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Shader;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -36,6 +39,12 @@ public class PengramLyricsView extends View {
     }
 
     private final TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickerIslandPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickerIslandStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF tickerIslandRect = new RectF();
+    private LinearGradient tickerIslandGradient;
+    private int tickerIslandGradientWidth;
+    private int tickerIslandGradientAccent;
     private final ArrayList<PengramLyrics.Line> lines = new ArrayList<>();
     private final ArrayList<StaticLayout> layouts = new ArrayList<>();
     private final ArrayList<Integer> tops = new ArrayList<>();
@@ -132,6 +141,7 @@ public class PengramLyricsView extends View {
     public void setColors(int accent, int base) {
         accentColor = accent;
         baseColor = base;
+        tickerIslandGradient = null;
         invalidate();
     }
 
@@ -477,6 +487,32 @@ public class PengramLyricsView extends View {
         return tickerMode || previewMode ? 0 : -1;
     }
 
+    /** Keep the compact header-lyrics island visibly designed even when word effects are disabled. */
+    private void drawTickerIsland(Canvas canvas) {
+        final float inset = AndroidUtilities.dp(3);
+        final float height = Math.min(getMeasuredHeight() - AndroidUtilities.dp(4), AndroidUtilities.dp(28));
+        if (height <= 0 || getMeasuredWidth() <= inset * 2) {
+            return;
+        }
+        tickerIslandRect.set(inset, (getMeasuredHeight() - height) / 2f,
+                getMeasuredWidth() - inset, (getMeasuredHeight() + height) / 2f);
+        if (tickerIslandGradient == null || tickerIslandGradientWidth != getMeasuredWidth()
+                || tickerIslandGradientAccent != accentColor) {
+            tickerIslandGradientWidth = getMeasuredWidth();
+            tickerIslandGradientAccent = accentColor;
+            tickerIslandGradient = new LinearGradient(0, 0, Math.max(1, getMeasuredWidth()), 0,
+                    new int[]{ColorUtils.setAlphaComponent(accentColor, 54), ColorUtils.setAlphaComponent(accentColor, 24), ColorUtils.setAlphaComponent(accentColor, 46)},
+                    new float[]{0f, 0.52f, 1f}, Shader.TileMode.CLAMP);
+        }
+        tickerIslandPaint.setShader(tickerIslandGradient);
+        canvas.drawRoundRect(tickerIslandRect, height / 2f, height / 2f, tickerIslandPaint);
+        tickerIslandPaint.setShader(null);
+        tickerIslandStrokePaint.setStyle(Paint.Style.STROKE);
+        tickerIslandStrokePaint.setStrokeWidth(AndroidUtilities.dp(1));
+        tickerIslandStrokePaint.setColor(ColorUtils.setAlphaComponent(accentColor, 75));
+        canvas.drawRoundRect(tickerIslandRect, height / 2f, height / 2f, tickerIslandStrokePaint);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         if (layouts.isEmpty() || getVisibility() != VISIBLE || getAlpha() < 0.01f) {
@@ -523,6 +559,10 @@ public class PengramLyricsView extends View {
         final int dim = cfgDim;
         final int anim = cfgAnim;
         final boolean shadow = cfgShadow;
+
+        if (tickerMode && anim == PengramConfig.LYRICS_ANIM_NONE) {
+            drawTickerIsland(canvas);
+        }
 
         canvas.save();
         if (tickerMode && activeLine >= 0 && activeLine < layouts.size()) {

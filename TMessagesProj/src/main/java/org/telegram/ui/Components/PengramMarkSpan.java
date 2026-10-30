@@ -33,20 +33,32 @@ public class PengramMarkSpan extends ReplacementSpan {
         this(context, resId, 1f, 0f);
     }
 
-    // значки одинаковые для всех сообщений: держим по одному экземпляру на ресурс
-    private static final android.util.SparseArray<Drawable> cache = new android.util.SparseArray<>();
+    private static final android.util.SparseArray<Drawable.ConstantState> stateCache = new android.util.SparseArray<>();
 
     private static Drawable get(Context context, int resId) {
-        Drawable d = cache.get(resId);
-        if (d == null) {
-            try {
-                d = context.getResources().getDrawable(resId).mutate();
-                cache.put(resId, d);
-            } catch (Throwable e) {
-                FileLog.e(e);
+        try {
+            Drawable.ConstantState cs;
+            synchronized (stateCache) {
+                cs = stateCache.get(resId);
             }
+            if (cs != null) {
+                final Drawable copy = cs.newDrawable(context.getResources());
+                if (copy != null) {
+                    return copy.mutate();
+                }
+            }
+            final Drawable d = context.getResources().getDrawable(resId).mutate();
+            final Drawable.ConstantState state = d.getConstantState();
+            if (state != null) {
+                synchronized (stateCache) {
+                    stateCache.put(resId, state);
+                }
+            }
+            return d;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return null;
         }
-        return d;
     }
 
     public PengramMarkSpan(Context context, int resId, float scale, float translateY) {

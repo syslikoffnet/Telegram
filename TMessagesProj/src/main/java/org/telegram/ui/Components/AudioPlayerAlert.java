@@ -635,6 +635,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             }
         };
         seekBarView.setLineWidth(4);
+        seekBarView.setPengramProgressStyle(org.telegram.messenger.PengramConfig.getPlayerSeekStyle());
         seekBarView.setDelegate(new SeekBarView.SeekBarViewDelegate() {
             @Override
             public void onSeekBarDrag(boolean stop, float progress) {

@@ -2686,6 +2686,12 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
         void onChildDetached(View child);
     }
 
+    private PengramCylinderScroll pengramCylinderScroll;
+
+    public void setPengramCylinderScroll(PengramCylinderScroll scroll) {
+        this.pengramCylinderScroll = scroll;
+    }
+
     private ChildWarp childWarp;
 
     public void setChildWarp(ChildWarp warp) {
@@ -3265,6 +3271,16 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
                 capture.captureCalculateHash(builder, position);
             }
         }
+        float checkTop = position.top;
+        float checkBottom = position.bottom;
+        if (pengramCylinderScroll != null) {
+            final long cylHash = pengramCylinderScroll.getBlurStateHash();
+            builder.add(cylHash);
+            if (cylHash != 0L) {
+                checkTop = pengramCylinderScroll.expandBlurSourceTop(checkTop);
+                checkBottom = pengramCylinderScroll.expandBlurSourceBottom(checkBottom, getHeight());
+            }
+        }
         for (int i = 0, N = getChildCount(); i < N; i++) {
             final View child = getChildAt(i);
 
@@ -3273,7 +3289,7 @@ public class RecyclerListView extends RecyclerView implements IBlur3Capture {
             final float right = left + child.getWidth();
             final float bottom = top + child.getHeight();
 
-            if (!position.intersects(left, top, right, bottom)) {
+            if (position.left >= right || left >= position.right || checkTop >= bottom || top >= checkBottom) {
                 continue;
             }
 

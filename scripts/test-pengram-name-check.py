@@ -50,9 +50,10 @@ assert 'PengramNameLookup.isValidUsername' in name
 assert 'public static final int SOURCE_PROFILE = 4;' in name
 assert 'R.string.PengramOriginalNamePublicProfile' in name
 assert "https://t.me/" in lookup
-assert '?embed=1' in lookup
+assert '?embed=1' not in lookup
 assert 'og:title' in lookup
 assert 'tgme_page_title' in lookup
+assert lookup.index('tgme_page_title') < lookup.index('og:title')
 assert 'static String parseName(@Nullable String html)' in lookup
 assert 'static String cleanName(@Nullable String raw)' in lookup
 # a bare @username must never be returned as a name
@@ -76,18 +77,21 @@ assert 'refreshedThisRun.add(id)' in name
 assert block.index('PengramOriginalName.other(') < block.index('PengramOriginalName.canRefresh(')
 assert block.index('PengramOriginalName.canRefresh(') < block.index('PengramOriginalName.refresh(')
 assert 'if (!refresh) {' in block
-# a stale answer must not overwrite a newer gesture
+# a stale answer must not overwrite a newer gesture; no auto-revert timer
 assert 'pengramNameCheckSeq' in block
 assert 'seq != pengramNameCheckSeq' in block
-assert 'AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable)' in block
+assert 'postDelayed' not in block
+assert 'PengramOriginalNameSame' in block
 
-# --- the gesture must not eat plain taps ------------------------------------
+# --- the gesture works on SimpleTextView (claim touch, keep right-drawable click) ---
 attach = name.split('public static void attach(View view, Runnable onToggle)', 1)[1]
-on_down = attach.split('public boolean onDown(MotionEvent e)', 1)[1].split('}', 1)[0]
-assert 'return false;' in on_down
-assert 'detector.onTouchEvent(event);' in attach
-assert 'return false;' in attach.split('view.setOnTouchListener((v, event) -> {', 1)[1]
+assert 'detector.onTouchEvent(event)' in attach
+assert 'v.getVisibility() != View.VISIBLE' in attach
 assert 'onSingleTapUp' in attach and 'onFling' in attach
+chat_text = (root / 'TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java').read_text()
+avatar_container = (root / 'TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAvatarContainer.java').read_text()
+assert 'pengramToggleHeaderOriginalName' in chat_text
+assert 'parentFragment.pengramToggleHeaderOriginalName()' in avatar_container
 
 # --- UI wiring --------------------------------------------------------------
 assert 'PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName)' in profile

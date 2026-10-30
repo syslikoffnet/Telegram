@@ -8,35 +8,29 @@ import android.view.ViewConfiguration;
 
 import androidx.annotation.Nullable;
 
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 
 /**
- * Pengram: официальное имя человека в его профиле.
+ * Pengram: настоящее имя человека в Telegram.
  *
  * <p>Сохранённого в контакты человека Telegram везде показывает так, как
- * записали его вы. Жест по имени показывает, как того же человека видят все
- * остальные: имя, которое он поставил себе сам.
+ * записали его вы. Жест по имени визуально показывает настоящее имя, которое
+ * человек сам указал у себя в профиле Telegram, и возвращает ваше имя обратно
+ * при повторном жесте или выходе с экрана.
  *
- * <p>Отдельным полем сервер такое имя не отдаёт: пока человек в ваших
- * контактах, {@code first_name}/{@code last_name} подменяются вашим вариантом.
- * Поэтому имя берётся из трёх источников, и ни один из них не трогает контакты
- * и не отправляет номер:
+ * <p>Контактов и номеров телефонов функция никогда не касается. Официальное
+ * имя берётся только из подлинных источников самого Telegram:
  * <ol>
- *   <li>публичная страница профиля {@code t.me/<ник>} — её видит любой
- *       посторонний, и там имя ровно такое, каким его поставил человек
+ *   <li>поле {@code UserFull.private_forward_name} от сервера Telegram
+ *       (работает даже без {@code @username});</li>
+ *   <li>публичная страница профиля {@code https://t.me/<username>}
  *       ({@link PengramNameLookup});</li>
- *   <li>имя, встреченное до того, как человек попал в ваши контакты — в
- *       группах, каналах, поиске;</li>
- *   <li>самое раннее имя из истории профилей.</li>
+ *   <li>другой авторизованный аккаунт на устройстве, где этот человек не
+ *       записан в контактах;</li>
+ *   <li>непереименованная запись пользователя от сервера Telegram
+ *       (до добавления в контакты или {@code min}-объект из общих групп).</li>
  * </ol>
- *
- * <p>Числа проверок нет: страница — обычный GET, а не метод API. Повторные
- * жесты не спамят её: сначала показывается то, что уже известно, а обновление
- * уходит в фон не чаще одного раза на известное состояние и не чаще, чем раз в
- * {@link #FRESH_FOR}.
- *
- * <p>Важно: {@code @ник} никогда не выдаётся за имя. Если имени нет ни в одном
- * источнике, профиль честно говорит, что оно неизвестно.
  */
 public final class PengramOriginalName {
 
@@ -47,27 +41,22 @@ public final class PengramOriginalName {
     public static final int MODE_SWIPE = 2;
     public static final int MODE_BOTH = 3;
 
-    /** откуда взяли официальное имя — чтобы честно подписать, что показываем */
+    /** откуда взяли официальное имя */
     public static final int SOURCE_PUBLIC = 0;
     public static final int SOURCE_HISTORY = 1;
-    /** оставлено для совместимости: ником имя больше не подменяется */
+    /** оставлено для совместимости: ником имя никогда не подменяется */
     public static final int SOURCE_USERNAME = 2;
-    /** имя, проверенное раньше и сохранённое в кэше */
+    /** проверенное официальное имя из кэша */
     public static final int SOURCE_PROBE = 3;
-    /** имя с публичной страницы профиля */
+    /** официальное имя профиля Telegram */
     public static final int SOURCE_PROFILE = 4;
 
-    /** здесь живут имена, увиденные до переименования в контактах */
     private static final String PREFS = "pengram_public_names";
 
-    /** проверенное имя живёт месяц: человек мог сменить его, но чаще — незачем */
     private static final long VERIFIED_TTL = 30L * 24L * 60L * 60L * 1000L;
-    /** чаще раза в неделю публичную страницу одного человека не перечитываем */
-    private static final long FRESH_FOR = 7L * 24L * 60L * 60L * 1000L;
+    private static final long FRESH_FOR = 12L * 60L * 60L * 1000L;
 
-    /** id, для которых прямо сейчас идёт чтение страницы */
     private static final java.util.HashSet<String> refreshing = new java.util.HashSet<>();
-    /** за один запуск приложения известное состояние обновляем один раз */
     private static final java.util.HashSet<String> refreshedThisRun = new java.util.HashSet<>();
 
     public interface RefreshCallback {
@@ -78,7 +67,7 @@ public final class PengramOriginalName {
     }
 
     public static int mode() {
-        return PengramConfig.getIntCached(KEY_MODE, MODE_TAP);
+        return PengramConfig.getIntCached(KEY_MODE, MODE_BOTH);
     }
 
     public static void setMode(int mode) {
@@ -102,10 +91,16 @@ public final class PengramOriginalName {
     public static class Result {
         public final String name;
         public final int source;
+        public final boolean sameAsShown;
 
         Result(String name, int source) {
+            this(name, source, false);
+        }
+
+        Result(String name, int source, boolean sameAsShown) {
             this.name = name;
             this.source = source;
+            this.sameAsShown = sameAsShown;
         }
     }
 
@@ -114,22 +109,23 @@ public final class PengramOriginalName {
     }
 
     /**
-     * Запомнить, как человека зовут «для всех».
-     *
-     * <p>Сюда попадают объекты пользователя, пришедшие без подмены на имя из
-     * ваших контактов: человек ещё не в контактах или это сокращённая (min)
-     * запись из группы либо канала.
+     * Запомнить непереименованное имя пользователя, пришедшее напрямую от Telegram
+     * (человек не в контактах или это {@code min}-запись из общей группы/канала).
      */
     public static void observe(int account, TLRPC.User incoming, TLRPC.User local, boolean fromCache) {
         try {
-            if (!PengramProfileHistory.canObserve(account, incoming, fromCache)) {
+            if (!enabled() || incoming == null || incoming.id <= 0
+                    || incoming.self || incoming.bot || incoming.deleted) {
                 return;
             }
             if (incoming.contact && !incoming.min) {
-                return;   // такое имя уже могло быть заменено на ваше
+                return;
+            }
+            if (fromCache && local != null && local.contact) {
+                return;
             }
             final String name = clean(ContactsController.formatName(incoming.first_name, incoming.last_name));
-            if (TextUtils.isEmpty(name)) {
+            if (TextUtils.isEmpty(name) || !isPlausible(name)) {
                 return;
             }
             final String key = key(account, incoming.id);
@@ -142,20 +138,66 @@ public final class PengramOriginalName {
         }
     }
 
-    /** имя, которое видят остальные, если Pengram успел его встретить */
     private static String key(int account, long userId) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         return account + ":" + owner + ":" + userId;
     }
 
     private static String fromPublicCache(int account, TLRPC.User user) {
-        // The display path obeys the same opt-out and scope as collection.
-        if (!PengramProfileHistory.canObserve(account, user, false)) return null;
+        if (user == null || user.id <= 0 || user.self || user.bot || user.deleted) {
+            return null;
+        }
         try {
             return prefs().getString(key(account, user.id), null);
         } catch (Throwable ignore) {
             return null;
         }
+    }
+
+    @Nullable
+    private static String fromUserFull(int account, long userId) {
+        if (userId <= 0) {
+            return null;
+        }
+        try {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (a != account && !UserConfig.getInstance(a).isClientActivated()) {
+                    continue;
+                }
+                final TLRPC.UserFull full = MessagesController.getInstance(a).getUserFull(userId);
+                if (full != null && !TextUtils.isEmpty(full.private_forward_name)) {
+                    final String candidate = clean(full.private_forward_name);
+                    if (!TextUtils.isEmpty(candidate) && isPlausible(candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String fromOtherAccounts(int account, long userId) {
+        if (userId <= 0) {
+            return null;
+        }
+        try {
+            for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                if (a == account || !UserConfig.getInstance(a).isClientActivated()) {
+                    continue;
+                }
+                final TLRPC.User u = MessagesController.getInstance(a).getUser(userId);
+                if (u != null && !u.contact && !u.deleted) {
+                    final String candidate = clean(ContactsController.formatName(u.first_name, u.last_name));
+                    if (!TextUtils.isEmpty(candidate) && isPlausible(candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        return null;
     }
 
     public static void clearAccount(int account) {
@@ -172,79 +214,90 @@ public final class PengramOriginalName {
                 }
             }
             edit.apply();
-        } catch (Throwable ignore) { }
+        } catch (Throwable ignore) {
+        }
     }
 
     /**
-     * Официальное имя человека или {@code null}, если его взять неоткуда.
-     *
-     * <p>Только чтение кэша и истории профилей — ни запросов, ни изменений в
-     * контактах. Историю профилей читает SQLite, поэтому вызывать лучше не из
-     * UI-потока.
+     * Официальное имя человека в Telegram из уже имеющихся данных или {@code null}.
      */
     @Nullable
     public static Result other(int account, TLRPC.User user) {
-        if (user == null) {
+        if (user == null || user.id <= 0 || user.self || user.bot || user.deleted) {
             return null;
         }
         final String shown = clean(ContactsController.formatName(user.first_name, user.last_name));
+        if (!user.contact && !TextUtils.isEmpty(shown) && isPlausible(shown)) {
+            return new Result(shown, SOURCE_PROFILE, true);
+        }
 
-        // Явно проверенное имя важнее любых догадок: оно получено напрямую
-        // и действует, даже если наблюдение профилей выключено.
+        final String liveForward = fromUserFull(account, user.id);
+        if (!TextUtils.isEmpty(liveForward)) {
+            storeVerified(account, user.id, liveForward);
+            return new Result(liveForward, SOURCE_PROFILE, liveForward.equals(shown));
+        }
+
+        final String otherAcc = fromOtherAccounts(account, user.id);
+        if (!TextUtils.isEmpty(otherAcc)) {
+            storeVerified(account, user.id, otherAcc);
+            return new Result(otherAcc, SOURCE_PROFILE, otherAcc.equals(shown));
+        }
+
         final String verified = clean(verifiedName(account, user.id));
-        if (!TextUtils.isEmpty(verified) && !verified.equalsIgnoreCase(shown)) {
-            return new Result(verified, SOURCE_PROBE);
+        if (!TextUtils.isEmpty(verified) && isPlausible(verified)) {
+            return new Result(verified, SOURCE_PROBE, verified.equals(shown));
         }
 
         final String open = clean(fromPublicCache(account, user));
-        if (!TextUtils.isEmpty(open) && !open.equalsIgnoreCase(shown)) {
-            return new Result(open, SOURCE_PUBLIC);
+        if (!TextUtils.isEmpty(open) && isPlausible(open)) {
+            return new Result(open, SOURCE_PUBLIC, open.equals(shown));
         }
 
-        final String history = clean(fromHistory(account, user.id));
-        if (!TextUtils.isEmpty(history) && !history.equalsIgnoreCase(shown)) {
-            return new Result(history, SOURCE_HISTORY);
-        }
         return null;
     }
 
     /**
-     * Стоит ли перечитать публичную страницу.
-     *
-     * <p>Второй раз за запуск — нет: то, что уже показано, показывается снова
-     * без единого запроса. Если имя свежее недели, страница тоже не нужна.
+     * Можно ли запросить свежее официальное имя у Telegram / публичной страницы.
      */
     public static boolean canRefresh(int account, TLRPC.User user) {
-        if (user == null || user.id == 0 || user.min) {
-            return false;
-        }
-        final String username = UserObject.getPublicUsername(user);
-        if (!PengramNameLookup.isValidUsername(username)) {
+        if (user == null || user.id <= 0 || user.self || user.bot || user.deleted) {
             return false;
         }
         final String id = account + ":" + user.id;
         synchronized (refreshing) {
-            if (refreshing.contains(id) || refreshedThisRun.contains(id)) {
+            if (refreshing.contains(id)) {
+                return false;
+            }
+            if (refreshedThisRun.contains(id)
+                    && System.currentTimeMillis() - verifiedAt(account, user.id) < FRESH_FOR) {
                 return false;
             }
         }
-        return System.currentTimeMillis() - verifiedAt(account, user.id) >= FRESH_FOR;
+        final String username = UserObject.getPublicUsername(user);
+        final boolean hasWeb = PengramNameLookup.isValidUsername(username);
+        final boolean canFetchFull = !user.min && MessagesController.getInstance(account).getUserFull(user.id) == null;
+        if (!hasWeb && !canFetchFull) {
+            return false;
+        }
+        return System.currentTimeMillis() - verifiedAt(account, user.id) >= FRESH_FOR
+                || verifiedName(account, user.id) == null;
     }
 
     /**
-     * Перечитать публичную страницу профиля.
-     *
-     * <p>Колбэк приходит на фоновом потоке. Одновременно на человека уходит не
-     * больше одного запроса — второй жест во время первого просто ничего не
-     * делает.
+     * Проверить актуальное официальное имя человека (через {@code UserFull} и/или {@code t.me/<username>}).
      */
     public static void refresh(final int account, final TLRPC.User user, final RefreshCallback callback) {
-        if (callback == null || user == null) {
+        if (callback == null || user == null || user.id <= 0) {
+            if (callback != null) {
+                callback.onRefreshed(null);
+            }
             return;
         }
-        final String username = UserObject.getPublicUsername(user);
-        if (!PengramNameLookup.isValidUsername(username)) {
-            callback.onRefreshed(null);
+        final String shown = clean(ContactsController.formatName(user.first_name, user.last_name));
+        final String immediateFull = fromUserFull(account, user.id);
+        if (!TextUtils.isEmpty(immediateFull)) {
+            storeVerified(account, user.id, immediateFull);
+            callback.onRefreshed(new Result(immediateFull, SOURCE_PROFILE, immediateFull.equals(shown)));
             return;
         }
         final String id = account + ":" + user.id;
@@ -254,42 +307,77 @@ public final class PengramOriginalName {
             }
             refreshedThisRun.add(id);
         }
-        PengramNameLookup.lookup(username, name -> {
-            synchronized (refreshing) {
-                refreshing.remove(id);
-            }
-            final String value = clean(name);
-            if (!TextUtils.isEmpty(value) && isPlausible(value)) {
-                storeVerified(account, user.id, value);
-                callback.onRefreshed(new Result(value, SOURCE_PROFILE));
-            } else {
+        final String username = UserObject.getPublicUsername(user);
+        if (PengramNameLookup.isValidUsername(username)) {
+            PengramNameLookup.lookup(username, name -> {
+                final String value = clean(name);
+                if (!TextUtils.isEmpty(value) && isPlausible(value)) {
+                    synchronized (refreshing) {
+                        refreshing.remove(id);
+                    }
+                    storeVerified(account, user.id, value);
+                    callback.onRefreshed(new Result(value, SOURCE_PROFILE, value.equals(shown)));
+                    return;
+                }
+                fetchUserFullForwardName(account, user, id, shown, callback);
+            });
+        } else {
+            fetchUserFullForwardName(account, user, id, shown, callback);
+        }
+    }
+
+    private static void fetchUserFullForwardName(final int account, final TLRPC.User user,
+            final String lockId, final String shown, final RefreshCallback callback) {
+        try {
+            if (user.min) {
+                synchronized (refreshing) {
+                    refreshing.remove(lockId);
+                }
                 callback.onRefreshed(null);
+                return;
             }
-        });
+            final TLRPC.InputUser inputUser = MessagesController.getInstance(account).getInputUser(user);
+            if (inputUser == null || inputUser instanceof TLRPC.TL_inputUserEmpty) {
+                synchronized (refreshing) {
+                    refreshing.remove(lockId);
+                }
+                callback.onRefreshed(null);
+                return;
+            }
+            final TLRPC.TL_users_getFullUser req = new TLRPC.TL_users_getFullUser();
+            req.id = inputUser;
+            ConnectionsManager.getInstance(account).sendRequest(req, (response, error) -> {
+                synchronized (refreshing) {
+                    refreshing.remove(lockId);
+                }
+                if (response instanceof TLRPC.TL_users_userFull) {
+                    final TLRPC.TL_users_userFull res = (TLRPC.TL_users_userFull) response;
+                    if (res.full_user != null && !TextUtils.isEmpty(res.full_user.private_forward_name)) {
+                        final String value = clean(res.full_user.private_forward_name);
+                        if (!TextUtils.isEmpty(value) && isPlausible(value)) {
+                            storeVerified(account, user.id, value);
+                            callback.onRefreshed(new Result(value, SOURCE_PROFILE, value.equals(shown)));
+                            return;
+                        }
+                    }
+                }
+                callback.onRefreshed(null);
+            });
+        } catch (Throwable e) {
+            synchronized (refreshing) {
+                refreshing.remove(lockId);
+            }
+            FileLog.e(e);
+            callback.onRefreshed(null);
+        }
     }
 
     private static boolean isPlausible(String name) {
-        return name.length() <= 96 && !name.startsWith("@");
+        return name != null && !name.isEmpty() && name.length() <= 96 && !name.startsWith("@");
     }
 
     private static String clean(String value) {
         return value == null ? null : value.trim();
-    }
-
-    /** самое раннее имя, которое Pengram успел увидеть до переименования */
-    private static String fromHistory(int account, long userId) {
-        try {
-            final java.util.ArrayList<PengramProfileHistory.Change> changes = PengramProfileHistory.getChanges(account, userId);
-            // список идёт от свежих к старым — нам нужно самое первое имя
-            for (int i = changes.size() - 1; i >= 0; i--) {
-                final PengramProfileHistory.Change change = changes.get(i);
-                if (change != null && !TextUtils.isEmpty(change.name)) {
-                    return change.name;
-                }
-            }
-        } catch (Throwable ignore) {
-        }
-        return null;
     }
 
     // ------------------------------------------------------------ хранилище
@@ -298,7 +386,6 @@ public final class PengramOriginalName {
         return "confirmed:" + key(account, userId);
     }
 
-    /** проверенное имя или {@code null}, если его нет или оно устарело */
     @Nullable
     public static String verifiedName(int account, long userId) {
         try {
@@ -325,7 +412,6 @@ public final class PengramOriginalName {
         }
     }
 
-    /** когда имя проверяли в последний раз; 0 — не проверяли ни разу */
     private static long verifiedAt(int account, long userId) {
         try {
             final String raw = prefs().getString(confirmedKey(account, userId), null);
@@ -352,9 +438,7 @@ public final class PengramOriginalName {
 
     /**
      * Вернуть контакты, которые остались удалёнными после падения приложения
-     * в старой версии проверки имени. Новых таких записей больше не появляется:
-     * проверка больше не трогает контакты, но у тех, кто обновился, метка могла
-     * остаться — её надо честно отработать.
+     * в старой версии проверки имени.
      */
     public static void restorePending(int account) {
         try {
@@ -451,60 +535,127 @@ public final class PengramOriginalName {
 
     // ------------------------------------------------------------------ жест
 
+    /** направление последнего жеста: +1 вправо, -1 влево, 0 — тап (автовыбор) */
+    private static volatile int lastGestureDirection = 0;
+
+    public static void noteGestureDirection(int direction) {
+        lastGestureDirection = direction > 0 ? 1 : (direction < 0 ? -1 : 0);
+    }
+
+    public static int peekDirection(int fallback) {
+        final int dir = lastGestureDirection;
+        return dir != 0 ? dir : fallback;
+    }
+
+    public static int consumeDirection(int fallback) {
+        final int dir = lastGestureDirection;
+        lastGestureDirection = 0;
+        return dir != 0 ? dir : fallback;
+    }
+
+    private static void performHaptic(View view) {
+        if (view != null && PengramConfig.isVibrationEnabled()) {
+            try {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+            } catch (Throwable ignore) {
+            }
+        }
+    }
+
     /**
-     * Повесить жест на имя в профиле.
+     * Повесить жест (нажатие и/или горизонтальный свайп) на имя в профиле.
      *
-     * <p>Нажатие и свайп включаются раздельно, поэтому обработчик всегда
-     * спрашивает настройку заново: переключили в настройках — заработало сразу,
-     * без заперехода в профиль.
-     *
-     * <p>Нажатие никогда не «съедается»: {@code ACTION_DOWN} отдаётся обычной
-     * обработке вида, поэтому имя остаётся именем — с нажатием, нажатием с
-     * задержкой и всем, что на нём висит снаружи. Жест только слушает поток
-     * событий и не мешает ему.
+     * <p>Если слой сейчас прозрачен ({@code alpha <= 0.15f}) или функция
+     * выключена, касание пропускается дальше. Правый значок эмодзи-статуса
+     * {@code SimpleTextView} продолжает обрабатываться штатно.
      */
     public static void attach(View view, Runnable onToggle) {
         if (view == null || onToggle == null) {
             return;
         }
         final int slop = ViewConfiguration.get(view.getContext()).getScaledTouchSlop();
+        final float[] start = new float[2];
+        final boolean[] state = new boolean[2]; // [0] = swiped, [1] = delegatedToView
         final GestureDetector detector = new GestureDetector(view.getContext(), new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onDown(MotionEvent e) {
-                // false — вид получает DOWN как обычно; детектор всё равно
-                // продолжает считать движение по MOVE/UP.
-                return false;
+                return true;
             }
 
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
-                if (!tapEnabled()) {
+                if (!tapEnabled() || state[0]) {
                     return false;
                 }
+                noteGestureDirection(0);
+                performHaptic(view);
                 onToggle.run();
                 return true;
             }
 
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-                if (!swipeEnabled() || e1 == null || e2 == null) {
+                if (!swipeEnabled() || state[0] || e1 == null || e2 == null) {
                     return false;
                 }
                 final float dx = e2.getX() - e1.getX();
-                if (Math.abs(dx) > slop * 2 && Math.abs(dx) > Math.abs(e2.getY() - e1.getY())) {
+                if (Math.abs(dx) > slop * 1.4f && Math.abs(dx) > Math.abs(e2.getY() - e1.getY())) {
+                    state[0] = true;
+                    noteGestureDirection(dx >= 0 ? 1 : -1);
+                    performHaptic(view);
                     onToggle.run();
                     return true;
                 }
                 return false;
             }
         });
+        detector.setIsLongpressEnabled(false);
         view.setOnTouchListener((v, event) -> {
-            if (enabled()) {
+            if (!enabled() || v.getVisibility() != View.VISIBLE || v.getAlpha() <= 0.15f) {
+                return false;
+            }
+            final int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                state[0] = false;
+                state[1] = v.onTouchEvent(event);
+                if (state[1]) {
+                    return true;
+                }
+                start[0] = event.getX();
+                start[1] = event.getY();
+                detector.onTouchEvent(event);
+                return true;
+            }
+            if (state[1]) {
+                return v.onTouchEvent(event);
+            }
+            if (action == MotionEvent.ACTION_MOVE && swipeEnabled() && !state[0]) {
+                final float dx = event.getX() - start[0];
+                final float dy = event.getY() - start[1];
+                if (Math.abs(dx) > slop * 0.35f && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                    if (v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    if (v instanceof org.telegram.ui.ActionBar.SimpleTextView) {
+                        ((org.telegram.ui.ActionBar.SimpleTextView) v).pengramSetSwipeOffset(dx);
+                    }
+                }
+                if (Math.abs(dx) > slop * 1.4f && Math.abs(dx) > Math.abs(dy) * 1.15f) {
+                    state[0] = true;
+                    noteGestureDirection(dx >= 0 ? 1 : -1);
+                    performHaptic(v);
+                    onToggle.run();
+                    return true;
+                }
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (v instanceof org.telegram.ui.ActionBar.SimpleTextView) {
+                    ((org.telegram.ui.ActionBar.SimpleTextView) v).pengramReleaseSwipe();
+                }
+            }
+            if (!state[0]) {
                 detector.onTouchEvent(event);
             }
-            // Событие никогда не считается обработанным: иначе вид не получит
-            // UP, останется «нажатым» и потеряет собственные клики.
-            return false;
+            return true;
         });
     }
 }

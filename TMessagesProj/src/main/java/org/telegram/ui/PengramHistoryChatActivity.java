@@ -139,7 +139,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         actionBar.setAllowOverlayTitle(true);
         // Явный фон и занятая status-bar область: без этого на некоторых темах сверху оставалась чёрная полоса.
         actionBar.setOccupyStatusBar(true);
-        actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
+        actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
         actionBar.setTitle(getTitleText());
         actionBar.setSubtitle(getSubtitleText());
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -177,7 +177,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
 
         contentView = new SizeNotifierFrameLayout(context);
-        contentView.setBackgroundImage(Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
+        applyWallpaper();
         fragmentView = contentView;
 
         listView = new RecyclerListView(context);
@@ -206,6 +206,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
                 PengramHistory.Entry entry = items.get(position).entry;
                 PengramHistoryChatActivity detail = new PengramHistoryChatActivity(entry.dialogId, MODE_EDITED, entry.messageId);
                 detail.setCurrentAccount(currentAccount);
+                detail.setResourceProvider(getResourceProvider());
                 presentFragment(detail);
             } else {
                 showActions(position);
@@ -310,8 +311,19 @@ public class PengramHistoryChatActivity extends BaseFragment {
         final String query = searchQuery;
         // база может быть большой — читаем её не на главном потоке
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            PengramHistory.preloadDialogSenders(currentAccount, dialogId);
             final ArrayList<PengramHistory.Entry> entries =
                     PengramHistory.getEntries(dialogId, filter, limit, query, singleMessageId, true, currentAccount);
+            final java.util.HashSet<Long> senderIds = new java.util.HashSet<>();
+            for (int i = 0; i < entries.size(); i++) {
+                final PengramHistory.Entry e = entries.get(i);
+                if (e != null && e.fromId != 0) {
+                    senderIds.add(e.fromId);
+                }
+            }
+            if (!senderIds.isEmpty()) {
+                org.telegram.messenger.PengramSenderHydrator.preloadPeersBlocking(currentAccount, senderIds);
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 if (generation != loadGeneration || fragmentView == null) return;
                 loadingEntries = false;
@@ -509,7 +521,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             final PengramHistory.Entry entry = items.get(position).entry;
             actions.add(() -> viewInSourceChat(entry));
         }
-        if (!restricted && !TextUtils.isEmpty(message.messageText)) {
+        if ((!restricted || org.telegram.messenger.PengramConfig.isBypassingForwardRestrictions()) && !TextUtils.isEmpty(message.messageText)) {
             labels.add(getString(R.string.Copy));
             actions.add(() -> AndroidUtilities.addToClipboard(message.messageText));
         }
@@ -517,7 +529,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             labels.add(getString(R.string.PengramPhotoCopy));
             actions.add(() -> org.telegram.ui.Components.PengramPhotoClipboard.copy(this, message));
         }
-        if (!restricted) {
+        if (!DialogObject.isEncryptedDialog(message.getDialogId()) && !message.isSponsored()) {
             labels.add(getString(R.string.PengramHistoryResendCopy));
             actions.add(() -> forwardCopy(message));
         }
@@ -630,7 +642,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
 
             final TextView service = new TextView(context);
             service.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
-            service.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+            service.setTextColor(getThemedColor(Theme.key_chat_serviceText));
             service.setGravity(Gravity.CENTER);
             service.setPadding(dp(10), dp(4), dp(10), dp(5));
             service.setBackground(Theme.createServiceDrawable(dp(10), service, contentView));
@@ -639,7 +651,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             serviceWrap.addView(service, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 8, 6, 8, 2));
             layout.addView(serviceWrap, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
-            final ChatMessageCell cell = new ChatMessageCell(context, currentAccount);
+            final ChatMessageCell cell = new ChatMessageCell(context, currentAccount, false, null, getResourceProvider());
             cell.isChat = dialogId <= 0;
             cell.setFullyDraw(true);
             cell.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {
@@ -702,23 +714,43 @@ public class PengramHistoryChatActivity extends BaseFragment {
         }
     }
 
+    private void applyWallpaper() {
+        if (contentView == null) return;
+        android.graphics.drawable.Drawable themedWallpaper = getResourceProvider() instanceof org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate
+                ? ((org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate) getResourceProvider()).getWallpaperDrawable()
+                : null;
+        boolean motion = getResourceProvider() instanceof org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate
+                ? ((org.telegram.ui.Components.MessagePreviewView.ResourcesDelegate) getResourceProvider()).isWallpaperMotion()
+                : Theme.isWallpaperMotion();
+        contentView.setBackgroundImage(themedWallpaper != null ? themedWallpaper : Theme.getCachedWallpaper(), motion);
+    }
+
     private void refreshTheme() {
         if (contentView == null) return;
         Theme.createChatResources(contentView.getContext(), false);
-        contentView.setBackgroundImage(Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
+        applyWallpaper();
         if (actionBar != null) {
-            actionBar.setBackgroundColor(Theme.getColor(Theme.key_actionBarDefault));
+            actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
         }
         if (emptyView != null) {
-            emptyView.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+            emptyView.setTextColor(getThemedColor(Theme.key_chat_serviceText));
             emptyView.setBackground(Theme.createServiceDrawable(dp(12), emptyView, contentView));
+        }
+        for (int i = 0, n = items.size(); i < n; i++) {
+            Item item = items.get(i);
+            if (item != null && item.message != null) {
+                item.message.resetLayout();
+            }
+        }
+        if (adapter != null) {
+            adapter.notifyDataSetChanged();
         }
         if (listView != null) {
             for (int i = 0; i < listView.getChildCount(); i++) {
                 View row = listView.getChildAt(i);
                 TextView service = (TextView) row.getTag(R.id.object_tag);
                 if (service != null) {
-                    service.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+                    service.setTextColor(getThemedColor(Theme.key_chat_serviceText));
                     service.setBackground(Theme.createServiceDrawable(dp(10), service, contentView));
                 }
                 ChatMessageCell cell = (ChatMessageCell) row.getTag();

@@ -24,8 +24,11 @@ assert 'TABLE_PENDING = "pending_edits"' in history
 assert 'PRIMARY KEY (account, dialog_id, message_id)' in history
 assert 'SQLiteDatabase.CONFLICT_REPLACE' in history
 assert 'PengramHistory.pendingEditSnapshot(account, dialogId, messageId)' in controller
-assert controller.index('PengramHistory.pendingEditSnapshot(account, dialogId, messageId)') < controller.index('pengramGetMessageSnapshot(messageId, dialogId)')
-assert controller.index('PengramHistory.save(account, dialogId, messageId, fromId, date,') < controller.index('PengramHistory.clearPendingEdit(account, dialogId, messageId)')
+edit_save = controller.split('private void pengramSaveEdited(', 1)[1].split('private ', 1)[0]
+assert edit_save.index('PengramHistory.pendingEditSnapshot(account, dialogId, messageId)') < edit_save.index('pengramGetMessageSnapshot(messageId, dialogId)')
+assert 'if (previous == null)' in edit_save
+assert edit_save.index('if (previous == null)') < edit_save.index('PengramHistory.save(account, dialogId, messageId, fromId, date,')
+assert edit_save.index('PengramHistory.save(account, dialogId, messageId, fromId, date,') < edit_save.rindex('PengramHistory.clearPendingEdit(account, dialogId, messageId)')
 assert 'if (action == ACTION_EDITED && messageId != 0' in history and 'isSameLastEdit(account, dialogId, messageId, text, data)' in history
 assert 'byte[] oldData = serialize(previous)' in history
 assert 'if (keepMedia)' in history

@@ -1,34 +1,26 @@
 package org.telegram.messenger;
 
+import android.text.TextUtils;
+
 import androidx.annotation.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URL;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Pengram: официальное имя человека из его публичной страницы.
+ * Pengram: настоящее имя человека из его публичной страницы профиля Telegram.
  *
- * <p>Пока человек записан в ваших контактах, сервер Telegram подменяет его имя
- * везде, где вы его видите, — поэтому «как его видят остальные» из обычных
- * запросов к API не достать. Зато публичная страница {@code t.me/<ник>}
- * открывается без всякого аккаунта и показывает профиль глазами постороннего:
- * имя, которое человек поставил себе сам.
- *
- * <p>Отсюда и весь дизайн проверки:
- * <ul>
- *   <li>никаких изменений в контактах — страница открывается анонимно;</li>
- *   <li>никаких ограничений на число проверок — это обычный GET, а не метод API;</li>
- *   <li>имя из {@code @ника} не выдумывается: если страница не отдала имя,
- *       возвращается {@code null}, и интерфейс честно говорит «неизвестно».</li>
- * </ul>
- *
- * <p>Запрос уходит на {@link Utilities#globalQueue}; колбэк приходит там же, на
- * фоновом потоке, и переключать поток должен вызывающий.
+ * <p>Пока человек записан в ваших контактах, клиент показывает ваше имя записи.
+ * Публичная страница {@code https://t.me/<username>} отдаёт ровно то имя,
+ * которое человек сам указал у себя в профиле Telegram, без любых изменений
+ * в контактах и без передачи номера телефона.
  */
 public final class PengramNameLookup {
 
@@ -39,13 +31,13 @@ public final class PengramNameLookup {
     private static final int CONNECT_TIMEOUT_MS = 6000;
     private static final int READ_TIMEOUT_MS = 8000;
     /** страница профиля весит заметно меньше; больше — значит это уже не она */
-    private static final int MAX_BYTES = 96 * 1024;
+    private static final int MAX_BYTES = 128 * 1024;
 
     /** ники Telegram: латиница, цифры и подчёркивание */
     private static final Pattern USERNAME = Pattern.compile("[A-Za-z0-9_]{3,32}");
     private static final Pattern META = Pattern.compile("<meta\\s+[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern META_PROPERTY = Pattern.compile(
-            "property\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+            "(?:property|name)\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
     private static final Pattern META_CONTENT = Pattern.compile(
             "content\\s*=\\s*[\"']([^\"']*)[\"']", Pattern.CASE_INSENSITIVE);
     private static final Pattern TITLE_DIV = Pattern.compile(
@@ -63,7 +55,7 @@ public final class PengramNameLookup {
     }
 
     /**
-     * Найти имя на публичной странице профиля.
+     * Найти настоящее имя на публичной странице профиля.
      *
      * @param username ник без «@»
      * @param callback результат на фоновом потоке; {@code null} — узнать не вышло
@@ -79,7 +71,12 @@ public final class PengramNameLookup {
         Utilities.globalQueue.postRunnable(() -> {
             String name = null;
             try {
-                name = parseName(fetch(username));
+                String html = fetch("https://t.me/" + username, false);
+                name = parseName(html);
+                if (name == null && hasSocksProxy()) {
+                    html = fetch("https://t.me/" + username, true);
+                    name = parseName(html);
+                }
             } catch (Throwable e) {
                 FileLog.e(e);
             }
@@ -87,19 +84,38 @@ public final class PengramNameLookup {
         });
     }
 
-    private static String fetch(String username) {
+    private static boolean hasSocksProxy() {
+        try {
+            return SharedConfig.isProxyEnabled()
+                    && SharedConfig.currentProxy != null
+                    && SharedConfig.currentProxy.settings.getType() == org.telegram.utils.proxy.ProxySettings.Type.SOCKS5
+                    && !TextUtils.isEmpty(SharedConfig.currentProxy.settings.getAddress())
+                    && SharedConfig.currentProxy.settings.getPort() > 0;
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    private static String fetch(String urlString, boolean useProxy) {
         HttpURLConnection connection = null;
         InputStream in = null;
         try {
-            final URL url = new URL("https://t.me/" + username + "?embed=1");
-            connection = (HttpURLConnection) url.openConnection();
+            final URL url = new URL(urlString);
+            if (useProxy && hasSocksProxy()) {
+                Proxy proxy = new Proxy(Proxy.Type.SOCKS,
+                        new InetSocketAddress(SharedConfig.currentProxy.settings.getAddress(), SharedConfig.currentProxy.settings.getPort()));
+                connection = (HttpURLConnection) url.openConnection(proxy);
+            } else {
+                connection = (HttpURLConnection) url.openConnection();
+            }
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.setInstanceFollowRedirects(true);
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent",
-                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36");
-            connection.setRequestProperty("Accept-Language", "en");
+                    "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36");
+            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml");
+            connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
             final int code = connection.getResponseCode();
             if (code != HttpURLConnection.HTTP_OK) {
                 return null;
@@ -141,12 +157,13 @@ public final class PengramNameLookup {
         if (html == null || html.isEmpty()) {
             return null;
         }
-        String name = cleanName(meta(html, "og:title"));
+        String name = null;
+        final Matcher titleDiv = TITLE_DIV.matcher(html);
+        if (titleDiv.find()) {
+            name = cleanName(titleDiv.group(1));
+        }
         if (name == null) {
-            final Matcher title = TITLE_DIV.matcher(html);
-            if (title.find()) {
-                name = cleanName(title.group(1));
-            }
+            name = cleanName(meta(html, "og:title"));
         }
         if (name == null) {
             final Matcher title = TITLE_TAG.matcher(html);
@@ -189,7 +206,6 @@ public final class PengramNameLookup {
         String value = TAGS.matcher(raw).replaceAll(" ");
         value = unescape(value).replace('\u00a0', ' ');
         value = value.replaceAll("\\s+", " ").trim();
-        // «Имя (@ник)» — оставляем только имя
         final int tail = value.lastIndexOf(" (@");
         if (tail > 0 && value.endsWith(")")) {
             value = value.substring(0, tail).trim();
@@ -199,7 +215,8 @@ public final class PengramNameLookup {
         }
         final String lower = value.toLowerCase(Locale.ROOT);
         if (lower.equals("telegram") || lower.equals("telegram messenger")
-                || lower.startsWith("telegram:") || lower.startsWith("preview")
+                || lower.startsWith("telegram:") || lower.startsWith("telegram –")
+                || lower.startsWith("contact @") || lower.startsWith("preview")
                 || lower.startsWith("you are invited")) {
             return null;
         }
@@ -221,7 +238,6 @@ public final class PengramNameLookup {
                 .replace("&apos;", "'")
                 .replace("&nbsp;", " ")
                 .replace("&amp;", "&");
-        // числовые сущности вроде &#1055; — обычное дело в именах на кириллице
         final Matcher numeric = Pattern.compile("&#(x?[0-9a-fA-F]{1,6});").matcher(out);
         final StringBuffer sb = new StringBuffer(out.length());
         while (numeric.find()) {

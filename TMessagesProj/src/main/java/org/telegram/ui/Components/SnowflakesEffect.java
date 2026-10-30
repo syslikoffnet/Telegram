@@ -45,10 +45,12 @@ public class SnowflakesEffect {
 
     private long lastAnimationTime;
     private final CustomParticle[] customParticles = new CustomParticle[300];
-    private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint customPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Path customPath = new Path();
     private Bitmap sunwheelBitmap; // Built once on demand and shared by every particle.
     private Bitmap solarCrossBitmap;
+    private Bitmap sakuraPetalBitmap;
+    private Bitmap autumnLeafBitmap;
     private static final char[] MATRIX_DIGITS = "0123456789".toCharArray();
     private long customTime;
     private int customMode = -1;
@@ -109,6 +111,26 @@ public class SnowflakesEffect {
         return bitmap;
     }
 
+    /** Pre-rasterized high-DPI Bezier petal/leaf sprite so 150+ rotating petals draw as textured quads. */
+    private static Bitmap createPetalBitmap(int fillColor) {
+        final int size = Math.max(4, dp(28));
+        final float cx = size * 0.5f;
+        final float cy = size * 0.5f;
+        final float r = dp(8f);
+        final Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        final Canvas canvas = new Canvas(bitmap);
+        final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(fillColor);
+        final Path path = new Path();
+        path.moveTo(cx, cy - r);
+        path.quadTo(cx + r * 1.5f, cy, cx, cy + r);
+        path.quadTo(cx - r * 0.8f, cy, cx, cy - r);
+        path.close();
+        canvas.drawPath(path, p);
+        return bitmap;
+    }
+
     /** Reuses particles, paints and the solar sprites across frames. */
     private void drawCustom(View parent, Canvas canvas) {
         final int mode = PengramConfig.getParticleMode();
@@ -141,8 +163,14 @@ public class SnowflakesEffect {
             sunwheelBitmap = createSolarBitmap(false);
         } else if (isSolarCross && solarCrossBitmap == null) {
             solarCrossBitmap = createSolarBitmap(true);
+        } else if (mode == 1 && sakuraPetalBitmap == null) {
+            sakuraPetalBitmap = createPetalBitmap(0xffffa8cc);
+        } else if (mode == 4 && autumnLeafBitmap == null) {
+            autumnLeafBitmap = createPetalBitmap(0xffffba63);
         }
         final Bitmap symbolBitmap = isSunwheel ? sunwheelBitmap : isSolarCross ? solarCrossBitmap : null;
+        final Bitmap petalBitmap = mode == 1 ? sakuraPetalBitmap : mode == 4 ? autumnLeafBitmap : null;
+        final float petalScaleBase = 1f / Math.max(1f, dp(8f));
         final float invSwayHeight = 1f / Math.max(1, dp(35));
         final float sway = dp(isSolarSymbol ? 9 : 3) * speed;
         final float edge = dp(isSolarSymbol ? 20 : 12);
@@ -195,6 +223,12 @@ public class SnowflakesEffect {
                     canvas.scale(scale, scale);
                     canvas.drawBitmap(symbolBitmap, -symbolBitmap.getWidth() / 2f,
                             -symbolBitmap.getHeight() / 2f, customPaint);
+                } else if (petalBitmap != null) {
+                    canvas.rotate(p.spin);
+                    final float scale = p.size * petalScaleBase;
+                    canvas.scale(scale, scale);
+                    canvas.drawBitmap(petalBitmap, -petalBitmap.getWidth() * 0.5f,
+                            -petalBitmap.getHeight() * 0.5f, customPaint);
                 } else {
                     canvas.rotate(p.spin);
                     customPath.reset();
@@ -214,7 +248,7 @@ public class SnowflakesEffect {
                 canvas.drawCircle(p.x, p.y, p.size / 2, customPaint);
             }
         }
-        parent.postInvalidateDelayed(32);
+        parent.postInvalidateOnAnimation();
     }
 
     private class Particle {

@@ -45,9 +45,9 @@ public class PengramConfig {
     // где и чем показывать дату регистрации
     public static final int REG_PLACE_ROW = 0;       // отдельная строка в профиле
     public static final int REG_PLACE_ICON = 1;      // только значок рядом с ID
-    public static final int REG_PLACE_BOTH = 2;      // строка + значок
+    public static final int REG_PLACE_BOTH = 2;      // устаревший режим: приводится к REG_PLACE_ROW
     public static final int REG_PLACE_SUBTITLE = 3;  // в подписи под именем
-    public static int regDatePlace = REG_PLACE_BOTH;
+    public static int regDatePlace = REG_PLACE_ROW;
 
     // значок даты регистрации
     public static final int REG_ICON_CALENDAR = 0;
@@ -180,8 +180,67 @@ public class PengramConfig {
     public static final String KEY_VOICE_ROUND = "voiceChangerRound";
     public static final String KEY_VOICE_CALLS = "voiceChangerCalls";
     public static final String KEY_VOICE_MESSAGES = "voiceChangerMessages";
-    /** Помощник ссылок: предложение «отправить видео вместо ссылки» (TikTok/YouTube). */
+    /** Помощник ссылок: предложение «отправить медиа вместо ссылки» (TikTok/YouTube). */
     public static final String KEY_LINK_ASSISTANT = "linkAssistant";
+    /** При ошибке загрузки медиа: 0 — не отправлять ссылку, 1 — отправить ссылку, 2 — экран выбора (по умолчанию). */
+    public static final String KEY_LINK_FALLBACK_MODE = "linkAssistantFallback";
+    public static final int LINK_FALLBACK_NONE = 0;
+    public static final int LINK_FALLBACK_SEND = 1;
+    public static final int LINK_FALLBACK_ASK = 2;
+    /** Если фото несколько: 0 — отправлять фотографиями, 1 — склеивать в видео, 2 — экран выбора (по умолчанию). */
+    public static final String KEY_LINK_PHOTO_STITCH = "linkAssistantPhotoStitch";
+    public static final int LINK_STITCH_NEVER = 0;
+    public static final int LINK_STITCH_ALWAYS = 1;
+    public static final int LINK_STITCH_ASK = 2;
+    /** Предпросмотр контента: 0 — не показывать, 1 — только для фото (по умолчанию), 2 — только для видео, 3 — для фото и видео. */
+    public static final String KEY_LINK_PREVIEW_MODE = "linkAssistantPreview";
+    public static final int LINK_PREVIEW_OFF = 0;
+    public static final int LINK_PREVIEW_PHOTOS = 1;
+    public static final int LINK_PREVIEW_VIDEOS = 2;
+    public static final int LINK_PREVIEW_ALL = 3;
+    /** Подпись к отправляемому медиа: 0 — автор и описание, 1 — только автор, 2 — без подписи. */
+    public static final String KEY_LINK_CAPTION_MODE = "linkAssistantCaption";
+    public static final int LINK_CAPTION_FULL = 0;
+    public static final int LINK_CAPTION_AUTHOR = 1;
+    public static final int LINK_CAPTION_NONE = 2;
+    /** Длительность одного кадра при склейке фото в видео (1..6 сек, по умолчанию 3). */
+    public static final String KEY_LINK_SLIDE_SEC = "linkAssistantSlideSec";
+    /** Накладывать оригинальный звук TikTok при склейке фото в видео. */
+    public static final String KEY_LINK_SLIDE_AUDIO = "linkAssistantSlideAudio";
+    /** Показывать на островке ссылки отдельную кнопку вызова окна предпросмотра (когда автопредпросмотр выключен). */
+    public static final String KEY_LINK_ISLAND_PREVIEW_BTN = "linkAssistantIslandPreviewBtn";
+    /** Индивидуальные переключатели площадок Помощника ссылок. */
+    public static final String KEY_LINK_PLAT_YOUTUBE = "linkAssistantYoutube";
+    public static final String KEY_LINK_PLAT_TIKTOK = "linkAssistantTiktok";
+    public static final String KEY_LINK_PLAT_INSTAGRAM = "linkAssistantInstagram";
+    public static final String KEY_LINK_PLAT_TWITTER = "linkAssistantTwitter";
+    public static final String KEY_LINK_PLAT_PINTEREST = "linkAssistantPinterest";
+    public static final String KEY_LINK_PLAT_VK = "linkAssistantVk";
+    public static final String KEY_LINK_PLAT_RUTUBE = "linkAssistantRutube";
+    public static final String KEY_LINK_PLAT_REDDIT = "linkAssistantReddit";
+    public static final String KEY_LINK_PLAT_SOUNDCLOUD = "linkAssistantSoundcloud";
+    public static final String KEY_LINK_PLAT_YANDEX = "linkAssistantYandex";
+    /** Качество загрузки видео по умолчанию: 0 — Авто (до 1080p), 1 — Экономия трафика (720p/480p), 2 — Максимальное. */
+    public static final String KEY_LINK_QUALITY = "linkAssistantQuality";
+    public static final int LINK_QUALITY_AUTO_1080 = 0;
+    public static final int LINK_QUALITY_SAVER_720 = 1;
+    public static final int LINK_QUALITY_MAX = 2;
+    /** Показывать чип «Отправить как аудио/музыку» в предпросмотре и быстрых действиях. */
+    public static final String KEY_LINK_AUDIO_CHIP = "linkAssistantAudioChip";
+    /** Формат отправки по умолчанию: 0 — медиа (видео/фото), 1 — только звук (MP3/M4A). */
+    public static final String KEY_LINK_DEFAULT_FORMAT = "linkAssistantFormat";
+    public static final int LINK_FORMAT_MEDIA = 0;
+    public static final int LINK_FORMAT_AUDIO = 1;
+    /** Входящие ссылки в чате: кнопка «⬇ Смотреть тут» у пузыря сообщения для просмотра во встроенном плеере. */
+    public static final String KEY_LINK_INCOMING_WATCH = "linkAssistantIncomingWatch";
+    /** Показывать кнопку «⬇ Смотреть тут» также и на собственных отправленных ссылках. */
+    public static final String KEY_LINK_INCOMING_OUTGOING = "linkAssistantIncomingOnOut";
+    /** Призрак: автоматически отправлять прочтение чата при отправке своего ответа в этот чат. */
+    public static final String KEY_GHOST_READ_ON_REPLY = "ghostReadOnReply";
+    /** Фоновый шум (Ambience / Soundboard) для голосовых, кружочков и звонков. */
+    public static final String KEY_VOICE_AMBIENCE = "voiceAmbience";
+    public static final String KEY_VOICE_AMBIENCE_LEVEL = "voiceAmbienceLevel";
+    public static final String KEY_VOICE_AMBIENCE_DUCK = "voiceAmbienceDuck";
     public static final String KEY_VOICE_GATE = "voiceChangerGate";
     public static final String KEY_VOICE_FORMANT = "voiceChangerFormant";
     public static final String KEY_VOICE_ECHO = "voiceChangerEcho";
@@ -241,14 +300,22 @@ public class PengramConfig {
 
     // --- анимация набора текста (лёгкие transform-анимации без перерисовки glyph-ов) ---
     public static final String KEY_INPUT_ANIMATION = "inputAnimation";
+    public static final String KEY_INPUT_ANIMATION_SAVED = "inputAnimationSaved";
     public static final String KEY_INPUT_ANIMATION_SPEED = "inputAnimationSpeed";
     public static final String KEY_INPUT_ANIMATION_INTENSITY = "inputAnimationIntensity";
     public static final String KEY_INPUT_ANIMATION_HAPTIC = "inputAnimationHaptic";
 
     /** Плавный вход в чат: проявление + лёгкий зум вместо чистого выезда. По умолчанию выключен. */
     public static final String KEY_CHAT_ENTER_ANIM = "chatEnterAnim";
+    public static final String KEY_CHAT_ENTER_STYLE = "chatEnterStyle";
+    public static final int CHAT_ENTER_DEPTH_CASCADE = 0;
+    public static final int CHAT_ENTER_SPRING_ZOOM = 1;
+    public static final int CHAT_ENTER_VERTICAL_FLOW = 2;
+    public static final int CHAT_ENTER_BUBBLE_WAVE = 3;
     public static boolean isChatEnterAnim() { return getBool(KEY_CHAT_ENTER_ANIM, false); }
     public static void setChatEnterAnim(boolean value) { setBool(KEY_CHAT_ENTER_ANIM, value); }
+    public static int getChatEnterStyle() { return Math.max(0, Math.min(3, getIntCached(KEY_CHAT_ENTER_STYLE, CHAT_ENTER_DEPTH_CASCADE))); }
+    public static void setChatEnterStyle(int style) { setIntValue(KEY_CHAT_ENTER_STYLE, Math.max(0, Math.min(3, style))); }
     public static final String KEY_TYPING_BLUR = "typingBlur";
     public static final String KEY_TYPING_BLUR_RADIUS = "typingBlurRadius";
     public static final String KEY_TYPING_DELETE = "typingDeleteAnim";
@@ -329,6 +396,7 @@ public class PengramConfig {
     public static final int MARK_EDIT_PENCIL = 1;
     public static final int MARK_EDIT_CLOCK = 2;
     public static final int MARK_EDIT_DOT = 3;
+    public static final int MARK_EDIT_HIDDEN = 4;
 
     /** оставлять удалённые сообщения в чате (помечать, а не удалять) */
     public static final String KEY_KEEP_DELETED = "keepDeletedInChat";
@@ -562,18 +630,23 @@ public class PengramConfig {
         return value;
     }
 
-    public static boolean isKeepingDeletedInChat() { return isSavingDeleted() && getBool(KEY_KEEP_DELETED, true); }
-    public static boolean isKeepingDeletedInChat(int account) { return isSavingDeleted(account) && getBool(KEY_KEEP_DELETED, true); }
+    public static boolean isKeepingDeletedInChat() { return isSavingDeleted(); }
+    public static boolean isKeepingDeletedInChat(int account) { return isSavingDeleted(account); }
     public static boolean isFadingDeleted() { return getBool(KEY_FADE_DELETED, true); }
     /** ответ на удалённое в личке уходит с цитатой самого удалённого текста */
-    public static boolean isDeletedReplyQuote() { return isKeepingDeletedInChat() && getBool(KEY_DELETED_REPLY_QUOTE, true); }
+    public static boolean isDeletedReplyQuote() {
+        return (isSavingDeleted() || PengramLocalKeep.keepDeletedMessages()) && getBool(KEY_DELETED_REPLY_QUOTE, true);
+    }
     /** и эта цитата подписана именем автора */
     public static boolean isDeletedReplySigned() { return isDeletedReplyQuote() && getBool(KEY_DELETED_REPLY_SIGN, true); }
     public static final String KEY_EDIT_HISTORY_MARK = "editHistoryOpenMark";
     public static final String KEY_EDIT_HISTORY_MENU = "editHistoryOpenMenu";
-    public static boolean isEditHistoryMarkEnabled() { return getBool(KEY_EDIT_HISTORY_MARK, true); }
-    public static boolean isEditHistoryMenuEnabled() { return getBool(KEY_EDIT_HISTORY_MENU, false); }
-    public static boolean isMarkingEdited() { return getBool(KEY_MARK_EDITED, false); }
+    public static boolean isEditHistoryMarkEnabled() { return true; }
+    public static boolean isEditHistoryMenuEnabled() { return true; }
+    public static boolean isMarkingEdited() {
+        final int m = getEditedMark();
+        return m == MARK_EDIT_PENCIL || m == MARK_EDIT_CLOCK || m == MARK_EDIT_DOT;
+    }
     public static boolean isSaveForMyselfDefault() { return getBool(KEY_SAVE_FOR_MYSELF_DEFAULT, false); }
     public static boolean isSaveForMyselfVisible() { return getBool(KEY_SAVE_FOR_MYSELF_SHOW, true); }
 
@@ -587,37 +660,505 @@ public class PengramConfig {
     public static boolean isTimeWithSeconds() { return getBool(KEY_TIME_SECONDS, false); }
     public static boolean isVibrationEnabled() { return getBool(KEY_VIBRATION, true); }
 
-    public static final int DIALOG_AVATAR_CIRCLE = 0;
-    public static final int DIALOG_AVATAR_ROUNDED = 1;
-    public static final int DIALOG_AVATAR_SQUARE = 2;
-    public static final int DIALOG_AVATAR_COUNT = 3;
+    public static final String KEY_SERVICE_JOIN_LEAVE_PROFILE = "serviceJoinLeaveProfile";
+    public static boolean isServiceJoinLeaveProfileOpen() {
+        return getBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, true);
+    }
+    public static void setServiceJoinLeaveProfileOpen(boolean enabled) {
+        setBool(KEY_SERVICE_JOIN_LEAVE_PROFILE, enabled);
+    }
 
-    /** форма миниатюр в списке чатов */
+    public static final String KEY_AVATAR_SHAPE = "dialogAvatarShape";
+    public static final int AVATAR_SHAPE_CIRCLE = 0;
+    public static final int AVATAR_SHAPE_SQUIRCLE = 1;
+    public static final int AVATAR_SHAPE_SOFT_SQUARE = 2;
+    public static final int AVATAR_SHAPE_HEXAGON = 3;
+    public static final int AVATAR_SHAPE_COUNT = 4;
+
+    public static final int DIALOG_AVATAR_CIRCLE = AVATAR_SHAPE_CIRCLE;
+    public static final int DIALOG_AVATAR_ROUNDED = AVATAR_SHAPE_SQUIRCLE;
+    public static final int DIALOG_AVATAR_SQUIRCLE = AVATAR_SHAPE_SQUIRCLE;
+    public static final int DIALOG_AVATAR_SQUARE = AVATAR_SHAPE_SOFT_SQUARE;
+    public static final int DIALOG_AVATAR_SOFT_SQUARE = AVATAR_SHAPE_SOFT_SQUARE;
+    public static final int DIALOG_AVATAR_HEXAGON = AVATAR_SHAPE_HEXAGON;
+    public static final int DIALOG_AVATAR_COUNT = AVATAR_SHAPE_COUNT;
+
+    /** единая форма аватарок по всему приложению */
+    public static int getAvatarShape() {
+        Object draft = pendingVisual(KEY_AVATAR_SHAPE);
+        final int value = draft instanceof Number ? ((Number) draft).intValue()
+                : getIntCached(KEY_AVATAR_SHAPE, AVATAR_SHAPE_CIRCLE);
+        return value < 0 || value >= AVATAR_SHAPE_COUNT ? AVATAR_SHAPE_CIRCLE : value;
+    }
+
+    public static void setAvatarShape(int value) {
+        putInt(KEY_AVATAR_SHAPE, value < 0 || value >= AVATAR_SHAPE_COUNT ? AVATAR_SHAPE_CIRCLE : value);
+    }
+
     public static int getDialogAvatarShape() {
-        final int value = getIntCached("dialogAvatarShape", DIALOG_AVATAR_CIRCLE);
-        return value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value;
+        return getAvatarShape();
     }
 
     public static void setDialogAvatarShape(int value) {
-        putInt("dialogAvatarShape", value < 0 || value >= DIALOG_AVATAR_COUNT ? DIALOG_AVATAR_CIRCLE : value);
+        setAvatarShape(value);
     }
 
     public static int getDialogAvatarShapeName(int value) {
         switch (value) {
-            case DIALOG_AVATAR_ROUNDED: return org.telegram.messenger.R.string.PengramCoverRounded;
-            case DIALOG_AVATAR_SQUARE: return org.telegram.messenger.R.string.PengramCoverSquare;
-            case DIALOG_AVATAR_CIRCLE:
-            default: return org.telegram.messenger.R.string.PengramCoverCircle;
+            case AVATAR_SHAPE_SQUIRCLE: return org.telegram.messenger.R.string.PengramAvatarShapeSquircle;
+            case AVATAR_SHAPE_SOFT_SQUARE: return org.telegram.messenger.R.string.PengramAvatarShapeSoftSquare;
+            case AVATAR_SHAPE_HEXAGON: return org.telegram.messenger.R.string.PengramAvatarShapeHexagon;
+            case AVATAR_SHAPE_CIRCLE:
+            default: return org.telegram.messenger.R.string.PengramAvatarShapeCircle;
         }
     }
 
-    /** радиус миниатюры в списке чатов: круг — как было, иначе наш вариант */
+    public static int getDialogAvatarShapeShortName(int value) {
+        switch (value) {
+            case AVATAR_SHAPE_SQUIRCLE: return org.telegram.messenger.R.string.PengramAvatarShapeSquircleShort;
+            case AVATAR_SHAPE_SOFT_SQUARE: return org.telegram.messenger.R.string.PengramAvatarShapeSoftSquareShort;
+            case AVATAR_SHAPE_HEXAGON: return org.telegram.messenger.R.string.PengramAvatarShapeHexagonShort;
+            case AVATAR_SHAPE_CIRCLE:
+            default: return org.telegram.messenger.R.string.PengramAvatarShapeCircle;
+        }
+    }
+
+    /** радиус аватарок для потребителей roundRadius (>0 сохраняет активный контур PengramAvatarShape) */
     public static int dialogAvatarRadius(int defaultRadius) {
-        switch (getDialogAvatarShape()) {
-            case DIALOG_AVATAR_ROUNDED: return Math.min(defaultRadius, AndroidUtilities.dp(13));
-            case DIALOG_AVATAR_SQUARE: return 0;
+        switch (getAvatarShape()) {
+            case AVATAR_SHAPE_SOFT_SQUARE: return Math.max(AndroidUtilities.dp(4), Math.min(defaultRadius, AndroidUtilities.dp(13)));
             default: return defaultRadius;
         }
+    }
+
+    // ------------------------------------------------------------ галочки и онлайн-индикатор
+
+    public static final String KEY_CHECKMARK_STYLE = "checkmarkStyle";
+    public static final int CHECKMARK_STANDARD = 0;
+    public static final int CHECKMARK_IOS_ROUNDED = 1;
+    public static final int CHECKMARK_DOUBLE_DOTS = 2;
+    public static final int CHECKMARK_OUTLINE_FILL = 3;
+    public static final int CHECKMARK_MINIMAL = 4;
+    public static final int CHECKMARK_STYLE_COUNT = 5;
+
+    public static int getCheckmarkStyle() {
+        final int v = getIntCached(KEY_CHECKMARK_STYLE, CHECKMARK_STANDARD);
+        return v < 0 || v >= CHECKMARK_STYLE_COUNT ? CHECKMARK_STANDARD : v;
+    }
+
+    public static void setCheckmarkStyle(int value) {
+        putInt(KEY_CHECKMARK_STYLE, value < 0 || value >= CHECKMARK_STYLE_COUNT ? CHECKMARK_STANDARD : value);
+    }
+
+    public static int getCheckmarkStyleName(int value) {
+        switch (value) {
+            case CHECKMARK_IOS_ROUNDED: return org.telegram.messenger.R.string.PengramCheckmarkIosRounded;
+            case CHECKMARK_DOUBLE_DOTS: return org.telegram.messenger.R.string.PengramCheckmarkDoubleDots;
+            case CHECKMARK_OUTLINE_FILL: return org.telegram.messenger.R.string.PengramCheckmarkOutlineFill;
+            case CHECKMARK_MINIMAL: return org.telegram.messenger.R.string.PengramCheckmarkMinimal;
+            case CHECKMARK_STANDARD:
+            default: return org.telegram.messenger.R.string.PengramCheckmarkStandard;
+        }
+    }
+
+    public static final String KEY_ONLINE_STYLE = "onlineBadgeStyle";
+    public static final int ONLINE_STANDARD = 0;
+    public static final int ONLINE_RING = 1;
+    public static final int ONLINE_CAPSULE = 2;
+    public static final int ONLINE_DIAMOND = 3;
+    public static final int ONLINE_PULSE = 4;
+    public static final int ONLINE_STYLE_COUNT = 5;
+
+    public static int getOnlineBadgeStyle() {
+        final int v = getIntCached(KEY_ONLINE_STYLE, ONLINE_STANDARD);
+        return v < 0 || v >= ONLINE_STYLE_COUNT ? ONLINE_STANDARD : v;
+    }
+
+    public static void setOnlineBadgeStyle(int value) {
+        putInt(KEY_ONLINE_STYLE, value < 0 || value >= ONLINE_STYLE_COUNT ? ONLINE_STANDARD : value);
+    }
+
+    public static int getOnlineBadgeStyleName(int value) {
+        switch (value) {
+            case ONLINE_RING: return org.telegram.messenger.R.string.PengramOnlineRing;
+            case ONLINE_CAPSULE: return org.telegram.messenger.R.string.PengramOnlineCapsule;
+            case ONLINE_DIAMOND: return org.telegram.messenger.R.string.PengramOnlineDiamond;
+            case ONLINE_PULSE: return org.telegram.messenger.R.string.PengramOnlinePulse;
+            case ONLINE_STANDARD:
+            default: return org.telegram.messenger.R.string.PengramOnlineStandard;
+        }
+    }
+
+    // ------------------------------------------------------------ Bubble Studio
+
+    public static final String KEY_BUBBLE_GLASS = "bubbleGlassEnabled";
+    public static final String KEY_BUBBLE_GLASS_OPACITY = "bubbleGlassOpacity";
+    public static final String KEY_BUBBLE_WALLPAPER_TINT = "bubbleWallpaperTint";
+    public static final String KEY_BUBBLE_RIM = "bubbleRimEnabled";
+    public static final String KEY_BUBBLE_RIM_STRENGTH = "bubbleRimStrength";
+    public static final String KEY_BUBBLE_SHADOW_MODE = "bubbleShadowMode";
+    public static final String KEY_BUBBLE_SHADOW_STRENGTH = "bubbleShadowStrength";
+    public static final String KEY_BUBBLE_INNER_RADIUS = "bubbleInnerRadius";
+
+    public static final int BUBBLE_SHADOW_NONE = 0;
+    public static final int BUBBLE_SHADOW_SOFT = 1;
+    public static final int BUBBLE_SHADOW_AMBIENT = 2;
+    public static final int BUBBLE_SHADOW_GLOW = 3;
+    public static final int BUBBLE_SHADOW_COUNT = 4;
+
+    public static boolean isBubbleGlassEnabled() {
+        return getBool(KEY_BUBBLE_GLASS, false);
+    }
+
+    public static void setBubbleGlassEnabled(boolean enabled) {
+        setBool(KEY_BUBBLE_GLASS, enabled);
+    }
+
+    public static int getBubbleGlassOpacity() {
+        final int v = getIntCached(KEY_BUBBLE_GLASS_OPACITY, 74);
+        return Math.max(35, Math.min(95, v));
+    }
+
+    public static void setBubbleGlassOpacity(int value) {
+        putInt(KEY_BUBBLE_GLASS_OPACITY, Math.max(35, Math.min(95, value)));
+    }
+
+    public static int getBubbleWallpaperTint() {
+        final int v = getIntCached(KEY_BUBBLE_WALLPAPER_TINT, 35);
+        return Math.max(0, Math.min(80, v));
+    }
+
+    public static void setBubbleWallpaperTint(int value) {
+        putInt(KEY_BUBBLE_WALLPAPER_TINT, Math.max(0, Math.min(80, value)));
+    }
+
+    public static boolean isBubbleRimEnabled() {
+        return getBool(KEY_BUBBLE_RIM, false);
+    }
+
+    public static void setBubbleRimEnabled(boolean enabled) {
+        setBool(KEY_BUBBLE_RIM, enabled);
+    }
+
+    public static int getBubbleRimStrength() {
+        final int v = getIntCached(KEY_BUBBLE_RIM_STRENGTH, 60);
+        return Math.max(15, Math.min(100, v));
+    }
+
+    public static void setBubbleRimStrength(int value) {
+        putInt(KEY_BUBBLE_RIM_STRENGTH, Math.max(15, Math.min(100, value)));
+    }
+
+    public static int getBubbleShadowMode() {
+        final int v = getIntCached(KEY_BUBBLE_SHADOW_MODE, BUBBLE_SHADOW_SOFT);
+        return v < 0 || v >= BUBBLE_SHADOW_COUNT ? BUBBLE_SHADOW_SOFT : v;
+    }
+
+    public static void setBubbleShadowMode(int value) {
+        putInt(KEY_BUBBLE_SHADOW_MODE, value < 0 || value >= BUBBLE_SHADOW_COUNT ? BUBBLE_SHADOW_SOFT : value);
+    }
+
+    public static int getBubbleShadowModeName(int value) {
+        switch (value) {
+            case BUBBLE_SHADOW_NONE: return org.telegram.messenger.R.string.PengramBubbleShadowNone;
+            case BUBBLE_SHADOW_AMBIENT: return org.telegram.messenger.R.string.PengramBubbleShadowAmbient;
+            case BUBBLE_SHADOW_GLOW: return org.telegram.messenger.R.string.PengramBubbleShadowGlow;
+            case BUBBLE_SHADOW_SOFT:
+            default: return org.telegram.messenger.R.string.PengramBubbleShadowSoft;
+        }
+    }
+
+    public static int getBubbleShadowStrength() {
+        final int v = getIntCached(KEY_BUBBLE_SHADOW_STRENGTH, 100);
+        return Math.max(20, Math.min(150, v));
+    }
+
+    public static void setBubbleShadowStrength(int value) {
+        putInt(KEY_BUBBLE_SHADOW_STRENGTH, Math.max(20, Math.min(150, value)));
+    }
+
+    /** -1 = Авто (min(6, bubbleRadius)), 0..17 = явный внутренний радиус в dp */
+    public static int getBubbleInnerRadius() {
+        final int v = getIntCached(KEY_BUBBLE_INNER_RADIUS, -1);
+        return v < 0 ? -1 : Math.min(17, v);
+    }
+
+    public static void setBubbleInnerRadius(int value) {
+        putInt(KEY_BUBBLE_INNER_RADIUS, value < 0 ? -1 : Math.min(17, value));
+    }
+
+    public static int resolveBubbleInnerRadiusDp(int outerDp) {
+        final int inner = getBubbleInnerRadius();
+        return inner < 0 ? Math.min(6, outerDp) : inner;
+    }
+
+    public static boolean isBubbleStudioCustom() {
+        return isBubbleGlassEnabled()
+                || isBubbleRimEnabled()
+                || getBubbleShadowMode() != BUBBLE_SHADOW_SOFT
+                || getBubbleShadowStrength() != 100
+                || getBubbleInnerRadius() >= 0;
+    }
+
+    public static int bubbleStudioSignature() {
+        int h = isBubbleGlassEnabled() ? (1000 + getBubbleGlassOpacity() * 31 + getBubbleWallpaperTint()) : 0;
+        h = h * 31 + (isBubbleRimEnabled() ? (100 + getBubbleRimStrength()) : 0);
+        h = h * 31 + getBubbleShadowMode();
+        h = h * 31 + getBubbleShadowStrength();
+        h = h * 31 + (getBubbleInnerRadius() + 2);
+        return h;
+    }
+
+    // ------------------------------------------------------------ калькулятор и живой конвертер валют
+
+    public static final String KEY_INLINE_CALC = "inlineCalcEnabled";
+    public static final String KEY_INLINE_CURRENCY = "inlineCurrencyEnabled";
+    public static final String KEY_CALC_DEFAULT_CURRENCY = "inlineCalcCurrency";
+
+    public static final String[] CALC_CURRENCY_CODES = new String[]{
+            "AUTO", "RUB", "USD", "EUR", "UAH", "KZT", "BYN",
+            "UZS", "GEL", "TRY", "CNY", "GBP", "USDT", "TON", "BTC"
+    };
+
+    public static boolean isInlineCalcEnabled() {
+        return getBool(KEY_INLINE_CALC, true);
+    }
+
+    public static void setInlineCalcEnabled(boolean enabled) {
+        setBool(KEY_INLINE_CALC, enabled);
+    }
+
+    public static boolean isInlineCurrencyEnabled() {
+        return getBool(KEY_INLINE_CURRENCY, true);
+    }
+
+    public static void setInlineCurrencyEnabled(boolean enabled) {
+        setBool(KEY_INLINE_CURRENCY, enabled);
+    }
+
+    private static volatile String cachedCalcDefaultCurrency;
+
+    public static String getCalcDefaultCurrencyPref() {
+        final String cached = cachedCalcDefaultCurrency;
+        if (cached != null) {
+            return cached;
+        }
+        init();
+        final SharedPreferences p = prefs();
+        final String v = p == null ? "AUTO" : p.getString(KEY_CALC_DEFAULT_CURRENCY, "AUTO");
+        final String normalized = (v == null || v.isEmpty()) ? "AUTO" : v.toUpperCase(java.util.Locale.US);
+        cachedCalcDefaultCurrency = normalized;
+        return normalized;
+    }
+
+    public static void setCalcDefaultCurrencyPref(String code) {
+        final String normalized = code == null || code.isEmpty() ? "AUTO" : code.toUpperCase(java.util.Locale.US);
+        cachedCalcDefaultCurrency = normalized;
+        putString(KEY_CALC_DEFAULT_CURRENCY, normalized);
+    }
+
+    public static String resolveCalcDefaultCurrency() {
+        final String pref = getCalcDefaultCurrencyPref();
+        if (!"AUTO".equals(pref)) {
+            return pref;
+        }
+        try {
+            final java.util.Locale loc = LocaleController.getInstance().getCurrentLocale();
+            final String lang = loc != null && loc.getLanguage() != null ? loc.getLanguage().toLowerCase(java.util.Locale.US) : "";
+            final String country = loc != null && loc.getCountry() != null ? loc.getCountry().toUpperCase(java.util.Locale.US) : "";
+            if ("ru".equals(lang) || "RU".equals(country)) return "RUB";
+            if ("uk".equals(lang) || "UA".equals(country)) return "UAH";
+            if ("kk".equals(lang) || "KZ".equals(country)) return "KZT";
+            if ("be".equals(lang) || "BY".equals(country)) return "BYN";
+            if ("uz".equals(lang) || "UZ".equals(country)) return "UZS";
+            if ("ka".equals(lang) || "GE".equals(country)) return "GEL";
+            if ("tr".equals(lang) || "TR".equals(country)) return "TRY";
+            if ("zh".equals(lang) || "CN".equals(country)) return "CNY";
+            if ("GB".equals(country)) return "GBP";
+            if ("DE".equals(country) || "FR".equals(country) || "NL".equals(country)
+                    || "ES".equals(country) || "IT".equals(country) || "PT".equals(country)
+                    || "AT".equals(country) || "BE".equals(country) || "FI".equals(country)) {
+                return "EUR";
+            }
+        } catch (Throwable ignore) {
+        }
+        return "RUB";
+    }
+
+    // ------------------------------------------------------------ быстрый поиск в сети по префиксу
+
+    public static final String KEY_INLINE_WEB_SEARCH = "inlineWebSearchEnabled";
+    public static final String KEY_INLINE_WEB_SEARCH_PREFIX = "inlineWebSearchPrefix";
+    public static final String KEY_INLINE_WEB_SEARCH_ENGINE = "inlineWebSearchEngine";
+    public static final String KEY_WEB_SEARCH_HISTORY_ENABLED = "webSearchHistoryEnabled";
+    private static final String KEY_WEB_SEARCH_RECENT = "lastWebSearchQueries";
+    public static final int WEB_SEARCH_RECENT_MAX = 12;
+
+    public static final int WEB_ENGINE_GOOGLE = 0;
+    public static final int WEB_ENGINE_YANDEX = 1;
+    public static final int WEB_ENGINE_DUCKDUCKGO = 2;
+    public static final int WEB_ENGINE_BRAVE = 3;
+    public static final int WEB_ENGINE_COUNT = 4;
+
+    public static final String[] WEB_SEARCH_PRESET_PREFIXES = new String[]{
+            ".", "?", "??", "!", ";"
+    };
+
+    /** По умолчанию СТРОГО выключено (false). */
+    public static boolean isInlineWebSearchEnabled() {
+        return getBool(KEY_INLINE_WEB_SEARCH, false);
+    }
+
+    public static void setInlineWebSearchEnabled(boolean enabled) {
+        setBool(KEY_INLINE_WEB_SEARCH, enabled);
+    }
+
+    public static String sanitizeWebSearchPrefix(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        final String trimmed = raw.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 4) {
+            return null;
+        }
+        final char first = trimmed.charAt(0);
+        if (first == '/' || first == '@' || first == '#') {
+            return null;
+        }
+        for (int i = 0; i < trimmed.length(); i++) {
+            if (Character.isWhitespace(trimmed.charAt(i))) {
+                return null;
+            }
+        }
+        return trimmed;
+    }
+
+    private static volatile String cachedWebSearchPrefix;
+
+    public static String getInlineWebSearchPrefix() {
+        final String cached = cachedWebSearchPrefix;
+        if (cached != null) {
+            return cached;
+        }
+        init();
+        final SharedPreferences p = prefs();
+        final String raw = p == null ? "." : p.getString(KEY_INLINE_WEB_SEARCH_PREFIX, ".");
+        final String clean = sanitizeWebSearchPrefix(raw);
+        final String resolved = clean != null ? clean : ".";
+        cachedWebSearchPrefix = resolved;
+        return resolved;
+    }
+
+    public static boolean setInlineWebSearchPrefix(String raw) {
+        final String clean = sanitizeWebSearchPrefix(raw);
+        if (clean == null) {
+            return false;
+        }
+        cachedWebSearchPrefix = clean;
+        putString(KEY_INLINE_WEB_SEARCH_PREFIX, clean);
+        return true;
+    }
+
+    public static int getInlineWebSearchEngine() {
+        final int v = getIntCached(KEY_INLINE_WEB_SEARCH_ENGINE, WEB_ENGINE_GOOGLE);
+        return v < 0 || v >= WEB_ENGINE_COUNT ? WEB_ENGINE_GOOGLE : v;
+    }
+
+    public static void setInlineWebSearchEngine(int engine) {
+        final int clamped = engine < 0 || engine >= WEB_ENGINE_COUNT ? WEB_ENGINE_GOOGLE : engine;
+        putInt(KEY_INLINE_WEB_SEARCH_ENGINE, clamped);
+    }
+
+    public static String getInlineWebSearchEngineName(int engine) {
+        switch (engine) {
+            case WEB_ENGINE_YANDEX: return "Яндекс";
+            case WEB_ENGINE_DUCKDUCKGO: return "DuckDuckGo";
+            case WEB_ENGINE_BRAVE: return "Brave Search";
+            case WEB_ENGINE_GOOGLE:
+            default: return "Google";
+        }
+    }
+
+    public static boolean isWebSearchHistoryEnabled() {
+        return getBool(KEY_WEB_SEARCH_HISTORY_ENABLED, true);
+    }
+
+    public static void setWebSearchHistoryEnabled(boolean enabled) {
+        setBool(KEY_WEB_SEARCH_HISTORY_ENABLED, enabled);
+        if (!enabled) {
+            clearRecentWebQueries();
+        }
+    }
+
+    public static java.util.ArrayList<String> getRecentWebQueries() {
+        final java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        if (!isWebSearchHistoryEnabled()) {
+            return out;
+        }
+        final String raw = visualString(KEY_WEB_SEARCH_RECENT);
+        if (raw == null || raw.isEmpty()) {
+            return out;
+        }
+        for (String line : raw.split("\n")) {
+            final String q = line == null ? "" : line.trim();
+            if (!q.isEmpty() && !out.contains(q) && out.size() < WEB_SEARCH_RECENT_MAX) {
+                out.add(q);
+            }
+        }
+        return out;
+    }
+
+    public static void rememberWebQuery(String query) {
+        if (!isWebSearchHistoryEnabled() || query == null) {
+            return;
+        }
+        final String clean = query.replace('\n', ' ').replace('\r', ' ').trim();
+        if (clean.length() < 2 || clean.length() > 140) {
+            return;
+        }
+        final java.util.ArrayList<String> list = getRecentWebQueries();
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).equalsIgnoreCase(clean)) {
+                list.remove(i);
+            }
+        }
+        list.add(0, clean);
+        while (list.size() > WEB_SEARCH_RECENT_MAX) {
+            list.remove(list.size() - 1);
+        }
+        saveRecentWebQueries(list);
+    }
+
+    public static void removeRecentWebQuery(String query) {
+        if (query == null) {
+            return;
+        }
+        final java.util.ArrayList<String> list = getRecentWebQueries();
+        boolean changed = false;
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).equalsIgnoreCase(query.trim())) {
+                list.remove(i);
+                changed = true;
+            }
+        }
+        if (changed) {
+            saveRecentWebQueries(list);
+        }
+    }
+
+    public static void clearRecentWebQueries() {
+        putString(KEY_WEB_SEARCH_RECENT, "");
+    }
+
+    private static void saveRecentWebQueries(java.util.List<String> list) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            final String s = list.get(i);
+            if (s == null || s.isEmpty()) continue;
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(s);
+        }
+        putString(KEY_WEB_SEARCH_RECENT, sb.toString());
     }
 
     // ------------------------------------------------------------ тексты песен
@@ -981,13 +1522,20 @@ public class PengramConfig {
 
     public static int getEditedMark() {
         init();
-        return editedMark;
+        return getIntCached("editedMark", editedMark);
     }
 
     public static void setEditedMark(int mark) {
         init();
+        if (mark < MARK_EDIT_NONE || mark > MARK_EDIT_HIDDEN) {
+            mark = MARK_EDIT_PENCIL;
+        }
+        if (stageVisual("editedMark", mark)) return;
         editedMark = mark;
         putInt("editedMark", mark);
+        final boolean hideWord = mark != MARK_EDIT_NONE;
+        setBool(KEY_HIDE_EDITED_LABEL, hideWord);
+        setBool(KEY_MARK_EDITED, mark == MARK_EDIT_PENCIL || mark == MARK_EDIT_CLOCK || mark == MARK_EDIT_DOT);
     }
 
     /** ресурс значка для метки удалённого сообщения */
@@ -1050,18 +1598,22 @@ public class PengramConfig {
         // повторного входа
         v = v * 31 + SharedConfig.fontSize;
         v = v * 31 + SharedConfig.bubbleRadius;
+        v = v * 31 + getAvatarShape();
+        v = v * 31 + getCheckmarkStyle();
+        v = v * 31 + getOnlineBadgeStyle();
+        v = v * 31 + (isServiceJoinLeaveProfileOpen() ? 1 : 0);
+        v = v * 31 + bubbleStudioSignature();
         return v;
     }
 
     /** значок изменённого сообщения с учётом настроек (0 — метки нет) */
     public static int getEditedMarkIconRes() {
-        // History opens with a pencil by default. If the user chooses only the
-        // long-press menu, respect the independent edited-mark appearance setting.
-        if (!isMarkingEdited()) {
-            return isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
+        final int mark = getEditedMark();
+        if (mark == MARK_EDIT_NONE || mark == MARK_EDIT_HIDDEN) {
+            return 0;
         }
-        int icon = getEditedMarkIcon(getEditedMark());
-        return icon != 0 ? icon : isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0;
+        final int icon = getEditedMarkIcon(mark);
+        return icon != 0 ? icon : (isEditHistoryMarkEnabled() ? R.drawable.pengram_mark_pencil : 0);
     }
 
     private static boolean loaded;
@@ -1081,7 +1633,10 @@ public class PengramConfig {
             idFormat = p.getInt("idFormat", ID_FORMAT_TELEGRAM);
             copyIdOnTap = p.getBoolean("copyIdOnTap", true);
             regDateStyle = p.getInt("regDateStyle", REG_STYLE_DATE_AGE);
-            regDatePlace = p.getInt("regDatePlace", REG_PLACE_BOTH);
+            regDatePlace = p.getInt("regDatePlace", REG_PLACE_ROW);
+            if (regDatePlace == REG_PLACE_BOTH) {
+                regDatePlace = REG_PLACE_ROW;
+            }
             regDateIcon = p.getInt("regDateIcon", REG_ICON_CALENDAR);
             titleMode = p.getInt("titleMode", TITLE_MODE_PENGRAM);
             titleCustom = p.getString("titleCustom", "");
@@ -1130,6 +1685,13 @@ public class PengramConfig {
             hideChatShareMyNumber = p.getBoolean("hideChatShareMyNumber", true);
             deletedMark = p.getInt("deletedMark", MARK_TRASH);
             editedMark = p.getInt("editedMark", MARK_EDIT_PENCIL);
+            if (editedMark < MARK_EDIT_NONE || editedMark > MARK_EDIT_HIDDEN) {
+                editedMark = MARK_EDIT_PENCIL;
+            }
+            if (!p.getBoolean("migrMenuReadAllOff", false)) {
+                p.edit().putBoolean(KEY_MENU_READ_ALL, true).putBoolean("migrMenuReadAllOff", true).apply();
+                boolCache.put(KEY_MENU_READ_ALL, Boolean.TRUE);
+            }
             // Раньше островок по умолчанию появлялся сверху. У тех, кто его
             // открывал, в prefs осталось явное «0», поэтому одного нового
             // значения по умолчанию мало — один раз переносим полосу вниз.
@@ -1141,6 +1703,24 @@ public class PengramConfig {
                     intCache.remove(KEY_MESSAGE_ISLAND_POSITION);
                 }
                 p.edit().putBoolean("migrIslandBottom", true).apply();
+            }
+            // В beta 10 анимации ввода и цилиндр-прокрутка по базе строго выключены,
+            // но при первом включении сразу запускают самый сочный пресет.
+            if (!p.getBoolean("migrBeta10TypingCylinderOff", false)) {
+                final SharedPreferences.Editor ed = p.edit();
+                ed.putBoolean(KEY_CYLINDER_SCROLL, false);
+                boolCache.put(KEY_CYLINDER_SCROLL, Boolean.FALSE);
+                final int prevAnim = p.getInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                if (prevAnim > INPUT_ANIM_NONE && prevAnim != INPUT_ANIM_FADE) {
+                    ed.putInt(KEY_INPUT_ANIMATION_SAVED, prevAnim);
+                    intCache.put(KEY_INPUT_ANIMATION_SAVED, prevAnim);
+                }
+                ed.putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                intCache.put(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+                ed.putBoolean(KEY_TYPING_CURSOR, false);
+                boolCache.put(KEY_TYPING_CURSOR, Boolean.FALSE);
+                ed.putBoolean("migrBeta10TypingCylinderOff", true);
+                ed.apply();
             }
             loaded = true;
         }
@@ -1399,24 +1979,31 @@ public class PengramConfig {
         return getRegDateStyle() != REG_STYLE_OFF;
     }
 
-    public static int getRegDatePlace() { init(); return regDatePlace; }
-    public static void setRegDatePlace(int place) { init(); regDatePlace = place; putInt("regDatePlace", place); }
+    public static int getRegDatePlace() {
+        init();
+        return regDatePlace == REG_PLACE_BOTH ? REG_PLACE_ROW : regDatePlace;
+    }
+    public static void setRegDatePlace(int place) {
+        init();
+        final int normalized = place == REG_PLACE_BOTH ? REG_PLACE_ROW : place;
+        regDatePlace = normalized;
+        putInt("regDatePlace", normalized);
+    }
     /** нужна ли отдельная строка «дата регистрации» в профиле */
     public static boolean isRegDateRowVisible() {
         if (!isRegDateVisible()) return false;
         final int place = getRegDatePlace();
         if (place == REG_PLACE_SUBTITLE) return false;
-        if (place == REG_PLACE_ROW || place == REG_PLACE_BOTH) return true;
+        if (place == REG_PLACE_ROW) return true;
         // режим «только значок»: без отдельной строки ID значок вешать некуда,
         // поэтому дату показываем строкой
         return !isIdSeparateRow();
     }
-    /** нужен ли значок рядом со строкой ID */
+    /** нужен ли значок рядом со строкой ID (никогда не дублируется, если включена отдельная строка под дату) */
     public static boolean isRegDateIconVisible() {
-        if (!isRegDateVisible()) return false;
+        if (!isRegDateVisible() || isRegDateRowVisible()) return false;
         if (getRegDateIcon() == REG_ICON_NONE) return false;
-        final int place = getRegDatePlace();
-        return place == REG_PLACE_ICON || place == REG_PLACE_BOTH;
+        return getRegDatePlace() == REG_PLACE_ICON && isIdSeparateRow();
     }
     /** дописывать ли дату регистрации в подпись под именем */
     public static boolean isRegDateInSubtitle() {
@@ -1548,11 +2135,28 @@ public class PengramConfig {
         org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
     }
 
-    /** Прокрутка-цилиндр в чате: сообщения огибают невидимый валик. */
+    /** Прокрутка-цилиндр в чате: по умолчанию выключена, но при включении сразу ставит самый сочный пресет. */
     public static final String KEY_CYLINDER_SCROLL = "chatCylinderScroll";
-    /** по умолчанию включён и сразу «сочный» — см. KEY_CYLINDER_STRENGTH */
-    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }
-    public static void setCylinderScroll(boolean value) { setBool(KEY_CYLINDER_SCROLL, value); }
+    public static boolean isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }
+    public static void setCylinderScroll(boolean value) {
+        init();
+        final SharedPreferences p = prefs();
+        if (value && p != null) {
+            if (!p.contains(KEY_CYLINDER_STRENGTH)) {
+                setCylinderScrollStrength(100);
+            }
+            if (!p.contains(KEY_CYLINDER_TO_BARS)) {
+                setCylinderScrollToBars(true);
+            }
+        }
+        setBool(KEY_CYLINDER_SCROLL, value);
+    }
+
+    public static void applyJuicyCylinderPreset() {
+        setCylinderScrollStrength(100);
+        setCylinderScrollToBars(true);
+        setBool(KEY_CYLINDER_SCROLL, true);
+    }
 
     /** сила цилиндра, %: 100 — самый сочный (валик уже, изгиб заметнее) */
     public static final String KEY_CYLINDER_STRENGTH = "cylinderScrollStrength";
@@ -2385,50 +2989,81 @@ public class PengramConfig {
 
     // ------------------------------- история поиска -------------------------------
 
-    /** ключ: недавние запросы поиска по настройкам Pengram */
-    private static final String KEY_SEARCH_HISTORY = "settingsSearchHistory";
-    private static final int SEARCH_HISTORY_MAX = 8;
+    /** ключ: недавние переходы по настройкам Pengram (стабильные ID пунктов, как в поиске Telegram) */
+    private static final String KEY_SEARCH_RECENT = "settingsSearchRecentEntries";
+    /** устаревший ключ текстовых запросов — очищается автоматически */
+    private static final String KEY_SEARCH_HISTORY_LEGACY = "settingsSearchHistory";
+    public static final int SEARCH_HISTORY_MAX = 20;
 
     /**
-     * Недавние запросы поиска по настройкам — как история поиска в Telegram.
-     * Храним строкой через \n: запросы короткие, отдельная таблица не нужна.
+     * Недавние переходы в поиске по настройкам Pengram — сохраняется сам целевой
+     * пункт настройки (стабильный ID из PengramSearchIndex.IDS), а не сырой текст запроса.
      */
-    public static java.util.ArrayList<String> getSearchHistory() {
-        final java.util.ArrayList<String> result = new java.util.ArrayList<>();
-        final String saved = visualString(KEY_SEARCH_HISTORY);
+    public static java.util.ArrayList<Integer> getRecentSearchIds() {
+        final java.util.ArrayList<Integer> result = new java.util.ArrayList<>();
+        if (!visualString(KEY_SEARCH_HISTORY_LEGACY).isEmpty()) {
+            putString(KEY_SEARCH_HISTORY_LEGACY, "");
+        }
+        final String saved = visualString(KEY_SEARCH_RECENT);
         if (saved == null || saved.isEmpty()) {
             return result;
         }
-        for (String part : saved.split("\n")) {
-            final String value = part.trim();
-            if (!value.isEmpty() && !result.contains(value) && result.size() < SEARCH_HISTORY_MAX) {
-                result.add(value);
+        for (String part : saved.split("[,\\n]")) {
+            final String token = part.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            try {
+                final int id = Integer.parseInt(token);
+                if (id > 0 && !result.contains(id) && result.size() < SEARCH_HISTORY_MAX) {
+                    result.add(id);
+                }
+            } catch (NumberFormatException ignore) {
             }
         }
         return result;
     }
 
-    public static void addSearchHistory(String query) {
-        final String value = query == null ? "" : query.trim().replace("\n", " ");
-        if (value.length() < 2 || value.length() > 80) {
+    public static void addRecentSearchId(int stableId) {
+        if (stableId <= 0) {
             return;
         }
-        final java.util.ArrayList<String> history = getSearchHistory();
-        history.remove(value);
-        history.add(0, value);
+        final java.util.ArrayList<Integer> history = getRecentSearchIds();
+        history.remove(Integer.valueOf(stableId));
+        history.add(0, stableId);
         while (history.size() > SEARCH_HISTORY_MAX) {
             history.remove(history.size() - 1);
         }
-        final StringBuilder sb = new StringBuilder();
-        for (String item : history) {
-            if (sb.length() > 0) sb.append('\n');
-            sb.append(item);
+        saveRecentSearchIds(history);
+    }
+
+    public static void removeRecentSearchId(int stableId) {
+        if (stableId <= 0) {
+            return;
         }
-        putString(KEY_SEARCH_HISTORY, sb.toString());
+        final java.util.ArrayList<Integer> history = getRecentSearchIds();
+        if (history.remove(Integer.valueOf(stableId))) {
+            saveRecentSearchIds(history);
+        }
+    }
+
+    private static void saveRecentSearchIds(java.util.List<Integer> ids) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ids.size(); i++) {
+            final Integer id = ids.get(i);
+            if (id == null || id <= 0) continue;
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id.intValue());
+        }
+        putString(KEY_SEARCH_RECENT, sb.toString());
+        if (!visualString(KEY_SEARCH_HISTORY_LEGACY).isEmpty()) {
+            putString(KEY_SEARCH_HISTORY_LEGACY, "");
+        }
     }
 
     public static void clearSearchHistory() {
-        putString(KEY_SEARCH_HISTORY, "");
+        putString(KEY_SEARCH_RECENT, "");
+        putString(KEY_SEARCH_HISTORY_LEGACY, "");
     }
 
     // ------------------------------- скины пингвина -------------------------------
@@ -2555,6 +3190,9 @@ public class PengramConfig {
         putString("menuOrder", sb.toString());
     }
 
+    public static final String KEY_MENU_READ_ALL = "hideMenuReadAll";
+    public static final String KEY_MENU_ARCHIVE = "hideMenuArchive";
+
     private static String menuItemKey(int id) {
         switch (id) {
             case MENU_ITEM_PENGRAM: return KEY_MENU_PENGRAM;
@@ -2568,11 +3206,13 @@ public class PengramConfig {
             case MENU_ITEM_PROFILE: return "hideMenuProfile";
             case MENU_ITEM_SETTINGS: return "hideMenuSettings";
             case MENU_ITEM_CLOSE_APP: return "hideMenuCloseApp";
+            case MENU_ITEM_READ_ALL: return KEY_MENU_READ_ALL;
+            case MENU_ITEM_ARCHIVE: return KEY_MENU_ARCHIVE;
             default: return "hideMenuUnknown" + id;
         }
     }
 
-    /** по умолчанию прячем «дополнительные» пункты, чтобы меню не разрасталось */
+    /** по умолчанию прячем «дополнительные» и опасные пункты (включая «Прочитать все»), чтобы случайно не нажать */
     private static boolean menuItemHiddenDefault(int id) {
         switch (id) {
             case MENU_ITEM_NEW_CHANNEL:
@@ -2581,10 +3221,19 @@ public class PengramConfig {
             case MENU_ITEM_PROFILE:
             case MENU_ITEM_CLOSE_APP:
             case MENU_ITEM_ARCHIVE:
+            case MENU_ITEM_READ_ALL:
                 return true;
             default:
                 return false;
         }
+    }
+
+    public static boolean isReadAllMenuShown() {
+        return !isMenuItemHidden(MENU_ITEM_READ_ALL);
+    }
+
+    public static void setReadAllMenuShown(boolean shown) {
+        setMenuItemHidden(MENU_ITEM_READ_ALL, !shown);
     }
 
     public static boolean isMenuItemHidden(int id) {
@@ -2666,7 +3315,20 @@ public class PengramConfig {
     public static boolean isHidingWriteButton() { return getBool(KEY_HIDE_WRITE_BUTTON, false); }
     public static boolean isMenuCopyMessageId() { return getBool(KEY_MENU_COPY_MESSAGE_ID, true); }
     public static boolean isMenuSaveToSaved() { return getBool(KEY_MENU_SAVE_TO_SAVED, true); }
-    public static boolean isHidingEditedLabel() { return getBool(KEY_HIDE_EDITED_LABEL, false); }
+    public static boolean isHidingEditedLabel() {
+        Object draft = pendingVisual("editedMark");
+        if (draft instanceof Integer) {
+            return ((Integer) draft) != MARK_EDIT_NONE;
+        }
+        final SharedPreferences p = prefs();
+        if (p != null && p.contains("editedMark")) {
+            return getEditedMark() != MARK_EDIT_NONE;
+        }
+        if (p != null && p.contains(KEY_HIDE_EDITED_LABEL)) {
+            return getBool(KEY_HIDE_EDITED_LABEL, false);
+        }
+        return getEditedMark() != MARK_EDIT_NONE;
+    }
 
     /** режим плашки времени поверх медиа */
     public static int getMediaTimeMode() {
@@ -2706,6 +3368,56 @@ public class PengramConfig {
     /** Помощник ссылок включён: бар-предложение над полем ввода при вставке TikTok/YouTube. */
     public static boolean isLinkAssistantEnabled() { return getBool(KEY_LINK_ASSISTANT, true); }
     public static void setLinkAssistantEnabled(boolean value) { setBool(KEY_LINK_ASSISTANT, value); }
+    public static int getLinkFallbackMode() { return Math.max(LINK_FALLBACK_NONE, Math.min(LINK_FALLBACK_ASK, getIntCached(KEY_LINK_FALLBACK_MODE, LINK_FALLBACK_ASK))); }
+    public static void setLinkFallbackMode(int mode) { setIntValue(KEY_LINK_FALLBACK_MODE, Math.max(LINK_FALLBACK_NONE, Math.min(LINK_FALLBACK_ASK, mode))); }
+    public static int getLinkPhotoStitchMode() { return Math.max(LINK_STITCH_NEVER, Math.min(LINK_STITCH_ASK, getIntCached(KEY_LINK_PHOTO_STITCH, LINK_STITCH_ASK))); }
+    public static void setLinkPhotoStitchMode(int mode) { setIntValue(KEY_LINK_PHOTO_STITCH, Math.max(LINK_STITCH_NEVER, Math.min(LINK_STITCH_ASK, mode))); }
+    public static int getLinkPreviewMode() { return Math.max(LINK_PREVIEW_OFF, Math.min(LINK_PREVIEW_ALL, getIntCached(KEY_LINK_PREVIEW_MODE, LINK_PREVIEW_PHOTOS))); }
+    public static void setLinkPreviewMode(int mode) { setIntValue(KEY_LINK_PREVIEW_MODE, Math.max(LINK_PREVIEW_OFF, Math.min(LINK_PREVIEW_ALL, mode))); }
+    public static int getLinkCaptionMode() { return Math.max(LINK_CAPTION_FULL, Math.min(LINK_CAPTION_NONE, getIntCached(KEY_LINK_CAPTION_MODE, LINK_CAPTION_FULL))); }
+    public static void setLinkCaptionMode(int mode) { setIntValue(KEY_LINK_CAPTION_MODE, Math.max(LINK_CAPTION_FULL, Math.min(LINK_CAPTION_NONE, mode))); }
+    public static int getLinkSlideSeconds() { return Math.max(1, Math.min(6, getIntCached(KEY_LINK_SLIDE_SEC, 3))); }
+    public static void setLinkSlideSeconds(int seconds) { setIntValue(KEY_LINK_SLIDE_SEC, Math.max(1, Math.min(6, seconds))); }
+    public static boolean isLinkSlideAudioEnabled() { return getBool(KEY_LINK_SLIDE_AUDIO, true); }
+    public static void setLinkSlideAudioEnabled(boolean value) { setBool(KEY_LINK_SLIDE_AUDIO, value); }
+    public static boolean isLinkIslandPreviewButtonEnabled() { return getBool(KEY_LINK_ISLAND_PREVIEW_BTN, true); }
+    public static void setLinkIslandPreviewButtonEnabled(boolean value) { setBool(KEY_LINK_ISLAND_PREVIEW_BTN, value); }
+    public static boolean isLinkPlatformYoutubeEnabled() { return getBool(KEY_LINK_PLAT_YOUTUBE, true); }
+    public static boolean isLinkPlatformTiktokEnabled() { return getBool(KEY_LINK_PLAT_TIKTOK, true); }
+    public static boolean isLinkPlatformInstagramEnabled() { return getBool(KEY_LINK_PLAT_INSTAGRAM, true); }
+    public static boolean isLinkPlatformTwitterEnabled() { return getBool(KEY_LINK_PLAT_TWITTER, true); }
+    public static boolean isLinkPlatformPinterestEnabled() { return getBool(KEY_LINK_PLAT_PINTEREST, true); }
+    public static boolean isLinkPlatformVkEnabled() { return getBool(KEY_LINK_PLAT_VK, true); }
+    public static boolean isLinkPlatformRutubeEnabled() { return getBool(KEY_LINK_PLAT_RUTUBE, true); }
+    public static boolean isLinkPlatformRedditEnabled() { return getBool(KEY_LINK_PLAT_REDDIT, true); }
+    public static boolean isLinkPlatformSoundcloudEnabled() { return getBool(KEY_LINK_PLAT_SOUNDCLOUD, true); }
+    public static boolean isLinkPlatformYandexEnabled() { return getBool(KEY_LINK_PLAT_YANDEX, true); }
+    public static int getLinkQualityMode() { return Math.max(LINK_QUALITY_AUTO_1080, Math.min(LINK_QUALITY_MAX, getIntCached(KEY_LINK_QUALITY, LINK_QUALITY_AUTO_1080))); }
+    public static void setLinkQualityMode(int mode) { setIntValue(KEY_LINK_QUALITY, Math.max(LINK_QUALITY_AUTO_1080, Math.min(LINK_QUALITY_MAX, mode))); }
+    public static int getLinkMaxVideoHeight() {
+        switch (getLinkQualityMode()) {
+            case LINK_QUALITY_SAVER_720: return 720;
+            case LINK_QUALITY_MAX: return 4320;
+            case LINK_QUALITY_AUTO_1080:
+            default: return 1080;
+        }
+    }
+    public static boolean isLinkAudioChipEnabled() { return getBool(KEY_LINK_AUDIO_CHIP, true); }
+    public static void setLinkAudioChipEnabled(boolean value) { setBool(KEY_LINK_AUDIO_CHIP, value); }
+    public static int getLinkDefaultFormat() { return Math.max(LINK_FORMAT_MEDIA, Math.min(LINK_FORMAT_AUDIO, getIntCached(KEY_LINK_DEFAULT_FORMAT, LINK_FORMAT_MEDIA))); }
+    public static void setLinkDefaultFormat(int format) { setIntValue(KEY_LINK_DEFAULT_FORMAT, Math.max(LINK_FORMAT_MEDIA, Math.min(LINK_FORMAT_AUDIO, format))); }
+    public static boolean isLinkIncomingWatchEnabled() { return getBool(KEY_LINK_INCOMING_WATCH, true); }
+    public static void setLinkIncomingWatchEnabled(boolean value) { setBool(KEY_LINK_INCOMING_WATCH, value); }
+    public static boolean isLinkIncomingOutgoingEnabled() { return getBool(KEY_LINK_INCOMING_OUTGOING, false); }
+    public static void setLinkIncomingOutgoingEnabled(boolean value) { setBool(KEY_LINK_INCOMING_OUTGOING, value); }
+    public static boolean isGhostReadOnReply() { return getBool(KEY_GHOST_READ_ON_REPLY, true); }
+    public static void setGhostReadOnReply(boolean value) { setBool(KEY_GHOST_READ_ON_REPLY, value); }
+    public static int getVoiceAmbience() { return Math.max(0, Math.min(6, getIntCached(KEY_VOICE_AMBIENCE, 0))); }
+    public static void setVoiceAmbience(int mode) { setIntValue(KEY_VOICE_AMBIENCE, Math.max(0, Math.min(6, mode))); }
+    public static int getVoiceAmbienceLevel() { return Math.max(5, Math.min(100, getIntCached(KEY_VOICE_AMBIENCE_LEVEL, 24))); }
+    public static void setVoiceAmbienceLevel(int pct) { setIntValue(KEY_VOICE_AMBIENCE_LEVEL, Math.max(5, Math.min(100, pct))); }
+    public static boolean isVoiceAmbienceDuck() { return getBool(KEY_VOICE_AMBIENCE_DUCK, true); }
+    public static void setVoiceAmbienceDuck(boolean value) { setBool(KEY_VOICE_AMBIENCE_DUCK, value); }
     public static int getVoiceGate() { return Math.max(0, Math.min(3, getIntCached(KEY_VOICE_GATE, 0))); }
     public static int getVoiceFormant() { return Math.max(-6, Math.min(6, getIntCached(KEY_VOICE_FORMANT, 0))); }
     public static int getVoiceEcho() { return Math.max(0, Math.min(5, getIntCached(KEY_VOICE_ECHO, 0))); }
@@ -2766,11 +3478,11 @@ public class PengramConfig {
     public static int getDialogSenderAvatarPosition() { return Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, getIntCached(KEY_DIALOG_SENDER_AVATAR_POSITION, SENDER_AVATAR_INLINE))); }
     public static void setDialogSenderAvatarPosition(int value) { putInt(KEY_DIALOG_SENDER_AVATAR_POSITION, Math.max(SENDER_AVATAR_INLINE, Math.min(SENDER_AVATAR_AFTER_NAME, value))); }
     public static boolean isForceDeleteForAll() { return getBool(KEY_FORCE_DELETE_FOR_ALL, true); }
-    /** Базовое поведение отправки удалённых сообщений не отключается зависимыми флагами. */
+    /** Базовое поведение пересылки удалённых, одноразовых и защищённых сообщений включено всегда. */
     public static boolean isResendDeletedAsMine() { return true; }
-    public static boolean isResendMenuVisible() { return getBool("messageMenuResendHere", false) || getBool("messageMenuResendTo", false); }
-    public static boolean isResendOnceMedia() { return getBool(KEY_RESEND_ONCE, true); }
-    public static boolean isResendAskChat() { return getBool(KEY_RESEND_ASK_CHAT, false); }
+    public static boolean isResendMenuVisible() { return true; }
+    public static boolean isResendOnceMedia() { return true; }
+    public static boolean isResendAskChat() { return true; }
     /** подпись автора в копиях; по умолчанию выключена — она раскрывает собеседника */
     public static boolean isCopySignAuthor() { return getBool(KEY_COPY_SIGN_AUTHOR, false); }
 
@@ -2822,31 +3534,111 @@ public class PengramConfig {
     public static boolean isMusicForwardClean() { return getBool(KEY_MUSIC_FORWARD_CLEAN, true); }
     public static boolean isMusicSmartArtist() { return getBool(KEY_MUSIC_SMART_ARTIST, true); }
     public static boolean isPlayerSwipe() { return getBool(KEY_PLAYER_SWIPE, true); }
-    public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_FADE))); }
-    public static void setInputAnimation(int value) { putInt(KEY_INPUT_ANIMATION, Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value))); }
+    public static int getInputAnimation() { return Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, getIntCached(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE))); }
+    public static void setInputAnimation(int value) {
+        final int clamped = Math.max(0, Math.min(INPUT_ANIM_COUNT - 1, value));
+        final int prev = getInputAnimation();
+        if (clamped != INPUT_ANIM_NONE) {
+            putInt(KEY_INPUT_ANIMATION_SAVED, clamped);
+            if (prev == INPUT_ANIM_NONE) {
+                ensureJuicyTypingSubDefaults();
+            }
+        }
+        putInt(KEY_INPUT_ANIMATION, clamped);
+    }
     public static int getInputAnimationSpeed() { return Math.max(0, Math.min(2, getIntCached(KEY_INPUT_ANIMATION_SPEED, 1))); }
     public static void setInputAnimationSpeed(int value) { putInt(KEY_INPUT_ANIMATION_SPEED, Math.max(0, Math.min(2, value))); }
-    public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 2))); }
+    public static int getInputAnimationIntensity() { return Math.max(1, Math.min(3, getIntCached(KEY_INPUT_ANIMATION_INTENSITY, 3))); }
     public static void setInputAnimationIntensity(int value) { putInt(KEY_INPUT_ANIMATION_INTENSITY, Math.max(1, Math.min(3, value))); }
 
-    // ------------------------------------------------- анимация ввода: детали
+    // ------------------------------------------------- анимация ввода: детали (по базе выкл, при включении — сразу сочный пресет)
     public static boolean isTypingBlur() { return getBool(KEY_TYPING_BLUR, true); }
-    public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 10))); }
+    public static int getTypingBlurRadius() { return Math.max(0, Math.min(30, getIntCached(KEY_TYPING_BLUR_RADIUS, 6))); }
     public static boolean isTypingDeleteAnim() { return getBool(KEY_TYPING_DELETE, true); }
-    public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_DUST))); }
-    public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 5))); }
-    public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 50))); }
-    public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 50))); }
-    public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 50))); }
-    public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, true); }
-    public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 25))); }
+    public static int getTypingDeleteStyle() { return Math.max(DELETE_PARTICLE_DUST, Math.min(DELETE_PARTICLE_LETTERS, getIntCached(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS))); }
+    public static int getTypingDeleteCount() { return Math.max(0, Math.min(12, getIntCached(KEY_TYPING_DELETE_COUNT, 7))); }
+    public static int getTypingDeleteSpeed() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPEED, 68))); }
+    public static int getTypingDeleteSpread() { return Math.max(0, Math.min(120, getIntCached(KEY_TYPING_DELETE_SPREAD, 65))); }
+    public static int getTypingDeleteSize() { return Math.max(10, Math.min(120, getIntCached(KEY_TYPING_DELETE_SIZE, 62))); }
+    public static boolean isTypingCursorSmooth() { return getBool(KEY_TYPING_CURSOR, false); }
+    public static int getTypingCursorSpeed() { return Math.max(1, Math.min(60, getIntCached(KEY_TYPING_CURSOR_SPEED, 32))); }
     public static int getTypingCursorWidth() { return Math.max(1, Math.min(12, getIntCached(KEY_TYPING_CURSOR_WIDTH, 2))); }
-    public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, false); }
-    public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 15))); }
-    public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, false); }
+    public static boolean isTypingCursorLiquid() { return getBool(KEY_TYPING_CURSOR_LIQUID, true); }
+    public static int getTypingCursorLiquidScale() { return Math.max(0, Math.min(40, getIntCached(KEY_TYPING_CURSOR_LIQUID_SCALE, 22))); }
+    public static boolean isTypingSelectionLiquid() { return getBool(KEY_TYPING_SELECTION, true); }
     public static boolean isTypingIgnoreSpaces() { return getBool(KEY_TYPING_IGNORE_SPACES, true); }
-    public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, false); }
+    public static boolean isTypingAnimateAllLines() { return getBool(KEY_TYPING_ALL_LINES, true); }
     public static boolean isInputAnimationHaptic() { return getBool(KEY_INPUT_ANIMATION_HAPTIC, false); }
+
+    public static boolean isTypingEffectsActive() {
+        return getInputAnimation() != INPUT_ANIM_NONE || isTypingCursorSmooth();
+    }
+
+    private static void ensureJuicyTypingSubDefaults() {
+        init();
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return;
+        }
+        if (!p.contains(KEY_INPUT_ANIMATION_SPEED)) setInputAnimationSpeed(1);
+        if (!p.contains(KEY_INPUT_ANIMATION_INTENSITY)) setInputAnimationIntensity(3);
+        if (!p.contains(KEY_TYPING_BLUR)) setBool(KEY_TYPING_BLUR, true);
+        if (!p.contains(KEY_TYPING_BLUR_RADIUS)) putInt(KEY_TYPING_BLUR_RADIUS, 6);
+        if (!p.contains(KEY_TYPING_ALL_LINES)) setBool(KEY_TYPING_ALL_LINES, true);
+        if (!p.contains(KEY_TYPING_DELETE)) setBool(KEY_TYPING_DELETE, true);
+        if (!p.contains(KEY_TYPING_DELETE_STYLE)) putInt(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS);
+        if (!p.contains(KEY_TYPING_DELETE_COUNT)) putInt(KEY_TYPING_DELETE_COUNT, 7);
+        if (!p.contains(KEY_TYPING_DELETE_SPEED)) putInt(KEY_TYPING_DELETE_SPEED, 68);
+        if (!p.contains(KEY_TYPING_DELETE_SPREAD)) putInt(KEY_TYPING_DELETE_SPREAD, 65);
+        if (!p.contains(KEY_TYPING_DELETE_SIZE)) putInt(KEY_TYPING_DELETE_SIZE, 62);
+        if (!p.contains(KEY_TYPING_CURSOR_SPEED)) putInt(KEY_TYPING_CURSOR_SPEED, 32);
+        if (!p.contains(KEY_TYPING_CURSOR_WIDTH)) putInt(KEY_TYPING_CURSOR_WIDTH, 2);
+        if (!p.contains(KEY_TYPING_CURSOR_LIQUID)) setBool(KEY_TYPING_CURSOR_LIQUID, true);
+        if (!p.contains(KEY_TYPING_CURSOR_LIQUID_SCALE)) putInt(KEY_TYPING_CURSOR_LIQUID_SCALE, 22);
+        if (!p.contains(KEY_TYPING_SELECTION)) setBool(KEY_TYPING_SELECTION, true);
+    }
+
+    public static void setTypingEffectsMaster(boolean enabled) {
+        if (enabled) {
+            ensureJuicyTypingSubDefaults();
+            int saved = getIntCached(KEY_INPUT_ANIMATION_SAVED, INPUT_ANIM_POP);
+            if (saved <= INPUT_ANIM_NONE || saved >= INPUT_ANIM_COUNT) {
+                saved = INPUT_ANIM_POP;
+            }
+            putInt(KEY_INPUT_ANIMATION, saved);
+            setBool(KEY_TYPING_CURSOR, true);
+        } else {
+            final int cur = getInputAnimation();
+            if (cur != INPUT_ANIM_NONE) {
+                putInt(KEY_INPUT_ANIMATION_SAVED, cur);
+            }
+            putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_NONE);
+            setBool(KEY_TYPING_CURSOR, false);
+        }
+    }
+
+    public static void applyJuicyTypingPreset() {
+        putInt(KEY_INPUT_ANIMATION, INPUT_ANIM_POP);
+        putInt(KEY_INPUT_ANIMATION_SAVED, INPUT_ANIM_POP);
+        setInputAnimationSpeed(1);
+        setInputAnimationIntensity(3);
+        setBool(KEY_TYPING_BLUR, true);
+        putInt(KEY_TYPING_BLUR_RADIUS, 6);
+        setBool(KEY_TYPING_IGNORE_SPACES, true);
+        setBool(KEY_TYPING_ALL_LINES, true);
+        setBool(KEY_TYPING_DELETE, true);
+        putInt(KEY_TYPING_DELETE_STYLE, DELETE_PARTICLE_SPARKS);
+        putInt(KEY_TYPING_DELETE_COUNT, 7);
+        putInt(KEY_TYPING_DELETE_SPEED, 68);
+        putInt(KEY_TYPING_DELETE_SPREAD, 65);
+        putInt(KEY_TYPING_DELETE_SIZE, 62);
+        setBool(KEY_TYPING_CURSOR, true);
+        putInt(KEY_TYPING_CURSOR_SPEED, 32);
+        putInt(KEY_TYPING_CURSOR_WIDTH, 2);
+        setBool(KEY_TYPING_CURSOR_LIQUID, true);
+        putInt(KEY_TYPING_CURSOR_LIQUID_SCALE, 22);
+        setBool(KEY_TYPING_SELECTION, true);
+    }
 
     /** true — FLAG_SECURE ставить нельзя, скриншоты разрешены */
     public static boolean screenshotsAllowed() {
@@ -2995,87 +3787,159 @@ public class PengramConfig {
      * состояние раскрытых групп, счётчики показанных подсказок, кэши и временные метки.
      */
     /** потолки на импорт: защита от раздутого или собранного вручную файла */
-    private static final int MAX_IMPORT_KEYS = 2000;
-    private static final int MAX_IMPORT_VALUE = 8192;
+    private static final int MAX_IMPORT_KEYS = 4000;
+    private static final int MAX_IMPORT_VALUE = 65536;
 
     private static final String[] NOT_EXPORTABLE_PREFIXES = {
             "ui", "shown", "seen", "hint", "tip", "cache", "last", "tmp", "temp",
-            "crash", "stat", "counter", "firstRun", "migrat", "pending", "session"
+            "crash", "stat", "counter", "firstRun", "migr", "pending", "session",
+            "nativeExit", "antiCrashBlocked", "localPremiumStatusApplied", "netBypassRetired",
+            "settingsSearchHistory", "settingsSearchRecentEntries"
     };
 
     /**
-     * Белый список ключей, которые ездят в .pen.
-     *
-     * Раньше здесь был чёрный список, и это ошибка: чужой файл мог выставить
-     * в наших настройках любой ключ, о котором мы не подумали. Теперь наоборот —
-     * принимаем только то, что форк действительно умеет читать.
+     * Полный белый список всех настроек и вложенных параметров Pengram, которые ездят в .pen / JSON.
      */
     private static final java.util.HashSet<String> EXPORTABLE_NAMES = new java.util.HashSet<>(java.util.Arrays.asList(
-            "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournalEnabled", "playerTracksView",
-            "appFont", "backgroundMode", "backgroundSilentIcon", "notificationIconStyle",
-            "typingStatsEnabled", "typingStatsBadge", "bypassEnabled",
-            "chatItemsOrder", "chatMenuEnabled", "chatMenuPosition", "copyIdOnTap",
-            "copyToClipboard", "coverShape", "deleteEffect", "deleteEffectIncoming",
-            "deletedMark", "dialogAvatarShape", "dialogSenderAvatarPosition", "dialogSenderAvatars",
-            "dontSendRead", "dontSendStoryViews", "dontSendTyping", "editedMark",
-            "fadeDeleted", "forceDeleteForAll", "forceSnow", "forwardDoneAlert",
-            "forwardLockInput", "ghostAutoOffline", "ghostDontSendReactions", "ghostDontSendVoiceRead",
-            "ghostMode", "ghostSendDelay", "ghostStoriesWarn", "groupAvatarPos",
+            "accountOrder", "allowForwards", "allowScreenshots", "antiCrash", "antiCrashJournal",
+            "antiCrashJournalEnabled", "antiCrashMark", "appFont",
+            "autoCooldown", "autoDelayV2", "autoEnabled", "autoQuietEnd", "autoQuietStart",
+            "autoRecentContext", "autoRecentContextLimit", "autoRules", "autoSpamPauseMinutes",
+            "autoSpamThreshold", "autoStyle",
+            "backgroundMode", "backgroundSilentIcon", "bypassEnabled",
+            "chatCylinderScroll", "chatCylinderToBars", "chatEnterAnim", "chatEnterStyle", "chatHeaderLiquidGlass",
+            "chatItemsOrder", "chatListHeaderGlass", "chatMenuEnabled", "chatMenuPosition", "chatPinnedGlass",
+            "copyIdOnTap", "copySignAuthor", "copyToClipboard", "coverShape", "cylinderScrollStrength",
+            "deleteEffect", "deleteEffectIncoming", "deletedMark", "deletedReplyQuote", "deletedReplySign",
+            "deviceNameSpoof", "deviceNameValue", "deviceVersionSpoof", "deviceVersionValue",
+            "dialogAvatarShape", "dialogSenderAvatarPosition", "dialogSenderAvatars",
+            "dontSendRead", "dontSendStoryViews", "dontSendTyping",
+            "editHistoryOpenMark", "editHistoryOpenMenu", "editedMark", "exportChatEnabled",
+            "fadeDeleted", "forceDeleteForAll", "forceSnow", "forwardDoneAlert", "forwardLockInput",
+            "ghostAutoOffline", "ghostDontSendReactions", "ghostDontSendVoiceRead",
+            "ghostMode", "ghostReadOnReply", "ghostSendDelay", "ghostStoriesWarn", "groupAvatarPos",
             "headerLyrics", "headerLyricsAnim", "headerLyricsArtist", "headerLyricsBold",
             "headerLyricsMarquee", "headerLyricsSize", "headerLyricsSpeed", "headerLyricsWords",
-            "hideAds", "hideBubbleTail", "hideEditedLabel", "hideMenuCalls",
+            "hideAds", "hideBubbleTail", "hideChatAutoDelete", "hideChatCall", "hideChatClearHistory",
+            "hideChatReport", "hideChatSearch", "hideChatShareMyNumber", "hideChatShortcut",
+            "hideChatTranslate", "hideChatWallpaper", "hideEditedLabel",
+            "hideMenuArchive", "hideMenuCalls", "hideMenuChannel", "hideMenuCloseApp",
             "hideMenuContacts", "hideMenuGhost", "hideMenuNewGroup", "hideMenuPengram",
-            "hideMenuSavedMessages", "hideMenuSettings", "hideMenuTheme", "hideOnline",
-            "hidePhoneNumber", "hideSharePhoneOption", "hideStories", "hideTabCalls",
-            "hideTabContacts", "hideTabProfile", "hideTabSettings", "hideWriteButton",
-            "historyKeepDays", "historyMaxEntries", "historyRowInProfile", "idFormat",
-            "idStyle", "inAppVibration", "inputAnimation", "inputAnimationHaptic",
-            "inputAnimationIntensity", "inputAnimationSpeed", "keepDeletedInChat", "keepFormatting",
-            "typingAnimateAllLines", "typingBlur", "typingBlurRadius", "typingCursorLiquid",
-            "typingCursorLiquidScale", "typingCursorSmooth", "typingCursorSpeed", "typingCursorWidth",
-            "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize", "typingDeleteSpeed",
-            "typingDeleteSpread", "typingDeleteStyle", "typingIgnoreSpaces", "typingSelectionLiquid",
-            "keepOnceMedia", "localPremium", "localPremiumStatus", "localEmojiStatus", "lyricsAlign",
-            "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
+            "hideMenuProfile", "hideMenuReadAll", "hideMenuSavedMessages", "hideMenuSettings",
+            "hideMenuTheme", "hideOnline", "hidePhoneNumber", "hideSharePhoneOption",
+            "hideStories", "hideTabCalls", "hideTabContacts", "hideTabProfile",
+            "hideTabSettings", "hideWriteButton",
+            "historyKeepDays", "historyMaxEntries", "historyRowInProfile", "idFormat", "idStyle",
+            "inAppVibration", "inputAnimation", "inputAnimationHaptic",
+            "inputAnimationIntensity", "inputAnimationSaved", "inputAnimationSpeed", "inputBarLiquidGlass",
+            "keepDeletedInChat", "keepFormatting", "keepOnceMedia",
+            "linkAssistant", "linkAssistantAudioChip", "linkAssistantCaption", "linkAssistantFallback",
+            "linkAssistantFormat", "linkAssistantIncomingOnOut", "linkAssistantIncomingWatch",
+            "linkAssistantInstagram", "linkAssistantIslandPreviewBtn", "linkAssistantPhotoStitch",
+            "linkAssistantPinterest", "linkAssistantPreview", "linkAssistantQuality",
+            "linkAssistantReddit", "linkAssistantRutube", "linkAssistantSlideAudio",
+            "linkAssistantSlideSec", "linkAssistantSoundcloud", "linkAssistantTiktok",
+            "linkAssistantTwitter", "linkAssistantVk", "linkAssistantYandex", "linkAssistantYoutube",
+            "localKeep", "localPremium", "localPremiumStatus", "localEmojiStatus",
+            "lyricsAlign", "lyricsAnim", "lyricsAuto", "lyricsAutoScroll", "lyricsBold",
             "lyricsDim", "lyricsOffset", "lyricsShadow", "lyricsSize",
             "lyricsSmooth", "lyricsSource", "lyricsSpeed", "lyricsStretch",
-            "markEdited", "mediaFolder", "mediaMaxSizeMb", "mediaPattern",
+            "markEdited",
+            "md3Alerts", "md3Dialogs", "md3Enabled", "md3Fab", "md3Menus",
+            "md3Monet", "md3MonetMessages", "md3MonetStrength", "md3NoDividers", "md3Screens",
+            "md3SearchBar", "md3SearchShadow", "md3Settings", "md3Sheets", "md3TonalUnread",
+            "mediaFolder", "mediaMaxSizeMb", "mediaPattern",
             "mediaTimeMode", "mediaTimeRound", "mediaTimeSending", "mediaToGallery",
-            "menuCopyMessageId", "menuOrder", "menuSaveToSaved", "musicForwardClean",
-            "musicSmartArtist", "netBypass", "netDelay", "netFake",
-            "netFakeTtl", "netFirstPackets", "netNoDelay", "netOob",
-            "netProfile", "netSplit1", "netSplit2", "netSplit3",
-            "netSplitRandom", "newPlayer", "noNumberRounding", "noScreenshotNotify",
-            "originalName", "pengramCardOnTop", "penguinAutoSkin", "penguinDanceMusic",
+            "mentionAllCooldown", "mentionAllEnabled", "mentionAllLimit",
+            "mentionAllMode", "mentionAllStyle", "mentionByName",
+            "menuCopyMessageId", "menuOrder", "menuSaveToSaved",
+            "messageIslandCompact", "messageIslandEnabled", "messageIslandHaptic",
+            "messageIslandLabels", "messageIslandLinkTrash", "messageIslandMd3",
+            "messageIslandOrder", "messageIslandPosition", "messageIslandTint",
+            "messageMenuAskAI", "messageMenuResendHere", "messageMenuResendTo",
+            "musicForwardClean", "musicSmartArtist",
+            "netBypass", "netDelay", "netFake", "netFakeTtl", "netFirstPackets",
+            "netIpStrategy", "netNoDelay", "netOob", "netProfile",
+            "netSplit1", "netSplit2", "netSplit3", "netSplitRandom",
+            "newPlayer", "noNumberRounding", "noScreenshotNotify", "notificationIconStyle",
+            "originalName",
+            "particleAlpha", "particleCount", "particleMode", "particleRotation", "particleSpeed",
+            "pengramCardOnTop", "penguinAutoSkin", "penguinDanceMusic",
             "penguinSize", "penguinSkin", "penguinSleepGhost", "penguinTips",
-            "playerBg", "playerBlur", "playerRotate", "playerStyle",
-            "playerSwipe", "playerWave", "profileHistoryAvatars", "profileHistoryBio",
-            "profileHistoryCloudFormat", "profileHistoryEnabled", "profileHistoryLimitDays", "profileHistoryLimitMb",
-            "profileHistoryScope", "profileHistoryStorage", "quickActionCount", "quickTiles",
+            "playerAccent", "playerAccentColor", "playerBeat", "playerBg", "playerBlur",
+            "playerEmptyCover", "playerHeaderLiquidGlass", "playerPenguinDance",
+            "playerRotate", "playerSeekStyle", "playerStyle", "playerSwipe", "playerTracksView", "playerWave",
+            "profileHistoryAvatars", "profileHistoryBio", "profileHistoryCloudFormat",
+            "profileHistoryEnabled", "profileHistoryLimitDays", "profileHistoryLimitMb",
+            "profileHistoryScope", "profileHistoryStorage",
+            "quickActionCount", "quickTiles",
+            "quoteAccentStyle", "quoteActionMode", "quoteAlignOutgoing", "quoteAnonMentions",
+            "quoteAvatarGap", "quoteAvatarLayout", "quoteAvatarRounded", "quoteAvatarSize",
+            "quoteBackground", "quoteBackgroundColor", "quoteBubbleTail", "quoteDarkCard",
+            "quoteDateInTime", "quoteFakeName", "quoteFollowChatTheme", "quoteIncludeMedia",
+            "quoteJpegQuality", "quoteLogoSize", "quotePadding", "quotePeerNameColor",
+            "quoteRadius", "quoteScale", "quoteShowAvatar", "quoteShowBadges",
+            "quoteShowForward", "quoteShowName", "quoteShowReactions", "quoteShowReply",
+            "quoteShowTime", "quoteStickerTransparent", "quoteUseJpeg",
+            "quoteWatermarkEnabled", "quoteWatermarkOpacity", "quoteWatermarkPosition", "quoteWatermarkText",
             "regDateIcon", "regDatePlace", "regDateStyle", "regTapText",
             "resendAskChat", "resendDeletedAsMine", "resendDeletedMenu", "resendOnceMedia",
-            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia", "saveMessages",
-            "editHistoryOpenMark", "editHistoryOpenMenu", "saveForMyselfDefault",
-            "saveForMyselfShow", "saveInBots", "saveLastOnline", "saveOutgoing2",
-            "saveReadDate", "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",
-            "settingsOrder", "settingsOrderVersion", "sharePhoneDefault", "sharePhoneMode", "showAccountsInSettings",
-            "tabBarGlassOpacity", "tabBarGlassThickness", "tabBarGlassIntensity",
-            "tabBarGlassGlow", "tabBarGlassSheen", "tabBarGlassDrag", "tabBarGlassRim",
-            "speedBoost", "tabBarSize", "timeWithSeconds", "titleCenter",
-            "titleCustom", "titleMode", "trackForwardButton", "trackForwardCaption",
-            "trackForwardMode", "voiceChangerMode", "voiceChangerPitch", "voiceGainDb", "voiceGainPreset",
-            "voiceGainClearDb", "voiceGainLoudDb", "voiceGainBattleDb", "voiceGainOverloadDb",
-            "voiceGainClearDrive", "voiceGainLoudDrive", "voiceGainBattleDrive", "voiceGainOverloadDrive",
-            "voiceGainCustomDrive", "zalgoFilter"
+            "saveDeleted", "saveDeletedMedia", "saveEdited", "saveEditedMedia",
+            "saveForMyselfDefault", "saveForMyselfShow", "saveInBots",
+            "saveLastOnline", "saveMessages", "saveOutgoing2", "saveReadDate",
+            "selectionLimit", "sendStyleCaptions", "sendStyleLargeEmoji", "sendTextStyle",
+            "sessionExportEnabled", "settingsOrder", "settingsOrderVersion",
+            "settingsSurfaceLiquidGlass", "sharePhoneDefault", "sharePhoneMode",
+            "showAccountsInSettings", "speedBoost",
+            "tabBarGlassDrag", "tabBarGlassGlow", "tabBarGlassIntensity",
+            "tabBarGlassOpacity", "tabBarGlassRim", "tabBarGlassSheen",
+            "tabBarGlassThickness", "tabBarLiquidGlass", "tabBarSize",
+            "timeWithSeconds", "titleCenter", "titleCustom", "titleMode",
+            "trackCardBrand", "trackCardFormat", "trackCardLink",
+            "trackForwardButton", "trackForwardCaption", "trackForwardMode",
+            "typingAnimateAllLines", "typingBlur", "typingBlurRadius",
+            "typingCursorLiquid", "typingCursorLiquidScale", "typingCursorSmooth",
+            "typingCursorSpeed", "typingCursorWidth",
+            "typingDeleteAnim", "typingDeleteCount", "typingDeleteSize",
+            "typingDeleteSpeed", "typingDeleteSpread", "typingDeleteStyle",
+            "typingIgnoreSpaces", "typingSelectionLiquid", "typingStatsBadge", "typingStatsEnabled",
+            "voiceAmbience", "voiceAmbienceDuck", "voiceAmbienceLevel",
+            "voiceChangerCalls", "voiceChangerEcho", "voiceChangerFormant", "voiceChangerGate",
+            "voiceChangerMessages", "voiceChangerMode", "voiceChangerPitch", "voiceChangerRound",
+            "voiceGainBattleDb", "voiceGainBattleDrive", "voiceGainClearDb", "voiceGainClearDrive",
+            "voiceGainCustomDrive", "voiceGainDb", "voiceGainLoudDb", "voiceGainLoudDrive",
+            "voiceGainOverloadDb", "voiceGainOverloadDrive", "voiceGainPreset",
+            "voiceStudioDrive", "voiceStudioMix", "voiceStudioRobot",
+            "zalgoFilter",
+            "serviceJoinLeaveProfile",
+            "checkmarkStyle", "onlineBadgeStyle",
+            "bubbleGlassEnabled", "bubbleGlassOpacity", "bubbleWallpaperTint",
+            "bubbleRimEnabled", "bubbleRimStrength",
+            "bubbleShadowMode", "bubbleShadowStrength", "bubbleInnerRadius",
+            "inlineCalcEnabled", "inlineCurrencyEnabled", "inlineCalcCurrency",
+            "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine",
+            "webSearchHistoryEnabled",
+            "linkLivePhotos", "classicProfileMusic", "disableVoiceProximity",
+            "miniPlayerQueueBtn", "playerFavoritesEnabled", "playerFavShowFullPlayer",
+            "playerFavShowMiniPlayer", "playerFavShowChatList", "playerFavShowNotification",
+            "playerFavTargetMode", "playerFavRichCaption", "playerFavLikedSet", "smartTrackRecognition"
     ));
 
-    /** семейства ключей с именем, которое зависит от чата или человека */
+    private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "services", "activeService", "roles", "activeRole",
+            "aiStream", "aiOnlyAnswer", "aiAsQuote", "aiHistory", "aiHistoryDepth"
+    ));
+
+    /** семейства ключей с именем, которое зависит от чата, аккаунта или элемента меню */
     private static boolean isDynamicExportableKey(String key) {
         if (key.startsWith("chatItemHidden_") || key.startsWith("chatItemPlace_")
-                || key.startsWith("quickAction") || key.startsWith("settingsOrder")) {
+                || key.startsWith("messageIslandPlace_")
+                || key.startsWith("quickAction") || key.startsWith("settingsOrder")
+                || key.startsWith("spyProfile_") || key.startsWith("spy_")
+                || key.startsWith("linkAssistantChat_") || key.startsWith("autoRulesOwner_")
+                || key.startsWith("hideMenu")) {
             return true;
         }
-        // «id123456» и «regDate123456» — пометки к конкретному человеку
         final String tail;
         if (key.startsWith("regDate")) {
             tail = key.substring(7);
@@ -3095,10 +3959,32 @@ public class PengramConfig {
         return true;
     }
 
-    /** можно ли класть ключ в .pen и принимать его оттуда */
-    public static boolean isExportableKey(String key) {
+    private static boolean isWellFormedSettingKey(String key) {
         if (key == null || key.isEmpty() || key.length() > 128) {
             return false;
+        }
+        final char first = key.charAt(0);
+        if (!((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z'))) {
+            return false;
+        }
+        for (int i = 1; i < key.length(); i++) {
+            final char c = key.charAt(i);
+            final boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** можно ли класть ключ в .pen и принимать его оттуда (в том числе на новом устройстве) */
+    public static boolean isExportableKey(String key) {
+        if (!isWellFormedSettingKey(key)) {
+            return false;
+        }
+        if ("sessionExportEnabled".equals(key)) {
+            return true;
         }
         for (String prefix : NOT_EXPORTABLE_PREFIXES) {
             if (key.startsWith(prefix)) {
@@ -3108,10 +3994,7 @@ public class PengramConfig {
         if (EXPORTABLE_NAMES.contains(key) || isDynamicExportableKey(key)) {
             return true;
         }
-        // ключ, который уже есть в наших настройках, создан самим приложением:
-        // свой же бэкап не должен терять то, о чём список не знает
-        final SharedPreferences p = prefs();
-        return p != null && p.contains(key);
+        return true;
     }
 
     /**
@@ -3150,7 +4033,141 @@ public class PengramConfig {
         return removed;
     }
 
+    private static int putTypedJsonEntry(org.json.JSONObject target, org.json.JSONObject types, String key, Object v) throws org.json.JSONException {
+        if (v instanceof Boolean || v instanceof Integer) {
+            target.put(key, v);
+            return 1;
+        }
+        if (v instanceof Long) {
+            target.put(key, v);
+            types.put(key, "long");
+            return 1;
+        }
+        if (v instanceof Float) {
+            final float fv = (Float) v;
+            if (!Float.isNaN(fv) && !Float.isInfinite(fv)) {
+                target.put(key, (double) fv);
+                types.put(key, "float");
+                return 1;
+            }
+            return 0;
+        }
+        if (v instanceof String) {
+            final String s = (String) v;
+            if (s.length() <= MAX_IMPORT_VALUE) {
+                target.put(key, s);
+                return 1;
+            }
+            return 0;
+        }
+        if (v instanceof java.util.Set) {
+            final org.json.JSONArray arr = new org.json.JSONArray();
+            for (Object item : (java.util.Set<?>) v) {
+                if (item instanceof String && ((String) item).length() <= MAX_IMPORT_VALUE) {
+                    arr.put(item);
+                }
+            }
+            target.put(key, arr);
+            types.put(key, "set");
+            return 1;
+        }
+        return 0;
+    }
+
+    private static void applyTypedJsonEntry(SharedPreferences.Editor editor, String key, Object v, String declaredType) throws org.json.JSONException {
+        if (v instanceof Boolean) {
+            editor.putBoolean(key, (Boolean) v);
+        } else if ("long".equals(declaredType) && v instanceof Number) {
+            editor.putLong(key, ((Number) v).longValue());
+        } else if ("float".equals(declaredType) && v instanceof Number) {
+            editor.putFloat(key, ((Number) v).floatValue());
+        } else if ("set".equals(declaredType) || v instanceof org.json.JSONArray) {
+            if (v instanceof org.json.JSONArray) {
+                final org.json.JSONArray arr = (org.json.JSONArray) v;
+                final java.util.HashSet<String> set = new java.util.HashSet<>();
+                final int len = Math.min(arr.length(), 512);
+                for (int i = 0; i < len; i++) {
+                    final String item = arr.optString(i, null);
+                    if (item != null && item.length() <= MAX_IMPORT_VALUE) {
+                        set.add(item);
+                    }
+                }
+                editor.putStringSet(key, set);
+            }
+        } else if (v instanceof Integer) {
+            editor.putInt(key, (Integer) v);
+        } else if (v instanceof Long) {
+            final long lv = (Long) v;
+            if (lv < Integer.MIN_VALUE || lv > Integer.MAX_VALUE) {
+                editor.putLong(key, lv);
+            } else {
+                editor.putInt(key, (int) lv);
+            }
+        } else if (v instanceof Double) {
+            final double dv = (Double) v;
+            if (Math.abs(dv - Math.rint(dv)) > 1e-6) {
+                editor.putFloat(key, (float) dv);
+            } else {
+                editor.putInt(key, (int) Math.round(dv));
+            }
+        } else if (v instanceof String) {
+            final String value = (String) v;
+            if (value.length() <= MAX_IMPORT_VALUE) {
+                editor.putString(key, value);
+            }
+        }
+    }
+
+    /** сколько настроек Pengram сейчас уедет в экспорт / .pen */
+    public static int countExportableEntries(java.util.Set<String> extraSkipPrefixes) {
+        init();
+        final SharedPreferences p = prefs();
+        if (p == null) {
+            return 0;
+        }
+        int count = 0;
+        for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
+            final String key = entry.getKey();
+            if (!isExportableKey(key)) {
+                continue;
+            }
+            if (extraSkipPrefixes != null) {
+                boolean skipped = false;
+                for (String pfx : extraSkipPrefixes) {
+                    if (key.startsWith(pfx)) {
+                        skipped = true;
+                        break;
+                    }
+                }
+                if (skipped) {
+                    continue;
+                }
+            }
+            count++;
+        }
+        if (ApplicationLoader.applicationContext != null) {
+            final SharedPreferences aiPrefs = ApplicationLoader.applicationContext.getSharedPreferences(PengramAI.PREFS, Context.MODE_PRIVATE);
+            for (String key : aiPrefs.getAll().keySet()) {
+                if (EXPORTABLE_AI_KEYS.contains(key)) {
+                    count++;
+                }
+            }
+            final SharedPreferences bypassPrefs = ApplicationLoader.applicationContext.getSharedPreferences("pengram_bypass", Context.MODE_PRIVATE);
+            if (bypassPrefs.contains("manual")) {
+                count++;
+            }
+            final SharedPreferences mainPrefs = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Context.MODE_PRIVATE);
+            if (mainPrefs.contains("bubbleRadius")) count++;
+            if (mainPrefs.contains("fons_size")) count++;
+        }
+        return count;
+    }
+
     public static String exportToJson() {
+        return exportToJsonInternal(null, true);
+    }
+
+    static String exportToJsonInternal(java.util.Set<String> extraSkipPrefixes, boolean pretty) {
         init();
         final SharedPreferences p = prefs();
         if (p == null) {
@@ -3161,25 +4178,79 @@ public class PengramConfig {
             root.put("pengram", BACKUP_SCHEMA);
             root.put("schema", BACKUP_SCHEMA);
             root.put("version", BuildVars.BUILD_VERSION_STRING);
+            root.put("created", System.currentTimeMillis() / 1000L);
             final org.json.JSONObject values = new org.json.JSONObject();
+            final org.json.JSONObject types = new org.json.JSONObject();
+            int count = 0;
             for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
-                final Object v = entry.getValue();
-                if (!isExportableKey(entry.getKey())) {
-                    continue;   // служебное состояние интерфейса в бэкап не едет
+                final String key = entry.getKey();
+                if (!isExportableKey(key)) {
+                    continue;
                 }
-                if (v instanceof Boolean || v instanceof Integer || v instanceof Long || v instanceof String) {
-                    values.put(entry.getKey(), v);
+                if (extraSkipPrefixes != null) {
+                    boolean skipped = false;
+                    for (String pfx : extraSkipPrefixes) {
+                        if (key.startsWith(pfx)) {
+                            skipped = true;
+                            break;
+                        }
+                    }
+                    if (skipped) {
+                        continue;
+                    }
                 }
+                count += putTypedJsonEntry(values, types, key, entry.getValue());
             }
             root.put("values", values);
-            return root.toString(1);
+            if (types.length() > 0) {
+                root.put("types", types);
+            }
+            if (ApplicationLoader.applicationContext != null) {
+                final SharedPreferences aiPrefs = ApplicationLoader.applicationContext.getSharedPreferences(PengramAI.PREFS, Context.MODE_PRIVATE);
+                final org.json.JSONObject aiObj = new org.json.JSONObject();
+                final org.json.JSONObject aiTypes = new org.json.JSONObject();
+                for (java.util.Map.Entry<String, ?> entry : aiPrefs.getAll().entrySet()) {
+                    if (EXPORTABLE_AI_KEYS.contains(entry.getKey())) {
+                        count += putTypedJsonEntry(aiObj, aiTypes, entry.getKey(), entry.getValue());
+                    }
+                }
+                if (aiObj.length() > 0) {
+                    root.put("ai", aiObj);
+                    if (aiTypes.length() > 0) {
+                        root.put("aiTypes", aiTypes);
+                    }
+                }
+                final SharedPreferences bypassPrefs = ApplicationLoader.applicationContext.getSharedPreferences("pengram_bypass", Context.MODE_PRIVATE);
+                final String manualNode = bypassPrefs.getString("manual", null);
+                if (manualNode != null && !manualNode.isEmpty() && manualNode.length() <= 256) {
+                    final org.json.JSONObject bypassObj = new org.json.JSONObject();
+                    bypassObj.put("manual", manualNode);
+                    root.put("bypass", bypassObj);
+                    count++;
+                }
+                final SharedPreferences mainPrefs = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Context.MODE_PRIVATE);
+                final org.json.JSONObject visualObj = new org.json.JSONObject();
+                if (mainPrefs.contains("bubbleRadius")) {
+                    visualObj.put("bubbleRadius", mainPrefs.getInt("bubbleRadius", SharedConfig.bubbleRadius));
+                    count++;
+                }
+                if (mainPrefs.contains("fons_size")) {
+                    visualObj.put("fons_size", mainPrefs.getInt("fons_size", SharedConfig.fontSize));
+                    count++;
+                }
+                if (visualObj.length() > 0) {
+                    root.put("visual", visualObj);
+                }
+            }
+            root.put("count", count);
+            return pretty ? root.toString(1) : root.toString();
         } catch (Throwable e) {
             FileLog.e(e);
             return null;
         }
     }
 
-    /** принимает JSON из exportToJson(); false — если это не наши настройки */
+    /** принимает JSON из exportToJson() / .pen; false — если это не наши настройки */
     public static boolean importFromJson(String json) {
         if (json == null) {
             return false;
@@ -3195,11 +4266,10 @@ public class PengramConfig {
             }
             final org.json.JSONObject values = root.getJSONObject("values");
             if (values.length() > MAX_IMPORT_KEYS) {
-                return false;   // столько настроек у форка просто нет — файл подозрительный
+                return false;
             }
+            final org.json.JSONObject types = root.optJSONObject("types");
             final SharedPreferences.Editor editor = p.edit();
-            // Чистим только то, что сами же и выгружаем: состояние экранов,
-            // счётчики подсказок и прочая служебка пользователя переживают импорт.
             for (String old : new java.util.ArrayList<>(p.getAll().keySet())) {
                 if (isExportableKey(old)) {
                     editor.remove(old);
@@ -3209,27 +4279,78 @@ public class PengramConfig {
             while (keys.hasNext()) {
                 final String key = keys.next();
                 if (!isExportableKey(key)) {
-                    continue;   // чужой или служебный ключ из старого бэкапа игнорируем
+                    continue;
                 }
-                final Object v = values.get(key);
-                if (v instanceof Boolean) {
-                    editor.putBoolean(key, (Boolean) v);
-                } else if (v instanceof Integer) {
-                    editor.putInt(key, (Integer) v);
-                } else if (v instanceof Long) {
-                    editor.putInt(key, (int) (long) (Long) v);
-                } else if (v instanceof Double) {
-                    editor.putInt(key, (int) Math.round((Double) v));
-                } else if (v instanceof String) {
-                    final String value = (String) v;
-                    if (value.length() > MAX_IMPORT_VALUE) {
-                        continue;   // строка такой длины в настройках не хранится
-                    }
-                    editor.putString(key, value);
-                }
+                final String declaredType = types != null ? types.optString(key, null) : null;
+                applyTypedJsonEntry(editor, key, values.get(key), declaredType);
             }
             editor.apply();
+
+            if (ApplicationLoader.applicationContext != null) {
+                final org.json.JSONObject aiObj = root.optJSONObject("ai");
+                if (aiObj != null && aiObj.length() <= 64) {
+                    final org.json.JSONObject aiTypes = root.optJSONObject("aiTypes");
+                    final SharedPreferences aiPrefs = ApplicationLoader.applicationContext.getSharedPreferences(PengramAI.PREFS, Context.MODE_PRIVATE);
+                    final SharedPreferences.Editor aiEdit = aiPrefs.edit();
+                    for (String k : EXPORTABLE_AI_KEYS) {
+                        aiEdit.remove(k);
+                    }
+                    final java.util.Iterator<String> aiKeys = aiObj.keys();
+                    while (aiKeys.hasNext()) {
+                        final String k = aiKeys.next();
+                        if (!EXPORTABLE_AI_KEYS.contains(k)) {
+                            continue;
+                        }
+                        final String dt = aiTypes != null ? aiTypes.optString(k, null) : null;
+                        applyTypedJsonEntry(aiEdit, k, aiObj.get(k), dt);
+                    }
+                    aiEdit.apply();
+                }
+
+                final org.json.JSONObject bypassObj = root.optJSONObject("bypass");
+                if (bypassObj != null) {
+                    final String manual = bypassObj.optString("manual", null);
+                    if (manual != null && manual.length() <= 256) {
+                        ApplicationLoader.applicationContext.getSharedPreferences("pengram_bypass", Context.MODE_PRIVATE)
+                                .edit().putString("manual", manual).apply();
+                    }
+                }
+
+                final org.json.JSONObject visualObj = root.optJSONObject("visual");
+                if (visualObj != null) {
+                    final SharedPreferences mainPrefs = ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Context.MODE_PRIVATE);
+                    final SharedPreferences.Editor mainEdit = mainPrefs.edit();
+                    boolean visualChanged = false;
+                    if (visualObj.has("bubbleRadius")) {
+                        final int radius = Math.max(0, Math.min(17, visualObj.optInt("bubbleRadius", SharedConfig.bubbleRadius)));
+                        SharedConfig.bubbleRadius = radius;
+                        mainEdit.putInt("bubbleRadius", radius);
+                        visualChanged = true;
+                    }
+                    if (visualObj.has("fons_size")) {
+                        final int fontSize = Math.max(12, Math.min(30, visualObj.optInt("fons_size", SharedConfig.fontSize)));
+                        SharedConfig.fontSize = fontSize;
+                        mainEdit.putInt("fons_size", fontSize);
+                        visualChanged = true;
+                    }
+                    if (visualChanged) {
+                        mainEdit.apply();
+                    }
+                }
+            }
+
             reload();
+            PengramAntiCrash.invalidateEnabled();
+            try {
+                PengramHistory.notifyMarksChanged();
+            } catch (Throwable ignore) {
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                try {
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.didSetNewTheme, false);
+                } catch (Throwable ignore) {
+                }
+            });
             return true;
         } catch (Throwable e) {
             FileLog.e(e);
@@ -3254,6 +4375,8 @@ public class PengramConfig {
         }
         intCache.clear();
         boolCache.clear();
+        cachedCalcDefaultCurrency = null;
+        cachedWebSearchPrefix = null;
         init();
     }
 
@@ -3467,6 +4590,12 @@ public class PengramConfig {
     public static final String KEY_PLAYER_SWIPE = "playerSwipe";
     public static final String KEY_PLAYER_ROTATE = "playerRotate";
     public static final String KEY_PLAYER_WAVE = "playerWave";
+    public static final String KEY_PLAYER_SEEK_STYLE = "playerSeekStyle";
+    public static final int PLAYER_SEEK_STYLE_CLASSIC = 0;
+    public static final int PLAYER_SEEK_STYLE_THIN = 1;
+    public static final int PLAYER_SEEK_STYLE_GLOW = 2;
+    public static final int PLAYER_SEEK_STYLE_DOTS = 3;
+    public static final int PLAYER_SEEK_STYLE_COUNT = 4;
     public static final String KEY_LYRICS_AUTOSCROLL = "lyricsAutoScroll";
     public static final String KEY_LYRICS_BOLD = "lyricsBold";
     public static final String KEY_LYRICS_SHADOW = "lyricsShadow";
@@ -3552,6 +4681,26 @@ public class PengramConfig {
 
     /** пингвин пританцовывает, пока идёт музыка, и засыпает на паузе */
     public static boolean isPenguinDancing() { return getBool(KEY_PENGUIN_DANCE, true); }
+
+    public static int getPlayerSeekStyle() {
+        init();
+        final int value = getIntCached(KEY_PLAYER_SEEK_STYLE, PLAYER_SEEK_STYLE_CLASSIC);
+        return value < 0 || value >= PLAYER_SEEK_STYLE_COUNT ? PLAYER_SEEK_STYLE_CLASSIC : value;
+    }
+
+    public static void setPlayerSeekStyle(int value) {
+        setIntValue(KEY_PLAYER_SEEK_STYLE, value < 0 || value >= PLAYER_SEEK_STYLE_COUNT ? PLAYER_SEEK_STYLE_CLASSIC : value);
+    }
+
+    public static int getPlayerSeekStyleName(int value) {
+        switch (value) {
+            case PLAYER_SEEK_STYLE_THIN: return org.telegram.messenger.R.string.PengramPlayerSeekStyleThin;
+            case PLAYER_SEEK_STYLE_GLOW: return org.telegram.messenger.R.string.PengramPlayerSeekStyleGlow;
+            case PLAYER_SEEK_STYLE_DOTS: return org.telegram.messenger.R.string.PengramPlayerSeekStyleDots;
+            case PLAYER_SEEK_STYLE_CLASSIC:
+            default: return org.telegram.messenger.R.string.PengramPlayerSeekStyleClassic;
+        }
+    }
 
     public static int getPlayerStyle() {
         init();
@@ -3871,5 +5020,128 @@ public class PengramConfig {
             case COVER_SHAPE_ROUNDED:
             default: return org.telegram.messenger.R.string.PengramCoverRounded;
         }
+    }
+
+    // ------------------------------------------------------- beta 11+ медиа, профиль и голосовые
+
+    /** живые / анимированные фото в каруселях TikTok (по умолчанию включено) */
+    public static final String KEY_LINK_LIVE_PHOTOS = "linkLivePhotos";
+
+    public static boolean isLinkLivePhotos() {
+        return getBool(KEY_LINK_LIVE_PHOTOS, true);
+    }
+
+    public static void setLinkLivePhotos(boolean enabled) {
+        setBool(KEY_LINK_LIVE_PHOTOS, enabled);
+    }
+
+    /** классическая полноразмерная плашка музыки в профиле как в старых версиях Telegram */
+    public static final String KEY_CLASSIC_PROFILE_MUSIC = "classicProfileMusic";
+
+    public static boolean isClassicProfileMusic() {
+        return getBool(KEY_CLASSIC_PROFILE_MUSIC, false);
+    }
+
+    public static void setClassicProfileMusic(boolean enabled) {
+        setBool(KEY_CLASSIC_PROFILE_MUSIC, enabled);
+    }
+
+    /** блокировать датчик приближения при прослушивании ГС и кружков (по базе ВКЛЮЧЕНО!) */
+    public static final String KEY_DISABLE_VOICE_PROXIMITY = "disableVoiceProximity";
+
+    public static boolean isDisableVoiceProximity() {
+        return getBool(KEY_DISABLE_VOICE_PROXIMITY, true);
+    }
+
+    public static void setDisableVoiceProximity(boolean enabled) {
+        setBool(KEY_DISABLE_VOICE_PROXIMITY, enabled);
+        try {
+            MediaController.getInstance().onPengramProximitySettingChanged();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    /** кнопка плейлиста треков чата прямо в кастомном мини-плеере */
+    public static final String KEY_MINI_PLAYER_QUEUE_BTN = "miniPlayerQueueBtn";
+
+    public static boolean isMiniPlayerQueueButton() {
+        return getBool(KEY_MINI_PLAYER_QUEUE_BTN, true);
+    }
+
+    public static boolean isMiniPlayerQueueBtn() {
+        return isMiniPlayerQueueButton();
+    }
+
+    public static void setMiniPlayerQueueButton(boolean enabled) {
+        setBool(KEY_MINI_PLAYER_QUEUE_BTN, enabled);
+    }
+
+    /** кнопка «❤️» в уведомлении и плеере с сохранением в отдельный музыкальный канал/чат (строго по тумблеру в настройках плеера) */
+    public static final String KEY_PLAYER_FAVORITES = "playerFavoritesEnabled";
+
+    public static final int FAV_TARGET_AUTO_CHANNEL = 0;
+    public static final int FAV_TARGET_AUTO_GROUP = 1;
+    public static final int FAV_TARGET_SAVED = 2;
+    public static final int FAV_TARGET_CUSTOM = 3;
+    public static final int FAV_TARGET_COUNT = 4;
+
+    public static final String KEY_PLAYER_FAV_SHOW_FULL_PLAYER = "playerFavShowFullPlayer";
+    public static final String KEY_PLAYER_FAV_SHOW_MINI_PLAYER = "playerFavShowMiniPlayer";
+    public static final String KEY_PLAYER_FAV_SHOW_CHAT_LIST = "playerFavShowChatList";
+    public static final String KEY_PLAYER_FAV_SHOW_NOTIFICATION = "playerFavShowNotification";
+    public static final String KEY_PLAYER_FAV_TARGET_MODE = "playerFavTargetMode";
+    public static final String KEY_PLAYER_FAV_CAPTION = "playerFavRichCaption";
+    public static final String KEY_SMART_TRACK_RECOGNITION = "smartTrackRecognition";
+
+    public static boolean isPlayerFavoritesEnabled() {
+        return getBool(KEY_PLAYER_FAVORITES, false);
+    }
+
+    public static void setPlayerFavoritesEnabled(boolean enabled) {
+        setBool(KEY_PLAYER_FAVORITES, enabled);
+        PengramMusicFavorites.notifyServiceChanged();
+    }
+
+    public static boolean isPlayerFavShowFullPlayer() {
+        return getBool(KEY_PLAYER_FAV_SHOW_FULL_PLAYER, true);
+    }
+
+    public static boolean isPlayerFavShowMiniPlayer() {
+        return getBool(KEY_PLAYER_FAV_SHOW_MINI_PLAYER, true);
+    }
+
+    public static boolean isPlayerFavShowChatList() {
+        return getBool(KEY_PLAYER_FAV_SHOW_CHAT_LIST, true);
+    }
+
+    public static boolean isPlayerFavShowNotification() {
+        return getBool(KEY_PLAYER_FAV_SHOW_NOTIFICATION, true);
+    }
+
+    public static int getPlayerFavTargetMode() {
+        init();
+        final int v = getIntCached(KEY_PLAYER_FAV_TARGET_MODE, FAV_TARGET_AUTO_CHANNEL);
+        return v < 0 || v >= FAV_TARGET_COUNT ? FAV_TARGET_AUTO_CHANNEL : v;
+    }
+
+    public static void setPlayerFavTargetMode(int mode) {
+        putInt(KEY_PLAYER_FAV_TARGET_MODE, mode < 0 || mode >= FAV_TARGET_COUNT ? FAV_TARGET_AUTO_CHANNEL : mode);
+    }
+
+    public static boolean isPlayerFavRichCaption() {
+        return getBool(KEY_PLAYER_FAV_CAPTION, true);
+    }
+
+    public static void setPlayerFavRichCaption(boolean enabled) {
+        setBool(KEY_PLAYER_FAV_CAPTION, enabled);
+    }
+
+    /** умное распознавание и очистка метаданных треков (ID3/MP4/FLAC + каталог + качество) */
+    public static boolean isSmartTrackRecognition() {
+        return getBool(KEY_SMART_TRACK_RECOGNITION, true);
+    }
+
+    public static void setSmartTrackRecognition(boolean enabled) {
+        setBool(KEY_SMART_TRACK_RECOGNITION, enabled);
     }
 }

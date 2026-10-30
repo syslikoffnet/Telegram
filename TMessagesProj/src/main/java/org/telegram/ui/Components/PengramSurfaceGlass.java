@@ -5,8 +5,12 @@ import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.os.SystemClock;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+
+import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.PengramConfig;
 import org.telegram.messenger.Utilities;
@@ -34,6 +38,12 @@ public final class PengramSurfaceGlass implements View.OnAttachStateChangeListen
     private int signature = Integer.MIN_VALUE;
     private int width, height;
     private boolean enabled;
+    private long lastSceneSig = Long.MIN_VALUE;
+    private long lastCaptureUptime;
+    private boolean forceCapture = true;
+    private final ViewTreeObserver.OnScrollChangedListener scrollDirtyListener = () -> forceCapture = true;
+    private final View.OnLayoutChangeListener layoutDirtyListener =
+            (v, l, t, r, b, ol, ot, or2, ob) -> forceCapture = true;
 
     public PengramSurfaceGlass(View target, View sourceView, Theme.ResourcesProvider resources,
                                java.util.concurrent.Callable<Boolean> applicable) {
@@ -89,6 +99,9 @@ public final class PengramSurfaceGlass implements View.OnAttachStateChangeListen
         // тот же провайдер и настоящий downsampled bitmap blur, а не заливка.
         recorder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && target.isHardwareAccelerated()
                 ? new NodeRecorder() : new BitmapRecorder();
+        forceCapture = false;
+        lastSceneSig = computeSceneSignature();
+        lastCaptureUptime = SystemClock.uptimeMillis();
         capture();
         final BlurredBackgroundDrawableViewFactory factory = new BlurredBackgroundDrawableViewFactory(recorder.source());
         factory.setLiquidGlassEffectAllowed(Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
@@ -117,18 +130,88 @@ public final class PengramSurfaceGlass implements View.OnAttachStateChangeListen
 
     @Override public boolean onPreDraw() {
         if (wanted() != enabled || width != target.getWidth() || height != target.getHeight()) refresh();
-        if (enabled && target.isShown()) capture();
+        if (enabled && target.isShown()) {
+            final boolean sheenTickOnly = sheen.effect.consumeSelfTick();
+            final long sig = computeSceneSignature();
+            final long now = SystemClock.uptimeMillis();
+            final boolean sceneChanged = forceCapture || sig != lastSceneSig;
+            final long staticCooldownMs = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? 48L : 120L;
+            if (sceneChanged || (!sheenTickOnly && now - lastCaptureUptime >= staticCooldownMs)) {
+                forceCapture = false;
+                lastSceneSig = sig;
+                lastCaptureUptime = now;
+                capture();
+            }
+        }
         return true;
     }
 
+    private long computeSceneSignature() {
+        sourceView.getLocationInWindow(sourcePosition);
+        target.getLocationInWindow(targetPosition);
+        long h = 1125899906842597L;
+        h = h * 31 + (sourcePosition[0] - targetPosition[0]);
+        h = h * 31 + (sourcePosition[1] - targetPosition[1]);
+        h = h * 31 + width;
+        h = h * 31 + height;
+        h = h * 31 + sourceView.getWidth();
+        h = h * 31 + sourceView.getHeight();
+        h = h * 31 + sourceView.getScrollX();
+        h = h * 31 + sourceView.getScrollY();
+        h = h * 31 + foldScrollableState(sourceView, 0);
+        return h;
+    }
+
+    private static long foldScrollableState(View v, int depth) {
+        if (v == null || depth > 2) {
+            return 0L;
+        }
+        long h = v.getScrollY() * 31L + Math.round(v.getTranslationY() * 4f);
+        if (v instanceof RecyclerView) {
+            final RecyclerView rv = (RecyclerView) v;
+            h = h * 31 + rv.computeVerticalScrollOffset();
+            final int n = rv.getChildCount();
+            h = h * 31 + n;
+            for (int i = 0; i < n; i++) {
+                final View c = rv.getChildAt(i);
+                if (c != null) {
+                    h = h * 31 + c.getTop() + Math.round(c.getTranslationY() * 4f);
+                }
+            }
+            return h;
+        }
+        if (v instanceof ViewGroup) {
+            final ViewGroup vg = (ViewGroup) v;
+            final int n = vg.getChildCount();
+            h = h * 31 + n;
+            final int limit = Math.min(n, 6);
+            for (int i = 0; i < limit; i++) {
+                final View c = vg.getChildAt(i);
+                if (c != null && c.getVisibility() == View.VISIBLE) {
+                    h = h * 31 + c.getTop() + foldScrollableState(c, depth + 1);
+                }
+            }
+        }
+        return h;
+    }
+
     @Override public void onViewAttachedToWindow(View view) {
+        forceCapture = true;
         target.getViewTreeObserver().addOnPreDrawListener(this);
+        target.getViewTreeObserver().addOnScrollChangedListener(scrollDirtyListener);
+        sourceView.addOnLayoutChangeListener(layoutDirtyListener);
+        target.addOnLayoutChangeListener(layoutDirtyListener);
         target.getOverlay().add(sheen);
         PengramGlassSkin.register(refresh);
     }
 
     @Override public void onViewDetachedFromWindow(View view) {
-        if (target.getViewTreeObserver().isAlive()) target.getViewTreeObserver().removeOnPreDrawListener(this);
+        if (target.getViewTreeObserver().isAlive()) {
+            target.getViewTreeObserver().removeOnPreDrawListener(this);
+            target.getViewTreeObserver().removeOnScrollChangedListener(scrollDirtyListener);
+        }
+        sourceView.removeOnLayoutChangeListener(layoutDirtyListener);
+        target.removeOnLayoutChangeListener(layoutDirtyListener);
         PengramGlassSkin.unregister(refresh);
         target.getOverlay().remove(sheen);
         setTargetBackground(original);

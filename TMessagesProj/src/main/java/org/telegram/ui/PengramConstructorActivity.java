@@ -323,10 +323,8 @@ public class PengramConstructorActivity extends BaseFragment {
                     for (int a = 0; a < 3; ++a) {
                         final float top = dp(8) + a * dp(17);
                         paint.setColor(a == 0 ? accent : line);
-                        final int radius = PengramConfig.getDialogAvatarShape() == PengramConfig.DIALOG_AVATAR_SQUARE
-                                ? 0 : PengramConfig.getDialogAvatarShape() == PengramConfig.DIALOG_AVATAR_ROUNDED ? dp(3) : dp(6);
-                        rect.set(dp(8), top, dp(20), top + dp(12));
-                        canvas.drawRoundRect(rect, radius, radius, paint);
+                        org.telegram.ui.Components.PengramAvatarShape.drawAvatarBackground(
+                                canvas, dp(8), top, dp(12), dp(6), paint);
                         paint.setColor(line);
                         rect.set(dp(24), top + dp(2), w - dp(10), top + dp(6));
                         canvas.drawRoundRect(rect, dp(2), dp(2), paint);

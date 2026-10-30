@@ -32,21 +32,21 @@ assert controller.count('deletedMessages.put(0, arrayList)') == 1
 assert controller.count('deletedMessages.put(dialogId, arrayList)') == 1
 
 # --- 2. хранилище решает судьбу сообщения -----------------------------------
-assert 'PengramHistory.keepInChat(currentAccount, messages)' in storage
+assert 'PengramHistory.keepInChat(currentAccount, dialogId, messages)' in storage
 assert 'PengramConfig.isSavingDeleted(currentAccount)' in storage       # архив по настройке
-assert 'PengramLocalKeep.keepDeletedMessages()' in storage              # метка всегда
+assert 'PengramLocalKeep.keepDeletedMessages()' in storage              # снимок остаётся в чате
 assert 'final boolean archived = saveArchive' in storage
-assert 'if (!archived && !keepVisible)' in storage
-assert 'PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a)' in storage
+assert 'if (archived || keepVisible)' in storage
+assert 'PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a)' not in storage
 
 # --- 3. метка нужна и локальной копии, и слежке ------------------------------
 assert 'public static boolean keepInChat(int account' in history
-assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, ids)' in history
+assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, dialogId, ids)' in history
 assert 'public static boolean marksEnabled(int account)' in history
 assert 'PengramLocalKeep.keepDeletedMessages() || PengramConfig.isSavingDeleted(account)' in history
 # явное «удалить у себя» сильнее любой настройки
 idx_guard = history.index('public static boolean keepInChat')
-idx_user = history.index('userDeletedGuard.containsKey(id)', idx_guard)
+idx_user = history.index('userDeletedGuard.containsKey(guardKey(account, dialogId, id))', idx_guard)
 assert idx_guard < idx_user
 
 # --- 4. прочитанные метки не путаются с «появившимися на лету» ---------------
@@ -59,6 +59,10 @@ idx_del = history.index('public static void markDeleted')
 idx_insert = history.index('insertDeletedMark(db, account, dialogId, id)', idx_del)
 idx_publish = history.index('publishDeletedMark(account, dialogId, id)', idx_insert)
 assert idx_del < idx_insert < idx_publish
+assert 'hasDeletedSnapshot(account, dialogId, id)' in history.split('public static void markDeleted', 1)[1].split('public static', 1)[0]
+assert 'if (action == ACTION_DELETED && data == null) return;' in history
+assert 'Только после COMMIT' in history and 'publishDeletedMark(account, dialogId, messageId)' in history
+assert 'PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a)' not in storage
 assert history.index('notifyMarksChanged()', idx_publish) > idx_publish
 publish = history.split('private static void publishDeletedMark', 1)[1].split('    /**', 1)[0]
 assert 'set.add(id)' in publish and 'loadMarks(account, dialogId, null)' in publish

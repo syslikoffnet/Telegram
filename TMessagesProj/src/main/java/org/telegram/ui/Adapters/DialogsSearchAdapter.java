@@ -979,11 +979,15 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
             ArrayList<ContactsController.Contact> contacts = new ArrayList<>();
 
             MessagesStorage.getInstance(currentAccount).localSearch(dialogsType, q, resultArray, resultArrayNames, encUsers, filterDialogIds, -1);
+            pengramSmartLocalSearch(query, q, resultArray, resultArrayNames, encUsers);
             pengramSearchById(q, resultArray, resultArrayNames);
             updateSearchResults(resultArray, resultArrayNames, encUsers, contacts, searchId);
             FiltersView.fillTipDates(q, localTipDates);
             localTipArchive = false;
-            if (q.length() >= 3 && (LocaleController.getString(R.string.ArchiveSearchFilter).toLowerCase().startsWith(q) || "archive".startsWith(query))) {
+            final String qFlip = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q);
+            final String archTitle = LocaleController.getString(R.string.ArchiveSearchFilter).toLowerCase();
+            if (q.length() >= 3 && (archTitle.startsWith(q) || "archive".startsWith(q)
+                    || (qFlip.length() >= 3 && (archTitle.startsWith(qFlip) || "archive".startsWith(qFlip))))) {
                 localTipArchive = true;
             }
             AndroidUtilities.runOnUIThread(() -> {
@@ -994,6 +998,129 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
         });
     }
 
+
+    private static long pengramResultPeerId(Object obj) {
+        if (obj instanceof TLRPC.User) {
+            return ((TLRPC.User) obj).id;
+        }
+        if (obj instanceof TLRPC.Chat) {
+            return -((TLRPC.Chat) obj).id;
+        }
+        if (obj instanceof TLRPC.EncryptedChat) {
+            return DialogObject.makeEncryptedDialogId(((TLRPC.EncryptedChat) obj).id);
+        }
+        return 0L;
+    }
+
+    private static boolean pengramContainsPeer(ArrayList<Object> list, long peerId) {
+        if (peerId == 0L || list == null) {
+            return false;
+        }
+        for (int i = 0, n = list.size(); i < n; i++) {
+            if (pengramResultPeerId(list.get(i)) == peerId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void pengramMergeLocalSearchVariant(String variant, ArrayList<Object> resultArray, ArrayList<CharSequence> resultArrayNames, ArrayList<TLRPC.User> encUsers) {
+        if (TextUtils.isEmpty(variant)) {
+            return;
+        }
+        final ArrayList<Object> extraObjs = new ArrayList<>();
+        final ArrayList<CharSequence> extraNames = new ArrayList<>();
+        final ArrayList<TLRPC.User> extraEnc = new ArrayList<>();
+        MessagesStorage.getInstance(currentAccount).localSearch(dialogsType, variant, extraObjs, extraNames, extraEnc, filterDialogIds, -1);
+        for (int i = 0; i < extraObjs.size(); i++) {
+            final Object obj = extraObjs.get(i);
+            final long pid = pengramResultPeerId(obj);
+            if (pid != 0L && !pengramContainsPeer(resultArray, pid)) {
+                resultArray.add(obj);
+                resultArrayNames.add(i < extraNames.size() ? extraNames.get(i) : "");
+            }
+        }
+        for (int i = 0; i < extraEnc.size(); i++) {
+            final TLRPC.User u = extraEnc.get(i);
+            if (u == null) continue;
+            boolean exists = false;
+            for (int j = 0; j < encUsers.size(); j++) {
+                if (encUsers.get(j) != null && encUsers.get(j).id == u.id) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists) {
+                encUsers.add(u);
+            }
+        }
+    }
+
+    /**
+     * Pengram: умный локальный поиск по чатам и контактам:
+     * 1) автоисправление раскладки (QWERTY ↔ ЙЦУКЕН) и транслитерация;
+     * 2) понимание вставленных ссылок t.me/username и @username;
+     * 3) быстрый переход в «Избранное» по запросам «избранное / заметки / сохраненки / saved»;
+     * 4) поиск контакта по номеру телефона в любом формате (+7 / 8 / скобки / пробелы).
+     */
+    private void pengramSmartLocalSearch(String rawQuery, String q, ArrayList<Object> resultArray, ArrayList<CharSequence> resultArrayNames, ArrayList<TLRPC.User> encUsers) {
+        try {
+            // 1. Избранное / Saved Messages
+            if (dialogsType != DialogsActivity.DIALOGS_TYPE_CHANNELS_ONLY
+                    && dialogsType != DialogsActivity.DIALOGS_TYPE_GROUPS_ONLY
+                    && org.telegram.messenger.PengramSmartSearch.matchesSavedMessagesAlias(rawQuery)) {
+                final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+                if (self != null && !pengramContainsPeer(resultArray, self.id)) {
+                    resultArray.add(0, self);
+                    resultArrayNames.add(0, LocaleController.getString(R.string.SavedMessages));
+                }
+            }
+            // 2. Прямая ссылка t.me/username или @username
+            final String handle = org.telegram.messenger.PengramSmartSearch.extractTelegramUsername(rawQuery);
+            if (handle != null && !handle.equals(q)) {
+                pengramMergeLocalSearchVariant(handle, resultArray, resultArrayNames, encUsers);
+            }
+            // 3. Ошибочная раскладка и транслит
+            if (q.length() >= 2) {
+                final String flipped = org.telegram.messenger.PengramSmartSearch.flipKeyboardLayout(q);
+                if (!TextUtils.isEmpty(flipped) && !flipped.equals(q)) {
+                    pengramMergeLocalSearchVariant(flipped, resultArray, resultArrayNames, encUsers);
+                }
+                if (resultArray.isEmpty() && q.length() >= 3) {
+                    final String tr = org.telegram.messenger.PengramSmartSearch.transliterate(q);
+                    if (!TextUtils.isEmpty(tr) && !tr.equals(q) && !tr.equals(flipped)) {
+                        pengramMergeLocalSearchVariant(tr, resultArray, resultArrayNames, encUsers);
+                    }
+                }
+            }
+            // 4. Поиск контакта по номеру телефона (+7 / 8 / без пробелов и скобок)
+            final String digits = org.telegram.messenger.PengramSmartSearch.normalizePhoneDigits(rawQuery);
+            if (digits.length() >= 5 && dialogsType != DialogsActivity.DIALOGS_TYPE_CHANNELS_ONLY
+                    && dialogsType != DialogsActivity.DIALOGS_TYPE_GROUPS_ONLY) {
+                final String tail = digits.length() > 10 ? digits.substring(digits.length() - 10) : digits;
+                final ArrayList<TLRPC.TL_contact> contactList = ContactsController.getInstance(currentAccount).contacts;
+                if (contactList != null) {
+                    final MessagesStorage storage = MessagesStorage.getInstance(currentAccount);
+                    for (int i = 0, n = contactList.size(); i < n; i++) {
+                        final TLRPC.TL_contact c = contactList.get(i);
+                        if (c == null || pengramContainsPeer(resultArray, c.user_id)) continue;
+                        TLRPC.User u = MessagesController.getInstance(currentAccount).getUser(c.user_id);
+                        if (u == null) {
+                            u = storage.getUser(c.user_id);
+                        }
+                        if (u == null || TextUtils.isEmpty(u.phone)) continue;
+                        final String uDigits = org.telegram.messenger.PengramSmartSearch.normalizePhoneDigits(u.phone);
+                        if (uDigits.contains(digits) || (tail.length() >= 7 && uDigits.endsWith(tail))) {
+                            resultArray.add(u);
+                            resultArrayNames.add(UserObject.getUserName(u));
+                        }
+                    }
+                }
+            }
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
+    }
 
     /**
      * Pengram: обычный поиск понимает ID. Пишем 1234567890 или -1001234567890 —
@@ -1349,8 +1476,10 @@ public class DialogsSearchAdapter extends RecyclerListView.SelectionAdapter {
                         return;
                     }
                     if (needMessagesSearch != 2 && dialogsType != DialogsActivity.DIALOGS_TYPE_GROUPS_ONLY && dialogsType != DialogsActivity.DIALOGS_TYPE_CHANNELS_ONLY && delegate.getSearchForumDialogId() == 0) {
+                        final String extractedHandle = org.telegram.messenger.PengramSmartSearch.extractTelegramUsername(query);
+                        final String serverQuery = extractedHandle != null ? ("@" + extractedHandle) : query;
                         searchAdapterHelper.queryServerSearch(
-                            query,
+                            serverQuery,
                             true,
                             dialogsType != DialogsActivity.DIALOGS_TYPE_USERS_ONLY,
                             true,

@@ -1317,7 +1317,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
             @Override
             public void onItemClick(View view, int position, float x, float y) {
                 if (view instanceof ChatActionCell) {
-                    MessageObject messageObject = ((ChatActionCell) view).getMessageObject();
+                    ChatActionCell actionCell = (ChatActionCell) view;
+                    MessageObject messageObject = actionCell.getMessageObject();
                     if (messageObject != null && messageObject.actionDeleteGroupEventId != -1) {
                         if (expandedEvents.contains(messageObject.actionDeleteGroupEventId)) {
                             expandedEvents.remove(messageObject.actionDeleteGroupEventId);
@@ -1328,6 +1329,32 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                         filterDeletedMessages();
                         chatAdapter.notifyDataSetChanged();
                         return;
+                    }
+                    if (org.telegram.messenger.PengramConfig.isServiceJoinLeaveProfileOpen()
+                            && org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(messageObject)) {
+                        final long targetUid = actionCell.resolveJoinLeaveTapUid(x, y);
+                        if (targetUid > 0) {
+                            org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(
+                                    currentAccount, targetUid, messageObject, () -> {
+                                        if (isFinished || isFinishing() || getParentLayout() == null || getParentLayout().getLastFragment() != ChannelAdminLogActivity.this) {
+                                            return;
+                                        }
+                                        if (targetUid != UserConfig.getInstance(currentAccount).getClientUserId()) {
+                                            Bundle args = new Bundle();
+                                            args.putLong("user_id", targetUid);
+                                            addCanBanUser(args, targetUid);
+                                            ProfileActivity fragment = new ProfileActivity(args);
+                                            fragment.setPlayProfileAnimation(0);
+                                            presentFragment(fragment);
+                                        } else {
+                                            Bundle args = new Bundle();
+                                            args.putLong("user_id", targetUid);
+                                            args.putBoolean("my_profile", true);
+                                            presentFragment(new ProfileActivity(args, null));
+                                        }
+                                    });
+                            return;
+                        }
                     }
                 }
                 createMenu(view, x, y);
@@ -3322,6 +3349,11 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                             ProfileActivity fragment = new ProfileActivity(args);
                             fragment.setPlayProfileAnimation(0);
                             presentFragment(fragment);
+                        } else {
+                            Bundle args = new Bundle();
+                            args.putLong("user_id", uid);
+                            args.putBoolean("my_profile", true);
+                            presentFragment(new ProfileActivity(args, null));
                         }
                     }
 

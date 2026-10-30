@@ -75,6 +75,7 @@ public class SeekBarView extends FrameLayout {
     private int transitionThumbX;
     private int separatorsCount;
     private int lineWidthDp = 3;
+    private int pengramProgressStyle;
 
     private boolean twoSided;
     private final Theme.ResourcesProvider resourcesProvider;
@@ -340,6 +341,16 @@ public class SeekBarView extends FrameLayout {
 
     public void setLineWidth(int dp) {
         lineWidthDp = dp;
+        invalidate();
+    }
+
+    /** Style used by Pengram's full player. Other SeekBarView users stay unchanged by default. */
+    public void setPengramProgressStyle(int style) {
+        if (style < 0 || style > 3 || pengramProgressStyle == style) {
+            return;
+        }
+        pengramProgressStyle = style;
+        invalidate();
     }
 
     int lastValue;
@@ -449,7 +460,8 @@ public class SeekBarView extends FrameLayout {
 
         float centerY = getMeasuredHeight() / 2f;
         float left = selectorWidth / 2f, right = getMeasuredWidth() - selectorWidth / 2;
-        float top = centerY - AndroidUtilities.dp(lineWidthDp) / 2f, bottom = centerY + AndroidUtilities.dp(lineWidthDp) / 2f;
+        final int progressLineWidthDp = pengramProgressStyle == 1 ? 2 : pengramProgressStyle == 2 ? Math.max(lineWidthDp, 4) : pengramProgressStyle == 3 ? Math.max(lineWidthDp, 4) : lineWidthDp;
+        float top = centerY - AndroidUtilities.dp(progressLineWidthDp) / 2f, bottom = centerY + AndroidUtilities.dp(progressLineWidthDp) / 2f;
 
         rect.set(left, top, right, bottom);
         drawProgressBar(canvas, rect, innerPaint1);
@@ -656,6 +668,25 @@ public class SeekBarView extends FrameLayout {
 
     private void drawProgressBar(Canvas canvas, RectF rect, Paint paint) {
         float radius = AndroidUtilities.dp(2);
+        if (pengramProgressStyle == 3 && (timestamps == null || timestamps.isEmpty())) {
+            final float dotRadius = AndroidUtilities.dp(1.5f);
+            final float gap = AndroidUtilities.dp(9);
+            final float left = selectorWidth / 2f + gap / 2f;
+            final float right = getMeasuredWidth() - selectorWidth / 2f;
+            for (float x = left; x <= right; x += gap) {
+                if (x + dotRadius >= rect.left && x - dotRadius <= rect.right) {
+                    canvas.drawCircle(x, rect.centerY(), dotRadius, paint);
+                }
+            }
+            return;
+        }
+        if ((timestamps == null || timestamps.isEmpty()) && pengramProgressStyle == 2 && paint == outerPaint1) {
+            final int oldAlpha = paint.getAlpha();
+            paint.setAlpha(Math.min(oldAlpha, Math.max(0, oldAlpha / 4)));
+            final float glow = AndroidUtilities.dp(3);
+            canvas.drawRoundRect(rect.left, rect.top - glow, rect.right, rect.bottom + glow, radius + glow, radius + glow, paint);
+            paint.setAlpha(oldAlpha);
+        }
         if (timestamps == null || timestamps.isEmpty()) {
             canvas.drawRoundRect(rect, radius, radius, paint);
         } else {

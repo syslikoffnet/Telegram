@@ -588,12 +588,7 @@ public class AvatarDrawable extends Drawable {
                 canvas.save();
                 canvas.rotate(-45, size / 2.0f, size / 2.0f);
             }
-            if (roundRadius > 0) {
-                AndroidUtilities.rectTmp.set(0, 0, size, size);
-                canvas.drawRoundRect(AndroidUtilities.rectTmp, roundRadius, roundRadius, backgroundPaint);
-            } else {
-                canvas.drawCircle(size / 2.0f, size / 2.0f, size / 2.0f, backgroundPaint);
-            }
+            PengramAvatarShape.drawAvatarBackground(canvas, size, roundRadius, backgroundPaint);
             if (rotate45Background) {
                 canvas.restore();
             }
@@ -602,7 +597,9 @@ public class AvatarDrawable extends Drawable {
         if (avatarType == AVATAR_TYPE_ARCHIVED) {
             if (archivedAvatarProgress != 0) {
                 backgroundPaint.setColor(ColorUtils.setAlphaComponent(getThemedColor(Theme.key_avatar_backgroundArchived), alpha));
-                canvas.drawCircle(size / 2.0f, size / 2.0f, size / 2.0f * archivedAvatarProgress, backgroundPaint);
+                final float archSize = size * archivedAvatarProgress;
+                final float archOffset = (size - archSize) * 0.5f;
+                PengramAvatarShape.drawAvatarBackground(canvas, archOffset, archOffset, archSize, (int) (roundRadius * archivedAvatarProgress), backgroundPaint);
                 if (Theme.dialogs_archiveAvatarDrawableRecolored) {
                     Theme.dialogs_archiveAvatarDrawable.beginApplyLayerColors();
                     Theme.dialogs_archiveAvatarDrawable.setLayerColor("Arrow1", Theme.getNonAnimatedColor(Theme.key_avatar_backgroundArchived));

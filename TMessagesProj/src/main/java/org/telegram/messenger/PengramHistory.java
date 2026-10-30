@@ -365,6 +365,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                             final boolean out, final byte[] data, final TLRPC.Message previous,
                             final boolean keepMedia) {
         try {
+            PengramSenderHydrator.rememberPeer(account, fromId != 0 ? fromId : dialogId);
             enqueueSave(account, dialogId, messageId, fromId, date, action, text, prevText, out, data, previous, keepMedia);
         } catch (Throwable e) {
             FileLog.e(e);
@@ -375,7 +376,10 @@ public class PengramHistory extends SQLiteOpenHelper {
                             final int date, final int action, final String text, final String prevText,
                             final boolean out, final byte[] data, final TLRPC.Message previous, final boolean keepMedia) {
         if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT || dialogId == 0 || messageId <= 0 || DialogObject.isEncryptedDialog(dialogId)
-                || isUserDeleted(messageId)) return;
+                || isUserDeleted(account, dialogId, messageId)) return;
+        // A deletion marker must point to a durable serialized before-image; a
+        // description-only placeholder is not an archived message snapshot.
+        if (action == ACTION_DELETED && data == null) return;
         if (TextUtils.isEmpty(text) && TextUtils.isEmpty(prevText) && data == null && previous == null) {
             return;
         }
@@ -385,11 +389,11 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         executor.execute(() -> {
             try {
-                if (isUserDeleted(messageId)) return;
+                if (isUserDeleted(account, dialogId, messageId)) return;
                 // Удаление одного и того же сообщения прилетает не один раз: из апдейта,
                 // из локальной чистки, из перезагрузки диалога. Вторая копия ничего не
                 // добавляет, а место занимает — поэтому для удалённых пишем один раз.
-                if (action == ACTION_DELETED && messageId != 0 && hasEntry(account, dialogId, messageId)) {
+                if (action == ACTION_DELETED && messageId != 0 && hasDeletedSnapshot(account, dialogId, messageId)) {
                     markDeleted(account, dialogId, java.util.Collections.singletonList(messageId));
                     return;
                 }
@@ -464,7 +468,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 try {
                     for (int i = 0, size = batch.size(); i < size; i++) {
                         final TLRPC.Message message = batch.get(i);
-                        if (message == null || isUserDeleted(message.id)) continue;
+                        if (message == null || isUserDeleted(account, dialogId, message.id)) continue;
                         final long dialogId = MessageObject.getDialogId(message);
                         // Секрет- и саморазрушающиеся сообщения не покидают свой кэш;
                         // свои/чужие и боты здесь без разбору — это история чата целиком.
@@ -557,6 +561,24 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (c != null) {
                 try { c.close(); } catch (Throwable ignore) {}
             }
+        }
+    }
+
+    /** An edited/deleted marker may only be backed by a recoverable serialized before-image. */
+    private static boolean hasDeletedSnapshot(int account, long dialogId, int messageId) {
+        final PengramHistory history = getInstance();
+        if (history == null) return false;
+        Cursor c = null;
+        try {
+            c = history.getReadableDatabase().rawQuery(
+                    "SELECT 1 FROM " + TABLE + " WHERE account = ? AND dialog_id = ? AND message_id = ? AND action = ? AND data IS NOT NULL LIMIT 1",
+                    new String[]{String.valueOf(account), String.valueOf(dialogId), String.valueOf(messageId), String.valueOf(ACTION_DELETED)});
+            return c.moveToFirst();
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        } finally {
+            if (c != null) try { c.close(); } catch (Throwable ignore) {}
         }
     }
 
@@ -697,32 +719,49 @@ public class PengramHistory extends SQLiteOpenHelper {
     // ------------------------------------------------- метки «сообщение удалено»
 
     /** Account + dialog: IDs may coincide across logged-in accounts. */
-    private static final android.util.SparseArray<android.util.LongSparseArray<java.util.HashSet<Integer>>> marksCache = new android.util.SparseArray<>();
+    private static final android.util.SparseArray<android.util.LongSparseArray<java.util.Set<Integer>>> marksCache = new android.util.SparseArray<>();
+    /** Lock-free read mirror so 120Hz chat cell binds never contend on marksCache's monitor or allocate String keys. */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, java.util.Set<Integer>> fastMarksByDialog =
+            new java.util.concurrent.ConcurrentHashMap<>();
     /**
      * Какие диалоги мы уже прочитали из базы. Отдельно от marksCache: кэш может
      * быть заполнен «на лету» (пришло удаление), и тогда раннее «ключ есть —
      * значит всё загружено» навсегда скрывало старые метки этого диалога.
      */
-    private static final java.util.HashSet<String> marksLoadedDialogs = new java.util.HashSet<>();
+    private static final java.util.Set<Long> marksLoadedDialogs =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Long, Boolean>());
 
-    private static String marksKey(int account, long dialogId) {
-        return account + ":" + dialogId;
+    private static Long marksKey(int account, long dialogId) {
+        final long encodedDid = dialogId < 0 ? ((-dialogId) | (1L << 55)) : (dialogId & ((1L << 55) - 1L));
+        return (((long) (account & 0x7F)) << 56) | encodedDid;
     }
 
     /** minSdk 23: без Collection.removeIf — обычный итератор */
     private static void forgetLoadedMarks(int account) {
-        final String prefix = account + ":";
-        java.util.Iterator<String> it = marksLoadedDialogs.iterator();
+        final long accTag = (account & 0x7FL);
+        java.util.Iterator<Long> it = marksLoadedDialogs.iterator();
         while (it.hasNext()) {
-            if (it.next().startsWith(prefix)) {
+            final Long k = it.next();
+            if (k != null && ((k >>> 56) & 0x7FL) == accTag) {
                 it.remove();
+            }
+        }
+        java.util.Iterator<Long> fastIt = fastMarksByDialog.keySet().iterator();
+        while (fastIt.hasNext()) {
+            final Long k = fastIt.next();
+            if (k != null && ((k >>> 56) & 0x7FL) == accTag) {
+                fastIt.remove();
             }
         }
     }
 
+    private static java.util.Set<Integer> newConcurrentMarkSet() {
+        return java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Integer, Boolean>());
+    }
+
     /** Called while holding marksCache's monitor; avoids allocating keys on every chat row. */
-    private static android.util.LongSparseArray<java.util.HashSet<Integer>> accountMarks(int account) {
-        android.util.LongSparseArray<java.util.HashSet<Integer>> marks = marksCache.get(account);
+    private static android.util.LongSparseArray<java.util.Set<Integer>> accountMarks(int account) {
+        android.util.LongSparseArray<java.util.Set<Integer>> marks = marksCache.get(account);
         if (marks == null) {
             marks = new android.util.LongSparseArray<>();
             marksCache.put(account, marks);
@@ -843,8 +882,8 @@ public class PengramHistory extends SQLiteOpenHelper {
                     db.beginTransaction();
                     try {
                         for (Integer id : copy) {
-                            // Нет снимка — нет обещания «сохранено». Никакого чтения БД на UI.
-                            if (isRealId(id) && !isUserDeleted(id) && hasEntry(account, dialogId, id)) {
+                            // A deleted marker is meaningful only when its actual snapshot exists.
+                            if (isRealId(id) && hasDeletedSnapshot(account, dialogId, id) && !isUserDeleted(account, dialogId, id)) {
                                 insertDeletedMark(db, account, dialogId, id);
                                 committed.add(id);
                             }
@@ -880,12 +919,13 @@ public class PengramHistory extends SQLiteOpenHelper {
     }
 
     private static void publishDeletedMark(int account, long dialogId, int id) {
-        if (isUserDeleted(id)) return;
+        if (isUserDeleted(account, dialogId, id)) return;
         synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
+            java.util.Set<Integer> set = accountMarks(account).get(dialogId);
             if (set == null) {
-                set = new java.util.HashSet<>();
+                set = newConcurrentMarkSet();
                 accountMarks(account).put(dialogId, set);
+                fastMarksByDialog.put(marksKey(account, dialogId), set);
             }
             set.add(id);
         }
@@ -902,7 +942,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     /** Снимок только из уже имеющейся памяти. Не загружает сообщения/медиа из сети. */
     public static void saveDeletedSnapshot(int account, long dialogId, TLRPC.Message message) {
         try {
-            if (!isArchivableSnapshot(dialogId, message, ACTION_DELETED) || isUserDeleted(message.id)) return;
+            if (!isArchivableSnapshot(dialogId, message, ACTION_DELETED) || isUserDeleted(account, dialogId, message.id)) return;
             final long from = message.from_id == null ? dialogId : DialogObject.getPeerDialogId(message.from_id);
             save(account, dialogId, message.id, from, message.date, ACTION_DELETED,
                     describe(message), null, message.out, serialize(message));
@@ -911,29 +951,23 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
     }
 
-    /** быстрая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
+    /** быстрая беззамковая проверка по кэшу; кэш подгружается в loadMarks() при открытии чата */
     public static boolean isMarkedDeleted(int account, long dialogId, int messageId) {
         if (dialogId == 0) {
             return false;
         }
-        synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
-            return set != null && set.contains(messageId);
-        }
+        final java.util.Set<Integer> set = fastMarksByDialog.get(marksKey(account, dialogId));
+        return set != null && set.contains(messageId);
     }
 
     /** успели ли подгрузить метки этого диалога (до этого «не удалено» ничего не значит) */
     public static boolean marksLoaded(int account, long dialogId) {
-        synchronized (marksCache) {
-            return marksLoadedDialogs.contains(marksKey(account, dialogId));
-        }
+        return marksLoadedDialogs.contains(marksKey(account, dialogId));
     }
 
     public static boolean hasMarks(int account, long dialogId) {
-        synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
-            return set != null && !set.isEmpty();
-        }
+        final java.util.Set<Integer> set = fastMarksByDialog.get(marksKey(account, dialogId));
+        return set != null && !set.isEmpty();
     }
 
     /** подгружает метки диалога в память (вызывается при открытии чата) */
@@ -942,11 +976,9 @@ public class PengramHistory extends SQLiteOpenHelper {
             if (done != null) AndroidUtilities.runOnUIThread(done);
             return;
         }
-        synchronized (marksCache) {
-            if (marksLoadedDialogs.contains(marksKey(account, dialogId))) {
-                if (done != null) AndroidUtilities.runOnUIThread(done);
-                return;
-            }
+        if (marksLoadedDialogs.contains(marksKey(account, dialogId))) {
+            if (done != null) AndroidUtilities.runOnUIThread(done);
+            return;
         }
         final PengramHistory history = getInstance();
         if (history == null) {
@@ -958,13 +990,13 @@ public class PengramHistory extends SQLiteOpenHelper {
             return;
         }
         executor.execute(() -> {
-            final java.util.HashSet<Integer> set = new java.util.HashSet<>();
+            final java.util.Set<Integer> set = newConcurrentMarkSet();
             Cursor c = null;
             try {
                 c = history.getReadableDatabase().rawQuery(
                         "SELECT m.message_id FROM " + TABLE_MARKS + " m WHERE m.account = ? AND m.dialog_id = ?"
                                 + " AND EXISTS (SELECT 1 FROM history h WHERE h.account=m.account"
-                                + " AND h.dialog_id=m.dialog_id AND h.message_id=m.message_id AND h.action=0)",
+                                + " AND h.dialog_id=m.dialog_id AND h.message_id=m.message_id AND h.action=0 AND h.data IS NOT NULL)",
                         new String[]{String.valueOf(account), String.valueOf(dialogId)});
                 while (c.moveToNext()) {
                     set.add(c.getInt(0));
@@ -975,11 +1007,12 @@ public class PengramHistory extends SQLiteOpenHelper {
                 if (c != null) try { c.close(); } catch (Throwable ignore) {}
             }
             synchronized (marksCache) {
-                java.util.HashSet<Integer> existing = accountMarks(account).get(dialogId);
+                java.util.Set<Integer> existing = accountMarks(account).get(dialogId);
                 if (existing != null) {
                     set.addAll(existing);
                 }
                 accountMarks(account).put(dialogId, set);
+                fastMarksByDialog.put(marksKey(account, dialogId), set);
                 marksLoadedDialogs.add(marksKey(account, dialogId));
             }
             // метки появились — открытый чат должен перекраситься сразу
@@ -996,7 +1029,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         }
         final ArrayList<Integer> copy = new ArrayList<>(ids);
         synchronized (marksCache) {
-            java.util.HashSet<Integer> set = accountMarks(account).get(dialogId);
+            java.util.Set<Integer> set = accountMarks(account).get(dialogId);
             if (set != null) {
                 set.removeAll(copy);
             }
@@ -1022,6 +1055,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                 marksCache.remove(account);
             } else {
                 accountMarks(account).remove(dialogId);
+                fastMarksByDialog.remove(marksKey(account, dialogId));
             }
             if (dialogId == 0) {
                 forgetLoadedMarks(account);
@@ -1084,8 +1118,13 @@ public class PengramHistory extends SQLiteOpenHelper {
 
     // ------------------------------- «я удалил сам»: такие сообщения реально удаляем
 
-    private static final java.util.HashMap<Integer, Long> userDeletedGuard = new java.util.HashMap<>();
-    private static final java.util.HashMap<Integer, Long> saveForMyself = new java.util.HashMap<>();
+    // Telegram message IDs are not globally unique (notably across channels). Scope
+    // transient deletion guards by account + dialog + ID to avoid cross-chat false skips.
+    private static final java.util.HashMap<String, Long> userDeletedGuard = new java.util.HashMap<>();
+    private static final java.util.HashMap<String, Long> saveForMyself = new java.util.HashMap<>();
+    private static String guardKey(int account, long dialogId, int messageId) {
+        return account + ":" + dialogId + ":" + messageId;
+    }
     private static final long GUARD_TTL = 120_000L;
     /** «сохранить у себя» живёт дольше: сервер может прислать апдейт об удалении с задержкой */
     private static final long SAVE_TTL = 15 * 60_000L;
@@ -1095,79 +1134,82 @@ public class PengramHistory extends SQLiteOpenHelper {
      * Важно: это снимает прошлую пометку «сохранить у себя», иначе
      * повторное удаление уже сохранённой «удалёнки» ничего бы не сделало.
      */
-    public static void guardUserDeleted(java.util.Collection<Integer> ids) {
-        if (ids == null) return;
+    public static void guardUserDeleted(int account, long dialogId, java.util.Collection<Integer> ids) {
+        if (ids == null || dialogId == 0) return;
         final long now = System.currentTimeMillis();
         synchronized (userDeletedGuard) {
             cleanupGuard(now);
             for (Integer id : ids) {
                 if (id != null) {
-                    userDeletedGuard.put(id, now);
-                    saveForMyself.remove(id);
+                    final String key = guardKey(account, dialogId, id);
+                    userDeletedGuard.put(key, now);
+                    saveForMyself.remove(key);
                 }
             }
         }
     }
 
     /** пользователь удалил, но попросил оставить копию у себя */
-    public static void guardSaveForMyself(java.util.Collection<Integer> ids) {
-        if (ids == null) return;
+    public static void guardSaveForMyself(int account, long dialogId, java.util.Collection<Integer> ids) {
+        if (ids == null || dialogId == 0) return;
         final long now = System.currentTimeMillis();
         synchronized (userDeletedGuard) {
             cleanupGuard(now);
             for (Integer id : ids) {
                 if (id != null) {
-                    saveForMyself.put(id, now);
-                    userDeletedGuard.remove(id);
+                    final String key = guardKey(account, dialogId, id);
+                    saveForMyself.put(key, now);
+                    userDeletedGuard.remove(key);
                 }
             }
         }
     }
 
     /** снять любые пометки (например, сообщение больше не существует) */
-    public static void forgetGuard(java.util.Collection<Integer> ids) {
-        if (ids == null) return;
+    public static void forgetGuard(int account, long dialogId, java.util.Collection<Integer> ids) {
+        if (ids == null || dialogId == 0) return;
         synchronized (userDeletedGuard) {
             for (Integer id : ids) {
                 if (id != null) {
-                    userDeletedGuard.remove(id);
-                    saveForMyself.remove(id);
+                    final String key = guardKey(account, dialogId, id);
+                    userDeletedGuard.remove(key);
+                    saveForMyself.remove(key);
                 }
             }
         }
     }
 
     private static void cleanupGuard(long now) {
-        java.util.Iterator<java.util.Map.Entry<Integer, Long>> it = userDeletedGuard.entrySet().iterator();
+        java.util.Iterator<java.util.Map.Entry<String, Long>> it = userDeletedGuard.entrySet().iterator();
         while (it.hasNext()) {
-            java.util.Map.Entry<Integer, Long> e = it.next();
+            java.util.Map.Entry<String, Long> e = it.next();
             if (now - e.getValue() > GUARD_TTL) {
                 it.remove();
             }
         }
-        java.util.Iterator<java.util.Map.Entry<Integer, Long>> it2 = saveForMyself.entrySet().iterator();
+        java.util.Iterator<java.util.Map.Entry<String, Long>> it2 = saveForMyself.entrySet().iterator();
         while (it2.hasNext()) {
-            java.util.Map.Entry<Integer, Long> e = it2.next();
+            java.util.Map.Entry<String, Long> e = it2.next();
             if (now - e.getValue() > SAVE_TTL) {
                 it2.remove();
             }
         }
     }
 
-    public static boolean isUserDeleted(int messageId) {
+    public static boolean isUserDeleted(int account, long dialogId, int messageId) {
         synchronized (userDeletedGuard) {
-            return userDeletedGuard.containsKey(messageId);
+            return userDeletedGuard.containsKey(guardKey(account, dialogId, messageId));
         }
     }
 
-    public static boolean isSaveForMyself(int messageId) {
+    public static boolean isSaveForMyself(int account, long dialogId, int messageId) {
         synchronized (userDeletedGuard) {
-            return saveForMyself.containsKey(messageId);
+            return saveForMyself.containsKey(guardKey(account, dialogId, messageId));
         }
     }
 
     /** решаем, оставлять ли сообщения в чате вместо удаления */
-    public static boolean shouldKeep(int account, java.util.Collection<Integer> ids) {
+    public static boolean shouldKeep(int account, long dialogId, java.util.Collection<Integer> ids) {
         if (ids == null || ids.isEmpty()) {
             return false;
         }
@@ -1188,8 +1230,9 @@ public class PengramHistory extends SQLiteOpenHelper {
             cleanupGuard(System.currentTimeMillis());
             for (Integer id : ids) {
                 if (!isRealId(id)) continue;
-                if (saveForMyself.containsKey(id)) anySaveForMyself = true;
-                if (userDeletedGuard.containsKey(id)) anyUserDeleted = true;
+                final String key = guardKey(account, dialogId, id);
+                if (saveForMyself.containsKey(key)) anySaveForMyself = true;
+                if (userDeletedGuard.containsKey(key)) anyUserDeleted = true;
             }
         }
         // явное «удалить» всегда сильнее, чем прошлое «сохранить у себя»
@@ -1284,7 +1327,7 @@ public class PengramHistory extends SQLiteOpenHelper {
      *
      * <p>Явное «удалить у себя» по-прежнему сильнее любой настройки.
      */
-    public static boolean keepInChat(int account, java.util.Collection<Integer> ids) {
+    public static boolean keepInChat(int account, long dialogId, java.util.Collection<Integer> ids) {
         if (ids == null || ids.isEmpty()) {
             return false;
         }
@@ -1301,12 +1344,12 @@ public class PengramHistory extends SQLiteOpenHelper {
         synchronized (userDeletedGuard) {
             cleanupGuard(System.currentTimeMillis());
             for (Integer id : ids) {
-                if (isRealId(id) && userDeletedGuard.containsKey(id)) {
+                if (isRealId(id) && userDeletedGuard.containsKey(guardKey(account, dialogId, id))) {
                     return false;
                 }
             }
         }
-        return PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, ids);
+        return PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, dialogId, ids);
     }
 
     /**
@@ -1349,7 +1392,7 @@ public class PengramHistory extends SQLiteOpenHelper {
         final int wanted = Math.max(1, Math.min(200, limit));
         final String needle = query.toLowerCase(Locale.ROOT);
         final String escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        boolean unicode = false;
+        boolean unicode = PengramSmartSearch.requiresSmartArchiveScan(query);
         for (int i = 0; i < query.length(); i++) {
             if (query.charAt(i) > 127) { unicode = true; break; }
         }
@@ -1383,11 +1426,14 @@ public class PengramHistory extends SQLiteOpenHelper {
                         beforeDate = c.getInt(5);
                         beforeId = c.getLong(0);
                         String text = c.getString(8), previous = c.getString(9);
+                        long rowFromId = c.getLong(4);
                         if (unicode && !(text != null && text.toLowerCase(Locale.ROOT).contains(needle))
-                                && !(previous != null && previous.toLowerCase(Locale.ROOT).contains(needle))) continue;
+                                && !(previous != null && previous.toLowerCase(Locale.ROOT).contains(needle))
+                                && !PengramSmartSearch.matchesArchiveText(text, previous,
+                                        resolveCachedPeerName(account, rowFromId != 0 ? rowFromId : c.getLong(2)), query)) continue;
                         Entry e = new Entry();
                         e.rowId = c.getLong(0); e.account = c.getInt(1); e.dialogId = c.getLong(2);
-                        e.messageId = c.getInt(3); e.fromId = c.getLong(4); e.date = c.getInt(5);
+                        e.messageId = c.getInt(3); e.fromId = rowFromId; e.date = c.getInt(5);
                         e.savedAt = c.getInt(6); e.action = c.getInt(7); e.text = text;
                         e.prevText = previous; e.out = c.getInt(10) != 0;
                         result.add(e);
@@ -1399,6 +1445,49 @@ public class PengramHistory extends SQLiteOpenHelper {
             FileLog.e(e);
         }
         return result;
+    }
+
+    private static String resolveCachedPeerName(int account, long peerId) {
+        if (peerId == 0 || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return null;
+        }
+        try {
+            final MessagesController mc = MessagesController.getInstance(account);
+            if (peerId > 0) {
+                final TLRPC.User u = mc.getUser(peerId);
+                return u != null ? UserObject.getUserName(u) : null;
+            } else {
+                final TLRPC.Chat chat = mc.getChat(-peerId);
+                return chat != null ? chat.title : null;
+            }
+        } catch (Throwable ignore) {
+            return null;
+        }
+    }
+
+    /** Подгружает в {@link MessagesController} авторов архивных записей диалога (для аватарок и поиска по имени). */
+    public static void preloadDialogSenders(int account, long dialogId) {
+        if (dialogId == 0 || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return;
+        }
+        final PengramHistory history = getInstance();
+        if (history == null) {
+            return;
+        }
+        final java.util.HashSet<Long> ids = new java.util.HashSet<>();
+        ids.add(dialogId);
+        try (Cursor c = history.getReadableDatabase().rawQuery(
+                "SELECT DISTINCT from_id FROM " + TABLE + " WHERE account = ? AND dialog_id = ? AND from_id != 0 LIMIT 250",
+                new String[]{String.valueOf(account), String.valueOf(dialogId)})) {
+            while (c.moveToNext()) {
+                final long fid = c.getLong(0);
+                if (fid != 0) {
+                    ids.add(fid);
+                }
+            }
+        } catch (Throwable ignore) {
+        }
+        PengramSenderHydrator.preloadPeersBlocking(account, ids);
     }
 
     public interface PageCallback {
@@ -1552,6 +1641,7 @@ public class PengramHistory extends SQLiteOpenHelper {
             }
             boolean unicode = false;
             if (!TextUtils.isEmpty(query)) {
+                unicode = PengramSmartSearch.requiresSmartArchiveScan(query);
                 for (int i = 0; i < query.length(); i++) {
                     if (query.charAt(i) > 127) { unicode = true; break; }
                 }
@@ -1576,8 +1666,11 @@ public class PengramHistory extends SQLiteOpenHelper {
             while (c.moveToNext() && result.size() < Math.max(1, limit)) {
                 // SQLite LIKE case-folds ASCII only. Filter other scripts in Java on this
                 // background reader; apply the page limit to matches, not database rows.
+                final long rowFromId = c.getLong(4);
                 if (unicode && !(c.getString(8) != null && c.getString(8).toLowerCase(Locale.ROOT).contains(needle))
-                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))) {
+                        && !(c.getString(9) != null && c.getString(9).toLowerCase(Locale.ROOT).contains(needle))
+                        && !PengramSmartSearch.matchesArchiveText(c.getString(8), c.getString(9),
+                                resolveCachedPeerName(account, rowFromId != 0 ? rowFromId : c.getLong(2)), query)) {
                     continue;
                 }
                 Entry e = new Entry();
@@ -1700,7 +1793,7 @@ public class PengramHistory extends SQLiteOpenHelper {
     private static void reconcilePrunedMarks(SQLiteDatabase db) {
         db.execSQL("DELETE FROM deleted_marks WHERE NOT EXISTS (SELECT 1 FROM history h"
                 + " WHERE h.account=deleted_marks.account AND h.dialog_id=deleted_marks.dialog_id"
-                + " AND h.message_id=deleted_marks.message_id AND h.action=0)");
+                + " AND h.message_id=deleted_marks.message_id AND h.action=0 AND h.data IS NOT NULL)");
         for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) forgetCommittedMarks(account, 0);
         notifyChanged();
     }
@@ -1981,7 +2074,7 @@ public class PengramHistory extends SQLiteOpenHelper {
                     // Только запись ACTION_DELETED даёт право на метку, не история правок.
                     db.execSQL("DELETE FROM deleted_marks WHERE account = ? AND NOT EXISTS"
                             + " (SELECT 1 FROM history h WHERE h.account=deleted_marks.account"
-                            + " AND h.dialog_id=deleted_marks.dialog_id AND h.message_id=deleted_marks.message_id AND h.action=0)",
+                            + " AND h.dialog_id=deleted_marks.dialog_id AND h.message_id=deleted_marks.message_id AND h.action=0 AND h.data IS NOT NULL)",
                             new Object[]{account});
                     db.setTransactionSuccessful();
                 } finally { db.endTransaction(); }
@@ -1997,13 +2090,14 @@ public class PengramHistory extends SQLiteOpenHelper {
         final ArrayList<Long> reload = new ArrayList<>();
         synchronized (marksCache) {
             if (dialogId == 0) {
-                android.util.LongSparseArray<java.util.HashSet<Integer>> old = accountMarks(account);
+                android.util.LongSparseArray<java.util.Set<Integer>> old = accountMarks(account);
                 for (int i = 0; i < old.size(); i++) reload.add(old.keyAt(i));
                 marksCache.remove(account);
                 forgetLoadedMarks(account);
             } else {
                 reload.add(dialogId);
                 accountMarks(account).remove(dialogId);
+                fastMarksByDialog.remove(marksKey(account, dialogId));
                 marksLoadedDialogs.remove(marksKey(account, dialogId));
             }
         }

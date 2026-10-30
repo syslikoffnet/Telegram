@@ -30,15 +30,20 @@ on:
       - "arena/01a10850-telegram"
       - "arena/28564dc4-telegram"
       - "arena/49b509a8-telegram"
+      - "arena/11c384e3-telegram"
     tags:
       - "build-*"
 
 permissions:
+  actions: read
   contents: write
 
 env:
   ABI: ${{ github.event.inputs.abi || 'arm64-v8a' }}
-  BUILD_TYPE: ${{ github.event.inputs.build_type || 'standalone' }}
+  # On this Arena branch, push builds are debug-only: publish artifacts without
+  # creating a branch-preview release. Manual dispatch and build tags keep their
+  # explicit/default standalone behavior.
+  BUILD_TYPE: ${{ github.event.inputs.build_type || (github.event_name == 'push' && github.ref_name == 'arena/11c384e3-telegram' && 'debug') || 'standalone' }}
   NDK_VERSION: "27.2.12479018"
   CMAKE_VERSION: "3.22.1"
   # ccache ускоряет повторную нативную сборку в разы
@@ -51,6 +56,7 @@ env:
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[publish-only]')"
     runs-on: ubuntu-latest
     timeout-minutes: 350
 
@@ -67,7 +73,7 @@ jobs:
             echo "## Pengram ARM64 APK #${GITHUB_RUN_NUMBER}"
             echo
             echo "**Commit:** \`${GITHUB_SHA:0:7}\`"
-            echo "**Variant:** standalone · arm64-v8a"
+            echo "**Variant:** ${BUILD_TYPE} · ${ABI}"
             echo
             echo "### Последние изменения"
             git log -5 --pretty='- %s (`%h`)'
@@ -383,6 +389,19 @@ jobs:
             out/*.idsig
           name: "Pengram ${{ github.ref_name }}"
           tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          prerelease: true
+
+      - name: Publish branch preview release
+        if: startsWith(github.ref_name, 'arena/') && env.BUILD_TYPE == 'standalone'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.apk
+            out/*.idsig
+          name: "Pengram apk-run${{ github.run_number }}"
+          tag_name: "apk-run${{ github.run_number }}"
+          target_commitish: "master"
           generate_release_notes: true
           prerelease: true
 

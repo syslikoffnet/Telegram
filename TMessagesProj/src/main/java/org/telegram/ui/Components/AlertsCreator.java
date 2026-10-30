@@ -8217,9 +8217,9 @@ public class AlertsCreator {
                 }
                 if (!ids.isEmpty()) {
                     if (pengramSaveLocal[0]) {
-                        org.telegram.messenger.PengramHistory.guardSaveForMyself(ids);
+                        org.telegram.messenger.PengramHistory.guardSaveForMyself(currentAccount, thisDialogId, ids);
                     } else {
-                        org.telegram.messenger.PengramHistory.guardUserDeleted(ids);
+                        org.telegram.messenger.PengramHistory.guardUserDeleted(currentAccount, thisDialogId, ids);
                     }
                     MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
                 }
@@ -8242,12 +8242,13 @@ public class AlertsCreator {
                             }
                         }
                     }
+                    final long targetDialogId = (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId;
                     if (pengramSaveLocal[0]) {
-                        org.telegram.messenger.PengramHistory.guardSaveForMyself(ids);
+                        org.telegram.messenger.PengramHistory.guardSaveForMyself(currentAccount, targetDialogId, ids);
                     } else {
-                        org.telegram.messenger.PengramHistory.guardUserDeleted(ids);
+                        org.telegram.messenger.PengramHistory.guardUserDeleted(currentAccount, targetDialogId, ids);
                     }
-                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId, topicId, deleteForAll[0], mode);
+                    MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, targetDialogId, topicId, deleteForAll[0], mode);
                     selectedMessages[a].clear();
                 }
             }

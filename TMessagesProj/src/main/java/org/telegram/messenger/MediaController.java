@@ -1834,7 +1834,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                 }
             }
         }
-        if (send) {
+        if (send && !PengramConfig.isNoScreenshotNotify()) {
             if (lastSecretChat != null) {
                 SecretChatHelper.getInstance(lastChatAccount).sendScreenshotMessage(lastSecretChat, lastChatVisibleMessages, null);
             } else {
@@ -2220,11 +2220,12 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         if (raisedToBack == minCount || accelerometerVertical) {
             lastAccelerometerDetected = System.currentTimeMillis();
         }
+        final boolean blockVoiceProximity = PengramConfig.isDisableVoiceProximity();
         final boolean allowRecording = !manualRecording && playingMessageObject == null && SharedConfig.enabledRaiseTo(true) && ApplicationLoader.isScreenOn && !inputFieldHasText && allowStartRecord && raiseChat != null && !callInProgress;
-        final boolean allowListening = SharedConfig.enabledRaiseTo(false) && playingMessageObject != null && (playingMessageObject.isVoice() || playingMessageObject.isRoundVideo());
+        final boolean allowListening = !blockVoiceProximity && SharedConfig.enabledRaiseTo(false) && playingMessageObject != null && (playingMessageObject.isVoice() || playingMessageObject.isRoundVideo());
         final boolean proximityDetected = proximityTouched;
         final boolean accelerometerDetected = raisedToBack == minCount || accelerometerVertical || System.currentTimeMillis() - lastAccelerometerDetected < 60;
-        final boolean alreadyPlaying = useFrontSpeaker || raiseToEarRecord;
+        final boolean alreadyPlaying = (!blockVoiceProximity && useFrontSpeaker) || raiseToEarRecord;
         final boolean wakelockAllowed = (
             accelerometerDetected ||
             alreadyPlaying
@@ -2414,6 +2415,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         if (!SharedConfig.enabledRaiseTo(false) && (playingMessageObject == null || !playingMessageObject.isVoice() && !playingMessageObject.isRoundVideo())) {
             return;
         }
+        if (PengramConfig.isDisableVoiceProximity() && !SharedConfig.enabledRaiseTo(true)) {
+            return;
+        }
         raiseChat = chatActivity;
         if (!sensorsStarted) {
             gravity[0] = gravity[1] = gravity[2] = 0;
@@ -2477,6 +2481,29 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         if (proximityWakeLock != null && proximityWakeLock.isHeld()) {
             proximityWakeLock.release();
         }
+    }
+
+    /**
+     * Pengram: мгновенное применение тумблера блокировки датчика приближения при прослушивании ГС/кружков.
+     * Снимает PROXIMITY_SCREEN_OFF_WAKE_LOCK и возвращает динамик, если ГС уже играет.
+     */
+    public void onPengramProximitySettingChanged() {
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!PengramConfig.isDisableVoiceProximity()) {
+                return;
+            }
+            if (!raiseToEarRecord && proximityWakeLock != null && proximityWakeLock.isHeld()) {
+                try {
+                    proximityWakeLock.release();
+                } catch (Throwable ignore) {
+                }
+            }
+            if (useFrontSpeaker && playingMessageObject != null
+                    && (playingMessageObject.isVoice() || playingMessageObject.isRoundVideo())) {
+                setUseFrontSpeaker(false);
+                startAudioAgain(isPaused);
+            }
+        });
     }
 
     public void cleanupPlayer(boolean notify, boolean stopService) {
@@ -3323,9 +3350,9 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             }
         }
         if (audioPlayer != null) {
-            audioPlayer.setPlaybackSpeed(Math.round(speed * 10f) / 10f);
+            audioPlayer.setPlaybackSpeed(speed);
         } else if (videoPlayer != null) {
-            videoPlayer.setPlaybackSpeed(Math.round(speed * 10f) / 10f);
+            videoPlayer.setPlaybackSpeed(speed);
         }
         MessagesController.getGlobalMainSettings().edit()
                 .putFloat(music ? "musicPlaybackSpeed" : "playbackSpeed", speed)
@@ -3878,7 +3905,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
             if (messageObject.isRoundVideo()) {
                 videoPlayer.setStreamType(useFrontSpeaker ? AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
                 if (Math.abs(currentPlaybackSpeed - 1.0f) > 0.001f) {
-                    videoPlayer.setPlaybackSpeed(Math.round(currentPlaybackSpeed * 10f) / 10f);
+                    videoPlayer.setPlaybackSpeed(currentPlaybackSpeed);
                 }
 
                 if (messageObject.forceSeekTo >= 0) {
@@ -3987,7 +4014,7 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                         shouldSavePositionForCurrentAudio = name;
                     }
                     if (Math.abs(currentPlaybackSpeed - 1.0f) > 0.001f) {
-                        audioPlayer.setPlaybackSpeed(Math.round(currentPlaybackSpeed * 10f) / 10f);
+                        audioPlayer.setPlaybackSpeed(currentPlaybackSpeed);
                     }
                     audioInfo = null;
                     if (!saved) {
@@ -4007,11 +4034,12 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                             messageObject.audioProgress = seekToProgressPending = pos;
                         }
                         shouldSavePositionForCurrentAudio = name;
-                        if (Math.abs(currentMusicPlaybackSpeed - 1.0f) > 0.001f) {
-                            audioPlayer.setPlaybackSpeed(Math.round(currentMusicPlaybackSpeed * 10f) / 10f);
-                        }
+                        // Playback speed is applied for all tracks below; this block only restores resume position.
                     }
                 }
+                // Re-apply after every prepare: otherwise short music tracks and streams can
+                // inherit normal speed even though the player UI displays the stored value.
+                audioPlayer.setPlaybackSpeed(messageObject.isVoice() ? currentPlaybackSpeed : currentMusicPlaybackSpeed);
                 if (messageObject.forceSeekTo >= 0) {
                     messageObject.audioProgress = seekToProgressPending = messageObject.forceSeekTo;
                     messageObject.forceSeekTo = -1;
@@ -4078,11 +4106,8 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         isPaused = false;
         lastProgress = 0;
         playingMessageObject = messageObject;
-        if (!SharedConfig.enabledRaiseTo(true)) {
+        if (!SharedConfig.enabledRaiseTo(true) && !PengramConfig.isDisableVoiceProximity()) {
             startRaiseToEarSensors(raiseChat);
-        }
-        if (!ApplicationLoader.mainInterfacePaused && proximityWakeLock != null && !proximityWakeLock.isHeld() && (playingMessageObject.isVoice() || playingMessageObject.isRoundVideo()) && SharedConfig.enabledRaiseTo(false)) {
-//            proximityWakeLock.acquire();
         }
         startProgressTimer(playingMessageObject);
         NotificationCenter.getInstance(messageObject.currentAccount).postNotificationName(NotificationCenter.messagePlayingDidStart, messageObject, oldMessageObject);

@@ -45,6 +45,25 @@ public class PengramVoiceChanger {
     public static final int MODE_ARMOR = 18;      // cinematic helmet comms
     public static final int MODE_TROLLING = 19;   // loud, intelligible conference speech
 
+    // ---- фоновый шум (Ambience / Soundboard) для голосовых, кружочков и звонков ----
+    public static final int AMBIENCE_OFF = 0;
+    public static final int AMBIENCE_SUBWAY = 1;  // метро
+    public static final int AMBIENCE_STREET = 2;  // улица
+    public static final int AMBIENCE_RAIN = 3;    // дождь
+    public static final int AMBIENCE_OFFICE = 4;  // офис
+    public static final int AMBIENCE_RADIO = 5;   // помехи рации
+    public static final int AMBIENCE_CLUB = 6;    // клуб
+
+    public static final int[] AMBIENCES = {
+            AMBIENCE_OFF,
+            AMBIENCE_SUBWAY,
+            AMBIENCE_STREET,
+            AMBIENCE_RAIN,
+            AMBIENCE_OFFICE,
+            AMBIENCE_RADIO,
+            AMBIENCE_CLUB
+    };
+
     /** порядок режимов в настройках */
     public static final int[] MODES = {
             MODE_OFF,
@@ -226,6 +245,7 @@ public class PengramVoiceChanger {
             formant1.setPeaking(sampleRate, 680f, 0.8f, 3.5f);
             formant2.setPeaking(sampleRate, 2700f, 1.2f, -3.0f);
         }
+        LIVE_AMBIENCE.reset(sampleRate);
         initialized = true;
     }
 
@@ -283,6 +303,7 @@ public class PengramVoiceChanger {
     public static boolean isEnabledFor(int source) {
         final int mode = PengramConfig.getVoiceChangerMode();
         return (PengramConfig.getVoiceGainDb() > 0 || PengramConfig.getVoiceGainDrive() > 0
+                || PengramConfig.getVoiceAmbience() != AMBIENCE_OFF
                 || mode != MODE_OFF && !isDryOnly(mode)) &&
                 (source == SOURCE_VOICE && PengramConfig.isVoiceMessagesEnabled()
                         || source == SOURCE_ROUND && PengramConfig.isVoiceRoundEnabled()
@@ -455,18 +476,29 @@ public class PengramVoiceChanger {
         }
         final int boostDb = PengramConfig.getVoiceGainDb();
         final int overdrive = PengramConfig.getVoiceGainDrive();
+        final int ambience = PengramConfig.getVoiceAmbience();
         final boolean dryOnly = mode == MODE_OFF || isDryOnly(mode);
-        if (dryOnly && boostDb == 0 && overdrive == 0) return;
+        if (dryOnly && boostDb == 0 && overdrive == 0 && ambience == AMBIENCE_OFF) return;
+        final float ambGain = ambience == AMBIENCE_OFF ? 0f : ambienceAmplitude(PengramConfig.getVoiceAmbienceLevel());
+        final boolean ambDuck = ambience != AMBIENCE_OFF && PengramConfig.isVoiceAmbienceDuck();
         // dB refers to voltage/amplitude, not power. Compute once per packet.
         final float boost = boostDb == 0 ? 1f : (float) Math.pow(10.0, boostDb / 20.0);
         try {
             if (dryOnly) {
+                if (ambience != AMBIENCE_OFF && !initialized) {
+                    reset();
+                }
                 final ByteOrder previousOrder = buffer.order();
                 buffer.order(ByteOrder.LITTLE_ENDIAN);
                 try {
                     final int count = Math.min(len, buffer.limit()) / 2;
                     for (int i = 0; i < count; ++i) {
-                        buffer.putShort(i * 2, (short) limit(microphoneOverdrive(buffer.getShort(i * 2) * boost, overdrive)));
+                        final short rawIn = buffer.getShort(i * 2);
+                        float dry = microphoneOverdrive(rawIn * boost, overdrive);
+                        if (ambience != AMBIENCE_OFF) {
+                            dry += LIVE_AMBIENCE.nextSample(ambience, sampleRate, ambGain, Math.abs(dry), ambDuck);
+                        }
+                        buffer.putShort(i * 2, (short) limit(dry));
                     }
                 } finally {
                     buffer.order(previousOrder);
@@ -564,8 +596,11 @@ public class PengramVoiceChanger {
                 if (frameMix < 1f) {
                     out = in * (1f - frameMix) + out * frameMix;
                 }
-                out = limit(microphoneOverdrive(out * boost, overdrive));
-                buffer.putShort(i * 2, (short) (out * gateGain));
+                float voiced = microphoneOverdrive(out * boost, overdrive) * gateGain;
+                if (ambience != AMBIENCE_OFF) {
+                    voiced += LIVE_AMBIENCE.nextSample(ambience, sampleRate, ambGain, Math.abs(voiced), ambDuck);
+                }
+                buffer.putShort(i * 2, (short) limit(voiced));
             }
 
             } finally {
@@ -775,7 +810,13 @@ public class PengramVoiceChanger {
                         14000f / Math.max(500f, speechEnvelope)));
                 speechGain += (target - speechGain) *
                         (target < speechGain ? speechGainAttack : speechGainRelease);
-                buffer.putShort(i * 2, (short) limit(clear * speechGain * speechGate));
+                float voiced = clear * speechGain * speechGate;
+                final int ambience = PengramConfig.getVoiceAmbience();
+                if (ambience != AMBIENCE_OFF) {
+                    final float ambGain = ambienceAmplitude(PengramConfig.getVoiceAmbienceLevel());
+                    voiced += LIVE_AMBIENCE.nextSample(ambience, sampleRate, ambGain, Math.abs(voiced), PengramConfig.isVoiceAmbienceDuck());
+                }
+                buffer.putShort(i * 2, (short) limit(voiced));
             }
         } finally {
             buffer.order(previousOrder);
@@ -1038,6 +1079,434 @@ public class PengramVoiceChanger {
                 return 1;
             default:
                 return 2;
+        }
+    }
+
+    // ------------------------------------------------------------- фоновый шум (Ambience / Soundboard)
+
+    private static final AmbienceEngine LIVE_AMBIENCE = new AmbienceEngine();
+    private static final AmbienceEngine PREVIEW_AMBIENCE = new AmbienceEngine();
+
+    public static float ambienceAmplitude(int levelPct) {
+        final float norm = Math.max(0.05f, Math.min(1.0f, levelPct / 100f));
+        return (0.14f * norm + 0.86f * norm * norm) * 8600f;
+    }
+
+    public static String getAmbienceName(int mode) {
+        switch (mode) {
+            case AMBIENCE_SUBWAY: return LocaleController.getString(R.string.PengramVoiceAmbienceSubway);
+            case AMBIENCE_STREET: return LocaleController.getString(R.string.PengramVoiceAmbienceStreet);
+            case AMBIENCE_RAIN: return LocaleController.getString(R.string.PengramVoiceAmbienceRain);
+            case AMBIENCE_OFFICE: return LocaleController.getString(R.string.PengramVoiceAmbienceOffice);
+            case AMBIENCE_RADIO: return LocaleController.getString(R.string.PengramVoiceAmbienceRadio);
+            case AMBIENCE_CLUB: return LocaleController.getString(R.string.PengramVoiceAmbienceClub);
+            default: return LocaleController.getString(R.string.PengramVoiceAmbienceOff);
+        }
+    }
+
+    public static String getAmbienceEmoji(int mode) {
+        switch (mode) {
+            case AMBIENCE_SUBWAY: return "\uD83D\uDE87";
+            case AMBIENCE_STREET: return "\uD83C\uDFD9\uFE0F";
+            case AMBIENCE_RAIN: return "\uD83C\uDF27\uFE0F";
+            case AMBIENCE_OFFICE: return "\uD83D\uDCBC";
+            case AMBIENCE_RADIO: return "\uD83D\uDCFB";
+            case AMBIENCE_CLUB: return "\uD83E\uDE99";
+            default: return "\uD83D\uDD07";
+        }
+    }
+
+    public static void resetAmbiencePreview(int sampleRate) {
+        PREVIEW_AMBIENCE.reset(sampleRate);
+    }
+
+    public static void renderAmbiencePreviewChunk(short[] pcm, int chunkSamples, int sampleRate,
+                                                  int ambience, int levelPct,
+                                                  int writtenSamples, int totalSamples, int fadeSamples) {
+        final float gain = ambienceAmplitude(levelPct) * 1.15f;
+        for (int i = 0; i < chunkSamples; i++) {
+            final int idx = writtenSamples + i;
+            float fade = 1f;
+            if (fadeSamples > 0) {
+                if (idx < fadeSamples) {
+                    fade = idx / (float) fadeSamples;
+                } else if (idx > totalSamples - fadeSamples) {
+                    fade = Math.max(0f, (totalSamples - idx) / (float) fadeSamples);
+                }
+            }
+            float s = PREVIEW_AMBIENCE.nextSample(ambience, sampleRate, gain * fade, 0f, false);
+            if (s > 30000f) s = 30000f;
+            else if (s < -30000f) s = -30000f;
+            pcm[i] = (short) s;
+        }
+    }
+
+    /**
+     * Процедурный акустический синтезатор фоновых сред без аллокаций в аудио-потоке.
+     * Работает на любой частоте дискретизации (16..48 кГц) одинаково реалистично.
+     */
+    private static final class AmbienceEngine {
+        private int lastRate = 48000;
+        private int lastMode = -1;
+        private long rng = 0x5DEECE66DL;
+        private float voiceEnv;
+        private float duckAtk, duckRel;
+
+        // Общие фильтры розового/коричневого шума и резонаторов
+        private float pink0, pink1, pink2;
+        private float lpSub, lpLow, lpMid, lpHigh, hp1State, hp1Prev, hp2State, hp2Prev;
+        private float resY1, resY2, res2Y1, res2Y2;
+        private double phase1, phase2, phase3;
+        private long sampleTick;
+
+        // Таймеры событий (стыки рельсов, машины, капли, клавиши, рация, бочка клуба)
+        private int eventCountdown1;
+        private int eventCountdown2;
+        private int burstRemaining;
+        private float env1, env2, env3;
+        private float sweepFreq, sweepTarget;
+        private int clubBarStep;
+
+        void reset(int rate) {
+            lastRate = rate > 0 ? rate : 48000;
+            rng = (System.nanoTime() ^ 0x9E3779B97F4A7C15L) | 1L;
+            voiceEnv = 0f;
+            duckAtk = expCoef(0.012f, lastRate);
+            duckRel = expCoef(0.26f, lastRate);
+            pink0 = pink1 = pink2 = 0f;
+            lpSub = lpLow = lpMid = lpHigh = 0f;
+            hp1State = hp1Prev = hp2State = hp2Prev = 0f;
+            resY1 = resY2 = res2Y1 = res2Y2 = 0f;
+            phase1 = phase2 = phase3 = 0.0;
+            sampleTick = 0L;
+            eventCountdown1 = lastRate / 3;
+            eventCountdown2 = lastRate;
+            burstRemaining = 0;
+            env1 = env2 = env3 = 0f;
+            sweepFreq = 600f;
+            sweepTarget = 340f;
+            clubBarStep = 0;
+        }
+
+        private static float expCoef(float seconds, int rate) {
+            return (float) (1.0 - Math.exp(-1.0 / Math.max(1f, seconds * rate)));
+        }
+
+        private static float lpCoef(float hz, int rate) {
+            final float clamped = Math.min(hz, rate * 0.44f);
+            return (float) (1.0 - Math.exp(-TWO_PI * clamped / rate));
+        }
+
+        private float randSigned() {
+            long x = rng;
+            x ^= x << 13;
+            x ^= x >>> 7;
+            x ^= x << 17;
+            rng = x;
+            return (x >> 40) / 8388608f;
+        }
+
+        private float randUnit() {
+            return (randSigned() + 1f) * 0.5f;
+        }
+
+        /** Тёплый розовый шум Пола Келлетта (3 полюса) — без резкого цифрового песка. */
+        private float nextPink() {
+            final float w = randSigned();
+            pink0 = 0.99765f * pink0 + w * 0.0990460f;
+            pink1 = 0.96300f * pink1 + w * 0.2965164f;
+            pink2 = 0.57000f * pink2 + w * 1.0526913f;
+            return (pink0 + pink1 + pink2 + w * 0.1848f) * 0.26f;
+        }
+
+        /** Быстрый двухполюсный резонатор для ударов капель, клавиш и стыков рельсов. */
+        private float resonator1(float exc, float freqHz, float radius, int rate) {
+            final float f = Math.min(freqHz, rate * 0.43f);
+            final double w = TWO_PI * f / rate;
+            final float y = exc + (float) (2.0 * radius * Math.cos(w)) * resY1 - (radius * radius) * resY2;
+            resY2 = resY1;
+            resY1 = y;
+            return y;
+        }
+
+        private float resonator2(float exc, float freqHz, float radius, int rate) {
+            final float f = Math.min(freqHz, rate * 0.43f);
+            final double w = TWO_PI * f / rate;
+            final float y = exc + (float) (2.0 * radius * Math.cos(w)) * res2Y1 - (radius * radius) * res2Y2;
+            res2Y2 = res2Y1;
+            res2Y1 = y;
+            return y;
+        }
+
+        float nextSample(int mode, int rate, float baseGain, float voiceAbs, boolean duck) {
+            if (rate <= 0) rate = 48000;
+            if (rate != lastRate || mode != lastMode) {
+                if (rate != lastRate) {
+                    reset(rate);
+                }
+                lastMode = mode;
+            }
+            sampleTick++;
+
+            float gain = baseGain;
+            if (duck) {
+                voiceEnv += (voiceAbs - voiceEnv) * (voiceAbs > voiceEnv ? duckAtk : duckRel);
+                final float speech = Math.max(0f, Math.min(1f, (voiceEnv - 550f) / 4800f));
+                gain *= (1f - 0.40f * speech);
+            }
+
+            float raw;
+            switch (mode) {
+                case AMBIENCE_SUBWAY:
+                    raw = synthSubway(rate);
+                    break;
+                case AMBIENCE_STREET:
+                    raw = synthStreet(rate);
+                    break;
+                case AMBIENCE_RAIN:
+                    raw = synthRain(rate);
+                    break;
+                case AMBIENCE_OFFICE:
+                    raw = synthOffice(rate);
+                    break;
+                case AMBIENCE_RADIO:
+                    raw = synthRadio(rate);
+                    break;
+                case AMBIENCE_CLUB:
+                    raw = synthClub(rate);
+                    break;
+                default:
+                    return 0f;
+            }
+            return raw * gain;
+        }
+
+        /** 1. Метро: глубокий гул тоннеля, качение тележки и парный перестук рельсовых стыков «тук-тук». */
+        private float synthSubway(int rate) {
+            final float pink = nextPink();
+            phase1 += TWO_PI * 0.14 / rate;
+            if (phase1 >= TWO_PI) phase1 -= TWO_PI;
+            final float sway = 0.82f + 0.18f * sine(phase1);
+
+            lpSub += lpCoef(135f, rate) * (pink - lpSub);
+            lpLow += lpCoef(390f, rate) * (pink - lpLow);
+            lpMid += lpCoef(1650f, rate) * (pink - lpMid);
+            final float ventBand = lpMid - lpLow;
+
+            // Тяговый инвертор вагона (очень мягкая гармоника ~285 Гц)
+            phase2 += TWO_PI * (278.0 + 14.0 * sine(phase1 * 0.7)) / rate;
+            if (phase2 >= TWO_PI) phase2 -= TWO_PI;
+            final float inverter = sine(phase2) * 0.055f;
+
+            // Парные удары колёсных пар на стыках рельсов («тук-тук ... тук-тук»)
+            float clickExc = 0f;
+            if (--eventCountdown1 <= 0) {
+                if (burstRemaining == 1) {
+                    // Вторая колёсная пара тележки через ~88..105 мс
+                    burstRemaining = 0;
+                    eventCountdown1 = (int) (rate * (1.18f + randUnit() * 0.42f));
+                    env1 = 0.85f + randUnit() * 0.25f;
+                } else {
+                    burstRemaining = 1;
+                    eventCountdown1 = (int) (rate * (0.086f + randUnit() * 0.022f));
+                    env1 = 1.0f;
+                }
+                clickExc = env1 * 0.55f;
+            }
+            env1 *= (1f - expCoef(0.016f, rate));
+            final float clackBody = resonator1(clickExc + randSigned() * env1 * 0.12f, 470f, 0.965f, rate);
+            final float clackEdge = resonator2(clickExc, 1240f, 0.93f, rate);
+
+            return (lpSub * 1.45f + (lpLow - lpSub) * 0.95f + ventBand * 0.22f + inverter) * sway
+                    + clackBody * 0.28f + clackEdge * 0.14f;
+        }
+
+        /** 2. Улица: городской фон, порывы ветра, проезжающие авто с эффектом Доплера и далёкий сигнал. */
+        private float synthStreet(int rate) {
+            final float pink = nextPink();
+            phase1 += TWO_PI * 0.19 / rate;
+            phase2 += TWO_PI * 0.43 / rate;
+            if (phase1 >= TWO_PI) phase1 -= TWO_PI;
+            if (phase2 >= TWO_PI) phase2 -= TWO_PI;
+
+            final float gust = 0.55f + 0.45f * (0.6f * sine(phase1) + 0.4f * sine(phase2));
+            lpLow += lpCoef(190f + 260f * Math.max(0f, gust), rate) * (pink - lpLow);
+            lpMid += lpCoef(920f, rate) * (pink - lpMid);
+            final float cityBed = lpLow * 0.85f + (lpMid - lpLow) * 0.38f;
+
+            // Проезжающий автомобиль (плавный наезд и спад + сдвиг спектра вниз по Доплеру)
+            if (--eventCountdown1 <= 0) {
+                eventCountdown1 = (int) (rate * (2.6f + randUnit() * 3.1f));
+                env2 = 1.0f;
+                sweepFreq = 980f + randUnit() * 280f;
+                sweepTarget = 270f + randUnit() * 90f;
+            }
+            // Плавная колоколообразная огибающая проезда (env1 догоняет env2, env2 плавно гаснет)
+            env2 *= (1f - expCoef(0.55f, rate));
+            env1 += (env2 - env1) * expCoef(0.24f, rate);
+            sweepFreq += (sweepTarget - sweepFreq) * expCoef(0.62f, rate);
+            lpHigh += lpCoef(sweepFreq, rate) * (pink - lpHigh);
+            final float carPass = (lpHigh - lpLow * 0.45f) * env1 * 1.65f;
+
+            // Редкий приглушённый автомобильный гудок вдали (~415 + 518 Гц)
+            if (--eventCountdown2 <= 0) {
+                eventCountdown2 = (int) (rate * (9.5f + randUnit() * 8.0f));
+                burstRemaining = (int) (rate * (0.16f + randUnit() * 0.14f));
+            }
+            float horn = 0f;
+            if (burstRemaining > 0) {
+                burstRemaining--;
+                env3 += (1f - env3) * expCoef(0.015f, rate);
+            } else {
+                env3 *= (1f - expCoef(0.045f, rate));
+            }
+            if (env3 > 0.002f) {
+                phase3 += TWO_PI * 418.0 / rate;
+                if (phase3 >= TWO_PI) phase3 -= TWO_PI;
+                horn = (sine(phase3) + 0.7f * sine(phase3 * 1.245)) * env3 * 0.075f;
+            }
+            return cityBed + carPass + horn;
+        }
+
+        /** 3. Дождь: бархатная завеса ливня, отдельные капли по стеклу/зонтику и далёкий гром. */
+        private float synthRain(int rate) {
+            final float pink = nextPink();
+            final float white = randSigned();
+            lpLow += lpCoef(480f, rate) * (pink - lpLow);
+            lpMid += lpCoef(3400f, rate) * ((pink * 0.65f + white * 0.35f) - lpMid);
+            final float rainCurtain = (lpMid - lpLow) * 0.72f;
+
+            // Отдельные капли (~26 капель/сек со случайной высотой тона)
+            float dropExc = 0f;
+            if (--eventCountdown1 <= 0) {
+                eventCountdown1 = Math.max(8, (int) (rate * (0.012f + randUnit() * 0.055f)));
+                sweepFreq = 950f + randUnit() * 2350f;
+                dropExc = 0.32f + randUnit() * 0.45f;
+            }
+            final float droplets = resonator1(dropExc, sweepFreq, 0.955f, rate) * 0.19f;
+
+            // Далёкий мягкий раскат грома в низах (65..140 Гц)
+            if (--eventCountdown2 <= 0) {
+                eventCountdown2 = (int) (rate * (8.5f + randUnit() * 7.5f));
+                env2 = 0.85f + randUnit() * 0.3f;
+            }
+            env2 *= (1f - expCoef(1.35f, rate));
+            env1 += (env2 - env1) * expCoef(0.45f, rate);
+            lpSub += lpCoef(115f, rate) * (pink - lpSub);
+            final float thunder = lpSub * env1 * 1.85f;
+
+            return rainCurtain + droplets + thunder;
+        }
+
+        /** 4. Офис: мягкий гул кондиционера, серии печати на клавиатуре и клики мыши. */
+        private float synthOffice(int rate) {
+            final float pink = nextPink();
+            lpSub += lpCoef(155f, rate) * (pink - lpSub);
+            lpLow += lpCoef(540f, rate) * (pink - lpLow);
+            phase1 += TWO_PI * 0.27 / rate;
+            if (phase1 >= TWO_PI) phase1 -= TWO_PI;
+            final float hvac = lpSub * 0.58f + (lpLow - lpSub) * (0.28f + 0.06f * sine(phase1));
+
+            // Живые серии нажатий клавиш (5..13 нажатий подряд, затем пауза 0.7..2.2 с)
+            float keyExc = 0f;
+            float deskExc = 0f;
+            if (--eventCountdown1 <= 0) {
+                if (burstRemaining <= 0) {
+                    burstRemaining = 5 + (int) (randUnit() * 9f);
+                    eventCountdown1 = (int) (rate * (0.65f + randUnit() * 1.55f));
+                } else {
+                    burstRemaining--;
+                    eventCountdown1 = (int) (rate * (0.068f + randUnit() * 0.095f));
+                    sweepFreq = 1650f + randUnit() * 1150f;
+                    final float vel = 0.45f + randUnit() * 0.45f;
+                    keyExc = vel;
+                    deskExc = vel * 0.65f;
+                }
+            }
+            // Периодический двойной клик мыши
+            if (--eventCountdown2 <= 0) {
+                if (env3 > 0.5f) {
+                    env3 = 0f;
+                    eventCountdown2 = (int) (rate * (2.8f + randUnit() * 4.2f));
+                } else {
+                    env3 = 1f;
+                    eventCountdown2 = (int) (rate * (0.11f + randUnit() * 0.04f));
+                }
+                sweepFreq = 2650f;
+                keyExc += 0.55f;
+            }
+            final float keyClick = resonator1(keyExc, sweepFreq, 0.91f, rate) * 0.24f;
+            final float keyThock = resonator2(deskExc, 370f, 0.955f, rate) * 0.18f;
+            return hvac + keyClick + keyThock;
+        }
+
+        /** 5. Помехи рации: полосовой УКВ-шум шумоподавителя, потрескивания эфира и тон несущей. */
+        private float synthRadio(int rate) {
+            final float white = randSigned();
+            // Полосовой тракт рации 460..2850 Гц
+            final float hpCoef = (float) Math.exp(-TWO_PI * 460.0 / rate);
+            hp1State = hpCoef * (hp1State + white - hp1Prev);
+            hp1Prev = white;
+            lpMid += lpCoef(2850f, rate) * (hp1State - lpMid);
+
+            // Всплески радиопомех и потрескиваний
+            if (--eventCountdown1 <= 0) {
+                eventCountdown1 = (int) (rate * (0.35f + randUnit() * 1.45f));
+                burstRemaining = (int) (rate * (0.04f + randUnit() * 0.18f));
+                sweepFreq = 1580f + randUnit() * 420f;
+            }
+            float crackle = 0f;
+            float carrier = 0f;
+            if (burstRemaining > 0) {
+                burstRemaining--;
+                env1 += (1f - env1) * expCoef(0.005f, rate);
+                if (randUnit() > 0.86f) {
+                    crackle = randSigned() * 0.95f;
+                }
+                phase2 += TWO_PI * sweepFreq / rate;
+                if (phase2 >= TWO_PI) phase2 -= TWO_PI;
+                carrier = sine(phase2) * 0.085f * env1;
+            } else {
+                env1 *= (1f - expCoef(0.03f, rate));
+            }
+            lpHigh += lpCoef(2400f, rate) * (crackle - lpHigh);
+            return lpMid * (0.42f + 0.45f * env1) + lpHigh * 0.55f + carrier;
+        }
+
+        /** 6. Клуб: глухой бит 124 BPM «из-за стены / у бара» с сайдчейн-басом и гулом зала. */
+        private float synthClub(int rate) {
+            final int beatSamples = Math.max(1, (int) (rate * 60.0f / 124.0f)); // 124 BPM
+            if (--eventCountdown1 <= 0) {
+                eventCountdown1 = beatSamples;
+                env1 = 1.0f;       // огибающая тела бочки
+                env2 = 1.0f;       // быстрый питч-свип удара бочки
+                clubBarStep = (clubBarStep + 1) & 15;
+            }
+            env1 *= (1f - expCoef(0.115f, rate));
+            env2 *= (1f - expCoef(0.022f, rate));
+
+            // Бочка 138 -> 50 Гц с мягкой 2-й гармоникой (читается даже на динамике телефона)
+            final float kickHz = 50f + 88f * env2;
+            phase1 += TWO_PI * kickHz / rate;
+            if (phase1 >= TWO_PI) phase1 -= TWO_PI;
+            final float kickRaw = (sine(phase1) + 0.34f * sine(phase1 * 2.0)) * env1;
+            final float kickWarm = kickRaw / (1f + 0.45f * Math.abs(kickRaw));
+
+            // Сайдчейн-кач: бас и гул танцпола проседают на каждом ударе бочки и всплывают между долями
+            final float pump = Math.max(0.18f, 1f - 0.78f * env1);
+            final float bassNoteHz = (clubBarStep < 8) ? 55.0f : (clubBarStep < 12 ? 65.41f : 73.42f);
+            phase2 += TWO_PI * bassNoteHz / rate;
+            if (phase2 >= TWO_PI) phase2 -= TWO_PI;
+            // Богатый гармониками клубный саб-бас под глухим ФНЧ стены (~260 Гц)
+            final float subOsc = sine(phase2) * 0.65f + sine(phase2 * 2.0) * 0.35f + sine(phase2 * 3.0) * 0.16f;
+            lpSub += lpCoef(255f, rate) * (subOsc - lpSub);
+
+            // Приглушённый гул зала и музыки за дверью (180..480 Гц)
+            final float pink = nextPink();
+            lpLow += lpCoef(170f, rate) * (pink - lpLow);
+            lpMid += lpCoef(490f, rate) * (pink - lpLow - lpMid);
+
+            return kickWarm * 0.92f + lpSub * pump * 0.52f + lpMid * pump * 0.48f;
         }
     }
 }
