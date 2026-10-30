@@ -63,6 +63,34 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
 
     private static java.lang.ref.WeakReference<MusicPlayerService> activeServiceRef;
 
+    public static void onPlaybackModeChanged() {
+        final MusicPlayerService srv = activeServiceRef != null ? activeServiceRef.get() : null;
+        if (srv != null) {
+            srv.updatePlaybackModeAndNotification();
+        } else {
+            postPlaybackModeChanged();
+        }
+    }
+
+    private void updatePlaybackModeAndNotification() {
+        updateRepeatMode();
+        updateShuffleMode();
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            createNotification(playing, false);
+            if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+        }
+        postPlaybackModeChanged();
+    }
+
+    private static void postPlaybackModeChanged() {
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            NotificationCenter.getInstance(playing.currentAccount)
+                    .postNotificationName(NotificationCenter.musicPlaybackOrderChanged);
+        }
+    }
+
     public static void onPengramFavoritesStateChanged() {
         final MusicPlayerService srv = activeServiceRef != null ? activeServiceRef.get() : null;
         if (srv == null) {
@@ -190,6 +218,8 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -208,6 +238,8 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -237,6 +269,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -509,7 +542,11 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
 
             Notification.MediaStyle mediaStyle = new Notification.MediaStyle().setMediaSession((android.media.session.MediaSession.Token) mediaSession.getSessionToken().getToken());
             if (messageObject.isMusic()) {
-                mediaStyle.setShowActionsInCompactView(0, 1, 2, 3, 4);
+                if (MediaController.getInstance().isDownloadingCurrentMessage()) {
+                    mediaStyle.setShowActionsInCompactView(0, 1, 2);
+                } else {
+                    mediaStyle.setShowActionsInCompactView(0, 1, 2, 3, 4);
+                }
             } else if (messageObject.isVoice() || messageObject.isRoundVideo()) {
                 mediaStyle.setShowActionsInCompactView(0);
             }

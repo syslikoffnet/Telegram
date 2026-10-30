@@ -354,6 +354,8 @@ public class MessagesController extends BaseController implements NotificationCe
     public boolean dialogsLoaded;
     private SparseIntArray nextDialogsCacheOffset = new SparseIntArray();
     private SparseBooleanArray loadingDialogs = new SparseBooleanArray();
+    private SparseIntArray dialogLoadRetryCount = new SparseIntArray();
+    private SparseIntArray dialogLoadRequestGeneration = new SparseIntArray();
     private SparseBooleanArray dialogsEndReached = new SparseBooleanArray();
     private SparseBooleanArray serverDialogsEndReached = new SparseBooleanArray();
 
@@ -6664,6 +6666,8 @@ public class MessagesController extends BaseController implements NotificationCe
         dialogsLoaded = false;
         nextDialogsCacheOffset.clear();
         loadingDialogs.clear();
+        dialogLoadRetryCount.clear();
+        dialogLoadRequestGeneration.clear();
         dialogsEndReached.clear();
         serverDialogsEndReached.clear();
 
@@ -12648,6 +12652,8 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         loadingDialogs.put(folderId, true);
+        final int requestGeneration = dialogLoadRequestGeneration.get(folderId, 0) + 1;
+        dialogLoadRequestGeneration.put(folderId, requestGeneration);
         getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("folderId = " + folderId + " load cacheOffset = " + offset + " count = " + count + " cache = " + fromCache);
@@ -12729,13 +12735,36 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
             }
             getConnectionsManager().sendRequest(req, (response, error) -> {
-                if (error == null) {
+                if (error == null && response instanceof TLRPC.messages_Dialogs) {
+                    dialogLoadRetryCount.delete(folderId);
                     TLRPC.messages_Dialogs dialogsRes = (TLRPC.messages_Dialogs) response;
                     processLoadedDialogs(dialogsRes, null, null, folderId, 0, count, 0, false, false, false);
                     if (onEmptyCallback != null && dialogsRes.dialogs.isEmpty()) {
                         AndroidUtilities.runOnUIThread(onEmptyCallback);
                     }
+                    return;
                 }
+                // A failed first dialogs RPC used to leave loadingDialogs=true forever.
+                // On a clean install this made the app look like an offline/empty Telegram
+                // even after the connection recovered. Release the latch and retry with bounded
+                // backoff; a later connected-state event below can trigger another clean attempt.
+                FileLog.e("loadDialogs failed for account=" + currentAccount + " folder=" + folderId
+                        + " error=" + (error != null ? error.code + " " + error.text : "invalid response"));
+                AndroidUtilities.runOnUIThread(() -> {
+                    loadingDialogs.put(folderId, false);
+                    getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                    final int retries = dialogLoadRetryCount.get(folderId, 0);
+                    if (retries < 3) {
+                        dialogLoadRetryCount.put(folderId, retries + 1);
+                        final long[] delays = {1200L, 5000L, 15000L};
+                        AndroidUtilities.runOnUIThread(() -> {
+                            if (!resetingDialogs && !loadingDialogs.get(folderId)
+                                    && dialogLoadRequestGeneration.get(folderId, 0) == requestGeneration) {
+                                loadDialogs(folderId, 0, count, false, onEmptyCallback);
+                            }
+                        }, delays[retries]);
+                    }
+                });
             });
         }
     }

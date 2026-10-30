@@ -411,6 +411,7 @@ public final class PengramMusicFavorites {
         final boolean groupMode = mode == PengramConfig.FAV_TARGET_AUTO_GROUP;
         final long existingVault = getAutoVaultDialogId(account, groupMode);
         if (existingVault != 0L) {
+            prepareAutoVault(account, existingVault, false);
             sendTrackWithRecognition(account, track, existingVault, showUiFeedback);
             return;
         }
@@ -462,6 +463,8 @@ public final class PengramMusicFavorites {
             }
             if (vaultDialogId == 0L) {
                 vaultDialogId = UserConfig.getInstance(account).getClientUserId();
+            } else {
+                prepareAutoVault(account, vaultDialogId, true);
             }
             if (vaultDialogId != 0L && pending != null) {
                 for (int i = 0; i < pending.size(); i++) {
@@ -469,6 +472,34 @@ public final class PengramMusicFavorites {
                 }
             }
         }), ConnectionsManager.RequestFlagFailOnServerErrors);
+    }
+
+    private static void prepareAutoVault(int account, long dialogId, boolean newlyCreated) {
+        // Retention is changed only for the dedicated music peer, never the global auto-delete setting.
+        MessagesController.getInstance(account).setDialogHistoryTTL(dialogId, 0);
+        archiveAutoVault(account, dialogId);
+        if (newlyCreated) {
+            // Reassert after the first outgoing track has created its local dialog entry.
+            AndroidUtilities.runOnUIThread(() -> archiveAutoVault(account, dialogId), 3500L);
+        }
+    }
+
+    private static void archiveAutoVault(int account, long dialogId) {
+        final MessagesController controller = MessagesController.getInstance(account);
+        // Отправляем folder update напрямую: у только что созданного хранилища
+        // ещё может не быть локальной записи dialog, но Telegram всё равно примет peer.
+        final TLRPC.TL_inputFolderPeer folderPeer = new TLRPC.TL_inputFolderPeer();
+        folderPeer.folder_id = 1;
+        folderPeer.peer = controller.getInputPeer(dialogId);
+        final TLRPC.TL_folders_editPeerFolders request = new TLRPC.TL_folders_editPeerFolders();
+        request.folder_peers.add(folderPeer);
+        ConnectionsManager.getInstance(account).sendRequest(request, (response, error) -> {
+            if (error == null && response instanceof TLRPC.Updates) {
+                controller.processUpdates((TLRPC.Updates) response, false);
+            } else if (error != null) {
+                FileLog.e("Pengram music vault archive failed: " + error.text);
+            }
+        });
     }
 
     private static void sendTrackWithRecognition(int account, MessageObject track, long targetDialogId, boolean showUiFeedback) {

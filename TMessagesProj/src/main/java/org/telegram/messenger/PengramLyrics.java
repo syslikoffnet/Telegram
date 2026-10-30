@@ -13,12 +13,14 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -92,15 +94,22 @@ public class PengramLyrics {
     private static final HashMap<String, ArrayList<Callback>> waiters = new HashMap<>();
 
     /** источники опрашиваются одновременно — кто первый, того и текст */
-    private static final ExecutorService pool = Executors.newFixedThreadPool(4, runnable -> {
+    /** Top-level searches never share workers with the subtasks they wait for. */
+    private static final ExecutorService pool = Executors.newFixedThreadPool(2, runnable -> {
         final Thread thread = new Thread(runnable, "PengramLyrics");
+        thread.setPriority(Thread.MIN_PRIORITY + 2);
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final ExecutorService sourcePool = Executors.newFixedThreadPool(8, runnable -> {
+        final Thread thread = new Thread(runnable, "PengramLyricsSource");
         thread.setPriority(Thread.MIN_PRIORITY + 2);
         thread.setDaemon(true);
         return thread;
     });
 
     /** общий срок на весь поиск, мс */
-    private static final long SEARCH_DEADLINE = 9000;
+    private static final long SEARCH_DEADLINE = 12000;
 
     private static SharedPreferences prefs() {
         return ApplicationLoader.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -118,7 +127,16 @@ public class PengramLyrics {
         if (TextUtils.isEmpty(title)) {
             return null;
         }
-        return (TextUtils.isEmpty(artist) ? "" : artist.toLowerCase(Locale.ROOT)) + "|" + title.toLowerCase(Locale.ROOT);
+        final String normalizedArtist = TextUtils.isEmpty(artist) ? "" : artist.toLowerCase(Locale.ROOT);
+        final String normalizedTitle = title.toLowerCase(Locale.ROOT);
+        if (TextUtils.isEmpty(normalizedArtist) || isGenericTitle(title)) {
+            final TLRPC.Document document = messageObject.getDocument();
+            if (document != null && document.id != 0) {
+                // Sparse metadata must not let two unrelated files named "Track 01" share lyrics.
+                return "file:" + document.id + "|" + normalizedTitle;
+            }
+        }
+        return normalizedArtist + "|" + normalizedTitle;
     }
 
     /** исполнитель: из тегов, а если их нет — из имени файла «Исполнитель - Название» */
@@ -143,7 +161,12 @@ public class PengramLyrics {
         } catch (Throwable ignore) {
         }
         if (!TextUtils.isEmpty(title)) {
-            return cleanTitle(title);
+            final String cleaned = cleanTitle(title);
+            final String[] fromName = splitFileName(messageObject);
+            if (fromName != null && editionTokens(cleaned).isEmpty() && !editionTokens(fromName[1]).isEmpty()) {
+                return cleaned + " (" + editionLabel(fromName[1]) + ")";
+            }
+            return cleaned;
         }
         final String[] fromName = splitFileName(messageObject);
         if (fromName != null) {
@@ -155,6 +178,12 @@ public class PengramLyrics {
         } catch (Throwable ignore) {
         }
         return TextUtils.isEmpty(name) ? null : cleanTitle(stripExtension(name));
+    }
+
+    private static boolean isGenericTitle(String title) {
+        final String value = norm(title);
+        return value.isEmpty() || value.equals("audio") || value.equals("track") || value.equals("music")
+                || value.equals("unknown") || value.equals("untitled") || value.matches("track [0-9]+");
     }
 
     private static String[] splitFileName(MessageObject messageObject) {
@@ -186,18 +215,12 @@ public class PengramLyrics {
         return dot > 0 && name.length() - dot <= 5 ? name.substring(0, dot) : name;
     }
 
-    /** убираем из названия всё, что мешает поиску: «(Official Video)», «[Lyrics]», «feat. …» */
+    /** Remove only publishing/marketing suffixes; never erase remix or edition identity. */
     public static String cleanTitle(String title) {
-        if (TextUtils.isEmpty(title)) {
-            return title;
-        }
+        if (TextUtils.isEmpty(title)) return title;
         String result = title.replace('_', ' ');
-        result = result.replaceAll("(?i)\\s*[\\[(][^\\[\\]()]*(official|lyric|lyrics|video|audio|visuali[sz]er|hd|hq|mv|clip|slowed|reverb|sped up|nightcore|remaster[^\\[\\]()]*)[^\\[\\]()]*[\\])]", "");
-        result = result.replaceAll("(?i)\\s*[\\[(]\\s*(prod\\.?|produced by)[^\\[\\]()]*[\\])]", "");
-        result = result.replaceAll("(?i)\\s*[-–—]\\s*(official\\s+)?(music\\s+)?(video|audio|lyrics?)\\s*$", "");
-        result = result.replaceAll("(?i)\\s*(feat\\.?|ft\\.?|with)\\s+[^-\\[(]+$", "");
+        result = result.replaceAll("(?i)\\s*[-–—]\\s*(official\\s+)?(music\\s+)?(video|audio|lyrics?|visuali[sz]er)\\s*$", "");
         result = result.replaceAll("\\s{2,}", " ").trim();
-        result = result.replaceAll("[\\s,\\-–—]+$", "").trim();
         return TextUtils.isEmpty(result) ? title.trim() : result;
     }
 
@@ -247,7 +270,8 @@ public class PengramLyrics {
     }
 
     public static boolean has(String key) {
-        return !TextUtils.isEmpty(getCached(key));
+        return !TextUtils.isEmpty(getCached(key))
+                && !TextUtils.isEmpty(prefs().getString(cacheMetaKey(key), null));
     }
 
     public static int getState(String key) {
@@ -272,15 +296,14 @@ public class PengramLyrics {
      * и показывать его нельзя (именно так «одна и та же песня» налипала на всё подряд).
      */
     private static String guardDuplicate(String key, String raw) {
-        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(raw)) {
-            return raw;
-        }
+        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(raw)) return raw;
         try {
             final String hash = "txt_" + hashOf(raw);
             final String owner = prefs().getString(hash, null);
             if (!TextUtils.isEmpty(owner) && !owner.equals(key) && !sameTrackKey(owner, key)) {
-                log("отсев — такой же текст уже принадлежит треку «" + owner + "»");
-                return null;
+                // Identical lyrics can be correct for covers, remixes, and alternate edits.
+                // The old global de-duplication rule incorrectly hid those valid results.
+                log("одинаковый текст найден и для другого релиза; сохраняем после проверки метаданных");
             }
             prefs().edit().putString(hash, key).apply();
         } catch (Throwable ignore) {
@@ -302,19 +325,53 @@ public class PengramLyrics {
         if (sepA < 0 || sepB < 0) {
             return false;
         }
-        final String titleA = a.substring(sepA + 1).trim();
-        final String titleB = b.substring(sepB + 1).trim();
-        if (titleA.isEmpty() || titleB.isEmpty() || !titleA.equals(titleB)) {
-            return false;
-        }
-        final String artistA = a.substring(0, sepA).trim();
-        final String artistB = b.substring(0, sepB).trim();
-        // один из ключей без исполнителя либо исполнитель вложен в другой
-        return artistA.isEmpty() || artistB.isEmpty()
-                || artistA.contains(artistB) || artistB.contains(artistA);
+        final String titleA = coreTitle(a.substring(sepA + 1));
+        final String titleB = coreTitle(b.substring(sepB + 1));
+        final String artistA = norm(stripFeat(a.substring(0, sepA)));
+        final String artistB = norm(stripFeat(b.substring(0, sepB)));
+        return !titleA.isEmpty() && titleA.equals(titleB)
+                && (artistA.isEmpty() || artistB.isEmpty() || artistA.equals(artistB));
     }
 
-    private static void store(String key, String raw) {
+    private static String cacheMetaKey(String key) {
+        return "cache_meta_" + key;
+    }
+
+    private static String cacheIdentityValue(String artist, String title, int duration) {
+        final String identity = norm(artist) + "|" + norm(title) + "|" + versionSignature(title);
+        return "1|" + Math.max(0, duration) + "|" + hashOf(identity);
+    }
+
+    private static String cacheMetaValue(String raw, String artist, String title, int duration) {
+        return cacheIdentityValue(artist, title, duration) + "|" + hashOf(raw);
+    }
+
+    private static String failMetaKey(String key) {
+        return "fail_meta_" + key;
+    }
+
+    private static boolean cacheMatches(String key, String raw, String artist, String title, int duration) {
+        if (TextUtils.isEmpty(key) || TextUtils.isEmpty(raw)) {
+            return false;
+        }
+        final String value = prefs().getString(cacheMetaKey(key), null);
+        if (TextUtils.isEmpty(value)) {
+            return false; // unbound legacy cache entries are never displayed
+        }
+        final String[] parts = value.split("\\|", -1);
+        if (parts.length != 4 || !"1".equals(parts[0]) || !hashOf(raw).equals(parts[3])) {
+            return false;
+        }
+        try {
+            final int savedDuration = Integer.parseInt(parts[1]);
+            final String identity = norm(artist) + "|" + norm(title) + "|" + versionSignature(title);
+            return hashOf(identity).equals(parts[2]) && durationGate(duration, savedDuration);
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    private static void store(String key, String raw, String artist, String title, int duration) {
         if (TextUtils.isEmpty(key)) {
             return;
         }
@@ -325,7 +382,7 @@ public class PengramLyrics {
             // пропадали у ранее прослушанных треков.
             final boolean hadText = !TextUtils.isEmpty(prefs().getString(key, null));
             if (!hadText) {
-                editor.remove(key);
+                editor.remove(key).remove(cacheMetaKey(key));
                 memory.remove(key);
             }
             // без сети запоминать неудачу нельзя: появится интернет — ищем снова сами
@@ -335,10 +392,13 @@ public class PengramLyrics {
             } catch (Throwable ignore) {
             }
             if (online && !hadText) {
-                editor.putLong("fail_" + key, System.currentTimeMillis());
+                editor.putLong("fail_" + key, System.currentTimeMillis())
+                        .putString(failMetaKey(key), cacheIdentityValue(artist, title, duration));
             }
         } else {
-            editor.putString(key, raw).remove("fail_" + key);
+            editor.putString(key, raw)
+                    .putString(cacheMetaKey(key), cacheMetaValue(raw, artist, title, duration))
+                    .remove("fail_" + key).remove(failMetaKey(key));
             memory.put(key, raw);
         }
         editor.apply();
@@ -356,6 +416,8 @@ public class PengramLyrics {
                 || key.startsWith("off_")      // личный сдвиг синхронизации
                 || key.startsWith("rej_")      // забракованный вручную текст
                 || key.startsWith("txt_")      // владелец текста (защита от дублей)
+                || key.startsWith("cache_meta_") // привязка к версии и длительности
+                || key.startsWith("fail_meta_") // идентичность неудачного поиска
                 || key.startsWith("learned")   // выученная поправка
                 || key.equals("cache_version");
     }
@@ -434,9 +496,13 @@ public class PengramLyrics {
         } catch (Throwable ignore) {
         }
         final String cached = getCached(key);
+        final String artist = artistOf(messageObject);
+        final String title = titleOf(messageObject);
         if (!force && !TextUtils.isEmpty(cached)) {
-            // старая запись могла быть мусором: проверяем её теми же воротами
-            if (coverageGate(cached, cachedDuration)) {
+            // Cached lyrics without identity/duration metadata are legacy and must be
+            // re-verified online instead of being shown for a different edit/version.
+            if (cacheMatches(key, cached, artist, title, cachedDuration)
+                    && coverageGate(cached, cachedDuration)) {
                 if (callback != null) {
                     callback.onLyrics(key, cached, STATE_FOUND);
                 }
@@ -445,15 +511,17 @@ public class PengramLyrics {
             // Запись подозрительная (например, у этого файла другая длительность), поэтому
             // ищем заново — но старый текст оставляем на складе: если ничего лучше не
             // найдётся, пусть лучше будет он, чем пустой экран.
-            log("кэш: запись для «" + key + "» не прошла проверку, ищем заново");
+            log("кэш: запись для «" + key + "» не подтверждена для этой версии/длительности, ищем заново");
         }
         if (!force) {
             final long failed = prefs().getLong("fail_" + key, 0);
-            if (failed > 0 && System.currentTimeMillis() - failed < RETRY_AFTER) {
-                if (callback != null) {
-                    callback.onLyrics(key, null, STATE_NOT_FOUND);
-                }
+            final String failedIdentity = prefs().getString(failMetaKey(key), null);
+            final boolean sameFailedRequest = cacheIdentityValue(artist, title, cachedDuration).equals(failedIdentity);
+            if (sameFailedRequest && failed > 0 && System.currentTimeMillis() - failed < RETRY_AFTER) {
+                if (callback != null) callback.onLyrics(key, null, STATE_NOT_FOUND);
                 return;
+            } else if (failed > 0) {
+                prefs().edit().remove("fail_" + key).remove(failMetaKey(key)).apply();
             }
         }
         synchronized (loading) {
@@ -484,8 +552,6 @@ public class PengramLyrics {
             callback.onLyrics(key, null, STATE_LOADING);
         }
 
-        final String artist = artistOf(messageObject);
-        final String title = titleOf(messageObject);
         int durationSec = 0;
         try {
             durationSec = (int) messageObject.getDuration();
@@ -500,7 +566,10 @@ public class PengramLyrics {
             try {
                 found = fetch(artist, title, duration, path, rejected);
                 if (TextUtils.isEmpty(found) && !TextUtils.isEmpty(rawTitle) && !rawTitle.equalsIgnoreCase(title)) {
-                    found = fetch(artist, cleanTitle(rawTitle), duration, null, rejected);
+                    final String alternateTitle = cleanTitle(rawTitle);
+                    if (versionCompatible(title, alternateTitle)) {
+                        found = fetch(artist, alternateTitle, duration, path, rejected);
+                    }
                 }
             } catch (Throwable ignore) {
             }
@@ -511,7 +580,7 @@ public class PengramLyrics {
                     loading.remove(key);
                     list = waiters.remove(key);
                 }
-                store(key, result);
+                store(key, result, artist, title, duration);
                 final int state = TextUtils.isEmpty(result) ? STATE_NOT_FOUND : STATE_FOUND;
                 if (list != null) {
                     for (int a = 0; a < list.size(); ++a) {
@@ -534,7 +603,14 @@ public class PengramLyrics {
     /** заранее поискать текст для следующего трека, чтобы он открылся мгновенно */
     public static void prefetch(MessageObject messageObject) {
         final String key = keyFor(messageObject);
-        if (TextUtils.isEmpty(key) || has(key)) {
+        if (TextUtils.isEmpty(key)) {
+            return;
+        }
+        final int duration = (int) Math.max(0, messageObject.getDuration());
+        final String artist = artistOf(messageObject);
+        final String title = titleOf(messageObject);
+        final String cached = getCached(key);
+        if (cacheMatches(key, cached, artist, title, duration)) {
             return;
         }
         synchronized (loading) {
@@ -659,15 +735,13 @@ public class PengramLyrics {
 
     // --------------------------------------------------------- проверка совпадения
 
-    /** приводим название к сравнимому виду: без скобок, знаков и регистра */
+    /** Normalize punctuation/diacritics but preserve meaningful edition words in parentheses. */
     private static String norm(String value) {
         if (value == null) {
             return "";
         }
-        String text = value.toLowerCase(Locale.ROOT);
-        text = text.replaceAll("\\([^)]*\\)", " ");
-        text = text.replaceAll("\\[[^\\]]*\\]", " ");
-        text = text.replaceAll("feat\\.?|ft\\.?|prod\\.?|official|remastered|lyrics|audio|video", " ");
+        String text = java.text.Normalizer.normalize(value.toLowerCase(Locale.ROOT), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{Mn}+", "");
         final StringBuilder out = new StringBuilder(text.length());
         for (int a = 0; a < text.length(); ++a) {
             final char c = text.charAt(a);
@@ -677,157 +751,211 @@ public class PengramLyrics {
                 out.append(' ');
             }
         }
-        return out.toString().trim();
-    }
-
-    /** насколько похожи две строки: доля общих слов плюс вхождение целиком */
-    private static float similar(String a, String b) {
-        final String left = norm(a);
-        final String right = norm(b);
-        if (left.isEmpty() || right.isEmpty()) {
-            return 0f;
-        }
-        if (left.equals(right)) {
-            return 1f;
-        }
-        if (left.contains(right) || right.contains(left)) {
-            return 0.9f;
-        }
-        final String[] leftWords = left.split(" ");
-        final String[] rightWords = right.split(" ");
-        int common = 0;
-        for (String word : leftWords) {
-            if (word.length() < 2) {
+        final StringBuilder cleaned = new StringBuilder(out.length());
+        for (String token : out.toString().trim().split("\\s+")) {
+            if (token.isEmpty() || isNoiseToken(token)) {
                 continue;
             }
-            for (String other : rightWords) {
-                if (word.equals(other)) {
-                    common++;
-                    break;
-                }
-            }
+            if (cleaned.length() > 0) cleaned.append(' ');
+            cleaned.append(token);
         }
-        final int total = Math.max(leftWords.length, rightWords.length);
-        return total == 0 ? 0f : common / (float) total;
+        return cleaned.toString();
     }
 
-    /** доля кириллицы в тексте — ею ловим «русский трек, английский текст» */
+    private static boolean isNoiseToken(String token) {
+        return token.equals("official") || token.equals("audio") || token.equals("video")
+                || token.equals("lyrics") || token.equals("lyric") || token.equals("visualizer")
+                || token.equals("visualiser") || token.equals("hd") || token.equals("hq")
+                || token.equals("vevo");
+    }
+
+    private static java.util.HashSet<String> editionTokens(String value) {
+        final java.util.HashSet<String> result = new java.util.HashSet<>();
+        final ArrayList<String> words = tokens(value);
+        for (int i = 0; i < words.size(); ++i) {
+            final String word = words.get(i);
+            if (word.equals("remix") || word.equals("rework") || word.equals("bootleg")
+                    || word.equals("mashup") || word.equals("flip")) {
+                result.add("remix");
+            }
+            if (word.equals("live") || word.equals("concert") || word.equals("unplugged")) result.add("live");
+            if (word.equals("acoustic")) result.add("acoustic");
+            if (word.equals("instrumental")) result.add("instrumental");
+            if (word.equals("acapella")) result.add("acapella");
+            if (word.equals("karaoke")) result.add("karaoke");
+            if (word.equals("clean") || word.equals("censored")) result.add("clean");
+            if (word.equals("explicit") || word.equals("uncensored")) result.add("explicit");
+            if (word.equals("cover")) result.add("cover");
+            if (word.equals("demo")) result.add("demo");
+            if (word.equals("slowed") || word.equals("sloweddown")) result.add("slowed");
+            if (word.equals("reverb")) result.add("reverb");
+            if (word.equals("sped") || word.equals("speedup") || word.equals("spedup") || word.equals("nightcore")
+                    || word.equals("speed") && i + 1 < words.size() && words.get(i + 1).equals("up")) result.add("sped");
+            if (word.equals("radio") && i + 1 < words.size() && words.get(i + 1).equals("edit")) result.add("radio_edit");
+            if ((word.equals("extended") || word.equals("club") || word.equals("original"))
+                    && i + 1 < words.size() && words.get(i + 1).equals("mix")) result.add(word + "_mix");
+            if (word.equals("edit") && (i == 0 || !words.get(i - 1).equals("radio"))) result.add("edit");
+        }
+        return result;
+    }
+
+    private static String versionSignature(String value) {
+        final java.util.ArrayList<String> sorted = new java.util.ArrayList<>(editionTokens(value));
+        java.util.Collections.sort(sorted);
+        return android.text.TextUtils.join(",", sorted);
+    }
+
+    private static String coreTitle(String value) {
+        final ArrayList<String> all = tokens(value);
+        final ArrayList<String> core = new ArrayList<>();
+        final int remixAt = firstEditionWord(all, "remix");
+        final int liveAt = firstEditionWord(all, "live");
+        for (int i = 0; i < all.size(); ++i) {
+            if ((remixAt > 0 && i > remixAt) || (liveAt > 0 && i > liveAt)) {
+                // DJ/venue descriptors after a suffix identify the edition, not the song title.
+                continue;
+            }
+            final String word = all.get(i);
+            if (isEditionWord(word)) continue;
+            if ((word.equals("radio") || word.equals("extended") || word.equals("club") || word.equals("original"))
+                    && i + 1 < all.size() && all.get(i + 1).equals("mix")) continue;
+            if (word.equals("mix") && i > 0 && (all.get(i - 1).equals("radio") || all.get(i - 1).equals("extended")
+                    || all.get(i - 1).equals("club") || all.get(i - 1).equals("original"))) continue;
+            core.add(word);
+        }
+        return android.text.TextUtils.join(" ", core);
+    }
+
+    private static int firstEditionWord(ArrayList<String> words, String category) {
+        for (int i = 0; i < words.size(); ++i) {
+            final String word = words.get(i);
+            if (category.equals("remix") && (word.equals("remix") || word.equals("rework")
+                    || word.equals("bootleg") || word.equals("mashup") || word.equals("flip"))) return i;
+            if (category.equals("live") && (word.equals("live") || word.equals("concert") || word.equals("unplugged"))) return i;
+        }
+        return -1;
+    }
+
+    private static boolean isEditionWord(String word) {
+        return word.equals("remix") || word.equals("rework") || word.equals("bootleg") || word.equals("mashup")
+                || word.equals("flip") || word.equals("live") || word.equals("concert") || word.equals("unplugged")
+                || word.equals("acoustic") || word.equals("instrumental") || word.equals("acapella")
+                || word.equals("karaoke") || word.equals("cover") || word.equals("clean") || word.equals("censored")
+                || word.equals("explicit") || word.equals("uncensored") || word.equals("demo") || word.equals("slowed") || word.equals("sloweddown") || word.equals("reverb") || word.equals("sped")
+                || word.equals("speedup") || word.equals("spedup") || word.equals("nightcore") || word.equals("edit");
+    }
+
+    private static boolean versionCompatible(String a, String b) {
+        return editionTokens(a).equals(editionTokens(b));
+    }
+
+    private static String editionLabel(String value) {
+        final java.util.HashSet<String> editions = editionTokens(value);
+        if (editions.contains("remix")) return "Remix";
+        if (editions.contains("live")) return "Live";
+        if (editions.contains("acoustic")) return "Acoustic";
+        if (editions.contains("instrumental")) return "Instrumental";
+        if (editions.contains("karaoke")) return "Karaoke";
+        if (editions.contains("cover")) return "Cover";
+        if (editions.contains("demo")) return "Demo";
+        if (editions.contains("slowed")) return "Slowed";
+        if (editions.contains("sped")) return "Sped Up";
+        if (editions.contains("radio_edit")) return "Radio Edit";
+        return editions.isEmpty() ? "" : editions.iterator().next();
+    }
+
     private static float cyrillicRatio(String text) {
-        if (TextUtils.isEmpty(text)) {
-            return 0f;
-        }
-        int letters = 0;
-        int cyrillic = 0;
-        final int limit = Math.min(text.length(), 4000);
-        for (int a = 0; a < limit; ++a) {
-            final char c = text.charAt(a);
-            if (!Character.isLetter(c)) {
-                continue;
-            }
+        if (TextUtils.isEmpty(text)) return 0f;
+        int letters = 0, cyrillic = 0;
+        for (int i = 0, limit = Math.min(text.length(), 4000); i < limit; i++) {
+            final char c = text.charAt(i);
+            if (!Character.isLetter(c)) continue;
             letters++;
-            if (c >= 0x0400 && c <= 0x04FF) {
-                cyrillic++;
-            }
+            if (c >= 0x0400 && c <= 0x04FF) cyrillic++;
         }
         return letters == 0 ? 0f : cyrillic / (float) letters;
     }
 
-    /**
-     * Текст на другом языке, чем название трека, почти всегда означает,
-     * что нашли чужую песню. Такой ответ лучше выбросить, чем показать.
-     */
     private static boolean sameLanguage(String artist, String title, String lyrics) {
-        // язык берём по названию: у русского исполнителя песня вполне может быть
-        // на английском, и отбрасывать её из-за имени артиста нельзя
         final float wanted = cyrillicRatio(title);
-        final float got = cyrillicRatio(lyrics);
-        if (wanted > 0.5f && got < 0.2f) {
-            return false;
-        }
-        return !(wanted < 0.15f && got > 0.6f);
+        final float found = cyrillicRatio(lyrics);
+        return !(wanted > 0.5f && found < 0.2f) && !(wanted < 0.15f && found > 0.6f);
     }
 
-    /** совпали ли исполнитель, название и длительность найденной записи */
-    private static boolean looksLikeMatch(String wantArtist, String wantTitle,
-                                          String gotArtist, String gotTitle,
-                                          int wantDuration, int gotDuration) {
-        final float titleScore = similar(wantTitle, gotTitle);
-        if (titleScore < 0.6f) {
-            return false;
+    private static int editDistanceAtMostOne(String a, String b) {
+        if (a.equals(b)) return 0;
+        if (Math.abs(a.length() - b.length()) > 1) return 2;
+        int i = 0, j = 0, edits = 0;
+        while (i < a.length() && j < b.length()) {
+            if (a.charAt(i) == b.charAt(j)) { i++; j++; continue; }
+            if (++edits > 1) return 2;
+            if (a.length() > b.length()) i++;
+            else if (b.length() > a.length()) j++;
+            else { i++; j++; }
         }
-        if (!TextUtils.isEmpty(wantArtist) && !TextUtils.isEmpty(gotArtist)) {
-            if (similar(wantArtist, gotArtist) < 0.45f && titleScore < 0.95f) {
-                return false;
-            }
-        }
-        if (wantDuration > 0 && gotDuration > 0 && Math.abs(wantDuration - gotDuration) > 20) {
-            return false;
-        }
-        return true;
+        if (i < a.length() || j < b.length()) edits++;
+        return edits;
     }
 
-    /** слова названия после нормализации */
     private static ArrayList<String> tokens(String value) {
         final ArrayList<String> out = new ArrayList<>();
         final String text = norm(value);
-        if (text.isEmpty()) {
-            return out;
-        }
+        if (text.isEmpty()) return out;
         for (String word : text.split(" ")) {
-            if (word.length() > 1 || Character.isDigit(word.charAt(0))) {
-                out.add(word);
-            }
+            if (word.length() > 1 || Character.isDigit(word.charAt(0))) out.add(word);
         }
         return out;
     }
 
     private static int commonTokens(ArrayList<String> a, ArrayList<String> b) {
+        final java.util.HashSet<Integer> used = new java.util.HashSet<>();
         int common = 0;
-        for (String word : a) {
-            if (b.contains(word)) {
-                common++;
+        for (String left : a) {
+            for (int i = 0; i < b.size(); ++i) {
+                if (used.contains(i)) continue;
+                final String right = b.get(i);
+                if (left.equals(right) || (left.length() >= 5 && right.length() >= 5 && editDistanceAtMostOne(left, right) <= 1)) {
+                    used.add(i);
+                    common++;
+                    break;
+                }
             }
         }
         return common;
     }
 
-    /** названия совпадают как множества слов, а не как подстроки */
     private static boolean titleGate(String wantTitle, String gotTitle) {
-        final ArrayList<String> want = tokens(wantTitle);
-        final ArrayList<String> got = tokens(gotTitle);
-        if (want.isEmpty() || got.isEmpty()) {
-            return false;
-        }
+        if (!versionCompatible(wantTitle, gotTitle)) return false;
+        if (norm(wantTitle).equals(norm(gotTitle))) return true;
+        final ArrayList<String> want = tokens(coreTitle(wantTitle));
+        final ArrayList<String> got = tokens(coreTitle(gotTitle));
+        if (want.isEmpty() || got.isEmpty()) return false;
         final int common = commonTokens(want, got);
         final int small = Math.min(want.size(), got.size());
         final int big = Math.max(want.size(), got.size());
-        if (common == 0) {
-            return false;
-        }
-        // все слова меньшего названия должны найтись в большем, и размеры не должны сильно расходиться
-        return common >= small && big - small <= 2;
+        return common >= small && big - small <= 1;
     }
 
-    /** у исполнителей должно быть хотя бы одно общее слово */
     private static boolean artistGate(String wantArtist, String gotArtist) {
-        if (TextUtils.isEmpty(wantArtist)) {
-            return true;
-        }
-        if (TextUtils.isEmpty(gotArtist)) {
-            return false;
-        }
-        if (norm(wantArtist).equals(norm(gotArtist))) {
-            return true;
-        }
-        return commonTokens(tokens(wantArtist), tokens(gotArtist)) >= 1;
+        if (TextUtils.isEmpty(wantArtist)) return true;
+        if (TextUtils.isEmpty(gotArtist)) return false;
+        final String wantLead = stripFeat(wantArtist);
+        final String gotLead = stripFeat(gotArtist);
+        final String wantNorm = norm(wantLead);
+        final String gotNorm = norm(gotLead);
+        if (wantNorm.equals(gotNorm)) return true;
+        final ArrayList<String> want = tokens(wantLead);
+        final ArrayList<String> got = tokens(gotLead);
+        if (want.isEmpty() || got.isEmpty()) return false;
+        final int common = commonTokens(want, got);
+        final int min = Math.min(want.size(), got.size());
+        final int max = Math.max(want.size(), got.size());
+        return common >= min && common / (float) max >= 0.5f;
     }
 
-    /** допустимое расхождение длительности: пять секунд или пять процентов */
     private static boolean durationGate(int wantSeconds, int gotSeconds) {
-        if (wantSeconds <= 0 || gotSeconds <= 0) {
-            return true;
-        }
-        final float allowed = Math.max(5f, wantSeconds * 0.05f);
+        if (wantSeconds <= 0 || gotSeconds <= 0) return true;
+        final float allowed = Math.max(5f, wantSeconds * 0.02f);
         return Math.abs(wantSeconds - gotSeconds) <= allowed;
     }
 
@@ -857,12 +985,14 @@ public class PengramLyrics {
                 last = Math.max(last, line.time);
             }
         }
-        if (textLines < 4 || letters < 80) {
+        final int minLines = wantSeconds > 0 && wantSeconds < 180 ? 2 : 3;
+        final int minLetters = wantSeconds > 0 && wantSeconds < 180 ? 32 : 50;
+        if (textLines < minLines || letters < minLetters) {
             return false;
         }
         if (wantSeconds > 0 && first >= 0 && last > first) {
             final float span = (last - first) / 1000f;
-            return span >= wantSeconds * 0.3f;
+            return span >= wantSeconds * 0.25f;
         }
         return true;
     }
@@ -883,7 +1013,9 @@ public class PengramLyrics {
             log(source + ": отсев — текст слишком короткий для трека на " + duration + " с");
             return null;
         }
-        if (!TextUtils.isEmpty(rejected) && rejected.equals(hashOf(raw))) {
+        final boolean rejectedText = !TextUtils.isEmpty(rejected)
+                && (rejected.equals(hashOf(raw)) || rejected.equals(Integer.toHexString(legacyHashOf(raw))));
+        if (rejectedText) {
             log(source + ": отсев — этот текст уже забракован вручную");
             return null;   // этот текст пользователь уже забраковал
         }
@@ -891,15 +1023,22 @@ public class PengramLyrics {
     }
 
     static String hashOf(String raw) {
-        if (TextUtils.isEmpty(raw)) {
-            return "";
+        if (TextUtils.isEmpty(raw)) return "";
+        try {
+            final byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.trim().getBytes(StandardCharsets.UTF_8));
+            final StringBuilder out = new StringBuilder(digest.length * 2);
+            for (byte b : digest) out.append(String.format(Locale.ROOT, "%02x", b & 0xff));
+            return out.toString();
+        } catch (Throwable ignore) {
+            return Integer.toHexString(legacyHashOf(raw));
         }
+    }
+
+    private static int legacyHashOf(String raw) {
         int hash = 7;
-        final String text = raw.trim();
-        for (int a = 0; a < text.length(); ++a) {
-            hash = hash * 31 + text.charAt(a);
-        }
-        return Integer.toHexString(hash);
+        final String text = raw == null ? "" : raw.trim();
+        for (int a = 0; a < text.length(); ++a) hash = hash * 31 + text.charAt(a);
+        return hash;
     }
 
     /**
@@ -916,7 +1055,7 @@ public class PengramLyrics {
             editor.putString("rej_" + key, hashOf(cached));
             editor.remove("txt_" + hashOf(cached));
         }
-        editor.remove(key).remove("fail_" + key).apply();
+        editor.remove(key).remove(cacheMetaKey(key)).remove("fail_" + key).remove(failMetaKey(key)).apply();
         memory.remove(key);
     }
 
@@ -944,43 +1083,54 @@ public class PengramLyrics {
      * Встроенный в файл текст проверяется первым и возвращается мгновенно.
      */
     private static String fetch(String artist, String title, int duration, String path, String rejected) {
-        if (TextUtils.isEmpty(title)) {
-            return null;
-        }
+        String matchedArtist = artist == null ? "" : artist;
+        String matchedTitle = title == null ? "" : title;
         final int source = PengramConfig.getLyricsSource();
-
-        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_FILE) {
-            final String embedded = fetchEmbedded(path);
-            if (!TextUtils.isEmpty(embedded)) {
-                final Found found = new Found(embedded, 0);
-                if (found.synced || source == PengramConfig.LYRICS_SOURCE_FILE) {
-                    return embedded;
+        EmbeddedAudio embeddedAudio = null;
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_FILE
+                || TextUtils.isEmpty(matchedArtist) || TextUtils.isEmpty(matchedTitle) || looksLikeFilename(matchedTitle, path)) {
+            embeddedAudio = readEmbedded(path);
+            if (embeddedAudio != null) {
+                if (TextUtils.isEmpty(matchedArtist) && !TextUtils.isEmpty(embeddedAudio.artist)) {
+                    matchedArtist = cleanArtist(embeddedAudio.artist);
+                }
+                if ((TextUtils.isEmpty(matchedTitle) || looksLikeFilename(matchedTitle, path))
+                        && !TextUtils.isEmpty(embeddedAudio.title)) {
+                    matchedTitle = cleanTitle(embeddedAudio.title);
+                } else if (!TextUtils.isEmpty(embeddedAudio.title) && editionTokens(matchedTitle).isEmpty()
+                        && !editionTokens(embeddedAudio.title).isEmpty()) {
+                    matchedTitle += " (" + editionLabel(embeddedAudio.title) + ")";
                 }
             }
-            if (source == PengramConfig.LYRICS_SOURCE_FILE) {
-                return null;
-            }
+        }
+        if (TextUtils.isEmpty(matchedTitle)) return null;
+        final String queryArtist = matchedArtist;
+        final String queryTitle = matchedTitle;
+
+        if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_FILE) {
+            final String embedded = embeddedAudio == null ? null : embeddedAudio.lyrics;
+            final String checkedEmbedded = accept(embedded, queryArtist, queryTitle, duration, rejected,
+                    "embedded", true);
+            if (!TextUtils.isEmpty(checkedEmbedded)) return checkedEmbedded;
+            if (source == PengramConfig.LYRICS_SOURCE_FILE) return null;
         }
 
         final ArrayList<Future<Found>> futures = new ArrayList<>();
         final ArrayList<Callable<Found>> tasks = new ArrayList<>();
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_LRCLIB) {
-            tasks.add(() -> wrap(accept(fetchLrclib(artist, title, duration), artist, title, duration, rejected, "lrclib", true), 1));
+            tasks.add(() -> wrap(accept(fetchLrclib(queryArtist, queryTitle, duration), queryArtist, queryTitle, duration, rejected, "lrclib", true), 1));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_MUSIXMATCH) {
-            tasks.add(() -> wrap(accept(fetchMusixmatch(artist, title, duration), artist, title, duration, rejected, "musixmatch", true), 2));
+            tasks.add(() -> wrap(accept(fetchMusixmatch(queryArtist, queryTitle, duration), queryArtist, queryTitle, duration, rejected, "musixmatch", true), 2));
         }
         if (source == PengramConfig.LYRICS_SOURCE_AUTO || source == PengramConfig.LYRICS_SOURCE_GENIUS) {
-            tasks.add(() -> wrap(accept(fetchGenius(artist, title), artist, title, duration, rejected, "genius", true), 3));
+            tasks.add(() -> wrap(accept(fetchGenius(queryArtist, queryTitle), queryArtist, queryTitle, duration, rejected, "genius", true), 3));
         }
-        if (source == PengramConfig.LYRICS_SOURCE_AUTO && !TextUtils.isEmpty(artist)) {
-            // lyrics.ovh ищет строго по паре «исполнитель/название», поэтому чужую
-            // песню отдать не может; поиск «по строке запроса» мы больше не зовём вовсе
-            tasks.add(() -> wrap(accept(fetchLyricsOvh(artist, title), artist, title, duration, rejected, "lyricsovh", false), 5));
-        }
+        // Text-only endpoints are deliberately excluded: they provide no recording metadata,
+        // so a plausible-looking response cannot be identity-checked.
         for (Callable<Found> task : tasks) {
             try {
-                futures.add(pool.submit(task));
+                futures.add(sourcePool.submit(task));
             } catch (Throwable ignore) {
             }
         }
@@ -994,58 +1144,51 @@ public class PengramLyrics {
                 value = left > 0 ? future.get(left, TimeUnit.MILLISECONDS) : future.isDone() ? future.get() : null;
             } catch (Throwable ignore) {
             }
-            if (value == null) {
-                continue;
-            }
-            if (best == null || value.score() < best.score()) {
-                best = value;
-            }
-            if (best.words) {
-                break;   // пословный текст — лучше уже не будет
-            }
+            if (value == null) continue;
+            if (best == null || value.score() < best.score()) best = value;
+            if (best.words) break;
         }
         for (Future<Found> future : futures) {
-            try {
-                future.cancel(true);
-            } catch (Throwable ignore) {
-            }
+            try { future.cancel(true); } catch (Throwable ignore) { }
         }
-        if (best == null && (source == PengramConfig.LYRICS_SOURCE_AUTO)) {
-            final String embedded = fetchEmbedded(path);
-            if (!TextUtils.isEmpty(embedded)) {
-                return embedded;
-            }
-        }
-        log("итог для «" + artist + " — " + title + "»: "
+        log("итог для «" + matchedArtist + " — " + matchedTitle + "»: "
                 + (best == null ? "текст не найден" : "источник №" + best.priority
                 + (best.words ? ", пословный" : best.synced ? ", с таймингами" : ", обычный")));
         return best == null ? null : best.raw;
+    }
+
+    private static boolean looksLikeFilename(String title, String path) {
+        if (TextUtils.isEmpty(title) || TextUtils.isEmpty(path)) return false;
+        final String fileName = new java.io.File(path).getName();
+        return norm(title).equals(norm(stripExtension(fileName)));
+    }
+
+    private static final class EmbeddedAudio {
+        String artist;
+        String title;
+        String lyrics;
     }
 
     private static Found wrap(String raw, int priority) {
         return TextUtils.isEmpty(raw) ? null : new Found(raw, priority);
     }
 
-    /** текст прямо из тегов файла — быстрее всех и всегда совпадает с версией трека */
-    private static String fetchEmbedded(String path) {
-        if (TextUtils.isEmpty(path)) {
-            return null;
-        }
+    /** Read lyric text and ID3 identity from the same local file. */
+    private static EmbeddedAudio readEmbedded(String path) {
+        if (TextUtils.isEmpty(path)) return null;
         try {
             final java.io.File file = new java.io.File(path);
-            if (!file.exists() || file.length() <= 0) {
-                return null;
-            }
+            if (!file.exists() || file.length() <= 0) return null;
             final org.telegram.messenger.audioinfo.AudioInfo info =
                     org.telegram.messenger.audioinfo.AudioInfo.getAudioInfo(file);
-            if (info == null) {
-                return null;
-            }
+            if (info == null) return null;
+            final EmbeddedAudio result = new EmbeddedAudio();
+            result.artist = info.getArtist();
+            result.title = info.getTitle();
             final String lyrics = info.getLyrics();
-            if (TextUtils.isEmpty(lyrics) || lyrics.trim().length() < 20) {
-                return null;
-            }
-            return lyrics.replace("\r", "").trim();
+            result.lyrics = TextUtils.isEmpty(lyrics) || lyrics.trim().length() < 20
+                    ? null : lyrics.replace("\r", "").trim();
+            return result;
         } catch (Throwable e) {
             return null;
         }
@@ -1083,8 +1226,11 @@ public class PengramLyrics {
 
         // 2. до двух поисков по вариантам написания
         final ArrayList<String[]> variants = queryVariants(artist, title);
-        for (int a = 0; a < variants.size() && requests < 3; ++a) {
+        for (int a = 0; a < variants.size() && requests < 4; ++a) {
             final String[] variant = variants.get(a);
+            if (variant[0].equalsIgnoreCase(artist) && variant[1].equalsIgnoreCase(title)) {
+                continue;
+            }
             requests++;
             final String query = TextUtils.isEmpty(variant[0])
                     ? "/api/search?track_name=" + enc(variant[1])
@@ -1116,29 +1262,6 @@ public class PengramLyrics {
             }
         }
         if (best == null) {
-            // длительность в Telegram бывает неточной; если всё остальное совпало —
-            // берём кандидата с самой близкой длительностью, но честно пишем об этом
-            for (int a = 0; a < candidates.size(); ++a) {
-                final Candidate candidate = candidates.get(a);
-                if (TextUtils.isEmpty(candidate.lyrics)
-                        || !titleGate(title, candidate.title)
-                        || !artistGate(artist, candidate.artist)
-                        || !coverageGate(candidate.lyrics, 0)) {
-                    continue;
-                }
-                candidate.delta = duration > 0 && candidate.duration > 0
-                        ? Math.abs(duration - candidate.duration) : 0;
-                if (best == null || candidate.delta < best.delta
-                        || (candidate.delta == best.delta && candidate.synced && !best.synced)) {
-                    best = candidate;
-                }
-            }
-            if (best != null) {
-                log("lrclib: взят по названию и исполнителю, длительность расходится на "
-                        + best.delta + " с");
-            }
-        }
-        if (best == null) {
             log("lrclib: подходящих нет — честный «текст не найден»");
             return null;
         }
@@ -1146,12 +1269,12 @@ public class PengramLyrics {
         return withLength(best.lyrics, best.duration);
     }
 
-    /** варианты написания: без скобок и ремикс-хвостов, без feat., и «дружелюбная» форма */
+    /** Query aliases remove only presentation noise; remix/live/edit markers remain intact. */
     private static ArrayList<String[]> queryVariants(String artist, String title) {
         final ArrayList<String[]> out = new ArrayList<>();
         addVariant(out, artist, title);
-        addVariant(out, stripFeat(artist), stripTail(title));
-        addVariant(out, norm(stripFeat(artist)), norm(stripTail(title)));
+        addVariant(out, stripFeat(artist), stripPresentationNoise(title));
+        addVariant(out, norm(stripFeat(artist)), norm(stripPresentationNoise(title)));
         return out;
     }
 
@@ -1184,19 +1307,8 @@ public class PengramLyrics {
         return value.trim();
     }
 
-    private static String stripTail(String title) {
-        if (TextUtils.isEmpty(title)) {
-            return "";
-        }
-        String value = title.replaceAll("\\([^)]*\\)", " ").replaceAll("\\[[^\\]]*\\]", " ");
-        final String[] marks = new String[]{" - remix", " remix", " prod.", " official", " lyrics"};
-        for (String mark : marks) {
-            final int index = value.toLowerCase(Locale.ROOT).indexOf(mark);
-            if (index > 0) {
-                value = value.substring(0, index);
-            }
-        }
-        return value.trim();
+    private static String stripPresentationNoise(String title) {
+        return cleanTitle(title);
     }
 
     /** почему кандидат не подходит; null — подходит */
@@ -1206,6 +1318,10 @@ public class PengramLyrics {
         }
         if (!durationGate(duration, candidate.duration)) {
             return "длительность расходится на " + Math.abs(duration - candidate.duration) + " с";
+        }
+        if ((duration <= 0 || candidate.duration <= 0)
+                && (!norm(title).equals(norm(candidate.title)) || !norm(stripFeat(artist)).equals(norm(stripFeat(candidate.artist))))) {
+            return "нет длительности для уверенной проверки совпадения";
         }
         if (!titleGate(title, candidate.title)) {
             return "название не совпало";
@@ -1398,8 +1514,13 @@ public class PengramLyrics {
                 return false;
             }
             if (!durationGate(duration, gotLength)) {
-                log("musixmatch: длительность расходится (" + gotLength + " с вместо " + duration
-                        + " с), но название и исполнитель совпали — берём");
+                log("musixmatch: отсев — длительность " + gotLength + " с не совпадает с " + duration + " с");
+                return false;
+            }
+            if ((duration <= 0 || gotLength <= 0)
+                    && (!norm(title).equals(norm(gotTitle)) || !norm(stripFeat(artist)).equals(norm(stripFeat(gotArtist))))) {
+                log("musixmatch: отсев — для записи без длительности требуется точное совпадение");
+                return false;
             }
             log("musixmatch: подходит «" + gotArtist + " — " + gotTitle + "»");
             return true;
@@ -1497,28 +1618,6 @@ public class PengramLyrics {
                     .replace("&#039;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ");
             text = text.replaceAll("\\n{3,}", "\n\n").trim();
             return text.length() < 30 ? null : text;
-        } catch (Throwable e) {
-            return null;
-        }
-    }
-
-    /** api.lyrics.ovh — только обычный текст, зато там есть то, чего нет больше нигде */
-    private static String fetchLyricsOvh(String artist, String title) {
-        if (TextUtils.isEmpty(artist) || TextUtils.isEmpty(title)) {
-            return null;
-        }
-        try {
-            final String json = getUrl("https://api.lyrics.ovh/v1/" + enc(artist) + "/" + enc(title));
-            if (TextUtils.isEmpty(json) || json.charAt(0) != '{') {
-                return null;
-            }
-            final JSONObject object = new JSONObject(json);
-            final String lyrics = object.isNull("lyrics") ? null : object.optString("lyrics", null);
-            if (TextUtils.isEmpty(lyrics)) {
-                return null;
-            }
-            final String cleaned = lyrics.replace("\r", "").trim();
-            return cleaned.length() < 20 ? null : cleaned;
         } catch (Throwable e) {
             return null;
         }

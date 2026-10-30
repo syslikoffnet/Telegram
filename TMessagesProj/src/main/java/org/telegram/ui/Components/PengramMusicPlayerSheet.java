@@ -15,6 +15,9 @@ import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.ColorFilter;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -74,10 +77,16 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private TextView chatTabView;
     private TextView viewModeView;
     private final java.util.ArrayList<MessageObject> chatTracks = new java.util.ArrayList<>();
+    private final java.util.HashSet<Integer> chatTrackIds = new java.util.HashSet<>();
     private long chatTracksDialogId;
     private boolean chatTracksLoading;
-    private boolean chatTracksLoaded;
+    private boolean chatTracksEndReached;
+    private boolean chatTracksLoadError;
+    private int chatTracksMinLoadedId;
+    private int chatTracksRequestIndex;
+    private int chatTracksWindowStart;
     private int chatTracksGuid;
+    private Runnable chatTracksTimeout;
     private PengramTrackButton prevTrackButton;
     private PengramTrackButton nextTrackButton;
     private TextView speedChip;
@@ -642,6 +651,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.musicPlaybackOrderChanged);
 
         updateTitle();
         updateLikeButtonState();
@@ -856,21 +866,35 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         final long dialogId = playing == null ? 0 : playing.getDialogId();
         if (chatTracksDialogId != dialogId) {
+            if (chatTracksTimeout != null) AndroidUtilities.cancelRunOnUIThread(chatTracksTimeout);
             chatTracksDialogId = dialogId;
             chatTracks.clear();
-            chatTracksLoaded = false;
+            chatTrackIds.clear();
+            chatTracksMinLoadedId = 0;
+            chatTracksWindowStart = 0;
+            chatTracksEndReached = false;
+            chatTracksLoadError = false;
             chatTracksLoading = false;
         }
-        if (dialogId == 0 || chatTracksLoaded || chatTracksLoading) {
-            return;
-        }
+        if (dialogId == 0 || chatTracksEndReached || chatTracksLoading) return;
         chatTracksLoading = true;
+        chatTracksLoadError = false;
         if (chatTracksGuid == 0) {
             chatTracksGuid = ConnectionsManager.generateClassGuid();
             NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.mediaDidLoad);
         }
-        MediaDataController.getInstance(currentAccount).loadMedia(dialogId, 80, 0, 0,
-                MediaDataController.MEDIA_MUSIC, 0, 0, chatTracksGuid, 0, null, null);
+        final int requestIndex = ++chatTracksRequestIndex;
+        MediaDataController.getInstance(currentAccount).loadMedia(dialogId, 60, chatTracksMinLoadedId, 0,
+                MediaDataController.MEDIA_MUSIC, 0, 0, chatTracksGuid, requestIndex, null, null);
+        if (chatTracksTimeout != null) AndroidUtilities.cancelRunOnUIThread(chatTracksTimeout);
+        chatTracksTimeout = () -> {
+            if (chatTracksLoading && chatTracksDialogId == dialogId && chatTracksRequestIndex == requestIndex) {
+                chatTracksLoading = false;
+                chatTracksLoadError = true;
+                if (queueShown && panelTab == 1) updateQueue();
+            }
+        };
+        AndroidUtilities.runOnUIThread(chatTracksTimeout, 15000);
     }
 
     private long lastQueueSignature = Long.MIN_VALUE;
@@ -976,7 +1000,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     private void updateChatTracks() {
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
         if (chatTracks.isEmpty()) {
-            final long emptySig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, null, null, 0, 0, chatTracksLoading);
+            final long emptySig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, null, null, 0, 0, chatTracksLoading || chatTracksLoadError);
             if (emptySig == lastQueueSignature && queueList.getChildCount() > 0) {
                 return;
             }
@@ -986,7 +1010,14 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             empty.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             empty.setTextColor(0x99FFFFFF);
             empty.setGravity(Gravity.CENTER);
-            empty.setText(getString(chatTracksLoading ? R.string.Loading : R.string.PengramChatMusicEmpty));
+            empty.setText(getString(chatTracksLoading ? R.string.Loading : chatTracksLoadError ? R.string.TryAgain : R.string.PengramChatMusicEmpty));
+            if (chatTracksLoadError) {
+                empty.setOnClickListener(v -> {
+                    chatTracksLoadError = false;
+                    loadChatTracks();
+                    updateQueue();
+                });
+            }
             queueList.addView(empty, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 80));
             return;
         }
@@ -1001,13 +1032,13 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             }
         }
         final int max = 120;
-        int from = 0, to = list.size();
-        if (list.size() > max) {
-            from = Math.max(0, current - max / 3);
-            to = Math.min(list.size(), from + max);
-            from = Math.max(0, to - max);
+        if (current < chatTracksWindowStart || current >= chatTracksWindowStart + max) {
+            chatTracksWindowStart = Math.max(0, current - max / 3);
         }
-        final long sig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, playing, list, from, to, false);
+        final int from = Math.min(chatTracksWindowStart, Math.max(0, list.size() - 1));
+        final int to = Math.min(list.size(), from + max);
+        final long sig = computePlaylistSignature(1, PengramConfig.getTracksView(), accentColor, false, playing, list, from, to,
+                chatTracksLoading || chatTracksLoadError || !chatTracksEndReached || to < list.size());
         if (sig == lastQueueSignature && queueList.getChildCount() > 0) {
             return;
         }
@@ -1019,6 +1050,44 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
                     && track.getDialogId() == playing.getDialogId();
             addTrackView(track, active, list);
         }
+        if (from > 0 || to < list.size() || !chatTracksEndReached || chatTracksLoading || chatTracksLoadError) {
+            final LinearLayout footer = new LinearLayout(getContext());
+            footer.setOrientation(LinearLayout.HORIZONTAL);
+            if (from > 0) {
+                final int newerStart = Math.max(0, from - max);
+                footer.addView(createChatTracksFooterButton(getString(R.string.PengramChatMusicShowNewer),
+                        () -> { chatTracksWindowStart = newerStart; updateQueue(); }),
+                        new LinearLayout.LayoutParams(0, dp(46), 1f));
+            }
+            if (to < list.size()) {
+                footer.addView(createChatTracksFooterButton(getString(R.string.PengramChatMusicShowOlder),
+                        () -> { chatTracksWindowStart = to; updateQueue(); }),
+                        new LinearLayout.LayoutParams(0, dp(46), 1f));
+            }
+            if (chatTracksLoadError || (to >= list.size() && (!chatTracksEndReached || chatTracksLoading))) {
+                final String label = chatTracksLoading ? getString(R.string.Loading)
+                        : chatTracksLoadError ? getString(R.string.TryAgain)
+                        : getString(R.string.PengramChatMusicLoadMore);
+                footer.addView(createChatTracksFooterButton(label, () -> {
+                    if (chatTracksLoading) return;
+                    chatTracksLoadError = false;
+                    loadChatTracks();
+                    updateQueue();
+                }), new LinearLayout.LayoutParams(0, dp(46), 1f));
+            }
+            queueList.addView(footer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 46));
+        }
+    }
+
+    private TextView createChatTracksFooterButton(CharSequence title, Runnable action) {
+        final TextView button = new TextView(getContext());
+        button.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
+        button.setTypeface(AndroidUtilities.bold());
+        button.setGravity(Gravity.CENTER);
+        button.setTextColor(0xFF5FD0A0);
+        button.setText(title);
+        button.setOnClickListener(v -> action.run());
+        return button;
     }
 
     /**
@@ -1176,8 +1245,55 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         } else if (thumbLocation != null) {
             cover.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
-            cover.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(8), 0x33FFFFFF, 0x33FFFFFF));
+            cover.setImageDrawable(createTrackPlaceholder(messageObject));
         }
+    }
+
+    private static Drawable createTrackPlaceholder(MessageObject messageObject) {
+        final String title = messageObject != null ? messageObject.getMusicTitle(false) : "";
+        final int seed = title != null ? title.hashCode() : 0;
+        final int hue = ((seed % 360) + 360) % 360;
+        final int first = android.graphics.Color.HSVToColor(new float[]{hue, 0.58f, 0.64f});
+        final int second = android.graphics.Color.HSVToColor(new float[]{(hue + 48) % 360, 0.76f, 0.28f});
+        return new Drawable() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final RectF rect = new RectF();
+
+            @Override
+            public void draw(Canvas canvas) {
+                final Rect b = getBounds();
+                if (b.width() <= 0 || b.height() <= 0) return;
+                rect.set(b);
+                paint.setShader(new LinearGradient(b.left, b.top, b.right, b.bottom,
+                        first, second, Shader.TileMode.CLAMP));
+                canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+                paint.setShader(null);
+                final float cx = rect.centerX();
+                final float cy = rect.centerY();
+                final float radius = Math.min(rect.width(), rect.height()) * 0.28f;
+                paint.setColor(0x24FFFFFF);
+                canvas.drawCircle(cx, cy, radius * 1.55f, paint);
+                paint.setColor(0x35FFFFFF);
+                canvas.drawCircle(cx, cy, radius, paint);
+                paint.setColor(0x66FFFFFF);
+                canvas.drawCircle(cx, cy, Math.max(dp(2), radius * 0.22f), paint);
+                paint.setColor(0xA8FFFFFF);
+                paint.setStrokeWidth(Math.max(dp(1.5f), rect.width() * 0.045f));
+                paint.setStrokeCap(Paint.Cap.ROUND);
+                final float barW = Math.max(dp(1.5f), rect.width() * 0.055f);
+                final float baseY = rect.bottom - rect.height() * 0.16f;
+                for (int i = 0; i < 4; i++) {
+                    final float x = rect.left + rect.width() * (0.31f + i * 0.13f);
+                    final float h = rect.height() * (0.10f + 0.06f * ((seed >>> (i * 3)) & 3));
+                    canvas.drawRoundRect(x, baseY - h, x + barW, baseY,
+                            barW * 0.5f, barW * 0.5f, paint);
+                }
+            }
+
+            @Override public void setAlpha(int alpha) { paint.setAlpha(alpha); invalidateSelf(); }
+            @Override public void setColorFilter(ColorFilter colorFilter) { paint.setColorFilter(colorFilter); invalidateSelf(); }
+            @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
+        };
     }
 
     /** включить выбранный трек (для музыки чата — вместе со всем списком) */
@@ -1217,7 +1333,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         } else if (thumbLocation != null) {
             cover.setImage(null, null, thumbLocation, null, null, 0, 1, messageObject);
         } else {
-            cover.setImageDrawable(Theme.createSimpleSelectorRoundRectDrawable(dp(8), 0x33FFFFFF, 0x33FFFFFF));
+            cover.setImageDrawable(createTrackPlaceholder(messageObject));
         }
         row.addView(cover, LayoutHelper.createFrame(40, 40, Gravity.LEFT | Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
 
@@ -2262,23 +2378,36 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             playPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), true);
             updatePenguinMood();
         } else if (id == NotificationCenter.mediaDidLoad) {
-            if (args.length > 4 && args[0] instanceof Long && (Long) args[0] == chatTracksDialogId
+            if (args.length > 7 && args[0] instanceof Long && (Long) args[0] == chatTracksDialogId
                     && args[3] instanceof Integer && (Integer) args[3] == chatTracksGuid
-                    && args[4] instanceof Integer && (Integer) args[4] == MediaDataController.MEDIA_MUSIC) {
+                    && args[4] instanceof Integer && (Integer) args[4] == MediaDataController.MEDIA_MUSIC
+                    && args[7] instanceof Integer && (Integer) args[7] == chatTracksRequestIndex) {
+                if (chatTracksTimeout != null) {
+                    AndroidUtilities.cancelRunOnUIThread(chatTracksTimeout);
+                    chatTracksTimeout = null;
+                }
                 chatTracksLoading = false;
-                chatTracksLoaded = true;
-                chatTracks.clear();
+                chatTracksLoadError = false;
+                int received = 0;
                 if (args[2] instanceof java.util.ArrayList) {
                     for (Object object : (java.util.ArrayList<?>) args[2]) {
                         if (object instanceof MessageObject && ((MessageObject) object).isMusic()) {
-                            chatTracks.add((MessageObject) object);
+                            final MessageObject track = (MessageObject) object;
+                            if (chatTrackIds.add(track.getId())) {
+                                chatTracks.add(track);
+                                received++;
+                                if (chatTracksMinLoadedId == 0 || track.getId() < chatTracksMinLoadedId) {
+                                    chatTracksMinLoadedId = track.getId();
+                                }
+                            }
                         }
                     }
                 }
-                if (queueShown && panelTab == 1) {
-                    updateQueue();
-                }
+                chatTracksEndReached = received == 0 || args[5] instanceof Boolean && (Boolean) args[5];
+                if (queueShown && panelTab == 1) updateQueue();
             }
+        } else if (id == NotificationCenter.musicPlaybackOrderChanged) {
+            updateRepeatButton();
         } else if (id == NotificationCenter.messagePlayingDidReset) {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
             if (playing == null) {
@@ -2360,12 +2489,23 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
     public void dismiss() {
         super.dismiss();
         stopPulse();
+        if (chatTracksTimeout != null) {
+            AndroidUtilities.cancelRunOnUIThread(chatTracksTimeout);
+            chatTracksTimeout = null;
+        }
         org.telegram.messenger.PengramMusicFavorites.removeListener(favStateListener);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.musicPlaybackOrderChanged);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.mediaDidLoad);
+    }
+
+    @Override
+    protected boolean canDismissWithSwipe() {
+        // Свайп вверх по очереди — это прокрутка списка, а не жест закрытия плеера.
+        return !queueShown && super.canDismissWithSwipe();
     }
 
     /** какой плеер показывать — наш или оригинальный */

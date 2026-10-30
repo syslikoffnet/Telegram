@@ -1122,6 +1122,9 @@
     <string name="PengramChatMusicShuffle">Перемешать</string>
     <string name="PengramChatMusicSearchHint">Название или исполнитель</string>
     <string name="PengramChatMusicEmpty">В этом чате ещё нет музыки</string>
+    <string name="PengramChatMusicLoadMore">Загрузить ещё треки</string>
+    <string name="PengramChatMusicShowOlder">Показать более старые</string>
+    <string name="PengramChatMusicShowNewer">Показать более новые</string>
     <string name="PengramChatMusicHours">%1$d ч %2$d мин звучания</string>
     <string name="PengramChatMusicMinutes">%1$d мин звучания</string>
     <string name="PengramChatMusicShowInChat">Показать в чате</string>

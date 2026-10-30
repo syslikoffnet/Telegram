@@ -10724,6 +10724,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 currentConnectionState = state;
                 updateProxyButton(true, false);
                 pengramUpdateTitle();   // Pengram: заголовок не должен сползать обратно на «Telegram»
+                if (state == ConnectionsManager.ConnectionStateConnected
+                        && !getMessagesController().isServerDialogsEndReached(0)
+                        && !getMessagesController().isLoadingDialogs(0)) {
+                    // Fresh install with a failed initial RPC: retry as soon as Telegram is online.
+                    getMessagesController().loadDialogs(0, 0, 100, false);
+                }
             }
         } else if (id == NotificationCenter.onDownloadingFilesChanged) {
             updateProxyButton(true, false);

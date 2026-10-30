@@ -12158,6 +12158,9 @@
     <string name="PengramChatMusicShuffle">Shuffle</string>
     <string name="PengramChatMusicSearchHint">Title or artist</string>
     <string name="PengramChatMusicEmpty">No music in this chat yet</string>
+    <string name="PengramChatMusicLoadMore">Load more tracks</string>
+    <string name="PengramChatMusicShowOlder">Show older tracks</string>
+    <string name="PengramChatMusicShowNewer">Show newer tracks</string>
     <string name="PengramChatMusicHours">%1$d h %2$d min of music</string>
     <string name="PengramChatMusicMinutes">%1$d min of music</string>
     <string name="PengramChatMusicShowInChat">Show in chat</string>

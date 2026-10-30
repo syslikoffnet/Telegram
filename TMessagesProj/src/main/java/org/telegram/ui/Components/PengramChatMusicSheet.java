@@ -83,8 +83,10 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     private boolean loading;
     private boolean cachePhase = true;
     private boolean endReached;
+    private boolean loadError;
     private int minLoadedId = 0;
     private int requestIndex;
+    private Runnable loadTimeout;
 
     private final int accentColor = 0xFF5FD0A0;
 
@@ -129,6 +131,13 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         subtitleView.setTextColor(0x99FFFFFF);
         subtitleView.setText(getString(R.string.PengramChatMusicTitle));
+        subtitleView.setOnClickListener(v -> {
+            if (loadError) {
+                loadError = false;
+                loadMore();
+                rebuild();
+            }
+        });
         header.addView(subtitleView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 20, 4, 20, 0));
 
         final LinearLayout buttons = new LinearLayout(context);
@@ -249,8 +258,19 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             return;
         }
         loading = true;
+        loadError = false;
+        final int requestedIndex = ++requestIndex;
         MediaDataController.getInstance(currentAccount).loadMedia(dialogId, 60, minLoadedId, 0,
-                MediaDataController.MEDIA_MUSIC, 0, cachePhase ? 1 : 0, classGuid, ++requestIndex, null, null);
+                MediaDataController.MEDIA_MUSIC, 0, cachePhase ? 1 : 0, classGuid, requestedIndex, null, null);
+        if (loadTimeout != null) AndroidUtilities.cancelRunOnUIThread(loadTimeout);
+        loadTimeout = () -> {
+            if (loading && requestIndex == requestedIndex) {
+                loading = false;
+                loadError = true;
+                rebuild();
+            }
+        };
+        AndroidUtilities.runOnUIThread(loadTimeout, 15000);
     }
 
     @Override
@@ -264,6 +284,10 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     @Override
     public void dismiss() {
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.mediaDidLoad);
+        if (loadTimeout != null) {
+            AndroidUtilities.cancelRunOnUIThread(loadTimeout);
+            loadTimeout = null;
+        }
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
         AndroidUtilities.hideKeyboard(searchField);
@@ -274,8 +298,13 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     @SuppressWarnings("unchecked")
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.mediaDidLoad) {
-            if ((Integer) args[3] != classGuid) {
+            if (args.length <= 7 || !(args[3] instanceof Integer) || (Integer) args[3] != classGuid
+                    || !(args[7] instanceof Integer) || (Integer) args[7] != requestIndex) {
                 return;
+            }
+            if (loadTimeout != null) {
+                AndroidUtilities.cancelRunOnUIThread(loadTimeout);
+                loadTimeout = null;
             }
             final int type = (Integer) args[4];
             if (type != MediaDataController.MEDIA_MUSIC) {
@@ -295,6 +324,7 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
                 }
             }
             loading = false;
+            loadError = false;
             if (cachePhase) {
                 // кеш показали мгновенно — теперь догружаем то же самое с сервера
                 cachePhase = false;
@@ -336,7 +366,13 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         subtitleView.setText(LocaleController.formatPluralString("MusicFiles", tracks.size()) + " · " + formatTotal(totalDuration));
         progressView.setVisibility(loading && tracks.isEmpty() ? View.VISIBLE : View.GONE);
         emptyView.setVisibility(!loading && items.isEmpty() ? View.VISIBLE : View.GONE);
-        emptyView.setText(getString(tracks.isEmpty() ? R.string.PengramChatMusicEmpty : R.string.NoResult));
+        emptyView.setText(getString(loadError ? R.string.TryAgain : tracks.isEmpty() ? R.string.PengramChatMusicEmpty : R.string.NoResult));
+        emptyView.setOnClickListener(loadError ? v -> {
+            loadError = false;
+            loadMore();
+            rebuild();
+        } : null);
+        subtitleView.setContentDescription(loadError ? getString(R.string.TryAgain) : null);
         adapter.notifyDataSetChanged();
     }
 
