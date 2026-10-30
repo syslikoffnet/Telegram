@@ -3920,8 +3920,9 @@ public class PengramConfig {
             "inlineWebSearchEnabled", "inlineWebSearchPrefix", "inlineWebSearchEngine",
             "webSearchHistoryEnabled",
             "linkLivePhotos", "classicProfileMusic", "disableVoiceProximity",
-            "miniPlayerQueueBtn", "playerFavoritesEnabled", "playerFavTargetMode",
-            "playerFavRichCaption", "playerFavLikedSet", "smartTrackRecognition"
+            "miniPlayerQueueBtn", "playerFavoritesEnabled", "playerFavShowFullPlayer",
+            "playerFavShowMiniPlayer", "playerFavShowChatList", "playerFavShowNotification",
+            "playerFavTargetMode", "playerFavRichCaption", "playerFavLikedSet", "smartTrackRecognition"
     ));
 
     private static final java.util.HashSet<String> EXPORTABLE_AI_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(
@@ -5058,6 +5059,10 @@ public class PengramConfig {
     public static final int FAV_TARGET_CUSTOM = 3;
     public static final int FAV_TARGET_COUNT = 4;
 
+    public static final String KEY_PLAYER_FAV_SHOW_FULL_PLAYER = "playerFavShowFullPlayer";
+    public static final String KEY_PLAYER_FAV_SHOW_MINI_PLAYER = "playerFavShowMiniPlayer";
+    public static final String KEY_PLAYER_FAV_SHOW_CHAT_LIST = "playerFavShowChatList";
+    public static final String KEY_PLAYER_FAV_SHOW_NOTIFICATION = "playerFavShowNotification";
     public static final String KEY_PLAYER_FAV_TARGET_MODE = "playerFavTargetMode";
     public static final String KEY_PLAYER_FAV_CAPTION = "playerFavRichCaption";
     public static final String KEY_SMART_TRACK_RECOGNITION = "smartTrackRecognition";
@@ -5069,6 +5074,22 @@ public class PengramConfig {
     public static void setPlayerFavoritesEnabled(boolean enabled) {
         setBool(KEY_PLAYER_FAVORITES, enabled);
         PengramMusicFavorites.notifyServiceChanged();
+    }
+
+    public static boolean isPlayerFavShowFullPlayer() {
+        return getBool(KEY_PLAYER_FAV_SHOW_FULL_PLAYER, true);
+    }
+
+    public static boolean isPlayerFavShowMiniPlayer() {
+        return getBool(KEY_PLAYER_FAV_SHOW_MINI_PLAYER, true);
+    }
+
+    public static boolean isPlayerFavShowChatList() {
+        return getBool(KEY_PLAYER_FAV_SHOW_CHAT_LIST, true);
+    }
+
+    public static boolean isPlayerFavShowNotification() {
+        return getBool(KEY_PLAYER_FAV_SHOW_NOTIFICATION, true);
     }
 
     public static int getPlayerFavTargetMode() {

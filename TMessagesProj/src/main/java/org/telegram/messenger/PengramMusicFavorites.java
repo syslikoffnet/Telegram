@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
 
+import org.json.JSONObject;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -43,6 +44,8 @@ public final class PengramMusicFavorites {
     private static final HashMap<Integer, HashSet<String>> LIKED_CACHE = new HashMap<>();
     private static final HashMap<Integer, Boolean> CREATING_VAULT = new HashMap<>();
     private static final HashMap<Integer, ArrayList<PendingLike>> PENDING_VAULT_SENDS = new HashMap<>();
+    private static final HashMap<String, Runnable> PENDING_LIKE_DELIVERIES = new HashMap<>();
+    private static final HashMap<String, Long> SAVE_IN_FLIGHT_UNTIL = new HashMap<>();
 
     private static final class PendingLike {
         final MessageObject track;
@@ -345,6 +348,9 @@ public final class PengramMusicFavorites {
         if (pk == null && mf == null) {
             return false;
         }
+        final String operationKey = operationKey(account, pk, mf);
+        final long savedTarget = getSavedTargetDialogId(account, pk, mf);
+        final long savedAt = getSavedTargetTimestamp(account, pk, mf);
 
         final boolean nowLiked;
         synchronized (PengramMusicFavorites.class) {
@@ -365,6 +371,12 @@ public final class PengramMusicFavorites {
         notifyServiceChanged();
 
         if (!nowLiked) {
+            cancelPendingLikeDelivery(operationKey);
+            final ArrayList<Long> targets = getUnlikeTargetCandidates(account, savedTarget);
+            for (int i = 0; i < targets.size(); i++) {
+                final long target = targets.get(i);
+                deleteSavedCopies(account, track, target, target == savedTarget ? savedAt : 0L, 4);
+            }
             if (showUiFeedback) {
                 final String[] pair = PengramMusicMeta.resolveDisplayPair(track);
                 final String label = !TextUtils.isEmpty(pair[1]) ? pair[1] : track.getMusicTitle();
@@ -373,24 +385,54 @@ public final class PengramMusicFavorites {
             return false;
         }
 
-        // Отправляем трек в целевой канал/чат
-        AndroidUtilities.runOnUIThread(() -> deliverLikedTrack(account, track, showUiFeedback));
+        // Короткий debounce сводит быстрые нажатия к итоговому состоянию и не создаёт
+        // серию отправок, пока пользователь просто проверяет/передумывает.
+        scheduleLikeDelivery(operationKey, account, track, showUiFeedback);
         return true;
     }
 
+    private static String operationKey(int account, String primaryKey, String metaKey) {
+        return account + "|" + (primaryKey != null ? primaryKey : metaKey);
+    }
+
+    private static void scheduleLikeDelivery(String key, int account, MessageObject track, boolean showUiFeedback) {
+        synchronized (PENDING_LIKE_DELIVERIES) {
+            final Runnable previous = PENDING_LIKE_DELIVERIES.remove(key);
+            if (previous != null) AndroidUtilities.cancelRunOnUIThread(previous);
+            final Runnable delivery = () -> {
+                synchronized (PENDING_LIKE_DELIVERIES) {
+                    PENDING_LIKE_DELIVERIES.remove(key);
+                }
+                if (isLiked(track)) {
+                    deliverLikedTrack(account, track, showUiFeedback);
+                }
+            };
+            PENDING_LIKE_DELIVERIES.put(key, delivery);
+            AndroidUtilities.runOnUIThread(delivery, 650L);
+        }
+    }
+
+    private static void cancelPendingLikeDelivery(String key) {
+        synchronized (PENDING_LIKE_DELIVERIES) {
+            final Runnable pending = PENDING_LIKE_DELIVERIES.remove(key);
+            if (pending != null) AndroidUtilities.cancelRunOnUIThread(pending);
+        }
+    }
+
     private static void deliverLikedTrack(int account, MessageObject track, boolean showUiFeedback) {
+        if (!isLiked(track)) return;
         final int mode = PengramConfig.getPlayerFavTargetMode();
         if (mode == PengramConfig.FAV_TARGET_SAVED) {
             final long savedId = UserConfig.getInstance(account).getClientUserId();
             if (savedId != 0L) {
-                sendTrackWithRecognition(account, track, savedId, showUiFeedback);
+                saveTrackOnce(account, track, savedId, showUiFeedback);
             }
             return;
         }
         if (mode == PengramConfig.FAV_TARGET_CUSTOM) {
             final long customId = getCustomTargetDialogId(account);
             if (customId != 0L) {
-                sendTrackWithRecognition(account, track, customId, showUiFeedback);
+                saveTrackOnce(account, track, customId, showUiFeedback);
                 return;
             }
             if (showUiFeedback) {
@@ -398,8 +440,8 @@ public final class PengramMusicFavorites {
                 if (last != null) {
                     pickCustomTargetChat(last, account, () -> {
                         final long chosen = getCustomTargetDialogId(account);
-                        if (chosen != 0L) {
-                            sendTrackWithRecognition(account, track, chosen, true);
+                        if (chosen != 0L && isLiked(track)) {
+                            saveTrackOnce(account, track, chosen, true);
                         }
                     });
                     return;
@@ -412,10 +454,221 @@ public final class PengramMusicFavorites {
         final long existingVault = getAutoVaultDialogId(account, groupMode);
         if (existingVault != 0L) {
             prepareAutoVault(account, existingVault, false);
-            sendTrackWithRecognition(account, track, existingVault, showUiFeedback);
+            saveTrackOnce(account, track, existingVault, showUiFeedback);
             return;
         }
         ensureAutoVaultAndSend(account, groupMode, track, showUiFeedback);
+    }
+
+    private static void saveTrackOnce(int account, MessageObject track, long targetDialogId, boolean showUiFeedback) {
+        if (targetDialogId == 0L || !isLiked(track)) return;
+        final String pk = primaryKey(track);
+        final String mf = metaFingerprint(track);
+        final String key = operationKey(account, pk, mf);
+        final long now = System.currentTimeMillis();
+        synchronized (SAVE_IN_FLIGHT_UNTIL) {
+            final Long pendingUntil = SAVE_IN_FLIGHT_UNTIL.get(key);
+            if (pendingUntil != null && pendingUntil > now) {
+                final long retryDelay = Math.max(500L, Math.min(8000L, pendingUntil - now + 100L));
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (isLiked(track)) saveTrackOnce(account, track, targetDialogId, showUiFeedback);
+                }, retryDelay);
+                return;
+            }
+            SAVE_IN_FLIGHT_UNTIL.put(key, now + 30000L);
+        }
+        findSavedCopies(account, track, targetDialogId, false, (messages, error) -> {
+            if (!isLiked(track)) {
+                clearSaveInFlight(key);
+                return;
+            }
+            if (error != null) {
+                clearSaveInFlight(key);
+                FileLog.d("Pengram favorite lookup failed: " + error.text);
+                return;
+            }
+            if (messages != null && !messages.isEmpty()) {
+                saveTargetDialogId(account, pk, mf, targetDialogId);
+                // В чате уже есть этот outgoing-трек — не отправляем его повторно.
+                clearSaveInFlight(key);
+                return;
+            }
+            sendTrackWithRecognition(account, track, targetDialogId, showUiFeedback);
+        });
+    }
+
+    private static void clearSaveInFlight(String key) {
+        synchronized (SAVE_IN_FLIGHT_UNTIL) {
+            SAVE_IN_FLIGHT_UNTIL.remove(key);
+        }
+    }
+
+    private interface SavedCopiesCallback {
+        void onResult(ArrayList<TLRPC.Message> messages, TLRPC.TL_error error);
+    }
+
+    private static void findSavedCopies(int account, MessageObject track, long targetDialogId, boolean excludeOriginalMessage, SavedCopiesCallback callback) {
+        final MessagesController controller = MessagesController.getInstance(account);
+        final TLRPC.InputPeer peer = controller.getInputPeer(targetDialogId);
+        if (peer == null) {
+            callback.onResult(null, null);
+            return;
+        }
+        final TLRPC.TL_messages_search request = new TLRPC.TL_messages_search();
+        request.peer = peer;
+        request.q = track.getMusicTitle(true) == null ? "" : track.getMusicTitle(true);
+        request.filter = new TLRPC.TL_inputMessagesFilterMusic();
+        request.limit = 100;
+        request.offset_id = 0;
+        request.add_offset = 0;
+        request.max_id = 0;
+        request.min_id = 0;
+        request.hash = 0;
+        ConnectionsManager.getInstance(account).sendRequest(request, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (error != null || !(response instanceof TLRPC.messages_Messages)) {
+                callback.onResult(null, error);
+                return;
+            }
+            final ArrayList<TLRPC.Message> matches = new ArrayList<>();
+            final String wantedPrimary = primaryKey(track);
+            final String wantedMeta = metaFingerprint(track);
+            final ArrayList<TLRPC.Message> found = ((TLRPC.messages_Messages) response).messages;
+            for (int i = 0; i < found.size(); i++) {
+                final TLRPC.Message message = found.get(i);
+                if (message == null || !message.out || !isSameTrack(account, message, wantedPrimary, wantedMeta)) continue;
+                // If the source itself is already in the selected vault, never mistake it
+                // for our saved copy and delete the user's original message on unlike.
+                if (excludeOriginalMessage && targetDialogId == track.getDialogId() && message.id == track.getId()) continue;
+                matches.add(message);
+            }
+            callback.onResult(matches, null);
+        }));
+    }
+
+    private static boolean isSameTrack(int account, TLRPC.Message message, String wantedPrimary, String wantedMeta) {
+        if (message == null) return false;
+        try {
+            final MessageObject candidate = new MessageObject(account, message, false, true);
+            final String candidatePrimary = primaryKey(candidate);
+            if (wantedPrimary != null && wantedPrimary.equals(candidatePrimary)) return true;
+            final String candidateMeta = metaFingerprint(candidate);
+            return wantedMeta != null && wantedMeta.equals(candidateMeta);
+        } catch (Throwable ignore) {
+            return false;
+        }
+    }
+
+    private static void deleteSavedCopies(int account, MessageObject track, long targetDialogId, long savedAtMs, int retriesRemaining) {
+        if (targetDialogId == 0L || isLiked(track)) return;
+        findSavedCopies(account, track, targetDialogId, true, (messages, error) -> {
+            if (isLiked(track)) return;
+            if (error != null) {
+                FileLog.d("Pengram favorite delete lookup failed: " + error.text);
+            } else if (messages != null && !messages.isEmpty()) {
+                final ArrayList<Integer> ids = new ArrayList<>(messages.size());
+                final int earliestSavedDate = savedAtMs > 0L ? (int) (savedAtMs / 1000L) - 10 : 0;
+                for (int i = 0; i < messages.size(); i++) {
+                    final TLRPC.Message message = messages.get(i);
+                    if (earliestSavedDate == 0 || message.date >= earliestSavedDate) ids.add(message.id);
+                }
+                if (ids.isEmpty()) {
+                    clearSavedTargetDialogId(account, primaryKey(track), metaFingerprint(track));
+                    return;
+                }
+                MessagesController.getInstance(account).deleteMessages(ids, null, null, targetDialogId, 0, true, 0);
+            } else {
+                clearSavedTargetDialogId(account, primaryKey(track), metaFingerprint(track));
+                return;
+            }
+            if (retriesRemaining > 0) {
+                AndroidUtilities.runOnUIThread(() -> deleteSavedCopies(account, track, targetDialogId, savedAtMs, retriesRemaining - 1), 1300L);
+            }
+        });
+    }
+
+    private static ArrayList<Long> getUnlikeTargetCandidates(int account, long savedTarget) {
+        final ArrayList<Long> targets = new ArrayList<>();
+        final HashSet<Long> unique = new HashSet<>();
+        addTargetCandidate(targets, unique, savedTarget);
+        if (savedTarget != 0L) {
+            return targets;
+        }
+        // Migration fallback for likes saved by older builds, before we persisted
+        // the chosen destination alongside each liked track.
+        addTargetCandidate(targets, unique, resolveExistingTargetDialogId(account));
+        addTargetCandidate(targets, unique, UserConfig.getInstance(account).getClientUserId());
+        addTargetCandidate(targets, unique, getCustomTargetDialogId(account));
+        addTargetCandidate(targets, unique, getAutoVaultDialogId(account, false));
+        addTargetCandidate(targets, unique, getAutoVaultDialogId(account, true));
+        return targets;
+    }
+
+    private static void addTargetCandidate(ArrayList<Long> targets, HashSet<Long> unique, long target) {
+        if (target != 0L && unique.add(target)) targets.add(target);
+    }
+
+    private static long getSavedTargetDialogId(int account, String primaryKey, String metaKey) {
+        final SharedPreferences p = prefs();
+        if (p == null) return 0L;
+        try {
+            final JSONObject map = new JSONObject(p.getString("targets_" + account, "{}"));
+            if (primaryKey != null && map.has(primaryKey)) return map.optLong(primaryKey, 0L);
+            if (metaKey != null && map.has(metaKey)) return map.optLong(metaKey, 0L);
+        } catch (Throwable ignore) {
+        }
+        return 0L;
+    }
+
+    private static void saveTargetDialogId(int account, String primaryKey, String metaKey, long targetDialogId) {
+        final SharedPreferences p = prefs();
+        if (p == null || targetDialogId == 0L) return;
+        try {
+            final JSONObject map = new JSONObject(p.getString("targets_" + account, "{}"));
+            if (primaryKey != null) map.put(primaryKey, targetDialogId);
+            if (metaKey != null) map.put(metaKey, targetDialogId);
+            p.edit().putString("targets_" + account, map.toString()).apply();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static long getSavedTargetTimestamp(int account, String primaryKey, String metaKey) {
+        final SharedPreferences p = prefs();
+        if (p == null) return 0L;
+        try {
+            final JSONObject map = new JSONObject(p.getString("target_dates_" + account, "{}"));
+            if (primaryKey != null && map.has(primaryKey)) return map.optLong(primaryKey, 0L);
+            if (metaKey != null && map.has(metaKey)) return map.optLong(metaKey, 0L);
+        } catch (Throwable ignore) {
+        }
+        return 0L;
+    }
+
+    private static void saveTargetTimestamp(int account, String primaryKey, String metaKey, long timestampMs) {
+        final SharedPreferences p = prefs();
+        if (p == null || timestampMs <= 0L) return;
+        try {
+            final JSONObject map = new JSONObject(p.getString("target_dates_" + account, "{}"));
+            if (primaryKey != null) map.put(primaryKey, timestampMs);
+            if (metaKey != null) map.put(metaKey, timestampMs);
+            p.edit().putString("target_dates_" + account, map.toString()).apply();
+        } catch (Throwable ignore) {
+        }
+    }
+
+    private static void clearSavedTargetDialogId(int account, String primaryKey, String metaKey) {
+        final SharedPreferences p = prefs();
+        if (p == null) return;
+        try {
+            final JSONObject map = new JSONObject(p.getString("targets_" + account, "{}"));
+            if (primaryKey != null) map.remove(primaryKey);
+            if (metaKey != null) map.remove(metaKey);
+            final JSONObject dates = new JSONObject(p.getString("target_dates_" + account, "{}"));
+            if (primaryKey != null) dates.remove(primaryKey);
+            if (metaKey != null) dates.remove(metaKey);
+            p.edit().putString("targets_" + account, map.toString())
+                    .putString("target_dates_" + account, dates.toString()).apply();
+        } catch (Throwable ignore) {
+        }
     }
 
     private static void ensureAutoVaultAndSend(int account, boolean groupMode, MessageObject track, boolean showUiFeedback) {
@@ -447,7 +700,7 @@ public final class PengramMusicFavorites {
                 final long savedId = UserConfig.getInstance(account).getClientUserId();
                 if (savedId != 0L && pending != null) {
                     for (int i = 0; i < pending.size(); i++) {
-                        sendTrackWithRecognition(account, pending.get(i).track, savedId, pending.get(i).showUiFeedback);
+                        if (isLiked(pending.get(i).track)) saveTrackOnce(account, pending.get(i).track, savedId, pending.get(i).showUiFeedback);
                     }
                 }
                 return;
@@ -468,7 +721,7 @@ public final class PengramMusicFavorites {
             }
             if (vaultDialogId != 0L && pending != null) {
                 for (int i = 0; i < pending.size(); i++) {
-                    sendTrackWithRecognition(account, pending.get(i).track, vaultDialogId, pending.get(i).showUiFeedback);
+                    if (isLiked(pending.get(i).track)) saveTrackOnce(account, pending.get(i).track, vaultDialogId, pending.get(i).showUiFeedback);
                 }
             }
         }), ConnectionsManager.RequestFlagFailOnServerErrors);
@@ -557,6 +810,15 @@ public final class PengramMusicFavorites {
     }
 
     private static void performSend(int account, MessageObject track, long targetDialogId, String caption, boolean showUiFeedback) {
+        if (!isLiked(track)) {
+            clearSaveInFlight(operationKey(track.currentAccount, primaryKey(track), metaFingerprint(track)));
+            return;
+        }
+        final String key = operationKey(track.currentAccount, primaryKey(track), metaFingerprint(track));
+        final long sentAt = System.currentTimeMillis();
+        saveTargetDialogId(account, primaryKey(track), metaFingerprint(track), targetDialogId);
+        saveTargetTimestamp(account, primaryKey(track), metaFingerprint(track), sentAt);
+        AndroidUtilities.runOnUIThread(() -> clearSaveInFlight(key), 8000L);
         final TLRPC.Document doc = track.getDocument();
         boolean sentDirect = false;
         if (doc instanceof TLRPC.TL_document) {

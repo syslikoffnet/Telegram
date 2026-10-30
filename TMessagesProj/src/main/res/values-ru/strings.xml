@@ -1121,6 +1121,11 @@
     <string name="PengramChatMusicPlayAll">Слушать всё</string>
     <string name="PengramChatMusicShuffle">Перемешать</string>
     <string name="PengramChatMusicSearchHint">Название или исполнитель</string>
+    <string name="PengramChatMusicSort">Сортировка музыки</string>
+    <string name="PengramChatMusicSortRecent">Сначала новые</string>
+    <string name="PengramChatMusicSortOldest">Сначала старые</string>
+    <string name="PengramChatMusicSortTitle">По названию А–Я</string>
+    <string name="PengramChatMusicSortArtist">По исполнителю А–Я</string>
     <string name="PengramChatMusicEmpty">В этом чате ещё нет музыки</string>
     <string name="PengramChatMusicLoadMore">Загрузить ещё треки</string>
     <string name="PengramChatMusicShowOlder">Показать более старые</string>
@@ -2473,6 +2478,14 @@
     <string name="PengramPlayerFavoritesHeader">Любимые треки (❤️)</string>
     <string name="PengramPlayerFavorites">Кнопка «❤️» в плеере и уведомлении</string>
     <string name="PengramPlayerFavoritesInfo">Добавляет сердечко в плеер, мини-плеер и системное уведомление. По нажатию трек сразу сохраняется в ваш личный музыкальный канал или чат.</string>
+    <string name="PengramPlayerFavShowFullPlayer">Сердце в полном плеере</string>
+    <string name="PengramPlayerFavShowFullPlayerInfo">Показывать или скрывать кнопку лайка в развёрнутом плеере.</string>
+    <string name="PengramPlayerFavShowMiniPlayer">Сердце в мини-плеере</string>
+    <string name="PengramPlayerFavShowMiniPlayerInfo">Показывать или скрывать кнопку лайка в компактном плеере чата.</string>
+    <string name="PengramPlayerFavShowChatList">Сердца в списках музыки чата</string>
+    <string name="PengramPlayerFavShowChatListInfo">Показывать или скрывать кнопку лайка рядом с треками в списке музыки чата.</string>
+    <string name="PengramPlayerFavShowNotification">Сердце в уведомлениях</string>
+    <string name="PengramPlayerFavShowNotificationInfo">Показывать или скрывать лайк в системном уведомлении и на экране блокировки.</string>
     <string name="PengramPlayerFavTarget">Куда сохранять любимые треки</string>
     <string name="PengramPlayerFavTargetAutoChannel">Приватный канал «Любимые треки»</string>
     <string name="PengramPlayerFavTargetAutoGroup">Приватная группа «Любимые треки»</string>

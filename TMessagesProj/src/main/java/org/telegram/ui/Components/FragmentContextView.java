@@ -774,7 +774,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         pengramLikeButton.setVisibility(GONE);
         pengramLikeButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-            if (playing == null || !playing.isMusic() || !PengramConfig.isPlayerFavoritesEnabled()) {
+            if (playing == null || !playing.isMusic() || !PengramConfig.isPlayerFavoritesEnabled() || !PengramConfig.isPlayerFavShowMiniPlayer()) {
                 return;
             }
             if (PengramConfig.isVibrationEnabled()) {
@@ -1547,7 +1547,7 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
         final boolean activeMusic = currentStyle == STYLE_AUDIO_PLAYER
                 && messageObject != null && messageObject.isMusic();
         final boolean showQueue = activeMusic && PengramConfig.isMiniPlayerQueueBtn();
-        final boolean showLike = activeMusic && PengramConfig.isPlayerFavoritesEnabled();
+        final boolean showLike = activeMusic && PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowMiniPlayer();
         final boolean speedShown = activeMusic && playbackSpeedButton != null && messageObject.getDuration() >= 10 * 60;
         int rightDp = 36 + (isSideMenued ? 64 : 0) + (speedShown ? 36 : 0);
         if (pengramQueueButton != null) {

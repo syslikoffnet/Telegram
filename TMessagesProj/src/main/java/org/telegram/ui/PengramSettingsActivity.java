@@ -4192,6 +4192,18 @@ public class PengramSettingsActivity extends UniversalFragment {
                 getString(R.string.PengramPlayerFavorites),
                 getString(R.string.PengramPlayerFavoritesInfo)));
         if (PengramConfig.isPlayerFavoritesEnabled()) {
+            items.add(checkInfo(PengramConfig.KEY_PLAYER_FAV_SHOW_FULL_PLAYER, true,
+                    getString(R.string.PengramPlayerFavShowFullPlayer),
+                    getString(R.string.PengramPlayerFavShowFullPlayerInfo)));
+            items.add(checkInfo(PengramConfig.KEY_PLAYER_FAV_SHOW_MINI_PLAYER, true,
+                    getString(R.string.PengramPlayerFavShowMiniPlayer),
+                    getString(R.string.PengramPlayerFavShowMiniPlayerInfo)));
+            items.add(checkInfo(PengramConfig.KEY_PLAYER_FAV_SHOW_CHAT_LIST, true,
+                    getString(R.string.PengramPlayerFavShowChatList),
+                    getString(R.string.PengramPlayerFavShowChatListInfo)));
+            items.add(checkInfo(PengramConfig.KEY_PLAYER_FAV_SHOW_NOTIFICATION, true,
+                    getString(R.string.PengramPlayerFavShowNotification),
+                    getString(R.string.PengramPlayerFavShowNotificationInfo)));
             items.add(UItem.asSettingsCell(BTN_PLAYER_FAV_TARGET, R.drawable.ic_pengram_heart_outline,
                     getString(R.string.PengramPlayerFavTarget),
                     org.telegram.messenger.PengramMusicFavorites.getTargetSummary(currentAccount)));
@@ -5430,7 +5442,19 @@ public class PengramSettingsActivity extends UniversalFragment {
             } else if (item.id == boolId(PengramConfig.KEY_DISABLE_VOICE_PROXIMITY)) {
                 org.telegram.messenger.MediaController.getInstance().onPengramProximitySettingChanged();
             } else if (item.id == boolId(PengramConfig.KEY_PLAYER_FAVORITES)) {
-                org.telegram.messenger.MusicPlayerService.onPengramFavoritesStateChanged();
+                org.telegram.messenger.PengramMusicFavorites.notifyServiceChanged();
+                final org.telegram.messenger.MessageObject playing = org.telegram.messenger.MediaController.getInstance().getPlayingMessageObject();
+                NotificationCenter.getInstance(currentAccount).postNotificationName(
+                        NotificationCenter.messagePlayingPlayStateChanged, playing != null ? playing.getId() : 0);
+                if (listView != null && listView.adapter != null) listView.adapter.update(true);
+            } else if (item.id == boolId(PengramConfig.KEY_PLAYER_FAV_SHOW_FULL_PLAYER)
+                    || item.id == boolId(PengramConfig.KEY_PLAYER_FAV_SHOW_MINI_PLAYER)
+                    || item.id == boolId(PengramConfig.KEY_PLAYER_FAV_SHOW_CHAT_LIST)
+                    || item.id == boolId(PengramConfig.KEY_PLAYER_FAV_SHOW_NOTIFICATION)) {
+                org.telegram.messenger.PengramMusicFavorites.notifyServiceChanged();
+                final org.telegram.messenger.MessageObject playing = org.telegram.messenger.MediaController.getInstance().getPlayingMessageObject();
+                NotificationCenter.getInstance(currentAccount).postNotificationName(
+                        NotificationCenter.messagePlayingPlayStateChanged, playing != null ? playing.getId() : 0);
                 if (listView != null && listView.adapter != null) listView.adapter.update(true);
             }
             return;

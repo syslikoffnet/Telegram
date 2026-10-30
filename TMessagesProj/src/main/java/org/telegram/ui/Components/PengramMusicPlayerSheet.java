@@ -481,10 +481,10 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
         likeButton = new ImageView(context);
         likeButton.setScaleType(ImageView.ScaleType.CENTER);
         likeButton.setBackground(Theme.createSelectorDrawable(0x26FFFFFF, 1, dp(22)));
-        likeButton.setVisibility(PengramConfig.isPlayerFavoritesEnabled() ? View.VISIBLE : View.GONE);
+        likeButton.setVisibility(PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowFullPlayer() ? View.VISIBLE : View.GONE);
         likeButton.setOnClickListener(v -> {
             final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-            if (playing == null || !playing.isMusic() || !PengramConfig.isPlayerFavoritesEnabled()) {
+            if (playing == null || !playing.isMusic() || (!PengramConfig.isPlayerFavoritesEnabled() || !PengramConfig.isPlayerFavShowFullPlayer())) {
                 return;
             }
             if (PengramConfig.isVibrationEnabled()) {
@@ -1917,7 +1917,7 @@ public class PengramMusicPlayerSheet extends BottomSheet implements Notification
             return;
         }
         final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
-        final boolean enabled = playing != null && playing.isMusic() && PengramConfig.isPlayerFavoritesEnabled();
+        final boolean enabled = playing != null && playing.isMusic() && PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowFullPlayer();
         likeButton.setVisibility(enabled ? View.VISIBLE : View.GONE);
         if (!enabled) {
             return;

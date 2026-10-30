@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 
 /**
  * Pengram: вся музыка одного чата на одном экране.
@@ -80,6 +81,9 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     private final EditTextBoldCursor searchField;
 
     private String query = "";
+    private final Runnable favoritesChangedListener = this::onFavoritesChanged;
+    private int sortMode; // recent, oldest, title, artist
+    private TextView sortButton;
     private boolean loading;
     private boolean cachePhase = true;
     private boolean endReached;
@@ -148,9 +152,24 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         buttons.addView(createActionButton(context, R.drawable.player_new_shuffle, getString(R.string.PengramChatMusicShuffle), false, v -> playAll(true)),
                 LayoutHelper.createLinear(0, 40, 1f, 4, 0, 4, 0));
 
+        final LinearLayout searchRow = new LinearLayout(context);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        header.addView(searchRow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 40, 16, 12, 16, 12));
+
         final FrameLayout searchBox = new FrameLayout(context);
         searchBox.setBackground(Theme.createRoundRectDrawable(dp(12), 0x1AFFFFFF));
-        header.addView(searchBox, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 40, 20, 12, 20, 12));
+        searchRow.addView(searchBox, new LinearLayout.LayoutParams(0, dp(40), 1f));
+
+        sortButton = new TextView(context);
+        sortButton.setGravity(Gravity.CENTER);
+        sortButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        sortButton.setTypeface(AndroidUtilities.bold());
+        sortButton.setTextColor(0xFFFFFFFF);
+        sortButton.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(12), 0x1AFFFFFF, 0x2AFFFFFF));
+        sortButton.setPadding(dp(12), 0, dp(12), 0);
+        sortButton.setOnClickListener(v -> showSortMenu());
+        searchRow.addView(sortButton, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 40, 8, 0, 0, 0));
+        updateSortButton();
 
         final ImageView searchIcon = new ImageView(context);
         searchIcon.setImageResource(R.drawable.smiles_inputsearch);
@@ -170,8 +189,9 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override public void afterTextChanged(android.text.Editable s) {
-                query = s == null ? "" : s.toString().trim().toLowerCase();
+                query = s == null ? "" : s.toString().trim().toLowerCase(Locale.ROOT);
                 rebuild();
+                if (listView != null) listView.scrollToPosition(0);
             }
         });
         searchBox.addView(searchField, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP, 38, 0, 12, 0));
@@ -279,6 +299,7 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.mediaDidLoad);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        org.telegram.messenger.PengramMusicFavorites.addListener(favoritesChangedListener);
     }
 
     @Override
@@ -290,8 +311,13 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         }
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
         NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        org.telegram.messenger.PengramMusicFavorites.removeListener(favoritesChangedListener);
         AndroidUtilities.hideKeyboard(searchField);
         super.dismiss();
+    }
+
+    private void onFavoritesChanged() {
+        if (adapter != null) adapter.notifyDataSetChanged();
     }
 
     @Override
@@ -344,26 +370,37 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     private void rebuild() {
         items.clear();
         long totalDuration = 0;
+        final ArrayList<MessageObject> visible = getVisibleTracks();
+        for (int a = 0; a < visible.size(); ++a) totalDuration += (long) visible.get(a).getDuration();
         int lastMonth = -1;
         int lastYear = -1;
+        String lastLetter = null;
         final Calendar calendar = Calendar.getInstance();
-        for (int a = 0; a < tracks.size(); ++a) {
-            final MessageObject messageObject = tracks.get(a);
-            totalDuration += (long) messageObject.getDuration();
-            if (!matches(messageObject)) {
-                continue;
-            }
-            calendar.setTimeInMillis(messageObject.messageOwner.date * 1000L);
-            final int month = calendar.get(Calendar.MONTH);
-            final int year = calendar.get(Calendar.YEAR);
-            if (month != lastMonth || year != lastYear) {
-                lastMonth = month;
-                lastYear = year;
-                items.add(LocaleController.formatYearMont(messageObject.messageOwner.date, true));
+        for (int a = 0; a < visible.size(); ++a) {
+            final MessageObject messageObject = visible.get(a);
+            if (sortMode < 2) {
+                calendar.setTimeInMillis(messageObject.messageOwner.date * 1000L);
+                final int month = calendar.get(Calendar.MONTH);
+                final int year = calendar.get(Calendar.YEAR);
+                if (month != lastMonth || year != lastYear) {
+                    lastMonth = month;
+                    lastYear = year;
+                    items.add(LocaleController.formatYearMont(messageObject.messageOwner.date, true));
+                }
+            } else {
+                final String group = firstLetter(sortText(messageObject, sortMode));
+                if (!TextUtils.equals(lastLetter, group)) {
+                    lastLetter = group;
+                    items.add(group);
+                }
             }
             items.add(messageObject);
         }
-        subtitleView.setText(LocaleController.formatPluralString("MusicFiles", tracks.size()) + " · " + formatTotal(totalDuration));
+        final int shownCount = visible.size();
+        final String countText = TextUtils.isEmpty(query)
+                ? LocaleController.formatPluralString("MusicFiles", tracks.size())
+                : LocaleController.formatPluralString("MusicFiles", shownCount) + " / " + tracks.size();
+        subtitleView.setText(countText + " · " + formatTotal(totalDuration));
         progressView.setVisibility(loading && tracks.isEmpty() ? View.VISIBLE : View.GONE);
         emptyView.setVisibility(!loading && items.isEmpty() ? View.VISIBLE : View.GONE);
         emptyView.setText(getString(loadError ? R.string.TryAgain : tracks.isEmpty() ? R.string.PengramChatMusicEmpty : R.string.NoResult));
@@ -376,14 +413,79 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
         adapter.notifyDataSetChanged();
     }
 
+    private ArrayList<MessageObject> getVisibleTracks() {
+        final ArrayList<MessageObject> visible = new ArrayList<>();
+        for (int i = 0; i < tracks.size(); i++) {
+            final MessageObject track = tracks.get(i);
+            if (matches(track)) visible.add(track);
+        }
+        if (sortMode == 0) {
+            Collections.sort(visible, (a, b) -> Integer.compare(messageDate(b), messageDate(a)));
+        } else if (sortMode == 1) {
+            Collections.sort(visible, (a, b) -> Integer.compare(messageDate(a), messageDate(b)));
+        } else {
+            Collections.sort(visible, (a, b) -> sortText(a, sortMode).compareToIgnoreCase(sortText(b, sortMode)));
+        }
+        return visible;
+    }
+
+    private static int messageDate(MessageObject track) {
+        return track == null || track.messageOwner == null ? 0 : track.messageOwner.date;
+    }
+
+    private static String sortText(MessageObject track, int mode) {
+        final String title = track == null ? "" : track.getMusicTitle(true);
+        final String artist = track == null ? "" : track.getMusicAuthor(true);
+        final String safeTitle = title == null ? "" : title;
+        final String safeArtist = artist == null ? "" : artist;
+        final String value = mode == 3 ? safeArtist + " " + safeTitle : safeTitle;
+        return value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String firstLetter(String value) {
+        if (TextUtils.isEmpty(value)) return "#";
+        final int cp = value.codePointAt(0);
+        return Character.isLetterOrDigit(cp) ? new String(Character.toChars(cp)).toUpperCase(Locale.ROOT) : "#";
+    }
+
+    private void updateSortButton() {
+        if (sortButton == null) return;
+        final int[] labels = {R.string.PengramChatMusicSortRecent, R.string.PengramChatMusicSortOldest,
+                R.string.PengramChatMusicSortTitle, R.string.PengramChatMusicSortArtist};
+        sortButton.setText(getString(labels[Math.max(0, Math.min(sortMode, labels.length - 1))]));
+        sortButton.setContentDescription(getString(R.string.PengramChatMusicSort));
+    }
+
+    private void showSortMenu() {
+        final BottomSheet.Builder builder = new BottomSheet.Builder(getContext(), false, resourcesProvider);
+        builder.setTitle(getString(R.string.PengramChatMusicSort), true);
+        builder.setItems(new CharSequence[]{
+                getString(R.string.PengramChatMusicSortRecent),
+                getString(R.string.PengramChatMusicSortOldest),
+                getString(R.string.PengramChatMusicSortTitle),
+                getString(R.string.PengramChatMusicSortArtist)
+        }, new int[]{R.drawable.msg_recent, R.drawable.msg_recent, R.drawable.msg_search, R.drawable.msg_contacts}, (dialog, which) -> {
+            if (which < 0 || which > 3 || sortMode == which) return;
+            sortMode = which;
+            updateSortButton();
+            rebuild();
+        });
+        builder.show();
+    }
+
     private boolean matches(MessageObject messageObject) {
         if (TextUtils.isEmpty(query)) {
             return true;
         }
+        final String needle = query.toLowerCase(Locale.ROOT);
         final String title = messageObject.getMusicTitle(true);
         final String author = messageObject.getMusicAuthor(true);
-        return title != null && title.toLowerCase().contains(query)
-                || author != null && author.toLowerCase().contains(query);
+        final String filename = messageObject.getFileName();
+        return contains(title, needle) || contains(author, needle) || contains(filename, needle);
+    }
+
+    private static boolean contains(String value, String needle) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(needle);
     }
 
     private static String formatTotal(long seconds) {
@@ -423,17 +525,17 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
     }
 
     private void play(MessageObject messageObject) {
-        final ArrayList<MessageObject> playlist = new ArrayList<>(tracks);
+        final ArrayList<MessageObject> playlist = getVisibleTracks();
         if (MediaController.getInstance().setPlaylist(playlist, messageObject, 0, false, null)) {
             adapter.notifyDataSetChanged();
         }
     }
 
     private void playAll(boolean shuffle) {
-        if (tracks.isEmpty()) {
+        final ArrayList<MessageObject> playlist = getVisibleTracks();
+        if (playlist.isEmpty()) {
             return;
         }
-        final ArrayList<MessageObject> playlist = new ArrayList<>(tracks);
         if (shuffle) {
             Collections.shuffle(playlist);
         }
@@ -516,7 +618,8 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             equalizer.setVisibility(GONE);
             addView(equalizer, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL, 20, 0, 0, 0));
 
-            final boolean favOn = org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled();
+            final boolean favOn = org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled()
+                    && org.telegram.messenger.PengramConfig.isPlayerFavShowChatList();
             final int rightTextPad = favOn ? 104 : 74;
 
             title = new TextView(context);
@@ -539,7 +642,8 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             heartButton.setBackground(Theme.createSelectorDrawable(0x22FFFFFF, 1, dp(16)));
             heartButton.setVisibility(favOn ? VISIBLE : GONE);
             heartButton.setOnClickListener(v -> {
-                if (boundMessage == null || !org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled()) {
+                if (boundMessage == null || (!org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled()
+                        || !org.telegram.messenger.PengramConfig.isPlayerFavShowChatList())) {
                     return;
                 }
                 org.telegram.messenger.PengramMusicFavorites.toggleFavorite(boundMessage, getContext());
@@ -559,7 +663,18 @@ public class PengramChatMusicSheet extends BottomSheet implements NotificationCe
             if (heartButton == null) {
                 return;
             }
-            if (!org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled() || msg == null) {
+            final boolean showHeart = org.telegram.messenger.PengramConfig.isPlayerFavoritesEnabled()
+                    && org.telegram.messenger.PengramConfig.isPlayerFavShowChatList();
+            final int rightTextPad = dp(showHeart ? 104 : 74);
+            final FrameLayout.LayoutParams titleLp = (FrameLayout.LayoutParams) title.getLayoutParams();
+            final FrameLayout.LayoutParams subtitleLp = (FrameLayout.LayoutParams) subtitle.getLayoutParams();
+            if (titleLp.rightMargin != rightTextPad || subtitleLp.rightMargin != rightTextPad) {
+                titleLp.rightMargin = rightTextPad;
+                subtitleLp.rightMargin = rightTextPad;
+                title.setLayoutParams(titleLp);
+                subtitle.setLayoutParams(subtitleLp);
+            }
+            if (!showHeart || msg == null) {
                 heartButton.setVisibility(GONE);
                 return;
             }

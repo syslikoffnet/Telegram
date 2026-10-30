@@ -12157,6 +12157,11 @@
     <string name="PengramChatMusicPlayAll">Play all</string>
     <string name="PengramChatMusicShuffle">Shuffle</string>
     <string name="PengramChatMusicSearchHint">Title or artist</string>
+    <string name="PengramChatMusicSort">Sort music</string>
+    <string name="PengramChatMusicSortRecent">Recent</string>
+    <string name="PengramChatMusicSortOldest">Oldest</string>
+    <string name="PengramChatMusicSortTitle">Title A–Z</string>
+    <string name="PengramChatMusicSortArtist">Artist A–Z</string>
     <string name="PengramChatMusicEmpty">No music in this chat yet</string>
     <string name="PengramChatMusicLoadMore">Load more tracks</string>
     <string name="PengramChatMusicShowOlder">Show older tracks</string>
@@ -13746,6 +13751,14 @@
     <string name="PengramPlayerFavoritesHeader">Liked tracks (❤️)</string>
     <string name="PengramPlayerFavorites">“❤️” button in player &amp; notification</string>
     <string name="PengramPlayerFavoritesInfo">Shows a heart button in the player, mini-player, and system media notification to save tracks into your personal music channel or chat.</string>
+    <string name="PengramPlayerFavShowFullPlayer">Heart in full player</string>
+    <string name="PengramPlayerFavShowFullPlayerInfo">Show or hide the like button in the expanded music player.</string>
+    <string name="PengramPlayerFavShowMiniPlayer">Heart in mini-player</string>
+    <string name="PengramPlayerFavShowMiniPlayerInfo">Show or hide the like button in the compact chat player.</string>
+    <string name="PengramPlayerFavShowChatList">Heart in chat music lists</string>
+    <string name="PengramPlayerFavShowChatListInfo">Show or hide the like button beside tracks in chat music lists.</string>
+    <string name="PengramPlayerFavShowNotification">Heart in notifications</string>
+    <string name="PengramPlayerFavShowNotificationInfo">Show or hide the like action in the system media notification and lock-screen controls.</string>
     <string name="PengramPlayerFavTarget">Save liked tracks to</string>
     <string name="PengramPlayerFavTargetAutoChannel">Private channel “Liked Tracks”</string>
     <string name="PengramPlayerFavTargetAutoGroup">Private group “Liked Tracks”</string>

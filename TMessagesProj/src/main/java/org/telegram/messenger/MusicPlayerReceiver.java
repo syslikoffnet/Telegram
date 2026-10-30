@@ -83,7 +83,7 @@ public class MusicPlayerReceiver extends BroadcastReceiver {
                     MusicPlayerService.onPlaybackModeChanged();
                     break;
                 case PengramMusicFavorites.ACTION_LIKE:
-                    if (PengramConfig.isPlayerFavoritesEnabled()) {
+                    if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
                         PengramMusicFavorites.togglePlayingTrack(false);
                     }
                     break;

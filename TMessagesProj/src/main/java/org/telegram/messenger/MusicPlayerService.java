@@ -261,7 +261,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                             AudioPlayerAlert.instance.updateRepeatButton();
                         }
                     } else if (NOTIFY_LIKE.equals(action)) {
-                        if (PengramConfig.isPlayerFavoritesEnabled()) {
+                        if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
                             PengramMusicFavorites.togglePlayingTrack(false);
                         }
                     }
@@ -530,7 +530,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
             PendingIntent pendingShuffle = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_SHUFFLE).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
             PendingIntent pendingLike = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_LIKE).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
 
-            final boolean showFavHeart = messageObject.isMusic() && PengramConfig.isPlayerFavoritesEnabled();
+            final boolean showFavHeart = messageObject.isMusic() && PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification();
             final boolean isTrackLiked = showFavHeart && PengramMusicFavorites.isLiked(messageObject);
             final int heartIcon = isTrackLiked ? R.drawable.ic_pengram_heart_filled : R.drawable.ic_pengram_heart_outline;
             final String heartTitle = LocaleController.getString(isTrackLiked ? R.string.PengramPlayerFavRemoveAction : R.string.PengramPlayerFavAddAction);
@@ -841,7 +841,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
             MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
             if (messageObject != null && messageObject.isMusic()) {
                 actions |= PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SKIP_TO_NEXT;
-                if (PengramConfig.isPlayerFavoritesEnabled()) {
+                if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
                     final boolean liked = PengramMusicFavorites.isLiked(messageObject);
                     playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
                             NOTIFY_LIKE,
