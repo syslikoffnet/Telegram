@@ -10,7 +10,13 @@ link = (JAVA / "messenger/PengramLinkAssistant.java").read_text()
 controller = (JAVA / "messenger/MessagesController.java").read_text()
 dialogs = (JAVA / "ui/DialogsActivity.java").read_text()
 favorites = (JAVA / "messenger/PengramMusicFavorites.java").read_text()
+receiver = (JAVA / "messenger/MusicPlayerReceiver.java").read_text()
 player = (JAVA / "ui/Components/PengramMusicPlayerSheet.java").read_text()
+
+# Keep two CI-discovered compile regressions covered: explicit TLRPC import and
+# exactly one broadcast case for the favorites action.
+assert "import org.telegram.tgnet.TLRPC;" in (JAVA / "messenger/PengramLyrics.java").read_text()
+assert receiver.count("case PengramMusicFavorites.ACTION_LIKE:") == 1
 
 # Direct audio streams must not be mislabeled as MP3; sniff MP3 signatures and
 # normalize all other source containers/codecs to M4A via the media extractor.
