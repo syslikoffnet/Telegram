@@ -248,6 +248,10 @@ public final class PengramSearchIndex {
             {R.string.PengramPlayerSwipe, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerSwipeHeader, 0, R.string.PengramPlayerSwipeInfo},
             {R.string.PengramMiniPlayerQueueBtn, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramMiniPlayerQueueHeader, 0, R.string.PengramMiniPlayerQueueBtnInfo},
             {R.string.PengramPlayerFavorites, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavoritesInfo},
+            {R.string.PengramPlayerFavShowFullPlayer, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavShowFullPlayerInfo},
+            {R.string.PengramPlayerFavShowMiniPlayer, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavShowMiniPlayerInfo},
+            {R.string.PengramPlayerFavShowChatList, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavShowChatListInfo},
+            {R.string.PengramPlayerFavShowNotification, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavShowNotificationInfo},
             {R.string.PengramPlayerFavTarget, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, 0},
             {R.string.PengramPlayerFavCaption, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, R.string.PengramPlayerFavCaptionInfo},
             {R.string.PengramPlayerFavOpenVault, PengramSettingsActivity.SECTION_PLAYER, R.string.PengramPlayerFavoritesHeader, 0, 0},
@@ -727,6 +731,10 @@ public final class PengramSearchIndex {
             0x1defe278, // PengramPlayerSwipe (SECTION_PLAYER)
             0x1961e91d, // PengramMiniPlayerQueueBtn (SECTION_PLAYER)
             0x1601c374, // PengramPlayerFavorites (SECTION_PLAYER)
+            0x3435cb71, // PengramPlayerFavShowFullPlayer (SECTION_PLAYER)
+            0x38890d07, // PengramPlayerFavShowMiniPlayer (SECTION_PLAYER)
+            0x3131f8f0, // PengramPlayerFavShowChatList (SECTION_PLAYER)
+            0x3d68299f, // PengramPlayerFavShowNotification (SECTION_PLAYER)
             0x180ca148, // PengramPlayerFavTarget (SECTION_PLAYER)
             0x148690c5, // PengramPlayerFavCaption (SECTION_PLAYER)
             0x31e4ace4, // PengramPlayerFavOpenVault (SECTION_PLAYER)
