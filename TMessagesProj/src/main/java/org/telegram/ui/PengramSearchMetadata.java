@@ -407,6 +407,7 @@ public final class PengramSearchMetadata {
         if (id == R.string.PengramQuoteAvatar) tags.append(" фото отправителя цитата");
         if (id == R.string.PengramIdFormatHide) tags.append(" скрыть айди скрыть id идентификатор профиль");
         if (id == R.string.PengramTabBarGlass) tags.append(" стекло размытие блюр прозрачность блик blur glass frosted transparency");
+        if (id == R.string.PengramGlassJuicyPreset) tags.append(" максимум сочное красиво эффект линза преломление жидкое стекло apply preset vivid liquid glass");
         if (id == R.string.PengramGlassMore) tags.append(" стекло настройка прозрачность блик glass settings tune");
         if (id == R.string.PengramGlassOpacity) tags.append(" прозрачность плотность непрозрачность стекло alpha transparency opacity density");
         if (id == R.string.PengramGlassThickness) tags.append(" толщина линза преломление кромка thickness lens");

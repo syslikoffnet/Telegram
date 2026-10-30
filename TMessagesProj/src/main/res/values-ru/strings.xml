@@ -770,6 +770,7 @@
     <string name="PengramTabBarGlass">Жидкое стекло</string>
     <string name="PengramTabBarGlassInfo">Нижняя панель становится настоящим стеклом: экран под ней размывается, край ловит свет, а выбранная вкладка светится и оставляет блик при переключении. Линза и шейдер требуют Android 13 и новее; на старых устройствах — мягкий тонированный вариант.</string>
     <string name="PengramGlassMore">Тонкая настройка стекла</string>
+    <string name="PengramGlassJuicyPreset">✨ Включить самое сочное стекло</string>
     <string name="PengramGlassOpacity">Плотность стекла</string>
     <string name="PengramGlassThickness">Толщина линзы</string>
     <string name="PengramGlassIntensity">Преломление</string>

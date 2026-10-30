@@ -11806,6 +11806,7 @@
     <string name="PengramTabBarGlass">Liquid glass</string>
     <string name="PengramTabBarGlassInfo">The bottom bar gets a real glass look: the screen behind it is blurred, the edge catches the light, and the selected tab glows and leaves a highlight trail when you switch. The lens and the shader need Android 13 and newer; older devices get a soft tinted fallback.</string>
     <string name="PengramGlassMore">Fine-tune the glass</string>
+    <string name="PengramGlassJuicyPreset">✨ Apply the juiciest glass</string>
     <string name="PengramGlassOpacity">Glass density</string>
     <string name="PengramGlassThickness">Lens thickness</string>
     <string name="PengramGlassIntensity">Refraction</string>

@@ -2251,6 +2251,23 @@ public class PengramConfig {
         return getBool(KEY_GLASS_RIM, true);
     }
 
+    /** Максимально выразительное, но всё ещё прозрачное стекло на всех Pengram-поверхностях. */
+    public static void applyJuicyGlassPreset() {
+        setTabBarLiquidGlass(true);
+        setInputGlass(true);
+        setChatListHeaderGlass(true);
+        setChatHeaderGlass(true);
+        setPlayerHeaderGlass(true);
+        setChatPinnedGlass(true);
+        setGlassOpacity(62);
+        setGlassThicknessDp(30);
+        setGlassIntensity(150);
+        setGlassGlow(150);
+        setBool(KEY_GLASS_SHEEN, true);
+        setBool(KEY_GLASS_DRAG, true);
+        setBool(KEY_GLASS_RIM, true);
+    }
+
     // ------------------------------- пункты экрана «Настройки» -------------------------------
 
     public static final int SETTINGS_ITEM_NOTIFICATIONS = 1;

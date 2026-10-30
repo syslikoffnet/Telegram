@@ -163,6 +163,7 @@ public final class PengramSearchIndex {
             {R.string.PengramParticleOpacity, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
             {R.string.PengramParticleSpeed, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
             {R.string.PengramParticleRotation, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTitleHeader, 0, 0},
+            {R.string.PengramGlassJuicyPreset, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramTabBarSize, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
             {R.string.PengramTabBarGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, R.string.PengramTabBarGlassInfo},
             {R.string.PengramInputGlass, PengramSettingsActivity.SECTION_APPEARANCE, R.string.PengramTabBarHeader, 0, 0},
@@ -647,6 +648,7 @@ public final class PengramSearchIndex {
             0x3d1cf223, // PengramParticleOpacity (SECTION_APPEARANCE)
             0x10785a31, // PengramParticleSpeed (SECTION_APPEARANCE)
             0x336e517b, // PengramParticleRotation (SECTION_APPEARANCE)
+            0x1fc97b55, // PengramGlassJuicyPreset (SECTION_APPEARANCE)
             0x3e755e64, // PengramTabBarSize (SECTION_APPEARANCE)
             0x1eb8f54d, // PengramTabBarGlass (SECTION_APPEARANCE)
             0x172254cf, // PengramInputGlass (SECTION_APPEARANCE)

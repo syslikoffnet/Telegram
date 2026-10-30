@@ -296,6 +296,7 @@ public class PengramSettingsActivity extends UniversalFragment {
     private static final int BTN_TABLET_MODE = 1451;
     private static final int BTN_SPY_ACCOUNT = 1452;
     private static final int BTN_SPY_PROFILE = 1453;
+    private static final int BTN_GLASS_JUICY_PRESET = 1454;
     private static final int BTN_CHAT_LOOK = 1432;
     private static final int BTN_CONSTRUCTOR = 1433;
     private static final int BTN_VISUAL_EDITOR = 1502;
@@ -3070,48 +3071,38 @@ public class PengramSettingsActivity extends UniversalFragment {
         if (q.isEmpty()) {
             return;
         }
-        final int slash = q.lastIndexOf('/');
-        if (q.startsWith("http") && slash >= 0) {
-            q = q.substring(slash + 1);
+        // Старые ссылки t.me и обычные @имена остаются поддержаны; для числовых
+        // ссылок/подписей используем общий строгий parser (ID:, tg://user?id=…).
+        if (q.startsWith("http://") || q.startsWith("https://")) {
+            final int slash = q.lastIndexOf('/');
+            if (slash >= 0 && slash + 1 < q.length()) {
+                q = q.substring(slash + 1);
+            }
         }
         if (q.startsWith("@")) {
             q = q.substring(1);
         }
-        long id = 0;
-        try {
-            id = Long.parseLong(q);
-        } catch (Exception ignore) {}
-        if (id == 0) {
+        final long dialogId = org.telegram.messenger.PengramPeerId.parseDialogId(q);
+        if (dialogId == 0) {
             getMessagesController().openByUserName(q, this, 0);
             return;
         }
-        final long raw = id;
-        final long chatId = raw < 0 ? (raw <= -1000000000000L ? -(raw + 1000000000000L) : -raw) : raw;
-        final long userId = raw > 0 ? raw : 0;
-        if (userId != 0 && getMessagesController().getUser(userId) != null) {
-            showPeerActions(userId);
-            return;
-        }
-        if (getMessagesController().getChat(chatId) != null) {
-            showPeerActions(-chatId);
-            return;
-        }
-        final org.telegram.messenger.MessagesStorage storage = getMessagesStorage();
-        storage.getStorageQueue().postRunnable(() -> {
-            // уже внутри очереди хранилища, поэтому читаем напрямую (без *Sync, иначе дедлок)
-            final TLRPC.User user = userId != 0 ? storage.getUser(userId) : null;
-            final TLRPC.Chat chat = user == null ? storage.getChat(chatId) : null;
-            AndroidUtilities.runOnUIThread(() -> {
-                if (user != null) {
-                    getMessagesController().putUser(user, true);
-                    showPeerActions(user.id);
-                } else if (chat != null) {
-                    getMessagesController().putChat(chat, true);
-                    showPeerActions(-chat.id);
-                } else {
-                    BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramOpenByIdNotFound)).show();
-                }
-            });
+        resolveOpenById(dialogId, dialogId > 0);
+    }
+
+    /** Восстанавливает знакомого peer из памяти/БД прежде чем пытаться обратиться к сети. */
+    private void resolveOpenById(long dialogId, boolean tryChatFallback) {
+        org.telegram.messenger.PengramPeerId.resolve(currentAccount, dialogId, peer -> {
+            if (peer instanceof TLRPC.User) {
+                showPeerActions(((TLRPC.User) peer).id);
+            } else if (peer instanceof TLRPC.Chat) {
+                showPeerActions(-((TLRPC.Chat) peer).id);
+            } else if (tryChatFallback) {
+                // Положительные ID обычных групп в старых форматах тоже встречаются.
+                resolveOpenById(-dialogId, false);
+            } else if (getParentActivity() != null) {
+                BulletinFactory.of(this).createErrorBulletin(getString(R.string.PengramOpenByIdNotFound)).show();
+            }
         });
     }
 
@@ -3690,6 +3681,8 @@ public class PengramSettingsActivity extends UniversalFragment {
         }
 
         items.add(UItem.asHeader(getString(R.string.PengramTabBarHeader)));
+        items.add(UItem.asButton(BTN_GLASS_JUICY_PRESET, R.drawable.msg_customize,
+                getString(R.string.PengramGlassJuicyPreset)));
         items.add(UItem.asSettingsCell(BTN_TABBAR_SIZE, R.drawable.msg_customize, getString(R.string.PengramTabBarSize), PengramConfig.getTabBarSize() + "%"));
         items.add(check(PengramConfig.KEY_TAB_GLASS, false, getString(R.string.PengramTabBarGlass)));
         items.add(check(PengramConfig.KEY_INPUT_GLASS, false, getString(R.string.PengramInputGlass)));
@@ -5527,6 +5520,19 @@ public class PengramSettingsActivity extends UniversalFragment {
                 PengramConfig.applyJuicyCylinderPreset();
                 updateList();
                 BulletinFactory.of(this).createSimpleBulletin(R.raw.done, getString(R.string.PengramPresetAppliedToast)).show();
+                return;
+            }
+            case BTN_GLASS_JUICY_PRESET: {
+                PengramConfig.applyJuicyGlassPreset();
+                // Включаем системную часть эффекта только там, где Android умеет
+                // настоящую линзу; остальные настройки Pengram всё равно применяются.
+                LiteMode.toggleFlag(LiteMode.FLAG_LIQUID_GLASS, android.os.Build.VERSION.SDK_INT >= 33);
+                PengramConfig.setBool(expandedKey(GROUP_GLASS), true);
+                org.telegram.ui.Components.PengramGlassSkin.notifyChanged();
+                org.telegram.ui.MainTabsActivity.refreshPengramGlass();
+                updateList();
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.done,
+                        getString(R.string.PengramPresetAppliedToast)).show();
                 return;
             }
             case BTN_INPUT_ANIMATION: {
