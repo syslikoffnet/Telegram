@@ -86,8 +86,9 @@ assert 'Math.max(70, Math.min(120, percent))' in config             # сетте
 # формула и живое обновление шапки не тронуты
 assert 'BASE_SIZE_DP * PengramConfig.getPenguinSize() / 100f' in settings
 assert 'headerView.applySize();' in settings
-# компактная шапка корня (72dp) не тронута
-assert 'final int size = dp(72);' in settings
+# компактная шапка корня (116dp в LayoutHelper, без двойного dp())
+assert 'private static final int COMPACT_SIZE_DP = 116;' in settings
+assert 'final int size = COMPACT_SIZE_DP;' in settings
 # старое сохранённое 150% ужимается до 120% → 180dp, а не 336dp
 assert 'Math.min(150, getIntCached("penguinSize"' not in config
 

@@ -8,11 +8,11 @@ import java.util.HashMap;
 /**
  * Pengram: шрифты интерфейса.
  *
- * Своих файлов шрифтов мы не тащим — вес APK важнее, — а берём семейства,
- * которые уже лежат в системе. На разных прошивках набор отличается, поэтому
- * каждое семейство проверяется: если система подсунула вместо него обычный
- * sans-serif, вариант просто не показывается в списке. Лучше четыре живых
- * пункта, чем двенадцать одинаковых.
+ * Системные варианты берём из Android, а единственный встроенный дисплейный
+ * шрифт — Pixelify Sans под SIL OFL 1.1: он нужен для пиксельной темы и покрывает
+ * кириллицу. На разных прошивках набор системных семейств отличается, поэтому
+ * каждое из них проверяется: если Android подменяет его обычным sans-serif,
+ * вариант не показывается в списке.
  */
 public final class PengramFonts {
 
@@ -28,9 +28,11 @@ public final class PengramFonts {
     public static final int CASUAL = 9;
     public static final int CURSIVE = 10;
     public static final int SERIF_MONO = 11;
+    /** Open-licensed Cyrillic-capable pixel display font (Minecraft-like, not Mojang's font). */
+    public static final int PIXEL = 12;
 
     private static final int[] ALL = {
-            DEFAULT, SYSTEM, MEDIUM, CONDENSED, LIGHT, THIN, BLACK, SERIF, SERIF_MONO, MONOSPACE, CASUAL, CURSIVE
+            DEFAULT, SYSTEM, MEDIUM, CONDENSED, LIGHT, THIN, BLACK, SERIF, SERIF_MONO, MONOSPACE, CASUAL, CURSIVE, PIXEL
     };
 
     private static final HashMap<String, Typeface> cache = new HashMap<>();
@@ -70,6 +72,7 @@ public final class PengramFonts {
             case CASUAL: return R.string.PengramFontCasual;
             case CURSIVE: return R.string.PengramFontCursive;
             case SERIF_MONO: return R.string.PengramFontSerifMono;
+            case PIXEL: return R.string.PengramFontPixel;
             default: return R.string.PengramFontDefault;
         }
     }
@@ -88,6 +91,9 @@ public final class PengramFonts {
     public static boolean isAvailable(int font) {
         if (font == DEFAULT || font == SYSTEM || font == SERIF || font == MONOSPACE) {
             return true;
+        }
+        if (font == PIXEL) {
+            return pixelTypeface() != null;
         }
         final String family = family(font);
         if (family == null) {
@@ -139,7 +145,49 @@ public final class PengramFonts {
         return list[(indexOf(font) + 1) % list.length];
     }
 
+    private static Typeface pixelTypeface() {
+        final String key = PIXEL + "#base";
+        synchronized (cache) {
+            final Typeface cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+            if (ApplicationLoader.applicationContext == null) {
+                return null;
+            }
+            try {
+                final Typeface typeface = Typeface.createFromAsset(
+                        ApplicationLoader.applicationContext.getAssets(),
+                        "fonts/PixelifySans-Regular.ttf"
+                );
+                cache.put(key, typeface);
+                return typeface;
+            } catch (Throwable e) {
+                FileLog.e(e);
+                return null;
+            }
+        }
+    }
+
     public static Typeface typeface(int font, int style) {
+        if (font == PIXEL) {
+            final Typeface base = pixelTypeface();
+            if (base == null) {
+                return null;
+            }
+            final String key = PIXEL + "#" + style;
+            synchronized (cache) {
+                final Typeface cached = cache.get(key);
+                if (cached != null) {
+                    return cached;
+                }
+                final Typeface styled = Typeface.create(base, style);
+                if (styled != null) {
+                    cache.put(key, styled);
+                }
+                return styled;
+            }
+        }
         final String family = family(font);
         if (family == null) {
             return null;

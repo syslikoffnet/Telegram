@@ -389,8 +389,68 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     };
 
     private boolean pressed;
+    private float pengramDownX;
+    private float pengramDownY;
+    private boolean pengramSwipeTracking;
+    private boolean pengramSwiped;
+
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        final int action = ev.getActionMasked();
+        final boolean canSwipeName = parentFragment != null
+                && parentFragment.getCurrentUser() != null
+                && !parentFragment.getCurrentUser().self
+                && !parentFragment.getCurrentUser().bot
+                && org.telegram.messenger.PengramOriginalName.swipeEnabled();
+        if (action == MotionEvent.ACTION_DOWN) {
+            pengramSwiped = false;
+            pengramSwipeTracking = canSwipeName;
+            if (canSwipeName) {
+                pengramDownX = ev.getX();
+                pengramDownY = ev.getY();
+            }
+        } else if (action == MotionEvent.ACTION_MOVE && pengramSwipeTracking && !pengramSwiped) {
+            final float dx = ev.getX() - pengramDownX;
+            final float dy = ev.getY() - pengramDownY;
+            if (Math.abs(dx) > dp(6) && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                pressed = false;
+                bounce.setPressed(false);
+                setPressed(false);
+                AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
+                if (titleTextView != null) {
+                    titleTextView.pengramSetSwipeOffset(dx);
+                }
+            }
+            if (Math.abs(dx) > dp(22) && Math.abs(dx) > Math.abs(dy) * 1.25f) {
+                pengramSwiped = true;
+                org.telegram.messenger.PengramOriginalName.noteGestureDirection(dx >= 0 ? 1 : -1);
+                if (org.telegram.messenger.PengramConfig.isVibrationEnabled()) {
+                    try {
+                        performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                    } catch (Throwable ignore) {
+                    }
+                }
+                parentFragment.pengramToggleHeaderOriginalName();
+                return true;
+            }
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            if (titleTextView != null) {
+                titleTextView.pengramReleaseSwipe();
+            }
+            if (pengramSwiped) {
+                pengramSwiped = false;
+                pengramSwipeTracking = false;
+                pressed = false;
+                bounce.setPressed(false);
+                setPressed(false);
+                AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
+                return true;
+            }
+            pengramSwipeTracking = false;
+        }
         if (ev.getAction() == MotionEvent.ACTION_DOWN && canSearch()) {
             pressed = true;
             bounce.setPressed(true);
@@ -407,7 +467,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                 AndroidUtilities.cancelRunOnUIThread(this.onLongClick);
             }
         }
-        return super.onTouchEvent(ev);
+        return super.onTouchEvent(ev) || canSwipeName;
     }
 
     @Override

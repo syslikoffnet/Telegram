@@ -193,6 +193,11 @@ public class SimpleTextView extends View implements Drawable.Callback {
         attachedToWindow = false;
         AnimatedEmojiSpan.release(this, emojiStack);
         wasLayout = false;
+        pengramCancelSwap();
+        pengramDragX = 0f;
+        pengramDragTargetX = 0f;
+        pengramNudgeStartMs = 0L;
+        pengramLastAnimMs = 0L;
     }
 
     public void setTextSize(int sizeInDp) {
@@ -842,9 +847,200 @@ public class SimpleTextView extends View implements Drawable.Callback {
         }
     }
 
+    // --- Pengram: упругое ведение пальцем и плавный морф «Настоящее имя в Telegram» ---
+    private static final long PENGRAM_SWAP_DURATION_MS = 250L;
+    private static final long PENGRAM_NUDGE_DURATION_MS = 230L;
+    private float pengramDragX;
+    private float pengramDragTargetX;
+    private long pengramLastAnimMs;
+    private android.graphics.Bitmap pengramSwapBitmap;
+    private Paint pengramSwapPaint;
+    private long pengramSwapStartMs;
+    private int pengramSwapDir = 1;
+    private float pengramSwapOriginX;
+    private long pengramNudgeStartMs;
+    private int pengramNudgeDir = 1;
+
+    public void pengramSetSwipeOffset(float rawDx) {
+        if (!org.telegram.messenger.SharedConfig.animationsEnabled()) {
+            return;
+        }
+        final float limit = dp(15);
+        pengramDragTargetX = limit * (float) Math.tanh(rawDx / Math.max(1f, dp(34)));
+        invalidate();
+    }
+
+    public void pengramReleaseSwipe() {
+        if (pengramDragTargetX != 0f || Math.abs(pengramDragX) > 0.1f) {
+            pengramDragTargetX = 0f;
+            invalidate();
+        }
+    }
+
+    public void pengramNudge(int dir) {
+        pengramDragTargetX = 0f;
+        if (!org.telegram.messenger.SharedConfig.animationsEnabled()) {
+            pengramDragX = 0f;
+            invalidate();
+            return;
+        }
+        pengramNudgeDir = dir >= 0 ? 1 : -1;
+        pengramNudgeStartMs = SystemClock.uptimeMillis();
+        invalidate();
+    }
+
+    public void pengramPrepareSwap(int dir) {
+        pengramSwapDir = dir >= 0 ? 1 : -1;
+        pengramSwapOriginX = pengramDragX;
+        pengramDragX = 0f;
+        pengramDragTargetX = 0f;
+        pengramNudgeStartMs = 0L;
+        if (!org.telegram.messenger.SharedConfig.animationsEnabled() || !attachedToWindow) {
+            pengramCancelSwap();
+            return;
+        }
+        final int w = getMeasuredWidth() > 0 ? getMeasuredWidth() : getWidth();
+        final int h = getMeasuredHeight() > 0 ? getMeasuredHeight() : getHeight();
+        if (w <= 0 || h <= 0 || w > dp(640) || h > dp(120) || getAlpha() <= 0.05f) {
+            pengramCancelSwap();
+            return;
+        }
+        try {
+            if (pengramSwapBitmap == null || pengramSwapBitmap.isRecycled()
+                    || pengramSwapBitmap.getWidth() != w || pengramSwapBitmap.getHeight() != h) {
+                if (pengramSwapBitmap != null && !pengramSwapBitmap.isRecycled()) {
+                    pengramSwapBitmap.recycle();
+                }
+                pengramSwapBitmap = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888);
+            } else {
+                pengramSwapBitmap.eraseColor(0);
+            }
+            if (pengramSwapPaint == null) {
+                pengramSwapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+            }
+            final Canvas snap = new Canvas(pengramSwapBitmap);
+            onDrawContent(snap);
+        } catch (Throwable ignore) {
+            pengramCancelSwap();
+        }
+    }
+
+    public void pengramCommitSwap() {
+        if (pengramSwapBitmap == null || pengramSwapBitmap.isRecycled()
+                || !org.telegram.messenger.SharedConfig.animationsEnabled()) {
+            pengramCancelSwap();
+            invalidate();
+            return;
+        }
+        pengramSwapStartMs = SystemClock.uptimeMillis();
+        invalidate();
+    }
+
+    public void pengramCancelSwap() {
+        pengramSwapStartMs = 0L;
+        if (pengramSwapBitmap != null) {
+            if (!pengramSwapBitmap.isRecycled()) {
+                pengramSwapBitmap.recycle();
+            }
+            pengramSwapBitmap = null;
+        }
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (pengramSwapStartMs == 0L && pengramNudgeStartMs == 0L
+                && pengramDragX == 0f && pengramDragTargetX == 0f) {
+            pengramLastAnimMs = 0L;
+            onDrawContent(canvas);
+            return;
+        }
+
+        final long now = SystemClock.uptimeMillis();
+        final float dt = pengramLastAnimMs == 0L
+                ? 0.008f
+                : Math.min(0.05f, Math.max(0.001f, (now - pengramLastAnimMs) / 1000f));
+        pengramLastAnimMs = now;
+
+        boolean keepAnimating = false;
+        if (Math.abs(pengramDragTargetX - pengramDragX) > 0.2f) {
+            pengramDragX += (pengramDragTargetX - pengramDragX) * (1f - (float) Math.exp(-26f * dt));
+            keepAnimating = true;
+        } else {
+            pengramDragX = pengramDragTargetX;
+            if (pengramDragTargetX != 0f) {
+                keepAnimating = true;
+            }
+        }
+
+        float nudgeX = 0f;
+        if (pengramNudgeStartMs != 0L) {
+            final float np = (now - pengramNudgeStartMs) / (float) PENGRAM_NUDGE_DURATION_MS;
+            if (np >= 1f) {
+                pengramNudgeStartMs = 0L;
+            } else {
+                final float decay = (1f - np) * (1f - np);
+                nudgeX = pengramNudgeDir * dp(7.5f) * (float) Math.sin(np * Math.PI * 2.0) * decay;
+                keepAnimating = true;
+            }
+        }
+
+        if (pengramSwapStartMs != 0L) {
+            final float rawP = Math.min(1f, Math.max(0f, (now - pengramSwapStartMs) / (float) PENGRAM_SWAP_DURATION_MS));
+            final float p = org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT.getInterpolation(rawP);
+            final float pivotX = Math.min(Math.max(dp(24), getMeasuredWidth() * 0.25f), Math.max(dp(24), getMeasuredWidth()));
+            final float pivotY = getMeasuredHeight() * 0.5f;
+
+            if (pengramSwapBitmap != null && !pengramSwapBitmap.isRecycled() && rawP < 0.92f) {
+                final float outAlpha = (1f - rawP / 0.92f);
+                final int bmpAlpha = Math.round(255f * outAlpha * outAlpha);
+                if (bmpAlpha > 1) {
+                    final float outX = pengramSwapOriginX * (1f - p) + pengramSwapDir * dp(20) * p;
+                    final float outScale = 1f - 0.055f * p;
+                    pengramSwapPaint.setAlpha(bmpAlpha);
+                    canvas.save();
+                    canvas.translate(outX, 0f);
+                    canvas.scale(outScale, outScale, pivotX, pivotY);
+                    canvas.drawBitmap(pengramSwapBitmap, 0f, 0f, pengramSwapPaint);
+                    canvas.restore();
+                }
+            }
+
+            final float inAlpha = Math.min(1f, rawP * 1.45f);
+            final float inX = -pengramSwapDir * dp(18) * (1f - p) + pengramDragX + nudgeX;
+            final float inScale = 0.945f + 0.055f * p;
+            final int layer = canvas.saveLayerAlpha(0, 0, getMeasuredWidth(), getMeasuredHeight(),
+                    Math.max(0, Math.min(255, Math.round(255f * inAlpha))));
+            canvas.translate(inX, 0f);
+            canvas.scale(inScale, inScale, pivotX, pivotY);
+            onDrawContent(canvas);
+            canvas.restoreToCount(layer);
+
+            if (rawP >= 1f) {
+                pengramCancelSwap();
+            } else {
+                keepAnimating = true;
+            }
+        } else {
+            final float offset = pengramDragX + nudgeX;
+            if (Math.abs(offset) > 0.05f) {
+                canvas.save();
+                canvas.translate(offset, 0f);
+                onDrawContent(canvas);
+                canvas.restore();
+            } else {
+                onDrawContent(canvas);
+            }
+        }
+
+        if (keepAnimating) {
+            postInvalidateOnAnimation();
+        } else {
+            pengramLastAnimMs = 0L;
+        }
+    }
+
+    private void onDrawContent(Canvas canvas) {
         int textOffsetX = 0;
         layoutX = 0;
         layoutY = 0;

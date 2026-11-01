@@ -59,6 +59,48 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
     public static final String NOTIFY_SEEK = "org.telegram.android.musicplayer.seek";
     public static final String NOTIFY_REPEAT = "org.telegram.android.musicplayer.repeat";
     public static final String NOTIFY_SHUFFLE = "org.telegram.android.musicplayer.shuffle";
+    public static final String NOTIFY_LIKE = PengramMusicFavorites.ACTION_LIKE;
+
+    private static java.lang.ref.WeakReference<MusicPlayerService> activeServiceRef;
+
+    public static void onPlaybackModeChanged() {
+        final MusicPlayerService srv = activeServiceRef != null ? activeServiceRef.get() : null;
+        if (srv != null) {
+            srv.updatePlaybackModeAndNotification();
+        } else {
+            postPlaybackModeChanged();
+        }
+    }
+
+    private void updatePlaybackModeAndNotification() {
+        updateRepeatMode();
+        updateShuffleMode();
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            createNotification(playing, false);
+            if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+        }
+        postPlaybackModeChanged();
+    }
+
+    private static void postPlaybackModeChanged() {
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            NotificationCenter.getInstance(playing.currentAccount)
+                    .postNotificationName(NotificationCenter.musicPlaybackOrderChanged);
+        }
+    }
+
+    public static void onPengramFavoritesStateChanged() {
+        final MusicPlayerService srv = activeServiceRef != null ? activeServiceRef.get() : null;
+        if (srv == null) {
+            return;
+        }
+        final MessageObject playing = MediaController.getInstance().getPlayingMessageObject();
+        if (playing != null) {
+            srv.createNotification(playing, false);
+        }
+    }
 
     private static final int ID_NOTIFICATION = 5;
 
@@ -93,6 +135,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
 
     @Override
     public void onCreate() {
+        activeServiceRef = new java.lang.ref.WeakReference<>(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             NotificationCenter.getInstance(a).addObserver(this, NotificationCenter.messagePlayingDidSeek);
@@ -175,6 +218,8 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -193,6 +238,8 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    if (AudioPlayerAlert.instance != null) AudioPlayerAlert.instance.updateRepeatButton();
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -213,11 +260,16 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                         if (AudioPlayerAlert.instance != null) {
                             AudioPlayerAlert.instance.updateRepeatButton();
                         }
+                    } else if (NOTIFY_LIKE.equals(action)) {
+                        if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
+                            PengramMusicFavorites.togglePlayingTrack(false);
+                        }
                     }
                     MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
                     if (messageObject != null) {
                         createNotification(messageObject, false);
                     }
+                    postPlaybackModeChanged();
                 }
 
                 @Override
@@ -384,6 +436,26 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
         Bitmap fullAlbumArt = null;
         long duration = (long) (messageObject.getDuration() * 1000);
         if (messageObject.isMusic()) {
+            if (PengramConfig.isSmartTrackRecognition()) {
+                final String[] cleanPair = PengramMusicMeta.resolveDisplayPair(messageObject);
+                final PengramTrackRecognizer.TrackInfo rec = PengramTrackRecognizer.getCached(messageObject);
+                if (rec != null) {
+                    if (!TextUtils.isEmpty(rec.title)) contentTitle = rec.title;
+                    if (!TextUtils.isEmpty(rec.artist)) contentText = rec.artist;
+                } else {
+                    if (!TextUtils.isEmpty(cleanPair[1])) contentTitle = cleanPair[1];
+                    if (!TextUtils.isEmpty(cleanPair[0])) contentText = cleanPair[0];
+                    if (!forBitmap) {
+                        final String wantedKey = PengramTrackRecognizer.keyFor(messageObject);
+                        PengramTrackRecognizer.recognize(messageObject, (rk, info) -> {
+                            final MessageObject cur = MediaController.getInstance().getPlayingMessageObject();
+                            if (info != null && cur != null && wantedKey != null && wantedKey.equals(PengramTrackRecognizer.keyFor(cur))) {
+                                createNotification(cur, true);
+                            }
+                        });
+                    }
+                }
+            }
             String artworkUrl = messageObject.getArtworkUrl(true);
             String artworkUrlBig = messageObject.getArtworkUrl(false);
 
@@ -401,6 +473,21 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                 }
             } else {
                 loadingFilePath = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(messageObject.getDocument()).getAbsolutePath();
+            }
+            if (albumArt == null) {
+                final String coverKey = PengramCovers.keyFor(messageObject);
+                final Bitmap pengramCover = PengramCovers.getCached(messageObject);
+                if (pengramCover != null && !pengramCover.isRecycled()) {
+                    albumArt = pengramCover;
+                    fullAlbumArt = pengramCover;
+                } else if (!forBitmap && coverKey != null) {
+                    PengramCovers.request(messageObject, (k, bmp) -> {
+                        final MessageObject cur = MediaController.getInstance().getPlayingMessageObject();
+                        if (bmp != null && cur != null && coverKey.equals(PengramCovers.keyFor(cur))) {
+                            createNotification(cur, true);
+                        }
+                    });
+                }
             }
         } else if (messageObject.isVoice() || messageObject.isRoundVideo()) {
             long senderId = messageObject.getSenderId();
@@ -441,10 +528,25 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
             PendingIntent pendingSeek = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_SEEK).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
             PendingIntent pendingRepeat = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_REPEAT).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
             PendingIntent pendingShuffle = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_SHUFFLE).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
+            PendingIntent pendingLike = PendingIntent.getBroadcast(getApplicationContext(), 0, new Intent(NOTIFY_LIKE).setComponent(new ComponentName(this, MusicPlayerReceiver.class)), fixIntentFlags(PendingIntent.FLAG_MUTABLE | PendingIntent.FLAG_CANCEL_CURRENT));
+
+            final boolean showFavHeart = messageObject.isMusic() && PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification();
+            final boolean isTrackLiked = showFavHeart && PengramMusicFavorites.isLiked(messageObject);
+            final int heartIcon = isTrackLiked ? R.drawable.ic_pengram_heart_filled : R.drawable.ic_pengram_heart_outline;
+            final String heartTitle = LocaleController.getString(isTrackLiked ? R.string.PengramPlayerFavRemoveAction : R.string.PengramPlayerFavAddAction);
+            final PengramTrackRecognizer.TrackInfo recMeta = (messageObject.isMusic() && PengramConfig.isSmartTrackRecognition())
+                    ? PengramTrackRecognizer.getCached(messageObject) : null;
+            final String albumSubText = (recMeta != null && !TextUtils.isEmpty(recMeta.album))
+                    ? recMeta.album
+                    : (audioInfo != null && messageObject.isMusic() ? audioInfo.getAlbum() : null);
 
             Notification.MediaStyle mediaStyle = new Notification.MediaStyle().setMediaSession((android.media.session.MediaSession.Token) mediaSession.getSessionToken().getToken());
             if (messageObject.isMusic()) {
-                mediaStyle.setShowActionsInCompactView(0, 1, 2, 3, 4);
+                if (MediaController.getInstance().isDownloadingCurrentMessage()) {
+                    mediaStyle.setShowActionsInCompactView(0, 1, 2);
+                } else {
+                    mediaStyle.setShowActionsInCompactView(0, 1, 2, 3, 4);
+                }
             } else if (messageObject.isVoice() || messageObject.isRoundVideo()) {
                 mediaStyle.setShowActionsInCompactView(0);
             }
@@ -453,7 +555,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     .setOngoing(isPlaying)
                     .setContentTitle(contentTitle)
                     .setContentText(contentText)
-                    .setSubText(audioInfo != null && messageObject.isMusic() ? audioInfo.getAlbum() : null)
+                    .setSubText(albumSubText)
                     .setContentIntent(contentIntent)
                     .setDeleteIntent(pendingStop)
                     .setShowWhen(false)
@@ -489,9 +591,14 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     actions |= PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SKIP_TO_NEXT;
                 }
                 if (messageObject.isMusic()) {
-                    int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
-                    playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
-                            NOTIFY_SHUFFLE, LocaleController.getString(R.string.ShuffleList), shuffleIcon).build());
+                    if (showFavHeart) {
+                        playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                                NOTIFY_LIKE, heartTitle, heartIcon).build());
+                    } else {
+                        int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
+                        playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                                NOTIFY_SHUFFLE, LocaleController.getString(R.string.ShuffleList), shuffleIcon).build());
+                    }
                 }
                 playbackState.setState(isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
                                 MediaController.getInstance().getPlayingMessageObject().audioProgressSec * 1000L,
@@ -509,8 +616,12 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                 }
                 final String playPauseTitle = isPlaying ? LocaleController.getString(R.string.AccActionPause) : LocaleController.getString(R.string.AccActionPlay);
                 if (messageObject.isMusic()) {
-                    int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
-                    bldr.addAction(new Notification.Action.Builder(shuffleIcon, LocaleController.getString(R.string.ShuffleList), pendingShuffle).build());
+                    if (showFavHeart) {
+                        bldr.addAction(new Notification.Action.Builder(heartIcon, heartTitle, pendingLike).build());
+                    } else {
+                        int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
+                        bldr.addAction(new Notification.Action.Builder(shuffleIcon, LocaleController.getString(R.string.ShuffleList), pendingShuffle).build());
+                    }
                     bldr.addAction(new Notification.Action.Builder(R.drawable.ic_action_previous, previousDescription, pendingPrev).build());
                 }
                 bldr.addAction(new Notification.Action.Builder(isPlaying ? R.drawable.ic_action_pause : R.drawable.ic_action_play, playPauseTitle, pendingPlaypause).build());
@@ -534,7 +645,7 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, contentText)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, contentTitle)
-                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, audioInfo != null && messageObject.isMusic() ? audioInfo.getAlbum() : null);
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, albumSubText);
             if (fullAlbumArt != null && !fullAlbumArt.isRecycled()) {
                 meta.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, fullAlbumArt);
             }
@@ -730,9 +841,17 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
             MessageObject messageObject = MediaController.getInstance().getPlayingMessageObject();
             if (messageObject != null && messageObject.isMusic()) {
                 actions |= PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS | PlaybackStateCompat.ACTION_SKIP_TO_NEXT;
-                int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
-                playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
-                        NOTIFY_SHUFFLE, LocaleController.getString(R.string.ShuffleList), shuffleIcon).build());
+                if (PengramConfig.isPlayerFavoritesEnabled() && PengramConfig.isPlayerFavShowNotification()) {
+                    final boolean liked = PengramMusicFavorites.isLiked(messageObject);
+                    playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                            NOTIFY_LIKE,
+                            LocaleController.getString(liked ? R.string.PengramPlayerFavRemoveAction : R.string.PengramPlayerFavAddAction),
+                            liked ? R.drawable.ic_pengram_heart_filled : R.drawable.ic_pengram_heart_outline).build());
+                } else {
+                    int shuffleIcon = SharedConfig.shuffleMusic ? R.drawable.player_new_shuffle : R.drawable.player_new_shuffle_off;
+                    playbackState.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                            NOTIFY_SHUFFLE, LocaleController.getString(R.string.ShuffleList), shuffleIcon).build());
+                }
             }
             playbackState.setState(isPlaying ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED,
                             seekTo,
@@ -810,6 +929,9 @@ public class MusicPlayerService extends Service implements NotificationCenter.No
     @SuppressLint("NewApi")
     @Override
     public void onDestroy() {
+        if (activeServiceRef != null && activeServiceRef.get() == this) {
+            activeServiceRef = null;
+        }
         unregisterReceiver(headsetPlugReceiver);
         super.onDestroy();
         stopForeground(true);

@@ -87,53 +87,17 @@ public final class PengramBackup {
         return "Pengram-" + format.format(new java.util.Date()) + "." + EXTENSION;
     }
 
-    /** все переносимые настройки одним JSON */
+    private static final java.util.Set<String> SKIP_PREFIX_SET =
+            new java.util.HashSet<>(java.util.Arrays.asList(SKIP_PREFIXES));
+
+    /** все переносимые настройки одним JSON (включая вложенные параметры, ИИ, обход и вид пузырей/шрифта) */
     public static String collectJson() {
-        PengramConfig.init();
-        final SharedPreferences p = prefs();
-        if (p == null) {
-            return null;
-        }
-        try {
-            final org.json.JSONObject root = new org.json.JSONObject();
-            root.put("pengram", 2);
-            root.put("version", BuildVars.BUILD_VERSION_STRING);
-            root.put("created", System.currentTimeMillis() / 1000L);
-            final org.json.JSONObject values = new org.json.JSONObject();
-            int count = 0;
-            for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
-                if (skip(entry.getKey())) {
-                    continue;
-                }
-                final Object v = entry.getValue();
-                if (v instanceof Boolean || v instanceof Integer || v instanceof Long || v instanceof String) {
-                    values.put(entry.getKey(), v);
-                    count++;
-                }
-            }
-            root.put("count", count);
-            root.put("values", values);
-            return root.toString();
-        } catch (Throwable e) {
-            FileLog.e(e);
-            return null;
-        }
+        return PengramConfig.exportToJsonInternal(SKIP_PREFIX_SET, false);
     }
 
     /** сколько настроек уедет в файл — чтобы человеку было что показать до нажатия */
     public static int countTransferable() {
-        PengramConfig.init();
-        final SharedPreferences p = prefs();
-        if (p == null) {
-            return 0;
-        }
-        int count = 0;
-        for (java.util.Map.Entry<String, ?> entry : p.getAll().entrySet()) {
-            if (!skip(entry.getKey())) {
-                count++;
-            }
-        }
-        return count;
+        return PengramConfig.countExportableEntries(SKIP_PREFIX_SET);
     }
 
     /**

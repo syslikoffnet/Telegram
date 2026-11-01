@@ -197,16 +197,22 @@ public class PengramDeleteEffectView extends View {
                     break;
             }
         }
-        if (effect == PengramConfig.DELETE_EFFECT_PUZZLE) {
-            buildPuzzle();
-        } else if (effect == PengramConfig.DELETE_EFFECT_SHARDS) {
-            buildShards();
-        } else if (effect == PengramConfig.DELETE_EFFECT_VOXELS) {
-            buildVoxels();
-        } else if (effect == PengramConfig.DELETE_EFFECT_PORTAL_GUN) {
-            buildPortalGun();
-        } else if (effect == PengramConfig.DELETE_EFFECT_VORONOI) {
-            buildVoronoi();
+        // Один пакетный getPixels вместо тысяч JNI-вызовов getPixel на UI-потоке
+        ensureBuildPixels();
+        try {
+            if (effect == PengramConfig.DELETE_EFFECT_PUZZLE) {
+                buildPuzzle();
+            } else if (effect == PengramConfig.DELETE_EFFECT_SHARDS) {
+                buildShards();
+            } else if (effect == PengramConfig.DELETE_EFFECT_VOXELS) {
+                buildVoxels();
+            } else if (effect == PengramConfig.DELETE_EFFECT_PORTAL_GUN) {
+                buildPortalGun();
+            } else if (effect == PengramConfig.DELETE_EFFECT_VORONOI) {
+                buildVoronoi();
+            }
+        } finally {
+            buildPixels = null;
         }
         // Аппаратный слой здесь вреден: содержимое меняется каждый кадр, и слой
         // приходится целиком перерисовывать в отдельную текстуру — это и давало
@@ -438,11 +444,7 @@ public class PengramDeleteEffectView extends View {
             for (int tries = 0; tries < 8; ++tries) {
                 px = random.nextInt(Math.max(1, bmpW));
                 py = random.nextInt(Math.max(1, bmpH));
-                try {
-                    color = bitmap.getPixel(px, py);
-                } catch (Throwable e) {
-                    color = 0;
-                }
+                color = samplePixelFast(px, py);
                 if (Color.alpha(color) > 40) {
                     break;
                 }
@@ -638,6 +640,45 @@ public class PengramDeleteEffectView extends View {
         }
     }
 
+    private int[] buildPixels;
+    private boolean selfLocationCached;
+
+    private void ensureBuildPixels() {
+        if (bitmap == null || bitmap.isRecycled() || bmpW <= 0 || bmpH <= 0) {
+            buildPixels = null;
+            return;
+        }
+        if (effect == PengramConfig.DELETE_EFFECT_PUZZLE
+                || effect == PengramConfig.DELETE_EFFECT_SHARDS
+                || effect == PengramConfig.DELETE_EFFECT_VOXELS
+                || effect == PengramConfig.DELETE_EFFECT_VORONOI) {
+            try {
+                buildPixels = new int[bmpW * bmpH];
+                bitmap.getPixels(buildPixels, 0, bmpW, 0, 0, bmpW, bmpH);
+            } catch (Throwable e) {
+                buildPixels = null;
+            }
+        }
+    }
+
+    private int samplePixelFast(int px, int py) {
+        if (px < 0 || py < 0 || px >= bmpW || py >= bmpH) {
+            return 0;
+        }
+        final int[] buf = buildPixels;
+        if (buf != null) {
+            final int idx = py * bmpW + px;
+            if (idx >= 0 && idx < buf.length) {
+                return buf[idx];
+            }
+        }
+        try {
+            return bitmap.getPixel(px, py);
+        } catch (Throwable e) {
+            return 0;
+        }
+    }
+
     /** кусок целиком прозрачный? тогда он не нужен */
     private boolean isPieceEmpty(float left, float top, float pw, float ph) {
         try {
@@ -648,7 +689,7 @@ public class PengramDeleteEffectView extends View {
                     if (px < 0 || py < 0) {
                         continue;
                     }
-                    if (Color.alpha(bitmap.getPixel(px, py)) > 8) {
+                    if ((samplePixelFast(px, py) >>> 24) > 8) {
                         return false;
                     }
                 }
@@ -1504,13 +1545,22 @@ public class PengramDeleteEffectView extends View {
         syncGeometry();
     }
 
+    @Override
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        selfLocationCached = false;
+    }
+
     /** перевод координат окна в свои: вызывается каждый кадр */
     private void syncGeometry() {
-        try {
-            getLocationInWindow(selfAt);
-        } catch (Throwable e) {
-            selfAt[0] = 0;
-            selfAt[1] = 0;
+        if (!selfLocationCached) {
+            try {
+                getLocationInWindow(selfAt);
+                selfLocationCached = true;
+            } catch (Throwable e) {
+                selfAt[0] = 0;
+                selfAt[1] = 0;
+            }
         }
         originX = windowX - selfAt[0];
         originY = windowY - selfAt[1];

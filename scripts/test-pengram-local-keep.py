@@ -59,10 +59,10 @@ assert 'PengramHistory.saveSavedBatch(currentAccount, list, true)' in storage
 # остаётся в чате, но без метки «удалено» и без прозрачности. Решение
 # «оставить или стереть» принимает хранилище.
 assert 'PengramLocalKeep.keepDeletedMessages()' not in messages
-assert 'keepInChat(currentAccount, messages)' in storage
-assert 'keepInChat(currentAccount, ids)' in chat
-assert 'public static boolean keepInChat(int account' in history
-assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, ids)' in history
+assert 'keepInChat(currentAccount, dialogId, messages)' in storage
+assert 'keepInChat(currentAccount, dialog_id, ids)' in chat
+assert 'public static boolean keepInChat(int account, long dialogId' in history
+assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, dialogId, ids)' in history
 assert 'public static boolean marksEnabled(int account)' in history
 assert 'PengramLocalKeep.keepDeletedMessages() || PengramConfig.isSavingDeleted(account)' in history
 # метки живут и в хранилище, и в открытом чате
@@ -72,7 +72,8 @@ assert 'notifyMarksChanged' in history
 assert 'PengramHistory.addChangeListener(pengramMarksListener)' in chat
 assert 'PengramHistory.removeChangeListener(pengramMarksListener)' in chat
 # явное «удалить у себя» сильнее локальной копии
-assert 'userDeletedGuard.containsKey(id)' in history
+assert 'userDeletedGuard.containsKey(guardKey(account, dialogId, id))' in history
+assert 'account + ":" + dialogId + ":" + messageId' in history
 
 # --- пользовательские удаления не тронуты -----------------------------------
 # deleteDialog(did, onlyHistory) и ветка «пользователь сам удалил чат» без охраны

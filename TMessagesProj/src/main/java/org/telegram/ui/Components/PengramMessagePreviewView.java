@@ -88,15 +88,15 @@ public class PengramMessagePreviewView extends LinearLayout {
         final int date = (int) (sampleOnly ? System.currentTimeMillis() / 1000
                 : android.os.SystemClock.elapsedRealtime() / 1000) - 60 * 60;
 
-        final MessageObject incoming = createMessage(LocaleController.getString(R.string.PengramPreviewIncoming), false, date, 1, false, false);
-        final MessageObject deleted = createMessage(LocaleController.getString(R.string.PengramPreviewDeleted), false, date + 120, 2, true, false);
+        final MessageObject incoming = createMessage(LocaleController.getString(R.string.PengramPreviewIncoming), false, date, 1, false, false, false);
+        final MessageObject deleted = createMessage(LocaleController.getString(R.string.PengramPreviewDeleted), false, date + 120, 2, true, false, true);
         final MessageObject edited = createMessage(sampleOnly && editorSentMessage != null && !editorSentMessage.isEmpty()
                 ? editorSentMessage : LocaleController.getString(R.string.PengramPreviewEdited),
-                true, date + 240, 3, false, true);
+                true, date + 240, 3, false, true, false);
 
-        bind(0, incoming);
-        bind(1, deleted);
-        bind(2, edited);
+        bind(0, incoming, true, false);
+        bind(1, deleted, false, true);
+        bind(2, edited, false, false);
         invalidate();
     }
 
@@ -105,12 +105,12 @@ public class PengramMessagePreviewView extends LinearLayout {
                 && cells[1].getMessageObject() != null && cells[2].getMessageObject() != null;
     }
 
-    private void bind(int index, MessageObject messageObject) {
+    private void bind(int index, MessageObject messageObject, boolean bottomNear, boolean topNear) {
         if (cells[index] == null || messageObject == null) {
             return;
         }
         try {
-            cells[index].setMessageObject(messageObject, null, false, false, false);
+            cells[index].setMessageObject(messageObject, null, bottomNear, topNear, false);
             final float alpha = messageObject.pengramDeleted && PengramConfig.isFadingDeleted()
                     ? org.telegram.ui.Cells.ChatMessageCell.PENGRAM_DELETED_ALPHA : 1f;
             cells[index].setAlpha(alpha);
@@ -123,13 +123,16 @@ public class PengramMessagePreviewView extends LinearLayout {
         }
     }
 
-    private MessageObject createMessage(String text, boolean out, int date, int id, boolean deleted, boolean edited) {
+    private MessageObject createMessage(String text, boolean out, int date, int id, boolean deleted, boolean edited, boolean showAvatar) {
         try {
             TLRPC.TL_message message = new TLRPC.TL_message();
             message.message = text;
             message.date = date;
             message.dialog_id = sampleOnly ? SAMPLE_CHAT_ID : 1;
-            message.flags = 259;
+            // Для исходящего примера оставляем unread=false (258), чтобы в живом превью
+            // отображались обе галочки прочтения выбранного стиля.
+            message.flags = out ? 258 : 259;
+            message.unread = !out;
             message.id = id;
             message.media = new TLRPC.TL_messageMediaEmpty();
             message.out = out;
@@ -146,7 +149,7 @@ public class PengramMessagePreviewView extends LinearLayout {
             messageObject.eventId = 1;
             messageObject.pengramDeleted = deleted;
             if (!out) {
-                messageObject.forceAvatar = true;
+                messageObject.forceAvatar = showAvatar;
                 TLRPC.User self = sampleOnly ? null : UserConfig.getInstance(currentAccount).getCurrentUser();
                 messageObject.customName = sampleOnly ? LocaleController.getString(R.string.PengramEditorName)
                         : self != null ? UserObject.getUserName(self) : LocaleController.getString(R.string.AppName);

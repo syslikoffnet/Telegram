@@ -667,6 +667,7 @@
                 <action android:name="org.telegram.android.musicplayer.next" />
                 <action android:name="org.telegram.android.musicplayer.play" />
                 <action android:name="org.telegram.android.musicplayer.previous" />
+                <action android:name="org.telegram.android.musicplayer.pengram_like" />
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
                 <action android:name="android.media.AUDIO_BECOMING_NOISY" />
             </intent-filter>

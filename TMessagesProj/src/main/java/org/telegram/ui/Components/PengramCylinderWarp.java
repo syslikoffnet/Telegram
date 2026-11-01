@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.Build;
+import android.os.SystemClock;
 import android.view.View;
 
 import java.util.WeakHashMap;
@@ -45,8 +46,11 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
     /** Захват контента одной ячейки + снимок трансформаций для классификации инвалидаций. */
     private static final class Capture {
         Bitmap bitmap;
+        Canvas canvas;
         boolean stale = true;
         boolean failed;
+        boolean refreshPosted;
+        long lastCaptureUptime;
         int width, height;
         // снимок трансформаций: отличаем «уехала/проявилась» от «перерисовалась»
         float tx, ty, alpha, sx, sy, rot, pivotX, pivotY;
@@ -75,7 +79,12 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         }
     }
 
+    private static final int MAX_POOL_BITMAPS = 6;
+    /** Avoid full software row snapshots on every display frame on API < 33. */
+    private static final long MIN_CAPTURE_INTERVAL_MS = 33L;
+
     private final WeakHashMap<View, Capture> captures = new WeakHashMap<>();
+    private final java.util.ArrayList<Bitmap> bitmapPool = new java.util.ArrayList<>(MAX_POOL_BITMAPS);
     private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.DITHER_FLAG);
 
     private boolean active;
@@ -98,17 +107,58 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
     /** Полный сброс: выпустить все захваты (вызывается из reset() цилиндра). */
     void clear() {
         for (final Capture capture : captures.values()) {
-            releaseBitmap(capture);
+            if (capture.bitmap != null && !capture.bitmap.isRecycled()) {
+                capture.bitmap.recycle();
+            }
+            capture.bitmap = null;
+            capture.canvas = null;
         }
         captures.clear();
+        for (int i = 0; i < bitmapPool.size(); i++) {
+            final Bitmap bmp = bitmapPool.get(i);
+            if (bmp != null && !bmp.isRecycled()) {
+                bmp.recycle();
+            }
+        }
+        bitmapPool.clear();
         active = false;
     }
 
-    private static void releaseBitmap(Capture capture) {
-        if (capture.bitmap != null && !capture.bitmap.isRecycled()) {
-            capture.bitmap.recycle();
+    private Bitmap obtainBitmap(int w, int h) {
+        final int neededBytes = w * h * 4;
+        for (int i = bitmapPool.size() - 1; i >= 0; i--) {
+            final Bitmap candidate = bitmapPool.get(i);
+            if (candidate == null || candidate.isRecycled()) {
+                bitmapPool.remove(i);
+                continue;
+            }
+            if (candidate.getAllocationByteCount() >= neededBytes) {
+                bitmapPool.remove(i);
+                try {
+                    candidate.reconfigure(w, h, Bitmap.Config.ARGB_8888);
+                    candidate.eraseColor(0);
+                    return candidate;
+                } catch (Throwable ignored) {
+                    candidate.recycle();
+                }
+            }
         }
-        capture.bitmap = null;
+        return Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+    }
+
+    private void releaseBitmap(Capture capture) {
+        if (capture.bitmap != null) {
+            final Bitmap bmp = capture.bitmap;
+            capture.bitmap = null;
+            capture.canvas = null;
+            if (!bmp.isRecycled()) {
+                if (bitmapPool.size() < MAX_POOL_BITMAPS) {
+                    bitmapPool.add(bmp);
+                } else {
+                    bmp.recycle();
+                }
+            }
+        }
     }
 
     @Override
@@ -171,30 +221,52 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         if (capture.failed) {
             return null;
         }
-        if (!capture.stale && capture.bitmap != null && capture.width == w && capture.height == h) {
+        final boolean bitmapMatchesSize = capture.bitmap != null && !capture.bitmap.isRecycled()
+                && capture.width == w && capture.height == h;
+        if (!capture.stale && bitmapMatchesSize) {
             return capture;
+        }
+        if (capture.stale && bitmapMatchesSize) {
+            final long remaining = MIN_CAPTURE_INTERVAL_MS
+                    - (SystemClock.uptimeMillis() - capture.lastCaptureUptime);
+            if (remaining > 0L) {
+                // Keep one-shot invalidations queued without spinning the list at 60/120 Hz.
+                if (!capture.refreshPosted) {
+                    capture.refreshPosted = true;
+                    child.postInvalidateDelayed(remaining);
+                }
+                return capture;
+            }
         }
         try {
             Bitmap surface = capture.bitmap;
             if (surface == null || surface.isRecycled()
                     || surface.getWidth() != w || surface.getHeight() != h) {
-                if (surface != null && !surface.isRecycled()) {
-                    surface.recycle();
+                if (surface != null) {
+                    releaseBitmap(capture);
                 }
-                surface = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                surface = obtainBitmap(w, h);
                 capture.bitmap = surface;
+                capture.canvas = new Canvas(surface);
                 releaseGrid(capture);
             } else {
                 surface.eraseColor(0);
+                if (capture.canvas == null) {
+                    capture.canvas = new Canvas(surface);
+                }
             }
-            final Canvas onto = new Canvas(surface);
+            final Canvas onto = capture.canvas;
+            final int save = onto.save();
             // клип как у штатной отрисовки (setClipBounds держится на RenderNode):
             // медиа/декорации не вылезают за границы ячейки и в захвате
             onto.clipRect(0, 0, w, h);
             child.draw(onto);
+            onto.restoreToCount(save);
             capture.width = w;
             capture.height = h;
+            capture.lastCaptureUptime = SystemClock.uptimeMillis();
             capture.stale = false;
+            capture.refreshPosted = false;
             capture.snapshot(child);
             return capture;
         } catch (Throwable t) {

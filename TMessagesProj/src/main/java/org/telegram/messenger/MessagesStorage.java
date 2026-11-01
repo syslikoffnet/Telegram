@@ -4756,6 +4756,9 @@ public class MessagesStorage extends BaseController {
     }
 
     public void emptyMessagesMedia(long dialogId, ArrayList<Integer> mids) {
+        if (PengramConfig.isKeepingOnceMedia()) {
+            return;
+        }
         storageQueue.postRunnable(() -> {
             SQLiteCursor cursor = null;
             SQLitePreparedStatement state = null;
@@ -14738,9 +14741,8 @@ public class MessagesStorage extends BaseController {
     }
 
     private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
-        // Архив «слежки» пишем только по настройке, но метку «удалено» ставим
-        // всегда, когда сообщение остаётся в чате (локальная копия включена по
-        // умолчанию) — иначе удалённое сообщение выглядит обычным.
+        // Сохраняем только фактические снимки. PengramHistory публикует метку
+        // «удалено» лишь после успешного commit соответствующей записи истории.
         final boolean saveArchive = PengramConfig.isSavingDeleted(currentAccount);
         final boolean keepVisible = PengramLocalKeep.keepDeletedMessages();
         if ((!saveArchive && !keepVisible) || messages == null || messages.isEmpty()) {
@@ -14755,7 +14757,6 @@ public class MessagesStorage extends BaseController {
             } else {
                 cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s)", ids));
             }
-            final LongSparseArray<ArrayList<Integer>> marksByDialog = new LongSparseArray<>();
             while (cursor.next()) {
                 NativeByteBuffer data = cursor.byteBufferValue(0);
                 if (data == null) {
@@ -14766,41 +14767,30 @@ public class MessagesStorage extends BaseController {
                     TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                     if (message != null) {
                         message.readAttachPath(data, selfId);
-                        if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
+                        if (did == selfId && !PengramHistory.isSaveForMyself(currentAccount, did, message.id)) {
                             continue; // «Избранное» — там ничего не пропадает
                         }
-                        if (!PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)
-                                || PengramHistory.isUserDeleted(message.id)) continue;
+                        if (PengramHistory.isUserDeleted(currentAccount, did, message.id)) continue;
+                        final boolean archivable = PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED);
                         final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
-                        final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
-                        final boolean archived = saveArchive
+                        final boolean forceSave = PengramHistory.isSaveForMyself(currentAccount, did, message.id);
+                        final boolean archived = saveArchive && archivable
                                 && !(!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did))
                                 && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave);
                         if (archived || keepVisible) {
-                            final String text = PengramHistory.describe(message);
-                            // Сначала переносим голосовое во внутреннее постоянное хранилище и
-                            // обновляем attachPath, затем сериализуем сообщение в историю.
-                            if (archived) pengramSaveDeletedMedia(did, message);
-                            PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
-                                    PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                            if (archivable) {
+                                final String text = PengramHistory.describe(message);
+                                // Сначала переносим голосовое во внутреннее постоянное хранилище и
+                                // обновляем attachPath, затем сериализуем сообщение в историю.
+                                if (archived) pengramSaveDeletedMedia(did, message);
+                                PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
+                                        PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                            }
                         }
-                        if (!archived && !keepVisible) {
-                            // ни в архив, ни в чате не остаётся — метка не нужна
-                            continue;
-                        }
-                        ArrayList<Integer> marks = marksByDialog.get(did);
-                        if (marks == null) {
-                            marks = new ArrayList<>();
-                            marksByDialog.put(did, marks);
-                        }
-                        marks.add(message.id);
                     }
                 } finally {
                     data.reuse();
                 }
-            }
-            for (int a = 0; a < marksByDialog.size(); ++a) {
-                PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a), marksByDialog.valueAt(a));
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14884,7 +14874,7 @@ public class MessagesStorage extends BaseController {
 
                 pengramSaveDeleted(dialogId, messages);
 
-                if (currentUser != dialogId && PengramHistory.keepInChat(currentAccount, messages)) {
+                if (currentUser != dialogId && PengramHistory.keepInChat(currentAccount, dialogId, messages)) {
                     // Pengram: сообщение остаётся в базе и в чате, мы только помечаем его удалённым
                     return dialogsIds;
                 }

@@ -2024,6 +2024,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
     }
 
     public void sendScreenshotMessage(TLRPC.User user, int messageId, TLRPC.Message resendMessage) {
+        if (PengramConfig.isNoScreenshotNotify()) {
+            return;
+        }
         if (user == null || messageId == 0 || user.id == getUserConfig().getClientUserId()) {
             return;
         }
@@ -2337,6 +2340,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
         // Pengram: трек уходит как самостоятельный файл — без строки «переслано от»
         // и без подписи, которая была у него в исходном чате.
+        if (scheduleDate == 0 && peer != 0) {
+            getMessagesController().pengramMarkDialogReadOnReply(peer, replyToTopMsg != null ? replyToTopMsg.getId() : 0L, monoForumPeerId);
+        }
         final boolean pengramCleanMusic = pengramOnlyMusic(messages);
         final boolean forwardFromMyName = forwardFromMyNameArg || pengramCleanMusic;
         final boolean hideCaption = hideCaptionArg || pengramCleanMusic;
@@ -4598,6 +4604,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         }
         if (peer == 0) {
             return;
+        }
+        if (scheduleDate == 0 && retryMessageObject == null && quick_reply_shortcut == null && quick_reply_shortcut_id == 0) {
+            getMessagesController().pengramMarkDialogReadOnReply(peer, replyToTopMsg != null ? replyToTopMsg.getId() : 0L, sendMessageParams.monoForumPeer);
         }
 
         // Pengram: автоматический стиль отправляемого текста

@@ -281,13 +281,11 @@ public class HintDialogCell extends FrameLayout {
             } else if (showOnlineProgress != 0) {
                 int top = AndroidUtilities.dp(53);
                 int left = AndroidUtilities.dp(59);
-                canvas.save();
-                canvas.scale(showOnlineProgress, showOnlineProgress, left, top);
-                Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(backgroundColorKey));
-                canvas.drawCircle(left, top, AndroidUtilities.dp(7), Theme.dialogs_onlineCirclePaint);
-                Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_chats_onlineCircle));
-                canvas.drawCircle(left, top, AndroidUtilities.dp(5), Theme.dialogs_onlineCirclePaint);
-                canvas.restore();
+                org.telegram.ui.Components.PengramStatusIndicators.drawOnlineBadge(
+                        canvas, left, top, showOnlineProgress,
+                        Theme.getColor(backgroundColorKey),
+                        Theme.getColor(Theme.key_chats_onlineCircle)
+                );
             }
             wasDraw = true;
         }

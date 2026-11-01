@@ -942,7 +942,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public AvatarImageView(Context context) {
             super(context);
             setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            imageReceiver.setPengramAvatar(true);
             foregroundImageReceiver = new ImageReceiver(this);
+            foregroundImageReceiver.setPengramAvatar(true);
             placeholderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             placeholderPaint.setColor(Color.BLACK);
         }
@@ -1087,7 +1089,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (r > 0) {
                 clipPath.rewind();
                 AndroidUtilities.rectTmp.set(inset, inset, thisWidth - inset, thisHeight - inset);
-                clipPath.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
+                if (org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
+                    final float minDim = Math.min(AndroidUtilities.rectTmp.width(), AndroidUtilities.rectTmp.height());
+                    final float morph = minDim > 0f ? Math.min(1f, r / Math.max(1f, minDim * 0.5f)) : 1f;
+                    org.telegram.ui.Components.PengramAvatarShape.buildPath(clipPath, AndroidUtilities.rectTmp, morph);
+                } else {
+                    clipPath.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
+                }
                 canvas.clipPath(clipPath);
             }
 
@@ -5085,12 +5093,68 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         return false;
                     }
                     try {
-                        AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
-                        BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        final String primaryId = pengramFormatPeerId(peerId);
+                        final String link = pengramPeerLink(peerId);
+                        final ItemOptions opts = ItemOptions.makeOptions(ProfileActivity.this, view);
+                        opts.add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy) + ": " + primaryId, () -> {
+                            AndroidUtilities.addToClipboard(primaryId);
+                            BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                        });
+                        if (chatId != 0 && userId == 0) {
+                            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+                            final boolean isChannel = chat != null && ChatObject.isChannel(chat);
+                            final String altId = PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT
+                                    ? String.valueOf(peerId)
+                                    : (isChannel ? ("-100" + peerId) : ("-" + peerId));
+                            if (!TextUtils.equals(primaryId, altId)) {
+                                final String altLabel = PengramConfig.getIdFormat() == PengramConfig.ID_FORMAT_BOT ? "Telegram API: " : "Bot API: ";
+                                opts.add(R.drawable.msg_info, altLabel + altId, () -> {
+                                    AndroidUtilities.addToClipboard(altId);
+                                    BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                                });
+                            }
+                        }
+                        opts.add(R.drawable.msg_link2, LocaleController.getString(R.string.CopyLink), () -> {
+                            AndroidUtilities.addToClipboard(link);
+                            BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        });
+                        int dcId = -1;
+                        if (userId != 0) {
+                            final TLRPC.User u = getMessagesController().getUser(userId);
+                            if (u != null && u.photo != null) dcId = u.photo.dc_id;
+                        } else {
+                            final TLRPC.Chat c = getMessagesController().getChat(chatId);
+                            if (c != null && c.photo != null) dcId = c.photo.dc_id;
+                        }
+                        if (dcId > 0) {
+                            final String dcText = PengramRegDate.formatDc(dcId);
+                            if (!TextUtils.isEmpty(dcText)) {
+                                opts.add(R.drawable.msg2_devices, dcText, () -> {
+                                    AndroidUtilities.addToClipboard(dcText);
+                                    BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.TextCopied), resourcesProvider).show();
+                                });
+                            }
+                        }
+                        opts.show();
                     } catch (Exception e) {
                         FileLog.e(e);
+                        try {
+                            AndroidUtilities.addToClipboard(pengramPeerLink(peerId));
+                            BulletinFactory.of(ProfileActivity.this).createCopyLinkBulletin().show();
+                        } catch (Exception ignore) {
+                        }
                     }
                     return true;
+                } else if (position >= 0 && position == regDateRow && userId != 0) {
+                    final long estimate = PengramRegDate.estimate(userId);
+                    if (estimate > 0) {
+                        pengramRegDateUserId = userId;
+                        final String regCopy = pengramRegDateText(estimate);
+                        AndroidUtilities.addToClipboard(regCopy);
+                        BulletinFactory.of(ProfileActivity.this).createCopyBulletin(LocaleController.getString(R.string.TextCopied), resourcesProvider).show();
+                        return true;
+                    }
+                    return false;
                 } else if (position == birthdayRow) {
                     if (editRow(view, position)) return true;
                     if (userInfo == null) return false;
@@ -5633,10 +5697,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 nameTextView[a].setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             nameTextView[a].setFocusable(a == 0);
-            // Pengram: жест по имени показывает вторую известную версию имени
-            if (a == 1) {
-                org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
-            }
+            // Pengram: жест по имени показывает настоящее имя контакта в Telegram
+            org.telegram.messenger.PengramOriginalName.attach(nameTextView[a], this::pengramToggleOriginalName);
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
@@ -6101,13 +6163,23 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return dp(152f);
     }
 
+    private int getPillsExtraHeightDp() {
+        if (!hasMusic && !hasBalance) {
+            return 0;
+        }
+        if (hasMusic && org.telegram.messenger.PengramConfig.isClassicProfileMusic()) {
+            return hasBalance ? 66 : 42;
+        }
+        return 25;
+    }
+
     private int getActionsExtraHeight() {
         return getActionsExtraHeight(true);
     }
     private int getActionsExtraHeight(boolean withPills) {
         if (userId != 0 && imageUpdater != null && !myProfile)
             return 0;
-        return dp(74 + (withPills && (hasMusic || hasBalance) ? 25 : 0));
+        return dp(74 + (withPills ? getPillsExtraHeightDp() : 0));
     }
 
     private int getHeaderExtraHeight() {
@@ -7653,6 +7725,21 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (editRow(view, position)) return true;
 
             final TLRPC.User user = getMessagesController().getUser(userId);
+            final boolean hiddenPhoneWithInlineId = position == phoneRow
+                    && user != null
+                    && usernameRow == -1 && setUsernameRow == -1 && idRow == -1
+                    && PengramConfig.isIdVisible() && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE
+                    && (TextUtils.isEmpty(user.phone) && TextUtils.isEmpty(vcardPhone)
+                        || (UserObject.isUserSelf(user) && PengramConfig.isHidingPhoneNumber()));
+            if (hiddenPhoneWithInlineId) {
+                try {
+                    AndroidUtilities.addToClipboard(pengramFormatPeerId(userId));
+                    BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.PengramIdCopied), resourcesProvider).show();
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+                return true;
+            }
             if (user == null || user.phone == null || user.phone.length() == 0 || getParentActivity() == null) {
                 return false;
             }
@@ -9808,6 +9895,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
+        if (musicView != null) {
+            musicView.requestLayout();
+            musicView.invalidate();
+        }
         invalidateIsInLandscapeMode();
         if (listAdapter != null) {
             // saveScrollPosition();
@@ -10981,7 +11072,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
-                if (user != null && PengramConfig.isIdSeparateRow()) {
+                final boolean inlineIdWithoutAnchor = user != null
+                        && PengramConfig.isIdVisible()
+                        && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE
+                        && usernameRow == -1
+                        && phoneRow == -1;
+                if (user != null && (PengramConfig.isIdSeparateRow() || inlineIdWithoutAnchor)) {
                     idRow = rowCount++;
                 }
                 // значок живёт в строке ID, строка — по настройке «где показывать»
@@ -11115,6 +11211,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
             usernameRow = rowCount++;
+            if (currentChat != null && PengramConfig.isIdSeparateRow()) {
+                idRow = rowCount++;
+            }
             if (actionsView == null) {
                 notificationsSimpleRow = rowCount++;
             }
@@ -11126,7 +11225,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 sharedMediaRow = rowCount++;
             }
         } else if (chatId != 0) {
-            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat)) {
+            final boolean chatInlineIdFallback = currentChat != null
+                    && !ChatObject.isPublic(currentChat)
+                    && PengramConfig.isIdVisible()
+                    && PengramConfig.getIdStyle() == PengramConfig.ID_STYLE_INLINE;
+            final boolean hasPengramChatRows = currentChat != null
+                    && (PengramConfig.isIdSeparateRow() || chatInlineIdFallback || PengramConfig.isHistoryRowVisible());
+            if (chatInfo != null && (!TextUtils.isEmpty(chatInfo.about) || chatInfo.location instanceof TLRPC.TL_channelLocation) || ChatObject.isPublic(currentChat) || hasPengramChatRows) {
                 if (emptyRow < 0 && emptyRow2 < 0) {
                     if (hasMusic || hasBalance || peerColor != null || actionsView == null) {
                         emptyRow2 = rowCount++;
@@ -11149,7 +11254,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (ChatObject.isPublic(currentChat)) {
                     usernameRow = rowCount++;
                 }
-                if (currentChat != null && PengramConfig.isIdSeparateRow()) {
+                if (currentChat != null && (PengramConfig.isIdSeparateRow() || chatInlineIdFallback)) {
                     idRow = rowCount++;
                 }
                 if (currentChat != null && PengramConfig.isHistoryRowVisible()) {
@@ -11504,7 +11609,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             actionsView.updatePosition(listView.getMeasuredWidth(), dp(74));
         } else {
             actionsView.clipHeight = -1;
-            float bottom = extraHeight + newTop - dp(hasMusic || hasBalance ? 25 : 0);
+            float bottom = extraHeight + newTop - dp(getPillsExtraHeightDp());
             float height = Math.min(dp(74), bottom - newTop);
             actionsView.updatePosition(bottom - height, height);
         }
@@ -11551,18 +11656,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     private MessagesController.PeerColor peerColor;
 
-    /** показано ли сейчас «второе» имя вместо обычного */
+    /** показано ли сейчас настоящее имя в Telegram вместо контактного */
     private boolean pengramOriginalNameShown;
+    private String pengramOriginalNameValue;
 
     /**
-     * Жест по имени: показать, как человека видят остальные, и вернуть вашу
-     * запись обратно. Ни диалогов, ни ограничений на число проверок: экран
-     * сначала показывает то, что уже известно, и только потом, если запись
-     * устарела, тихо перечитывает публичную страницу профиля.
+     * Жест по имени: визуально показать настоящее имя человека в Telegram и
+     * вернуть вашу запись обратно по повторному жесту или при выходе с экрана.
      */
     private void pengramToggleOriginalName() {
         final TLRPC.User user = userId != 0 ? getMessagesController().getUser(userId) : null;
-        if (user == null || nameTextView[1] == null) {
+        if (user == null || user.self || user.bot || nameTextView[1] == null) {
             return;
         }
         if (pengramOriginalNameShown) {
@@ -11571,7 +11675,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         final int seq = ++pengramNameCheckSeq;
         final int account = currentAccount;
-        // история профилей живёт в SQLite — ищем в фоне, чтобы не дёргать интерфейс
         org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
             final org.telegram.messenger.PengramOriginalName.Result cached =
                     org.telegram.messenger.PengramOriginalName.other(account, user);
@@ -11583,17 +11686,22 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (cached != null) {
                     pengramShowOriginalName(cached, seq);
                 } else if (!refresh) {
-                    // узнать неоткуда: у человека нет публичной страницы, а
-                    // других источников для этого профиля нет
+                    final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+                    for (int a = 0; a < 2; a++) {
+                        if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameNothing)).show();
                 } else {
+                    final int dir = org.telegram.messenger.PengramOriginalName.peekDirection(1);
+                    for (int a = 0; a < 2; a++) {
+                        if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
+                    }
                     BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
                             getString(R.string.PengramOriginalNameProbing)).show();
                 }
             });
             if (!refresh) {
-                // известно всё, что можно знать: повторный жест не стоит запроса
                 return;
             }
             org.telegram.messenger.PengramOriginalName.refresh(account, user, result ->
@@ -11602,7 +11710,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             return;
                         }
                         if (result != null) {
-                            if (cached == null || !result.name.equalsIgnoreCase(cached.name)) {
+                            if (cached == null || !result.name.equals(cached.name) || result.sameAsShown != cached.sameAsShown) {
                                 pengramShowOriginalName(result, seq);
                             }
                             return;
@@ -11620,23 +11728,34 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private Runnable pengramOriginalNameHideRunnable;
 
     private void pengramShowOriginalName(org.telegram.messenger.PengramOriginalName.Result other, int seq) {
-        if (nameTextView[1] == null || other == null) {
+        if (nameTextView[1] == null || other == null || TextUtils.isEmpty(other.name)) {
             return;
         }
-        pengramOriginalNameShown = true;
-        nameTextView[1].setText(other.name);
-        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
-                getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
         if (pengramOriginalNameHideRunnable != null) {
             AndroidUtilities.cancelRunOnUIThread(pengramOriginalNameHideRunnable);
-        }
-        pengramOriginalNameHideRunnable = () -> {
             pengramOriginalNameHideRunnable = null;
-            if (seq == pengramNameCheckSeq) {
-                pengramHideOriginalName();
+        }
+        if (other.sameAsShown) {
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramNudge(dir);
             }
-        };
-        AndroidUtilities.runOnUIThread(pengramOriginalNameHideRunnable, 6000);
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                    LocaleController.formatString(R.string.PengramOriginalNameSame, other.name)).show();
+            return;
+        }
+        final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(1);
+        for (int a = 0; a < 2; a++) {
+            if (nameTextView[a] != null) nameTextView[a].pengramPrepareSwap(dir);
+        }
+        pengramOriginalNameShown = true;
+        pengramOriginalNameValue = other.name;
+        updateProfileData(false);
+        for (int a = 0; a < 2; a++) {
+            if (nameTextView[a] != null) nameTextView[a].pengramCommitSwap();
+        }
+        BulletinFactory.of(this).createSimpleBulletin(R.raw.info,
+                getString(org.telegram.messenger.PengramOriginalName.sourceTextRes(other.source))).show();
     }
 
     private void pengramHideOriginalName() {
@@ -11646,8 +11765,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         pengramNameCheckSeq++;
         if (pengramOriginalNameShown) {
+            final int dir = org.telegram.messenger.PengramOriginalName.consumeDirection(-1);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramPrepareSwap(dir);
+            }
             pengramOriginalNameShown = false;
+            pengramOriginalNameValue = null;
             updateProfileData(false);
+            for (int a = 0; a < 2; a++) {
+                if (nameTextView[a] != null) nameTextView[a].pengramCommitSwap();
+            }
         }
     }
 
@@ -11757,7 +11884,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 getFileLoader().loadFile(imageLocation, user, null, FileLoader.PRIORITY_LOW, 1);
             }
 
-            CharSequence newString = UserObject.getUserName(user);
+            CharSequence newString = pengramOriginalNameShown && !TextUtils.isEmpty(pengramOriginalNameValue)
+                    ? pengramOriginalNameValue
+                    : UserObject.getUserName(user);
             String newString2;
             boolean hiddenStatusButton = false;
             if (user.id == getUserConfig().getClientUserId()) {
@@ -13914,10 +14043,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         if (label == null) {
                             label = "ID";
                         }
-                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, regDateRow != -1);
+                        detailCell.setTextAndValue(pengramFormatPeerId(peerId), label, pengramNeedDetailDivider(position));
                         detailCell.setContentDescriptionValueFirst(true);
-                        // календарик с приблизительной датой регистрации — прямо в строке ID
-                        final long regEstimate = userId != 0 && PengramConfig.isRegDateIconVisible() ? PengramRegDate.estimate(userId) : 0;
+                        // Значок даты регистрации на строке ID рисуется ТОЛЬКО когда нет отдельной строки под дату,
+                        // чтобы один и тот же значок никогда не дублировался в двух строках подряд.
+                        final long regEstimate = regDateRow == -1 && userId != 0 && PengramConfig.isRegDateIconVisible()
+                                ? PengramRegDate.estimate(userId) : 0;
                         if (regEstimate > 0) {
                             Drawable calendarDrawable = pengramRegDateDrawable(detailCell.getContext());
                             if (calendarDrawable != null) {
@@ -13933,7 +14064,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         final long estimate = PengramRegDate.estimate(userId);
                         pengramRegDateUserId = userId;
                         final String text = pengramRegDateText(estimate);
-                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), bioRow != -1 || birthdayRow != -1 || pengramHistoryRow != -1);
+                        detailCell.setTextAndValue(text, LocaleController.getString(R.string.PengramRegDate), pengramNeedDetailDivider(position));
                         detailCell.setContentDescriptionValueFirst(true);
                         Drawable calendar = pengramRegDateDrawable(detailCell.getContext());
                         if (calendar != null) {
@@ -13962,7 +14093,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             phoneNumber = null;
                         }
                         isFragmentPhoneNumber = phoneNumber != null && phoneNumber.matches("888\\d{8}");
-                        detailCell.setTextAndValue(text, LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile), false);
+                        CharSequence phoneLabel = LocaleController.getString(isFragmentPhoneNumber ? R.string.AnonymousNumber : R.string.PhoneMobile);
+                        if (usernameRow == -1 && setUsernameRow == -1 && idRow == -1) {
+                            phoneLabel = appendInlineId(phoneLabel);
+                        }
+                        detailCell.setTextAndValue(text, phoneLabel, pengramNeedDetailDivider(position));
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -14039,7 +14174,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             value = "";
                             usernames = new ArrayList<>();
                         }
-                        detailCell.setTextAndValue(text, appendInlineId(alsoUsernamesString(username, usernames, value)), infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0);
+                        detailCell.setTextAndValue(text, appendInlineId(alsoUsernamesString(username, usernames, value)),
+                                pengramNeedDetailDivider(position) || (infoEndRowEmpty == -1 && (isTopic || bizHoursRow != -1 || bizLocationRow != -1) && birthdayRow < 0));
                     } else if (position == locationRow) {
                         if (chatInfo != null && chatInfo.location instanceof TLRPC.TL_channelLocation) {
                             TLRPC.TL_channelLocation location = (TLRPC.TL_channelLocation) chatInfo.location;
@@ -14649,6 +14785,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 case VIEW_TYPE_MUSIC:
                     break;
             }
+        }
+
+        private boolean pengramNeedDetailDivider(int position) {
+            final int next = position + 1;
+            if (next < 0 || next >= rowCount) {
+                return false;
+            }
+            return next == idRow
+                    || next == regDateRow
+                    || next == bioRow
+                    || next == userInfoRow
+                    || next == channelInfoRow
+                    || next == locationRow
+                    || next == usernameRow
+                    || next == setUsernameRow
+                    || next == pengramHistoryRow
+                    || next == birthdayRow
+                    || next == bizHoursRow
+                    || next == bizLocationRow
+                    || next == noteRow
+                    || next == notificationsRow
+                    || next == notificationsSimpleRow
+                    || next == botAppRow;
         }
 
         private CharSequence appendInlineId(CharSequence value) {
@@ -15380,7 +15539,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         all.removeIf(result -> result.guid >= 9000 && result.guid < 10000
                                 && title.equals(result.searchTitle));
                     }
-                    final SearchResult indexed = new SearchResult(generatedId++, title,
+                    final int stableGuid = PengramSearchMetadata.stableId(entry);
+                    final SearchResult indexed = new SearchResult(stableGuid > 0 ? stableGuid : generatedId++, title,
                             PengramSearchMetadata.path(entry), R.drawable.settings_features,
                             () -> PengramSearchMetadata.open(f, entry));
                     indexed.pengramEntry = entry;

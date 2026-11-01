@@ -16,6 +16,7 @@
 import os
 import re
 import sys
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "TMessagesProj/src/main/java/org/telegram/ui/PengramSettingsActivity.java")
@@ -38,6 +39,8 @@ FILL_TO_SECTION = {
     "fillChatMessages": "SECTION_CHAT_MESSAGES",
     "fillTyping": "SECTION_TYPING",
     "fillQuotes": "SECTION_QUOTES",
+    "fillLinkAssistant": "SECTION_LINK_ASSISTANT",
+    "fillInputTools": "SECTION_INPUT_TOOLS",
     "fillMediaTime": "SECTION_CHAT_MESSAGES",
     "fillChatInterface": "SECTION_CHAT_INTERFACE",
     "fillChatMenus": "SECTION_CHAT_MENUS",
@@ -172,15 +175,29 @@ def main():
                 return 'R.string.' + name + suffix
         return '0'
 
-    body = "\n".join(
-        "            {R.string.%s, PengramSettingsActivity.%s, %s, 0, %s}," % (name, sec,
-            "R.string." + header if header and header != name else "0", description(name))
+    all_rows = [
+        (name, sec, header if header and header != name else None, 0)
         for name, sec, header in entries
-    )
-    body += "\n" + "\n".join(
-        "            {R.string.%s, PengramSettingsActivity.%s, R.string.%s, %d, %s}," %
-        (name, sec, group, external_screen, description(name))
+    ] + [
+        (name, sec, group, external_screen)
         for name, sec, group, external_screen in external if (name, sec) not in seen
+    ]
+
+    ids = []
+    for name, sec, _, external_screen in all_rows:
+        raw = zlib.crc32(("%s:%s:%d" % (name, sec, external_screen)).encode("utf-8")) & 0x3FFFFFFF
+        ids.append(0x10000000 | raw)
+    if len(set(ids)) != len(ids):
+        raise SystemExit("CRC32 collision in PengramSearchIndex.IDS")
+
+    body = "\n".join(
+        "            {R.string.%s, PengramSettingsActivity.%s, %s, %d, %s}," % (
+            name, sec, "R.string." + group if group else "0", external_screen, description(name))
+        for name, sec, group, external_screen in all_rows
+    )
+    ids_body = "\n".join(
+        "            0x%08x, // %s (%s)" % (stable_id, name, sec)
+        for stable_id, (name, sec, _, _) in zip(ids, all_rows)
     )
     out = """package org.telegram.ui;
 
@@ -201,12 +218,17 @@ public final class PengramSearchIndex {
     public static final int[][] ITEMS = {
 %s
     };
+
+    /** Стабильные идентификаторы переходов (не зависят от aapt2 R.string и порядка строк). */
+    public static final int[] IDS = {
+%s
+    };
 }
-""" % body
+""" % (body, ids_body)
 
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(out)
-    print("записано %d пунктов в %s" % (len(entries) + sum((name, sec) not in seen for name, sec, _, _ in external), os.path.relpath(OUT, ROOT)))
+    print("записано %d пунктов в %s" % (len(all_rows), os.path.relpath(OUT, ROOT)))
     return 0
 
 

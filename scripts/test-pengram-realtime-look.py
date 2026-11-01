@@ -45,9 +45,9 @@ assert 'chatListView.invalidateViews();' in chat
 resume = chat.split('public void onResume()')[1].split('activityResumeTime')[0]
 assert 'pengramCheckMarksSettings();' in resume
 
-# --- 3. «всегда спрашивать чат» больше не мёртвый переключатель -------------
-assert 'items.add(check(PengramConfig.KEY_RESEND_ASK_CHAT' in settings
-assert 'PengramConfig.isResendAskChat()' in chat
+# --- 3. отправка удалённых/одноразовых копией всегда включена без лишних тумблеров ---
+assert 'KEY_RESEND_ONCE' not in settings and 'KEY_RESEND_ASK_CHAT' not in settings
+assert 'OPTION_PENGRAM_RESEND_TO' in chat
 assert 'pengramResendToChat(selectedObject);' in chat
 
 # --- 4. плитка «удалённые»: геттер, профиль аккаунта и мгновенное обновление -

@@ -751,7 +751,24 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                 child.getY() + child.getHeight() / 2f,
                 child.getHeight());
         }
-        return super.drawChild(canvas, child, drawingTime);
+        final boolean res = super.drawChild(canvas, child, drawingTime);
+        if (child == avatarImageView && !selfAsSavedMessages && currentObject instanceof TLRPC.User) {
+            final TLRPC.User u = (TLRPC.User) currentObject;
+            if (!u.bot && !u.self && !MessagesController.isSupportUser(u)) {
+                final boolean online = (u.status != null && u.status.expires > ConnectionsManager.getInstance(currentAccount).getCurrentTime())
+                        || MessagesController.getInstance(currentAccount).onlinePrivacy.containsKey(u.id);
+                if (online) {
+                    final float bx = LocaleController.isRTL ? child.getX() + dp(6) : child.getX() + child.getWidth() - dp(6);
+                    final float by = child.getY() + child.getHeight() - dp(6);
+                    org.telegram.ui.Components.PengramStatusIndicators.drawOnlineBadge(
+                            canvas, bx, by, 1f,
+                            Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
+                            Theme.getColor(Theme.key_chats_onlineCircle, resourcesProvider)
+                    );
+                }
+            }
+        }
+        return res;
     }
 
     @Override
