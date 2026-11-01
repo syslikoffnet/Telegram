@@ -620,28 +620,20 @@ public class UserConfig extends BaseController {
      * сохранял его на диск. Подделка после этого жила своей жизнью: переживала
      * перезапуск, оставалась после выключения тумблера и выглядела для всего
      * остального кода как настоящая подписка. Теперь флаг в объекте не трогаем
-     * вовсе — звёздочку рисует отдельная проверка при отрисовке, — а здесь
-     * только чиним то, что успели испортить прежние версии, и просим интерфейс
-     * перерисоваться.
+     * вовсе — звёздочку рисует отдельная проверка при отрисовке. Старый маркер
+     * не позволяет отличить прежнюю подделку от настоящего Premium, поэтому
+     * миграция удаляет только этот маркер и никогда не переписывает подписку.
      */
     public void pengramApplyLocalPremiumStatus() {
         final TLRPC.User user = currentUser;
         if (user == null) {
             return;
         }
-        boolean repaired = false;
         if (PengramConfig.getBool("localPremiumStatusApplied", false)) {
-            // наследство старых сборок: снимаем подделку с сохранённого профиля
-            if (user.premium) {
-                user.premium = false;
-                saveConfig(true);
-                repaired = true;
-            }
-            final TLRPC.User cached = MessagesController.getInstance(currentAccount).getUser(user.id);
-            if (cached != null && cached != user && cached.premium) {
-                cached.premium = false;
-                repaired = true;
-            }
+            // Старые версии меняли user.premium напрямую. Этот бит не говорит,
+            // была ли подписка настоящей, поэтому невозможно безопасно вывести
+            // premium=false из его наличия. Снимаем только устаревшую миграционную
+            // метку; состояние подписки оставляем серверному UserFull/user-обновлению.
             PengramConfig.setBool("localPremiumStatusApplied", false);
         }
         // локальный эмодзи-статус: при включённой фиче — накладываем заново,
@@ -652,9 +644,6 @@ public class UserConfig extends BaseController {
             if (statusBefore != (currentUser.emoji_status != null)) {
                 NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.userEmojiStatusUpdated, currentUser);
             }
-        }
-        if (repaired) {
-            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.currentUserPremiumStatusChanged);
         }
         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.mainUserInfoChanged);
         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_NAME | MessagesController.UPDATE_MASK_AVATAR | MessagesController.UPDATE_MASK_STATUS | MessagesController.UPDATE_MASK_EMOJI_STATUS);

@@ -40,6 +40,24 @@ public final class PengramLocalKeep {
 
     public static void setEnabled(boolean value) {
         PengramConfig.setBool(KEY_ENABLED, value);
+        if (value) {
+            return;
+        }
+        // При выключении локального сохранения снимаем и временный сетевой
+        // стоп для отозванных аккаунтов. Серверный logout после возобновления
+        // теперь пойдёт обычным путём, без зависшего статуса «офлайн».
+        final java.util.ArrayList<Integer> resume = new java.util.ArrayList<>();
+        synchronized (localOnly) {
+            resume.addAll(localOnly);
+            localOnly.clear();
+        }
+        for (int i = 0; i < resume.size(); i++) {
+            try {
+                org.telegram.tgnet.ConnectionsManager.native_resumeNetwork(resume.get(i), false);
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+        }
     }
 
     /** чат остаётся в списке, даже если сервер считает, что мы не участники */

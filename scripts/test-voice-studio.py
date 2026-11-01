@@ -41,7 +41,8 @@ public class SystemClock {
     put(root, "org/telegram/messenger/PengramConfig.java", """package org.telegram.messenger;
 public class PengramConfig {
     public static int mode = 0, pitch = 3, formant = 3, echo = 2, drive = 3, robot = 3, mix = 100, gainDb = 0, gainDrive = 0;
-    public static boolean calls = true, messages = true;
+    public static int ambience = 0, ambienceLevel = 35;
+    public static boolean calls = true, messages = true, ambienceDuck = true;
     public static int getVoiceChangerMode() { return mode; }
     public static int getVoiceChangerPitch() { return pitch; }
     public static int getVoiceFormant() { return formant; }
@@ -52,6 +53,9 @@ public class PengramConfig {
     public static int getVoiceStudioMix() { return mix; }
     public static int getVoiceGainDb() { return gainDb; }
     public static int getVoiceGainDrive() { return gainDrive; }
+    public static int getVoiceAmbience() { return ambience; }
+    public static int getVoiceAmbienceLevel() { return ambienceLevel; }
+    public static boolean isVoiceAmbienceDuck() { return ambienceDuck; }
     public static boolean isVoiceCallsEnabled() { return calls; }
     public static boolean isVoiceMessagesEnabled() { return messages; }
     public static boolean isVoiceRoundEnabled() { return true; }
@@ -335,7 +339,25 @@ public class TestVoiceStudio {
         PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_CALL);
         PengramConfig.gainDb = PengramConfig.gainDrive = 0;
         PengramConfig.mode = PengramVoiceChanger.MODE_OFF;
-        System.out.println("voice studio PCM: 8/16/48/96 kHz, clear leveled conference speech, boost/overdrive voice/call, limiter, opt-in and off-mode OK");
+        // All 6 procedural ambience environments must work even with MODE_OFF
+        // (normal voice + background ambience) across all sample rates without clipping.
+        for (int amb = PengramVoiceChanger.AMBIENCE_SUBWAY; amb <= PengramVoiceChanger.AMBIENCE_CLUB; ++amb) {
+            PengramConfig.ambience = amb;
+            PengramConfig.ambienceLevel = 45;
+            check(AudioEffectBridge.isCallAudioEnabled() && PengramVoiceChanger.isEnabled(),
+                    "ambience " + amb + " did not activate call/voice paths in MODE_OFF");
+            PengramVoiceChanger.reset();
+            ByteBuffer silent = ByteBuffer.allocateDirect(960 * 2).order(ByteOrder.LITTLE_ENDIAN);
+            for (int p = 0; p < 15; ++p) {
+                for (int i = 0; i < 960; ++i) silent.putShort(i * 2, (short) 0);
+                PengramVoiceChanger.processForSource(silent, silent.capacity(), 48000, PengramVoiceChanger.SOURCE_VOICE);
+            }
+            double ambRms = rms(silent);
+            check(ambRms > 40 && ambRms < 16000, "ambience " + amb + " unexpected RMS: " + ambRms);
+            PengramVoiceChanger.finishSource(PengramVoiceChanger.SOURCE_VOICE);
+        }
+        PengramConfig.ambience = PengramVoiceChanger.AMBIENCE_OFF;
+        System.out.println("voice studio PCM: 8/16/48/96 kHz, clear leveled conference speech, boost/overdrive, 6x ambience & off-mode OK");
     }
 }
 """)

@@ -39,7 +39,7 @@ def main():
         'сигнатура старта не обновлена'
 
     # 2. Порядок на странице: guard + purge строго ДО серверного удаления
-    guard_idx = chat.index('PengramHistory.guardUserDeleted(ids);', chat.index('pengramDeleteMyMessagesPage'))
+    guard_idx = chat.index('PengramHistory.guardUserDeleted(getCurrentAccount(), getDialogId(), ids);', chat.index('pengramDeleteMyMessagesPage'))
     purge_idx = chat.index('PengramHistory.purgeMessages(getCurrentAccount(), getDialogId(), ids);')
     delete_idx = chat.index('getMessagesController().deleteMessages(ids, null, null, getDialogId(), 0, true, 0);')
     assert guard_idx < delete_idx, 'guard должен стоять до deleteMessages'
@@ -75,15 +75,15 @@ def main():
     assert 'invalidateCounts(dialogId)' in after, 'счётчики истории не сброшены'
     assert 'notifyChanged()' in after, 'слушателей истории нужно уведомить'
     # запись при прежнем режиме не задета, все пути записи под гардом
-    assert 'if (message == null || isUserDeleted(message.id)) continue;' in hist, \
+    assert 'if (message == null || isUserDeleted(account, dialogId, message.id)) continue;' in hist, \
         'guard записи в saveSavedBatch потерян'
-    assert '|| isUserDeleted(messageId)) return;' in hist, 'guard enqueueSave потерян'
-    assert 'if (isUserDeleted(messageId)) return;' in hist, 'guard save() потерян'
-    assert 'if (!isArchivableSnapshot(dialogId, message, ACTION_DELETED) || isUserDeleted(message.id)) return;' in hist, \
+    assert '|| isUserDeleted(account, dialogId, messageId)) return;' in hist, 'guard enqueueSave потерян'
+    assert 'if (isUserDeleted(account, dialogId, messageId)) return;' in hist, 'guard save() потерян'
+    assert 'if (!isArchivableSnapshot(dialogId, message, ACTION_DELETED) || isUserDeleted(account, dialogId, message.id)) return;' in hist, \
         'guard saveDeletedSnapshot потерян'
-    assert 'if (isUserDeleted(id)) return;' in hist, 'guard publishDeletedMark потерян'
+    assert 'if (isUserDeleted(account, dialogId, id)) return;' in hist, 'guard publishDeletedMark потерян'
     storage = read('TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java')
-    assert 'PengramHistory.isUserDeleted(message.id)) continue;' in storage, \
+    assert 'PengramHistory.isUserDeleted(currentAccount, did, message.id)) continue;' in storage, \
         'guard в pengramSaveDeleted (удалённые + их медиа) потерян'
 
     # 4. Строки EN/RU уникальны, с формулировкой из задачи
@@ -98,9 +98,10 @@ def main():
 
     # 5. Обычный путь удаления с «сохранить у себя» не тронут
     alerts = read('TMessagesProj/src/main/java/org/telegram/ui/Components/AlertsCreator.java')
-    assert 'PengramHistory.guardSaveForMyself(ids);' in alerts, \
-        'прецедент guardSaveForMyself в основном диалоге должен остаться'
-    assert 'PengramHistory.guardUserDeleted(ids);' in alerts
+    assert 'PengramHistory.guardSaveForMyself(currentAccount, thisDialogId, ids);' in alerts, \
+        'прецедент scoped guardSaveForMyself в основном диалоге должен остаться'
+    assert 'PengramHistory.guardUserDeleted(currentAccount, thisDialogId, ids);' in alerts
+    assert 'PengramHistory.guardSaveForMyself(currentAccount, targetDialogId, ids);' in alerts
 
     print('OK: опция «удалить не сохраняя локально» — чекбокс, guard+purge до delete, '
           'purge чистит history+pending_edits транзакционно, строки EN/RU на месте')

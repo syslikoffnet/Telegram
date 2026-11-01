@@ -3152,6 +3152,19 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
             invalidate();
         } else if (drawCheck2) {
+            if (org.telegram.ui.Components.PengramStatusIndicators.useCustomCheckmarks()) {
+                final int sentColor = Theme.getColor(Theme.key_chats_sentCheck, resourcesProvider);
+                final int readColor = Theme.getColor(Theme.key_chats_sentReadCheck, resourcesProvider);
+                final float boxLeft = drawCheck1 ? checkDrawLeft - dp(2) : checkDrawLeft1 - dp(3);
+                final float cy = checkDrawTop + Theme.dialogs_checkDrawable.getIntrinsicHeight() * 0.5f;
+                final float readP = drawCheck1 ? (moveCheck ? alpha : 1f) : 0f;
+                final float totalAlpha = moveCheck ? 1f : alpha;
+                org.telegram.ui.Components.PengramStatusIndicators.drawMessageChecks(
+                        canvas, boxLeft, cy, sentColor, readColor,
+                        true, drawCheck1, readP, (!moveCheck && alpha != 1f) ? scale : 1f, totalAlpha
+                );
+                return;
+            }
             if (drawCheck1) {
                 setDrawableBounds(Theme.dialogs_halfCheckDrawable, halfCheckDrawLeft, checkDrawTop);
                 if (moveCheck) {
@@ -5216,10 +5229,11 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                         left = (int) (storyParams.originalAvatarRect.right - dp(useForceThreeLines || SharedConfig.useThreeLinesLayout ? 10 : 6));
                     }
 
-                    Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
-                    canvas.drawCircle(left, top, dp(7) * onlineProgress, Theme.dialogs_onlineCirclePaint);
-                    Theme.dialogs_onlineCirclePaint.setColor(Theme.getColor(Theme.key_chats_onlineCircle, resourcesProvider));
-                    canvas.drawCircle(left, top, dp(5) * onlineProgress, Theme.dialogs_onlineCirclePaint);
+                    org.telegram.ui.Components.PengramStatusIndicators.drawOnlineBadge(
+                            canvas, left, top, onlineProgress,
+                            Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider),
+                            Theme.getColor(Theme.key_chats_onlineCircle, resourcesProvider)
+                    );
                     if (isOnline) {
                         if (onlineProgress < 1.0f) {
                             onlineProgress += 16f / 150.0f;

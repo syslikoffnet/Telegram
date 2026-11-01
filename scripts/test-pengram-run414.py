@@ -45,7 +45,7 @@ assert 'so in private chats Pengram' not in en
 assert 'поэтому Pengram подклеивает его текст' in ru
 
 # --- 1: цилиндр по умолчанию «сочный» и включён -----------------------------
-assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }' in config
+assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }' in config
 assert 'KEY_CYLINDER_STRENGTH = "cylinderScrollStrength"' in config
 assert 'getIntCached(KEY_CYLINDER_STRENGTH, 100)' in config
 assert 'Math.max(0, Math.min(100, percent))' in config   # границы ползунка
@@ -80,7 +80,7 @@ assert 'PengramConfig.setCylinderScrollStrength(value)' in settings
 assert 'name="PengramCylinderStrength">Сила цилиндра' in ru
 assert 'name="PengramCylinderStrength">Cylinder strength' in en
 assert 'PengramCylinderStrength' in index
-assert 'По умолчанию включён на максимуме' in ru
-assert 'On by default at full strength' in en
+assert 'По умолчанию выключено; при включении сразу ставится самый сочный пресет' in ru
+assert 'Off by default; enabling it immediately activates the juiciest preset' in en
 
 print('run414: ALL OK')

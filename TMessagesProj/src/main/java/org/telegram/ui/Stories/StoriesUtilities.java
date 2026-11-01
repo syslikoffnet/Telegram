@@ -668,6 +668,16 @@ public class StoriesUtilities {
             canvas.drawRoundRect(forumRect, dp(18), dp(18), paint);
             return;
         }
+        if (org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
+            if (params.progressToArc == 0) {
+                forumRect.set(rectTmp);
+                forumRect.inset(dp(0.5f), dp(0.5f));
+                org.telegram.ui.Components.PengramAvatarShape.drawRing(canvas, forumRect, paint);
+            } else {
+                drawSegment(canvas, rectTmp, paint, -90f + params.progressToArc * 0.5f, 270f - params.progressToArc * 0.5f, params, false);
+            }
+            return;
+        }
         if (params.progressToArc == 0) {
             canvas.drawCircle(rectTmp.centerX(), rectTmp.centerY(), rectTmp.width() / 2f, paint);
         } else {
@@ -681,6 +691,23 @@ public class StoriesUtilities {
     private static final Path forumSegmentPath = new Path();
 
     private static void drawSegment(Canvas canvas, RectF rectTmp, Paint paint, float startAngle, float endAngle, AvatarStoryParams params, boolean isForum) {
+        if (!isForum && org.telegram.ui.Components.PengramAvatarShape.isCustomShape()) {
+            forumRoundRectPath.rewind();
+            org.telegram.ui.Components.PengramAvatarShape.buildStoryRingPath(forumRoundRectPath, rectTmp);
+            forumRoundRectPathMeasure.setPath(forumRoundRectPath, false);
+            final float length = forumRoundRectPathMeasure.getLength();
+            if (length > 0f && endAngle > startAngle) {
+                final float pFrom = Math.max(0f, Math.min(1f, (startAngle + 90f) / 360f));
+                final float pTo = Math.max(0f, Math.min(1f, (endAngle + 90f) / 360f));
+                if (pTo > pFrom) {
+                    forumSegmentPath.reset();
+                    forumRoundRectPathMeasure.getSegment(length * pFrom, length * pTo, forumSegmentPath, true);
+                    forumSegmentPath.rLineTo(0, 0);
+                    canvas.drawPath(forumSegmentPath, paint);
+                }
+            }
+            return;
+        }
         if (isForum) {
             float r = rectTmp.height() * 0.32f;
             float rotateAngle = (((int)(startAngle)) / 90) * 90 + 90;

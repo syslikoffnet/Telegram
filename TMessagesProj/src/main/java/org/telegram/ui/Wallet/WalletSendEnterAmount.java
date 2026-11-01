@@ -54,6 +54,7 @@ import org.telegram.messenger.BotWebViewVibrationEffect;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramCurrencyRates;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
@@ -98,6 +99,8 @@ import java.util.List;
 import java.util.Locale;
 
 public class WalletSendEnterAmount extends UniversalFragment implements NotificationCenter.NotificationCenterDelegate {
+
+    private final Runnable pengramCurrencyRatesListener = this::updateAmount;
 
     public static class AmountInputView extends FrameLayout {
         public static final long ANIMATION_DURATION_MS = 320;
@@ -1629,11 +1632,14 @@ public class WalletSendEnterAmount extends UniversalFragment implements Notifica
     @Override
     public void onResume() {
         super.onResume();
+        PengramCurrencyRates.addListener(pengramCurrencyRatesListener);
+        PengramCurrencyRates.ensureFresh(currentAccount);
         loadFee();
     }
 
     @Override
     public void onPause() {
+        PengramCurrencyRates.removeListener(pengramCurrencyRatesListener);
         finishIntroAnimation();
         hideAmountKeyboard();
         super.onPause();
@@ -1834,6 +1840,11 @@ public class WalletSendEnterAmount extends UniversalFragment implements Notifica
     private BigDecimal getCurrencyPerGram() {
         final GramWallet wallet = GramWallet.getInstance(currentAccount);
         wallet.currencies.getCurrencies();
+        PengramCurrencyRates.ensureFresh(currentAccount);
+        final double liveMarketRate = PengramCurrencyRates.getFreshTonRate(wallet.currencies.getCurrency());
+        if (liveMarketRate > 0.0 && !Double.isNaN(liveMarketRate) && !Double.isInfinite(liveMarketRate)) {
+            return BigDecimal.valueOf(liveMarketRate);
+        }
         final double currencyRate = wallet.currencies.getCurrencyRate();
         final double gramUsdRate = MessagesController.getInstance(currentAccount).config.tonUsdRate.get();
         if (currencyRate <= 0 || gramUsdRate <= 0

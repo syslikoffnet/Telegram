@@ -132,8 +132,22 @@ public class MessagesSearchAdapter extends RecyclerListView.SelectionAdapter imp
         notifyDataSetChanged();
         if (value.isEmpty()) return;
         localSearchTask = () -> Utilities.globalQueue.postRunnable(() -> {
+            PengramHistory.preloadDialogSenders(currentAccount, dialogId);
+            if (mergeDialogId != 0 && mergeDialogId != dialogId) {
+                PengramHistory.preloadDialogSenders(currentAccount, mergeDialogId);
+            }
             ArrayList<PengramHistory.Entry> entries = PengramHistory.searchDeleted(
                     currentAccount, dialogId, mergeDialogId, value, 150);
+            final java.util.HashSet<Long> senderIds = new java.util.HashSet<>();
+            for (int i = 0; i < entries.size(); i++) {
+                final PengramHistory.Entry e = entries.get(i);
+                if (e != null && e.fromId != 0) {
+                    senderIds.add(e.fromId);
+                }
+            }
+            if (!senderIds.isEmpty()) {
+                org.telegram.messenger.PengramSenderHydrator.preloadPeersBlocking(currentAccount, senderIds);
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 if (generation != localGeneration) return;
                 localSearchLoading = false;

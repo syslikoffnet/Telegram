@@ -39,7 +39,7 @@ assert 'KEY_PLAYER_HEADER_GLASS = "playerHeaderLiquidGlass"' in cfg
 assert 'isPlayerHeaderGlass() { return getBool(KEY_PLAYER_HEADER_GLASS, false); }' in cfg
 assert 'PengramGlassSkin.notifyChanged();' in cfg.split('KEY_PLAYER_HEADER_GLASS', 1)[1].split('KEY_CYLINDER_SCROLL', 1)[0]
 assert 'KEY_CYLINDER_SCROLL = "chatCylinderScroll"' in cfg
-assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, true); }' in cfg
+assert 'isCylinderScroll() { return getBool(KEY_CYLINDER_SCROLL, false); }' in cfg
 
 # --- 3. Tint-слой: шлюз вместо жёсткого ключа -------------------------------
 assert 'public interface Gate' in tint and 'boolean enabled();' in tint

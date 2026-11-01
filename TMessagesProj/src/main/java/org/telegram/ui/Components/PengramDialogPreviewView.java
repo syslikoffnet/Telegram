@@ -95,9 +95,18 @@ public class PengramDialogPreviewView extends View {
         final int radius = PengramConfig.dialogAvatarRadius(dp(27));
 
         if (self) {
+            avatarReceiver.setPengramAvatar(true);
             avatarReceiver.setImageCoords(left, top, size, size);
             avatarReceiver.setRoundRadius(radius);
             avatarReceiver.draw(canvas);
+            PengramStatusIndicators.drawOnlineBadge(
+                    canvas,
+                    left + size - dp(6),
+                    top + size - dp(6),
+                    1f,
+                    Theme.getColor(Theme.key_windowBackgroundWhite),
+                    Theme.getColor(Theme.key_chats_onlineCircle)
+            );
         } else {
             secondDrawable.setRoundRadius(radius);
             secondDrawable.setBounds((int) left, (int) top, (int) (left + size), (int) (top + size));
@@ -115,7 +124,29 @@ public class PengramDialogPreviewView extends View {
 
         datePaint.setColor(Theme.getColor(Theme.key_chats_date));
         final String date = self ? "19:04" : "18:52";
-        canvas.drawText(date, w - dp(14) - datePaint.measureText(date), top + dp(20), datePaint);
+        final float dateX = w - dp(14) - datePaint.measureText(date);
+        canvas.drawText(date, dateX, top + dp(20), datePaint);
+        if (self) {
+            if (PengramStatusIndicators.useCustomCheckmarks()) {
+                PengramStatusIndicators.drawDialogChecks(
+                        canvas, dateX - dp(21), top + dp(8), dp(18), dp(14),
+                        Theme.getColor(Theme.key_chats_sentCheck),
+                        Theme.getColor(Theme.key_chats_sentReadCheck),
+                        true, 1f
+                );
+            } else if (Theme.dialogs_checkReadDrawable != null && Theme.dialogs_halfCheckDrawable != null) {
+                final int chY = (int) (top + dp(9));
+                final int chX = (int) (dateX - dp(21));
+                Theme.dialogs_checkReadDrawable.setBounds(chX, chY,
+                        chX + Theme.dialogs_checkReadDrawable.getIntrinsicWidth(),
+                        chY + Theme.dialogs_checkReadDrawable.getIntrinsicHeight());
+                Theme.dialogs_checkReadDrawable.draw(canvas);
+                Theme.dialogs_halfCheckDrawable.setBounds(chX + dp(4), chY,
+                        chX + dp(4) + Theme.dialogs_halfCheckDrawable.getIntrinsicWidth(),
+                        chY + Theme.dialogs_halfCheckDrawable.getIntrinsicHeight());
+                Theme.dialogs_halfCheckDrawable.draw(canvas);
+            }
+        }
 
         if (!self) {
             paint.setColor(Theme.getColor(Theme.key_chats_unreadCounter));

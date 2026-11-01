@@ -45,16 +45,20 @@ def main():
     # A. Хранилище: архив+метка при keepVisible, guards, keep-возврат
     st = read('TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java')
     assert 'pengramSaveDeleted(' in st, 'нет вызова сохранения перед удалением'
-    assert 'PengramHistory.keepInChat(currentAccount, messages)' in st, 'нет keep-возврата из БД'
+    assert 'PengramHistory.keepInChat(currentAccount, dialogId, messages)' in st, 'нет keep-возврата из БД'
     assert 'if (archived || keepVisible) {' in st, 'метка должна писаться и при keepVisible'
     assert 'isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)' in st, 'нет guard архивируемости'
-    assert 'PengramHistory.isUserDeleted(message.id)' in st, 'нет guard «удалено самим»'
+    assert 'PengramHistory.isUserDeleted(currentAccount, did, message.id)' in st, 'нет scoped guard «удалено самим»'
 
     # B. Чат: keep-ветка и переживание перезапуска
     chat = read('TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java')
-    assert 'PengramHistory.saveDeletedSnapshot(currentAccount, dialog_id, obj.messageOwner)' in chat, \
-        'keep-ветка обязана сохранять снимок'
-    # порядок: снимки ВСЕХ id сохраняются до markDeleted — иначе hasEntry ложно
+    assert 'PengramHistory.saveDeletedSnapshot(currentAccount, deletedDialogId, obj.messageOwner)' in chat, \
+        'keep-ветка обязана сохранять снимок под ID исходного диалога'
+    assert 'PengramHistory.markDeleted(currentAccount, deletedDialogId, keptIds)' in chat, \
+        'метки должны использовать ID исходного диалога'
+    assert 'messagesDict[sourceIndex].get(mid)' in chat and 'deletedDialogId == mergeDialogId' in chat, \
+        'удаление из migrated/merged history должно разрешаться через правильный messagesDict'
+    # порядок: найденные снимки сохраняются до markDeleted — иначе hasEntry ложно
     # отсекает первую волну удаления (метка вставляется только на дубле события,
     # а анимация эффекта при дубле переигрывается — дефект «иногда повторно»)
     keep_start = chat.index('private boolean pengramKeepDeletedMessages')
@@ -71,7 +75,8 @@ def main():
     eff_start = chat.index('private void pengramPlayDeleteEffect')
     eff_body = chat[eff_start:chat.index('private android.graphics.RectF pengramEffectBounds', eff_start)]
     for token in ('object.pengramDeleted', 'object.pengramArchived',
-                  'PengramHistory.isMarkedDeleted(currentAccount, dialog_id, object.getId())'):
+                  'PengramHistory.isMarkedDeleted(currentAccount, objectDialogId, object.getId())',
+                  'PengramHistory.isMarkedDeleted(currentAccount, mergeDialogId, object.getId())'):
         assert token in eff_body, f'pengramPlayDeleteEffect: нет гарда «{token}»'
     assert 'pengramApplyDeletedState' in chat, 'нет переживания состояния при перерисовке'
     assert 'PengramHistory.marksLoaded(currentAccount, dialog_id)' in chat, \

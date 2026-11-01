@@ -80,10 +80,10 @@ public class PengramChatLookActivity extends BaseFragment {
         });
         content.addView(placement, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
 
-        // ---------- аватарки в списке чатов ----------
-        final TextView dialogHeader = header(context, getString(R.string.PengramDialogAvatars));
+        // ---------- единая форма аватарок по всему приложению ----------
+        final TextView dialogHeader = header(context, getString(R.string.PengramAvatarShape));
         content.addView(dialogHeader);
-        content.addView(hint(context, getString(R.string.PengramDialogAvatarsInfo)));
+        content.addView(hint(context, getString(R.string.PengramAvatarShapeInfo)));
 
         dialogPreview = new PengramDialogPreviewView(context);
         content.addView(dialogPreview, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 0, 2, 0, 0));
@@ -95,20 +95,25 @@ public class PengramChatLookActivity extends BaseFragment {
         for (int a = 0; a < PengramConfig.DIALOG_AVATAR_COUNT; ++a) {
             final int shape = a;
             final TextView chip = new TextView(context);
-            chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            chip.setSingleLine(true);
             chip.setGravity(Gravity.CENTER);
             chip.setTypeface(AndroidUtilities.bold());
-            chip.setText(getString(PengramConfig.getDialogAvatarShapeName(shape)));
+            chip.setText(getString(PengramConfig.getDialogAvatarShapeShortName(shape)));
             chip.setOnClickListener(v -> {
                 PengramConfig.setDialogAvatarShape(shape);
                 updateShapeChips(true);
                 if (dialogPreview != null) {
                     dialogPreview.invalidate();
                 }
+                if (preview != null) {
+                    preview.update();
+                }
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.reloadInterface);
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.dialogsNeedReload, true);
             });
             shapeChips.add(chip);
-            shapeRow.addView(chip, LayoutHelper.createLinear(0, 42, 1f, 4, 0, 4, 0));
+            shapeRow.addView(chip, LayoutHelper.createLinear(0, 42, 1f, 3, 0, 3, 0));
         }
         updateShapeChips(false);
 
@@ -121,10 +126,10 @@ public class PengramChatLookActivity extends BaseFragment {
         more.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(12),
                 Theme.getColor(Theme.key_featuredStickers_addButton),
                 Theme.getColor(Theme.key_featuredStickers_addButtonPressed)));
-        more.setOnClickListener(v -> presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHATS)));
+        more.setOnClickListener(v -> presentFragment(new PengramSettingsActivity(PengramSettingsActivity.SECTION_CHAT_MESSAGES)));
         content.addView(more, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 12, 18, 12, 0));
 
-        if (highlightRes == R.string.PengramAvatarPos || highlightRes == R.string.PengramDialogAvatars) {
+        if (highlightRes == R.string.PengramAvatarPos || highlightRes == R.string.PengramDialogAvatars || highlightRes == R.string.PengramAvatarShape) {
             final TextView target = highlightRes == R.string.PengramAvatarPos ? avatarHeader : dialogHeader;
             scrollView.post(() -> {
                 scrollView.smoothScrollTo(0, Math.max(0, target.getTop() - dp(72)));

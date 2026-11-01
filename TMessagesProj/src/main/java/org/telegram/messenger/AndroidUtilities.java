@@ -261,7 +261,9 @@ public class AndroidUtilities {
 
     public static Typeface bold() {
         if (mediumTypeface == null) {
-            if (SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (PengramConfig.getAppFont() != PengramConfig.FONT_DEFAULT) {
+                mediumTypeface = PengramFonts.typeface(PengramConfig.getAppFont(), Typeface.BOLD);
+            } else if (SharedConfig.useSystemBoldFont && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 mediumTypeface = Typeface.create(null, 500, false);
             } else {
                 mediumTypeface = getTypeface(TYPEFACE_ROBOTO_MEDIUM);
@@ -2392,9 +2394,44 @@ public class AndroidUtilities {
     /** шрифты Pengram кэшируются: getTypeface зовут тысячи раз при создании вьюх */
     private static final HashMap<String, Typeface> pengramTypefaceCache = new HashMap<>();
 
+    /** Сбросить производные шрифты после смены семейства, не трогая исходные ассеты. */
+    public static void clearPengramTypefaceCaches() {
+        mediumTypeface = null;
+        synchronized (pengramTypefaceCache) {
+            pengramTypefaceCache.clear();
+        }
+    }
+
+    /** Узнаёт системные шрифты текста Telegram, чтобы обновить уже созданные TextView. */
+    public static boolean isTelegramTextTypeface(Typeface candidate, int style) {
+        return telegramTypefaceStyle(candidate, style) != Integer.MIN_VALUE;
+    }
+
+    /** Keeps bold/italic semantics when replacing Telegram's bundled face on an existing view. */
+    public static int telegramTypefaceStyle(Typeface candidate, int fallbackStyle) {
+        if (candidate == null) return fallbackStyle;
+        final String[] paths = {
+                "fonts/rmedium.ttf", "fonts/rextrabold.ttf", "fonts/rmediumitalic.ttf",
+                "fonts/ritalic.ttf", "fonts/rcondensedbold.ttf"
+        };
+        for (String path : paths) {
+            try {
+                final Typeface original = getTypefaceOriginal(path);
+                if (original != null && (candidate == original || candidate.equals(original))) {
+                    final boolean bold = path.contains("bold") || path.contains("medium");
+                    final boolean italic = path.contains("italic");
+                    return bold && italic ? Typeface.BOLD_ITALIC : bold ? Typeface.BOLD : italic ? Typeface.ITALIC : fallbackStyle;
+                }
+            } catch (Throwable ignore) {
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
+
     public static Typeface getTypeface(String assetPath) {
         final int pengramFont = PengramConfig.getAppFont();
-        if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")) {
+        if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")
+                && !assetPath.contains("mono")) {
             final String cacheKey = pengramFont + "#" + assetPath;
             synchronized (pengramTypefaceCache) {
                 final Typeface cached = pengramTypefaceCache.get(cacheKey);

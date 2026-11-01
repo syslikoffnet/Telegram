@@ -89,6 +89,8 @@ import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.PengramConfig;
+import org.telegram.messenger.PengramFonts;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.SvgHelper;
@@ -137,6 +139,7 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -8061,6 +8064,32 @@ public class Theme {
             chat_msgTextCodePaint.setTextSize(dp(Math.max(Math.min(10, SharedConfig.fontSize - 1), SharedConfig.fontSize - 2)));
             chat_msgTextCode2Paint.setTextSize(dp(Math.max(Math.min(10, SharedConfig.fontSize - 2), SharedConfig.fontSize - 3)));
             chat_msgTextCode3Paint.setTextSize(dp(Math.max(Math.min(10, SharedConfig.fontSize - 2), SharedConfig.fontSize - 5)));
+        }
+    }
+
+    /** Update existing cached theme text paints when the app-wide Pengram font changes. */
+    public static void applyPengramFontToPaints() {
+        final int font = PengramConfig.getAppFont();
+        for (Field field : Theme.class.getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) || !TextPaint.class.isAssignableFrom(field.getType())) {
+                continue;
+            }
+            final String name = field.getName().toLowerCase(java.util.Locale.US);
+            if (name.contains("code") || name.contains("mono") || name.contains("emoji") || name.contains("symbol")) {
+                continue;
+            }
+            try {
+                field.setAccessible(true);
+                final TextPaint paint = (TextPaint) field.get(null);
+                if (paint == null) continue;
+                final Typeface old = paint.getTypeface();
+                final int fallbackStyle = old == null ? Typeface.NORMAL : old.getStyle();
+                final int telegramStyle = AndroidUtilities.telegramTypefaceStyle(old, fallbackStyle);
+                final int style = telegramStyle == Integer.MIN_VALUE ? fallbackStyle : telegramStyle;
+                paint.setTypeface(PengramFonts.typeface(font, style));
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
         }
     }
 

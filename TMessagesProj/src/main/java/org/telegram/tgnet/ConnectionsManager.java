@@ -776,6 +776,9 @@ public class ConnectionsManager extends BaseController {
     }
 
     public void resumeNetworkMaybe() {
+        if (org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)) {
+            return;
+        }
         native_resumeNetwork(currentAccount, true);
     }
 
@@ -832,6 +835,12 @@ public class ConnectionsManager extends BaseController {
             native_pauseNetwork(currentAccount);
         } else {
             if (appPaused) {
+                return;
+            }
+            if (org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)) {
+                // The local-only account was deliberately paused after revocation;
+                // normal lifecycle resume must not silently put it back online.
+                lastPauseTime = 0;
                 return;
             }
             if (BuildVars.LOGS_ENABLED) {
