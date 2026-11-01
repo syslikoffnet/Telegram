@@ -76,6 +76,7 @@ python3 scripts/unpack_nw_loader.py suspicious.plugin --extract-strings
 ```bash
 python3 scripts/test-inspect-plugin-payload.py
 python3 scripts/test-unpack-nw-loader.py
+python3 scripts/test-scan-nw-loader-iocs.py
 ```
 
 Тесты собирают синтетические плагины обеих схем (b85/zlib/XOR и keystream/zlib с MAC),
@@ -91,3 +92,14 @@ python3 scripts/test-unpack-nw-loader.py
   Плагины вида «снос аккаунта», «покажу IP собеседника», «выгрузка чужого аккаунта»
   продают выдуманный результат — а в обфусцированном блоке обычно уезжает как раз
   ваш `tdata` на чужой сервер.
+
+## Реальный случай
+
+`Comfort Lyrics++` после расшифровки оказался RCE-агентом с C2 и 100 «компаньонами»
+для самовосстановления — полный разбор, IOC и порядок удаления:
+[`docs/comfort-lyrics-malware.md`](comfort-lyrics-malware.md).
+Быстрая проверка папки с плагинами:
+
+```bash
+python3 scripts/scan_nw_loader_iocs.py /path/to/plugins
+```
