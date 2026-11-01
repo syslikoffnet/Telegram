@@ -245,6 +245,7 @@ public class PengramHistoryChatActivity extends BaseFragment {
             case MODE_DELETED: return getString(R.string.PengramDeletedTitle);
             case MODE_EDITED: return getString(R.string.PengramEditedTitle);
             case MODE_SAVED: return getString(R.string.PengramMessagesTitle);
+            case MODE_ALL: return getString(R.string.PengramHistoryOpen);
             default: return getString(R.string.PengramHistoryTitle);
         }
     }
@@ -305,6 +306,10 @@ public class PengramHistoryChatActivity extends BaseFragment {
             filter = PengramHistory.FILTER_EDITED;
         } else if (mode == MODE_SAVED) {
             filter = PengramHistory.FILTER_SAVED;
+        } else if (mode == MODE_ALL) {
+            // «Посмотреть удалёнки» — только события удаления и правок,
+            // полная ACTION_SAVED-копия переписки здесь категорически лишняя.
+            filter = PengramHistory.FILTER_CHANGES;
         } else {
             filter = PengramHistory.FILTER_ALL;
         }

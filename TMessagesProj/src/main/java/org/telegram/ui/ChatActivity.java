@@ -2003,8 +2003,18 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /** «Посмотреть удалёнки» — выборка только удалённых и отредактированных записей. */
     private void openPengramHistory() {
-        PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(getDialogId(), PengramHistoryChatActivity.MODE_ALL);
+        openPengramHistory(PengramHistoryChatActivity.MODE_ALL);
+    }
+
+    /** Отдельный пункт «Сохранённое из этого чата» показывает только ACTION_SAVED. */
+    private void openPengramSavedHistory() {
+        openPengramHistory(PengramHistoryChatActivity.MODE_SAVED);
+    }
+
+    private void openPengramHistory(int mode) {
+        PengramHistoryChatActivity fragment = new PengramHistoryChatActivity(getDialogId(), mode);
         fragment.setCurrentAccount(currentAccount);
         fragment.setResourceProvider(themeDelegate);
         presentFragment(fragment);
@@ -5081,7 +5091,7 @@ public class ChatActivity extends BaseFragment implements
                     pengramCopyChatId();
                     return;
                 } else if (id == pengram_saved_media) {
-                    openPengramHistory();
+                    openPengramSavedHistory();
                     return;
                 } else if (id == pengram_delete_my_messages) {
                     pengramConfirmDeleteMyMessages();

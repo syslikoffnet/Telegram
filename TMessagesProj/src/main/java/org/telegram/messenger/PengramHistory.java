@@ -43,6 +43,8 @@ public class PengramHistory extends SQLiteOpenHelper {
     public static final int FILTER_DELETED = 1;
     public static final int FILTER_EDITED = 2;
     public static final int FILTER_SAVED = 3;
+    /** Только удалённые и отредактированные записи; никогда не включает полную копию чата. */
+    public static final int FILTER_CHANGES = 4;
 
     private static final String DB_NAME = "pengram_history.db";
     private static final int DB_VERSION = 8;
@@ -1509,7 +1511,11 @@ public class PengramHistory extends SQLiteOpenHelper {
                 final ArrayList<String> args = new ArrayList<>();
                 args.add(String.valueOf(account));
                 if (dialogId != 0) { where += " AND dialog_id = ?"; args.add(String.valueOf(dialogId)); }
-                if (filter == FILTER_DELETED || filter == FILTER_EDITED || filter == FILTER_SAVED) {
+                if (filter == FILTER_CHANGES) {
+                    where += " AND action IN (?, ?)";
+                    args.add(String.valueOf(ACTION_DELETED));
+                    args.add(String.valueOf(ACTION_EDITED));
+                } else if (filter == FILTER_DELETED || filter == FILTER_EDITED || filter == FILTER_SAVED) {
                     where += " AND action = ?";
                     args.add(String.valueOf(filter == FILTER_DELETED ? ACTION_DELETED
                             : filter == FILTER_EDITED ? ACTION_EDITED : ACTION_SAVED));
@@ -1629,7 +1635,12 @@ public class PengramHistory extends SQLiteOpenHelper {
                 where.append("dialog_id = ?");
                 args.add(String.valueOf(dialogId));
             }
-            if (filter == FILTER_DELETED || filter == FILTER_EDITED || filter == FILTER_SAVED) {
+            if (filter == FILTER_CHANGES) {
+                if (where.length() > 0) where.append(" AND ");
+                where.append("action IN (?, ?)");
+                args.add(String.valueOf(ACTION_DELETED));
+                args.add(String.valueOf(ACTION_EDITED));
+            } else if (filter == FILTER_DELETED || filter == FILTER_EDITED || filter == FILTER_SAVED) {
                 if (where.length() > 0) where.append(" AND ");
                 where.append("action = ?");
                 args.add(String.valueOf(filter == FILTER_DELETED ? ACTION_DELETED
