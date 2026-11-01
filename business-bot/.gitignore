@@ -1,0 +1,14 @@
+# секреты и рантайм — НИКОГДА не коммитить
+.env
+.env.*
+bot.log
+bot.log.*
+boot.log
+state.json
+state.json.tmp
+*.broken
+
+__pycache__/
+*.py[cod]
+tests/__pycache__/
+.venv/
