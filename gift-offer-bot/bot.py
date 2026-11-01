@@ -71,7 +71,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 MAX_TEXT_UTF16 = 3800
 STARS = "⭐"
@@ -111,6 +111,17 @@ ERROR_HINTS: Tuple[Tuple[str, str], ...] = (
     (
         "bot was blocked by the user",
         "Пользователь заблокировал бота — уведомление не доставлено.",
+    ),
+    (
+        "bot can't initiate conversation",
+        "Бот не может писать первым: человек должен сам нажать /start. "
+        "Отправьте ему ссылку на карточку — после открытия уведомления заработают.",
+    ),
+    (
+        "peer_flood",
+        "PEER_FLOOD: Telegram временно ограничил боту рассылку в ЛС (антиспам). "
+        "Пишите только тем, кто нажимал /start; в бизнес-чатах — с business_connection_id. "
+        "Ограничение снимается само через несколько часов, ускорить нельзя.",
     ),
     (
         "can't parse entities",
@@ -844,6 +855,12 @@ class DB:
             CREATE INDEX IF NOT EXISTS idx_offers_creator ON offers(creator_id);
             CREATE INDEX IF NOT EXISTS idx_offers_created ON offers(created_at);
             CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT NOT NULL DEFAULT '',
+                first_seen REAL NOT NULL,
+                last_seen REAL NOT NULL
+            );
             """
         )
         columns = {row["name"] for row in self.conn.execute("PRAGMA table_info(offers)")}
@@ -861,6 +878,26 @@ class DB:
         with self._lock:
             self.conn.execute("INSERT OR REPLACE INTO meta(k, v) VALUES (?, ?)", (key, value))
             self.conn.commit()
+
+    # -- пользователи ------------------------------------------------------
+
+    def touch_user(self, user_id: int, username: str = "") -> None:
+        now = time.time()
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO users(user_id, username, first_seen, last_seen) VALUES (?,?,?,?) "
+                "ON CONFLICT(user_id) DO UPDATE SET username=excluded.username, last_seen=excluded.last_seen",
+                (int(user_id), username or "", now, now),
+            )
+            self.conn.commit()
+
+    def known_user(self, user_id: int) -> bool:
+        row = self.conn.execute("SELECT 1 FROM users WHERE user_id=?", (int(user_id),)).fetchone()
+        return row is not None
+
+    def users_count(self) -> int:
+        row = self.conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()
+        return int(row["c"] if row else 0)
 
     # -- offers ------------------------------------------------------------
 
@@ -1095,8 +1132,24 @@ class OfferBot:
             )
         except TelegramError as exc:
             low = (exc.description or "").lower()
-            if "bot was blocked" in low or "chat not found" in low or "user is deactivated" in low:
-                self.logger.warning("Не доставлено в %s: %s", chat_id, exc.description)
+            if any(
+                needle in low
+                for needle in (
+                    "bot was blocked",
+                    "chat not found",
+                    "user is deactivated",
+                    "peer_flood",
+                    "bot can't initiate conversation",
+                    "user not found",
+                )
+            ):
+                hint = error_hint(exc.description)
+                self.logger.warning(
+                    "Не доставлено в %s: %s%s",
+                    chat_id,
+                    exc.description,
+                    (" — " + hint) if hint else "",
+                )
                 return None
             self.logger.error("sendMessage в %s: %s", chat_id, exc)
             return None
@@ -1178,6 +1231,29 @@ class OfferBot:
     def deep_link(self, offer: Offer) -> str:
         return f"https://t.me/{self.username}?start=offer_{offer.id}"
 
+    def _route(self, offer: Offer, user_id: Optional[int]) -> Tuple[Optional[Any], Optional[str]]:
+        """Куда писать человеку: сначала его ЛС с ботом, иначе чат/бизнес-чат из оффера."""
+        if not user_id:
+            return None, None
+        if self.db.known_user(user_id):
+            return int(user_id), None
+        if user_id == offer.creator_id and offer.chat_id:
+            return offer.chat_id, offer.conn_id
+        if user_id == offer.recipient_id and offer.card_chat_id:
+            return offer.card_chat_id, offer.card_conn_id
+        return None, None
+
+    def _notify(self, offer: Offer, user_id: Optional[int], text: str) -> Optional[int]:
+        """Уведомление стороне сделки по правильному маршруту (без слепых ЛС → PEER_FLOOD)."""
+        chat_id, conn_id = self._route(offer, user_id)
+        if chat_id is None:
+            self.logger.warning(
+                "Пропускаю уведомление для %s: человек не начинал чат с ботом "
+                "(слепая ЛС дала бы PEER_FLOOD). Пусть нажмёт /start.", user_id,
+            )
+            return None
+        return self._send(chat_id, text, conn_id=conn_id)
+
     # -- обработка апдейтов ------------------------------------------------
 
     def handle_update(self, update: Dict[str, Any]) -> None:
@@ -1222,6 +1298,11 @@ class OfferBot:
             return
         conn_id = message.get("business_connection_id")
         user_id = sender.get("id") or chat_id
+        # «Начинал чат с ботом» = обычное ЛС без бизнес-подключения.
+        # Бизнес-чат выглядит как private, но писать в него можно только с conn_id,
+        # иначе Telegram отвечает PEER_FLOOD.
+        if conn_id is None and chat.get("type") == "private" and sender.get("id"):
+            self.db.touch_user(int(sender["id"]), sender.get("username") or "")
 
         first = text.split(maxsplit=1)[0]
         command = first.split("@", 1)[0].lower()
@@ -1249,8 +1330,18 @@ class OfferBot:
 
     def _cmd_create(self, kind: str, message: Dict[str, Any], conn_id: Optional[str],
                     args: str, user_id: int) -> None:
-        chat_id = int((message.get("chat") or {})["id"])
+        chat = message.get("chat") or {}
+        chat_id = int(chat["id"])
         name = (message.get("from") or {}).get("first_name") or "Пользователь"
+        if chat.get("type") not in (None, "private"):
+            self._send(
+                chat_id,
+                "Офферы создаются только в личке с ботом: сделка 1:1, подробности "
+                "и инструкции не должны попадать в общий чат.\n\n"
+                f"Напишите боту в ЛС: @{esc(self.username or 'этот_бот')}",
+                conn_id=conn_id,
+            )
+            return
         url, price = parse_offer_text(args)
 
         if not url:
@@ -1501,17 +1592,28 @@ class OfferBot:
         )
         offer = self.db.get(offer.id) or offer
         self.logger.info("Оффер %s принят пользователем %s", offer.id, user_id)
-        self._answer(callback_id, "Готово — инструкции в личке", alert=False)
         self._edit_card(offer)
         self._edit_board(offer)
 
         # Инструкции обеим сторонам: покупатель отправляет оффер, продавец ждёт.
         buyer_id = offer.buyer_id
         seller_id = offer.seller_id
+        sent: Dict[int, bool] = {}
         if buyer_id:
-            self._send(buyer_id, buyer_instructions(offer))
+            sent[buyer_id] = self._notify(offer, buyer_id, buyer_instructions(offer)) is not None
         if seller_id:
-            self._send(seller_id, seller_instructions(offer))
+            sent[seller_id] = self._notify(offer, seller_id, seller_instructions(offer)) is not None
+
+        if all(sent.values()) and sent:
+            self._answer(callback_id, "Готово — инструкции отправлены обеим сторонам")
+        else:
+            self._answer(
+                callback_id,
+                "Намерение принято, но второй стороне не удалось написать "
+                "(Telegram: PEER_FLOOD / человек не начинал чат с ботом). "
+                "Попросите её открыть бота и нажать /start — тогда инструкции дойдут.",
+                alert=True,
+            )
 
     def _on_decline(self, callback_id: str, offer: Offer, user_id: int) -> None:
         if offer.creator_id == user_id:
@@ -1525,7 +1627,7 @@ class OfferBot:
         self._set_status(offer, "declined", by="recipient")
         self._answer(callback_id, "Отклонено")
         if offer.creator_id:
-            self._send(offer.creator_id, f"❌ Вторая сторона отклонила оффер №{offer.id}.")
+            self._notify(offer, offer.creator_id, f"❌ Вторая сторона отклонила оффер №{offer.id}.")
 
     def _on_sent(self, callback_id: str, offer: Offer, user_id: int) -> None:
         if user_id != offer.buyer_id:
@@ -1537,7 +1639,8 @@ class OfferBot:
         self._set_status(offer, "sent", by="buyer")
         self._answer(callback_id, "Отмечено")
         if offer.seller_id:
-            self._send(
+            self._notify(
+                offer,
                 offer.seller_id,
                 f"📨 Покупатель отправил официальный оффер по лоту №{offer.id}.\n\n"
                 "Примите его в Telegram: сообщение с оффером → «Принять». "
@@ -1555,7 +1658,8 @@ class OfferBot:
         self._set_status(offer, "completed", by="seller")
         self._answer(callback_id, "Сделка закрыта")
         if offer.buyer_id:
-            self._send(
+            self._notify(
+                offer,
                 offer.buyer_id,
                 f"🏁 Продавец подтвердил сделку по лоту №{offer.id}.\n"
                 "Проверьте подарок в профиле. Если что-то не так — напишите в поддержку.",
@@ -1571,7 +1675,7 @@ class OfferBot:
         self._set_status(offer, "cancelled", by="creator")
         self._answer(callback_id, "Отменено")
         if offer.recipient_id:
-            self._send(offer.recipient_id, f"✖️ Автор отменил оффер №{offer.id}.")
+            self._notify(offer, offer.recipient_id, f"✖️ Автор отменил оффер №{offer.id}.")
 
     def _set_status(self, offer: Offer, status: str, by: str) -> None:
         self.logger.info("Оффер %s: %s → %s (%s)", offer.id, offer.status, status, by)
@@ -1593,12 +1697,13 @@ class OfferBot:
             self.logger.info("Оффер %s истёк", offer.id)
             if self.cfg.notify_on_expire:
                 if offer.creator_id:
-                    self._send(
+                    self._notify(
+                        offer,
                         offer.creator_id,
                         f"⌛ Оффер №{offer.id} истёк. Создайте новый: /offer или /sell.",
                     )
                 if offer.recipient_id:
-                    self._send(offer.recipient_id, f"⌛ Оффер №{offer.id} истёк.")
+                    self._notify(offer, offer.recipient_id, f"⌛ Оффер №{offer.id} истёк.")
         return len(expired)
 
     # -- запуск ------------------------------------------------------------

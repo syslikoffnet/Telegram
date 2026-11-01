@@ -484,6 +484,19 @@ class DBTests(unittest.TestCase):
         self.make(status="completed")
         self.assertEqual(self.db.stats(), {"open": 2, "completed": 1})
 
+    def test_touch_and_known_user(self):
+        self.assertFalse(self.db.known_user(42))
+        self.db.touch_user(42, "vasya")
+        self.assertTrue(self.db.known_user(42))
+        self.assertEqual(self.db.users_count(), 1)
+
+    def test_touch_user_updates_username(self):
+        self.db.touch_user(42, "old")
+        self.db.touch_user(42, "new")
+        row = self.db.conn.execute("SELECT username FROM users WHERE user_id=42").fetchone()
+        self.assertEqual(row["username"], "new")
+        self.assertEqual(self.db.users_count(), 1)
+
     def test_meta(self):
         self.assertIsNone(self.db.meta_get("offset"))
         self.db.meta_set("offset", "7")
@@ -746,6 +759,88 @@ class BotFlowTests(unittest.TestCase):
         bot.handle_update(upd(1, dm("/offer https://t.me/nft/Heart-1 100")))
         self.assertNotIn("deleteMessage", api.methods())
         db.close()
+
+    def test_group_offer_rejected(self):
+        message = dm("/offer https://t.me/nft/Heart-1 100")
+        message["chat"] = {"id": -100123, "type": "supergroup"}
+        self.bot.handle_update(upd(1, message))
+        self.assertEqual(self.db.stats(), {})
+        self.assertIn("только в личке", texts(self.api)[0])
+        self.assertIn("deleteMessage", self.api.methods())
+
+    def test_business_offer_keeps_conn_and_not_known(self):
+        message = dm("/offer https://t.me/nft/Heart-1 100", user_id=9094535)
+        message["business_connection_id"] = "bc1"
+        self.bot.handle_update({"update_id": 1, "business_message": message})
+        offer = self.db.get(1)
+        self.assertEqual(offer.conn_id, "bc1")
+        self.assertFalse(self.db.known_user(9094535))
+        confirm = self.api.only("sendMessage")[0]
+        self.assertEqual(confirm["business_connection_id"], "bc1")
+        self.assertEqual(confirm["chat_id"], 9094535)
+
+    def test_notify_skips_unknown_user(self):
+        offer = ob.Offer(
+            id=1, kind="buy", creator_id=555, creator_name="X", recipient_id=None,
+            gift_url="https://t.me/nft/Heart-1", gift_title="Heart 1", price=10,
+            status="open", conn_id=None, chat_id=None, card_chat_id=None,
+            card_msg_id=None, card_conn_id=None, board_chat_id=None,
+            board_msg_id=None, created_at=time.time(), updated_at=time.time(),
+        )
+        self.assertIsNone(self.bot._notify(offer, 555, "привет"))
+        self.assertEqual(self.api.only("sendMessage"), [])
+
+    def test_notify_uses_business_chat_for_unknown_creator(self):
+        message = dm("/offer https://t.me/nft/Heart-1 100", user_id=9094535)
+        message["business_connection_id"] = "bc1"
+        self.bot.handle_update({"update_id": 1, "business_message": message})
+        self.open_by(user_id=200)
+        self.api.clear()
+        self.accept(user_id=200)
+        creator_calls = [
+            p for p in self.api.only("sendMessage")
+            if p.get("chat_id") == 9094535
+        ]
+        self.assertTrue(creator_calls, texts(self.api))
+        self.assertEqual(creator_calls[0].get("business_connection_id"), "bc1")
+
+    def test_accept_warns_when_second_side_unreachable(self):
+        now = time.time()
+        self.db.create(
+            ob.Offer(
+                id=0, kind="buy", creator_id=555, creator_name="X", recipient_id=None,
+                gift_url="https://t.me/nft/Heart-1", gift_title="Heart 1", price=10,
+                status="open", conn_id=None, chat_id=None, card_chat_id=None,
+                card_msg_id=None, card_conn_id=None, board_chat_id=None,
+                board_msg_id=None, created_at=now, updated_at=now,
+            )
+        )
+        self.bot.handle_update(upd(1, callback=cb("acc:1", 200)))
+        self.assertEqual(self.db.get(1).status, "accepted")
+        answer = self.api.only("answerCallbackQuery")[0]
+        self.assertTrue(answer["show_alert"])
+        self.assertIn("не удалось написать", answer["text"])
+
+    def test_accept_alert_on_peer_flood(self):
+        self.create()
+        self.open_by()
+        self.api.fail_on["sendMessage"] = ob.TelegramError("Bad Request: PEER_FLOOD", 400)
+        self.accept()
+        answer = self.api.only("answerCallbackQuery")[0]
+        self.assertTrue(answer["show_alert"])
+
+    def test_peer_flood_is_warning_not_crash(self):
+        self.api.fail_on["sendMessage"] = ob.TelegramError("Bad Request: PEER_FLOOD", 400)
+        self.bot.handle_update(upd(1, dm("/help")))
+        self.assertEqual(self.bot.db.stats(), {})
+
+    def test_peer_flood_hint(self):
+        hint = ob.error_hint("Bad Request: PEER_FLOOD")
+        self.assertIn("PEER_FLOOD", hint)
+        self.assertIn("start", hint)
+
+    def test_cant_initiate_hint(self):
+        self.assertIn("нажать /start", ob.error_hint("Forbidden: bot can't initiate conversation with a user"))
 
     def test_delete_failure_tolerated(self):
         self.api.fail_on["deleteMessage"] = ob.TelegramError("message to delete not found", 400)
