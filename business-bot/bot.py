@@ -58,6 +58,7 @@ import logging
 import logging.handlers
 import os
 import random
+import re
 import signal
 import socket
 import ssl
@@ -180,6 +181,13 @@ def log_text(text: str, limit: int = 300) -> str:
     """Однострочное представление текста для логов."""
     flat = text.replace("\n", "\\n")
     return flat if len(flat) <= limit else flat[:limit] + "…"
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def plain_preview(text: str) -> str:
+    """Как сообщение увидит человек: без HTML-тегов, с раскрытыми сущностями."""
+    return html.unescape(_TAG_RE.sub("", text))
 
 
 # ---------------------------------------------------------------------------
@@ -1585,12 +1593,106 @@ class Bot:
 # ---------------------------------------------------------------------------
 
 
+TOKEN_RE = re.compile(r"^[0-9]{5,}:[A-Za-z0-9_-]{20,}$")
+
+
+def find_env_path(explicit: Optional[str] = None) -> Path:
+    """Где лежит .env: явный путь → cwd → папка скрипта."""
+    if explicit:
+        return Path(explicit).expanduser()
+    for candidate in (Path.cwd() / ".env", Path(__file__).resolve().parent / ".env"):
+        if candidate.is_file():
+            return candidate
+    return Path.cwd() / ".env"
+
+
+def set_token(
+    env_path: Optional[str],
+    token: str,
+    logger: logging.Logger,
+    verify: bool = True,
+    api_base: str = "https://api.telegram.org",
+) -> int:
+    """Аккуратно меняет BOT_TOKEN в .env, не трогая остальные настройки."""
+    token = (token or "").strip().strip("'\"")
+    if not TOKEN_RE.match(token):
+        print(
+            "Это не похоже на токен бота.\n"
+            "Нужен формат 123456789:AAH... (цифры, двоеточие, ~35 символов).\n"
+            "Токен выдаёт @BotFather: /mybots → ваш бот → API Token.",
+            file=sys.stderr,
+        )
+        return 1
+
+    path = find_env_path(env_path)
+    lines: List[str] = []
+    if path.is_file():
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except OSError as exc:
+            print(f"Не могу прочитать {path}: {exc}", file=sys.stderr)
+            return 1
+
+    replaced = False
+    for index, line in enumerate(lines):
+        if line.strip().startswith("BOT_TOKEN="):
+            lines[index] = f"BOT_TOKEN={token}"
+            replaced = True
+            break
+    if not replaced:
+        lines.insert(0, f"BOT_TOKEN={token}")
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text("\n".join(lines).rstrip("\n") + "\n", encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+        os.chmod(path, 0o600)
+    except OSError as exc:
+        print(f"Не могу записать {path}: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"Токен записан в {path} (права 600): {mask_token(token)}")
+    logger.info("BOT_TOKEN обновлён в %s: %s", path, mask_token(token))
+
+    if not verify:
+        return 0
+
+    api = TelegramAPI(
+        token=token,
+        api_base=api_base.rstrip("/"),
+        poll_timeout=0,
+        logger=logger,
+        max_network_retries=1,
+    )
+    try:
+        me = api.get_me()
+    except TelegramError as exc:
+        print(f"\n[!] Токен сохранён, но getMe не прошёл: {exc}")
+        hint = error_hint(exc.description)
+        if hint:
+            print(f"    {hint}")
+        if exc.code == 401:
+            print("    BotFather → /mybots → ваш бот → API Token → Revoke/Show, возьмите новый.")
+        elif exc.code == -1:
+            print("    Похоже на проблему сети/сертификатов Termux — токен, скорее всего, в порядке.")
+        return 0
+    print(f"\n[ok] Токен рабочий: @{me.get('username')} (id={me.get('id')}, name={me.get('first_name')})")
+    return 0
+
+
 def print_top(cfg: Config, logger: logging.Logger) -> int:
     top = TopData(cfg, logger)
     text = top.render()
+    print("Как сообщение увидит получатель в Telegram:")
     print("—" * 60)
-    print(text)
+    print(plain_preview(text))
     print("—" * 60)
+    if cfg.parse_mode_value:
+        print(f"Исходный текст с разметкой ({cfg.parse_mode}), который уходит в API:")
+        print(text)
+        print("—" * 60)
     print(f"Позиций: {len(top.ordered())}, UTF-16 символов: {utf16_len(text)}, "
           f"частей при отправке: {len(split_text(text))}")
     return 0
@@ -1611,7 +1713,7 @@ def check(cfg: Config, logger: logging.Logger) -> int:
     if not cfg.top_file.exists():
         warnings.append(f"Файл топа {cfg.top_file} не найден — используется встроенный список")
     text = top.render()
-    print("Предпросмотр сообщения:\n" + ("—" * 60) + f"\n{text}\n" + ("—" * 60))
+    print("Предпросмотр (как увидит получатель):\n" + ("—" * 60) + f"\n{plain_preview(text)}\n" + ("—" * 60))
     print(f"Позиций: {len(top.ordered())}; символов UTF-16: {utf16_len(text)}; "
           f"частей: {len(split_text(text))}\n")
 
@@ -1840,6 +1942,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Примеры:\n"
+            "  python3 bot.py --set-token '123456789:AAH...'\n"
             "  python3 bot.py --check\n"
             "  python3 bot.py --print-top\n"
             "  python3 bot.py --selftest\n"
@@ -1848,6 +1951,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--env", help="путь к .env (по умолчанию ищется в папке скрипта и cwd)")
     parser.add_argument("--token", help="токен бота (перебивает .env)")
+    parser.add_argument(
+        "--set-token",
+        metavar="TOKEN",
+        help="записать новый токен в .env (остальные настройки не трогает) и проверить его",
+    )
     parser.add_argument("--check", action="store_true", help="проверить токен/конфиг и выйти")
     parser.add_argument("--print-top", action="store_true", help="напечатать сообщение топа и выйти")
     parser.add_argument("--selftest", action="store_true", help="офлайн-тест логики")
@@ -1868,6 +1976,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         cfg.dry_run = True
 
     logger = setup_logging(cfg, verbose=args.verbose)
+
+    if args.set_token:
+        return set_token(args.env, args.set_token, logger, api_base=cfg.api_base)
 
     if args.print_top:
         return print_top(cfg, logger)

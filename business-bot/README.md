@@ -88,7 +88,7 @@
 | `env.example` | шаблон конфига → копируется в `.env` |
 | `install-termux.sh` | установщик для Termux (python, сертификаты, токен, автозапуск) |
 | `run.sh` | запуск с wake-lock и UTF-8 |
-| `tests/` | 63 теста: 58 юнит + 5 сквозных через mock Bot API |
+| `tests/` | 71 тест: юнит, транспорт и сквозные прогоны через mock Bot API |
 | `run-tests.sh` | прогнать все тесты |
 | `ANALYSIS.md` | разбор подарков/NFT-офферов и бизнес-ботов в этом репозитории |
 
@@ -405,13 +405,18 @@ tail -f ~/top-bot/bot.log
 
 ```bash
 python3 bot.py --check        # конфиг + getMe + webhook + предпросмотр
-python3 bot.py --print-top    # как выглядит сообщение, сколько частей
+python3 bot.py --print-top    # как увидит человек + исходный HTML, сколько частей
 python3 bot.py --selftest     # 27 проверок логики без сети
+python3 bot.py --set-token '123456789:AAH...'   # записать новый токен в .env и проверить
 python3 bot.py --once         # один цикл getUpdates и выход
 python3 bot.py -v             # DEBUG-лог
 python3 bot.py --dry-run      # ничего не отправляет/удаляет, только логирует
-bash run-tests.sh             # 63 теста, включая mock Bot API
+bash run-tests.sh             # 71 тест, включая mock Bot API
 ```
+
+> `--print-top` специально печатает два блока: «как увидит получатель» (без тегов) и
+> исходный HTML, который уходит в API. Строки вида `🏆 &lt;b&gt;ТОП&lt;/b&gt;` в консоли —
+> это нормально, в Telegram они превращаются в жирный заголовок.
 
 Проверка вручную через curl (если охота увидеть «сырой» ответ):
 
@@ -446,7 +451,7 @@ curl -s "https://api.telegram.org/bot<ТОКЕН>/getWebhookInfo"
 | Ошибка в логе | Причина | Решение |
 |---|---|---|
 | `409 Conflict: terminated by other getUpdates request` | запущено **два** бота с этим токеном или стоит webhook | `pkill -f bot.py`, затем один запуск. Webhook бот снимает сам (`DELETE_WEBHOOK_ON_START=true`) |
-| `401 Unauthorized` | неверный/отозванный токен | токен из BotFather заново (`/mybots → API Token`), проверьте отсутствие кавычек и пробелов |
+| `401 Unauthorized` | токен отозван, перевыпущен, бот удалён или токен скопирован с ошибкой | новый токен у BotFather (`/mybots → API Token → Revoke/Show`), затем `python3 bot.py --set-token 'НОВЫЙ'` |
 | `404 Not Found` | токен битый, бот удалён, или неверный `API_BASE` | проверьте `BOT_TOKEN` и `API_BASE` |
 | `400 Bad Request: message to delete not found` | сообщение уже удалено / удалил собеседник | это норма: бот логирует и продолжает |
 | `400 Bad Request: message can't be deleted` | старше 48 ч, служебное, или нет прав (бизнес-чат) | для Business включите право **Delete Received Messages**; для групп — админку |
@@ -459,6 +464,36 @@ curl -s "https://api.telegram.org/bot<ТОКЕН>/getWebhookInfo"
 | `400 Bad Request: business_connection_id is invalid` | бот отключён в Telegram Business | заново подключите в Настройки → Telegram Business → Чат-боты |
 | `400 Bad Request: chat not found` | неверный `chat_id` (в `ALLOWED_*` или при ручной отправке) | узнайте ID командой `/id` |
 | `409` и в логе «уже запущен другой экземпляр» | второй процесс | `ps aux | grep bot.py`, `pkill -f bot.py` |
+
+### Если `--check` пишет `401 Unauthorized`
+
+Это единственная ошибка, которую нельзя «починить» на стороне бота: Telegram не признаёт
+токен. Причины: токен отозван (`/revoke`), перевыпущен, бот удалён у BotFather, либо строка
+скопирована с лишним символом.
+
+Порядок:
+
+1. @BotFather → `/mybots` → ваш бот → **API Token** → **Revoke current token** (или Show).
+2. Скопируйте новый токен целиком, вид `123456789:AAH...`.
+3. В Termux:
+
+```bash
+cd ~/top-bot
+python3 bot.py --set-token '123456789:AAH...'   # запишет в .env и сразу проверит getMe
+```
+
+Если версия бота старая и `--set-token` ещё нет:
+
+```bash
+sed -i 's|^BOT_TOKEN=.*|BOT_TOKEN=123456789:AAH...|' ~/top-bot/.env
+chmod 600 ~/top-bot/.env
+python3 ~/top-bot/bot.py --check
+```
+
+4. Должно появиться `[ok] Токен рабочий: @ваш_бот`, а `--check` — `Итог: всё готово к запуску`.
+
+> `404 Not Found` — это другое: токен синтаксически верный, но бота удалили или неверен
+> `API_BASE`. `401` — именно недействительный токен.
 
 ### «Бот молчит» — чек-лист
 

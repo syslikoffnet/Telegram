@@ -156,6 +156,64 @@ class ConfigTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+class SetTokenTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.env = self.dir / ".env"
+        self.logger = null_logger()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_creates_env_with_600(self) -> None:
+        token = "123456789:AAHabcdefghijklmnopqrstuvwxyz0123"
+        code = topbot.set_token(str(self.env), token, self.logger, verify=False)
+        self.assertEqual(code, 0)
+        self.assertTrue(self.env.is_file())
+        self.assertIn(f"BOT_TOKEN={token}", self.env.read_text(encoding="utf-8"))
+        self.assertEqual(oct(self.env.stat().st_mode & 0o777), oct(0o600))
+
+    def test_updates_existing_and_keeps_other_settings(self) -> None:
+        self.env.write_text(
+            "BOT_TOKEN=old:tokenvalueoldtokenvalueold\nCOOLDOWN_SECONDS=7\nTOP_TITLE=Мой\n",
+            encoding="utf-8",
+        )
+        new = "987654321:AAHnewtokenvaluenewtokenvaluenew"
+        self.assertEqual(topbot.set_token(str(self.env), new, self.logger, verify=False), 0)
+        text = self.env.read_text(encoding="utf-8")
+        self.assertIn(f"BOT_TOKEN={new}", text)
+        self.assertNotIn("old:token", text)
+        self.assertIn("COOLDOWN_SECONDS=7", text)
+        self.assertIn("TOP_TITLE=Мой", text)
+        self.assertEqual(text.count("BOT_TOKEN="), 1)
+
+    def test_load_config_sees_new_token(self) -> None:
+        new = "555555555:AAHverynewtokenvaluehere123456789"
+        topbot.set_token(str(self.env), new, self.logger, verify=False)
+        cfg = topbot.load_config(str(self.env))
+        self.assertEqual(cfg.token, new)
+
+    def test_rejects_invalid_token_and_keeps_file(self) -> None:
+        self.env.write_text("BOT_TOKEN=123456789:AAHvalidvalidvalidvalidval\n", encoding="utf-8")
+        before = self.env.read_text(encoding="utf-8")
+        for bad in ("", "hello", "123:short", "123456789 AAH", "123456789:"):
+            self.assertEqual(topbot.set_token(str(self.env), bad, self.logger, verify=False), 1)
+        self.assertEqual(self.env.read_text(encoding="utf-8"), before)
+
+    def test_strips_quotes_and_spaces(self) -> None:
+        token = "123456789:AAHabcdefghijklmnopqrstuvwxyz0123"
+        topbot.set_token(str(self.env), f"  '{token}'  ", self.logger, verify=False)
+        self.assertIn(f"BOT_TOKEN={token}", self.env.read_text(encoding="utf-8"))
+
+    def test_missing_env_dir_is_created(self) -> None:
+        deep = self.dir / "a" / "b" / ".env"
+        code = topbot.set_token(str(deep), "123456789:AAHabcdefghijklmnopqrstuvwxyz0123",
+                                self.logger, verify=False)
+        self.assertEqual(code, 0)
+        self.assertTrue(deep.is_file())
+
+
 class TopDataTests(BotFixture):
     def test_json_list_renders_numbers(self) -> None:
         self.write_top(["Misha", "Misha", "misha"])
@@ -238,6 +296,15 @@ class TopDataTests(BotFixture):
 
         os.utime(self.dir / "top.json", (time.time() + 5, time.time() + 5))
         self.assertIn("Newcomer", data.render())
+
+
+class PreviewTests(unittest.TestCase):
+    def test_plain_preview_strips_tags(self) -> None:
+        text = "🏆 <b>ТОП</b>\n\n1. Misha &amp; Co"
+        self.assertEqual(topbot.plain_preview(text), "🏆 ТОП\n\n1. Misha & Co")
+
+    def test_plain_preview_keeps_literal_escaped_names(self) -> None:
+        self.assertEqual(topbot.plain_preview("&lt;b&gt;hack"), "<b>hack")
 
 
 class SplitTextTests(unittest.TestCase):
