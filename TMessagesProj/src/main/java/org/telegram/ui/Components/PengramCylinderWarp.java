@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.os.Build;
+import android.os.SystemClock;
 import android.view.View;
 
 import java.util.WeakHashMap;
@@ -48,6 +49,8 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         Canvas canvas;
         boolean stale = true;
         boolean failed;
+        boolean refreshPosted;
+        long lastCaptureUptime;
         int width, height;
         // снимок трансформаций: отличаем «уехала/проявилась» от «перерисовалась»
         float tx, ty, alpha, sx, sy, rot, pivotX, pivotY;
@@ -77,6 +80,8 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
     }
 
     private static final int MAX_POOL_BITMAPS = 6;
+    /** Avoid full software row snapshots on every display frame on API < 33. */
+    private static final long MIN_CAPTURE_INTERVAL_MS = 33L;
 
     private final WeakHashMap<View, Capture> captures = new WeakHashMap<>();
     private final java.util.ArrayList<Bitmap> bitmapPool = new java.util.ArrayList<>(MAX_POOL_BITMAPS);
@@ -216,8 +221,22 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
         if (capture.failed) {
             return null;
         }
-        if (!capture.stale && capture.bitmap != null && capture.width == w && capture.height == h) {
+        final boolean bitmapMatchesSize = capture.bitmap != null && !capture.bitmap.isRecycled()
+                && capture.width == w && capture.height == h;
+        if (!capture.stale && bitmapMatchesSize) {
             return capture;
+        }
+        if (capture.stale && bitmapMatchesSize) {
+            final long remaining = MIN_CAPTURE_INTERVAL_MS
+                    - (SystemClock.uptimeMillis() - capture.lastCaptureUptime);
+            if (remaining > 0L) {
+                // Keep one-shot invalidations queued without spinning the list at 60/120 Hz.
+                if (!capture.refreshPosted) {
+                    capture.refreshPosted = true;
+                    child.postInvalidateDelayed(remaining);
+                }
+                return capture;
+            }
         }
         try {
             Bitmap surface = capture.bitmap;
@@ -245,7 +264,9 @@ final class PengramCylinderWarp implements RecyclerListView.ChildWarp {
             onto.restoreToCount(save);
             capture.width = w;
             capture.height = h;
+            capture.lastCaptureUptime = SystemClock.uptimeMillis();
             capture.stale = false;
+            capture.refreshPosted = false;
             capture.snapshot(child);
             return capture;
         } catch (Throwable t) {
