@@ -2430,7 +2430,8 @@ public class AndroidUtilities {
 
     public static Typeface getTypeface(String assetPath) {
         final int pengramFont = PengramConfig.getAppFont();
-        if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")) {
+        if (pengramFont != PengramConfig.FONT_DEFAULT && assetPath != null && assetPath.startsWith("fonts/r")
+                && !assetPath.contains("mono")) {
             final String cacheKey = pengramFont + "#" + assetPath;
             synchronized (pengramTypefaceCache) {
                 final Typeface cached = pengramTypefaceCache.get(cacheKey);

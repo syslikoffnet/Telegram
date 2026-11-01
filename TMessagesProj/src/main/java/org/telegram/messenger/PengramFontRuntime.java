@@ -17,6 +17,8 @@ import java.util.WeakHashMap;
 /** Applies the selected Pengram UI font to live screens as well as newly-created text. */
 public final class PengramFontRuntime {
     private static final WeakHashMap<Activity, Boolean> resumedActivities = new WeakHashMap<>();
+    /** Views explicitly changed by us, so app-selected monospace can be switched back without restyling code. */
+    private static final WeakHashMap<View, Integer> appliedFontByView = new WeakHashMap<>();
     private static boolean installed;
 
     private PengramFontRuntime() {
@@ -91,19 +93,27 @@ public final class PengramFontRuntime {
     private static void apply(View view, int font) {
         if (view == null) return;
         try {
-            if (view instanceof TextView) {
-                final TextView textView = (TextView) view;
-                final Typeface current = textView.getTypeface();
+            if (view instanceof TextView || view instanceof SimpleTextView) {
+                final Typeface current = view instanceof TextView
+                        ? ((TextView) view).getTypeface()
+                        : ((SimpleTextView) view).getTypeface();
                 final int style = appStyle(current);
-                if (isTelegramTextTypeface(current, style)) {
-                    textView.setTypeface(PengramFonts.typeface(font, style));
+                final Integer previousFont;
+                synchronized (appliedFontByView) {
+                    previousFont = appliedFontByView.get(view);
                 }
-            } else if (view instanceof SimpleTextView) {
-                final SimpleTextView textView = (SimpleTextView) view;
-                final Typeface current = textView.getTypeface();
-                final int style = appStyle(current);
-                if (isTelegramTextTypeface(current, style)) {
-                    textView.setTypeface(PengramFonts.typeface(font, style));
+                final boolean wasAppliedByPengram = previousFont != null
+                        && matches(PengramFonts.typeface(previousFont, style), current);
+                if (isTelegramTextTypeface(current, style, wasAppliedByPengram)) {
+                    final Typeface selected = PengramFonts.typeface(font, style);
+                    if (view instanceof TextView) {
+                        ((TextView) view).setTypeface(selected);
+                    } else {
+                        ((SimpleTextView) view).setTypeface(selected);
+                    }
+                    synchronized (appliedFontByView) {
+                        appliedFontByView.put(view, font);
+                    }
                 }
             }
         } catch (Throwable e) {
@@ -117,6 +127,10 @@ public final class PengramFontRuntime {
         }
     }
 
+    private static boolean matches(Typeface expected, Typeface actual) {
+        return expected != null && actual != null && (expected == actual || expected.equals(actual));
+    }
+
     private static int appStyle(Typeface current) {
         final int style = current == null ? Typeface.NORMAL : current.getStyle();
         final int telegramStyle = AndroidUtilities.telegramTypefaceStyle(current, style);
@@ -124,8 +138,8 @@ public final class PengramFontRuntime {
     }
 
     /** Do not replace code/editor and icon typefaces; update Android/Telegram UI text and our own families. */
-    private static boolean isTelegramTextTypeface(Typeface current, int style) {
-        if (isMonospace(current, style)) return false;
+    private static boolean isTelegramTextTypeface(Typeface current, int style, boolean wasAppliedByPengram) {
+        if (isMonospace(current, style) && !wasAppliedByPengram) return false;
         if (current == null) return true;
         if (PengramFonts.isSelectableTypeface(current)) return true;
         if (AndroidUtilities.isTelegramTextTypeface(current, style)) return true;

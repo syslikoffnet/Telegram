@@ -26,8 +26,11 @@ assert "PengramFontRuntime.onFontChanged()" in config, "changing or committing a
 assert "registerActivityLifecycleCallbacks" in runtime and "apply(decor" in runtime, "new and resumed screens must receive the selected font"
 assert "clearPengramTypefaceCaches" in runtime and "applyPengramFontToPaints" in runtime, "font changes must invalidate cached Telegram typefaces and theme paints"
 assert "PengramFontRuntime.install(this)" in application, "runtime font application must be installed at startup"
-assert "isTelegramTextTypeface" in android_utilities and "textView.setTypeface" in runtime, "live Telegram text views must be refreshed"
+assert "isTelegramTextTypeface" in android_utilities and ".setTypeface(selected)" in runtime, "live Telegram text views must be refreshed"
 assert "public static void applyPengramFontToPaints()" in theme, "cached Theme text paints must be refreshed"
+assert "appliedFontByView" in runtime and "wasAppliedByPengram" in runtime, "switching away from app-selected monospace must restore text without changing code typefaces"
+assert "!assetPath.contains(\"mono\")" in android_utilities, "code and inline-monospace text must not be replaced by the global UI font"
+assert 'font == SYSTEM' in font_java and 'system.equals(Typeface.DEFAULT)' in font_java, "do not show a system font option that is identical to the default"
 
 for rel in ("TMessagesProj/src/main/res/values/strings.xml", "TMessagesProj/src/main/res/values-ru/strings.xml"):
     root = ET.parse(ROOT / rel).getroot()

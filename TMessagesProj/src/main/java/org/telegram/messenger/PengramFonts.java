@@ -89,8 +89,16 @@ public final class PengramFonts {
      * с дефолтным: совпал — значит семейства в системе нет.
      */
     public static boolean isAvailable(int font) {
-        if (font == DEFAULT || font == SYSTEM || font == SERIF || font == MONOSPACE) {
+        if (font == DEFAULT || font == SERIF || font == MONOSPACE) {
             return true;
+        }
+        if (font == SYSTEM) {
+            try {
+                final Typeface system = Typeface.create("sans-serif", Typeface.NORMAL);
+                return system != null && !system.equals(Typeface.DEFAULT);
+            } catch (Throwable e) {
+                return false;
+            }
         }
         if (font == PIXEL) {
             return pixelTypeface() != null;
