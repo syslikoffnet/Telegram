@@ -44,15 +44,43 @@ python3 scripts/inspect_plugin_payload.py blob.txt --key 3b 84 65 61 21 3e db f1
 Код-статус `0` — payload распакован; `1` — обфусцированного блока нет либо ключ
 не подошёл (попробуйте `--key`).
 
+## Второй тип: «защищённый» блок `_x7a2` / `_x7a3`
+
+Некоторые плагины (пример: `Comfort Lyrics++`) прячут код иначе:
+
+```python
+def _x7a3(self):
+    _ik  = sha256(bytes([185,9,58,37,79,236,68,252]) + __id__.encode()).digest()
+    _tab = (71,217,83,...); _idx = (4,73,52,...); _ms = 151
+    _k   = bytes(((_tab[_idx[t]] - _ms) & 255) ^ _ik[t] for t in range(32))
+    _ct  = b64decode(_enc.translate(maketrans(_abc, _std)) + "==")   # свой алфавит b64
+    if sha256(_k + _n + _ct).digest() != _mac: return                # контроль целостности
+    _src = zlib.decompress(keystream_xor(_ct, _k, _n))
+    exec(compile(_src, "<n>", "exec"), globals())
+```
+
+Ключ выводится из `__id__` плагина, поэтому payload привязан к конкретному файлу.
+`exec(..., globals())` означает, что скрытый код может **переопределить любую
+функцию модуля** — включая `requests`, `get_current_track_info`, хуки и сам `_x7a3`.
+
+```bash
+python3 scripts/unpack_nw_loader.py suspicious.plugin --extract-strings
+```
+
+Скрипт разбирает константы из исходника, проверяет MAC и пишет `*.decoded.py`
+с шапкой «НЕ ИСПОЛНЯТЬ». Если MAC не сходится — файл повреждён или это другая
+версия схемы (тогда ключ/соль нужно смотреть глазами).
+
 ## Проверка
 
 ```bash
 python3 scripts/test-inspect-plugin-payload.py
+python3 scripts/test-unpack-nw-loader.py
 ```
 
-Тест собирает синтетический плагин (XOR → zlib → b85 → HTML-экранирование),
-убеждается, что скрипт распаковывает его, находит индикаторы и корректно
-отказывается на обычном, необфусцированном плагине.
+Тесты собирают синтетические плагины обеих схем (b85/zlib/XOR и keystream/zlib с MAC),
+проверяют распаковку, поиск индикаторов и корректный отказ при подмене `__id__`
+или на обычном, необфусцированном плагине.
 
 ## Важно
 
