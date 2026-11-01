@@ -306,6 +306,16 @@ public class SimpleTextView extends View implements Drawable.Callback {
 
     public void setTypeface(Typeface typeface) {
         textPaint.setTypeface(typeface);
+        layout = null;
+        firstLineLayout = null;
+        fullLayout = null;
+        partLayout = null;
+        requestLayout();
+        invalidate();
+    }
+
+    public Typeface getTypeface() {
+        return textPaint.getTypeface();
     }
 
     public int getSideDrawablesSize() {

@@ -17,6 +17,17 @@ assert "case PIXEL: return R.string.PengramFontPixel;" in font_java, "provide a 
 assert "if (font == PIXEL)" in font_java and "Typeface.create(base, style)" in font_java, "support normal/bold/italic variants"
 constructor = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/PengramConstructorActivity.java").read_text(encoding="utf-8")
 assert "PengramFonts.name(font)" in constructor, "the live constructor preview must show the selected font name"
+config = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/PengramConfig.java").read_text(encoding="utf-8")
+runtime = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/PengramFontRuntime.java").read_text(encoding="utf-8")
+android_utilities = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/AndroidUtilities.java").read_text(encoding="utf-8")
+theme = (ROOT / "TMessagesProj/src/main/java/org/telegram/ui/ActionBar/Theme.java").read_text(encoding="utf-8")
+application = (ROOT / "TMessagesProj/src/main/java/org/telegram/messenger/ApplicationLoader.java").read_text(encoding="utf-8")
+assert "PengramFontRuntime.onFontChanged()" in config, "changing or committing a font must apply it immediately"
+assert "registerActivityLifecycleCallbacks" in runtime and "apply(decor" in runtime, "new and resumed screens must receive the selected font"
+assert "clearPengramTypefaceCaches" in runtime and "applyPengramFontToPaints" in runtime, "font changes must invalidate cached Telegram typefaces and theme paints"
+assert "PengramFontRuntime.install(this)" in application, "runtime font application must be installed at startup"
+assert "isTelegramTextTypeface" in android_utilities and "textView.setTypeface" in runtime, "live Telegram text views must be refreshed"
+assert "public static void applyPengramFontToPaints()" in theme, "cached Theme text paints must be refreshed"
 
 for rel in ("TMessagesProj/src/main/res/values/strings.xml", "TMessagesProj/src/main/res/values-ru/strings.xml"):
     root = ET.parse(ROOT / rel).getroot()

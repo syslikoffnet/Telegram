@@ -170,6 +170,13 @@ public final class PengramFonts {
     }
 
     public static Typeface typeface(int font, int style) {
+        if (font == DEFAULT) {
+            try {
+                return Typeface.create(Typeface.DEFAULT, style);
+            } catch (Throwable ignore) {
+                return Typeface.DEFAULT;
+            }
+        }
         if (font == PIXEL) {
             final Typeface base = pixelTypeface();
             if (base == null) {
@@ -211,6 +218,20 @@ public final class PengramFonts {
             }
         }
         return typeface;
+    }
+
+    /** Returns true when a live view uses a built-in Pengram font family. */
+    public static boolean isSelectableTypeface(Typeface candidate) {
+        if (candidate == null) return false;
+        for (int font : ALL) {
+            for (int style = Typeface.NORMAL; style <= Typeface.BOLD_ITALIC; style++) {
+                final Typeface typeface = typeface(font, style);
+                if (typeface != null && (candidate == typeface || candidate.equals(typeface))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static Typeface typeface(int font) {

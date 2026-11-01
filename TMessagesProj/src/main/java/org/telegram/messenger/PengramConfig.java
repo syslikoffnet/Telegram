@@ -480,6 +480,7 @@ public class PengramConfig {
             finished = true;
             visualDraft = null;
             // Only now expose staged layout fields to the live Telegram UI.
+            final boolean fontChanged = changes.containsKey("appFont");
             for (java.util.Map.Entry<String, Object> entry : changes.entrySet()) {
                 String key = entry.getKey();
                 Object value = entry.getValue();
@@ -495,6 +496,9 @@ public class PengramConfig {
                 else if (key.equals("hideMenuSettings")) hideMenuSettings = (Boolean) value;
                 boolCache.remove(key);
                 intCache.remove(key);
+            }
+            if (fontChanged) {
+                PengramFontRuntime.onFontChanged();
             }
             return true;
         }
@@ -3538,8 +3542,13 @@ public class PengramConfig {
     public static void setAppFont(int font) {
         init();
         if (stageVisual("appFont", font)) return;
+        if (font < PengramFonts.DEFAULT || font > PengramFonts.PIXEL) {
+            font = PengramFonts.DEFAULT;
+        }
+        if (appFont == font) return;
         appFont = font;
         putInt("appFont", font);
+        PengramFontRuntime.onFontChanged();
     }
     public static int getSendTextStyle() { init(); return sendTextStyle; }
     public static void setSendTextStyle(int style) { init(); sendTextStyle = style; putInt("sendTextStyle", style); }
