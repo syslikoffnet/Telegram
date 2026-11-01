@@ -1,0 +1,28 @@
+# секреты
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# данные бота
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.log.*
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# прочее
+*.zip
+*.tar.gz
+.DS_Store
