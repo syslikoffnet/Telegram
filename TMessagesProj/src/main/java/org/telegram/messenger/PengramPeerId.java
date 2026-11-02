@@ -19,10 +19,8 @@ public final class PengramPeerId {
 
     private PengramPeerId() {}
 
-    /** ID, которые сервер уже отказался отдавать — чтобы не долбить его одним и тем же запросом */
-    private static final java.util.HashSet<Long> failed = new java.util.HashSet<>();
-    /** ID, запрос по которым прямо сейчас в полёте */
-    private static final java.util.HashSet<Long> pending = new java.util.HashSet<>();
+    /** Запросы на один и тот же peer объединяются: каждый экран получит результат запроса. */
+    private static final java.util.HashMap<String, ArrayList<Utilities.Callback<TLObject>>> pending = new java.util.HashMap<>();
 
     /**
      * Разбирает строку как ID. Понимает лишние пробелы, префиксы «id:», «ид:», ссылки tg://
@@ -38,17 +36,43 @@ public final class PengramPeerId {
         if (q.isEmpty()) {
             return 0;
         }
-        // ссылки вида tg://user?id=123 и tg://openmessage?user_id=123
-        final int idx = q.lastIndexOf("id=");
-        if (idx >= 0) {
-            q = q.substring(idx + 3);
+        // Ссылки tg://user?id=123 и tg://openmessage?user_id=123&message_id=456.
+        // Не ищем в URL последний фрагмент "id=": так message_id не подменит user_id.
+        final int queryStart = q.indexOf('?');
+        if (queryStart >= 0) {
+            String userValue = null;
+            String chatValue = null;
+            String genericValue = null;
+            final String[] parameters = q.substring(queryStart + 1).split("&");
+            for (String parameter : parameters) {
+                final int equals = parameter.indexOf('=');
+                if (equals <= 0) continue;
+                final String name = parameter.substring(0, equals);
+                final String value = parameter.substring(equals + 1);
+                if ("user_id".equals(name)) userValue = value;
+                else if ("chat_id".equals(name)) chatValue = value;
+                else if ("id".equals(name)) genericValue = value;
+            }
+            if (userValue != null) q = userValue;
+            else if (chatValue != null) q = chatValue;
+            else if (genericValue != null) q = genericValue;
+            else return 0;
         } else {
-            // «id: 123», «ид 123», «айди — 123»
+            // Голый параметр из буфера («user_id=123», «id=123») и подписи вида «ID: 123».
+            final int equals = q.indexOf('=');
+            if (equals > 0) {
+                final String name = q.substring(0, equals);
+                if ("user_id".equals(name) || "chat_id".equals(name) || "id".equals(name)) {
+                    q = q.substring(equals + 1);
+                }
+            }
             final int colon = q.lastIndexOf(':');
             if (colon >= 0 && colon < q.length() - 1) {
                 q = q.substring(colon + 1);
             }
         }
+        final int fragment = q.indexOf('#');
+        if (fragment >= 0) q = q.substring(0, fragment);
         q = q.replace(" ", "").replace("\u00A0", "").replace("_", "").replace("\u2014", "").replace("\u2013", "");
         if (q.startsWith("id")) {
             q = q.substring(2);
@@ -127,44 +151,107 @@ public final class PengramPeerId {
         return controller.getChat(-dialogId);
     }
 
+    private static boolean hasUsablePeerReference(TLObject peer, int account) {
+        if (peer instanceof TLRPC.User) {
+            final TLRPC.User user = (TLRPC.User) peer;
+            return user.id == UserConfig.getInstance(account).getClientUserId()
+                    || user.access_hash != 0
+                    || user.fromMessageDialogId != 0 && user.fromMessageId != 0;
+        }
+        if (peer instanceof TLRPC.Chat) {
+            final TLRPC.Chat chat = (TLRPC.Chat) peer;
+            return !ChatObject.isChannel(chat) || chat.access_hash != 0
+                    || chat.fromMessageDialogId != 0 && chat.fromMessageId != 0;
+        }
+        return false;
+    }
+
     /**
-     * Достаёт пир по ID: сначала память, потом сервер. Колбэк всегда вызывается в UI-потоке,
-     * с TLRPC.User, TLRPC.Chat или null, если такого ID не существует (или он нам недоступен).
+     * Достаёт пир по ID в порядке надёжности: полноценный peer из памяти → локальная БД → сервер.
+     * Неполный объект из RAM не закрывает путь к БД: username мог исчезнуть, а нужный access_hash
+     * всё ещё сохранён в записи пользователя. Колбэк всегда вызывается в UI-потоке; одинаковые
+     * одновременные запросы объединяются.
      */
     public static void resolve(int account, long dialogId, Utilities.Callback<TLObject> whenDone) {
         if (dialogId == 0) {
-            if (whenDone != null) whenDone.run(null);
+            AndroidUtilities.runOnUIThread(() -> {
+                if (whenDone != null) whenDone.run(null);
+            });
             return;
         }
         final TLObject cachedPeer = cached(account, dialogId);
-        if (cachedPeer != null) {
-            if (whenDone != null) whenDone.run(cachedPeer);
+        if (cachedPeer != null && hasUsablePeerReference(cachedPeer, account)) {
+            AndroidUtilities.runOnUIThread(() -> {
+                if (whenDone != null) whenDone.run(cachedPeer);
+            });
             return;
         }
-        final long key = dialogId * 31L + account;
-        synchronized (failed) {
-            if (failed.contains(key) || pending.contains(key)) {
-                if (whenDone != null) whenDone.run(null);
+
+        final String key = account + ":" + dialogId;
+        synchronized (pending) {
+            ArrayList<Utilities.Callback<TLObject>> callbacks = pending.get(key);
+            if (callbacks != null) {
+                if (whenDone != null) callbacks.add(whenDone);
                 return;
             }
-            pending.add(key);
+            callbacks = new ArrayList<>();
+            if (whenDone != null) callbacks.add(whenDone);
+            pending.put(key, callbacks);
         }
-        final Utilities.Callback<TLObject> done = result -> AndroidUtilities.runOnUIThread(() -> {
-            synchronized (failed) {
-                pending.remove(key);
-                if (result == null) {
-                    failed.add(key);
+
+        final Utilities.Callback<TLObject> finish = result -> AndroidUtilities.runOnUIThread(() -> {
+            final ArrayList<Utilities.Callback<TLObject>> callbacks;
+            synchronized (pending) {
+                callbacks = pending.remove(key);
+            }
+            if (callbacks != null) {
+                for (int i = 0; i < callbacks.size(); i++) {
+                    final Utilities.Callback<TLObject> callback = callbacks.get(i);
+                    if (callback != null) {
+                        try {
+                            callback.run(result);
+                        } catch (Throwable error) {
+                            FileLog.e(error);
+                        }
+                    }
                 }
             }
-            if (whenDone != null) {
-                whenDone.run(result);
-            }
         });
-        if (dialogId > 0) {
-            requestUser(account, dialogId, done);
-        } else {
-            requestChat(account, -dialogId, done);
-        }
+
+        // Критически важно читать SQLite перед сетью: знакомый пользователю peer часто
+        // уже сохранён с access_hash, хотя MessagesController только что выгрузил его из RAM.
+        MessagesStorage.getInstance(account).getStorageQueue().postRunnable(() -> {
+            TLObject storedPeer = null;
+            try {
+                if (dialogId > 0) {
+                    final TLRPC.User user = MessagesStorage.getInstance(account).getUser(dialogId);
+                    if (user != null && !(user instanceof TLRPC.TL_userEmpty)) storedPeer = user;
+                } else {
+                    final TLRPC.Chat chat = MessagesStorage.getInstance(account).getChat(-dialogId);
+                    if (chat != null && !(chat instanceof TLRPC.TL_chatEmpty)) storedPeer = chat;
+                }
+            } catch (Throwable error) {
+                FileLog.e(error);
+            }
+            final TLObject peerFromStorage = storedPeer;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (peerFromStorage instanceof TLRPC.User) {
+                    MessagesController.getInstance(account).putUser((TLRPC.User) peerFromStorage, true);
+                    finish.run(peerFromStorage);
+                } else if (peerFromStorage instanceof TLRPC.Chat) {
+                    MessagesController.getInstance(account).putChat((TLRPC.Chat) peerFromStorage, true);
+                    finish.run(peerFromStorage);
+                } else if (cachedPeer != null && !hasUsablePeerReference(cachedPeer, account)) {
+                    // Сущность известна локально, но серверный access_hash получить неоткуда.
+                    // Всё равно открываем чат/профиль вместо ложного «не найдено».
+                    finish.run(cachedPeer);
+                } else if (dialogId > 0) {
+                    requestUser(account, dialogId, finish);
+                } else {
+                    requestChat(account, -dialogId, finish);
+                }
+            });
+        });
     }
 
     private static void requestUser(int account, long userId, Utilities.Callback<TLObject> done) {

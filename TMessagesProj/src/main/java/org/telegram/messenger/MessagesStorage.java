@@ -4756,6 +4756,9 @@ public class MessagesStorage extends BaseController {
     }
 
     public void emptyMessagesMedia(long dialogId, ArrayList<Integer> mids) {
+        if (PengramConfig.isKeepingOnceMedia()) {
+            return;
+        }
         storageQueue.postRunnable(() -> {
             SQLiteCursor cursor = null;
             SQLitePreparedStatement state = null;
@@ -14737,14 +14740,24 @@ public class MessagesStorage extends BaseController {
         });
     }
 
-    private void pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
-        // Архив «слежки» пишем только по настройке, но метку «удалено» ставим
-        // всегда, когда сообщение остаётся в чате (локальная копия включена по
-        // умолчанию) — иначе удалённое сообщение выглядит обычным.
+    private ArrayList<Integer> pengramSaveDeleted(long dialogId, ArrayList<Integer> messages) {
+        final ArrayList<Integer> retainable = new ArrayList<>();
         final boolean saveArchive = PengramConfig.isSavingDeleted(currentAccount);
         final boolean keepVisible = PengramLocalKeep.keepDeletedMessages();
-        if ((!saveArchive && !keepVisible) || messages == null || messages.isEmpty()) {
-            return;
+        if (messages == null || messages.isEmpty()) {
+            return retainable;
+        }
+        boolean hasSaveForMyself = dialogId == 0;
+        if (!hasSaveForMyself) {
+            for (Integer id : messages) {
+                if (PengramHistory.isSaveForMyself(currentAccount, dialogId, id)) {
+                    hasSaveForMyself = true;
+                    break;
+                }
+            }
+        }
+        if (!saveArchive && !keepVisible && !hasSaveForMyself) {
+            return retainable;
         }
         SQLiteCursor cursor = null;
         try {
@@ -14755,7 +14768,6 @@ public class MessagesStorage extends BaseController {
             } else {
                 cursor = database.queryFinalized(String.format(Locale.US, "SELECT data, mid, uid FROM messages_v2 WHERE mid IN(%s)", ids));
             }
-            final LongSparseArray<ArrayList<Integer>> marksByDialog = new LongSparseArray<>();
             while (cursor.next()) {
                 NativeByteBuffer data = cursor.byteBufferValue(0);
                 if (data == null) {
@@ -14766,41 +14778,35 @@ public class MessagesStorage extends BaseController {
                     TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                     if (message != null) {
                         message.readAttachPath(data, selfId);
-                        if (did == selfId && !PengramHistory.isSaveForMyself(message.id)) {
+                        if (did == selfId && !PengramHistory.isSaveForMyself(currentAccount, did, message.id)) {
                             continue; // «Избранное» — там ничего не пропадает
                         }
-                        if (!PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED)
-                                || PengramHistory.isUserDeleted(message.id)) continue;
-                        final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
-                        final boolean forceSave = PengramHistory.isSaveForMyself(message.id);
-                        final boolean archived = saveArchive
+                        if (PengramHistory.isUserDeleted(currentAccount, did, message.id)) continue;
+                        final boolean archivable = PengramHistory.isArchivableSnapshot(did, message, PengramHistory.ACTION_DELETED);
+                        final boolean forceSave = PengramHistory.isSaveForMyself(currentAccount, did, message.id);
+                        final boolean archived = archivable && (forceSave || saveArchive
                                 && !(!PengramConfig.isSavingInBots(currentAccount) && pengramIsBotDialog(did))
-                                && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount) && !forceSave);
-                        if (archived || keepVisible) {
+                                && !(message.out && !PengramConfig.isSavingOutgoing(currentAccount)));
+                        // First preserve eligible media and its updated attachPath, then serialize.
+                        if (archivable && archived) {
+                            pengramSaveDeletedMedia(did, message);
+                        }
+                        final byte[] snapshot = archivable ? PengramHistory.serialize(message) : null;
+                        if (snapshot != null && (archived || keepVisible)) {
+                            final long fromId = message.from_id != null ? DialogObject.getPeerDialogId(message.from_id) : did;
                             final String text = PengramHistory.describe(message);
-                            // Сначала переносим голосовое во внутреннее постоянное хранилище и
-                            // обновляем attachPath, затем сериализуем сообщение в историю.
-                            if (archived) pengramSaveDeletedMedia(did, message);
                             PengramHistory.save(currentAccount, did, message.id, fromId, message.date,
-                                    PengramHistory.ACTION_DELETED, text, null, message.out, PengramHistory.serialize(message));
+                                    PengramHistory.ACTION_DELETED, text, null, message.out, snapshot);
                         }
-                        if (!archived && !keepVisible) {
-                            // ни в архив, ни в чате не остаётся — метка не нужна
-                            continue;
+                        // keepInChat receives only IDs with a serializable, archivable snapshot.
+                        // Ineligible TTL/ephemeral/bot/outgoing items continue through normal deletion.
+                        if (snapshot != null && PengramHistory.canRetainDeletedMessage(currentAccount, did, message)) {
+                            retainable.add(message.id);
                         }
-                        ArrayList<Integer> marks = marksByDialog.get(did);
-                        if (marks == null) {
-                            marks = new ArrayList<>();
-                            marksByDialog.put(did, marks);
-                        }
-                        marks.add(message.id);
                     }
                 } finally {
                     data.reuse();
                 }
-            }
-            for (int a = 0; a < marksByDialog.size(); ++a) {
-                PengramHistory.markDeleted(currentAccount, marksByDialog.keyAt(a), marksByDialog.valueAt(a));
             }
         } catch (Throwable e) {
             FileLog.e(e);
@@ -14809,6 +14815,7 @@ public class MessagesStorage extends BaseController {
                 try { cursor.dispose(); } catch (Throwable ignore) {}
             }
         }
+        return retainable;
     }
 
     private ArrayList<Long> markMessagesAsDeletedInternal(long dialogId, ArrayList<Integer> messages, boolean deleteFiles, int mode, int threadMessageId) {
@@ -14882,11 +14889,24 @@ public class MessagesStorage extends BaseController {
             } else {
                 long currentUser = getUserConfig().getClientUserId();
 
-                pengramSaveDeleted(dialogId, messages);
+                final ArrayList<Integer> retainableDeleted = pengramSaveDeleted(dialogId, messages);
 
-                if (currentUser != dialogId && PengramHistory.keepInChat(currentAccount, messages)) {
-                    // Pengram: сообщение остаётся в базе и в чате, мы только помечаем его удалённым
-                    return dialogsIds;
+                if (currentUser != dialogId && !retainableDeleted.isEmpty()
+                        && PengramHistory.keepInChat(currentAccount, dialogId, retainableDeleted)) {
+                    final HashSet<Integer> retainedIds = new HashSet<>(retainableDeleted);
+                    final ArrayList<Integer> deleteNormally = new ArrayList<>();
+                    for (Integer id : messages) {
+                        if (!retainedIds.contains(id)) {
+                            deleteNormally.add(id);
+                        }
+                    }
+                    if (deleteNormally.isEmpty()) {
+                        // Every message has an archivable snapshot and can safely stay as a marked ghost.
+                        return dialogsIds;
+                    }
+                    // Mixed batches are split: keep only safe snapshots; TTL,
+                    // ephemeral, unknown, or otherwise unarchivable messages are deleted normally.
+                    messages = deleteNormally;
                 }
 
                 ArrayList<Integer> unknownMessages = new ArrayList<>(messages);

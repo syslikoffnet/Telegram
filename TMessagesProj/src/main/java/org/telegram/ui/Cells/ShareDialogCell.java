@@ -413,10 +413,11 @@ public class ShareDialogCell extends FrameLayout implements NotificationCenter.N
                 if (isOnline || onlineProgress != 0) {
                     int top = imageView.getBottom() - dp(6);
                     int left = imageView.getRight() - dp(10);
-                    Theme.dialogs_onlineCirclePaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
-                    canvas.drawCircle(left, top, dp(7) * onlineProgress * (1.0f - lockT) * (1.0f - priceT), Theme.dialogs_onlineCirclePaint);
-                    Theme.dialogs_onlineCirclePaint.setColor(getThemedColor(Theme.key_chats_onlineCircle));
-                    canvas.drawCircle(left, top, dp(5) * onlineProgress * (1.0f - lockT) * (1.0f - priceT), Theme.dialogs_onlineCirclePaint);
+                    org.telegram.ui.Components.PengramStatusIndicators.drawOnlineBadge(
+                            canvas, left, top, onlineProgress * (1.0f - lockT) * (1.0f - priceT),
+                            getThemedColor(Theme.key_windowBackgroundWhite),
+                            getThemedColor(Theme.key_chats_onlineCircle)
+                    );
                     if (isOnline) {
                         if (onlineProgress < 1.0f) {
                             onlineProgress += dt / 150.0f;

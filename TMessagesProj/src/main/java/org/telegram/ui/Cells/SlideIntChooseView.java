@@ -355,7 +355,13 @@ public class SlideIntChooseView extends FrameLayout {
             o.style = style;
             o.min = min;
             o.max = max;
-            o.toString = (type, val) -> toString.run(val);
+            o.toString = (type, val) -> {
+                CharSequence formatted = toString.run(val);
+                if (type != 0 && formatted != null && formatted.length() > 10) {
+                    return Integer.toString(val);
+                }
+                return formatted;
+            };
             return o;
         }
 

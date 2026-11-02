@@ -16942,6 +16942,37 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     return;
                 }
             }
+            // Some locally generated photo messages (for example, media opened from a link)
+            // have no Telegram file location. Resolve their existing attachPath directly rather
+            // than asking FileLoader for the synthetic TL_photoSize location, which can only
+            // produce an empty/invalid cache path and leaves PhotoViewer showing a black screen.
+            if (messageObject != null && messageObject.isPhoto() && !TextUtils.isEmpty(messageObject.messageOwner.attachPath)) {
+                File localPhotoFile = new File(messageObject.messageOwner.attachPath);
+                if (localPhotoFile.isFile() && localPhotoFile.length() > 0) {
+                    ImageReceiver.BitmapHolder placeHolder = null;
+                    if (currentThumb != null && imageReceiver == centerImage) {
+                        placeHolder = currentThumb;
+                    }
+                    TLRPC.PhotoSize thumbLocation = FileLoader.getClosestPhotoSizeWithSize(messageObject.photoThumbs, 100);
+                    ImageLocation thumbImageLocation = placeHolder == null && thumbLocation != null
+                        ? ImageLocation.getForObject(thumbLocation, messageObject.photoThumbsObject)
+                        : null;
+                    imageReceiver.setNeedsQualityThumb(true);
+                    imageReceiver.setImage(
+                        ImageLocation.getForPath(localPhotoFile.getAbsolutePath()),
+                        null,
+                        thumbImageLocation,
+                        "b",
+                        placeHolder != null ? new BitmapDrawable(placeHolder.bitmap) : null,
+                        localPhotoFile.length(),
+                        null,
+                        messageObject,
+                        0
+                    );
+                    imageReceiver.setMark(null);
+                    return;
+                }
+            }
             long[] size = new long[1];
             ImageLocation imageLocation = getImageLocation(index, size);
             TLObject fileLocation = getFileLocation(index, size);

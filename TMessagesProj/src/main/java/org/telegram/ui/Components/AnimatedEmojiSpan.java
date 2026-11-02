@@ -1034,18 +1034,71 @@ public class AnimatedEmojiSpan extends ReplacementSpan {
 
     public static AnimatedEmojiSpan cloneSpan(AnimatedEmojiSpan span, Paint.FontMetricsInt fontMetricsInt) {
         AnimatedEmojiSpan animatedEmojiSpan;
+        final float targetScale = fontMetricsInt != null ? 1.0f : span.scale;
         if (span.document != null) {
-            animatedEmojiSpan = new AnimatedEmojiSpan(span.document, span.scale, fontMetricsInt != null ? fontMetricsInt : span.fontMetrics);
+            animatedEmojiSpan = new AnimatedEmojiSpan(span.document, targetScale, fontMetricsInt != null ? fontMetricsInt : span.fontMetrics);
         } else {
-            animatedEmojiSpan = new AnimatedEmojiSpan(span.documentId, span.scale, fontMetricsInt != null ? fontMetricsInt : span.fontMetrics);
+            animatedEmojiSpan = new AnimatedEmojiSpan(span.documentId, targetScale, fontMetricsInt != null ? fontMetricsInt : span.fontMetrics);
         }
-        if (fontMetricsInt != null) {
+        if (fontMetricsInt == null) {
             animatedEmojiSpan.size = span.size;
+            animatedEmojiSpan.full = span.full;
+            animatedEmojiSpan.top = span.top;
+            animatedEmojiSpan.extraScale = span.extraScale;
+        } else {
+            animatedEmojiSpan.replaceFontMetrics(fontMetricsInt);
+            animatedEmojiSpan.full = false;
+            animatedEmojiSpan.top = false;
+            animatedEmojiSpan.extraScale = 1f;
         }
+        animatedEmojiSpan.standard = span.standard;
+        animatedEmojiSpan.emoji = span.emoji;
         animatedEmojiSpan.fromEmojiKeyboard = span.fromEmojiKeyboard;
         animatedEmojiSpan.isAdded = span.isAdded;
         animatedEmojiSpan.isRemoved = span.isRemoved;
         return animatedEmojiSpan;
+    }
+
+    /**
+     * Pengram: нормализует спаны эмодзи для компактных однострочных превью (ответы, цитаты, плашка закреплённого).
+     * Стандартные TYPE_EMOJIS AnimatedEmojiSpan (~80dp на одиночных «🤣») снимаются, чтобы Emoji.replaceEmoji
+     * поставил ровный EmojiSpan по метрикам строки, а кастомные эмодзи сжимаются строго до высоты строки.
+     */
+    public static CharSequence normalizeForCompactLine(CharSequence text, Paint.FontMetricsInt fontMetricsInt) {
+        if (!(text instanceof Spanned) || fontMetricsInt == null) {
+            return text;
+        }
+        final Spanned spanned = (Spanned) text;
+        final AnimatedEmojiSpan[] animSpans = spanned.getSpans(0, spanned.length(), AnimatedEmojiSpan.class);
+        final Emoji.EmojiSpan[] emojiSpans = spanned.getSpans(0, spanned.length(), Emoji.EmojiSpan.class);
+        if ((animSpans == null || animSpans.length == 0) && (emojiSpans == null || emojiSpans.length == 0)) {
+            return text;
+        }
+        final SpannableStringBuilder out = text instanceof SpannableStringBuilder
+                ? (SpannableStringBuilder) text : new SpannableStringBuilder(text);
+        if (animSpans != null) {
+            for (int i = 0; i < animSpans.length; ++i) {
+                final AnimatedEmojiSpan oldSpan = animSpans[i];
+                if (oldSpan == null) {
+                    continue;
+                }
+                final int start = out.getSpanStart(oldSpan);
+                final int end = out.getSpanEnd(oldSpan);
+                out.removeSpan(oldSpan);
+                if (!oldSpan.standard && start >= 0 && end > start && end <= out.length()) {
+                    final AnimatedEmojiSpan resized = cloneSpan(oldSpan, fontMetricsInt);
+                    out.setSpan(resized, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+            }
+        }
+        if (emojiSpans != null) {
+            for (int i = 0; i < emojiSpans.length; ++i) {
+                if (emojiSpans[i] != null) {
+                    out.removeSpan(emojiSpans[i]);
+                }
+            }
+        }
+        return out;
     }
 
     public static CharSequence cloneSpans(CharSequence text) {
@@ -1089,7 +1142,7 @@ public class AnimatedEmojiSpan extends ReplacementSpan {
                 if (newCacheType != -1) {
                     newSpan.cacheType = newCacheType;
                 }
-                newSpan.scale = oldSpan.scale * scale;
+                newSpan.scale = fontMetricsInt != null ? scale : (oldSpan.scale * scale);
                 newText.setSpan(newSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             } else {
 //                newText.setSpan(spans[i], start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

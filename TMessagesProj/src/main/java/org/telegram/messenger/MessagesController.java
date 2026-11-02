@@ -354,6 +354,8 @@ public class MessagesController extends BaseController implements NotificationCe
     public boolean dialogsLoaded;
     private SparseIntArray nextDialogsCacheOffset = new SparseIntArray();
     private SparseBooleanArray loadingDialogs = new SparseBooleanArray();
+    private SparseIntArray dialogLoadRetryCount = new SparseIntArray();
+    private SparseIntArray dialogLoadRequestGeneration = new SparseIntArray();
     private SparseBooleanArray dialogsEndReached = new SparseBooleanArray();
     private SparseBooleanArray serverDialogsEndReached = new SparseBooleanArray();
 
@@ -6664,6 +6666,8 @@ public class MessagesController extends BaseController implements NotificationCe
         dialogsLoaded = false;
         nextDialogsCacheOffset.clear();
         loadingDialogs.clear();
+        dialogLoadRetryCount.clear();
+        dialogLoadRequestGeneration.clear();
         dialogsEndReached.clear();
         serverDialogsEndReached.clear();
 
@@ -11533,7 +11537,13 @@ public class MessagesController extends BaseController implements NotificationCe
                 if (previous == null) {
                     previous = getMessagesStorage().pengramGetMessageSnapshot(messageId, dialogId);
                 }
-                String oldText = previous == null ? null : PengramHistory.describe(previous);
+                if (previous == null) {
+                    // Do not publish an edited-version record/mark when Telegram has
+                    // already replaced the row and no durable before-image survived.
+                    PengramHistory.clearPendingEdit(account, dialogId, messageId);
+                    return;
+                }
+                String oldText = PengramHistory.describe(previous);
                 if (oldText == null) {
                     oldText = PengramHistory.getLastKnownText(account, dialogId, messageId);
                 }
@@ -12648,6 +12658,8 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         loadingDialogs.put(folderId, true);
+        final int requestGeneration = dialogLoadRequestGeneration.get(folderId, 0) + 1;
+        dialogLoadRequestGeneration.put(folderId, requestGeneration);
         getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("folderId = " + folderId + " load cacheOffset = " + offset + " count = " + count + " cache = " + fromCache);
@@ -12729,13 +12741,36 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
             }
             getConnectionsManager().sendRequest(req, (response, error) -> {
-                if (error == null) {
+                if (error == null && response instanceof TLRPC.messages_Dialogs) {
+                    dialogLoadRetryCount.delete(folderId);
                     TLRPC.messages_Dialogs dialogsRes = (TLRPC.messages_Dialogs) response;
                     processLoadedDialogs(dialogsRes, null, null, folderId, 0, count, 0, false, false, false);
                     if (onEmptyCallback != null && dialogsRes.dialogs.isEmpty()) {
                         AndroidUtilities.runOnUIThread(onEmptyCallback);
                     }
+                    return;
                 }
+                // A failed first dialogs RPC used to leave loadingDialogs=true forever.
+                // On a clean install this made the app look like an offline/empty Telegram
+                // even after the connection recovered. Release the latch and retry with bounded
+                // backoff; a later connected-state event below can trigger another clean attempt.
+                FileLog.e("loadDialogs failed for account=" + currentAccount + " folder=" + folderId
+                        + " error=" + (error != null ? error.code + " " + error.text : "invalid response"));
+                AndroidUtilities.runOnUIThread(() -> {
+                    loadingDialogs.put(folderId, false);
+                    getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+                    final int retries = dialogLoadRetryCount.get(folderId, 0);
+                    if (retries < 3) {
+                        dialogLoadRetryCount.put(folderId, retries + 1);
+                        final long[] delays = {1200L, 5000L, 15000L};
+                        AndroidUtilities.runOnUIThread(() -> {
+                            if (!resetingDialogs && !loadingDialogs.get(folderId)
+                                    && dialogLoadRequestGeneration.get(folderId, 0) == requestGeneration) {
+                                loadDialogs(folderId, 0, count, false, onEmptyCallback);
+                            }
+                        }, delays[retries]);
+                    }
+                });
             });
         }
     }
@@ -14628,6 +14663,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markMentionMessageAsRead(int mid, long channelId, long did) {
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
+        if (PengramConfig.isNotSendingRead() || PengramConfig.isNotSendingVoiceRead()) {
+            return;
+        }
         if (channelId != 0) {
             TLRPC.TL_channels_readMessageContents req = new TLRPC.TL_channels_readMessageContents();
             req.channel = getInputChannel(channelId);
@@ -14665,6 +14703,9 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void doDeleteShowOnceTask(long taskId, long dialogId, int mid) {
         getMessagesStorage().removePendingTask(taskId);
+        if (PengramConfig.isKeepingOnceMedia()) {
+            return;
+        }
         ArrayList<Integer> mids = new ArrayList<>();
         mids.add(mid);
         getMessagesStorage().emptyMessagesMedia(dialogId, mids);
@@ -14732,6 +14773,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void markMessageAsRead(long dialogId, long randomId, int ttl) {
+        if (PengramConfig.isNotSendingRead()) {
+            return;
+        }
         if (randomId == 0 || dialogId == 0 || ttl <= 0 && ttl != Integer.MIN_VALUE) {
             return;
         }
@@ -14751,11 +14795,41 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    private final java.util.LinkedHashMap<String, ReadTask> pengramGhostDeferredReads = new java.util.LinkedHashMap<String, ReadTask>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, ReadTask> eldest) {
+            return size() > 256;
+        }
+    };
+
+    private static String pengramReadTaskKey(long dialogId, long replyId) {
+        return replyId != 0 ? (dialogId + "_" + replyId) : Long.toString(dialogId);
+    }
+
     private void completeReadTask(ReadTask task) {
-        if (PengramConfig.isNotSendingRead() && !DialogObject.isEncryptedDialog(task.dialogId)) {
-            // режим призрака: локально прочитано, но серверу об этом не сообщаем
+        completeReadTask(task, false);
+    }
+
+    private void completeReadTask(ReadTask task, boolean forceSend) {
+        if (!forceSend && PengramConfig.isNotSendingRead()) {
+            // режим призрака: локально прочитано, но серверу об этом не сообщаем;
+            // запоминаем задачу на случай авто-прочтения при собственном ответе в этот чат
+            if (task != null) {
+                ReadTask deferred = new ReadTask();
+                deferred.dialogId = task.dialogId;
+                deferred.maxId = task.maxId;
+                deferred.maxDate = task.maxDate;
+                deferred.replyId = task.replyId;
+                deferred.monoForumPeerId = task.monoForumPeerId;
+                deferred.sendRequestTime = task.sendRequestTime;
+                pengramGhostDeferredReads.put(pengramReadTaskKey(task.dialogId, task.replyId), deferred);
+            }
             return;
         }
+        if (task == null) {
+            return;
+        }
+        pengramGhostDeferredReads.remove(pengramReadTaskKey(task.dialogId, task.replyId));
         if (task.replyId != 0 && task.monoForumPeerId == 0) {
             TLRPC.TL_messages_readDiscussion req = new TLRPC.TL_messages_readDiscussion();
             req.msg_id = (int) task.replyId;
@@ -14857,11 +14931,134 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
+    public void pengramMarkDialogReadOnReply(long dialogId, long topicId, long monoForumPeerId) {
+        if (!PengramConfig.isNotSendingRead() || !PengramConfig.isGhostReadOnReply()) {
+            return;
+        }
+        if (dialogId == 0 || dialogId == getUserConfig().getClientUserId()) {
+            return;
+        }
+        Runnable uiStep = () -> {
+            int maxId = 0;
+            int maxDate = 0;
+            boolean hadMentions = false;
+            Integer cachedMax = dialogs_read_inbox_max.get(dialogId);
+            if (cachedMax != null && cachedMax > maxId) {
+                maxId = cachedMax;
+            }
+            TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
+            if (dialog != null) {
+                if (dialog.top_message > maxId) {
+                    maxId = dialog.top_message;
+                }
+                if (dialog.read_inbox_max_id > maxId) {
+                    maxId = dialog.read_inbox_max_id;
+                }
+                hadMentions = dialog.unread_mentions_count > 0;
+            }
+            ArrayList<MessageObject> topMsgs = dialogMessage.get(dialogId);
+            if (topMsgs != null) {
+                for (int i = 0, n = topMsgs.size(); i < n; i++) {
+                    MessageObject mo = topMsgs.get(i);
+                    if (mo == null || mo.messageOwner == null) continue;
+                    if (mo.getId() > maxId) {
+                        maxId = mo.getId();
+                    }
+                    if (mo.messageOwner.date > maxDate) {
+                        maxDate = mo.messageOwner.date;
+                    }
+                }
+            }
+            if (dialog != null && (dialog.unread_count > 0 || dialog.unread_mark)) {
+                markDialogAsRead(dialogId, maxId, Math.min(0, dialog.top_message), maxDate, false, topicId, 0, false, 0);
+            }
+            final int fallbackMaxId = maxId;
+            final int fallbackMaxDate = maxDate;
+            final boolean flushMentions = hadMentions;
+            final long effectiveThreadId = monoForumPeerId != 0 ? monoForumPeerId : topicId;
+            Utilities.stageQueue.postRunnable(() -> {
+                String threadKey = effectiveThreadId != 0 ? (dialogId + "_" + effectiveThreadId) : null;
+                ReadTask task = null;
+                if (threadKey != null) {
+                    ReadTask pending = threadsReadTasksMap.remove(threadKey);
+                    if (pending != null) {
+                        repliesReadTasks.remove(pending);
+                        task = pending;
+                    }
+                    ReadTask deferred = pengramGhostDeferredReads.remove(threadKey);
+                    if (deferred != null) {
+                        if (task == null) {
+                            task = deferred;
+                        } else {
+                            task.maxId = Math.max(task.maxId, deferred.maxId);
+                            task.maxDate = Math.max(task.maxDate, deferred.maxDate);
+                        }
+                    }
+                }
+                ReadTask dialogPending = readTasksMap.get(dialogId);
+                if (dialogPending != null) {
+                    readTasksMap.remove(dialogId);
+                    readTasks.remove(dialogPending);
+                    if (task == null && effectiveThreadId == 0) {
+                        task = dialogPending;
+                    }
+                }
+                ReadTask dialogDeferred = pengramGhostDeferredReads.remove(Long.toString(dialogId));
+                if (dialogDeferred != null && task == null && effectiveThreadId == 0) {
+                    task = dialogDeferred;
+                }
+                if (task == null) {
+                    if (!DialogObject.isEncryptedDialog(dialogId) && fallbackMaxId <= 0) {
+                        return;
+                    }
+                    if (DialogObject.isEncryptedDialog(dialogId) && fallbackMaxDate <= 0) {
+                        return;
+                    }
+                    task = new ReadTask();
+                    task.dialogId = dialogId;
+                    task.replyId = effectiveThreadId;
+                    task.monoForumPeerId = monoForumPeerId;
+                    task.maxId = fallbackMaxId;
+                    task.maxDate = fallbackMaxDate;
+                } else {
+                    if (fallbackMaxId > task.maxId) {
+                        task.maxId = fallbackMaxId;
+                    }
+                    if (fallbackMaxDate > task.maxDate) {
+                        task.maxDate = fallbackMaxDate;
+                    }
+                    if (monoForumPeerId != 0 && task.monoForumPeerId == 0) {
+                        task.monoForumPeerId = monoForumPeerId;
+                    }
+                }
+                completeReadTask(task, true);
+            });
+            if (flushMentions && !DialogObject.isEncryptedDialog(dialogId)) {
+                getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
+                TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
+                req.peer = getInputPeer(dialogId);
+                if (topicId != 0) {
+                    req.top_msg_id = (int) topicId;
+                    req.flags |= 1;
+                }
+                getConnectionsManager().sendRequest(req, null);
+            }
+        };
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            uiStep.run();
+        } else {
+            AndroidUtilities.runOnUIThread(uiStep);
+        }
+    }
+
     public void markMentionsAsRead(long dialogId, long topicId) {
         if (DialogObject.isEncryptedDialog(dialogId) || dialogId == getUserConfig().getClientUserId()) {
             return;
         }
         getMessagesStorage().resetMentionsCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingRead()) {
+            return;
+        }
         TLRPC.TL_messages_readMentions req = new TLRPC.TL_messages_readMentions();
         req.peer = getInputPeer(dialogId);
         if (topicId != 0) {
@@ -21888,6 +22085,10 @@ public class MessagesController extends BaseController implements NotificationCe
             topicsController.markAllPollVotesAsRead(-dialogId, topicId);
         }
         getMessagesStorage().updateUnreadPollVotesCount(dialogId, topicId, 0);
+        if (PengramConfig.isNotSendingRead()) {
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.updateInterfaces, UPDATE_MASK_REACTIONS_READ);
+            return;
+        }
         TLRPC.TL_messages_readPollVotes req = new TLRPC.TL_messages_readPollVotes();
         req.peer = getInputPeer(dialogId);
 

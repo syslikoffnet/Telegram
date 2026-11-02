@@ -297,6 +297,10 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
             return true;
         }
 
+        default boolean isInSelectionMode() {
+            return false;
+        }
+
         default void forceUpdate(ChatActionCell cell, boolean anchorScroll) {}
     }
 
@@ -308,6 +312,7 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     private int TAG;
 
     private URLSpan pressedLink;
+    private long pengramPressedServiceUid;
     private SpoilerEffect spoilerPressed;
     private boolean textPressed;
     private boolean actionPressed;
@@ -1205,8 +1210,10 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
 
     @Override
     protected boolean onLongPress() {
-        if (delegate != null) {
-            return delegate.didLongPress(this, lastTouchX, lastTouchY);
+        if (delegate != null && delegate.didLongPress(this, lastTouchX, lastTouchY)) {
+            pressedLink = null;
+            pengramPressedServiceUid = 0;
+            return true;
         }
         return false;
     }
@@ -1577,11 +1584,16 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
             }
         }
         if (!result) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN || (pressedLink != null || spoilerPressed != null) && event.getAction() == MotionEvent.ACTION_UP) {
+            if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+                pressedLink = null;
+                spoilerPressed = null;
+                pengramPressedServiceUid = 0;
+            } else if (event.getAction() == MotionEvent.ACTION_DOWN || (pressedLink != null || spoilerPressed != null || pengramPressedServiceUid != 0) && event.getAction() == MotionEvent.ACTION_UP) {
                 if (giftPremiumText != null && giftPremiumText.spoilers != null && !giftPremiumText.spoilers.isEmpty() && !isSpoilerRevealing) {
                     for (SpoilerEffect eff : giftPremiumText.spoilers) {
                         if (eff.getBounds().contains((int) (x - giftPremiumText.x), (int) (y - giftPremiumText.y))) {
                             pressedLink = null;
+                            pengramPressedServiceUid = 0;
                             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                                 spoilerPressed = eff;
                                 result = true;
@@ -1607,37 +1619,68 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
                         }
                     }
                 }
-                if (!result && textLayout != null && x >= textX && y >= textY && x <= textX + textWidth && y <= textY + textHeight) {
-                    y -= textY;
-                    x -= textXLeft;
+                final boolean inSelection = delegate != null && delegate.isInSelectionMode();
+                final boolean isJoinLeave = org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(messageObject);
+                final boolean allowJoinLeaveOpen = !isJoinLeave || org.telegram.messenger.PengramConfig.isServiceJoinLeaveProfileOpen();
+                final int padX = dp(10);
+                final int padY = dp(8);
+                if (!result && !inSelection && textLayout != null && x >= textX - padX && y >= textY - padY && x <= textX + textWidth + padX && y <= textY + textHeight + padY) {
+                    final float relY = Math.max(0f, Math.min(Math.max(0, textLayout.getHeight() - 1), y - textY));
+                    final float relX = x - textXLeft;
 
-                    if (!result) {
-                        final int line = textLayout.getLineForVertical((int) y);
-                        final int off = textLayout.getOffsetForHorizontal(line, x);
-                        final float left = textLayout.getLineLeft(line);
-                        if (left <= x && left + textLayout.getLineWidth(line) >= x && messageObject.messageText instanceof Spannable) {
-                            Spannable buffer = (Spannable) messageObject.messageText;
-                            URLSpan[] link = buffer.getSpans(off, off, URLSpan.class);
-
-                            if (link.length != 0) {
-                                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                                    pressedLink = link[0];
-                                    result = true;
-                                } else {
-                                    if (link[0] == pressedLink) {
-                                        openLink(pressedLink);
-                                        result = true;
-                                    }
-                                }
+                    final int line = textLayout.getLineForVertical((int) relY);
+                    final int off = textLayout.getOffsetForHorizontal(line, relX);
+                    final float left = textLayout.getLineLeft(line) - dp(4);
+                    final float right = textLayout.getLineLeft(line) + textLayout.getLineWidth(line) + dp(4);
+                    final Spanned buffer = getActionSpannedText(messageObject);
+                    if (left <= relX && right >= relX && buffer != null) {
+                        URLSpan[] link = buffer.getSpans(off, off, URLSpan.class);
+                        if (link.length == 0 && off > 0) {
+                            link = buffer.getSpans(off - 1, off, URLSpan.class);
+                        }
+                        if (link.length != 0 && !allowJoinLeaveOpen && isUserProfileSpan(link[0])) {
+                            link = new URLSpan[0];
+                        }
+                        if (link.length != 0) {
+                            pengramPressedServiceUid = 0;
+                            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                                pressedLink = link[0];
+                                result = true;
+                                startCheckLongPress();
                             } else {
+                                if (link[0] == pressedLink) {
+                                    openLink(pressedLink);
+                                    result = true;
+                                }
                                 pressedLink = null;
                             }
                         } else {
                             pressedLink = null;
                         }
+                    } else {
+                        pressedLink = null;
                     }
                 } else {
                     pressedLink = null;
+                }
+                if (!result && !inSelection && isJoinLeave && allowJoinLeaveOpen && isInsideServicePill(x, y)) {
+                    final long tapUid = resolveJoinLeaveTapUidInternal(x, y);
+                    if (tapUid > 0) {
+                        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                            pengramPressedServiceUid = tapUid;
+                            result = true;
+                            startCheckLongPress();
+                        } else if (event.getAction() == MotionEvent.ACTION_UP && pengramPressedServiceUid != 0) {
+                            final long target = pengramPressedServiceUid;
+                            pengramPressedServiceUid = 0;
+                            openServiceUserProfile(target);
+                            result = true;
+                        }
+                    } else {
+                        pengramPressedServiceUid = 0;
+                    }
+                } else if (event.getAction() == MotionEvent.ACTION_UP) {
+                    pengramPressedServiceUid = 0;
                 }
             }
         }
@@ -1791,9 +1834,169 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
             } else if (url.startsWith("http")) {
                 Browser.openUrl(getContext(), url);
             } else {
-                delegate.needOpenUserProfile(Long.parseLong(url));
+                if (org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(currentMessageObject)
+                        && !org.telegram.messenger.PengramConfig.isServiceJoinLeaveProfileOpen()) {
+                    return;
+                }
+                long parsedUid = 0;
+                try {
+                    parsedUid = Long.parseLong(url);
+                } catch (Exception ignore) {
+                }
+                if (parsedUid == 0 && org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(currentMessageObject)) {
+                    parsedUid = org.telegram.messenger.PengramServiceProfileOpener.resolveFallbackUid(currentMessageObject, findSpanOrder(link));
+                }
+                if (parsedUid != 0) {
+                    openServiceUserProfile(parsedUid);
+                }
             }
         }
+    }
+
+    private Spanned getActionSpannedText(MessageObject msg) {
+        if (textLayout != null && textLayout.getText() instanceof Spanned) {
+            return (Spanned) textLayout.getText();
+        }
+        if (msg != null && msg.messageText instanceof Spanned) {
+            return (Spanned) msg.messageText;
+        }
+        return null;
+    }
+
+    private boolean isInsideServicePill(float x, float y) {
+        if (textLayout == null || textWidth <= 0 || textHeight <= 0) {
+            return false;
+        }
+        final float pillLeft = backgroundRight > backgroundLeft ? backgroundLeft - dp(8) : textX - dp(16);
+        final float pillRight = backgroundRight > backgroundLeft ? backgroundRight + dp(8) : textX + textWidth + dp(16);
+        final float pillTop = Math.max(0f, textY - dp(8));
+        final float pillBottom = textY + textHeight + dp(10);
+        return x >= pillLeft && x <= pillRight && y >= pillTop && y <= pillBottom;
+    }
+
+    public long resolveJoinLeaveTapUid(float localX, float localY) {
+        final float x = localX - sideMenuWidth / 2f;
+        final float y = localY + getPaddingTop();
+        return resolveJoinLeaveTapUidInternal(x, y);
+    }
+
+    private long resolveJoinLeaveTapUidInternal(float x, float y) {
+        final MessageObject msg = currentMessageObject;
+        if (!org.telegram.messenger.PengramServiceProfileOpener.isJoinOrLeaveAction(msg)) {
+            return 0;
+        }
+        final Spanned buffer = getActionSpannedText(msg);
+        if (buffer != null) {
+            final URLSpan[] all = buffer.getSpans(0, buffer.length(), URLSpan.class);
+            if (all != null && all.length > 0) {
+                long firstUserUid = 0;
+                int userSpanCount = 0;
+                long closestUid = 0;
+                float bestDistSq = Float.MAX_VALUE;
+                int userIdx = 0;
+                for (int i = 0; i < all.length; i++) {
+                    final URLSpan span = all[i];
+                    if (!isUserProfileSpan(span)) {
+                        continue;
+                    }
+                    long uid = 0;
+                    try {
+                        uid = Long.parseLong(span.getURL());
+                    } catch (Exception ignore) {
+                    }
+                    if (uid < 0) {
+                        // Ссылка на чат/сообщество (например, JoinedViaCommunity) — пропускаем.
+                        continue;
+                    }
+                    if (uid == 0) {
+                        uid = org.telegram.messenger.PengramServiceProfileOpener.resolveFallbackUid(msg, userIdx);
+                    }
+                    userIdx++;
+                    if (uid <= 0) {
+                        continue;
+                    }
+                    if (userSpanCount == 0) {
+                        firstUserUid = uid;
+                    }
+                    userSpanCount++;
+                    if (textLayout != null) {
+                        final int st = buffer.getSpanStart(span);
+                        final int en = buffer.getSpanEnd(span);
+                        if (st >= 0 && en > st && en <= textLayout.getText().length()) {
+                            final int ln = textLayout.getLineForOffset(st);
+                            final float sx = textXLeft + 0.5f * (textLayout.getPrimaryHorizontal(st) + textLayout.getPrimaryHorizontal(Math.max(st, en - 1)));
+                            final float sy = textY + 0.5f * (textLayout.getLineTop(ln) + textLayout.getLineBottom(ln));
+                            final float dx = x - sx;
+                            final float dy = y - sy;
+                            final float d2 = dx * dx + dy * dy * 2.5f;
+                            if (d2 < bestDistSq) {
+                                bestDistSq = d2;
+                                closestUid = uid;
+                            }
+                        }
+                    }
+                }
+                if (userSpanCount == 1) {
+                    return firstUserUid;
+                }
+                if (userSpanCount > 1 && closestUid > 0) {
+                    return closestUid;
+                }
+            }
+        }
+        return org.telegram.messenger.PengramServiceProfileOpener.primaryParticipantUid(msg);
+    }
+
+    private boolean isUserProfileSpan(URLSpan span) {
+        if (span == null) {
+            return false;
+        }
+        final String u = span.getURL();
+        if (u == null) {
+            return false;
+        }
+        return !u.startsWith("task") && !u.startsWith("topic") && !u.startsWith("invite")
+                && !u.startsWith("game") && !u.startsWith("http");
+    }
+
+    private int findSpanOrder(CharacterStyle target) {
+        final Spanned buffer = getActionSpannedText(currentMessageObject);
+        if (buffer == null) {
+            return 0;
+        }
+        final URLSpan[] all = buffer.getSpans(0, buffer.length(), URLSpan.class);
+        if (all == null) {
+            return 0;
+        }
+        int userOrder = 0;
+        for (int i = 0; i < all.length; i++) {
+            if (all[i] == target) {
+                return userOrder;
+            }
+            if (isUserProfileSpan(all[i])) {
+                long parsed = 0;
+                try {
+                    parsed = Long.parseLong(all[i].getURL());
+                } catch (Exception ignore) {
+                }
+                if (parsed >= 0) {
+                    userOrder++;
+                }
+            }
+        }
+        return 0;
+    }
+
+    private void openServiceUserProfile(long uid) {
+        if (delegate == null || uid == 0) {
+            return;
+        }
+        org.telegram.messenger.PengramServiceProfileOpener.ensureUserAndOpen(
+                currentAccount, uid, currentMessageObject, () -> {
+                    if (delegate != null) {
+                        delegate.needOpenUserProfile(uid);
+                    }
+                });
     }
 
     private int overriddenMaxWidth;
@@ -3517,13 +3720,18 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     }
 
     public void drawBackground(Canvas canvas, boolean fromParent) {
-        if (canDrawInParent) {
+        final boolean parentServiceDraw = canDrawInParent
+                && !(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                && org.telegram.messenger.PengramConfig.isCylinderScroll());
+        if (parentServiceDraw) {
             if (hasGradientService() && !fromParent) {
                 return;
             }
             if (!hasGradientService() && fromParent) {
                 return;
             }
+        } else if (canDrawInParent && fromParent) {
+            return;
         }
         Paint backgroundPaint = getThemedPaint(Theme.key_paint_chatActionBackground);
         Paint darkenBackgroundPaint = getThemedPaint(Theme.key_paint_chatActionBackgroundDarken);
@@ -4039,13 +4247,18 @@ public class ChatActionCell extends BaseCell implements DownloadController.FileD
     }
 
     public void drawReactions(Canvas canvas, boolean fromParent, Integer only) {
-        if (canDrawInParent) {
+        final boolean parentServiceDraw = canDrawInParent
+                && !(Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                && org.telegram.messenger.PengramConfig.isCylinderScroll());
+        if (parentServiceDraw) {
             if (hasGradientService() && !fromParent) {
                 return;
             }
             if (!hasGradientService() && fromParent) {
                 return;
             }
+        } else if (canDrawInParent && fromParent) {
+            return;
         }
         drawReactionsLayout(canvas, fromParent, only);
     }

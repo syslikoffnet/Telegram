@@ -614,6 +614,14 @@ public class Emoji {
                     for (int j = 0; j < animatedEmojiSpans.length; ++j) {
                         AnimatedEmojiSpan animatedSpan = animatedEmojiSpans[j];
                         if (animatedSpan != null && s.getSpanStart(animatedSpan) == emojiRange.start && s.getSpanEnd(animatedSpan) == emojiRange.end) {
+                            if (animatedSpan.standard && fontMetrics != null) {
+                                final int targetHeight = Math.abs(fontMetrics.descent) + Math.abs(fontMetrics.ascent);
+                                if (animatedSpan.full || (targetHeight > 0 && animatedSpan.size > targetHeight * 1.2f)) {
+                                    s.removeSpan(animatedSpan);
+                                    animatedEmojiSpans[j] = null;
+                                    continue;
+                                }
+                            }
                             hasAnimated = true;
                             break;
                         }

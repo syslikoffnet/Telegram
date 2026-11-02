@@ -32,8 +32,11 @@ assert 'addItem(entry, entry.prevText, LocaleController.getString(R.string.Pengr
 assert 'entry.prevData != null || entry.prevText != null' in screen
 assert 'if (entry.action == PengramHistory.ACTION_EDITED && !previous)' in screen
 assert 'OPTION_PENGRAM_EDIT_HISTORY' in chat and 'isEditHistoryMarkEnabled()' in chat
-assert 'KEY_EDIT_HISTORY_MARK, true' in (java / 'ui/PengramSettingsActivity.java').read_text()
-assert 'KEY_EDIT_HISTORY_MENU, false' in (java / 'ui/PengramSettingsActivity.java').read_text()
+settings_text = (java / 'ui/PengramSettingsActivity.java').read_text()
+assert 'MARK_EDIT_HIDDEN' in settings_text and 'PengramMarkEditStandard' in settings_text
+assert 'KEY_EDIT_HISTORY_MARK' not in settings_text and 'KEY_EDIT_HISTORY_MENU' not in settings_text
+assert 'public static boolean isEditHistoryMarkEnabled() { return true; }' in config
+assert 'public static boolean isEditHistoryMenuEnabled() { return true; }' in config
 assert 'ItemOptions.makeOptions(this, actionBar)' in editor
 assert 'visualDraft.save()' in editor and 'visualDraft.discard()' in editor
 assert 'openSampleMenuItem(int id)' in preview

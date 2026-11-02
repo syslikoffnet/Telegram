@@ -74,12 +74,32 @@ import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorPro
 import org.telegram.ui.MainTabsLayout;
 
 import java.util.ArrayList;
+import java.util.WeakHashMap;
 
 import me.vkryl.android.animator.BoolAnimator;
 import me.vkryl.android.animator.FactorAnimator;
 import me.vkryl.android.animator.ReplaceAnimator;
 
 public class ActionBar extends FrameLayout implements FactorAnimator.Target, Theme.Colorable {
+
+    private static final WeakHashMap<ActionBar, Boolean> pengramActionBars = new WeakHashMap<>();
+
+    /** Re-layout every live header when the global title alignment preference changes. */
+    public static void refreshPengramTitleAlignment() {
+        final ArrayList<ActionBar> bars;
+        synchronized (pengramActionBars) {
+            bars = new ArrayList<>(pengramActionBars.keySet());
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            for (int i = 0; i < bars.size(); i++) {
+                ActionBar bar = bars.get(i);
+                if (bar != null) {
+                    bar.requestLayout();
+                    bar.invalidate();
+                }
+            }
+        });
+    }
 
     public static class ActionBarMenuOnItemClick {
         public void onItemClick(int id) {
@@ -183,6 +203,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     public ActionBar(Context context, Theme.ResourcesProvider resourcesProvider) {
         super(context);
         this.resourcesProvider = resourcesProvider;
+        synchronized (pengramActionBars) {
+            pengramActionBars.put(this, Boolean.TRUE);
+        }
         setOnClickListener(v -> {
             if (isSearchFieldVisible()) {
                 return;
@@ -386,18 +409,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 && !isActionModeShowed();
     }
 
-    /** Pengram: левый край центрированного текста (с оглядкой на кнопки) */
-    private int pengramCenterLeft(int defaultLeft, int measuredWidth) {
-        if (measuredWidth <= 0) {
-            return defaultLeft;
-        }
-        final int menuWidth = menu != null && menu.getVisibility() != GONE ? menu.getMeasuredWidth() : 0;
-        final int maxLeft = getMeasuredWidth() - menuWidth - measuredWidth;
-        final int centered = (getMeasuredWidth() - measuredWidth) / 2;
-        if (maxLeft <= defaultLeft) {
-            return defaultLeft;
-        }
-        return Math.max(defaultLeft, Math.min(centered, maxLeft));
+    /** The measured title width is already constrained symmetrically around the bar center. */
+    private int pengramCenterLeft(int measuredWidth) {
+        return (getMeasuredWidth() - measuredWidth) / 2;
     }
 
     public void setSupportsHolidayImage(boolean value) {
@@ -1497,6 +1511,15 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 int titleMenuWidth = menu != null ? menu.getMeasuredWidth() - (isSearchFieldVisible ? 0 : menu.getClosingSearchFieldWidth()) : 0;
                 int availableWidth = width - titleMenuWidth - dp(16) - textLeft - titleRightMargin;
                 availableWidth = Math.max(availableWidth, 0);
+                if (pengramCentered()) {
+                    // Measure the title into a symmetric lane first. Clamping its
+                    // left edge after measuring the ordinary left-aligned lane
+                    // made long titles silently snap back to the back button.
+                    final int center = width / 2;
+                    final int leftBoundary = textLeft + additionalTextLeft;
+                    final int rightBoundary = width - titleMenuWidth - dp(16) - titleRightMargin;
+                    availableWidth = Math.max(0, Math.min(center - leftBoundary, rightBoundary - center) * 2);
+                }
 
                 if (((fromBottom && i == 0) || (!fromBottom && i == 1)) && overlayTitleAnimation && titleAnimationRunning) {
                     titleTextView[i].setTextSize(glassMode ? 17 : !AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
@@ -1604,7 +1627,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 }
                 int titleLeft = textLeft;
                 if (pengramCentered()) {
-                    titleLeft = pengramCenterLeft(textLeft, titleTextView[i].getMeasuredWidth());
+                    titleLeft = pengramCenterLeft(titleTextView[i].getMeasuredWidth());
                 }
                 titleTextView[i].layout(titleLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), titleLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
@@ -1615,7 +1638,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
             int textTop = getCurrentActionBarHeight() / 2 + (getCurrentActionBarHeight() / 2 - subtitleTextView.getTextHeight()) / 2 - dp(2);
-            int subtitleLeft = pengramCentered() ? pengramCenterLeft(textLeft, subtitleTextView.getMeasuredWidth()) : textLeft;
+            int subtitleLeft = pengramCentered() ? pengramCenterLeft(subtitleTextView.getMeasuredWidth()) : textLeft;
             subtitleTextView.layout(subtitleLeft, additionalTop + textTop, subtitleLeft + subtitleTextView.getMeasuredWidth(), additionalTop + textTop + subtitleTextView.getTextHeight());
         }
 
