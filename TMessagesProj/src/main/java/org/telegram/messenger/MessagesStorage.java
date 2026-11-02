@@ -15360,13 +15360,13 @@ public class MessagesStorage extends BaseController {
                         }
                     });
                 } else if (deletedMessages != null && deletedMessages.isEmpty()) {
-                    final ArrayList<TLRPC.Message> messagesForDeletedReactionTags = messages;
+                    final ArrayList<Integer> messageIdsForDeletedReactionTags = messages;
                     AndroidUtilities.runOnUIThread(() -> {
                         HashSet<Long> topicIds = new HashSet<>();
                         boolean changed = false;
                         long[] topic_id = new long[1];
-                        for (int i = 0; i < messagesForDeletedReactionTags.size(); ++i) {
-                            if (getMediaDataController().processDeletedMessage(messagesForDeletedReactionTags.get(i), topic_id)) {
+                        for (int i = 0; i < messageIdsForDeletedReactionTags.size(); ++i) {
+                            if (getMediaDataController().processDeletedMessage(messageIdsForDeletedReactionTags.get(i), topic_id)) {
                                 topicIds.add(topic_id[0]);
                                 changed = true;
                             }
