@@ -48,8 +48,9 @@ assert messages.count('getMessagesStorage().pengramArchiveDialog(dialog.id);') =
 assert 'PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE' in messages
 assert messages.count('PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE') == 3
 assert 'PengramLocalKeep.isLocalOnly(currentAccount) && !fromCache' in messages
-assert 'fromCache = true;\n            queryFromServer = false;' in messages
-assert 'Specialized views such as pinned history normally bypass fromCache' in messages
+assert 'final boolean loadFromCache = localOnly || fromCache;' in messages
+assert 'final boolean loadFromServer = !localOnly && queryFromServer;' in messages
+assert 'Specialized views such as pinned history normally bypass loadFromCache' in messages
 assert messages.count('deleteDialog(dialog.id, 0);') == 2
 # каждая бан/кик-ветка: при включённой локальной копии — полная копия чата
 # в собственную базу, иначе — штатное удаление диалога
