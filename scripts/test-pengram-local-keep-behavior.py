@@ -8,11 +8,14 @@ companion test-pengram-local-keep.py verifies the Java event-to-storage wiring.
 """
 
 import sqlite3
+import tempfile
+from pathlib import Path
 
 
 class LocalCopyHarness:
-    def __init__(self):
-        self.db = sqlite3.connect(":memory:")
+    def __init__(self, database_path):
+        self.database_path = str(database_path)
+        self.db = sqlite3.connect(self.database_path)
         self.db.executescript("""
             CREATE TABLE prefs(key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE dialogs(account INTEGER, dialog_id INTEGER, body TEXT,
@@ -67,6 +70,11 @@ class LocalCopyHarness:
         self.db.commit()
 
     def restart(self):
+        # Simulate process death: the next policy instance reconnects to the same
+        # file-backed SQLite database instead of retaining Python object state.
+        self.db.commit()
+        self.db.close()
+        self.db = sqlite3.connect(self.database_path)
         self.network_online = False
         self.read_only = False
         row = self.db.execute("SELECT value FROM prefs WHERE key=?",
@@ -87,29 +95,30 @@ class LocalCopyHarness:
 
 
 def main():
-    app = LocalCopyHarness()
-    app.cache_dialog(-777, "cached conversation")
-    app.server_kick(-777)
-    assert app.db.execute("SELECT body FROM dialogs WHERE account=2 AND dialog_id=-777").fetchone()[0] == "cached conversation"
-    assert app.db.execute("SELECT data FROM history WHERE account=2 AND dialog_id=-777 AND action='saved'").fetchone()[0] == "cached conversation"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        app = LocalCopyHarness(Path(temp_dir) / "local-copy.db")
+        app.cache_dialog(-777, "cached conversation")
+        app.server_kick(-777)
+        assert app.db.execute("SELECT body FROM dialogs WHERE account=2 AND dialog_id=-777").fetchone()[0] == "cached conversation"
+        assert app.db.execute("SELECT data FROM history WHERE account=2 AND dialog_id=-777 AND action='saved'").fetchone()[0] == "cached conversation"
 
-    app.server_delete_message(-777, 41, "before deletion")
-    assert app.db.execute("SELECT data FROM history WHERE account=2 AND dialog_id=-777 AND message_id=41 AND action='deleted'").fetchone()[0] == "before deletion"
-    assert app.db.execute("SELECT 1 FROM deleted_marks WHERE account=2 AND dialog_id=-777 AND message_id=41").fetchone()
+        app.server_delete_message(-777, 41, "before deletion")
+        assert app.db.execute("SELECT data FROM history WHERE account=2 AND dialog_id=-777 AND message_id=41 AND action='deleted'").fetchone()[0] == "before deletion"
+        assert app.db.execute("SELECT 1 FROM deleted_marks WHERE account=2 AND dialog_id=-777 AND message_id=41").fetchone()
 
-    app.session_revoked()
-    assert app.user_id == 9001 and not app.network_online and app.read_only
-    app.restart()
-    assert app.user_id == 9001 and not app.network_online and app.read_only
-    assert app.db.execute("SELECT COUNT(*) FROM history WHERE account=2").fetchone()[0] == 2
+        app.session_revoked()
+        assert app.user_id == 9001 and not app.network_online and app.read_only
+        app.restart()
+        assert app.user_id == 9001 and not app.network_online and app.read_only
+        assert app.db.execute("SELECT COUNT(*) FROM history WHERE account=2").fetchone()[0] == 2
 
-    # Explicit account reset is intentionally distinct from server revocation.
-    app.clear_account_slot()
-    assert app.user_id == 0
-    assert app.db.execute("SELECT COUNT(*) FROM history WHERE account=2").fetchone()[0] == 0
-    assert app.db.execute("SELECT COUNT(*) FROM dialogs WHERE account=2").fetchone()[0] == 0
-    print("behavior: kick, deleted snapshot/mark, revoked-session restart and explicit slot reset: OK")
-
+        # Explicit account reset is intentionally distinct from server revocation.
+        app.clear_account_slot()
+        assert app.user_id == 0
+        assert app.db.execute("SELECT COUNT(*) FROM history WHERE account=2").fetchone()[0] == 0
+        assert app.db.execute("SELECT COUNT(*) FROM dialogs WHERE account=2").fetchone()[0] == 0
+        app.db.close()
+        print("behavior: persisted SQLite snapshots survive kick/revoke/restart; explicit slot reset purges: OK")
 
 if __name__ == "__main__":
     main()
