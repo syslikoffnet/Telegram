@@ -13793,4 +13793,5 @@
     <string name="PengramTrackInfoGenreLabel">Genre</string>
     <string name="PengramTrackInfoQualityLabel">Quality</string>
     <string name="PengramTrackInfoSourceLabel">Source</string>
+    <string name="PengramOfflineCopy">Offline copy</string>
 </resources>

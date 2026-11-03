@@ -478,6 +478,8 @@ public class UserConfig extends BaseController {
     }
 
     public void clearConfig() {
+        // A reused account slot must not inherit a revoked-session offline marker.
+        PengramLocalKeep.clearLocalOnly(currentAccount);
         PengramAIAutoReply.clearAccount(currentAccount);
         PengramProfileHistory.clearAccount(currentAccount);
         PengramOriginalName.clearAccount(currentAccount);

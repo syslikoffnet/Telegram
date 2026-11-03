@@ -10720,10 +10720,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         } else if (id == NotificationCenter.didUpdateConnectionState) {
             int state = AccountInstance.getInstance(account).getConnectionsManager().getConnectionState();
+            pengramUpdateTitle(); // Refresh even when the connection state itself is unchanged.
             if (currentConnectionState != state) {
                 currentConnectionState = state;
                 updateProxyButton(true, false);
-                pengramUpdateTitle();   // Pengram: заголовок не должен сползать обратно на «Telegram»
                 if (state == ConnectionsManager.ConnectionStateConnected
                         && !getMessagesController().isServerDialogsEndReached(0)
                         && !getMessagesController().isLoadingDialogs(0)) {
@@ -12912,29 +12912,38 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private CharSequence pengramTitleText() {
         try {
             final int mode = org.telegram.messenger.PengramConfig.getTitleMode();
+            final CharSequence title;
             switch (mode) {
                 case org.telegram.messenger.PengramConfig.TITLE_MODE_PENGRAM:
-                    return "Pengram";
+                    title = "Pengram";
+                    break;
                 case org.telegram.messenger.PengramConfig.TITLE_MODE_CHATS:
-                    return LocaleController.getString(R.string.PengramTitleChats);
+                    title = LocaleController.getString(R.string.PengramTitleChats);
+                    break;
                 case org.telegram.messenger.PengramConfig.TITLE_MODE_NAME: {
                     final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
                     final String name = self == null ? null : ContactsController.formatName(self.first_name, self.last_name);
-                    return TextUtils.isEmpty(name) ? "Pengram" : name;
+                    title = TextUtils.isEmpty(name) ? "Pengram" : name;
+                    break;
                 }
                 case org.telegram.messenger.PengramConfig.TITLE_MODE_USERNAME: {
                     final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
                     final String username = self == null ? null : UserObject.getPublicUsername(self);
-                    return TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
+                    title = TextUtils.isEmpty(username) ? "Pengram" : "@" + username;
+                    break;
                 }
                 case org.telegram.messenger.PengramConfig.TITLE_MODE_CUSTOM: {
                     final String custom = org.telegram.messenger.PengramConfig.getTitleCustom();
-                    return TextUtils.isEmpty(custom) ? "Pengram" : custom;
+                    title = TextUtils.isEmpty(custom) ? "Pengram" : custom;
+                    break;
                 }
                 default:
                     // «как в Telegram»/свежая база: везде Pengram, логотип TG в шапке не показываем
-                    return "Pengram";
+                    title = "Pengram";
+                    break;
             }
+            return org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)
+                    ? TextUtils.concat(title, " · ", getString(R.string.PengramOfflineCopy)) : title;
         } catch (Throwable e) {
             FileLog.e(e);
             return null;

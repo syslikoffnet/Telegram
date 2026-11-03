@@ -110,9 +110,12 @@ def main():
 
     # E. LocalKeep: синхронизация
     lk = read('TMessagesProj/src/main/java/org/telegram/messenger/PengramLocalKeep.java')
-    assert 'synchronized (localOnly)' in lk, 'localOnly должен быть синхронизирован'
-    assert lk.index('native_pauseNetwork(account)') < lk.index('localOnly.add(account)'), \
-        'аккаунт помечается локальным только после успешной паузы сети'
+    assert 'PengramConfig.setBool(localOnlyKey(account), true)' in lk, \
+        'revoked-session marker must be persisted before restart'
+    assert 'native_pauseNetwork(account)' in lk and 'restoreLocalOnlyNetwork' in lk, \
+        'offline mode must pause now and restore the pause after process restart'
+    assert 'clearLocalOnly(account, false)' in lk, \
+        'failed pause must not leave a stale persistent offline marker'
 
     # F. Поиск: состояние загрузки локального архива
     ad = read('TMessagesProj/src/main/java/org/telegram/ui/Adapters/MessagesSearchAdapter.java')

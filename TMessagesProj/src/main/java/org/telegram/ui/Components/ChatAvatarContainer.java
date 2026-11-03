@@ -1342,6 +1342,12 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             useOnlineColor = true;
             setTypingAnimation(true);
         }
+        if (org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)
+                || chat != null && ChatObject.isNotInChat(chat)) {
+            newSubtitle = getString(R.string.PengramOfflineCopy);
+            useOnlineColor = false;
+            setTypingAnimation(false);
+        }
         lastSubtitleColorKey = useOnlineColor ? Theme.key_chat_status : Theme.key_actionBarDefaultSubtitle;
         if (lastSubtitle == null) {
             if (subtitleTextView != null) {
@@ -1621,11 +1627,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.didUpdateConnectionState) {
-            int state = ConnectionsManager.getInstance(currentAccount).getConnectionState();
-            if (currentConnectionState != state) {
-                currentConnectionState = state;
-                updateCurrentConnectionState();
-            }
+            currentConnectionState = ConnectionsManager.getInstance(currentAccount).getConnectionState();
+            updateCurrentConnectionState();
+            updateSubtitle(true);
         } else if (id == NotificationCenter.emojiLoaded) {
             if (titleTextView != null) {
                 titleTextView.invalidate();
@@ -1640,16 +1644,19 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
     }
 
     private void updateCurrentConnectionState() {
-        String title = null;
-        if (currentConnectionState == ConnectionsManager.ConnectionStateWaitingForNetwork) {
-            title = getString(R.string.WaitingForNetwork);
-        } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting) {
-            title = getString(R.string.Connecting);
-        } else if (currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
-            title = getString(R.string.Updating);
-        } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
-            title = getString(org.telegram.messenger.PengramBypass.isTunnelActive()
-                    ? R.string.PengramBypassConnecting : R.string.ConnectingToProxy);
+        String title = org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)
+                ? getString(R.string.PengramOfflineCopy) : null;
+        if (title == null) {
+            if (currentConnectionState == ConnectionsManager.ConnectionStateWaitingForNetwork) {
+                title = getString(R.string.WaitingForNetwork);
+            } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnecting) {
+                title = getString(R.string.Connecting);
+            } else if (currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
+                title = getString(R.string.Updating);
+            } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
+                title = getString(org.telegram.messenger.PengramBypass.isTunnelActive()
+                        ? R.string.PengramBypassConnecting : R.string.ConnectingToProxy);
+            }
         }
         if (title == null) {
             if (lastSubtitle != null) {

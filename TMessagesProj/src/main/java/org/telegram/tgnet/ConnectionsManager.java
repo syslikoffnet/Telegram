@@ -278,6 +278,8 @@ public class ConnectionsManager extends BaseController {
             userPremium = getUserConfig().getCurrentUser().premium;
         }
         init(SharedConfig.buildVersion(), TLRPC.LAYER, BuildVars.APP_ID, deviceModel, systemVersion, appVersion, langCode, systemLangCode, configPath, FileLog.getNetworkLogPath(), pushString, fingerprint, timezoneOffset, getUserConfig().getClientUserId(), userPremium, enablePushConnection);
+        // A revoked-session local copy must remain offline after process/native restart.
+        org.telegram.messenger.PengramLocalKeep.restoreLocalOnlyNetwork(currentAccount);
         // Pengram: одна строка lang_pack в initConnection — и сервер помечает
         // сеанс «android». Ставим платформу сразу после native_init, чтобы уже
         // первый запрос ушёл с заявленным устройством.

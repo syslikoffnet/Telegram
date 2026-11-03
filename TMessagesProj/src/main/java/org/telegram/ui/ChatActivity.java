@@ -24286,7 +24286,10 @@ public class ChatActivity extends BaseFragment implements
                 pinnedMessageButton[1].invalidate();
             }
         } else if (id == NotificationCenter.didUpdateConnectionState) {
-            int state = ConnectionsManager.getInstance(account).getConnectionState();
+            updateBottomOverlay();
+            if (avatarContainer != null) {
+                avatarContainer.updateSubtitle(true);
+            }
         } else if (id == NotificationCenter.chatOnlineCountDidLoad) {
             Long chatId = (Long) args[0];
             if (chatInfo == null || currentChat == null || currentChat.id != chatId) {
@@ -31139,7 +31142,27 @@ public class ChatActivity extends BaseFragment implements
         boolean showSuggestButton = false;
         boolean showSearchButton = chatMode == MODE_DEFAULT && ChatObject.isChannelOrGiga(currentChat);
         boolean showGigaGroupButton = false;
-        if (pengramForwardBlocking()) {
+        if (org.telegram.messenger.PengramLocalKeep.isLocalOnly(currentAccount)) {
+            // Revoked account: keep the conversation read-only and never queue sends.
+            if (bottomOverlayStartButton != null) {
+                bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+            }
+            forceVisible = true;
+            bottomOverlayLinks = true;
+            bottomOverlayChatText.setVisibility(View.GONE);
+            bottomOverlayLinksText.setVisibility(View.VISIBLE);
+            bottomOverlayLinksText.setTextColor(getThemedColor(Theme.key_graySectionText));
+            bottomOverlayLinksText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            bottomOverlayLinksText.setText(getString(R.string.PengramOfflineCopy));
+            bottomOverlayLinksText.setClickable(false);
+            bottomOverlayLinksText.setLongClickable(false);
+            showBottomOverlayProgress(false, false);
+            if (chatActivityEnterView != null) {
+                chatActivityEnterView.setFieldFocused(false);
+                chatActivityEnterView.hidePopup(false);
+                chatActivityEnterView.closeKeyboard();
+            }
+        } else if (pengramForwardBlocking()) {
             // Pengram: пока в чат идёт пересылка — вместо поля ввода статус
             if (bottomOverlayStartButton != null) {
                 bottomOverlayStartButton.setVisibility(View.INVISIBLE);

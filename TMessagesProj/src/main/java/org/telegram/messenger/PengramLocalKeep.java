@@ -3,33 +3,16 @@ package org.telegram.messenger;
 /**
  * Pengram: локальная копия аккаунта.
  *
- * <p>Telegram — клиент без собственного архива: если сервер сказал «чат удалён»,
- * «вы больше не участник» или «сессия отозвана», клиент стирает локальные
- * данные. В результате пропадает всё, что человек уже видел и скачал, хотя
- * эти данные лежали на телефоне и никуда не девались.
- *
- * <p>С включённой локальной копией деструктивные действия не выполняются:
- * <ul>
- *   <li>чат, из которого вас убрали или который стал недоступен, остаётся в
- *       списке — открывается только чтение, история и медиа на месте;</li>
- *   <li>сообщения, удалённые на сервере, остаются в переписке (и в кэше, и в
- *       интерфейсе);</li>
- *   <li>отозванная сессия не приводит к выходу из аккаунта: сеть для этого
- *       аккаунта выключается, но профиль, чаты и файлы остаются доступны.</li>
- * </ul>
- *
- * <p>Это осознанно локальное поведение: ничего не отправляется на сервер и не
- * запрашивается заново, поэтому функция не может привести к бану. Выключить
- * можно в любой момент — новые удаления снова будут применяться, а уже
- * сохранённое останется, пока его не удалить вручную.
+ * <p>Серверные удаления чатов и сообщений не должны стирать уже полученную
+ * локальную историю. Если сервер отзывает сессию, аккаунт остаётся доступен
+ * только для чтения из локального кэша; состояние офлайн-копии сохраняется
+ * между перезапусками приложения.
  */
 public final class PengramLocalKeep {
 
-    /** включена ли локальная копия (по умолчанию — да: ничего не должно исчезать) */
+    /** включена ли локальная копия (по умолчанию — да) */
     public static final String KEY_ENABLED = "localKeep";
-
-    /** аккаунты, у которых сессия отозвана и сеть выключена */
-    private static final java.util.HashSet<Integer> localOnly = new java.util.HashSet<>();
+    private static final String KEY_LOCAL_ONLY_PREFIX = "localOnlyRevokedAccount_";
 
     private PengramLocalKeep() {
     }
@@ -38,22 +21,24 @@ public final class PengramLocalKeep {
         return PengramConfig.getBool(KEY_ENABLED, true);
     }
 
+    private static String localOnlyKey(int account) {
+        return KEY_LOCAL_ONLY_PREFIX + account;
+    }
+
     public static void setEnabled(boolean value) {
         PengramConfig.setBool(KEY_ENABLED, value);
         if (value) {
             return;
         }
-        // При выключении локального сохранения снимаем и временный сетевой
-        // стоп для отозванных аккаунтов. Серверный logout после возобновления
-        // теперь пойдёт обычным путём, без зависшего статуса «офлайн».
-        final java.util.ArrayList<Integer> resume = new java.util.ArrayList<>();
-        synchronized (localOnly) {
-            resume.addAll(localOnly);
-            localOnly.clear();
-        }
-        for (int i = 0; i < resume.size(); i++) {
+        // Turning the feature off intentionally resumes those sessions and removes
+        // the persisted marker so account slots cannot remain falsely offline.
+        for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+            if (!isLocalOnly(account)) {
+                continue;
+            }
+            clearLocalOnly(account, false);
             try {
-                org.telegram.tgnet.ConnectionsManager.native_resumeNetwork(resume.get(i), false);
+                org.telegram.tgnet.ConnectionsManager.native_resumeNetwork(account, false);
             } catch (Throwable e) {
                 FileLog.e(e);
             }
@@ -72,29 +57,80 @@ public final class PengramLocalKeep {
 
     /**
      * Сессия отозвана. Возвращает true, если аккаунт надо оставить локальной
-     * копией: пользователь остаётся «в» аккаунте, читает кэш, но сеть для него
-     * выключена — иначе каждый запрос падал бы с 401 и засыпал интерфейс
-     * ошибками.
+     * копией. Маркер привязан к слоту и сохраняется между перезапусками, чтобы
+     * запуск приложения не возобновлял сеть для отозванной сессии.
      */
     public static boolean keepRevokedAccount(int account) {
-        if (!isEnabled()) {
+        if (!isEnabled() || account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT
+                || UserConfig.getInstance(account).getClientUserId() == 0) {
             return false;
         }
-        synchronized (localOnly) {
-            if (localOnly.contains(account)) return true;
+        PengramConfig.setBool(localOnlyKey(account), true);
+        try {
+            org.telegram.tgnet.ConnectionsManager.native_pauseNetwork(account);
+            notifyLocalOnlyChanged(account);
+            return true;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            clearLocalOnly(account, false);
+            return false;
+        }
+    }
+
+    /** Re-apply the native network pause after process restart/native re-init. */
+    public static boolean restoreLocalOnlyNetwork(int account) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return false;
+        }
+        if (!isEnabled()) {
+            clearLocalOnly(account, false);
+            return false;
+        }
+        if (!isLocalOnly(account) || UserConfig.getInstance(account).getClientUserId() == 0) {
+            return false;
+        }
+        try {
+            org.telegram.tgnet.ConnectionsManager.native_pauseNetwork(account);
+            return true;
+        } catch (Throwable e) {
+            FileLog.e(e);
+            return false;
+        }
+    }
+
+    /** Clear the marker when the slot is intentionally logged out or reused. */
+    public static void clearLocalOnly(int account, boolean resumeNetwork) {
+        if (account < 0 || account >= UserConfig.MAX_ACCOUNT_COUNT) {
+            return;
+        }
+        PengramConfig.setBool(localOnlyKey(account), false);
+        if (resumeNetwork) {
             try {
-                org.telegram.tgnet.ConnectionsManager.native_pauseNetwork(account);
-                localOnly.add(account);
-                return true;
+                org.telegram.tgnet.ConnectionsManager.native_resumeNetwork(account, false);
             } catch (Throwable e) {
                 FileLog.e(e);
-                return false;
             }
         }
+        notifyLocalOnlyChanged(account);
+    }
+
+    /** Compatibility overload for account-reset call sites that must not resume a revoked session. */
+    public static void clearLocalOnly(int account) {
+        clearLocalOnly(account, false);
     }
 
     /** аккаунт работает только с локальными данными */
     public static boolean isLocalOnly(int account) {
-        synchronized (localOnly) { return localOnly.contains(account); }
+        return account >= 0 && account < UserConfig.MAX_ACCOUNT_COUNT
+                && PengramConfig.getBool(localOnlyKey(account), false);
+    }
+
+    private static void notifyLocalOnlyChanged(int account) {
+        try {
+            NotificationCenter.getInstance(account)
+                    .postNotificationName(NotificationCenter.didUpdateConnectionState);
+        } catch (Throwable e) {
+            FileLog.e(e);
+        }
     }
 }

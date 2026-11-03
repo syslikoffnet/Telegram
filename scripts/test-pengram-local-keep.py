@@ -20,6 +20,10 @@ settings = (java / 'org/telegram/ui/PengramSettingsActivity.java').read_text()
 storage = (java / 'org/telegram/messenger/MessagesStorage.java').read_text()
 history = (java / 'org/telegram/messenger/PengramHistory.java').read_text()
 chat = (java / 'org/telegram/ui/ChatActivity.java').read_text()
+push = (java / 'org/telegram/messenger/PushListenerController.java').read_text()
+user_config = (java / 'org/telegram/messenger/UserConfig.java').read_text()
+avatar = (root / 'TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAvatarContainer.java').read_text()
+dialogs_ui = (root / 'TMessagesProj/src/main/java/org/telegram/ui/DialogsActivity.java').read_text()
 en = (root / 'TMessagesProj/src/main/res/values/strings.xml').read_text()
 ru = (root / 'TMessagesProj/src/main/res/values-ru/strings.xml').read_text()
 
@@ -31,13 +35,21 @@ assert 'public static boolean keepDeletedMessages()' in keep
 assert 'public static boolean keepRevokedAccount(int account)' in keep
 assert 'ConnectionsManager.native_pauseNetwork(account)' in keep
 assert 'public static boolean isLocalOnly(int account)' in keep
+assert 'KEY_LOCAL_ONLY_PREFIX = "localOnlyRevokedAccount_"' in keep
+assert 'PengramConfig.setBool(localOnlyKey(account), true)' in keep
+assert 'public static boolean restoreLocalOnlyNetwork(int account)' in keep
+assert 'PengramConfig.getBool(localOnlyKey(account), false)' in keep
 assert 'phone' not in keep.lower()                              # номер не трогаем
 assert 'sendRequest' not in keep                                # и в сеть не ходим
 
 # --- бан/выход: диалог остаётся, чат копируется в собственную базу ----------
 import re
-assert messages.count('PengramLocalKeep.keepDialog()') == 4
 assert messages.count('getMessagesStorage().pengramArchiveDialog(dialog.id);') == 2
+assert 'PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE' in messages
+assert messages.count('PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE') == 3
+assert 'PengramLocalKeep.isLocalOnly(currentAccount) && !fromCache' in messages
+assert 'fromCache = true;\n            queryFromServer = false;' in messages
+assert 'Specialized views such as pinned history normally bypass fromCache' in messages
 assert messages.count('deleteDialog(dialog.id, 0);') == 2
 # каждая бан/кик-ветка: при включённой локальной копии — полная копия чата
 # в собственную базу, иначе — штатное удаление диалога
@@ -65,7 +77,11 @@ assert 'keepInChat(currentAccount, deletedDialogId, ids)' in chat
 assert 'saveDeletedSnapshot(currentAccount, deletedDialogId, obj.messageOwner)' in chat
 assert 'markDeleted(currentAccount, deletedDialogId, keptIds)' in chat
 assert 'PengramLocalKeep.isLocalOnly(currentAccount)' in connections
-assert 'native_resumeNetwork(resume.get(i), false)' in keep
+assert 'native_resumeNetwork(account, false)' in keep
+assert 'PengramLocalKeep.restoreLocalOnlyNetwork(currentAccount);' in connections
+assert 'clearLocalOnly(currentAccount);' in user_config
+assert 'ConnectionsManager.onLogout(accountFinal)' in push
+assert 'UserConfig.getInstance(accountFinal).clearConfig();' not in push
 assert 'public static boolean keepInChat(int account, long dialogId' in history
 assert 'PengramLocalKeep.keepDeletedMessages() || shouldKeep(account, dialogId, ids)' in history
 assert 'public static boolean marksEnabled(int account)' in history
@@ -76,6 +92,12 @@ assert 'PengramHistory.marksEnabled(currentAccount)' in chat
 assert 'notifyMarksChanged' in history
 assert 'PengramHistory.addChangeListener(pengramMarksListener)' in chat
 assert 'PengramHistory.removeChangeListener(pengramMarksListener)' in chat
+# The offline snapshot is visible/read-only in the account title and chat surface.
+assert 'R.string.PengramOfflineCopy' in dialogs_ui
+assert 'R.string.PengramOfflineCopy' in avatar
+assert 'R.string.PengramOfflineCopy' in chat
+assert 'PengramLocalKeep.isLocalOnly(currentAccount)' in avatar
+assert 'PengramLocalKeep.isLocalOnly(currentAccount)' in chat
 # явное «удалить у себя» сильнее локальной копии
 assert 'userDeletedGuard.containsKey(guardKey(account, dialogId, id))' in history
 assert 'account + ":" + dialogId + ":" + messageId' in history
@@ -96,7 +118,7 @@ assert 'PengramHistory.notifyMarksChanged()' in settings
 assert 'getString(R.string.PengramLocalKeepHeader)' in settings
 assert 'getString(R.string.PengramLocalKeepInfo)' in settings
 for locale, text in (('en', en), ('ru', ru)):
-    for key in ('PengramLocalKeepHeader', 'PengramLocalKeep', 'PengramLocalKeepInfo'):
+    for key in ('PengramLocalKeepHeader', 'PengramLocalKeep', 'PengramLocalKeepInfo', 'PengramOfflineCopy'):
         assert 'name="%s"' % key in text, (locale, key)
 
 print('local copy: ban keeps dialog, server deletions keep messages, '

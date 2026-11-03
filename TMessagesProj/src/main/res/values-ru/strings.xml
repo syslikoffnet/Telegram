@@ -2520,4 +2520,5 @@
     <string name="PengramTrackInfoGenreLabel">Жанр</string>
     <string name="PengramTrackInfoQualityLabel">Качество</string>
     <string name="PengramTrackInfoSourceLabel">Источник</string>
+    <string name="PengramOfflineCopy">Офлайн-копия</string>
 </resources>

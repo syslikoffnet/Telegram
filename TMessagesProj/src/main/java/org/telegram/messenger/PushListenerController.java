@@ -267,12 +267,9 @@ public class PushListenerController {
                             return;
                         }
                         case "SESSION_REVOKE": {
-                            AndroidUtilities.runOnUIThread(() -> {
-                                if (UserConfig.getInstance(accountFinal).getClientUserId() != 0) {
-                                    UserConfig.getInstance(accountFinal).clearConfig();
-                                    MessagesController.getInstance(accountFinal).performLogout(0);
-                                }
-                            });
+                            // Share the same revocation path as a native auth failure:
+                            // local-copy mode must preserve account/history instead of clearing the slot.
+                            AndroidUtilities.runOnUIThread(() -> ConnectionsManager.onLogout(accountFinal));
                             countDownLatch.countDown();
                             return;
                         }

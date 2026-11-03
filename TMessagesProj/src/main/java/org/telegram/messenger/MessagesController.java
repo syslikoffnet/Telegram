@@ -11705,6 +11705,11 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void loadMessagesInternal(long dialogId, long mergeDialogId, boolean loadInfo, int count, int max_id, int offset_date, boolean fromCache, int minDate, int classGuid, int load_type, int last_message_id, int mode, long threadMessageId, int loadIndex, int first_unread, int unread_count, int last_date, boolean queryFromServer, int mentionsCount, boolean loadDialog, boolean processMessages, boolean isTopic, Timer loaderLogger, long hash) {
+        if (PengramLocalKeep.isLocalOnly(currentAccount)) {
+            // Keep every history page on the local SQLite snapshot after session revocation.
+            fromCache = true;
+            queryFromServer = false;
+        }
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("load messages in chat " + dialogId + " topic_id " + threadMessageId + " count " + count + " max_id " + max_id + " cache " + fromCache + " mindate = " + minDate + " guid " + classGuid + " load_type " + load_type + " last_message_id " + last_message_id + " mode " + mode + " index " + loadIndex + " firstUnread " + first_unread + " unread_count " + unread_count + " last_date " + last_date + " queryFromServer " + queryFromServer + " isTopic " + isTopic);
         }
@@ -11712,6 +11717,9 @@ public class MessagesController extends BaseController implements NotificationCe
             loaderLogger = new Timer("MessageLoaderLogger dialogId=" + dialogId + " index=" + loadIndex + " count=" + count);
         }
         if ((threadMessageId == 0 || isTopic || mode == ChatActivity.MODE_SUGGESTIONS || mode == ChatActivity.MODE_SAVED || mode == ChatActivity.MODE_QUICK_REPLIES || mode == ChatActivity.MODE_WELCOME_MESSAGES) && mode != ChatActivity.MODE_PINNED && (fromCache || DialogObject.isEncryptedDialog(dialogId))) {
+            getMessagesStorage().getMessages(dialogId, mergeDialogId, loadInfo, count, max_id, offset_date, minDate, classGuid, load_type, mode, threadMessageId, loadIndex, processMessages, isTopic, loaderLogger);
+        } else if (PengramLocalKeep.isLocalOnly(currentAccount)) {
+            // Specialized views such as pinned history normally bypass fromCache; do not issue RPCs offline.
             getMessagesStorage().getMessages(dialogId, mergeDialogId, loadInfo, count, max_id, offset_date, minDate, classGuid, load_type, mode, threadMessageId, loadIndex, processMessages, isTopic, loaderLogger);
         } else {
             final TLRPC.Chat chat = dialogId < 0 ? getChat(-dialogId): null;
@@ -12654,6 +12662,11 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void loadDialogs(final int folderId, int offset, int count, boolean fromCache, Runnable onEmptyCallback) {
+        if (PengramLocalKeep.isLocalOnly(currentAccount) && !fromCache) {
+            loadingDialogs.put(folderId, false);
+            getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+            return;
+        }
         if (loadingDialogs.get(folderId) || resetingDialogs) {
             return;
         }
@@ -13595,7 +13608,8 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 if (message.peer_id.channel_id != 0) {
                     TLRPC.Chat chat = chatsDict.get(message.peer_id.channel_id);
-                    if (chat != null && chat.left && (promoDialogId == 0 || promoDialogId != -chat.id)) {
+                    if (chat != null && chat.left && (promoDialogId == 0 || promoDialogId != -chat.id)
+                            && !(PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE)) {
                         continue;
                     }
                 } else if (message.peer_id.chat_id != 0) {
@@ -13712,14 +13726,17 @@ public class MessagesController extends BaseController implements NotificationCe
                         if (!chat.megagroup) {
                             allowCheck = false;
                         }
-                        if (ChatObject.isNotInChat(chat) && (promoDialogId == 0 || promoDialogId != d.id)) {
+                        if (ChatObject.isNotInChat(chat) && (promoDialogId == 0 || promoDialogId != d.id)
+                                && !(PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE)) {
                             continue;
                         }
                     }
                     channelsPts.put(-d.id, d.pts);
                 } else if (DialogObject.isChatDialog(d.id)) {
                     TLRPC.Chat chat = chatsDict.get(-d.id);
-                    if (chat != null && (chat.migrated_to != null || ChatObject.isNotInChat(chat))) {
+                    if (chat != null && (chat.migrated_to != null
+                            || ChatObject.isNotInChat(chat)
+                            && !(PengramLocalKeep.keepDialog() && loadType == DIALOGS_LOAD_TYPE_CACHE))) {
                         continue;
                     }
                 }
