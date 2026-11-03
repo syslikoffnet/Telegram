@@ -865,6 +865,7 @@
     <string name="PengramLocalKeepHeader">Локальная копия</string>
     <string name="PengramLocalKeep">Хранить чаты и историю на устройстве</string>
     <string name="PengramLocalKeepInfo">Если вас убрали из группы или чат стал недоступен, он остаётся в списке и открывается только на чтение — со всем, что уже было скачано. Удалённые на сервере сообщения остаются в переписке, а отозванная сессия больше не выкидывает из аккаунта: он продолжает работать офлайн как локальная копия. Ничего никуда не отправляется.</string>
+    <string name="PengramOfflineCopy">Офлайн-копия · только чтение</string>
     <string name="PengramMentionsHeader">Упоминания</string>
     <string name="PengramMentionName">Упоминать по имени долгим нажатием</string>
     <string name="PengramMentionNameInfo">В списке «@…» зажмите человека — вставится имя, под которым он записан у вас в контактах, со скрытой сущностью упоминания. @юзернейм в тексте не появляется, а упомянуть можно и тех, у кого юзернейма нет.</string>
@@ -2520,5 +2521,4 @@
     <string name="PengramTrackInfoGenreLabel">Жанр</string>
     <string name="PengramTrackInfoQualityLabel">Качество</string>
     <string name="PengramTrackInfoSourceLabel">Источник</string>
-    <string name="PengramOfflineCopy">Офлайн-копия</string>
 </resources>

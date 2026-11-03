@@ -11901,6 +11901,7 @@
     <string name="PengramLocalKeepHeader">Local copy</string>
     <string name="PengramLocalKeep">Keep chats and history on the device</string>
     <string name="PengramLocalKeepInfo">If you are removed from a group or a chat becomes unavailable, it stays in the list and opens read-only with everything already downloaded. Messages deleted on the server stay in the chat, and a revoked session no longer signs you out: the account keeps working offline as a local copy. Nothing is sent anywhere.</string>
+    <string name="PengramOfflineCopy">Offline copy · read only</string>
     <string name="PengramMentionsHeader">Mentions</string>
     <string name="PengramMentionName">Mention by name on long press</string>
     <string name="PengramMentionNameInfo">In the @ list, long-press a person to insert the name they are saved under in your contacts, with a hidden mention attached. Their @username stays out of the text, and people without a username can be mentioned too.</string>
@@ -13793,5 +13794,4 @@
     <string name="PengramTrackInfoGenreLabel">Genre</string>
     <string name="PengramTrackInfoQualityLabel">Quality</string>
     <string name="PengramTrackInfoSourceLabel">Source</string>
-    <string name="PengramOfflineCopy">Offline copy</string>
 </resources>
